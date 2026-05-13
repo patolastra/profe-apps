@@ -416,6 +416,8 @@
         .lw-drawer-hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
         .lw-plan-course-title { font-size: 1.05rem; font-weight: 900; color: var(--warning); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px; padding-bottom: 5px; border-bottom: 1px solid rgba(201,151,26,.25); }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../../supabase/config.js"></script>
 </head>
 <body>
 
@@ -671,6 +673,76 @@
 </div>
 
 <script>
+    // ============================================================
+    // SUPABASE
+    // ============================================================
+    let sbClient = null;
+    let contextosPorNombre = {};
+
+    (function initSupabase() {
+        try {
+            sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+            sbClient.from('contextos').select('id, nombre').eq('activo', true)
+                .then(({ data }) => {
+                    (data || []).forEach(c => { contextosPorNombre[c.nombre] = c; });
+                });
+        } catch (e) { console.warn('Supabase no disponible:', e); }
+    })();
+
+    async function supabaseSync(fullRecord, timestamp, dataSnapshot) {
+        if (!sbClient) return;
+        try {
+            const fecha = new Date(timestamp).toISOString().split('T')[0];
+
+            for (const course of (dataSnapshot || [])) {
+                const nombre = (course.curso || '').toUpperCase();
+                const contexto = contextosPorNombre[nombre];
+                if (!contexto) continue;
+
+                // Encontrar o crear sesión
+                let { data: sesion } = await sbClient
+                    .from('sesiones').select('id')
+                    .eq('contexto_id', contexto.id).eq('fecha', fecha).maybeSingle();
+                if (!sesion) {
+                    const { data: nueva, error: errSesion } = await sbClient
+                        .from('sesiones').insert({ contexto_id: contexto.id, fecha }).select('id').single();
+                    if (errSesion) throw errSesion;
+                    sesion = nueva;
+                }
+
+                // Guardar pendientes (excluir revision)
+                for (const [catId, items] of Object.entries(course.categories || {})) {
+                    if (catId === 'revision') continue;
+                    for (const item of (items || [])) {
+                        const texto = (item.text || item.texto || '').trim();
+                        if (!texto) continue;
+                        await sbClient.from('pendientes').insert({
+                            contexto_id:  contexto.id,
+                            sesion_id:    sesion.id,
+                            categoria:    catId,
+                            texto,
+                            fecha_captura: new Date(timestamp).toISOString()
+                        });
+                    }
+                }
+            }
+
+            // Guardar registro completo en sesiones_srp
+            await sbClient.from('sesiones_srp').insert({
+                fixture_name:    fullRecord.fixture_name,
+                raw_fixtures:    fullRecord.raw_fixtures,
+                original_parse:  fullRecord.original_parse,
+                expected_output: fullRecord.expected_output,
+                timestamp_ms:    timestamp
+            });
+
+            showToast('☁️ Guardado en Supabase');
+        } catch (e) {
+            console.warn('Supabase sync error:', e);
+            showToast('⚠️ Sin conexión — guardado local');
+        }
+    }
+
     // ============================================================
     // ORDEN DE CURSOS (horario semanal: L-M-W-J, GENERAL siempre al final)
     const COURSE_ORDER = [
@@ -2327,11 +2399,21 @@
         content.innerHTML = '<div class="lw-empty">Cargando...</div>';
         matContent.innerHTML = '';
 
+        // Fecha de la sesión seleccionada en el Panel
+        const dates = lwGetWeekDates(lwWeekOffset);
+        const dateObj = dates[lwSelectedDay];
+        const fecha = dateObj ? dateObj.toISOString().split('T')[0] : null;
+
+        // Pendientes: Supabase (sesión específica) con fallback a IndexedDB
+        const sbPends = await lwGetPendientesSupabase(courseName, fecha);
+        // Revisión y medios: siempre desde IndexedDB (historial local)
         const latest = await lwGetLatest(courseName);
         content.innerHTML = '';
 
         // Sala
-        const salaItems = latest?.categories?.pendientes_sala || [];
+        const salaItems = sbPends
+            ? sbPends.sala.map(t => ({ text: t }))
+            : (latest?.categories?.pendientes_sala || []);
         const salaEl = document.createElement('div');
         salaEl.innerHTML = '<div class="lw-section-label">🎵 Para esta clase</div>';
         if (salaItems.length) {
@@ -2345,7 +2427,7 @@
         content.appendChild(salaEl);
         const lwSep = document.createElement('hr'); lwSep.className = 'lw-section-sep'; content.appendChild(lwSep);
 
-        // Revisión
+        // Revisión — siempre desde IndexedDB
         const revEl = document.createElement('div');
         if (latest?.revision) {
             const dateStr = latest._ts ? new Date(latest._ts).toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long' }) : (latest.fecha || '');
@@ -2357,7 +2439,7 @@
         }
         content.appendChild(revEl);
 
-        // Fotos y videos adjuntos
+        // Medios — siempre desde IndexedDB (blobs locales)
         const mediaItems = latest?._media || [];
         if (mediaItems.length) {
             const lwSep2 = document.createElement('hr'); lwSep2.className = 'lw-section-sep'; content.appendChild(lwSep2);
@@ -2380,8 +2462,10 @@
             content.appendChild(mediaEl);
         }
 
-        // Materiales (oculto)
-        const matItems = latest?.categories?.pendientes_materiales || [];
+        // Materiales (pull-down) — Supabase si hay datos, IndexedDB como respaldo
+        const matItems = sbPends
+            ? sbPends.materiales.map(t => ({ text: t }))
+            : (latest?.categories?.pendientes_materiales || []);
         if (matItems.length) {
             matItems.forEach(item => {
                 const c = document.createElement('div'); c.className = 'lw-item-card'; c.textContent = item.text;
@@ -2607,6 +2691,30 @@
     }
 
     // ── Data helpers ──────────────────────────────────────────
+    async function lwGetPendientesSupabase(courseName, fecha) {
+        if (!sbClient || !fecha) return null;
+        const ctx = contextosPorNombre[courseName.toUpperCase()];
+        if (!ctx) return null;
+        try {
+            const { data: sesion } = await sbClient
+                .from('sesiones').select('id')
+                .eq('contexto_id', ctx.id).eq('fecha', fecha).maybeSingle();
+            if (!sesion) return null;
+            const { data: pends } = await sbClient
+                .from('pendientes').select('categoria, texto')
+                .eq('sesion_id', sesion.id);
+            const result = { sala: [], materiales: [], planificacion: [] };
+            (pends || []).forEach(p => {
+                if (p.categoria === 'pendientes_sala') result.sala.push(p.texto);
+                else if (p.categoria === 'pendientes_materiales') result.materiales.push(p.texto);
+                else if (p.categoria === 'pendientes_planificacion') result.planificacion.push(p.texto);
+            });
+            return result;
+        } catch(e) {
+            console.warn('Supabase pendientes error:', e);
+            return null;
+        }
+    }
     function lwAllHistorial() {
         return new Promise(res => {
             if (!db) { res([]); return; }
@@ -3163,7 +3271,8 @@ Categorías vacías: array vacío [].`;
 
             // 3. Descargar JSON con los tres artefactos vinculados + subir a Drive si está configurado
             downloadExpectedOutput(fullRecord);
-            uploadToDrive(fullRecord); // no bloquea — fallo silencioso con toast
+            uploadToDrive(fullRecord);    // no bloquea — fallo silencioso con toast
+            supabaseSync(fullRecord, timestamp, dataSnapshot); // no bloquea — fallo silencioso
 
             // 4. Limpiar bandeja: eliminar ítems EN PROCESO exitosos + todos los medios; conservar el resto
             const failedIds = new Set(procErrors.filter(e => e.itemId).map(e => e.itemId));

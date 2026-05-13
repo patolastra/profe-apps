@@ -96,6 +96,8 @@ Tablas relevantes para SRP:
 
 **RLS habilitado pero permisivo** — todas las tablas tienen `USING (true) WITH CHECK (true)`. Cualquiera con la anon key puede leer y escribir. Esto es intencional mientras no haya auth. **No endurecer las políticas RLS hasta que exista un sistema de auth real** — hacerlo antes rompe el acceso de la app.
 
+**Decisión de diseño — audio blobs:** se descartan después de transcribir. El audio cumple su función al generar el texto; no se guarda en Supabase Storage ni en el historial. Solo el texto transcrito y el JSON parseado van a Supabase. Las fotos y videos sí se conservan (ya se guardan como blob en `historial`).
+
 **Próximo paso de integración:** reemplazar IndexedDB en `mobile_ui/index.html` por Supabase. Las grabaciones en bandeja se mantienen local (offline-first), se sincronizan al guardar.
 
 ### La app mobile (producción)
@@ -348,7 +350,7 @@ Notas técnicas sobre el estado real del sistema (actualizar a medida que se cor
 - **`ContractValidator`** — No valida el contrato real. Necesita reescritura completa.
 - **`DriftClassifier`** — Mayormente vacío. Solo detecta `structural_drift`. Sin detección semántica real.
 - **Expected outputs** — Son el activo más confiable del proyecto. Fuente de verdad principal.
-- **Bug foto/video en save** — Corregido (2026-05-13). Línea ~3168 de `mobile_ui/index.html`.
+- **Comportamiento de medios al guardar (línea ~3283)** — Al guardar, se eliminan TODOS los photos/videos de `grabaciones` (no solo los del lote procesado). Es intencional: se guardan en `historial` vía `mediaSnapshot` antes de ese paso. No modificar sin entender el flujo completo.
 - **Sin auth actualmente** — `mobile_ui/index.html` es accesible a cualquiera con la URL. La API key de Gemini la ingresa el usuario manualmente y se guarda en `localStorage` del dispositivo. No construir nada que asuma autenticación.
 - **Google Drive backup** — Overlay implementado en la Bitácora. Usa una URL de Google Apps Script (web app desplegado por el profesor) guardada en `localStorage` (`drive_endpoint_url`). Sube el JSON del historial automáticamente al guardar. No eliminarlo ni modificarlo sin entender el flujo completo.
 
