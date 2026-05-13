@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Metalófono Virtual Pro - Réplica Real</title>
+    <script src="https://unpkg.com/tone"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <style>
+        :root {
+            --case-green: #2ecc71;
+            --dark-green: #27ae60;
+        }
+        body { 
+            font-family: Arial, sans-serif; 
+            background: #1e1e26; color: white; margin: 0; 
+            display: flex; flex-direction: column; align-items: center;
+            overflow-x: hidden;
+        }
+        
+        #ui-panel {
+            background: rgba(0,0,0,0.8); padding: 15px; border-radius: 0 0 15px 15px;
+            width: 90%; max-width: 600px; z-index: 100;
+        }
+
+        #prep-section { display: none; margin-top: 10px; border-top: 1px solid #444; }
+
+        canvas { background: #1a1a1d; width: 100%; height: 40vh; cursor: crosshair; }
+
+        /* Estructura del Metalófono */
+        #case {
+            background: var(--case-green);
+            padding: 30px 20px;
+            border-radius: 30px 30px 10px 10px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.3);
+            position: relative;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .row { display: flex; justify-content: center; position: relative; }
+        .row.top { height: 110px; margin-bottom: 20px; }
+
+        .key {
+            position: relative;
+            border-radius: 3px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 11px;
+            color: rgba(0,0,0,0.6);
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.4);
+            transition: transform 0.05s, brightness 0.1s;
+        }
+
+        /* Tornillos de las teclas */
+        .key::before, .key::after {
+            content: ''; position: absolute; width: 8px; height: 8px;
+            background: radial-gradient(circle, #ddd, #777);
+            border-radius: 50%; left: 50%; transform: translateX(-50%);
+        }
+        .key::before { top: 10px; } .key::after { bottom: 10px; }
+
+        .key span { transform: rotate(0deg); text-align: center; pointer-events: none; }
+
+        /* Estilos específicos filas */
+        .natural { width: 45px; margin: 0 2px; height: 160px; }
+        .sharp { background: #222; color: white; width: 42px; height: 110px; position: absolute; }
+        
+        .active { 
+            transform: scale(0.95) translateY(5px); 
+            filter: brightness(1.5) saturate(1.5);
+            box-shadow: 0 0 20px gold;
+        }
+
+        /* Colores según imagen */
+        .c-A { background: #9b59b6; } .c-B { background: #3498db; }
+        .c-C { background: #2980b9; } .c-D { background: #2ecc71; }
+        .c-E { background: #f1c40f; } .c-F { background: #e67e22; }
+        .c-G { background: #e74c3c; }
+
+        #countdown {
+            position: fixed; top: 50%; font-size: 120px; color: gold;
+            font-weight: bold; pointer-events: none; opacity: 0; z-index: 200;
+        }
+
+        .bubble {
+            display: inline-block; padding: 5px 10px; margin: 5px;
+            border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid white;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="countdown"></div>
+
+    <div id="ui-panel">
+        <label>Subir MIDI: </label> <input type="file" id="midi-in" accept=".mid,.midi">
+        
+        <div id="prep-section">
+            <h4 style="margin:10px 0 5px">Notas que vas a usar:</h4>
+            <div id="notes-needed"></div>
+            <div style="margin: 10px 0">
+                <label>Tempo (BPM): <span id="bpm-val">120</span></label><br>
+                <input type="range" id="tempo" min="30" max="200" value="120" style="width:100%">
+            </div>
+            <button id="play-btn" style="width:100%; padding:10px; background:#e74c3c; border:none; color:white; font-weight:bold; border-radius:5px; cursor:pointer">¡EMPEZAR A TOCAR!</button>
+        </div>
+    </div>
+
+    <canvas id="falling-notes"></canvas>
+
+    <div id="case">
+        <!-- Las teclas se generarán aquí -->
+        <div id="sharp-row" class="row top"></div>
+        <div id="natural-row" class="row"></div>
+    </div>
+
+    <script>
+        const notesLayout = [
+            { n: "A4", c: "c-A", t: "A<br>La" }, { n: "B4", c: "c-B", t: "B<br>Si" },
+            { n: "C5", c: "c-C", t: "C<br>Do" }, { n: "D5", c: "c-D", t: "D<br>Re" },
+            { n: "E5", c: "c-E", t: "E<br>Mi" }, { n: "F5", c: "c-F", t: "F<br>Fa" },
+            { n: "G5", c: "c-G", t: "G<br>Sol" }, { n: "A5", c: "c-A", t: "A<br>La" },
+            { n: "B5", c: "c-B", t: "B<br>Si" }, { n: "C6", c: "c-C", t: "C<br>Do" },
+            { n: "D6", c: "c-D", t: "D<br>Re" }, { n: "E6", c: "c-E", t: "E<br>Mi" },
+            { n: "F6", c: "c-F", t: "F<br>Fa" }, { n: "G6", c: "c-G", t: "G<br>Sol" },
+            { n: "A6", c: "c-A", t: "A<br>La" }
+        ];
+
+        const sharps = [
+            { n: "A#4", offset: 1 }, { n: "C#5", offset: 3 }, { n: "D#5", offset: 4 },
+            { n: "F#5", offset: 6 }, { n: "G#5", offset: 7 }, { n: "A#5", offset: 8 },
+            { n: "C#6", offset: 10 }, { n: "D#6", offset: 11 }, { n: "F#6", offset: 13 },
+            { n: "G#6", offset: 14 }
+        ];
+
+        const synth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "triangle" },
+            envelope: { attack: 0.005, decay: 0.2, sustain: 0.1, release: 1 }
+        }).toDestination();
+        
+        const tick = new Tone.MembraneSynth().toDestination();
+
+        const keysMap = {};
+        let midiData = null;
+        let notesToDraw = [];
+
+        // Generar Interfaz de Metalófono
+        function initInstrument() {
+            const natRow = document.getElementById('natural-row');
+            const sharpRow = document.getElementById('sharp-row');
+
+            notesLayout.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = `key natural ${item.c}`;
+                div.innerHTML = `<span>${item.t}</span>`;
+                natRow.appendChild(div);
+                keysMap[item.n] = { el: div, x: div.offsetLeft };
+            });
+
+            sharps.forEach(item => {
+                const div = document.createElement('div');
+                div.className = `key sharp`;
+                div.style.left = (keysMap[notesLayout[item.offset].n].x - 22) + "px";
+                div.innerHTML = `<span>${item.n.replace('#','♯')}<br>#</span>`;
+                sharpRow.appendChild(div);
+                keysMap[item.n] = { el: div };
+            });
+        }
+
+        // MIDI processing
+        document.getElementById('midi-in').onchange = e => {
+            const reader = new FileReader();
+            reader.onload = async event => {
+                midiData = new Midi(event.target.result);
+                analyze();
+                document.getElementById('prep-section').style.display = "block";
+            };
+            reader.readAsArrayBuffer(e.target.files[0]);
+        };
+
+        function analyze() {
+            const used = new Set();
+            const track = midiData.tracks[0]; // Solo primera pista para limpieza
+            track.notes.forEach(n => { if(keysMap[n.name]) used.add(n.name); });
+            
+            const container = document.getElementById('notes-needed');
+            container.innerHTML = "";
+            Array.from(used).sort().forEach(n => {
+                const span = document.createElement('div');
+                span.className = "bubble";
+                span.style.background = keysMap[n].el.style.backgroundColor || "black";
+                span.innerText = n;
+                span.onclick = () => {
+                    synth.triggerAttackRelease(n, "4n");
+                    keysMap[n].el.classList.add('active');
+                    setTimeout(() => keysMap[n].el.classList.remove('active'), 200);
+                };
+                container.appendChild(span);
+            });
+        }
+
+        function play() {
+            Tone.Transport.stop(); Tone.Transport.cancel();
+            notesToDraw = [];
+            const offset = Tone.Time("1m").toSeconds();
+
+            // Precuenta
+            for(let i=0; i<4; i++){
+                Tone.Transport.schedule(t => {
+                    tick.triggerAttackRelease(i===0 ? "C5":"C4", "8n", t);
+                    Tone.Draw.schedule(() => {
+                        const count = document.getElementById('countdown');
+                        count.innerText = i+1; count.style.opacity = 1;
+                        setTimeout(() => count.style.opacity = 0, 400);
+                    }, t);
+                }, i * (60/Tone.Transport.bpm.value));
+            }
+
+            // Programar Melodía
+            midiData.tracks[0].notes.forEach(note => {
+                if(keysMap[note.name]){
+                    const t = note.time + offset;
+                    notesToDraw.push({
+                        n: note.name, t, d: note.duration, 
+                        x: keysMap[note.name].el.offsetLeft + keysMap[note.name].el.parentElement.offsetLeft
+                    });
+
+                    Tone.Transport.schedule(time => {
+                        synth.triggerAttackRelease(note.name, note.duration, time);
+                        Tone.Draw.schedule(() => {
+                            keysMap[note.name].el.classList.add('active');
+                            setTimeout(() => keysMap[note.name].el.classList.remove('active'), 100);
+                        }, time);
+                    }, t);
+                }
+            });
+            Tone.Transport.start();
+        }
+
+        const canvas = document.getElementById('falling-notes');
+        const ctx = canvas.getContext('2d');
+        function render() {
+            canvas.width = window.innerWidth;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const now = Tone.Transport.seconds;
+            const speed = 150;
+
+            notesToDraw.forEach(note => {
+                const dist = (note.t - now) * speed;
+                const y = (canvas.height - 20) - dist;
+                if(y > -200 && y < canvas.height + 100){
+                    ctx.fillStyle = getComputedStyle(keysMap[note.n].el).backgroundColor;
+                    const h = note.d * speed;
+                    // Dibujar nota cayendo
+                    ctx.beginPath();
+                    ctx.roundRect(note.x, y - h, 40, h, 5);
+                    ctx.fill();
+                    ctx.strokeStyle = "white"; ctx.stroke();
+                }
+            });
+            requestAnimationFrame(render);
+        }
+
+        document.getElementById('play-btn').onclick = async () => {
+            if(Tone.context.state !== 'running') await Tone.start();
+            play();
+        };
+
+        document.getElementById('tempo').oninput = e => {
+            document.getElementById('bpm-val').innerText = e.target.value;
+            Tone.Transport.bpm.value = e.target.value;
+        };
+
+        initInstrument();
+        render();
+    </script>
+</body>
+</html>

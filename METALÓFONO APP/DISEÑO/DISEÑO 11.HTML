@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Metalófono Pro - Contraste Mejorado</title>
+    <style>
+        :root {
+            /* Cambio a un Verde Bosque Profundo para diferenciar del Re */
+            --green-case: #489c6b; 
+            --dark-bg: #111116;
+            --gold: #f1c40f;
+            --orange: #e67e22;
+            /* Colores de las notas (Mantenido el Re en #2ecc71) */
+            --c-A: #9b59b6; 
+            --c-B: #add8e6; 
+            --c-C: #2980b9; 
+            --c-D: #2ecc71; 
+            --c-E: #f1c40f; 
+            --c-F: #e67e22; 
+            --c-G: #e74c3c;
+        }
+
+        * { box-sizing: border-box; user-select: none; font-family: 'Segoe UI', sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: var(--dark-bg); overflow: hidden; }
+
+        header {
+            height: 70px; 
+            background: #1c1c22; 
+            border-bottom: 2px solid #333;
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            padding: 0 25px;
+            color: white; 
+            z-index: 1000;
+        }
+
+        .ctrl-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tempo-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 5px 12px;
+            border-radius: 8px;
+        }
+
+        .btn-step {
+            padding: 5px 10px !important;
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .bpm-slider {
+            width: 100px;
+            cursor: pointer;
+            accent-color: var(--orange);
+        }
+
+        .bpm-display {
+            width: 45px;
+            height: 30px;
+            background: #000;
+            border: 1px solid #444;
+            color: var(--gold);
+            text-align: center;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            font-size: 16px;
+            outline: none;
+        }
+
+        button {
+            padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold;
+            cursor: pointer; background: #3d3d45; color: white; transition: 0.15s;
+            white-space: nowrap;
+        }
+        button:hover { background: #4d4d57; }
+        .btn-play { background: var(--orange); }
+
+        #viewport { 
+            display: flex; 
+            flex-direction: column; 
+            height: calc(100vh - 70px); 
+        }
+
+        #roll-zone { 
+            height: 50%; 
+            width: 100%; 
+            position: relative; 
+            background: #08080a; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #tour-overlay {
+            position: absolute; 
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85); 
+            padding: 18px; 
+            border-radius: 12px;
+            border: 2px solid var(--gold); 
+            color: white; 
+            text-align: center; 
+            min-width: 320px; 
+            z-index: 2000;
+        }
+
+        #btn-tour-next {
+            background: var(--gold); 
+            color: black; 
+            margin-top: 8px; 
+            width: 100%;
+        }
+
+        @keyframes pop { 
+            from { transform: scale(1); } 
+            to { transform: scale(1.05); box-shadow: 0 5px 25px var(--gold); } 
+        }
+        .animate-pop { animation: pop 0.5s infinite alternate ease-in-out; }
+
+        #case {
+            height: 50%; 
+            width: 100%; 
+            background: var(--green-case);
+            padding: 10px; 
+            display: flex; 
+            flex-direction: column; 
+            position: relative;
+            box-shadow: inset 0 10px 40px rgba(0,0,0,0.3);
+            gap: 4px; 
+        }
+
+        .row { 
+            display: grid; 
+            width: 100%; 
+            height: 50%; 
+            grid-template-columns: repeat(15, 1fr); 
+            gap: 4px; 
+        }
+
+        #sharp-row { align-items: stretch; } 
+        #natural-row { align-items: stretch; }
+
+        .key {
+            border-radius: 6px; 
+            position: relative;
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center;
+            box-shadow: 2px 5px 10px rgba(0,0,0,0.4); 
+            color: rgba(0,0,0,0.8); 
+            font-weight: bold;
+        }
+
+        .key span { 
+            font-size: 1.2vw; 
+            text-align: center; 
+            line-height: 1.2; 
+            font-weight: 800; 
+        }
+
+        .natural { grid-column: span 1; height: 100%; }
+
+        .sharp { 
+            grid-column: span 1; 
+            height: 100%; 
+            background: #222 !important; 
+            color: #fff !important; 
+            z-index: 10; 
+            margin-left: 50%; 
+            width: 100%;     
+        }
+
+        .sharp-spacer { grid-column: span 1; }
+
+        .key::before, .key::after { 
+            content: ''; 
+            position: absolute; 
+            width: 10px; 
+            height: 10px; 
+            background: radial-gradient(circle, #fff, #999); 
+            border-radius: 50%; 
+            left: 50%; 
+            transform: translateX(-50%); 
+        }
+        .key::before { top: 12%; } 
+        .key::after { bottom: 12%; }
+
+        .A { background: var(--c-A); } .B { background: var(--c-B); } .C { background: var(--c-C); }
+        .D { background: var(--c-D); } .E { background: var(--c-E); } .F { background: var(--c-F); } 
+        .G { background: var(--c-G); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="ctrl-group">
+            <button>📁 Nuevo MIDI</button>
+            <button>🎓 Iniciar Tour</button>
+        </div>
+        
+        <div class="ctrl-group">
+            <button>🔤 Cambiar Cifrado</button>
+            <button>🎨 Cambiar Colores</button>
+        </div>
+        
+        <div class="ctrl-group">
+            <div class="tempo-wrapper">
+                <button class="btn-step">-</button>
+                <input type="range" class="bpm-slider" min="40" max="240" value="120">
+                <button class="btn-step">+</button>
+                <input type="text" class="bpm-display" maxlength="3" readonly>
+            </div>
+            <button class="btn-play">▶ REPRODUCIR</button>
+        </div>
+
+        <div class="ctrl-group">
+            <button>PANTALLA COMPLETA</button>
+        </div>
+    </header>
+
+    <div id="viewport">
+        <div id="roll-zone">
+            <div id="tour-overlay">
+                <div id="tour-txt">PASO 1: Descubrimiento de Notas</div>
+                <button id="btn-tour-next" class="animate-pop">Iniciar Tour (0/0)</button>
+            </div>
+        </div>
+
+        <div id="case">
+            <div id="sharp-row" class="row">
+                <div class="key sharp"><span>A#<br>La#</span></div>
+                <div class="sharp-spacer"></div>
+                <div class="key sharp"><span>C#<br>Do#</span></div>
+                <div class="key sharp"><span>D#<br>Re#</span></div>
+                <div class="sharp-spacer"></div>
+                <div class="key sharp"><span>F#<br>Fa#</span></div>
+                <div class="key sharp"><span>G#<br>Sol#</span></div>
+                <div class="key sharp"><span>A#<br>La#</span></div>
+                <div class="sharp-spacer"></div>
+                <div class="key sharp"><span>C#<br>Do#</span></div>
+                <div class="key sharp"><span>D#<br>Re#</span></div>
+                <div class="sharp-spacer"></div>
+                <div class="key sharp"><span>F#<br>Fa#</span></div>
+                <div class="key sharp"><span>G#<br>Sol#</span></div>
+                <div class="sharp-spacer"></div>
+            </div>
+
+            <div id="natural-row" class="row">
+                <div class="key natural A"><span>A<br>La</span></div>
+                <div class="key natural B"><span>B<br>Si</span></div>
+                <div class="key natural C"><span>C<br>Do</span></div>
+                <div class="key natural D"><span>D<br>Re</span></div>
+                <div class="key natural E"><span>E<br>Mi</span></div>
+                <div class="key natural F"><span>F<br>Fa</span></div>
+                <div class="key natural G"><span>G<br>Sol</span></div>
+                <div class="key natural A"><span>A<br>La</span></div>
+                <div class="key natural B"><span>B<br>Si</span></div>
+                <div class="key natural C"><span>C<br>Do</span></div>
+                <div class="key natural D"><span>D<br>Re</span></div>
+                <div class="key natural E"><span>E<br>Mi</span></div>
+                <div class="key natural F"><span>F<br>Fa</span></div>
+                <div class="key natural G"><span>G<br>Sol</span></div>
+                <div class="key natural A"><span>A<br>La</span></div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

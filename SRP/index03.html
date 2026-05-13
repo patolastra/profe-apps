@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SRP - Registro y Planificación</title>
+    <style>
+        :root {
+            --bg: #000000;
+            --card: #141414;
+            --text: #ffffff;
+            --accent: #4a9eff;
+            --danger: #ff3b30;
+            --success: #34c759;
+            --gray: #2c2c2e;
+            --text-dim: #8e8e93;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden; 
+        }
+
+        #viewport {
+            width: 100%;
+            height: 200%; 
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: translateY(0);
+        }
+
+        .view {
+            width: 100%;
+            height: 50%; 
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            padding: 30px; /* Más aire en los bordes */
+        }
+
+        /* --- VISTA CAPTURA --- */
+        #capture-view {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        #hit-area {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1;
+        }
+
+        .status-indicator {
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .record-icon {
+            font-size: 100px; /* Más grande */
+            margin-bottom: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        .recording .record-icon {
+            color: var(--danger);
+            transform: scale(1.1);
+            animation: pulse 1.5s infinite;
+        }
+
+        .paused .record-icon {
+            color: var(--accent);
+            transform: scale(1);
+        }
+
+        #status-text {
+            font-weight: 900;
+            font-size: 2rem; /* Más grande */
+            letter-spacing: -1px;
+        }
+
+        #hint-text {
+            font-size: 1.1rem;
+            color: var(--text-dim);
+            margin-top: 15px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        #capture-controls {
+            position: absolute;
+            bottom: 80px;
+            display: flex;
+            z-index: 3;
+            width: 100%;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        #capture-controls.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .btn-finish { 
+            background: var(--success); 
+            border: none;
+            color: white;
+            padding: 20px 60px;
+            border-radius: 40px;
+            font-weight: 800;
+            font-size: 1.2rem;
+            box-shadow: 0 10px 30px rgba(52, 199, 89, 0.3);
+        }
+
+        /* --- VISTA BANDEJA --- */
+        #inbox-view {
+            background: #000;
+            overflow-y: auto;
+            padding-top: 20px;
+        }
+
+        .inbox-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .day-title {
+            color: var(--accent);
+            font-size: 1.2rem; /* Más grande */
+            font-weight: 800;
+            text-transform: capitalize; /* "Lunes..." */
+            border-bottom: 1px solid #222;
+            padding-bottom: 10px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .audio-card {
+            background: var(--card);
+            border-radius: 20px; /* Más redondeado */
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column; /* Apilado para dar espacio al reproductor */
+            gap: 15px;
+        }
+
+        .audio-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .audio-time { 
+            font-size: 1rem; 
+            font-weight: 600;
+            color: var(--text-dim); 
+        }
+        
+        audio {
+            height: 45px;
+            width: 100%; /* Reproductor completo */
+            filter: invert(1) hue-rotate(180deg) brightness(1.5);
+        }
+
+        .delete-btn {
+            background: #222;
+            border: none;
+            color: var(--danger);
+            font-size: 1.5rem;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="viewport">
+        <!-- VISTA CAPTURA (SUPERIOR) -->
+        <section id="capture-view" class="view">
+            <div id="hit-area"></div>
+            
+            <div class="status-indicator">
+                <div id="record-icon" class="record-icon">🎤</div>
+                <div id="status-text">LISTO</div>
+                <div id="hint-text">Toca para grabar</div>
+            </div>
+
+            <div id="capture-controls">
+                <button id="finish-btn" class="btn-finish">FINALIZAR</button>
+            </div>
+        </section>
+
+        <!-- VISTA BANDEJA (INFERIOR) -->
+        <section id="inbox-view" class="view">
+            <div class="inbox-header">
+                <div style="color: var(--accent); font-weight: bold; font-size: 0.9rem;" onclick="scrollToCapture()">▲ GRABAR</div>
+                <h2 style="margin: 0; font-size: 1.5rem; font-weight: 900;">BANDEJA</h2>
+                <div style="width: 60px;"></div>
+            </div>
+
+            <div id="entry-list">
+                <!-- Se llena dinámicamente -->
+            </div>
+        </section>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let db;
+        let isRecording = false;
+
+        // --- NAVEGACIÓN SWIPE ---
+        let touchStartY = 0;
+        const viewport = document.getElementById('viewport');
+
+        window.addEventListener('touchstart', e => touchStartY = e.touches[0].clientY);
+        window.addEventListener('touchend', e => {
+            const touchEndY = e.changedTouches[0].clientY;
+            const diff = touchStartY - touchEndY;
+            if (diff > 80) scrollToInbox(); 
+            if (diff < -80) scrollToCapture(); 
+        });
+
+        function scrollToInbox() { viewport.style.transform = 'translateY(-50%)'; }
+        function scrollToCapture() { viewport.style.transform = 'translateY(0)'; }
+
+        // --- INICIALIZACIÓN DB ---
+        const request = indexedDB.open("SRP_VozDB", 1);
+        request.onupgradeneeded = (e) => {
+            db = e.target.result;
+            db.createObjectStore("grabaciones", { keyPath: "id", autoIncrement: true });
+        };
+        request.onsuccess = (e) => {
+            db = e.target.result;
+            renderRecordings();
+        };
+
+        // --- LÓGICA DE GRABACIÓN ---
+        const hitArea = document.getElementById('hit-area');
+        const recordIcon = document.getElementById('record-icon');
+        const statusText = document.getElementById('status-text');
+        const hintText = document.getElementById('hint-text');
+        const captureView = document.getElementById('capture-view');
+        const captureControls = document.getElementById('capture-controls');
+        const finishBtn = document.getElementById('finish-btn');
+
+        hitArea.addEventListener('click', toggleRecording);
+
+        async function toggleRecording() {
+            if (!isRecording) {
+                startRecording();
+            } else {
+                togglePause();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/ogg; codecs=opus' });
+                    await saveRecording(audioBlob);
+                    renderRecordings();
+                    resetUI();
+                };
+                mediaRecorder.start();
+                isRecording = true;
+                updateUI('recording');
+            } catch (err) {
+                alert("Micro no disponible.");
+            }
+        }
+
+        function togglePause() {
+            if (mediaRecorder.state === 'recording') {
+                mediaRecorder.pause();
+                updateUI('paused');
+            } else if (mediaRecorder.state === 'paused') {
+                mediaRecorder.resume();
+                updateUI('recording');
+            }
+        }
+
+        finishBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            stopRecording();
+        });
+
+        function stopRecording() {
+            if(mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                isRecording = false;
+            }
+        }
+
+        function updateUI(state) {
+            if (state === 'recording') {
+                captureView.className = 'view recording';
+                recordIcon.innerText = '🔴';
+                statusText.innerText = 'GRABANDO';
+                hintText.innerText = 'Toca para pausar';
+                captureControls.classList.add('visible');
+            } else if (state === 'paused') {
+                captureView.className = 'view paused';
+                recordIcon.innerText = '⏸️';
+                statusText.innerText = 'PAUSADO';
+                hintText.innerText = 'Toca para reanudar';
+            }
+        }
+
+        function resetUI() {
+            captureView.className = 'view';
+            recordIcon.innerText = '🎤';
+            statusText.innerText = 'LISTO';
+            hintText.innerText = 'Toca para grabar';
+            captureControls.classList.remove('visible');
+        }
+
+        // --- MIGRACIÓN Y FALLBACK DE METADATA ---
+        function getSafeMetadata(item) {
+            // Intentar recuperar timestamp de varias versiones
+            let ts = item.timestamp;
+            if (!ts && item.dateRaw) ts = new Date(item.dateRaw).getTime();
+            if (!ts) ts = Date.now();
+
+            const d = new Date(ts);
+            
+            return {
+                time: item.timeStr || d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                group: item.dateGroup || d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+                stamp: ts
+            };
+        }
+
+        // --- CRUD & BANDEJA ---
+        async function saveRecording(blob) {
+            const transaction = db.transaction(["grabaciones"], "readwrite");
+            const store = transaction.objectStore("grabaciones");
+            const now = new Date();
+            store.add({
+                blob: blob,
+                timestamp: now.getTime(),
+                timeStr: now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                dateGroup: now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+            });
+        }
+
+        function renderRecordings() {
+            const list = document.getElementById('entry-list');
+            list.innerHTML = '';
+            
+            const store = db.transaction("grabaciones", "readonly").objectStore("grabaciones");
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                // Ordenar por fecha usando el fallback seguro
+                const grabaciones = request.result.sort((a,b) => {
+                    const metaA = getSafeMetadata(a);
+                    const metaB = getSafeMetadata(b);
+                    return metaB.stamp - metaA.stamp;
+                });
+                
+                let currentGroup = "";
+                
+                grabaciones.forEach(item => {
+                    const meta = getSafeMetadata(item);
+
+                    if (meta.group !== currentGroup) {
+                        currentGroup = meta.group;
+                        const header = document.createElement('div');
+                        header.className = 'day-title';
+                        header.innerText = currentGroup;
+                        list.appendChild(header);
+                    }
+
+                    const url = URL.createObjectURL(item.blob);
+                    const card = document.createElement('div');
+                    card.className = 'audio-card';
+                    card.innerHTML = `
+                        <div class="audio-card-top">
+                            <span class="audio-time">${meta.time}</span>
+                            <button class="delete-btn" onclick="deleteRec(${item.id})">✕</button>
+                        </div>
+                        <audio controls src="${url}"></audio>
+                    `;
+                    list.appendChild(card);
+                });
+            };
+        }
+
+        function deleteRec(id) {
+            if (confirm("¿Eliminar esta nota?")) {
+                const transaction = db.transaction(["grabaciones"], "readwrite");
+                transaction.objectStore("grabaciones").delete(id);
+                transaction.oncomplete = () => renderRecordings();
+            }
+        }
+    </script>
+</body>
+</html>

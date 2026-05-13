@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metalófono Pro - Motor de Sincronización Musical</title>
+    <script src="https://unpkg.com/tone"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <style>
+        :root {
+            --green-case: #2ecc71;
+            --dark-bg: #0f0f12;
+            --gold: #f1c40f;
+            --orange: #e67e22;
+            --metal-white: #ffffff;
+            --shadow: rgba(0,0,0,0.5);
+        }
+
+        * { box-sizing: border-box; user-select: none; }
+        body, html { 
+            margin: 0; padding: 0; width: 100vw; height: 100vh; 
+            background: var(--dark-bg); overflow: hidden;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+        }
+
+        /* Pantalla 1: Carga */
+        #loading-screen {
+            position: fixed; inset: 0; background: #16161a; z-index: 5000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: white; transition: opacity 0.5s;
+        }
+        .loader-card {
+            background: #23232b; padding: 50px; border-radius: 25px;
+            text-align: center; border: 4px solid var(--green-case);
+            box-shadow: 0 10px 40px var(--shadow);
+        }
+
+        /* Barra Superior */
+        header {
+            height: 70px; background: #1a1a1f; border-bottom: 2px solid #333;
+            display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+            color: white; z-index: 1000;
+        }
+        .ctrl-group { display: flex; align-items: center; gap: 15px; }
+        .tempo-container { display: flex; flex-direction: column; align-items: center; min-width: 180px; font-size: 11px; }
+        
+        button {
+            padding: 10px 18px; border: none; border-radius: 8px; font-weight: bold;
+            cursor: pointer; background: #3a3a42; color: white; transition: 0.2s;
+        }
+        button:hover:not(:disabled) { background: #4a4a52; transform: translateY(-1px); }
+        button:active:not(:disabled) { transform: translateY(1px); }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn-main { background: var(--orange); }
+        .btn-main.playing { background: #e74c3c; }
+
+        /* Estructura Principal */
+        #main-wrapper { display: flex; flex-direction: column; height: calc(100vh - 70px); visibility: hidden; }
+
+        /* Zona 1: Piano Roll (50%) */
+        #piano-roll { height: 50%; width: 100%; position: relative; background: #000; overflow: hidden; }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* Zona 2: Metalófono (50%) */
+        #instrument-case {
+            height: 50%; width: 100%; background: var(--green-case);
+            position: relative; padding: 20px; display: flex; flex-direction: column;
+            box-shadow: inset 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        /* El Grid del Metalófono - 30 columnas para alineación perfecta */
+        .key-row {
+            display: grid; width: 100%; height: 50%; 
+            grid-template-columns: repeat(30, 1fr);
+            gap: 4px; align-items: stretch;
+        }
+
+        .key {
+            border-radius: 6px; position: relative;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 3px 6px 10px rgba(0,0,0,0.4);
+            transition: transform 0.1s, filter 0.3s, background 0.1s;
+        }
+        
+        /* Regla de Placas Identicas */
+        .key-nat { grid-column: span 2; height: 100%; background: #ecf0f1; }
+        .key-shp { 
+            grid-column: span 2; height: 100%; 
+            background: #222 !important; color: white !important; z-index: 5;
+            margin-left: 50%; /* Desfase exacto para el hueco */
+        }
+        .spacer { grid-column: span 1; pointer-events: none; }
+
+        /* Tornillos */
+        .key::before, .key::after {
+            content: ''; position: absolute; width: 10px; height: 10px;
+            background: radial-gradient(circle, #fff, #999); border-radius: 50%;
+            left: 50%; transform: translateX(-50%);
+        }
+        .key::before { top: 10%; } .key::after { bottom: 10%; }
+
+        /* Etiquetas horizontales */
+        .key span { font-weight: 800; font-size: 14px; text-align: center; color: #333; pointer-events: none; }
+        .key-shp span { color: white; }
+
+        /* Estados Visuales */
+        .is-grayscale { filter: grayscale(1) opacity(0.5) brightness(0.8); }
+        .is-discovered { filter: none !important; opacity: 1 !important; background: var(--orange) !important; color: white !important; }
+        .is-discovered span { color: white !important; }
+
+        .is-target {
+            filter: none !important; opacity: 1 !important;
+            background: var(--gold) !important; color: black !important;
+            animation: popping 0.5s infinite alternate cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 50;
+        }
+        @keyframes popping {
+            from { transform: scale(1) translateY(0); }
+            to { transform: scale(1.15) translateY(-5px); box-shadow: 0 10px 20px var(--gold); }
+        }
+
+        /* Brillo al impacto real */
+        .hit { 
+            background: #fff !important; transform: scale(0.9) translateY(10px) !important;
+            box-shadow: 0 0 35px #fff !important; filter: brightness(1.3) !important; 
+        }
+
+        /* Colores réplica */
+        .c-A { background: #9b59b6; } .c-B { background: #3498db; } .c-C { background: #2980b9; } 
+        .c-D { background: #2ecc71; } .c-E { background: #f1c40f; } .c-F { background: #e67e22; } .c-G { background: #e74c3c; }
+
+        /* Overlays UI */
+        #tour-ui {
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.85); padding: 20px; border-radius: 15px;
+            border: 3px solid var(--gold); color: white; text-align: center;
+            min-width: 320px; z-index: 2000;
+        }
+        #countdown-txt {
+            position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 15vw; font-weight: 900; color: white; z-index: 3000; 
+            opacity: 0; pointer-events: none; text-shadow: 0 0 40px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <div class="loader-card">
+            <h2>Metalófono Interactivo</h2>
+            <p>Sube un archivo MIDI para configurar la lección</p>
+            <input type="file" id="midi-upload" accept=".mid,.midi">
+        </div>
+    </div>
+
+    <header>
+        <div class="ctrl-group">
+            <button id="change-midi" onclick="location.reload()">📁 Cambiar MIDI</button>
+            <button id="restart-tour">🎓 Tour de Notas</button>
+        </div>
+
+        <div class="ctrl-group">
+            <button id="btn-play-stop" class="btn-main">▶ REPRODUCIR</button>
+            <div class="tempo-container">
+                <label>TEMPO: <span id="val-bpm">100</span> BPM</label>
+                <input type="range" id="bpm-slider" min="40" max="180" value="100" style="width: 150px;">
+            </div>
+        </div>
+
+        <button onclick="toggleFS()">PANTALLA COMPLETA</button>
+    </header>
+
+    <div id="countdown-txt"></div>
+
+    <div id="main-wrapper">
+        <div id="piano-roll">
+            <div id="tour-ui" style="display: none;">
+                <div id="tour-msg">PASO 1: Descubre las notas</div>
+                <button id="btn-next-step" style="background: var(--gold); color: #000; margin-top: 10px; width: 100%;">Iniciar (0/0)</button>
+            </div>
+            <canvas id="canvas-blocks"></canvas>
+        </div>
+
+        <div id="instrument-case">
+            <div id="row-shp" class="key-row" style="margin-bottom: 5px;"></div>
+            <div id="row-nat" class="key-row"></div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * LÓGICA DE NEGOCIO Y MOTOR MUSICAL
+         */
+        const SYNC_BPM_CONST = 240; // Relación visual: 240 pixeles por beat en el tiempo musical
+
+        const INSTRUMENT_SCHEMA = {
+            natural: [
+                {n:"A4", c:"c-A", t:"A La"}, {n:"B4", c:"c-B", t:"B Si"}, {n:"C5", c:"c-C", t:"C Do"},
+                {n:"D5", c:"c-D", t:"D Re"}, {n:"E5", c:"c-E", t:"E Mi"}, {n:"F5", c:"c-F", t:"F Fa"},
+                {n:"G5", c:"c-G", t:"G Sol"}, {n:"A5", c:"c-A", t:"A La"}, {n:"B5", c:"c-B", t:"B Si"},
+                {n:"C6", c:"c-C", t:"C Do"}, {n:"D6", c:"c-D", t:"D Re"}, {n:"E6", c:"c-E", t:"E Mi"},
+                {n:"F6", c:"c-F", t:"F Fa"}, {n:"G6", c:"c-G", t:"G Sol"}, {n:"A6", c:"c-A", t:"A La"}
+            ],
+            accidental: ["A#4", "sp", "C#5", "D#5", "sp", "F#5", "G#5", "A#5", "sp", "C#6", "D#6", "sp", "F#6", "G#6", "sp"]
+        };
+
+        const KEY_OBJECTS = {};
+        const synths = {
+            melody: new Tone.PolySynth(Tone.Synth, { oscillator: { type: "triangle" }, envelope: { attack: 0.005, decay: 0.3, sustain: 0.1, release: 1 } }).toDestination(),
+            woodblock: new Tone.MembraneSynth({ pitchDecay: 0.001, envelope: { attack: 0.0001, decay: 0.05, sustain: 0 } }).toDestination()
+        };
+
+        let midiData = null;
+        let tourNotes = [];
+        let tourIndex = -1;
+        let playState = 'STOPPED'; // STOPPED, PLAYING
+        let activeMelodyNotes = [];
+
+        // --- CONSTRUCTOR UI ---
+
+        function initInstrument() {
+            const rowNat = document.getElementById('row-nat');
+            const rowShp = document.getElementById('row-shp');
+
+            INSTRUMENT_SCHEMA.natural.forEach(note => {
+                const div = document.createElement('div');
+                div.className = `key key-nat ${note.c}`;
+                div.innerHTML = `<span>${note.t.replace(' ', '<br>')}</span>`;
+                div.onmousedown = () => hitPhysicalKey(note.n);
+                rowNat.appendChild(div);
+                KEY_OBJECTS[note.n] = { el: div, x: 0, w: 0 };
+            });
+
+            INSTRUMENT_SCHEMA.accidental.forEach(id => {
+                if (id === "sp") {
+                    const sp = document.createElement('div');
+                    sp.className = "spacer";
+                    rowShp.appendChild(sp);
+                } else {
+                    const div = document.createElement('div');
+                    div.className = "key key-shp";
+                    div.innerHTML = `<span>${id.replace('#', '♯')}</span>`;
+                    div.onmousedown = () => hitPhysicalKey(id);
+                    rowShp.appendChild(div);
+                    KEY_OBJECTS[id] = { el: div, x: 0, w: 0 };
+                }
+            });
+            updateMetrics();
+        }
+
+        function updateMetrics() {
+            for (let n in KEY_OBJECTS) {
+                const r = KEY_OBJECTS[n].el.getBoundingClientRect();
+                KEY_OBJECTS[n].x = r.left + r.width / 2;
+                KEY_OBJECTS[n].w = r.width;
+            }
+        }
+
+        async function hitPhysicalKey(note, duration = "4n") {
+            if (Tone.context.state !== 'running') await Tone.start();
+            synths.melody.triggerAttackRelease(note, duration);
+            const key = KEY_OBJECTS[note].el;
+            key.classList.add('hit');
+            setTimeout(() => key.classList.remove('hit'), 150);
+        }
+
+        // --- LÓGICA MIDI ---
+
+        document.getElementById('midi-upload').onchange = (e) => {
+            const reader = new FileReader();
+            reader.onload = async event => {
+                midiData = new Midi(event.target.result);
+                const uniqueSet = new Set();
+                midiData.tracks[0].notes.forEach(n => { if (KEY_OBJECTS[n.name]) uniqueSet.add(n.name); });
+                tourNotes = Array.from(uniqueSet).sort();
+                
+                document.getElementById('loading-screen').style.opacity = '0';
+                setTimeout(() => document.getElementById('loading-screen').style.display = 'none', 500);
+                document.getElementById('main-wrapper').style.visibility = 'visible';
+                
+                startTourMode();
+            };
+            reader.readAsArrayBuffer(e.target.files[0]);
+        };
+
+        // --- MODO TOUR ---
+
+        function startTourMode() {
+            stopPlayback();
+            tourIndex = -1;
+            document.getElementById('tour-ui').style.display = 'block';
+            for (let n in KEY_OBJECTS) KEY_STORE_STYLE(n, 'TOUR');
+            
+            const btn = document.getElementById('btn-next-step');
+            btn.innerText = `Iniciar Tour (0/${tourNotes.length})`;
+            btn.onclick = advanceTour;
+            document.getElementById('tour-msg').innerText = "PASO 1: Reconocimiento de Notas";
+        }
+
+        function KEY_STORE_STYLE(note, mode) {
+            const el = KEY_OBJECTS[note].el;
+            el.classList.remove('is-grayscale', 'is-target', 'is-discovered');
+            if (mode === 'TOUR') el.classList.add('is-grayscale');
+        }
+
+        function advanceTour() {
+            if (Tone.context.state !== 'running') Tone.start();
+
+            if (tourIndex >= 0) {
+                KEY_OBJECTS[tourNotes[tourIndex]].el.classList.replace('is-target', 'is-discovered');
+            }
+
+            tourIndex++;
+            if (tourIndex < tourNotes.length) {
+                const note = tourNotes[tourIndex];
+                KEY_OBJECTS[note].el.classList.add('is-target');
+                hitPhysicalKey(note);
+                document.getElementById('btn-next-step').innerText = `Siguiente (${tourIndex+1}/${tourNotes.length})`;
+            } else {
+                document.getElementById('tour-msg').innerText = "¡Notas aprendidas!";
+                document.getElementById('btn-next-step').innerText = "FINALIZAR TOUR";
+                document.getElementById('btn-next-step').onclick = () => {
+                    document.getElementById('tour-ui').style.display = 'none';
+                    for (let n in KEY_OBJECTS) KEY_OBJECTS[n].el.classList.remove('is-grayscale', 'is-discovered', 'is-target');
+                };
+            }
+        }
+
+        // --- MOTOR DE REPRODUCCIÓN ---
+
+        function togglePlayback() {
+            if (playState === 'PLAYING') stopPlayback();
+            else startPlayback();
+        }
+
+        function stopPlayback() {
+            Tone.Transport.stop();
+            Tone.Transport.cancel();
+            playState = 'STOPPED';
+            isPlaying = false;
+            toggleInputs(true);
+            const btn = document.getElementById('btn-play-stop');
+            btn.innerText = '▶ REPRODUCIR';
+            btn.classList.remove('playing');
+        }
+
+        async function startPlayback() {
+            await Tone.start();
+            playState = 'PLAYING';
+            toggleInputs(false);
+            const btn = document.getElementById('btn-play-stop');
+            btn.innerText = '⏹ DETENER';
+            btn.classList.add('playing');
+            document.getElementById('tour-ui').style.display = 'none';
+
+            // Sync de Tempo
+            const bpm = document.getElementById('bpm-slider').value;
+            Tone.Transport.bpm.value = bpm;
+            const measureOffset = Tone.Time("1m").toSeconds();
+
+            activeMelodyNotes = [];
+            midiData.tracks[0].notes.forEach(note => {
+                if (KEY_OBJECTS[note.name]) {
+                    const startT = note.time + measureOffset;
+                    activeMelodyNotes.push({ n: note.name, t: startT, d: note.duration });
+                    
+                    Tone.Transport.schedule(time => {
+                        hitPhysicalKey(note.name, note.duration);
+                    }, startT);
+                }
+            });
+
+            // Precuenta Sincronizada
+            for (let i = 0; i < 4; i++) {
+                Tone.Transport.schedule(time => {
+                    synths.woodblock.triggerAttack(i === 0 ? 1100 : 800, time);
+                    Tone.Draw.schedule(() => {
+                        const cnt = document.getElementById('countdown-txt');
+                        cnt.innerText = i + 1;
+                        cnt.style.opacity = '1';
+                        // El 4 desaparece al empezar (i+1 === 4)
+                        setTimeout(() => { if(i<3) cnt.style.opacity = '1'; else cnt.style.opacity = '0'; }, (60000/bpm)*0.9);
+                    }, time);
+                }, i * (60 / bpm));
+            }
+
+            Tone.Transport.start();
+            isPlaying = true;
+        }
+
+        function toggleInputs(enabled) {
+            document.getElementById('bpm-slider').disabled = !enabled;
+            document.getElementById('change-midi').disabled = !enabled;
+            document.getElementById('restart-tour').disabled = !enabled;
+        }
+
+        // --- ANIMACIÓN ---
+
+        const canvas = document.getElementById('canvas-blocks');
+        const ctx = canvas.getContext('2d');
+
+        function drawLoop() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (isPlaying) {
+                const transportTime = Tone.Transport.seconds;
+                const bpm = Tone.Transport.bpm.value;
+                const pixelsPerSecond = (bpm / 60) * SYNC_BPM_CONST;
+
+                activeMelodyNotes.forEach(note => {
+                    // Posición absoluta en relación al tiempo musical
+                    // Y = Destino - (TiempoRestante * PixelesSeg)
+                    const yHit = canvas.height;
+                    const yPos = yHit - (note.t - transportTime) * pixelsPerSecond;
+
+                    if (yPos > -500 && yPos < canvas.height + 100) {
+                        const k = KEY_OBJECTS[note.n];
+                        ctx.fillStyle = getComputedStyle(k.el).backgroundColor;
+                        const blockHeight = note.d * pixelsPerSecond;
+                        
+                        ctx.beginPath();
+                        ctx.roundRect(k.x - k.w/2 + 5, yPos - blockHeight, k.w - 10, blockHeight, 8);
+                        ctx.fill();
+                        ctx.strokeStyle = "rgba(255,255,255,0.6)";
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                });
+            }
+            requestAnimationFrame(drawLoop);
+        }
+
+        // --- UTILIDADES ---
+
+        document.getElementById('btn-play-stop').onclick = togglePlayback;
+        document.getElementById('restart-tour').onclick = startTourMode;
+        document.getElementById('bpm-slider').oninput = e => {
+            document.getElementById('val-bpm').innerText = e.target.value;
+            if(isPlaying) Tone.Transport.bpm.value = e.target.value;
+        };
+
+        function toggleFS() {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else document.exitFullscreen();
+        }
+
+        window.onload = () => { initInstrument(); drawLoop(); };
+        window.onresize = () => { updateMetrics(); };
+    </script>
+</body>
+</html>

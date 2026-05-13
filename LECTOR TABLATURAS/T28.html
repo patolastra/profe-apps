@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador Tablatura - Etapa 27</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #222; color: white; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; overflow-x: hidden; }
+        .controls { background: #333; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); display: flex; gap: 15px; align-items: center; width: 95%; justify-content: center; flex-wrap: wrap; }
+        canvas { background: #fff; border-radius: 5px; box-shadow: 0 0 20px rgba(0,0,0,0.5); cursor: crosshair; }
+        button { padding: 10px 20px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; transition: 0.2s; }
+        #btnPlay { background: #27ae60; color: white; }
+        #btnPause { background: #c0392b; color: white; }
+        .btn-loop { background: #3498db; color: white; }
+        .btn-active { background: #e67e22 !important; box-shadow: 0 0 10px #e67e22; }
+        button:hover { opacity: 0.8; }
+        .time-info { font-family: monospace; font-size: 1.2rem; min-width: 120px; }
+        input[type="file"] { color: #ccc; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <input type="file" id="fileInput" accept=".xml,.musicxml,.mxl">
+        <button id="btnPlay">PLAY</button>
+        <button id="btnPause">PAUSE</button>
+        <button id="btnLoopStart" class="btn-loop">SET LOOP START</button>
+        <button id="btnLoopEnd" class="btn-loop">SET LOOP END</button>
+        <div class="time-info" id="timeDisplay">0.00s</div>
+    </div>
+
+    <canvas id="tabCanvas"></canvas>
+
+<script>
+    // --- CONFIGURACIÓN Y ESTADO ---
+    const SCALE = 100; 
+    const ZOOM_X = 1.4; 
+    const UNIT = SCALE * ZOOM_X; 
+    const TARGET_X_PCT = 0.2; 
+    const STRING_SPACING = 40;
+    const NOTE_RADIUS = UNIT * 0.16; 
+    const GUITAR_OPEN_STRINGS = [64, 59, 55, 50, 45, 40];
+    const START_Y = 100;
+    const BOUNCE_HEIGHT = 30; 
+    const START_OFFSET = 1.5; 
+
+    const fretPadding = UNIT * 0.2;
+    const fretTop = START_Y - fretPadding;
+    const fretBottom = START_Y + (5 * STRING_SPACING) + fretPadding;
+
+    let notes = [];
+    let currentTime = 0;
+    let previousTime = 0; 
+    let isPlaying = false;
+    let lastTimestamp = 0;
+    let ballY = 0; 
+    
+    let beatsPerMeasure = 4;
+    let currentBPM = 120;
+
+    let loopActive = false;
+    let selectingLoopStart = false;
+    let selectingLoopEnd = false;
+    let loopStartTime = 0;
+    let loopEndTime = 0;
+
+    // ETAPA 27: Variables de precuenta musical
+    let precountPhase = 0; 
+    let precountStartTime = 0;
+    let endOfMeasureTime = 0;
+
+    const canvas = document.getElementById('tabCanvas');
+    const ctx = canvas.getContext('2d');
+    const timeDisplay = document.getElementById('timeDisplay');
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth * 0.95;
+        canvas.height = 400;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    document.getElementById('btnPlay').onclick = () => isPlaying = true;
+    document.getElementById('btnPause').onclick = () => isPlaying = false;
+
+    function getX(time) {
+        const targetX = canvas.width * TARGET_X_PCT;
+        return targetX + (time - currentTime) * SCALE * ZOOM_X;
+    }
+
+    document.getElementById('btnLoopStart').onclick = (e) => {
+        isPlaying = false; loopActive = false; precountPhase = 0;
+        selectingLoopStart = true; selectingLoopEnd = false;
+        e.target.classList.add('btn-active');
+        document.getElementById('btnLoopEnd').classList.remove('btn-active');
+    };
+    document.getElementById('btnLoopEnd').onclick = (e) => {
+        isPlaying = false; loopActive = false; precountPhase = 0;
+        selectingLoopEnd = true; selectingLoopStart = false;
+        e.target.classList.add('btn-active');
+        document.getElementById('btnLoopStart').classList.remove('btn-active');
+    };
+
+    canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const targetX = canvas.width * TARGET_X_PCT;
+
+        if (!selectingLoopStart && !selectingLoopEnd) { loopActive = false; precountPhase = 0; return; }
+
+        let closestNote = null, minDist = Infinity;
+        for (const note of notes) {
+            const noteX = targetX + (note.time - currentTime) * SCALE * ZOOM_X;
+            const dist = Math.abs(clickX - noteX);
+            if (dist < minDist && dist < NOTE_RADIUS * 2) { minDist = dist; closestNote = note; }
+        }
+
+        if (selectingLoopStart && closestNote) {
+            loopStartTime = closestNote.time;
+            selectingLoopStart = false;
+            document.getElementById('btnLoopStart').classList.remove('btn-active');
+        } 
+        else if (selectingLoopEnd && closestNote) {
+            if (closestNote.time > loopStartTime) {
+                loopEndTime = closestNote.time;
+                loopActive = true;
+                precountPhase = 0;
+                currentTime = loopStartTime;
+                previousTime = loopStartTime - 0.001;
+                resetNotesHitStatus();
+            }
+            selectingLoopEnd = false;
+            document.getElementById('btnLoopEnd').classList.remove('btn-active');
+        }
+    });
+
+    function resetNotesHitStatus() { notes.forEach(n => { if (n.time >= loopStartTime) n.hit = false; }); }
+
+    // --- MANEJO DE ARCHIVOS ---
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        let xmlText = "";
+        if (file.name.endsWith('.mxl')) {
+            const zip = await JSZip.loadAsync(file);
+            const xmlFile = Object.keys(zip.files).find(name => name.endsWith('.xml') && !name.includes('container.xml'));
+            xmlText = await zip.files[xmlFile].async("string");
+        } else { xmlText = await file.text(); }
+        const parser = new DOMParser();
+        parseMusicXML(parser.parseFromString(xmlText, "text/xml"));
+    });
+
+    function parseMusicXML(xmlDoc) {
+        const extractedNotes = [];
+        let divisions = 1, elapsedSeconds = 0;
+        const measures = xmlDoc.getElementsByTagName('measure');
+        for (let i = 0; i < measures.length; i++) {
+            const measure = measures[i];
+            const attr = measure.getElementsByTagName('attributes')[0];
+            if (attr) {
+                const divNode = attr.getElementsByTagName('divisions')[0];
+                if (divNode) divisions = parseInt(divNode.textContent);
+                const timeNode = attr.getElementsByTagName('time')[0];
+                if (timeNode) beatsPerMeasure = parseInt(timeNode.getElementsByTagName('beats')[0].textContent) || 4;
+            }
+            const sound = measure.getElementsByTagName('sound')[0];
+            if (sound && sound.getAttribute('tempo')) currentBPM = parseFloat(sound.getAttribute('tempo'));
+
+            const children = Array.from(measure.children);
+            for (const node of children) {
+                if (node.nodeName === 'note') {
+                    const isChord = node.getElementsByTagName('chord').length > 0;
+                    const durationNode = node.getElementsByTagName('duration')[0];
+                    const durationSeconds = ( (durationNode ? parseInt(durationNode.textContent) : 0) / divisions) * (60 / currentBPM);
+                    const tech = node.getElementsByTagName('notations')[0]?.getElementsByTagName('technical')[0];
+                    let string = parseInt(tech?.getElementsByTagName('string')[0]?.textContent);
+                    let fret = parseInt(tech?.getElementsByTagName('fret')[0]?.textContent);
+                    if (isNaN(string)) {
+                        const pitch = node.getElementsByTagName('pitch')[0];
+                        if (pitch) {
+                            const midi = (parseInt(pitch.getElementsByTagName('octave')[0].textContent) + 1) * 12 + {'C':0,'D':2,'E':4,'F':5,'G':7,'A':9,'B':11}[pitch.getElementsByTagName('step')[0].textContent] + parseInt(pitch.getElementsByTagName('alter')[0]?.textContent || 0);
+                            for (let s = 0; s < 6; s++) { let f = midi - GUITAR_OPEN_STRINGS[s]; if (f >= 0 && f <= 15) { string = s + 1; fret = f; break; } }
+                        }
+                    }
+                    if (!node.getElementsByTagName('rest').length && !isNaN(string)) {
+                        extractedNotes.push({ time: elapsedSeconds + START_OFFSET, duration: durationSeconds, string: string, fret: fret, finger: parseInt(tech?.getElementsByTagName('fingering')[0]?.textContent), hit: false, hitTime: 0 });
+                    }
+                    if (!isChord) elapsedSeconds += durationSeconds;
+                }
+            }
+        }
+        notes = extractedNotes; currentTime = 0; isPlaying = false; loopActive = false; precountPhase = 0;
+        if(notes.length > 0) ballY = START_Y + (notes[0].string - 1) * STRING_SPACING;
+    }
+
+    function animationLoop(timestamp) {
+        if (!lastTimestamp) lastTimestamp = timestamp;
+        const dt = (timestamp - lastTimestamp) / 1000;
+        lastTimestamp = timestamp;
+
+        if (isPlaying) {
+            previousTime = currentTime; 
+            currentTime += dt;
+
+            // ETAPA 27: Lógica de Precuenta Musical Corregida
+            const beatDuration = 60 / currentBPM;
+            const measureDuration = beatDuration * beatsPerMeasure;
+
+            if (loopActive && currentTime >= loopEndTime && precountPhase === 0) {
+                precountPhase = 1;
+                // Calcular tiempo exacto de fin de compás actual
+                const beatsSinceStart = (currentTime - START_OFFSET) / beatDuration;
+                const currentBeatInMeasure = beatsSinceStart % beatsPerMeasure;
+                const remainingBeats = beatsPerMeasure - currentBeatInMeasure;
+                endOfMeasureTime = currentTime + (remainingBeats * beatDuration);
+            }
+
+            if (precountPhase === 1 && currentTime >= endOfMeasureTime) {
+                precountPhase = 2;
+                precountStartTime = currentTime;
+            }
+
+            if (precountPhase === 2 && currentTime >= precountStartTime + measureDuration) {
+                precountPhase = 0;
+                currentTime = loopStartTime;
+                previousTime = loopStartTime - 0.001;
+                resetNotesHitStatus();
+            }
+
+            timeDisplay.textContent = currentTime.toFixed(2) + "s";
+            if (precountPhase === 0) {
+                notes.forEach(note => { if (!note.hit && previousTime < note.time && note.time <= currentTime) { note.hit = true; note.hitTime = currentTime; } });
+            }
+        }
+        updateBallPosition(); render();
+        requestAnimationFrame(animationLoop);
+    }
+
+    function updateBallPosition() {
+        if (notes.length === 0) return;
+        const beatDuration = 60 / currentBPM;
+
+        // ETAPA 27: Rebote sincronizado con pulsos musicales (beatPhase)
+        const beatsSinceStart = (currentTime - START_OFFSET) / beatDuration;
+        const beatPhase = ((beatsSinceStart % 1) + 1) % 1; // Asegurar positivo
+
+        if (precountPhase > 0 || currentTime < START_OFFSET) {
+            const targetNote = loopActive ? notes.find(n => n.time >= loopStartTime) : notes[0];
+            const y = START_Y + ((targetNote?.string || 1) - 1) * STRING_SPACING;
+            ballY = y - Math.sin(beatPhase * Math.PI) * BOUNCE_HEIGHT;
+            return;
+        }
+
+        let cur = null, nxt = null;
+        for (let i = 0; i < notes.length; i++) { if (notes[i].time <= currentTime) cur = notes[i]; else { nxt = notes[i]; break; } }
+        if (!cur) cur = notes[0];
+        if (!nxt) { ballY = START_Y + (cur.string - 1) * STRING_SPACING; return; }
+        
+        let prog = Math.max(0, Math.min(1, (currentTime - cur.time) / (nxt.time - cur.time)));
+        const baseY = START_Y + (cur.string - 1) * STRING_SPACING;
+        const targetY = START_Y + (nxt.string - 1) * STRING_SPACING;
+        const linearY = baseY + (targetY - baseY) * prog;
+        
+        // Rebote proporcional al salto
+        const bounce = Math.sin(prog * Math.PI) * BOUNCE_HEIGHT * (1 + Math.abs(targetY - baseY) / 100);
+        ballY = linearY - bounce;
+    }
+
+    function drawBeatBackground() {
+        const beatDuration = 60 / currentBPM;
+        let startIdx = Math.floor((currentTime - 2 - START_OFFSET) / beatDuration);
+        let endIdx = Math.ceil((currentTime + (canvas.width / SCALE) - START_OFFSET) / beatDuration);
+
+        for (let i = startIdx; i <= endIdx; i++) {
+            if (i < 0) continue;
+            const t = i * beatDuration + START_OFFSET;
+            const x = getX(t);
+            const width = beatDuration * SCALE * ZOOM_X;
+            
+            if (loopActive && t >= loopStartTime - 0.01 && t < loopEndTime - 0.01) {
+                ctx.fillStyle = "rgba(46, 204, 113, 0.08)";
+            } else {
+                ctx.fillStyle = (i % 2 === 0) ? "rgba(0,0,0,0.05)" : "rgba(0,0,0,0.015)";
+            }
+            ctx.fillRect(x, fretTop, width, fretBottom - fretTop);
+        }
+    }
+
+    function drawGrid() {
+        const beatDuration = 60 / currentBPM;
+        let startIdx = Math.floor((currentTime - 2 - START_OFFSET) / beatDuration);
+        let endIdx = Math.ceil((currentTime + (canvas.width / SCALE) - START_OFFSET) / beatDuration);
+
+        for (let i = startIdx; i <= endIdx; i++) {
+            if (i < 0) continue;
+            const t = i * beatDuration + START_OFFSET;
+            const x = getX(t);
+            const isMeasure = (i % beatsPerMeasure === 0);
+            ctx.strokeStyle = isMeasure ? "#444" : "rgba(0,0,0,0.15)";
+            ctx.lineWidth = isMeasure ? Math.max(1, UNIT * 0.03) : Math.max(0.5, UNIT * 0.01);
+            ctx.beginPath(); ctx.moveTo(x, isMeasure ? fretTop : fretTop + 5); ctx.lineTo(x, isMeasure ? fretBottom : fretBottom - 5); ctx.stroke();
+        }
+    }
+
+    function render() {
+        ctx.fillStyle = "white"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const beatDuration = 60 / currentBPM;
+        drawBeatBackground(); drawGrid();
+
+        for (let i = 0; i < 6; i++) {
+            const y = START_Y + (i * STRING_SPACING);
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+            ctx.strokeStyle = "#444"; ctx.lineWidth = 1 + (i * 0.7); ctx.stroke();
+        }
+
+        // ETAPA 27: Manejo visual de precuenta
+        if (precountPhase === 0) {
+            if (loopStartTime > 0 && !loopActive) {
+                const xs = getX(loopStartTime);
+                ctx.strokeStyle = "#27ae60"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(xs, fretTop); ctx.lineTo(xs, fretBottom); ctx.stroke();
+            }
+
+            const noteWidth = beatDuration * SCALE * ZOOM_X;
+            for (const note of notes) {
+                const noteX = getX(note.time);
+                if (noteX + noteWidth < 0 || noteX > canvas.width) continue;
+                drawNotePill(noteX, START_Y + (note.string - 1) * STRING_SPACING, noteWidth, note);
+            }
+        } else {
+            ctx.fillStyle = "#333"; ctx.font = "bold 24px Arial"; ctx.textAlign = "center";
+            const msg = precountPhase === 1 ? "COMPLETING MEASURE..." : "READY...";
+            ctx.fillText(msg, canvas.width/2, START_Y + 120);
+        }
+
+        const impactX = canvas.width * TARGET_X_PCT;
+        ctx.beginPath(); ctx.setLineDash([2, 4]); ctx.moveTo(impactX, 0); ctx.lineTo(impactX, canvas.height);
+        ctx.strokeStyle = "rgba(255, 0, 0, 0.5)"; ctx.stroke(); ctx.setLineDash([]);
+        
+        if (loopActive && precountPhase === 0) {
+            const xs = getX(loopStartTime);
+            const xe = getX(loopEndTime);
+            ctx.strokeStyle = "#27ae60"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(xs, fretTop); ctx.lineTo(xs, fretBottom); ctx.stroke();
+            ctx.strokeStyle = "#e74c3c"; ctx.beginPath(); ctx.moveTo(xe, fretTop); ctx.lineTo(xe, fretBottom); ctx.stroke();
+        }
+
+        drawBall(impactX, ballY);
+    }
+
+    function drawRoundedRect(x, y, w, h, r) {
+        if (w < 2 * r) r = w / 2;
+        ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+
+    function drawNotePill(x, y, w, note) {
+        let color = "black", txtColor = "white", scale = 1.0;
+        if (note.hit) { color = "#2ecc71"; const p = currentTime - note.hitTime; if (p < 0.15) scale = 1.0 + Math.sin((p/0.15)*Math.PI)*0.1; }
+        else { 
+            if (note.fret === 0) { color = "#bdc3c7"; txtColor = "black"; }
+            else if (note.finger) color = {1:"#f1c40f",2:"#9b59b6",3:"#3498db",4:"#e74c3c"}[note.finger] || "black";
+        }
+        ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale); ctx.translate(-x, -y);
+        ctx.fillStyle = color; ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 2;
+        drawRoundedRect(x, y - NOTE_RADIUS, w, NOTE_RADIUS * 2, NOTE_RADIUS);
+        ctx.fillStyle = txtColor; ctx.font = `bold ${Math.max(10, UNIT * 0.11)}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(note.fret, x + Math.min(NOTE_RADIUS, w * 0.3), y);
+        ctx.restore();
+    }
+
+    function drawBall(x, y) {
+        const r = NOTE_RADIUS * 0.7; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = "white"; ctx.shadowBlur = UNIT * 0.1; ctx.shadowColor = "rgba(255,255,255,0.8)";
+        ctx.fill(); ctx.strokeStyle = "#333"; ctx.lineWidth = 2; ctx.stroke(); ctx.shadowBlur = 0;
+    }
+
+    requestAnimationFrame(animationLoop);
+</script>
+</body>
+</html>

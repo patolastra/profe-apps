@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reproductor MIDI - Tempo Automático</title>
+    <script src="https://unpkg.com/tone"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center; align-items: center;
+            min-height: 100vh; background: #e0e5ec; margin: 0;
+        }
+        .container {
+            background: #f0f4f8; padding: 30px; border-radius: 20px;
+            box-shadow: 10px 10px 20px #bebebe, -10px -10px 20px #ffffff;
+            text-align: center; width: 350px;
+        }
+        h2 { color: #2d4059; margin-bottom: 25px; }
+        .control-group { margin: 20px 0; }
+        label { display: block; margin-bottom: 10px; color: #555; font-size: 14px; }
+        
+        button {
+            padding: 12px 25px; font-size: 16px; cursor: pointer; border: none;
+            border-radius: 10px; background: #4ecca3; color: white;
+            transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button:hover { background: #45b393; }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; }
+        
+        input[type="range"] { width: 100%; cursor: pointer; }
+        input[type="file"] { margin-bottom: 20px; font-size: 12px; }
+        
+        .status { margin-top: 15px; font-size: 14px; color: #7f8c8d; min-height: 20px; }
+        .bpm-info { font-weight: bold; color: #2ecc71; font-size: 16px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Glockenspiel MIDI</h2>
+    
+    <div class="control-group">
+        <input type="file" id="midi-input" accept=".mid,.midi">
+    </div>
+
+    <div class="control-group">
+        <button id="btn-play" disabled>Cargar MIDI</button>
+    </div>
+
+    <div class="control-group">
+        <label>Tempo actual: <span id="bpm-actual" class="bpm-info">---</span> BPM</label>
+        <input type="range" id="speed-slider" min="40" max="250" step="1" value="120">
+    </div>
+
+    <div class="status" id="status-text">Cargue un archivo para empezar</div>
+</div>
+
+<script>
+    let currentMidi = null;
+    let isPlaying = false;
+
+    const synth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "triangle" },
+        envelope: { attack: 0.005, decay: 0.3, sustain: 0.1, release: 1.2 }
+    }).toDestination();
+
+    const midiInput = document.getElementById('midi-input');
+    const btnPlay = document.getElementById('btn-play');
+    const speedSlider = document.getElementById('speed-slider');
+    const bpmActualLabel = document.getElementById('bpm-actual');
+    const statusText = document.getElementById('status-text');
+
+    midiInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        statusText.innerText = "Cargando...";
+        try {
+            const buffer = await file.arrayBuffer();
+            currentMidi = new Midi(buffer);
+            
+            // 1. Obtener el BPM del archivo MIDI (Header)
+            let midiBpm = 120; // Valor por defecto
+            if (currentMidi.header.tempos.length > 0) {
+                midiBpm = currentMidi.header.tempos[0].bpm;
+            }
+
+            // 2. Configurar la interfaz con el BPM detectado
+            const initialBpm = Math.round(midiBpm);
+            speedSlider.value = initialBpm;
+            bpmActualLabel.innerText = initialBpm;
+            
+            // 3. Sincronizar el transporte
+            Tone.Transport.PPQ = currentMidi.header.ppq;
+            Tone.Transport.bpm.value = initialBpm;
+
+            btnPlay.disabled = false;
+            btnPlay.innerText = "Reproducir ▶";
+            statusText.innerText = `Cargado: ${file.name} (${initialBpm} BPM)`;
+            
+            if(isPlaying) stop();
+        } catch (err) {
+            console.error(err);
+            statusText.innerText = "Error al leer el archivo MIDI";
+        }
+    };
+
+    btnPlay.onclick = () => {
+        if (!isPlaying) start();
+        else stop();
+    };
+
+    // 4. Control de BPM en tiempo real (Slider absoluto)
+    speedSlider.oninput = (e) => {
+        const nuevoBPM = parseInt(e.target.value);
+        bpmActualLabel.innerText = nuevoBPM;
+        
+        // Modificación directa del transporte
+        Tone.Transport.bpm.value = nuevoBPM;
+    };
+
+    async function start() {
+        if (!currentMidi) return;
+        await Tone.start();
+        
+        isPlaying = true;
+        btnPlay.innerText = "Parar ⏹";
+        statusText.innerText = "Reproduciendo...";
+
+        Tone.Transport.stop();
+        Tone.Transport.cancel(); 
+
+        currentMidi.tracks.forEach(track => {
+            track.notes.forEach(note => {
+                // Sigue programado por Ticks para ser sensible al cambio de BPM
+                Tone.Transport.schedule((time) => {
+                    synth.triggerAttackRelease(
+                        note.name, 
+                        note.duration, 
+                        time, 
+                        note.velocity
+                    );
+                }, note.ticks + "i"); 
+            });
+        });
+
+        // Evento final de canción
+        const totalTicks = currentMidi.durationTicks;
+        Tone.Transport.schedule((time) => {
+            Tone.Draw.schedule(() => stop(), time);
+        }, totalTicks + "i");
+
+        Tone.Transport.start();
+    }
+
+    function stop() {
+        isPlaying = false;
+        Tone.Transport.stop();
+        Tone.Transport.cancel();
+        btnPlay.innerText = "Reproducir ▶";
+        statusText.innerText = "Detenido";
+    }
+</script>
+
+</body>
+</html>

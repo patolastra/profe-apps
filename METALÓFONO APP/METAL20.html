@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Metalófono Pro - App Final</title>
+    <script src="https://unpkg.com/tone"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <style>
+        :root {
+            /* Colores de fondo y acento iniciales */
+            --green-case: #FCFFA0; 
+            --dark-bg: #111116;
+            --gold: #f1c40f;
+            --orange: #e67e22;
+            /* Colores de las notas (Modo 1 default) */
+            --c-A: #9b59b6; 
+            --c-B: #add8e6; 
+            --c-C: #2980b9; 
+            --c-D: #2ecc71; 
+            --c-E: #f1c40f; 
+            --c-F: #e67e22; 
+            --c-G: #e74c3c;
+        }
+
+        * { box-sizing: border-box; user-select: none; font-family: 'Segoe UI', sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: var(--dark-bg); overflow: hidden; }
+
+        header {
+            height: 70px; 
+            background: #1c1c22; 
+            border-bottom: 2px solid #333;
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            padding: 0 25px;
+            color: white; 
+            z-index: 1000;
+        }
+
+        .ctrl-group { display: flex; align-items: center; gap: 10px; }
+
+        .tempo-wrapper {
+            display: flex; align-items: center; gap: 8px;
+            background: rgba(255, 255, 255, 0.05); padding: 5px 12px; border-radius: 8px;
+        }
+
+        .btn-step { padding: 5px 10px !important; font-size: 18px; line-height: 1; }
+
+        .bpm-slider { width: 100px; cursor: pointer; accent-color: var(--orange); }
+
+        .bpm-display {
+            width: 45px; height: 30px; background: #000; border: 1px solid #444;
+            color: var(--gold); text-align: center; border-radius: 4px;
+            font-family: 'Consolas', monospace; font-size: 16px; outline: none;
+        }
+
+        button {
+            padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold;
+            cursor: pointer; background: #3d3d45; color: white; transition: 0.15s;
+            white-space: nowrap;
+        }
+        button:hover { background: #4d4d57; }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn-play { background: var(--orange); width: 160px; text-align: center; }
+
+        #status {
+            height: 30px; width: 100%; display: flex; align-items: center; 
+            justify-content: center; font-size: 14px; font-weight: bold;
+            color: white; transition: background 0.3s;
+        }
+        .st-none { background: #1c1c22; }
+        .st-error { background: #851c1c; }
+        .st-ready { background: #234d35; }
+
+        #viewport { display: flex; flex-direction: column; height: calc(100vh - 100px); }
+
+        #case {
+            height: 100%; width: 100%; background: var(--green-case);
+            padding: 20px; display: flex; flex-direction: column; 
+            position: relative; box-shadow: inset 0 10px 40px rgba(0,0,0,0.3);
+            justify-content: center; z-index: 0;
+        }
+
+        #case::after {
+            content: ""; position: absolute; top: 50%; left: 20px; right: 20px;
+            height: 2px; background: rgba(255,255,255,0.05); z-index: 1; transform: translateY(-50%);
+        }
+
+        .row { 
+            display: grid; width: 100%; grid-template-columns: repeat(15, 1fr); 
+            gap: 4px; position: absolute; left: 20px; right: 20px;
+            width: calc(100% - 40px);
+        }
+
+        #sharp-row { bottom: calc(50% + 4px); align-items: end; } 
+        #natural-row { top: calc(50% + 4px); align-items: start; }
+
+        .key {
+            border-radius: 6px; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.45), inset 0 2px 4px rgba(255,255,255,0.1); 
+            color: rgba(0,0,0,0.8); font-weight: bold; transition: 0.1s transform, background 0.3s;
+            position: relative; z-index: 2;
+        }
+
+        .key span { 
+            font-size: 1.32vw; 
+            text-align: center; 
+            line-height: 1.2; 
+            font-weight: 800; 
+            transition: transform 0.1s;
+        }
+
+        /* Desplazamiento de texto hacia el eje central */
+        #natural-row .key span { transform: translateY(-10px); }
+        #sharp-row .key span { transform: translateY(10px); color: #fff !important; }
+
+        .natural { grid-column: span 1; }
+        .sharp { grid-column: span 1; background: #222 !important; color: #fff !important; margin-left: 50%; width: 100%; z-index: 3; }
+        .sharp-spacer { grid-column: span 1; }
+
+        .key::before, .key::after { 
+            content: ''; position: absolute; width: 10px; height: 10px; 
+            background: radial-gradient(circle, #fff, #999); border-radius: 50%; 
+            left: 50%; transform: translateX(-50%); 
+        }
+
+        #natural-row .key::before { top: 10px; }
+        #natural-row .key::after { bottom: 10px; }
+        #sharp-row .key::after { bottom: 10px; }
+        #sharp-row .key::before { top: 10px; }
+
+        .natural:nth-child(1)  { height: 40vh; } .natural:nth-child(2)  { height: 38.5vh; }
+        .natural:nth-child(3)  { height: 37vh; } .natural:nth-child(4)  { height: 35.5vh; }
+        .natural:nth-child(5)  { height: 34vh; } .natural:nth-child(6)  { height: 32.5vh; }
+        .natural:nth-child(7)  { height: 31vh; } .natural:nth-child(8)  { height: 29.5vh; }
+        .natural:nth-child(9)  { height: 28vh; } .natural:nth-child(10) { height: 26.5vh; }
+        .natural:nth-child(11) { height: 25vh; } .natural:nth-child(12) { height: 23.5vh; }
+        .natural:nth-child(13) { height: 22vh; } .natural:nth-child(14) { height: 20.5vh; }
+        .natural:nth-child(15) { height: 19vh; }
+
+        .s1 { height: 39.25vh; } .s2 { height: 36.25vh; } .s3 { height: 34.75vh; }
+        .s4 { height: 31.75vh; } .s5 { height: 30.25vh; } .s6 { height: 28.75vh; }
+        .s7 { height: 25.75vh; } .s8 { height: 24.25vh; } .s9 { height: 21.25vh; }
+        .s10 { height: 19.75vh; }
+
+        .A { background: var(--c-A); } .B { background: var(--c-B); } .C { background: var(--c-C); }
+        .D { background: var(--c-D); } .E { background: var(--c-E); } .F { background: var(--c-F); } 
+        .G { background: var(--c-G); }
+        
+        /* ILUMINACIÓN, EFECTOS PUSH Y GLOW AVANZADO INTENSIFICADO */
+        .hit-effect { 
+            background: white !important; 
+            filter: brightness(1.2); 
+            transform: scale(1.12) translateY(-3px);
+            z-index: 20;
+            outline: 3px solid rgba(255, 140, 40, 0.95);
+            outline-offset: -3px;
+            box-shadow: 
+                0 0 35px rgba(255, 170, 50, 1),
+                0 0 80px rgba(255, 140, 40, 0.8),
+                0 0 160px rgba(255, 120, 30, 0.6),
+                0 0 220px rgba(255, 100, 20, 0.35),
+                inset 0 0 25px rgba(255, 220, 160, 0.7),
+                inset 0 2px 4px rgba(0,0,0,0.2) !important;
+        }
+
+        #natural-row .key.hit-effect span, #sharp-row .key.hit-effect span {
+            transform: translateY(var(--dy)) scale(1.35);
+            color: #000 !important;
+            text-shadow:
+                0 0 4px rgba(255,255,255,1),
+                0 0 8px rgba(255,255,255,0.9),
+                0 0 14px rgba(255,200,120,0.8),
+                0 0 22px rgba(255,140,40,0.7),
+                0 0 30px rgba(255,120,30,0.6);
+        }
+        #natural-row .key.hit-effect span { --dy: -10px; }
+        #sharp-row .key.hit-effect span { --dy: 10px; }
+
+        .key.hit-effect::before,
+        .key.hit-effect::after {
+            background: radial-gradient(circle, #fff6b0, #ffaa32, #b8860b) !important;
+            box-shadow:
+                0 0 6px rgba(255,170,50,0.9),
+                0 0 12px rgba(255,140,40,0.6),
+                0 0 20px rgba(255,120,30,0.4) !important;
+        }
+
+        /* --- MENÚ DE COLORES AJUSTADO A DROPDOWN --- */
+        #color-panel {
+            position: absolute;
+            top: 110%; /* Justo debajo del botón */
+            left: 0; 
+            background: rgba(20, 20, 25, 0.98);
+            border: 2px solid var(--gold);
+            border-radius: 12px;
+            padding: 18px;
+            color: white;
+            z-index: 3000;
+            display: none;
+            width: 250px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.7);
+        }
+
+        .panel-section { margin-bottom: 20px; }
+        .panel-section h4 { margin: 0 0 12px 0; font-size: 14px; border-bottom: 1px solid #444; padding-bottom: 6px; color: var(--gold); }
+        .panel-options { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+
+        .color-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid rgba(255,255,255,0.2);
+            transition: 0.2s;
+        }
+        .color-circle:hover {
+            transform: scale(1.15);
+            border-color: white;
+            box-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+
+        .color-opt {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 13px;
+            background: #3d3d45;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .color-opt:hover { background: #5a5a64; }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="ctrl-group">
+            <button id="btn-nuevo-midi">📁 Nuevo MIDI</button>
+            <button>🎓 Iniciar Tour</button>
+        </div>
+        <div class="ctrl-group">
+            <button id="btn-cambiar-cifrado">🔤 Cambiar Cifrado</button>
+            <!-- CONTENEDOR RELATIVO PARA EL MENÚ DROPDOWN -->
+            <div style="position: relative; display: inline-block;">
+                <button id="btn-cambiar-colores">🎨 Cambiar Colores</button>
+                <div id="color-panel">
+                    <div class="panel-section">
+                        <h4>Fondo</h4>
+                        <div class="panel-options">
+                            <div class="color-circle" style="background:#FCFFA0" onclick="setFondo('#FCFFA0')"></div>
+                            <div class="color-circle" style="background:#FFD1DC" onclick="setFondo('#FFD1DC')"></div>
+                            <div class="color-circle" style="background:#CFFFE5" onclick="setFondo('#CFFFE5')"></div>
+                            <div class="color-circle" style="background:#F5F5DC" onclick="setFondo('#F5F5DC')"></div>
+                            <div class="color-circle" style="background:#555555" onclick="setFondo('#555555')"></div>
+                        </div>
+                    </div>
+                    <div class="panel-section">
+                        <h4>Placas</h4>
+                        <div class="panel-options">
+                            <button class="color-opt" onclick="setPlacas(1)">Colores 1 (Actual)</button>
+                            <button class="color-opt" onclick="setPlacas(2)">Colores 2 (Cromatic)</button>
+                            <button class="color-opt" onclick="setPlacas(3)">Grises</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="ctrl-group">
+            <div class="tempo-wrapper">
+                <button class="btn-step" id="btn-tempo-minus">-</button>
+                <input type="range" class="bpm-slider" id="speed-slider" min="40" max="250" value="120">
+                <button class="btn-step" id="btn-tempo-plus">+</button>
+                <input type="text" class="bpm-display" id="bpm-input" maxlength="3" value="120">
+            </div>
+            <button id="btn-play" class="btn-play" disabled>▶ REPRODUCIR</button>
+        </div>
+        <div class="ctrl-group">
+            <button id="btn-fullscreen">PANTALLA COMPLETA</button>
+        </div>
+    </header>
+
+    <div id="status" class="st-none">Carga un archivo MIDI para comenzar</div>
+
+    <div id="viewport">
+        <div id="case">
+            <div id="sharp-row" class="row">
+                <div class="key sharp s1" data-midi="82"><span>A#<br>La#</span></div>
+                <div class="sharp-spacer"></div>
+                <div class="key sharp s2" data-midi="85"><span>C#<br>Do#</span></div>
+                <div class="key sharp s3" data-midi="87"><span>D#<br>Re#</span></div>
+                <div class="sharp-spacer"></div>
+                <div class="key sharp s4" data-midi="90"><span>F#<br>Fa#</span></div>
+                <div class="key sharp s5" data-midi="92"><span>G#<br>Sol#</span></div>
+                <div class="key sharp s6" data-midi="94"><span>A#<br>La#</span></div>
+                <div class="sharp-spacer"></div>
+                <div class="key sharp s7" data-midi="97"><span>C#<br>Do#</span></div>
+                <div class="key sharp s8" data-midi="99"><span>D#<br>Re#</span></div>
+                <div class="sharp-spacer"></div>
+                <div class="key sharp s9" data-midi="102"><span>F#<br>Fa#</span></div>
+                <div class="key sharp s10" data-midi="104"><span>G#<br>Sol#</span></div>
+                <div class="sharp-spacer"></div>
+            </div>
+            <div id="natural-row" class="row">
+                <div class="key natural A" data-midi="81"><span>A<br>La</span></div>
+                <div class="key natural B" data-midi="83"><span>B<br>Si</span></div>
+                <div class="key natural C" data-midi="84"><span>C<br>Do</span></div>
+                <div class="key natural D" data-midi="86"><span>D<br>Re</span></div>
+                <div class="key natural E" data-midi="88"><span>E<br>Mi</span></div>
+                <div class="key natural F" data-midi="89"><span>F<br>Fa</span></div>
+                <div class="key natural G" data-midi="91"><span>G<br>Sol</span></div>
+                <div class="key natural A" data-midi="93"><span>A<br>La</span></div>
+                <div class="key natural B" data-midi="95"><span>B<br>Si</span></div>
+                <div class="key natural C" data-midi="96"><span>C<br>Do</span></div>
+                <div class="key natural D" data-midi="98"><span>D<br>Re</span></div>
+                <div class="key natural E" data-midi="100"><span>E<br>Mi</span></div>
+                <div class="key natural F" data-midi="101"><span>F<br>Fa</span></div>
+                <div class="key natural G" data-midi="103"><span>G<br>Sol</span></div>
+                <div class="key natural A" data-midi="105"><span>A<br>La</span></div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="real-midi-picker" accept=".mid,.midi" style="display:none">
+
+    <script>
+        const MIN_BPM = 40;
+        const MAX_BPM = 250;
+        const noteStates = {};
+        for(let i=81; i<=105; i++) noteStates[i] = {active: 0};
+
+        const noteMap = {
+            81:{a:"A",l:"La"}, 82:{a:"A♯",l:"La♯"}, 83:{a:"B",l:"Si"},
+            84:{a:"C",l:"Do"}, 85:{a:"C♯",l:"Do♯"}, 86:{a:"D",l:"Re"}, 87:{a:"D♯",l:"Re♯"}, 88:{a:"E",l:"Mi"}, 89:{a:"F",l:"Fa"}, 90:{a:"F♯",l:"Fa♯"}, 91:{a:"G",l:"Sol"}, 92:{a:"G♯",l:"Sol♯"},
+            93:{a:"A",l:"La"}, 94:{a:"A♯",l:"La♯"}, 95:{a:"B",l:"Si"},
+            96:{a:"C",l:"Do"}, 97:{a:"C♯",l:"Do♯"}, 98:{a:"D",l:"Re"}, 99:{a:"D♯",l:"Re♯"}, 100:{a:"E",l:"Mi"}, 101:{a:"F",l:"Fa"}, 102:{a:"F♯",l:"Fa♯"}, 103:{a:"G",l:"Sol"}, 104:{a:"G♯",l:"Sol♯"}, 105:{a:"A",l:"La"}
+        };
+
+        let currentNotation = 0; 
+
+        const btnNuevoMidi = document.getElementById('btn-nuevo-midi');
+        const realMidiPicker = document.getElementById('real-midi-picker');
+        const btnPlay = document.getElementById('btn-play');
+        const btnNotation = document.getElementById('btn-cambiar-cifrado');
+        const btnColores = document.getElementById('btn-cambiar-colores');
+        const statusDiv = document.getElementById('status');
+        const speedSlider = document.getElementById('speed-slider');
+        const bpmInput = document.getElementById('bpm-input');
+        const btnTempoMinus = document.getElementById('btn-tempo-minus');
+        const btnTempoPlus = document.getElementById('btn-tempo-plus');
+        const colorPanel = document.getElementById('color-panel');
+
+        let currentMidi = null;
+        let isPlaying = false;
+        let globalBPM = 120;
+
+        const synth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "triangle" },
+            envelope: { attack: 0.005, decay: 0.3, sustain: 0.1, release: 1.2 }
+        }).toDestination();
+
+        btnNuevoMidi.onclick = () => realMidiPicker.click();
+
+        realMidiPicker.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const arrayBuffer = await file.arrayBuffer();
+            const res = validarMidi(arrayBuffer);
+            if (!res.ok) {
+                statusDiv.innerText = res.error;
+                statusDiv.className = "st-error";
+                btnPlay.disabled = true;
+                return;
+            }
+            currentMidi = new Midi(arrayBuffer);
+            statusDiv.innerText = "¡Listo para tocar! (" + file.name + ")";
+            statusDiv.className = "st-ready";
+            btnPlay.disabled = false;
+            Tone.Transport.PPQ = currentMidi.header.ppq;
+            const midiBpm = currentMidi.header.tempos[0] ? currentMidi.header.tempos[0].bpm : 120;
+            updateInterfaceBPM(Math.round(midiBpm));
+            if (isPlaying) stopAudio();
+        };
+
+        function validarMidi(arrayBuffer) {
+            const data = new Uint8Array(arrayBuffer);
+            let pos = 0;
+            const res = { ok: false, error: null, notes: [] };
+            if (data[0] !== 0x4D || data[1] !== 0x54) { res.error = "No se pudo leer el archivo"; return res; }
+            const trackCount = (data[10] << 8) | data[11];
+            if (trackCount === 0) { res.error = "El archivo no contiene notas"; return res; }
+            pos = 14;
+            try {
+                for (let t = 0; t < trackCount; t++) {
+                    const trackLength = (data[pos+4]<<24)|(data[pos+5]<<16)|(data[pos+6]<<8)|(data[pos+7]);
+                    pos += 8; const end = pos + trackLength;
+                    let lastStatus = 0;
+                    while (pos < end) {
+                        while (data[pos++] & 0x80);
+                        let s = data[pos++];
+                        if (s < 0x80) { s = lastStatus; pos--; } lastStatus = s;
+                        const type = s & 0xF0;
+                        if (type === 0x90 || type === 0x80) {
+                            const p = data[pos++]; const v = data[pos++];
+                            if (type === 0x90 && v > 0) {
+                                if (p < 81 || p > 105) return { ok: false, error: "Hay notas fuera del rango del metalófono" };
+                                res.notes.push(p);
+                            }
+                        } else if (type === 0xA0 || type === 0xB0 || type === 0xE0) pos += 2;
+                        else if (type === 0xC0 || type === 0xD0) pos += 1;
+                        else if (s === 0xFF) { pos++; const len = data[pos++]; pos += len; }
+                        else if (s === 0xF0 || s === 0xF7) { while (data[pos++] & 0x80); }
+                    }
+                }
+            } catch(e) { res.error = "No se pudo leer el archivo"; return res; }
+            if (res.notes.length === 0) { res.error = "El archivo no contiene notas"; return res; }
+            res.ok = true; return res;
+        }
+
+        btnPlay.onclick = () => isPlaying ? stopAudio() : startAudio();
+
+        async function startAudio() {
+            await Tone.start();
+            isPlaying = true;
+            btnPlay.innerText = "⏹ DETENER";
+            Tone.Transport.stop(); Tone.Transport.cancel();
+            currentMidi.tracks.forEach(track => {
+                track.notes.forEach(note => {
+                    Tone.Transport.schedule((time) => {
+                        synth.triggerAttackRelease(note.name, note.duration, time, note.velocity);
+                        Tone.Draw.schedule(() => noteOn(note.midi), time);
+                        Tone.Transport.scheduleOnce((tOff) => {
+                            Tone.Draw.schedule(() => noteOff(note.midi), tOff);
+                        }, (note.ticks + note.durationTicks) + "i");
+                    }, note.ticks + "i");
+                });
+            });
+            Tone.Transport.scheduleOnce(() => Tone.Draw.schedule(stopAudio, Tone.now()), currentMidi.durationTicks + "i");
+            Tone.Transport.start();
+        }
+
+        function stopAudio() {
+            isPlaying = false;
+            Tone.Transport.stop(); Tone.Transport.cancel();
+            btnPlay.innerText = "▶ REPRODUCIR";
+            Object.keys(noteStates).forEach(noteMidi => {
+                noteStates[noteMidi].active = 0;
+                const el = document.querySelector(`[data-midi="${noteMidi}"]`);
+                if(el) {
+                    el.classList.remove('hit-effect');
+                    if(el._timeoutId) {
+                        clearTimeout(el._timeoutId);
+                        el._timeoutId = null;
+                    }
+                }
+            });
+        }
+
+        function noteOn(noteMidi) {
+            if (!noteStates[noteMidi]) return;
+            noteStates[noteMidi].active++;
+            const el = document.querySelector(`[data-midi="${noteMidi}"]`);
+            if (el) el.classList.add('hit-effect');
+        }
+
+        function noteOff(noteMidi) {
+            if (!noteStates[noteMidi]) return;
+            noteStates[noteMidi].active = Math.max(0, noteStates[noteMidi].active - 1);
+            const el = document.querySelector(`[data-midi="${noteMidi}"]`);
+            if (!el) return;
+            el.classList.remove('hit-effect');
+            if (noteStates[noteMidi].active > 0) {
+                setTimeout(() => { if (noteStates[noteMidi].active > 0) el.classList.add('hit-effect'); }, 50);
+            }
+        }
+
+        function updateLabels() {
+            document.querySelectorAll('.key').forEach(key => {
+                const midi = key.getAttribute('data-midi');
+                const note = noteMap[midi];
+                const span = key.querySelector('span');
+                if(!note) return;
+                
+                if (currentNotation === 0) { span.innerHTML = `${note.a}<br>${note.l}`; } 
+                else if (currentNotation === 1) { span.innerHTML = note.l; } 
+                else { span.innerHTML = note.a; }
+            });
+        }
+
+        btnNotation.onclick = () => {
+            currentNotation = (currentNotation + 1) % 3;
+            updateLabels();
+        };
+
+        function updateInterfaceBPM(val) {
+            let real = Math.min(Math.max(val, MIN_BPM), MAX_BPM);
+            globalBPM = real;
+            Tone.Transport.bpm.value = real;
+            speedSlider.value = real;
+            bpmInput.value = real;
+        }
+
+        speedSlider.oninput = (e) => updateInterfaceBPM(parseInt(e.target.value));
+        btnTempoMinus.onclick = () => updateInterfaceBPM(globalBPM - 5);
+        btnTempoPlus.onclick = () => updateInterfaceBPM(globalBPM + 5);
+        bpmInput.onchange = (e) => {
+            const v = parseInt(e.target.value);
+            if (isNaN(v) || v < MIN_BPM || v > MAX_BPM) { updateInterfaceBPM(globalBPM); return; }
+            updateInterfaceBPM(v);
+        };
+
+        document.getElementById('btn-fullscreen').onclick = () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else document.exitFullscreen();
+        };
+
+        btnColores.onclick = () => {
+            colorPanel.style.display = (colorPanel.style.display === 'block') ? 'none' : 'block';
+        };
+
+        window.setFondo = (color) => {
+            document.documentElement.style.setProperty('--green-case', color);
+            colorPanel.style.display = 'none';
+        };
+
+        window.setPlacas = (modo) => {
+            const colors = {
+                1: { A: '#9b59b6', B: '#add8e6', C: '#2980b9', D: '#2ecc71', E: '#f1c40f', F: '#e67e22', G: '#e74c3c' },
+                2: { G: '#87CEEB', A: '#FFFFFF', B: '#8E44AD', C: '#E74C3C', D: '#E67E22', E: '#F1C40F', F: '#2ECC71' },
+                3: { A: '#D6D6D6', B: '#D6D6D6', C: '#D6D6D6', D: '#D6D6D6', E: '#D6D6D6', F: '#D6D6D6', G: '#D6D6D6' }
+            };
+            const selection = colors[modo];
+            Object.keys(selection).forEach(n => {
+                document.documentElement.style.setProperty(`--c-${n}`, selection[n]);
+            });
+            colorPanel.style.display = 'none';
+        };
+
+        // --- SONIDO AL HACER CLICK EN PLACAS ---
+        document.querySelectorAll('.key').forEach(el => {
+            el.addEventListener('pointerdown', async (e) => {
+                // Prevenir duplicación de disparos si el mouse activa click al mismo tiempo
+                e.preventDefault(); 
+                
+                if (Tone.context.state !== 'running') {
+                    await Tone.start();
+                }
+
+                const midiValue = parseInt(el.dataset.midi);
+                if (isNaN(midiValue)) return;
+
+                const note = Tone.Frequency(midiValue, "midi").toNote();
+                
+                // Disparo manual
+                synth.triggerAttackRelease(note, "8n");
+                
+                // Efecto visual manual (200ms)
+                if (el._timeoutId) clearTimeout(el._timeoutId);
+                el.classList.add('hit-effect');
+                el._timeoutId = setTimeout(() => {
+                    el.classList.remove('hit-effect');
+                    el._timeoutId = null;
+                }, 200);
+            });
+        });
+
+        updateLabels();
+    </script>
+</body>
+</html>

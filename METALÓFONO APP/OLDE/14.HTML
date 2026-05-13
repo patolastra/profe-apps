@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Metalófono Educativo Interactivo MIDI</title>
+    <script src="https://unpkg.com/tone"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <style>
+        :root {
+            --green-case: #2ecc71;
+            --bg: #0d0d0f;
+            --gold: #f1c40f;
+            --orange: #e67e22;
+            --metal: #bdc3c7;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body, html { 
+            margin: 0; padding: 0; width: 100vw; height: 100vh; 
+            background: var(--bg); overflow: hidden; font-family: 'Segoe UI', sans-serif; 
+            color: white;
+        }
+
+        /* MANEJO DE ESTADOS UI */
+        #loader {
+            position: fixed; inset: 0; background: #1a1a1d; z-index: 9000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .loader-card {
+            background: #2c3e50; padding: 40px; border-radius: 20px;
+            border: 4px solid var(--green-case); text-align: center;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        header {
+            height: 70px; background: #161618; border-bottom: 2px solid #333;
+            display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+            z-index: 1000;
+        }
+
+        .controls { display: flex; align-items: center; gap: 15px; }
+        .bpm-slider-container { display: flex; flex-direction: column; align-items: center; width: 180px; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--green-case); }
+
+        button {
+            padding: 10px 18px; border: none; border-radius: 6px; font-weight: bold;
+            cursor: pointer; transition: 0.2s; background: #333; color: white;
+        }
+        button:hover:not(:disabled) { background: #444; }
+        button:disabled { opacity: 0.2; cursor: not-allowed; }
+        #play-btn { background: var(--orange); width: 120px; }
+        #play-btn.playing { background: #e74c3c; }
+
+        /* VIEWPORT */
+        main { display: flex; flex-direction: column; height: calc(100vh - 70px); visibility: hidden; }
+
+        /* PIANO ROLL */
+        #canvas-wrap { height: 50%; width: 100%; position: relative; background: #000; border-bottom: 3px solid #333; }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* INSTRUMENTO */
+        #instrument-wrap {
+            height: 50%; width: 100%; background: var(--green-case);
+            padding: 20px 40px; display: flex; flex-direction: column; gap: 10px;
+            box-shadow: inset 0 10px 30px rgba(0,0,0,0.4);
+        }
+
+        .key-row { display: grid; width: 100%; height: 50%; grid-template-columns: repeat(60, 1fr); gap: 0; }
+        
+        .key {
+            border-radius: 6px; position: relative; 
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 15px;
+            box-shadow: 3px 6px 12px rgba(0,0,0,0.4); font-weight: bold; font-size: 14px; color: #222;
+            transition: transform 0.1s, filter 0.3s; cursor: pointer;
+        }
+        
+        /* Layout Grid Fijo Cromático */
+        .k-nat { grid-column: span 4; background: #ecf0f1; border: 1px solid #bdc3c7; height: 100%; }
+        .k-acc { grid-column: span 4; background: #222 !important; color: white !important; z-index: 5; height: 100%; border: 1px solid #000; }
+        .spacer-2 { grid-column: span 2; }
+        .spacer-4 { grid-column: span 4; }
+
+        .key span { text-align: center; line-height: 1.2; font-weight: 800; pointer-events: none; }
+        .key::after { /* Tornillos */
+            content: ''; position: absolute; top: 10px; width: 12px; height: 12px; 
+            background: radial-gradient(circle, #eee, #777); border-radius: 50%;
+        }
+
+        /* ESTADOS TOUR */
+        .tour-off { filter: grayscale(1) opacity(0.5) brightness(0.6); }
+        .tour-done { filter: none !important; opacity: 1 !important; background: var(--orange) !important; color: white !important; }
+        .tour-target { 
+            filter: none !important; opacity: 1 !important; background: var(--gold) !important;
+            animation: pulse-tour 0.6s infinite alternate cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 50;
+        }
+        @keyframes pulse-tour { from { transform: scale(1); } to { transform: scale(1.1); box-shadow: 0 0 30px var(--gold); } }
+
+        /* REPRODUCCIÓN - IMPACTO */
+        .key-active { background: white !important; transform: scale(0.9) translateY(10px); box-shadow: 0 0 40px white; z-index: 100 !important; filter: none !important; opacity: 1 !important; }
+
+        /* UI OVERLAYS */
+        #tour-overlay {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.85); padding: 15px 30px; border-radius: 12px;
+            border: 2px solid var(--gold); display: none; text-align: center; z-index: 100;
+        }
+        #countdown-ui {
+            position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 200px; font-weight: 900; pointer-events: none; z-index: 5000; opacity: 0;
+            text-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+
+        .c-A { background: #9b59b6; } .c-B { background: #3498db; } .c-C { background: #2980b9; } 
+        .c-D { background: #2ecc71; } .c-E { background: #f1c40f; } .c-F { background: #e67e22; } .c-G { background: #e74c3c; }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="loader-card">
+            <h2>Metalófono Educativo</h2>
+            <p>Seleccione un archivo MIDI para configurar el proyector</p>
+            <input type="file" id="midi-in" accept=".mid,.midi">
+        </div>
+    </div>
+
+    <header>
+        <div class="controls">
+            <button id="btn-reload" onclick="location.reload()">📁 CAMBIAR MIDI</button>
+            <button id="btn-tour-start">🎓 TOUR DE NOTAS</button>
+        </div>
+        <div class="controls">
+            <button id="play-btn" disabled>▶ PLAY</button>
+            <div class="bpm-slider-container">
+                <span style="font-size:12px; font-weight:bold;">TEMPO: <span id="bpm-val">100</span> BPM</span>
+                <input type="range" id="bpm-input" min="40" max="220" value="100">
+            </div>
+        </div>
+        <button id="btn-fs" onclick="document.documentElement.requestFullscreen()">全 FULLSCREEN</button>
+    </header>
+
+    <div id="countdown-ui"></div>
+
+    <main id="view">
+        <div id="canvas-wrap">
+            <div id="tour-overlay">
+                <div id="tour-info" style="font-weight:bold; margin-bottom:8px;">ANALIZANDO NOTAS...</div>
+                <button id="tour-next-btn" style="background:var(--gold); color:black; width:100%">COMENZAR APRENDIZAJE</button>
+            </div>
+            <canvas id="ctx"></canvas>
+        </div>
+        <div id="instrument-wrap">
+            <div id="row-acc" class="key-row"></div>
+            <div id="row-nat" class="key-row"></div>
+        </div>
+    </main>
+
+    <script>
+        /** MOTOR CORE **/
+        const PIXELS_PER_BEAT = 240; 
+        const STATES = { NO_MIDI:0, LOADING:1, READY:2, PLAYING:3, TOUR:4 };
+        
+        let appState = STATES.NO_MIDI;
+        let currentMidi = null;
+        let melodyData = [];
+        let tourList = [];
+        let tourIdx = -1;
+
+        const synth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "triangle" }, envelope: { attack: 0.005, decay: 0.2, sustain: 0.1, release: 0.8 } }).toDestination();
+        const percussion = new Tone.MembraneSynth({ pitchDecay: 0.001, envelope: { attack: 0.0001, decay: 0.06, sustain: 0 } }).toDestination();
+
+        const KEYS = {};
+        const NAT_NOTES = ["A4", "B4", "C5", "D5", "E5", "F5", "G5", "A5", "B5", "C6", "D6", "E6", "F6", "G6", "A6"];
+        const ACC_PATTERN = ["A#4", "skip", "C#5", "D#5", "skip", "F#5", "G#5", "A#5", "skip", "C#6", "D#6", "skip", "F#6", "G#6", "skip"];
+        const COLOR_MAP = { 'A': 'c-A', 'B': 'c-B', 'C': 'c-C', 'D': 'c-D', 'E': 'c-E', 'F': 'c-F', 'G': 'c-G' };
+
+        // 1. INICIALIZAR INSTRUMENTO
+        function createInstrument() {
+            const natRow = document.getElementById('row-nat');
+            const accRow = document.getElementById('row-acc');
+
+            NAT_NOTES.forEach((note, i) => {
+                const div = document.createElement('div');
+                div.className = `key k-nat ${COLOR_MAP[note[0]]}`;
+                div.innerHTML = `<span>${note[0]}<br>${getSyllable(note[0])}</span>`;
+                div.onmousedown = () => hit(note);
+                natRow.appendChild(div);
+                KEYS[note] = { el: div, x: 0, w: 0 };
+            });
+
+            ACC_PATTERN.forEach((item, i) => {
+                if (item === "skip") {
+                    accRow.appendChild(document.createElement('div')).className = "spacer-4";
+                } else {
+                    accRow.appendChild(document.createElement('div')).className = "spacer-2";
+                    const div = document.createElement('div');
+                    div.className = "key k-acc";
+                    div.innerHTML = `<span>${item.replace('#', '♯')}</span>`;
+                    div.onmousedown = () => hit(item);
+                    accRow.appendChild(div);
+                    accRow.appendChild(document.createElement('div')).className = "spacer-2";
+                    KEYS[item] = { el: div, x: 0, w: 0 };
+                }
+            });
+            updateMetrics();
+        }
+
+        function getSyllable(l) { return {A:'LA',B:'SI',C:'DO',D:'RE',E:'MI',F:'FA',G:'SOL'}[l]; }
+
+        function updateMetrics() {
+            for (let n in KEYS) {
+                const r = KEYS[n].el.getBoundingClientRect();
+                KEYS[n].x = r.left + r.width / 2;
+                KEYS[n].w = r.width;
+            }
+        }
+
+        async function hit(note, dur = "8n", isSilent = false) {
+            if (!isSilent) synth.triggerAttackRelease(note, dur);
+            const el = KEYS[note].el;
+            el.classList.add('key-active');
+            setTimeout(() => el.classList.remove('key-active'), 120);
+        }
+
+        // 2. MIDI LOAD
+        document.getElementById('midi-in').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            appState = STATES.LOADING;
+            const reader = new FileReader();
+            reader.onload = async event => {
+                try {
+                    currentMidi = new Midi(event.target.result);
+                    Tone.Transport.bpm.value = currentMidi.header.tempos[0]?.bpm || 100;
+                    document.getElementById('bpm-input').value = Math.round(Tone.Transport.bpm.value);
+                    document.getElementById('bpm-val').innerText = Math.round(Tone.Transport.bpm.value);
+                    
+                    document.getElementById('loader').style.display = 'none';
+                    document.getElementById('view').style.visibility = 'visible';
+                    document.getElementById('play-btn').disabled = false;
+                    appState = STATES.READY;
+                    updateMetrics();
+                    parseMidi();
+                } catch (e) { appState = STATES.ERROR; alert("Error MIDI"); }
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        function parseMidi() {
+            melodyData = [];
+            const tourMap = new Set();
+            tourList = [];
+
+            currentMidi.tracks.forEach(track => {
+                track.notes.forEach(note => {
+                    if (KEYS[note.name]) {
+                        melodyData.push({ n: note.name, t: note.time, d: note.duration, id: Math.random() });
+                        if (!tourMap.has(note.name)) {
+                            tourMap.add(note.name);
+                            tourList.push(note.name);
+                        }
+                    }
+                });
+            });
+        }
+
+        // 3. REPRODUCCIÓN - MASTER CLOCK
+        document.getElementById('play-btn').onclick = async () => {
+            if (appState === STATES.PLAYING) {
+                stopPlayback();
+                return;
+            }
+            startPlayback();
+        };
+
+        async function startPlayback() {
+            if (Tone.context.state !== 'running') await Tone.start();
+            appState = STATES.PLAYING;
+            toggleUI(false);
+
+            Tone.Transport.stop();
+            Tone.Transport.cancel();
+
+            const offset = Tone.Time("1m").toSeconds();
+
+            melodyData.forEach(note => {
+                const startTime = note.t + offset;
+                Tone.Transport.schedule(time => {
+                    hit(note.n, note.d);
+                }, startTime);
+            });
+
+            // PRECUENTA VISUAL + AUDIO
+            for (let i = 0; i < 4; i++) {
+                Tone.Transport.schedule(time => {
+                    percussion.triggerAttack(i === 0 ? 1000 : 700, time);
+                    Tone.Draw.schedule(() => {
+                        const cd = document.getElementById('countdown-ui');
+                        cd.innerText = i + 1;
+                        cd.style.opacity = 1;
+                        if (i === 3) setTimeout(() => cd.style.opacity = 0, (60000 / Tone.Transport.bpm.value));
+                    }, time);
+                }, i * (60 / Tone.Transport.bpm.value));
+            }
+
+            // AUTO STOP
+            const maxTime = Math.max(...melodyData.map(d => d.t)) + offset + 2;
+            Tone.Transport.schedule(() => {
+                Tone.Draw.schedule(() => stopPlayback(), Tone.now());
+            }, maxTime);
+
+            Tone.Transport.start();
+            document.getElementById('play-btn').innerText = "⏹ STOP";
+            document.getElementById('play-btn').classList.add('playing');
+        }
+
+        function stopPlayback() {
+            Tone.Transport.stop();
+            Tone.Transport.cancel();
+            appState = STATES.READY;
+            toggleUI(true);
+            document.getElementById('play-btn').innerText = "▶ PLAY";
+            document.getElementById('play-btn').classList.remove('playing');
+            document.getElementById('countdown-ui').style.opacity = 0;
+            // Clean
+            for (let n in KEYS) KEYS[n].el.classList.remove('tour-off', 'tour-done', 'tour-target');
+        }
+
+        function toggleUI(enabled) {
+            document.getElementById('btn-reload').disabled = !enabled;
+            document.getElementById('btn-tour-start').disabled = !enabled;
+            document.getElementById('bpm-input').disabled = !enabled;
+            document.getElementById('tour-overlay').style.display = 'none';
+        }
+
+        // 4. TOUR
+        document.getElementById('btn-tour-start').onclick = () => {
+            if (appState !== STATES.READY) return;
+            appState = STATES.TOUR;
+            tourIdx = -1;
+            document.getElementById('tour-overlay').style.display = 'block';
+            for (let n in KEYS) KEYS[n].el.classList.add('tour-off');
+            document.getElementById('tour-info').innerText = "INICIAR TOUR DE NOTAS";
+            document.getElementById('tour-next-btn').innerText = `DESCUBRIR (0/${tourList.length})`;
+            document.getElementById('tour-next-btn').onclick = runTourStep;
+        };
+
+        function runTourStep() {
+            if (tourIdx >= 0) KEYS[tourList[tourIdx]].el.className = KEYS[tourList[tourIdx]].el.className.replace('tour-target', 'tour-done');
+            tourIdx++;
+            if (tourIdx < tourList.length) {
+                const note = tourList[tourIdx];
+                KEYS[note].el.classList.add('tour-target');
+                hit(note);
+                document.getElementById('tour-next-btn').innerText = `SIGUIENTE (${tourIdx + 1}/${tourList.length})`;
+                document.getElementById('tour-info').innerText = `IDENTIFICA: ${note}`;
+            } else {
+                document.getElementById('tour-info').innerText = "¡NOTAS IDENTIFICADAS!";
+                document.getElementById('tour-next-btn').innerText = "SALIR";
+                document.getElementById('tour-next-btn').onclick = () => {
+                    stopPlayback();
+                    document.getElementById('tour-overlay').style.display = 'none';
+                };
+            }
+        }
+
+        // 5. DRAW LOOP (CLOCK BPM)
+        const ctxEl = document.getElementById('ctx');
+        const dpr = window.devicePixelRatio || 1;
+        const ctx = ctxEl.getContext('2d');
+
+        function draw() {
+            ctxEl.width = window.innerWidth * dpr;
+            ctxEl.height = ctxEl.offsetHeight * dpr;
+            ctx.scale(dpr, dpr);
+            const w = ctxEl.width / dpr;
+            const h = ctxEl.height / dpr;
+            ctx.clearRect(0, 0, w, h);
+
+            if (appState === STATES.PLAYING) {
+                const bpm = Tone.Transport.bpm.value;
+                const transportTime = Tone.Transport.seconds;
+                const offset = Tone.Time("1m").toSeconds();
+                const pps = (bpm / 60) * PIXELS_PER_BEAT;
+
+                melodyData.forEach(note => {
+                    const absTime = note.t + offset;
+                    // Formula: bottom_of_canvas - (distancia_en_segundos * pixels_per_second)
+                    const y = h - (absTime - transportTime) * pps;
+
+                    if (y > -500 && y < h + 200) {
+                        const key = KEYS[note.n];
+                        ctx.fillStyle = getComputedStyle(key.el).backgroundColor;
+                        const blockH = note.d * pps;
+                        ctx.beginPath();
+                        ctx.roundRect(key.x - key.w/2 + 4, y - blockH, key.w - 8, blockH, 8);
+                        ctx.fill();
+                        ctx.strokeStyle = "rgba(255,255,255,0.6)";
+                        ctx.stroke();
+                    }
+                });
+            }
+            requestAnimationFrame(draw);
+        }
+
+        document.getElementById('bpm-input').oninput = e => {
+            const v = parseInt(e.target.value);
+            Tone.Transport.bpm.value = v;
+            document.getElementById('bpm-val').innerText = v;
+        };
+
+        window.onload = () => { createInstrument(); draw(); };
+        window.onresize = updateMetrics;
+    </script>
+</body>
+</html>

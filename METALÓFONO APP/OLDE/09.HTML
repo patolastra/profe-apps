@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Metalófono Pro - Versión Final Corregida</title>
+    <script src="https://unpkg.com/tone"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <style>
+        :root { --case-green: #2ecc71; --bg: #121214; --gold: #f1c40f; --orange: #e67e22; }
+        * { box-sizing: border-box; user-select: none; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; }
+
+        /* PANTALLA 1: CARGA */
+        #screen-1 {
+            position: fixed; inset: 0; background: #1a1a1d; z-index: 2000;
+            display: flex; align-items: center; justify-content: center; color: white;
+        }
+        .loader { background: #2c3e50; padding: 40px; border-radius: 20px; text-align: center; border: 4px solid var(--case-green); box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+
+        /* JUEGO PRINCIPAL */
+        #app-container { display: flex; flex-direction: column; width: 100vw; height: 100vh; visibility: hidden; }
+
+        /* Piano Roll (50%) */
+        #piano-roll-zone { height: 50vh; width: 100%; background: #1a1a1d; position: relative; border-bottom: 4px solid #333; }
+        canvas { width: 100%; height: 100%; display: block; }
+
+        /* Metalófono (50%) */
+        #instrument-zone { 
+            height: 50vh; width: 100%; background: var(--case-green); 
+            display: flex; flex-direction: column; padding: 1.5vh 10px; box-shadow: inset 0 10px 20px rgba(0,0,0,0.3);
+        }
+
+        .row { display: flex; width: 100%; height: 50%; justify-content: center; align-items: flex-start; }
+        .key {
+            border-radius: 6px; position: relative; margin: 0 3px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 2px 5px 10px rgba(0,0,0,0.4); color: rgba(0,0,0,0.7); font-weight: bold;
+            flex: 1; transition: all 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            /* Estado Inicial: Gris Opaco */
+            filter: grayscale(1) contrast(0.5) brightness(0.7); opacity: 0.6;
+        }
+
+        /* Tipos de teclas */
+        .sharp { background: #222 !important; color: #777 !important; height: 85%; max-width: 60px; z-index: 5; }
+        .natural { height: 95%; }
+        .sharp-spacer { flex: 0.8; max-width: 60px; pointer-events: none; }
+        .key span { font-size: 1.2vw; text-align: center; pointer-events: none; transform: rotate(0); line-height: 1.2; }
+
+        /* Tornillos */
+        .key::before, .key::after {
+            content: ''; position: absolute; width: 10px; height: 10px; background: radial-gradient(circle, #fff, #888); border-radius: 50%; left: 50%; transform: translateX(-50%);
+        }
+        .key::before { top: 12%; } .key::after { bottom: 12%; }
+
+        /* ESTADOS DE TOUR */
+        .tour-hidden { filter: grayscale(1) contrast(0.5) brightness(0.7); opacity: 0.6; }
+        .tour-orange { filter: none !important; opacity: 1 !important; background: var(--orange) !important; color: white !important; }
+        .tour-gold { 
+            filter: none !important; opacity: 1 !important; 
+            background: var(--gold) !important; color: black !important;
+            animation: pop-gold 0.8s infinite alternate cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100 !important;
+        }
+
+        @keyframes pop-gold {
+            0% { transform: scale(1); box-shadow: 0 0 10px var(--gold); }
+            100% { transform: scale(1.15); box-shadow: 0 0 40px var(--gold); }
+        }
+
+        /* ESTADO EJECUCIÓN (CUANDO LA NOTA TOCA) */
+        .active-hit { 
+            filter: none !important; opacity: 1 !important;
+            transform: scale(0.95) translateY(10px) !important; 
+            background: white !important; box-shadow: 0 0 40px white !important;
+        }
+
+        /* Colores réplica base */
+        .c-A { background: #9b59b6; } .c-B { background: #3498db; } .c-C { background: #2980b9; } 
+        .c-D { background: #2ecc71; } .c-E { background: #f1c40f; } .c-F { background: #e67e22; } .c-G { background: #e74c3c; }
+
+        /* CONTROLES OVERLAY */
+        #ui-overlay {
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+            z-index: 500; display: flex; flex-direction: column; align-items: center;
+            background: rgba(0,0,0,0.85); padding: 25px; border-radius: 20px; border: 3px solid var(--gold);
+        }
+        button { padding: 12px 30px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 1.2rem; }
+        #step-btn { background: var(--gold); color: black; transition: 0.2s; }
+        #start-btn { background: var(--case-green); color: white; display: none; margin-top: 15px; }
+        #fs-btn { position: absolute; top: 10px; right: 10px; z-index: 600; padding: 5px 10px; font-size: 12px; }
+
+        #countdown {
+            position: fixed; top: 25%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 180px; color: white; font-weight: bold; opacity: 0; pointer-events: none; z-index: 3000;
+            text-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="screen-1">
+        <div class="loader">
+            <h2>Metalófono Pro</h2>
+            <p>Sube un archivo MIDI para comenzar</p>
+            <input type="file" id="midi-input" accept=".mid,.midi">
+        </div>
+    </div>
+
+    <div id="countdown"></div>
+    <button id="fs-btn" onclick="toggleFS()">Pantalla Completa</button>
+
+    <div id="app-container">
+        <div id="piano-roll-zone">
+            <div id="ui-overlay">
+                <div id="instruction" style="color: white; margin-bottom: 12px; font-size: 1.2rem;">Fase 1: Descubrimiento de Notas</div>
+                <button id="step-btn">Cargar notas primero...</button>
+                <div id="final-panel" style="display:none; text-align:center; color:white;">
+                    <br><label>Ajustar Velocidad:</label><br>
+                    <input type="range" id="tempo-val" min="40" max="200" value="100" style="width:250px">
+                    <button id="start-btn">¡A TOCAR!</button>
+                </div>
+            </div>
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div id="instrument-zone">
+            <div id="sharp-row" class="row"></div>
+            <div id="natural-row" class="row"></div>
+        </div>
+    </div>
+
+    <script>
+        const synth = new Tone.PolySynth(Tone.Synth, { oscillator:{type:"triangle"}, envelope:{attack:0.005, decay:0.3, sustain:0.1, release:1.2} }).toDestination();
+        
+        // Sonido Woodblock Realista
+        const woodblock = new Tone.MembraneSynth({
+            pitchDecay: 0.001, octaves: 0, envelope: { attack: 0.0001, decay: 0.05, sustain: 0 }
+        }).toDestination();
+
+        const notesBase = [
+            {n:"A4", c:"c-A", t:"A La"}, {n:"B4", c:"c-B", t:"B Si"}, {n:"C5", c:"c-C", t:"C Do"},
+            {n:"D5", c:"c-D", t:"D Re"}, {n:"E5", c:"c-E", t:"E Mi"}, {n:"F5", c:"c-F", t:"F Fa"},
+            {n:"G5", c:"c-G", t:"G Sol"}, {n:"A5", c:"c-A", t:"A La"}, {n:"B5", c:"c-B", t:"B Si"},
+            {n:"C6", c:"c-C", t:"C Do"}, {n:"D6", c:"c-D", t:"D Re"}, {n:"E6", c:"c-E", t:"E Mi"},
+            {n:"F6", c:"c-F", t:"F Fa"}, {n:"G6", c:"c-G", t:"G Sol"}, {n:"A6", c:"c-A", t:"A La"}
+        ];
+        const accidentals = ["A#4", "spacer", "C#5", "D#5", "spacer", "F#5", "G#5", "A#5", "spacer", "C#6", "D#6", "spacer", "F#6", "G#6"];
+
+        const keysMap = {};
+        let midi = null, tourNotes = [], currentIdx = -1, isPlaying = false, activeBlocks = [];
+
+        function buildUI() {
+            const nr = document.getElementById('natural-row'), sr = document.getElementById('sharp-row');
+            notesBase.forEach(item => {
+                const d = document.createElement('div');
+                d.className = `key natural ${item.c}`;
+                d.innerHTML = `<span>${item.t.replace(' ','<br>')}</span>`;
+                nr.appendChild(d);
+                keysMap[item.n] = { el: d };
+            });
+            accidentals.forEach(item => {
+                const d = document.createElement('div');
+                if(item === "spacer") d.className = "sharp-spacer";
+                else {
+                    d.className = "key sharp";
+                    d.innerHTML = `<span>${item.replace('#','♯')}</span>`;
+                    sr.appendChild(d);
+                    keysMap[item] = { el: d };
+                }
+            });
+        }
+
+        function getMetrics() {
+            for(let n in keysMap) {
+                const r = keysMap[n].el.getBoundingClientRect();
+                keysMap[n].x = r.left + r.width/2; keysMap[n].w = r.width;
+            }
+        }
+
+        async function triggerNote(n, dur = "4n") {
+            await Tone.start();
+            synth.triggerAttackRelease(n, dur);
+            // Flash corto visual solo si está sonando
+            const el = keysMap[n].el;
+            el.classList.add('active-hit');
+            setTimeout(() => el.classList.remove('active-hit'), 150);
+        }
+
+        document.getElementById('midi-input').onchange = e => {
+            const reader = new FileReader();
+            reader.onload = async event => {
+                midi = new Midi(event.target.result);
+                const used = new Set();
+                midi.tracks[0].notes.forEach(n => { if(keysMap[n.name]) used.add(n.name); });
+                tourNotes = Array.from(used).sort();
+                
+                document.getElementById('screen-1').style.display = 'none';
+                document.getElementById('app-container').style.visibility = 'visible';
+                getMetrics();
+                document.getElementById('step-btn').innerText = `Descubrir Notas (0/${tourNotes.length})`;
+            };
+            reader.readAsArrayBuffer(e.target.files[0]);
+        };
+
+        // BOTÓN PASO A PASO (TOUR)
+        document.getElementById('step-btn').onclick = () => {
+            if(currentIdx >= 0) {
+                keysMap[tourNotes[currentIdx]].el.classList.remove('tour-gold');
+                keysMap[tourNotes[currentIdx]].el.classList.add('tour-orange');
+            }
+            currentIdx++;
+            if(currentIdx < tourNotes.length) {
+                const n = tourNotes[currentIdx];
+                keysMap[n].el.classList.add('tour-gold');
+                triggerNote(n);
+                document.getElementById('step-btn').innerText = `Siguiente (${currentIdx+1}/${tourNotes.length})`;
+                document.getElementById('instruction').innerText = `Nota Descubierta: ${n}`;
+            } else {
+                document.getElementById('step-btn').style.display = 'none';
+                document.getElementById('final-panel').style.display = 'block';
+                document.getElementById('start-btn').style.display = 'block';
+                document.getElementById('instruction').innerText = "¡Notas aprendidas! Todo listo.";
+            }
+        };
+
+        function toggleFS() {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else document.exitFullscreen();
+        }
+
+        document.getElementById('start-btn').onclick = async () => {
+            await Tone.start();
+            document.getElementById('ui-overlay').style.display = 'none';
+            // Restaurar colores para ejecución (aunque con transparencia se verán al brillar)
+            for(let n in keysMap) keysMap[n].el.classList.remove('tour-hidden', 'tour-orange', 'tour-gold');
+            
+            Tone.Transport.stop(); Tone.Transport.cancel();
+            const bpm = document.getElementById('tempo-val').value;
+            Tone.Transport.bpm.value = bpm;
+            const delay = Tone.Time("1m").toSeconds();
+
+            activeBlocks = [];
+            midi.tracks[0].notes.forEach(note => {
+                if(keysMap[note.name]){
+                    const t = note.time + delay;
+                    activeBlocks.push({ n: note.name, t, d: note.duration });
+                    
+                    Tone.Transport.schedule(time => {
+                        triggerNote(note.name, note.duration);
+                    }, t);
+                }
+            });
+
+            // Precuenta con WOODBLOCK
+            for(let i=0; i<4; i++){
+                Tone.Transport.schedule(t => {
+                    woodblock.triggerAttack(i === 0 ? 1200 : 800, t);
+                    Tone.Draw.schedule(() => {
+                        const cd = document.getElementById('countdown');
+                        cd.innerText = i+1; cd.style.opacity = 1;
+                        setTimeout(() => cd.style.opacity = 0, 400);
+                    }, t);
+                }, i * (60/bpm));
+            }
+
+            Tone.Transport.start();
+            isPlaying = true;
+        };
+
+        const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+        function mainLoop() {
+            canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+            ctx.clearRect(0,0, canvas.width, canvas.height);
+            
+            if(isPlaying) {
+                const now = Tone.Transport.seconds;
+                const pps = 250; // Velocidad estable de caída
+                
+                activeBlocks.forEach(b => {
+                    // CÁLCULO DE POSICIÓN: Cuando t = now, la posición debe ser exactamente la base del canvas.
+                    const remTime = b.t - now;
+                    const yHit = canvas.height;
+                    const yPos = yHit - (remTime * pps);
+                    
+                    if(yPos > -300 && yPos < canvas.height + 100) {
+                        const k = keysMap[b.n];
+                        // Solo el bloque de color, sin iluminar la tecla hasta el impacto físico.
+                        ctx.fillStyle = getComputedStyle(k.el).getPropertyValue('background-color');
+                        const h = b.d * pps;
+                        ctx.beginPath();
+                        ctx.roundRect(k.x - k.w/2 + 5, yPos - h, k.w - 10, h, 8);
+                        ctx.fill();
+                        ctx.strokeStyle = "rgba(255,255,255,0.7)";
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                });
+            }
+            requestAnimationFrame(mainLoop);
+        }
+
+        buildUI();
+        mainLoop();
+        window.onresize = getMetrics;
+    </script>
+</body>
+</html>

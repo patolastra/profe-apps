@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metalófono Educativo Pro</title>
+    
+    <!-- Librerías Externas -->
+    <script src="https://unpkg.com/tone"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+
+    <style>
+        :root {
+            --green-case: #2ecc71;
+            --bg-dark: #121214;
+            --gold: #f1c40f;
+            --orange: #e67e22;
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg-dark); overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+        /* Pantalla de Carga Inicial */
+        #loading-screen {
+            position: fixed; inset: 0; background: #1a1a1d; z-index: 5000;
+            display: flex; align-items: center; justify-content: center; color: white;
+        }
+        .loader-card {
+            background: #2c3e50; padding: 40px; border-radius: 20px;
+            text-align: center; border: 4px solid var(--green-case);
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+        }
+
+        /* Barra de Menú Superior */
+        header {
+            height: 70px; background: #1a1a1d; border-bottom: 2px solid #333;
+            display: flex; align-items: center; justify-content: space-between; padding: 0 20px; color: white;
+        }
+        .nav-group { display: flex; align-items: center; gap: 12px; }
+        .tempo-box { display: flex; flex-direction: column; align-items: center; min-width: 150px; font-size: 11px; }
+
+        button { 
+            padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;
+            background: #444; color: white; transition: 0.2s;
+        }
+        button:hover { background: #555; }
+        button:active { transform: scale(0.95); }
+        .btn-highlight { background: var(--orange); }
+
+        /* Contenedor Principal (50/50) */
+        #app-viewport { display: flex; flex-direction: column; height: calc(100vh - 70px); visibility: hidden; }
+
+        #piano-roll-container { height: 50%; width: 100%; background: #141417; position: relative; }
+        canvas { width: 100%; height: 100%; display: block; }
+
+        #metallophone-container { height: 50%; width: 100%; background: var(--green-case); padding: 10px; display: flex; flex-direction: column; position: relative; }
+
+        /* GRID DEL INSTRUMENTO: 30 columnas para permitir centros perfectos */
+        .key-row { display: grid; grid-template-columns: repeat(30, 1fr); height: 50%; width: 100%; }
+
+        .key {
+            border-radius: 8px; position: relative; margin: 0 2px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: 2px 4px 8px rgba(0,0,0,0.4); font-weight: bold;
+            transition: all 0.2s; cursor: pointer;
+            filter: grayscale(1) brightness(0.7); opacity: 0.6; /* GrayScale Tour Inicial */
+        }
+        .key span { font-size: 1.1vw; text-align: center; color: rgba(0,0,0,0.8); }
+
+        /* Tornillos */
+        .key::before, .key::after { content: ''; position: absolute; width: 10px; height: 10px; background: radial-gradient(circle, #fff, #999); border-radius: 50%; left: 50%; transform: translateX(-50%); }
+        .key::before { top: 12%; } .key::after { bottom: 12%; }
+
+        /* Definición de placa misma dimensión (ancho = 2 columnas) */
+        .key-nat { grid-column: span 2; height: 95%; }
+        .key-shp { grid-column: span 2; height: 95%; background: #222 !important; color: white !important; z-index: 5; }
+        .key-shp span { color: white !important; }
+        .spacer { grid-column: span 1; } /* Los huecos */
+
+        /* Colores de Placas */
+        .c-A { background: #9b59b6; } .c-B { background: #3498db; } .c-C { background: #2980b9; } 
+        .c-D { background: #2ecc71; } .c-E { background: #f1c40f; } .c-F { background: #e67e22; } .c-G { background: #e74c3c; }
+
+        /* ESTADOS ESPECIALES */
+        .discovered { filter: grayscale(0) !important; opacity: 1 !important; background: var(--orange) !important; color: white !important; }
+        .discovered span { color: white !important; }
+        
+        .targeting { 
+            filter: grayscale(0) brightness(1.1) !important; opacity: 1 !important; 
+            background: var(--gold) !important; color: black !important;
+            animation: popping 0.5s infinite alternate cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 50 !important;
+        }
+
+        .active-game .key { filter: grayscale(0) !important; opacity: 1 !important; } /* Colores normales en Play */
+
+        .key-hit { transform: translateY(12px) scale(0.96) !important; background: white !important; filter: brightness(1.5) !important; box-shadow: 0 0 30px white !important; }
+
+        @keyframes popping { from { transform: scale(1); } to { transform: scale(1.22); } }
+
+        /* Otros HUDs */
+        #tour-overlay { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); padding: 20px; border: 2px solid var(--gold); border-radius: 12px; color: white; text-align: center; z-index: 1000; min-width: 320px; }
+        #countdown { position: fixed; top: 35%; left: 50%; transform: translate(-50%,-50%); font-size: 15vw; color: white; font-weight: 900; opacity: 0; pointer-events: none; z-index: 4000; }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <div class="loader-card">
+            <h2>Metalófono Interactivo</h2>
+            <p>Sube una melodía MIDI (.mid) para empezar</p>
+            <input type="file" id="midi-upload" accept=".mid,.midi">
+        </div>
+    </div>
+
+    <header id="control-bar">
+        <div class="nav-group">
+            <button onclick="document.getElementById('midi-upload').click()">📁 Cambiar MIDI</button>
+            <button id="retry-tour">🎓 Aprender Notas</button>
+        </div>
+
+        <div class="nav-group">
+            <button id="btn-play" class="btn-highlight">▶ REPRODUCIR</button>
+            <div class="tempo-box">
+                <label>BPM: <span id="bpm-label">100</span></label>
+                <input type="range" id="tempo-slider" min="40" max="200" value="100" style="width: 140px;">
+            </div>
+        </div>
+
+        <button onclick="toggleFS()">全 PANTALLA COMPLETA</button>
+    </header>
+
+    <div id="countdown"></div>
+
+    <main id="app-viewport">
+        <div id="piano-roll-container">
+            <div id="tour-overlay">
+                <div id="tour-txt">¡Bienvenido! Descubre las notas una a una.</div>
+                <button id="tour-btn" style="margin-top: 10px; width: 100%; background: var(--gold); color: #000;">Iniciar Tour (0/0)</button>
+            </div>
+            <canvas id="main-canvas"></canvas>
+        </div>
+
+        <div id="metallophone-container">
+            <div id="sharp-row" class="key-row"></div>
+            <div id="natural-row" class="key-row"></div>
+        </div>
+    </main>
+
+    <script>
+        const KEY_STORE = {};
+        const NATURAL_DEF = [
+            {n:"A4", c:"c-A", t:"A La"}, {n:"B4", c:"c-B", t:"B Si"}, {n:"C5", c:"c-C", t:"C Do"},
+            {n:"D5", c:"c-D", t:"D Re"}, {n:"E5", c:"c-E", t:"E Mi"}, {n:"F5", c:"c-F", t:"F Fa"},
+            {n:"G5", c:"c-G", t:"G Sol"}, {n:"A5", c:"c-A", t:"A La"}, {n:"B5", c:"c-B", t:"B Si"},
+            {n:"C6", c:"c-C", t:"C Do"}, {n:"D6", c:"c-D", t:"D Re"}, {n:"E6", c:"c-E", t:"E Mi"},
+            {n:"F6", c:"c-F", t:"F Fa"}, {n:"G6", c:"c-G", t:"G Sol"}, {n:"A6", c:"c-A", t:"A La"}
+        ];
+        // Mapa fila superior con huecos alineados a la rejilla de 30
+        const SHARP_MAP = ["n-A#4", "sp", "n-C#5", "n-D#5", "sp", "n-F#5", "n-G#5", "n-A#5", "sp", "n-C#6", "n-D#6", "sp", "n-F#6", "n-G#6", "sp"];
+
+        let midiParsed = null, tourList = [], tourCurrent = -1, isPlaying = false, blocks = [];
+
+        // Motores de Audio
+        const synth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "triangle" } }).toDestination();
+        const woodblock = new Tone.MembraneSynth({ pitchDecay: 0.001, envelope: { attack: 0.0001, decay: 0.06, sustain: 0 } }).toDestination();
+
+        function buildMetallophone() {
+            const nr = document.getElementById('natural-row');
+            const sr = document.getElementById('sharp-row');
+            
+            NATURAL_DEF.forEach(item => {
+                const d = document.createElement('div');
+                d.className = `key key-nat ${item.c}`;
+                d.innerHTML = `<span>${item.t.replace(' ', '<br>')}</span>`;
+                d.onmousedown = () => hitKey(item.n);
+                nr.appendChild(d);
+                KEY_STORE[item.n] = { el: d };
+            });
+
+            SHARP_MAP.forEach(item => {
+                if(item === "sp") {
+                    const sp = document.createElement('div');
+                    sp.className = "spacer";
+                    sr.appendChild(sp);
+                } else {
+                    const n = item.split('-')[1];
+                    const d = document.createElement('div');
+                    d.className = "key key-shp";
+                    d.innerHTML = `<span>${n.replace('#','♯')}</span>`;
+                    d.onmousedown = () => hitKey(n);
+                    sr.appendChild(d);
+                    KEY_STORE[n] = { el: d };
+                }
+            });
+            updatePos();
+        }
+
+        function updatePos() {
+            for(let note in KEY_STORE) {
+                const rect = KEY_STORE[note].el.getBoundingClientRect();
+                KEY_STORE[note].x = rect.left + rect.width / 2;
+                KEY_STORE[note].w = rect.width;
+            }
+        }
+
+        async function hitKey(note, duration = "4n") {
+            await Tone.start();
+            synth.triggerAttackRelease(note, duration);
+            const el = KEY_STORE[note].el;
+            el.classList.add('key-hit');
+            setTimeout(() => el.classList.remove('key-hit'), 150);
+        }
+
+        // Lógica de archivos MIDI
+        document.getElementById('midi-upload').onchange = (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = async event => {
+                midiParsed = new Midi(event.target.result);
+                const uniqueSet = new Set();
+                midiParsed.tracks[0].notes.forEach(n => { if(KEY_STORE[n.name]) uniqueSet.add(n.name); });
+                tourList = Array.from(uniqueSet).sort();
+                
+                document.getElementById('loading-screen').style.display = 'none';
+                document.getElementById('app-viewport').style.visibility = 'visible';
+                updatePos();
+                prepareTour();
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        function prepareTour() {
+            isPlaying = false;
+            tourCurrent = -1;
+            Tone.Transport.stop(); Tone.Transport.cancel();
+            document.getElementById('tour-overlay').style.display = 'block';
+            document.getElementById('metallophone-container').classList.remove('active-game');
+            for(let n in KEY_STORE) KEY_STORE[n].el.className = KEY_STORE[n].el.className.replace(/ discovered| targeting/g, "");
+            
+            const btn = document.getElementById('tour-btn');
+            btn.style.display = 'block';
+            btn.innerText = `Descubrir Notas (0/${tourList.length})`;
+            btn.onclick = runTour;
+            document.getElementById('tour-txt').innerText = "PASO 1: Descubre las notas de la melodía";
+        }
+
+        function runTour() {
+            if(Tone.context.state !== 'running') Tone.start();
+            
+            if(tourCurrent >= 0) {
+                KEY_STORE[tourList[tourCurrent]].el.classList.replace('targeting', 'discovered');
+            }
+            tourCurrent++;
+            
+            if(tourCurrent < tourList.length) {
+                const note = tourList[tourCurrent];
+                KEY_STORE[note].el.classList.add('targeting');
+                hitKey(note);
+                document.getElementById('tour-btn').innerText = `Siguiente (${tourCurrent+1}/${tourList.length})`;
+                document.getElementById('tour-txt').innerText = `Encuentra y conoce: ${note}`;
+            } else {
+                document.getElementById('tour-btn').innerText = "¡ESTOY LISTO!";
+                document.getElementById('tour-txt').innerText = "¡Has descubierto todas las notas!";
+                document.getElementById('tour-btn').onclick = () => {
+                    document.getElementById('tour-overlay').style.display = 'none';
+                    document.getElementById('metallophone-container').classList.add('active-game');
+                };
+            }
+        }
+
+        // --- SISTEMA DE JUEGO ---
+        document.getElementById('btn-play').onclick = async () => {
+            await Tone.start();
+            document.getElementById('tour-overlay').style.display = 'none';
+            document.getElementById('metallophone-container').classList.add('active-game');
+            
+            Tone.Transport.stop(); Tone.Transport.cancel();
+            const bpm = document.getElementById('tempo-slider').value;
+            Tone.Transport.bpm.value = bpm;
+            const startDelay = Tone.Time("1m").toSeconds();
+
+            blocks = [];
+            midiParsed.tracks[0].notes.forEach(n => {
+                if(KEY_STORE[n.name]){
+                    const hTime = n.time + startDelay;
+                    blocks.push({ n: n.name, t: hTime, d: n.duration });
+                    Tone.Transport.schedule(time => hitKey(n.name, n.duration), hTime);
+                }
+            });
+
+            // Metrónomo Woodblock
+            for(let i=0; i<4; i++){
+                Tone.Transport.schedule(t => {
+                    woodblock.triggerAttack(i===0?1100:800, t);
+                    Tone.Draw.schedule(() => {
+                        const cnt = document.getElementById('countdown');
+                        cnt.innerText = i+1; cnt.style.opacity = 1;
+                        setTimeout(() => cnt.style.opacity = 0, 400);
+                    }, t);
+                }, i * (60/bpm));
+            }
+
+            Tone.Transport.start();
+            isPlaying = true;
+        };
+
+        const canvas = document.getElementById('main-canvas'), ctx = canvas.getContext('2d');
+        function render() {
+            canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if(isPlaying) {
+                const now = Tone.Transport.seconds, speed = 250;
+                blocks.forEach(b => {
+                    const yPos = canvas.height - (b.t - now) * speed;
+                    if(yPos > -500 && yPos < canvas.height + 100) {
+                        ctx.fillStyle = getComputedStyle(KEY_STORE[b.n].el).backgroundColor;
+                        const h = b.d * speed;
+                        ctx.beginPath();
+                        ctx.roundRect(KEY_STORE[b.n].x - KEY_STORE[b.n].w/2 + 5, yPos - h, KEY_STORE[b.n].w - 10, h, 8);
+                        ctx.fill();
+                        ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
+                    }
+                });
+            }
+            requestAnimationFrame(render);
+        }
+
+        // Otros Controles
+        document.getElementById('tempo-slider').oninput = e => {
+            document.getElementById('bpm-label').innerText = e.target.value;
+            Tone.Transport.bpm.value = e.target.value;
+        }
+        document.getElementById('retry-tour').onclick = prepareTour;
+        function toggleFS() { if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
+
+        window.onload = () => { buildMetallophone(); render(); };
+        window.onresize = updatePos;
+    </script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metalófono Pro con Conteo</title>
+    <script src="https://unpkg.com/tone"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            display: flex; flex-direction: column; align-items: center; 
+            background: #1a1a2e; color: white; margin: 0; overflow: hidden;
+        }
+        #ui-container {
+            position: absolute; top: 10px; left: 10px; z-index: 20;
+            background: rgba(0, 0, 0, 0.7); padding: 15px; border-radius: 10px;
+        }
+        #countdown-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 150px; font-weight: bold; color: #f1c40f; 
+            text-shadow: 0 0 30px rgba(241, 196, 15, 0.5);
+            pointer-events: none; z-index: 15; opacity: 0;
+        }
+        canvas { border-bottom: 5px solid #444; background: #16213e; }
+        #instrument-container { position: relative; display: flex; gap: 4px; padding: 20px; background: #0f3460; }
+        
+        .key {
+            width: 45px; border-radius: 0 0 10px 10px; background: #e9ecef;
+            display: flex; flex-direction: column-reverse; align-items: center; 
+            color: #333; font-weight: bold; font-size: 12px; transition: transform 0.05s;
+        }
+        .k-C { height: 200px; } .k-D { height: 190px; } .k-E { height: 180px; }
+        .k-F { height: 170px; } .k-G { height: 160px; } .k-A { height: 150px; } .k-B { height: 140px; }
+        
+        .sharp { background: #95a5a6; width: 30px; height: 100px !important; margin: 0 -17px; z-index: 5; color: white; }
+        .active { background: #f1c40f !important; transform: translateY(8px); box-shadow: 0 0 25px #f1c40f; }
+        
+        button { background: #e94560; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #555; }
+    </style>
+</head>
+<body>
+
+    <div id="countdown-overlay"></div>
+
+    <div id="ui-container">
+        <input type="file" id="midi-upload" accept=".mid,.midi">
+        <br><br>
+        <label>Tempo (BPM): <span id="bpm-val">120</span></label><br>
+        <input type="range" id="tempo" min="40" max="240" value="120">
+        <br><br>
+        <button id="play-btn" disabled>Cargar MIDI primero</button>
+    </div>
+
+    <canvas id="fall-canvas"></canvas>
+    <div id="instrument-container"></div>
+
+    <script>
+        const canvas = document.getElementById('fall-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('instrument-container');
+        const playBtn = document.getElementById('play-btn');
+        const countdownOverlay = document.getElementById('countdown-overlay');
+        const bpmVal = document.getElementById('bpm-val');
+
+        let midiData = null;
+        let notesToDraw = [];
+        const noteRange = ["C4", "C#4", "D4", "D#4", "E4", "F4", "F#4", "G4", "G#4", "A4", "A#4", "B4", "C5", "C#5", "D5", "D#5", "E5", "F5", "F#5", "G5", "G#5", "A5", "A#5", "B5", "C6"];
+        const keysMap = {};
+
+        // Sintentizadores
+        const synth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "triangle" },
+            envelope: { attack: 0.005, decay: 0.2, sustain: 0.1, release: 1 }
+        }).toDestination();
+
+        // Sonido de metrónomo (madera) para la precuenta
+        const tick = new Tone.MembraneSynth({
+            pitchDecay: 0.01, octaves: 2, envelope: { attack: 0.001, decay: 0.1, sustain: 0 }
+        }).toDestination();
+
+        function createKeys() {
+            canvas.width = (noteRange.length * 50);
+            canvas.height = window.innerHeight - 320;
+            container.innerHTML = "";
+            noteRange.forEach((noteFull) => {
+                const noteName = noteFull.replace(/\d/, "");
+                const isSharp = noteName.includes("#");
+                const div = document.createElement('div');
+                div.className = `key k-${noteName[0]} ${isSharp ? 'sharp' : ''}`;
+                div.innerHTML = `<span>${noteFull}</span>`;
+                container.appendChild(div);
+                keysMap[noteFull] = { element: div, x: div.offsetLeft, width: isSharp ? 30 : 45 };
+            });
+        }
+
+        document.getElementById('midi-upload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                midiData = new Midi(event.target.result);
+                playBtn.disabled = false;
+                playBtn.innerText = "Empezar con Precuenta";
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function prepareAndStart() {
+            Tone.Transport.stop();
+            Tone.Transport.cancel(); // Limpiar todo lo anterior
+            notesToDraw = [];
+            
+            const beatsOffset = 4; // 4 pulsos de precuenta
+            const timeOffset = Tone.Time("1m").toSeconds(); // Equivale a 1 compás (4 pulsos en 4/4)
+
+            // 1. Programar el Conteo (Audio y Visual)
+            for (let i = 0; i < beatsOffset; i++) {
+                Tone.Transport.schedule((time) => {
+                    // Audio
+                    tick.triggerAttackRelease(i === 0 ? "A4" : "E4", "8n", time);
+                    
+                    // Visual (Números)
+                    Tone.Draw.schedule(() => {
+                        countdownOverlay.innerText = i + 1;
+                        countdownOverlay.style.opacity = 1;
+                        setTimeout(() => countdownOverlay.style.opacity = 0, 400);
+                    }, time);
+                }, i * (60 / Tone.Transport.bpm.value));
+            }
+
+            // 2. Programar las Notas del MIDI con el delay de la precuenta
+            midiData.tracks.forEach(track => {
+                track.notes.forEach(note => {
+                    if (keysMap[note.name]) {
+                        const startTime = note.time + timeOffset; // Sumamos el offset
+                        
+                        notesToDraw.push({
+                            name: note.name,
+                            time: startTime,
+                            duration: note.duration,
+                            x: keysMap[note.name].element.offsetLeft - container.offsetLeft,
+                            w: keysMap[note.name].width,
+                            color: note.name.includes('#') ? '#54a0ff' : '#5f27cd'
+                        });
+                        
+                        Tone.Transport.schedule((time) => {
+                            synth.triggerAttackRelease(note.name, note.duration, time);
+                            Tone.Draw.schedule(() => {
+                                keysMap[note.name].element.classList.add('active');
+                                setTimeout(() => keysMap[note.name].element.classList.remove('active'), 150);
+                            }, time);
+                        }, startTime);
+                    }
+                });
+            });
+
+            Tone.Transport.start();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const currentTime = Tone.Transport.seconds;
+            const pixelsPerSecond = 200;
+
+            notesToDraw.forEach(note => {
+                const timeRemaining = note.time - currentTime;
+                const yPos = canvas.height - (timeRemaining * pixelsPerSecond);
+                if (yPos > -200 && yPos < canvas.height + 100) {
+                    ctx.fillStyle = note.color;
+                    const h = note.duration * pixelsPerSecond;
+                    drawRoundedRect(ctx, note.x + 5, yPos - h, note.w - 10, h, 8);
+                }
+            });
+            requestAnimationFrame(draw);
+        }
+
+        function drawRoundedRect(ctx, x, y, w, h, r) {
+            if (h < 5) h = 10; // Mínimo de altura para que se vea
+            ctx.beginPath();
+            ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r);
+            ctx.arcTo(x+w, y+h, x, y+h, r); ctx.arcTo(x, y+h, x, y, r);
+            ctx.arcTo(x, y, x+w, y, r); ctx.fill();
+        }
+
+        playBtn.addEventListener('click', async () => {
+            if (Tone.context.state !== 'running') await Tone.start();
+            prepareAndStart();
+        });
+
+        document.getElementById('tempo').addEventListener('input', (e) => {
+            const bpm = e.target.value;
+            bpmVal.innerText = bpm;
+            Tone.Transport.bpm.value = bpm;
+        });
+
+        window.onload = () => { createKeys(); draw(); };
+        window.onresize = createKeys;
+    </script>
+</body>
+</html>
