@@ -13,6 +13,161 @@ Responde **siempre en español**, incluyendo:
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## Ecosistema PROFE — Contexto general
+
+SRP es uno de los 5 módulos de un ecosistema pedagógico más amplio ubicado en `APPS BY ME/`:
+
+```
+APPS BY ME/
+├── SRP/                    ← este repositorio (producción)
+├── PRESENTADOR PEDAGÓGICO/ ← renderer de presentaciones offline
+├── CUADERNO MIDI/          ← captura de ideas musicales
+├── METALÓFONO APP/         ← herramienta pedagógica MIDI
+├── LECTOR TABLATURAS/      ← lector de partituras
+├── FLAUTA APP/             ← digitaciones interactivas
+├── HUIRO APP/              ← práctica rítmica
+├── CIFRADO AMERICANO/      ← cifrado de acordes
+└── supabase/               ← config compartida de DB
+```
+
+Los otros módulos planificados (no iniciados): **Portal** (hub de planificación en PC) y **Libro de Clases** (evaluaciones con modo offline).
+
+### Vocabulario clave
+
+| Término | Qué es |
+|---------|--------|
+| **Bitácora** | Todo el mundo derecho: captura de voz/texto/foto/video, bandeja, procesamiento con Gemini, historial. Es el flujo de registro y parseo. |
+| **Panel** | El Mundo Izquierdo: vista de lectura que muestra cursos del día, pendientes por categoría, materiales, nota de sesión. Acceso con swipe desde Captura. |
+
+### Rol dual de SRP
+
+SRP tiene DOS funciones igualmente centrales:
+
+1. **Captura → IA → estructura:** el profesor graba/escribe desde el celular → Gemini parsea → información organizada por curso y categoría
+2. **Visualización inteligente:** el Mundo Izquierdo (Panel) muestra registros procesados + planificaciones que llegan desde el Portal
+
+### Flujo bidireccional SRP ↔ Portal (futuro)
+
+- **SRP → Portal:** grabación → Gemini parsea → pendientes con sesión → aparecen en Portal Dashboard
+- **Portal → SRP:** Portal planifica sesiones futuras → aparecen en el Panel mobile de SRP
+
+### El eje temporal — principio organizador central
+
+Todo se ancla a una **sesión** (contexto + fecha concreta). Los pendientes no pertenecen a un curso en abstracto, sino a una sesión específica. Pendiente sin sesión asignada → va a la próxima clase futura del curso por defecto.
+
+### Los 15 contextos del sistema
+
+| Nombre | Tipo | Día |
+|--------|------|-----|
+| ORIENTACIÓN | jefatura | Lunes |
+| TERCERO | curso | Lunes |
+| CUARTO | curso | Lunes |
+| CUERDAS | taller | Lunes |
+| ENLACE | jefatura | Martes |
+| SEXTO | curso | Martes |
+| RECREO | recreo | Martes |
+| QUINTO | curso | Martes |
+| PRIMERO | curso | Miércoles |
+| SEGUNDO | curso | Jueves |
+| SEPTIMO | curso | Jueves |
+| KIDS CASTIGADAS | taller | Jueves |
+| OCTAVO | curso | Jueves |
+| CASTIGADAS | taller | Jueves |
+| GENERAL | general | — (virtual) |
+
+Jefatura actual: 8° básico. Semana laboral: lunes a jueves (4 días).
+
+### Supabase (capa de persistencia — Fase 3 completa)
+
+La base de datos ya existe y está conectada. Credenciales en `../supabase/config.js`.
+
+Tablas relevantes para SRP:
+- `contextos` — los 15 contextos (ya poblada)
+- `horario` — estructura semanal L-M-M-J (ya poblada)
+- `sesiones` — instancias concretas (contexto + fecha)
+- `sesiones_srp` — registros procesados (reemplaza IndexedDB `historial`)
+- `pendientes` — items parseados con `sesion_id`
+
+**Antes de cualquier integración: leer `../supabase/schema.sql`** — contiene los campos exactos, tipos, constraints e índices de todas las tablas. No asumir estructura sin leerlo.
+
+**Sesiones — se crean on-demand, no se pre-generan.** La tabla `sesiones` tiene `UNIQUE(contexto_id, fecha)`. Cuando se guarda un registro de un curso en una fecha, se crea (o encuentra) la sesión correspondiente. No hay generación automática desde el horario.
+
+**RLS habilitado pero permisivo** — todas las tablas tienen `USING (true) WITH CHECK (true)`. Cualquiera con la anon key puede leer y escribir. Esto es intencional mientras no haya auth. **No endurecer las políticas RLS hasta que exista un sistema de auth real** — hacerlo antes rompe el acceso de la app.
+
+**Próximo paso de integración:** reemplazar IndexedDB en `mobile_ui/index.html` por Supabase. Las grabaciones en bandeja se mantienen local (offline-first), se sincronizan al guardar.
+
+### La app mobile (producción)
+
+La UI activa es `mobile_ui/index.html` — una PWA HTML/JS puro con 4 pantallas principales (Captura, Bandeja, Procesamiento, Historial) y el Mundo Izquierdo (panel de lectura). **No es un placeholder** — tiene múltiples overlays y funciones implementadas. El stack es HTML/JS vanilla, sin frameworks, sin build tools.
+
+**Arquitectura single-file:** todo el HTML, CSS y JS (~3200 líneas) vive en un solo archivo. Esto es intencional — permite abrir directamente en el navegador sin build tools. No separar en archivos, no agregar bundler.
+
+### Sub-secciones dentro de SRP (NO módulos independientes)
+
+Estas funciones viven dentro de SRP. No son apps separadas:
+
+| Sub-sección | Descripción | Acceso |
+|-------------|-------------|--------|
+| **Repertorio** | 4 estados: posible / en_curso / visto / aprender | Drawer |
+| **Captura de ideas** | URL/imagen/texto/voz; estados: nueva/revisada/implementada/descartada; etiquetable a contextos | Drawer |
+| **Bienestar** | Cuotas de 20-40 funcionarios, pagos, balance mensual | Drawer |
+| **Jefatura** | Apoderados, reuniones, actas (actualmente 8° básico, reasignable) | Drawer |
+| **Administrativos / Casa / Mensajes / Apps** | Vistas globales de cada categoría SRP | Drawer |
+| **Planificaciones** | Sesiones futuras creadas en el Portal que fluyen al Panel | Drawer |
+
+### Estructura de navegación de la app mobile (`mobile_ui/index.html`)
+
+**Bitácora — 4 pantallas con swipe vertical:**
+1. **Captura** — graba audio, texto, foto, video. Swipe izquierdo → Panel
+2. **Bandeja** — lista de grabaciones del día agrupadas por fecha. Swipe horizontal: borrar o regrabar
+3. **Procesamiento / Resultados** — envía bandeja a Gemini, muestra items parseados. Permite editar, cambiar categoría, marcar OK, deshacer, guardar
+4. **Historial** — registros SRP guardados, navegables por fecha y curso
+
+**Panel (Mundo Izquierdo) — 3 vistas:**
+- Vista de día: cursos del día seleccionado (navegación semanal ‹ ›)
+- Vista de curso: pendientes por categoría + materiales (pull-down) + nota de sesión editable
+- Vista lista genérica: categorías globales o historial de curso
+
+**Drawer (menú ···):** accesos directos a Cursos, Planificaciones, Repertorio, Mensajes, Jefatura, Administrativos, Casa, Apps.
+
+**Overlays implementados:** configuración API key Gemini, backup Google Drive, exportar expected output, foto/video con etiquetado de curso, category picker, modo selección múltiple, lightbox, source audio.
+
+### Almacenamiento actual (antes de Supabase)
+
+**IndexedDB** — base de datos: `SRP_VozDB` (versión 3), 3 stores:
+
+| Store | Contenido |
+|-------|-----------|
+| `grabaciones` | Items de Bandeja: audio (blob), texto, foto, video. Campos: `{id, blob, timestamp, timeStr, dateGroup, type, textContent, enProceso}` |
+| `historial` | Registros procesados y guardados: `{id, timestamp, data, media}`. Las fotos se guardan como blob aquí. → Migrar a tabla `sesiones_srp` en Supabase |
+| `expected_outputs` | Fixtures generados desde la app: `{id, timestamp, fixture_name, json, raw_fixtures}` |
+
+**localStorage** solo guarda: `gemini_api_key`, `drive_endpoint_url`, `srp_pending_results` (estado temporal entre pantallas).
+
+**Plan de migración a Supabase:**
+- `grabaciones` → mantener local (offline-first), sincronizar al guardar
+- `historial` → tabla `sesiones_srp`
+- Pendientes parseados → tabla `pendientes` con `sesion_id`
+
+### IA de parseo
+
+**Gemini** (Google). No migrar a Claude ni OpenAI hasta que el sistema esté completamente estabilizado.
+
+**Dos pasos en la app mobile:**
+1. `geminiTranscribe(base64, mimeType, apiKey)` — envía el audio como `inline_data` en base64 → Gemini devuelve texto transcrito
+2. `geminiParseText(transcripcion, apiKey)` — envía el texto → Gemini devuelve JSON parseado según el schema
+
+**Modelos usados (en cascada, si uno falla intenta el siguiente):**
+```
+gemini-2.0-flash-lite → gemini-2.5-flash → gemini-flash-lite-latest → gemini-2.0-flash
+```
+
+**El Python executor solo hace el paso 2** — recibe texto, no audio. La transcripción existe únicamente en la app mobile.
+
+---
+
 ## What This Project Is
 
 **SRP (Sistema de Revisión Pedagógica)** es una herramienta personal para un profesor de música que hace clases en muchos cursos una vez por semana. La complejidad logística y el volumen de información hacen imposible el seguimiento manual. El profesor narra su experiencia en notas de voz (fluir de conciencia), y el sistema extrae, organiza y hace accesible esa información de forma oportuna y ordenada.
@@ -32,20 +187,27 @@ The architecture is **specification-first**: frozen markdown documents in `freez
 
 ## Running the System
 
-No build system, no package install, no CLI entrypoint yet. The main orchestration code lives in `executor/runtime_executor_v1.py`. To invoke it directly from Python:
+**IMPORTANTE — dos sistemas separados, no conectados:**
+
+| Sistema | Qué es | Estado |
+|---------|--------|--------|
+| `mobile_ui/index.html` | La app de producción. Llama a Gemini directo desde JS en el navegador. | En uso |
+| `executor/runtime_executor_v1.py` | Herramienta CLI para desarrollo y validación del parser. Base del futuro FastAPI (Fase 2). | No conectado a la UI |
+
+El executor Python **no es el backend de la app mobile**. Son tracks paralelos. No modificar el executor asumiendo que afecta la app.
+
+**Para correr el executor Python:**
 
 ```python
 from executor.runtime_executor_v1 import RuntimeExecutor
 from executor.runtime_client_v1 import RuntimeClientFactory
 
-client = RuntimeClientFactory.create(provider="openai", model="gpt-4o")
+client = RuntimeClientFactory.create(provider="gemini", model="gemini-2.0-flash")
 executor = RuntimeExecutor(client=client)
 result = executor.run(raw_input="...", fixture_name="fixture_001")
 ```
 
-Requires the `openai` package (`pip install openai`) and `OPENAI_API_KEY` set in the environment. The import is optional — the system will raise clearly if OpenAI is unavailable.
-
-**Execution traces** are written automatically to `./execution_traces/` as JSON files for every run.
+Requiere la API key de Gemini en el entorno. **Execution traces** se escriben en `./execution_traces/` como JSON (auto-generados, no commiteados).
 
 ---
 
@@ -55,7 +217,7 @@ There is no pytest or unittest setup. Tests are behavioral and fixture-based:
 
 - `fixtures/` — 13 real Spanish-language transcriptions (`.txt`)
 - `expected_outputs/` — Ground-truth JSON for each fixture
-- `freeze/TEST_MATRIX_v1.md` — 80+ assertion checklist (the test spec)
+- `freeze/v1/TEST_MATRIX_v1.md` — 80+ assertion checklist (the test spec)
 - `behavior_tests/PARSER_BEHAVIOR_TESTS_v1.md` — Behavioral scenarios (draft)
 
 To validate a run, compare actual output JSON against the corresponding file in `expected_outputs/` and check against the contract in `freeze/PARSER_OUTPUT_CONTRACT_v1_FREEZE.md`.
@@ -65,16 +227,20 @@ To validate a run, compare actual output JSON against the corresponding file in 
 ## Architecture
 
 ```
-executor/          ← Orchestration: invokes LLM, extracts JSON, validates, persists traces
-runtime/           ← Parser runtime behavior spec (PARSER_RUNTIME_v1.md)
-parser_specs/      ← Semantic parsing rules (PARSER_v1_SPEC.md)
-contracts/         ← Machine-enforceable output guarantees
-schemas/           ← SRP_SCHEMA_v1/v2/v3.json (v3 is active)
-freeze/            ← CANONICAL AUTHORITY — frozen, read-only specifications
-prompts/           ← LLM instruction prompts delivered by the executor
-fixtures/          ← Real-world test inputs (Spanish)
-expected_outputs/  ← Ground-truth JSON for each fixture
-execution_traces/  ← Runtime logs (auto-generated, not committed)
+mobile_ui/         ← App mobile activa (PWA HTML/JS). LA UI DE PRODUCCIÓN. Archivo: index.html
+executor/          ← Orchestration: invoca Gemini, extrae JSON, valida, persiste traces
+runtime/           ← Spec de comportamiento del parser en runtime
+parser_specs/      ← Reglas semánticas de parsing
+contracts/         ← Garantías de output exigibles por código
+schemas/           ← VACÍA. El schema activo (v3) vive en freeze/v1/SRP_SCHEMA_v3.json
+freeze/            ← AUTORIDAD CANÓNICA — specs congeladas, solo lectura
+prompts/           ← Prompts ON_*.txt entregados por el executor a Gemini
+fixtures/          ← Transcripciones reales de clases (español)
+expected_outputs/  ← JSON ground-truth por fixture (activo más valioso del proyecto)
+execution_traces/  ← Logs de runtime (auto-generados, no commiteados)
+behavior_tests/    ← Escenarios de comportamiento del parser
+storage/           ← VACÍA. Prevista para blobs locales antes de sync a Supabase
+renderer/          ← VACÍA. Prevista para motor de Presentaciones cuando ese módulo llegue a SRP
 ```
 
 **Layer responsibilities** (strict separation):
@@ -178,10 +344,25 @@ Every parser output must include these root fields:
 
 Notas técnicas sobre el estado real del sistema (actualizar a medida que se corrijan):
 
+- **Bug arquitectural — eje temporal:** los pendientes actualmente no tienen `sesion_id` real. Aparecen en todas las vistas de un curso sin distinción temporal (bug conocido). Se resuelve con la integración a Supabase — no intentar parcharlo en IndexedDB.
 - **`ContractValidator`** — No valida el contrato real. Necesita reescritura completa.
 - **`DriftClassifier`** — Mayormente vacío. Solo detecta `structural_drift`. Sin detección semántica real.
-- **`runtime_executor_v2.py`** — Tiene un syntax error conocido en línea 351.
 - **Expected outputs** — Son el activo más confiable del proyecto. Fuente de verdad principal.
+- **Bug foto/video en save** — Corregido (2026-05-13). Línea ~3168 de `mobile_ui/index.html`.
+- **Sin auth actualmente** — `mobile_ui/index.html` es accesible a cualquiera con la URL. La API key de Gemini la ingresa el usuario manualmente y se guarda en `localStorage` del dispositivo. No construir nada que asuma autenticación.
+- **Google Drive backup** — Overlay implementado en la Bitácora. Usa una URL de Google Apps Script (web app desplegado por el profesor) guardada en `localStorage` (`drive_endpoint_url`). Sube el JSON del historial automáticamente al guardar. No eliminarlo ni modificarlo sin entender el flujo completo.
+
+### Workflow de refinamiento del modelo
+
+El ciclo de mejora de la IA funciona así:
+1. El profesor graba en la Bitácora
+2. Gemini parsea y muestra resultados en la pantalla de Procesamiento
+3. El profesor edita los resultados directamente en la app (corrige categorías, textos, asignaciones de curso)
+4. Exporta el parseo corregido como expected output (overlay "Exportar como expected output")
+5. Ese par (transcripción original + parseo corregido) se agrega a `fixtures/` + `expected_outputs/`
+6. Estos pares son la fuente de verdad para validar el parser
+
+Los `expected_outputs/` son tan valiosos precisamente porque representan correcciones reales del profesor sobre outputs reales de Gemini — no datos sintéticos.
 
 ---
 
