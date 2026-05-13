@@ -26,12 +26,23 @@ Ecosistema de aplicaciones pedagógicas para un profesor de música en escuela p
 | `FLAUTA APP/` | Digitaciones y ejercicios interactivos | Planificado |
 | `HUIRO APP/` | Práctica rítmica y patrones | Planificado |
 | `CIFRADO AMERICANO/` | Cifrado de acordes | Planificado |
+| *(sin carpeta)* | **Portal** — hub de planificación en PC, dashboard temporal | Pendiente (Fase 4) |
+| *(sin carpeta)* | **Libro de Clases** — evaluaciones con modo mobile offline | Pendiente (Fase 5) |
 
 **Sub-secciones dentro de SRP** (no son módulos independientes): Repertorio, Captura de ideas, Bienestar, Jefatura, Administrativos, Mensajes, Planificaciones.
 
 **Módulo futuro considerado:** Biblioteca Musical — interfaz navegable sobre Supabase Storage para explorar MIDIs, ejercicios y canciones. Depende de Fases 4+.
 
 Cada módulo en producción o desarrollo activo tiene su propio `CLAUDE.md` interno con detalles técnicos.
+
+**Versión activa por módulo:**
+- Metalófono: `METAL21 (ALPHA).HTML` es la última estable conocida
+- Lector Tablaturas: `T25–T34.html` son las últimas 10 iteraciones (la activa es la de número más alto)
+- SRP: `mobile_ui/index.html` es la única UI activa
+
+**Assets pedagógicos reales — no modificar sin confirmar:**
+- `METALÓFONO APP/MIDI/` — archivos MIDI creados por el profesor para sus clases
+- `LECTOR TABLATURAS/TABS/` — partituras MuseScore reales (ESCALA DE DO, etc.)
 
 ---
 
@@ -48,6 +59,14 @@ Razón: funciona en cualquier PC de escuela sin instalar nada, en internet inest
 | Backend SRP (IA) | Python + FastAPI (futuro) |
 | IA de parseo SRP | Gemini (Google) — no migrar hasta estabilizar |
 | Hosting frontend | Vercel o GitHub Pages (futuro) |
+
+**Patrón offline estándar del ecosistema:**
+Toda app que necesite funcionar sin internet sigue este patrón:
+1. Datos se guardan localmente (IndexedDB en el navegador)
+2. Al recuperar conexión → sincronización con Supabase
+3. Campo `sincronizado` (bool) en tablas críticas para rastrear qué falta sincronizar
+
+SRP usa este patrón en la Bandeja (grabaciones locales → sync al guardar). Libro de Clases lo usará en `evaluaciones.sincronizado`. Toda nueva app que necesite offline debe seguir este mismo patrón, no inventar uno nuevo.
 
 ---
 
@@ -127,6 +146,14 @@ Assets en Supabase Storage con UUID. Las apps aceptan `?asset=uuid` como paráme
 
 - **Admin (el profesor):** acceso total.
 - **Invitado (sustituto):** URL con token temporal. Solo ve la presentación de la sesión asignada. Sin acceso a SRP, notas ni datos de alumnos.
+
+**Estado actual de auth:** no existe ningún sistema de autenticación todavía. Las apps son archivos locales abiertos directamente en el navegador — no hay login, no hay sesión, no hay tokens. Las tablas `usuarios` y `tokens_invitado` están planificadas pero no creadas en Supabase. No construir funcionalidades que dependan de auth hasta que esto esté implementado.
+
+---
+
+## Estado de deployment
+
+**Nada está desplegado.** Todo corre en archivos locales. No hay URL pública para ninguna app. Los hostings planificados (Vercel/GitHub Pages para frontend, Railway/Render para la API Python de SRP) son trabajo futuro de Fase 2 en adelante. No asumir infraestructura de hosting al trabajar en cualquier módulo.
 
 ---
 
