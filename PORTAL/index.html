@@ -358,23 +358,37 @@
         .s-col-body { flex: 1; overflow-y: auto; padding: 10px 12px; }
 
         .s-plan-item {
-            display: flex; align-items: center; gap: 7px;
+            display: flex; align-items: flex-start; gap: 7px;
             padding: 6px 8px; border: 1px solid var(--border);
             border-radius: 6px; margin-bottom: 5px;
             background: var(--card-bg); font-size: 0.82rem;
+            cursor: default;
         }
-        .s-plan-item input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; accent-color: var(--green); }
+        .s-plan-item.dragging  { opacity: 0.38; }
+        .s-plan-item.drag-over { border-top: 2px solid var(--accent); }
+        .s-plan-item input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; accent-color: var(--green); margin-top: 2px; }
+        .s-drag-handle { cursor: grab; color: var(--gray); font-size: 0.78rem; flex-shrink: 0; user-select: none; padding: 2px 0; line-height: 1; }
+        .s-drag-handle:active { cursor: grabbing; }
         .s-pi-txt  { flex: 1; }
-        .s-pi-txt.hecho { text-decoration: line-through; color: var(--muted); }
-        .s-pi-cat  { font-size: 0.63rem; color: var(--muted); background: var(--bg); padding: 1px 5px; border-radius: 3px; }
-        .s-pi-srp  { font-size: 0.63rem; color: var(--accent); font-weight: 700; }
-        .s-pi-del  { background: none; border: none; cursor: pointer; color: var(--gray); font-size: 0.82rem; padding: 1px 3px; }
+        .pi-titulo { display: block; line-height: 1.4; }
+        .pi-bullets { list-style: disc; margin: 2px 0 0 14px; padding: 0; }
+        .pi-bullets li { font-size: 0.76rem; color: var(--muted); line-height: 1.5; }
+        .s-pi-txt.hecho .pi-titulo { text-decoration: line-through; color: var(--muted); }
+        .s-pi-txt.hecho .pi-bullets li { text-decoration: line-through; }
+        .s-pi-cat  { font-size: 0.63rem; color: var(--muted); background: var(--bg); padding: 1px 5px; border-radius: 3px; flex-shrink: 0; margin-top: 2px; }
+        .s-pi-srp  { font-size: 0.63rem; color: var(--accent); font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+        .s-pi-del  { background: none; border: none; cursor: pointer; color: var(--gray); font-size: 0.82rem; padding: 1px 3px; flex-shrink: 0; }
         .s-pi-del:hover { color: var(--red); }
 
-        .s-add { display: flex; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border); background: #f8fafc; flex-shrink: 0; }
-        .s-add input { flex: 1; padding: 6px 8px; border: 1px solid var(--border); border-radius: 5px; font-size: 0.82rem; color: var(--text); }
-        .s-add input:focus { outline: none; border-color: var(--accent); }
-        .s-add button { background: var(--accent); color: #fff; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 0.85rem; }
+        .s-add { display: flex; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border); background: #f8fafc; flex-shrink: 0; align-items: flex-end; }
+        .s-add textarea {
+            flex: 1; padding: 6px 8px; border: 1px solid var(--border);
+            border-radius: 5px; font-size: 0.82rem; color: var(--text);
+            font-family: inherit; resize: none; min-height: 32px; max-height: 120px;
+            line-height: 1.45; overflow-y: auto;
+        }
+        .s-add textarea:focus { outline: none; border-color: var(--accent); }
+        .s-add button { background: var(--accent); color: #fff; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 0.85rem; flex-shrink: 0; }
 
         .s-sub-hdr { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); padding: 10px 2px 5px; border-top: 1px solid var(--border); margin-top: 8px; }
 
@@ -465,9 +479,12 @@
                     <div id="plan-lista"></div>
                 </div>
                 <div class="s-add">
-                    <input type="text" id="plan-input" placeholder="Agregar actividad..."
-                        onkeydown="if(event.key==='Enter') agregarItem()">
-                    <button onclick="agregarItem()">+</button>
+                    <textarea id="plan-input"
+                        placeholder="Título de la actividad&#10;- sub-ítem (opcional)"
+                        rows="1"
+                        onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();agregarItem()}"
+                        oninput="autoExpandTextarea(this)"></textarea>
+                    <button onclick="agregarItem()" title="Agregar (Ctrl+Enter)">+</button>
                 </div>
             </div>
 
@@ -1004,22 +1021,52 @@ function renderPlan(items) {
     items.forEach(it => lista.appendChild(buildItemEl(it)));
 }
 
+function buildTextoItem(texto, completado) {
+    const lines  = (texto || '').split('\n');
+    const titulo = lines[0] || '';
+    const bullets = lines.slice(1).map(l => l.trim()).filter(l => l.startsWith('-'));
+
+    const wrap = document.createElement('div');
+    wrap.className = 's-pi-txt' + (completado ? ' hecho' : '');
+
+    const tituloEl = document.createElement('span');
+    tituloEl.className   = 'pi-titulo';
+    tituloEl.textContent = titulo;
+    wrap.appendChild(tituloEl);
+
+    if (bullets.length) {
+        const ul = document.createElement('ul');
+        ul.className = 'pi-bullets';
+        bullets.forEach(b => {
+            const li = document.createElement('li');
+            li.textContent = b.slice(1).trim();
+            ul.appendChild(li);
+        });
+        wrap.appendChild(ul);
+    }
+    return wrap;
+}
+
 function buildItemEl(it) {
     const el = document.createElement('div');
     el.className  = 's-plan-item';
     el.dataset.id = it.id;
 
+    const handle = document.createElement('span');
+    handle.className   = 's-drag-handle';
+    handle.textContent = '⠿';
+    handle.title       = 'Arrastrar para reordenar';
+
     const chk = document.createElement('input');
     chk.type    = 'checkbox';
     chk.checked = it.completado;
 
-    const span = document.createElement('span');
-    span.className   = 's-pi-txt' + (it.completado ? ' hecho' : '');
-    span.textContent = it.texto;
-    chk.addEventListener('change', () => marcarHecho(it.id, chk.checked, span));
+    const txtWrap = buildTextoItem(it.texto, it.completado);
+    chk.addEventListener('change', () => marcarHecho(it.id, chk.checked, txtWrap));
 
+    el.appendChild(handle);
     el.appendChild(chk);
-    el.appendChild(span);
+    el.appendChild(txtWrap);
 
     if (it.categoria) {
         const cat = document.createElement('span');
@@ -1040,7 +1087,60 @@ function buildItemEl(it) {
     del.title       = 'Eliminar';
     del.addEventListener('click', () => eliminarItem(it.id, el));
     el.appendChild(del);
+
+    initDrag(el);
     return el;
+}
+
+// ── Drag & drop ──────────────────────────────────────────────
+let dragSrcEl = null;
+
+function initDrag(el) {
+    el.draggable = true;
+    el.addEventListener('dragstart', e => {
+        dragSrcEl = el;
+        e.dataTransfer.effectAllowed = 'move';
+        requestAnimationFrame(() => el.classList.add('dragging'));
+    });
+    el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+        document.querySelectorAll('#plan-lista .s-plan-item')
+            .forEach(i => i.classList.remove('drag-over'));
+        actualizarOrden();
+        dragSrcEl = null;
+    });
+    el.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (dragSrcEl && dragSrcEl !== el) {
+            document.querySelectorAll('#plan-lista .s-plan-item')
+                .forEach(i => i.classList.remove('drag-over'));
+            el.classList.add('drag-over');
+        }
+    });
+    el.addEventListener('drop', e => {
+        e.preventDefault();
+        if (!dragSrcEl || dragSrcEl === el) return;
+        const lista = document.getElementById('plan-lista');
+        const all   = [...lista.querySelectorAll('.s-plan-item')];
+        const srcI  = all.indexOf(dragSrcEl);
+        const tgtI  = all.indexOf(el);
+        if (srcI < tgtI) el.after(dragSrcEl); else el.before(dragSrcEl);
+        el.classList.remove('drag-over');
+    });
+}
+
+async function actualizarOrden() {
+    if (!sesionActual) return;
+    const items = [...document.querySelectorAll('#plan-lista .s-plan-item')];
+    await Promise.all(items.map((el, i) =>
+        sb.from('plan_sesion_items').update({ orden: i }).eq('id', el.dataset.id)
+    ));
+}
+
+function autoExpandTextarea(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
 }
 
 function renderArrastres(items) {
@@ -1129,10 +1229,12 @@ function renderPendientesSRP(pends) {
 }
 
 async function agregarItem() {
-    const input = document.getElementById('plan-input');
-    const texto = input.value.trim();
+    const ta    = document.getElementById('plan-input');
+    const texto = ta.value.trim();
     if (!texto) return;
-    input.value = '';
+    ta.value = '';
+    ta.style.height = 'auto';
+    ta.focus();
     await addItem(texto, '', 'manual', null);
 }
 
@@ -1155,9 +1257,9 @@ async function addItem(texto, categoria, origen, pendienteId) {
     }
 }
 
-async function marcarHecho(id, valor, spanEl) {
+async function marcarHecho(id, valor, wrapEl) {
     await sb.from('plan_sesion_items').update({ completado: valor }).eq('id', id);
-    spanEl.classList.toggle('hecho', valor);
+    wrapEl.classList.toggle('hecho', valor);
 }
 
 async function eliminarItem(id, el) {
