@@ -141,7 +141,13 @@
             overflow: hidden;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
-        .dia-seccion.semana-1 { background: #fff; }
+        /* ── GRUPOS DE SEMANA ── */
+        .semana-grupo { border-radius: 12px; margin-bottom: 12px; padding: 10px 10px 6px; }
+        .semana-grupo.semana-1 { background: #fff;    border: 1px solid var(--border); }
+        .semana-grupo.semana-2 { background: #f0ebff; border: 1px solid #ddd6fe; }
+        .semana-grupo > .semana-label { margin: 0 0 6px; }
+
+        .dia-seccion.semana-1 { background: #f6f9ff; }
         .dia-seccion.semana-2 { background: #faf8ff; border-color: #ddd6fe; }
 
         .dia-header {
@@ -455,6 +461,7 @@
                 </div>
                 <div class="s-col-body" id="col-plan-body">
                     <div id="plan-arrastres"></div>
+                    <div id="plan-srp"></div>
                     <div id="plan-lista"></div>
                 </div>
                 <div class="s-add">
@@ -586,27 +593,31 @@ function abrirDia(hdrEl) {
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — vista principal (hoy en adelante)
 // ═══════════════════════════════════════════════════════════
-async function renderDashboard() {
-    const hoy     = isoDate(new Date());
-    const activo  = getDiaActivo();
+async function renderDashboard(expandirFecha = null) {
+    const hoy    = isoDate(new Date());
+    const activo = (expandirFecha && expandirFecha >= hoy) ? expandirFecha : getDiaActivo();
     const visibles = getOchoDias().filter(d => d.fechaStr >= hoy);
 
     await loadDatos(visibles.map(d => d.fechaStr));
 
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
-    let semActual = 0;
 
-    for (const dia of visibles) {
-        if (dia.semana !== semActual) {
-            semActual = dia.semana;
-            const lbl = document.createElement('div');
-            lbl.className   = 'semana-label';
-            lbl.textContent = semActual === 1 ? 'Esta semana' : 'Semana siguiente';
-            grid.appendChild(lbl);
-        }
-        grid.appendChild(buildDiaEl(dia, dia.semana, dia.fechaStr === activo));
-    }
+    [1, 2].forEach(semana => {
+        const dias = visibles.filter(d => d.semana === semana);
+        if (!dias.length) return;
+
+        const grupo = document.createElement('div');
+        grupo.className = `semana-grupo semana-${semana}`;
+
+        const lbl = document.createElement('div');
+        lbl.className   = 'semana-label';
+        lbl.textContent = semana === 1 ? 'Esta semana' : 'Semana siguiente';
+        grupo.appendChild(lbl);
+
+        dias.forEach(dia => grupo.appendChild(buildDiaEl(dia, semana, dia.fechaStr === activo)));
+        grid.appendChild(grupo);
+    });
     requestAnimationFrame(ajustarNombres);
 }
 
@@ -638,26 +649,32 @@ async function renderDia(fechaStr, diaSemana) {
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
 
-    semanas.forEach(lun => {
+    semanas.forEach((lun, idx) => {
         const lunStr = isoDate(lun);
+        const semana = (idx % 2) + 1;   // alterna 1, 2, 1, 2...
+
+        const grupo = document.createElement('div');
+        grupo.className = `semana-grupo semana-${semana}`;
 
         const lbl = document.createElement('div');
         lbl.className   = 'semana-label';
         if (lunStr === lunSigStr)      lbl.textContent = 'Semana siguiente';
         else if (lunStr === lunHoyStr) lbl.textContent = 'Esta semana';
         else                           lbl.textContent = fmtSemana(lun);
-        grid.appendChild(lbl);
+        grupo.appendChild(lbl);
 
         [0, 1, 2, 3].forEach(off => {
             const d = new Date(lun);
             d.setDate(lun.getDate() + off);
             const dStr = isoDate(d);
-            grid.appendChild(buildDiaEl(
-                { fecha: d, fechaStr: dStr, diaSemana: off, semana: 1 },
-                1,
-                dStr === fechaStr   // solo el día específico seleccionado empieza abierto
+            grupo.appendChild(buildDiaEl(
+                { fecha: d, fechaStr: dStr, diaSemana: off, semana },
+                semana,
+                dStr === fechaStr
             ));
         });
+
+        grid.appendChild(grupo);
     });
 
     requestAnimationFrame(ajustarNombres);
@@ -874,6 +891,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
     document.getElementById('s-fecha').textContent      = fmtFecha(new Date(fechaStr + 'T12:00:00'));
     document.getElementById('plan-lista').innerHTML     = '<div class="cargando">Cargando...</div>';
     document.getElementById('plan-arrastres').innerHTML = '';
+    document.getElementById('plan-srp').innerHTML       = '';
     document.getElementById('pres-area').value          = '';
     document.getElementById('pres-status').textContent  = '';
     document.getElementById('prev-body').innerHTML      = '';
@@ -900,6 +918,7 @@ async function getOrCreate(cid, fechaStr) {
 function volverDashboard() {
     clearTimeout(presTimer);
     presTimer = null;
+    const fechaEditada = sesionActual?.fecha;
     document.getElementById('vista-sesion').classList.remove('show');
     document.body.classList.remove('sesion-activa');
     document.getElementById('vista-dashboard').style.display = 'block';
@@ -908,7 +927,7 @@ function volverDashboard() {
     if (vistaOrigen === 'dia' && diaNavegado) {
         renderDia(diaNavegado.fechaStr, diaNavegado.diaSemana);
     } else {
-        renderDashboard();
+        renderDashboard(fechaEditada);
     }
 }
 
@@ -950,16 +969,24 @@ function presentar() {
 // PLAN
 // ═══════════════════════════════════════════════════════════
 async function cargarPlan(sid, cid, fechaStr) {
-    const { data: items } = await sb.from('plan_sesion_items')
-        .select('*').eq('sesion_id', sid).order('orden');
+    const [{ data: items }, { data: pendsSRP }, anterior] = await Promise.all([
+        sb.from('plan_sesion_items').select('*').eq('sesion_id', sid).order('orden'),
+        sb.from('pendientes').select('id, texto, categoria').eq('sesion_id', sid).eq('estado', 'activo').neq('categoria', 'revision'),
+        sesionAnterior(cid, fechaStr),
+    ]);
+
     renderPlan(items || []);
 
-    const anterior = await sesionAnterior(cid, fechaStr);
+    const idsEnPlan    = new Set((items || []).map(i => i.pendiente_id).filter(Boolean));
+    const textosEnPlan = new Set((items || []).map(i => i.texto));
+
+    const pendNuevos = (pendsSRP || []).filter(p => !idsEnPlan.has(p.id) && !textosEnPlan.has(p.texto));
+    renderPendientesSRP(pendNuevos);
+
     if (anterior) {
         const { data: arr } = await sb.from('plan_sesion_items')
             .select('*').eq('sesion_id', anterior.id).eq('completado', false);
-        const textosActuales = new Set((items || []).map(i => i.texto));
-        renderArrastres((arr || []).filter(a => !textosActuales.has(a.texto)));
+        renderArrastres((arr || []).filter(a => !textosEnPlan.has(a.texto)));
     }
 }
 
@@ -1052,6 +1079,49 @@ function renderArrastres(items) {
         });
 
         el.appendChild(txt);
+        el.appendChild(btnInc);
+        el.appendChild(btnDes);
+        cont.appendChild(el);
+    });
+}
+
+function renderPendientesSRP(pends) {
+    const cont = document.getElementById('plan-srp');
+    cont.innerHTML = '';
+    if (!pends.length) return;
+
+    const hdr = document.createElement('div');
+    hdr.className   = 's-arr-hdr';
+    hdr.textContent = `SRP — ${pends.length} pendiente${pends.length > 1 ? 's' : ''}`;
+    cont.appendChild(hdr);
+
+    pends.forEach(it => {
+        const el = document.createElement('div');
+        el.className = 's-arr-item';
+
+        const txt = document.createElement('span');
+        txt.className   = 'ai-texto';
+        txt.textContent = it.texto;
+
+        const catTag = document.createElement('span');
+        catTag.className   = 's-pi-cat';
+        catTag.textContent = it.categoria.replace('pendientes_', '');
+
+        const btnInc = document.createElement('button');
+        btnInc.className   = 's-arr-btn s-btn-inc';
+        btnInc.textContent = 'Incluir';
+        btnInc.addEventListener('click', async () => {
+            await addItem(it.texto, it.categoria, 'srp', it.id);
+            el.remove();
+        });
+
+        const btnDes = document.createElement('button');
+        btnDes.className   = 's-arr-btn s-btn-des';
+        btnDes.textContent = 'Ignorar';
+        btnDes.addEventListener('click', () => el.remove());
+
+        el.appendChild(txt);
+        el.appendChild(catTag);
         el.appendChild(btnInc);
         el.appendChild(btnDes);
         cont.appendChild(el);
