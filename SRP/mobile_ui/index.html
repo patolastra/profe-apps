@@ -366,6 +366,10 @@
         .lw-empty { color: var(--text-dim); font-size: 1.02rem; padding: 6px 0 10px; }
         .lw-revision-text { color: var(--text-dim); font-size: 1.1rem; line-height: 1.65; padding: 6px 0 10px; white-space: pre-line; }
         .lw-revision-date { font-size: 0.87rem; color: var(--text-dim); opacity: .6; margin-bottom: 4px; }
+        .lw-plan-row { display: flex; align-items: flex-start; gap: 12px; padding: 13px 18px; background: var(--gray); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 9px; font-size: 1.16rem; line-height: 1.45; cursor: pointer; }
+        .lw-plan-row input[type=checkbox] { flex-shrink: 0; width: 20px; height: 20px; margin-top: 3px; accent-color: var(--accent); cursor: pointer; }
+        .lw-plan-row span { flex: 1; }
+        .lw-plan-row.completado span { text-decoration: line-through; opacity: .45; }
 
         /* ── NAPP: nota inline ,,,n (renderizada en posición dentro del texto) ── */
         .napp-inline-note { font-style: italic; color: var(--warning); }
@@ -710,6 +714,12 @@
                     sesion = nueva;
                 }
 
+                // Eliminar pendientes previos de esta sesión+contexto (deduplicación)
+                await sbClient.from('pendientes')
+                    .delete()
+                    .eq('sesion_id', sesion.id)
+                    .eq('contexto_id', contexto.id);
+
                 // Guardar pendientes (excluir revision)
                 for (const [catId, items] of Object.entries(course.categories || {})) {
                     if (catId === 'revision') continue;
@@ -725,16 +735,17 @@
                         });
                     }
                 }
-            }
 
-            // Guardar registro completo en sesiones_srp
-            await sbClient.from('sesiones_srp').insert({
-                fixture_name:    fullRecord.fixture_name,
-                raw_fixtures:    fullRecord.raw_fixtures,
-                original_parse:  fullRecord.original_parse,
-                expected_output: fullRecord.expected_output,
-                timestamp_ms:    timestamp
-            });
+                // Guardar registro SRP vinculado a esta sesión (habilita revisión en Panel)
+                await sbClient.from('sesiones_srp').insert({
+                    sesion_id:       sesion.id,
+                    fixture_name:    fullRecord.fixture_name,
+                    raw_fixtures:    fullRecord.raw_fixtures,
+                    original_parse:  fullRecord.original_parse,
+                    expected_output: fullRecord.expected_output,
+                    timestamp_ms:    timestamp
+                });
+            }
 
             showToast('☁️ Guardado en Supabase');
         } catch (e) {
@@ -2216,7 +2227,7 @@
         'LUNES':     ['ORIENTACIÓN', 'TERCERO', 'CUARTO', 'CUERDAS'],
         'MARTES':    ['ENLACE', 'SEXTO', 'RECREO', 'QUINTO'],
         'MIÉRCOLES': ['PRIMERO'],
-        'JUEVES':    ['SEGUNDO', 'SÉPTIMO', 'KIDS CASTIGADAS', 'OCTAVO', 'CASTIGADAS']
+        'JUEVES':    ['SEGUNDO', 'SEPTIMO', 'KIDS CASTIGADAS', 'OCTAVO', 'CASTIGADAS']
     };
     const LW_DIAS = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES'];
     const LW_DIA_JS = { 1:'LUNES', 2:'MARTES', 3:'MIÉRCOLES', 4:'JUEVES' };
@@ -2405,36 +2416,69 @@
         const dateObj = dates[lwSelectedDay];
         const fecha = dateObj ? dateObj.toISOString().split('T')[0] : null;
 
-        // Pendientes: Supabase (sesión específica) con fallback a IndexedDB
-        const sbPends = await lwGetPendientesSupabase(courseName, fecha);
-        // Revisión y medios: siempre desde IndexedDB (historial local)
-        const latest = await lwGetLatest(courseName);
+        // Cargar datos en paralelo
+        const [planItems, sbPends, sbRevision, latest] = await Promise.all([
+            lwGetPlanItems(courseName, fecha),
+            lwGetPendientesSupabase(courseName, fecha),
+            lwGetRevisionSupabase(courseName, fecha),
+            lwGetLatest(courseName)
+        ]);
         content.innerHTML = '';
 
-        // Sala
-        const salaItems = sbPends
-            ? sbPends.sala.map(t => ({ text: t }))
-            : (latest?.categories?.pendientes_sala || []);
-        const salaEl = document.createElement('div');
-        salaEl.innerHTML = '<div class="lw-section-label">🎵 Para esta clase</div>';
-        if (salaItems.length) {
-            salaItems.forEach(item => {
-                const c = document.createElement('div'); c.className = 'lw-item-card'; c.textContent = item.text;
-                salaEl.appendChild(c);
+        // Plan de clase (plan_sesion_items) — fallback a pendientes_sala si no hay plan
+        const planEl = document.createElement('div');
+        if (planItems && planItems.length > 0) {
+            planEl.innerHTML = '<div class="lw-section-label">📌 Plan de clase</div>';
+            planItems.forEach(item => {
+                const row = document.createElement('label');
+                row.className = 'lw-plan-row' + (item.completado ? ' completado' : '');
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = item.completado;
+                const txt = document.createElement('span');
+                txt.textContent = item.texto;
+                cb.addEventListener('change', () => {
+                    row.classList.toggle('completado', cb.checked);
+                    lwTogglePlanItem(item.id, cb.checked);
+                });
+                row.appendChild(cb);
+                row.appendChild(txt);
+                planEl.appendChild(row);
             });
         } else {
-            salaEl.innerHTML += '<div class="lw-empty">Sin pendientes de sala</div>';
+            const salaItems = sbPends
+                ? sbPends.sala.map(t => ({ text: t }))
+                : (latest?.categories?.pendientes_sala || []);
+            planEl.innerHTML = '<div class="lw-section-label">🎵 Para esta clase</div>';
+            if (salaItems.length) {
+                salaItems.forEach(item => {
+                    const c = document.createElement('div'); c.className = 'lw-item-card'; c.textContent = item.text || item.texto;
+                    planEl.appendChild(c);
+                });
+            } else {
+                planEl.innerHTML += '<div class="lw-empty">Sin pendientes de sala</div>';
+            }
         }
-        content.appendChild(salaEl);
-        const lwSep = document.createElement('hr'); lwSep.className = 'lw-section-sep'; content.appendChild(lwSep);
+        content.appendChild(planEl);
 
-        // Revisión — siempre desde IndexedDB
+        // Revisión última clase — Supabase primero, IndexedDB fallback
+        const lwSep = document.createElement('hr'); lwSep.className = 'lw-section-sep'; content.appendChild(lwSep);
         const revEl = document.createElement('div');
-        if (latest?.revision) {
+        if (sbRevision && sbRevision.items.length > 0) {
+            const dateStr = new Date(sbRevision.fecha + 'T12:00:00').toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long' });
+            revEl.innerHTML = `<div class="lw-section-label">📝 Última clase <span style="font-size:.7rem;font-weight:600;opacity:.55;text-transform:none;letter-spacing:0"> · ${dateStr}</span></div>`;
+            sbRevision.items.forEach(item => {
+                const c = document.createElement('div'); c.className = 'lw-revision-text';
+                c.textContent = item.text || item;
+                revEl.appendChild(c);
+            });
+        } else if (latest?.revision) {
+            const revRaw = latest.revision;
+            const revText = Array.isArray(revRaw) ? revRaw.map(i => i.text || i).join('\n') : revRaw;
             const dateStr = latest._ts ? new Date(latest._ts).toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long' }) : (latest.fecha || '');
             revEl.innerHTML = `<div class="lw-section-label">📝 Última clase</div>
                 ${dateStr ? `<div class="lw-revision-date">${dateStr}</div>` : ''}
-                <div class="lw-revision-text">${latest.revision}</div>`;
+                <div class="lw-revision-text">${revText}</div>`;
         } else {
             revEl.innerHTML = '<div class="lw-section-label">📝 Última clase</div><div class="lw-empty">Sin revisión registrada</div>';
         }
@@ -2736,6 +2780,65 @@
         course._ts    = match.timestamp;
         course._media = (match.media||[]).filter(m => m.course?.toUpperCase() === upper);
         return course;
+    }
+    async function lwGetPlanItems(courseName, fecha) {
+        if (!sbClient || !fecha) return null;
+        const ctx = contextosPorNombre[courseName.toUpperCase()];
+        if (!ctx) return null;
+        try {
+            const { data: sesion } = await sbClient
+                .from('sesiones').select('id')
+                .eq('contexto_id', ctx.id).eq('fecha', fecha).maybeSingle();
+            if (!sesion) return null;
+            const { data: items } = await sbClient
+                .from('plan_sesion_items').select('id, texto, orden, completado, incluido')
+                .eq('sesion_id', sesion.id)
+                .eq('incluido', true)
+                .order('orden', { ascending: true });
+            return items || [];
+        } catch(e) {
+            console.warn('Error cargando plan:', e);
+            return null;
+        }
+    }
+    async function lwGetRevisionSupabase(courseName, fecha) {
+        if (!sbClient || !fecha) return null;
+        const ctx = contextosPorNombre[courseName.toUpperCase()];
+        if (!ctx) return null;
+        try {
+            const { data: prevSesion } = await sbClient
+                .from('sesiones').select('id, fecha')
+                .eq('contexto_id', ctx.id)
+                .lt('fecha', fecha)
+                .order('fecha', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (!prevSesion) return null;
+            const { data: srp } = await sbClient
+                .from('sesiones_srp').select('expected_output')
+                .eq('sesion_id', prevSesion.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (!srp?.expected_output) return null;
+            const courses = srp.expected_output.courses || [];
+            const courseData = courses.find(c => (c.curso || '').toUpperCase() === courseName.toUpperCase());
+            if (!courseData) return null;
+            const items = courseData.categories?.revision || [];
+            if (!items.length) return null;
+            return { fecha: prevSesion.fecha, items };
+        } catch(e) {
+            console.warn('Error cargando revisión Supabase:', e);
+            return null;
+        }
+    }
+    async function lwTogglePlanItem(itemId, completado) {
+        if (!sbClient) return;
+        try {
+            await sbClient.from('plan_sesion_items').update({ completado }).eq('id', itemId);
+        } catch(e) {
+            console.warn('Error actualizando plan item:', e);
+        }
     }
     async function lwGetAllForCourse(courseName) {
         const all = await lwAllHistorial();
