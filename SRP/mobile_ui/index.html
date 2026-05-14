@@ -489,6 +489,8 @@
         <button class="lw-drawer-btn" onclick="lwOpenGlobal('pendientes_administrativos')">📋 Administrativos</button>
         <button class="lw-drawer-btn" onclick="lwOpenGlobal('pendientes_casa')">🏠 Casa</button>
         <button class="lw-drawer-btn" onclick="lwOpenGlobal('pendientes_apps')">💻 Apps</button>
+        <hr class="lw-drawer-hr">
+        <button class="lw-drawer-btn" onclick="lwMigrarHistorico()" style="opacity:.55;font-size:1rem">⬆️ Migrar histórico</button>
     </div>
 </div>
 
@@ -2824,7 +2826,10 @@
             const courses = srp.expected_output.courses || [];
             const courseData = courses.find(c => (c.curso || '').toUpperCase() === courseName.toUpperCase());
             if (!courseData) return null;
-            const items = courseData.categories?.revision || [];
+            const revRaw = courseData.categories?.revision;
+            if (!revRaw) return null;
+            // Normalizar: string (prompt viejo) → array
+            const items = Array.isArray(revRaw) ? revRaw : [{ text: revRaw }];
             if (!items.length) return null;
             return { fecha: prevSesion.fecha, items };
         } catch(e) {
@@ -2856,6 +2861,41 @@
             });
         });
         return result;
+    }
+
+    // ── Migración datos históricos → Supabase ─────────────────
+    async function lwMigrarHistorico() {
+        closeDrawer();
+        if (!sbClient) { showToast('Sin conexión a Supabase'); return; }
+        if (Object.keys(contextosPorNombre).length === 0) {
+            showToast('⏳ Esperando datos de Supabase, reintenta en unos segundos');
+            return;
+        }
+        if (!confirm('¿Migrar todos los expected outputs locales a Supabase?\nEsto puede tardar unos segundos.')) return;
+
+        const all = await new Promise(res => {
+            if (!db) { res([]); return; }
+            const s = db.transaction('expected_outputs','readonly').objectStore('expected_outputs');
+            s.getAll().onsuccess = e => res(e.target.result || []);
+        });
+
+        if (!all.length) { showToast('No hay expected outputs locales'); return; }
+
+        showToast(`Migrando ${all.length} registros...`);
+        let ok = 0, err = 0;
+        for (const record of all) {
+            try {
+                const fullRecord = JSON.parse(record.json);
+                const courses = fullRecord.expected_output?.courses || [];
+                if (!courses.length) continue;
+                await supabaseSync(fullRecord, record.timestamp, courses);
+                ok++;
+            } catch(e) {
+                err++;
+                console.warn('Error migrando:', record.fixture_name, e);
+            }
+        }
+        showToast(`✅ Migración: ${ok} OK${err ? `, ${err} con error` : ''}`);
     }
 
     // ── Swipe horizontal desde pantalla 0 ────────────────────
