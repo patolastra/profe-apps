@@ -342,6 +342,68 @@ Every parser output must include these root fields:
 
 ---
 
+## Self-Verification Loop (OBLIGATORIO — NO NEGOCIABLE)
+
+### Cuándo ejecutar verificación
+
+Después de CADA uno de estos eventos:
+- Modificar cualquier archivo en `/executor/`
+- Modificar cualquier archivo en `/mobile_ui/`
+- Modificar cualquier schema o contrato (freeze o no-freeze)
+- Crear o modificar expected outputs
+- Agregar nueva funcionalidad
+- Corregir un bug
+- Antes de declarar una tarea como "completada"
+
+### Proceso de verificación (AUTOMÁTICO)
+
+1. **Leer** `VERIFICATION_CHECKLIST.md` completo
+2. **Ejecutar** todos los tests de las secciones "Functional Tests" y "Execution Tests"
+3. **Verificar** cada checkbox de cada sección
+4. **Reportar** el resultado AL USUARIO en el formato especificado
+5. **Si algo falla:** corregir, volver a verificar, y solo entonces continuar
+
+### Formato del reporte (OBLIGATORIO)
+
+```
+🔍 VERIFICACIÓN COMPLETADA — [timestamp]
+
+Secciones verificadas: X/10
+Checks pasados: X/Y
+
+❌ FALLOS DETECTADOS: (si los hay)
+  [lista de fallos]
+
+✅ CORRECCIONES APLICADAS: (si corresponde)
+  [lista de correcciones]
+
+🔄 RE-VERIFICACIÓN: (si hubo correcciones)
+  Checks pasados: X/Y ✅
+
+Estado: [LISTO PARA CONTINUAR | REQUIERE ATENCIÓN | BLOQUEADO]
+```
+
+### Reglas críticas de verificación
+
+**REGLA 1:** Si cualquier check falla, NO continúes con el siguiente cambio. Primero corrige el fallo, vuelve a verificar, y solo entonces procede.
+
+**REGLA 2:** No pidas permiso al usuario para verificar. La verificación es automática y obligatoria.
+
+**REGLA 3:** Si un check falla 3 veces consecutivas después de intentar corregirlo, DETENTE y pregúntale al usuario cómo proceder.
+
+**REGLA 4:** Los archivos en `/freeze/v1/` NUNCA deben modificarse. Si un check indica que algo en freeze debe cambiar, el problema está en otro archivo (executor, schema no-freeze, expected output), NO en freeze.
+
+**REGLA 5:** Si detectas un bug durante la verificación, corrígelo ANTES de reportar "verificación completada".
+
+### Excepciones (las ÚNICAS)
+
+La verificación se puede OMITIR solo si el usuario dice explícitamente:
+- "Skip verification"
+- "Sin verificar"
+- "Omite la verificación esta vez"
+
+---
+
 ## Estado actual del código
 
 Notas técnicas sobre el estado real del sistema (actualizar a medida que se corrijan):

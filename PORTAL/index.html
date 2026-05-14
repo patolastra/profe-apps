@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal PROFE</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase/config.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:      #f1f5f9;
+            --card-bg: #fff;
+            --border:  #e2e8f0;
+            --text:    #1e293b;
+            --muted:   #64748b;
+            --accent:  #2563eb;
+            --green:   #16a34a;
+            --orange:  #ea580c;
+            --gray:    #94a3b8;
+            --red:     #dc2626;
+        }
+
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+
+        /* ── HEADER ── */
+        #header {
+            background: #1e293b;
+            color: #fff;
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        #header h1 {
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        #header h1:hover { opacity: 0.8; }
+        #cal-arrow { font-size: 0.7rem; opacity: 0.6; transition: transform 0.2s; }
+        #cal-arrow.abierto { transform: rotate(180deg); }
+        #header-status { font-size: 0.8rem; opacity: 0.6; margin-left: auto; }
+
+        /* ── CALENDARIO ── */
+        #calendario-wrap {
+            background: #1a2540;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding: 14px 24px 18px;
+            display: none;
+        }
+        #calendario-wrap.visible { display: block; }
+
+        .cal-nav {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .cal-mes { font-size: 0.82rem; font-weight: 700; color: #fff; flex: 1; text-transform: capitalize; }
+        .cal-btn {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: #fff;
+            padding: 3px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.82rem;
+        }
+        .cal-btn:hover { background: rgba(255,255,255,0.2); }
+
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+            max-width: 340px;
+        }
+        .cal-dow {
+            text-align: center;
+            font-size: 0.6rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.35);
+            padding: 2px 0 4px;
+            text-transform: uppercase;
+        }
+        .cal-dia {
+            text-align: center;
+            font-size: 0.73rem;
+            padding: 4px 2px;
+            border-radius: 4px;
+            color: rgba(255,255,255,0.2);
+        }
+        .cal-dia.escolar {
+            color: rgba(255,255,255,0.7);
+            cursor: pointer;
+        }
+        .cal-dia.escolar:hover { background: rgba(255,255,255,0.12); }
+        .cal-dia.hoy {
+            background: var(--accent);
+            color: #fff !important;
+            font-weight: 700;
+        }
+
+        /* ── LAYOUT ── */
+        #main { max-width: 960px; margin: 0 auto; padding: 20px 16px; }
+
+        /* ── BARRA NAVEGACIÓN DÍA ── */
+        #barra-nav-dia {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+            padding: 8px 14px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        #barra-nav-dia.visible { display: flex; }
+        #nav-dia-titulo { font-size: 0.88rem; font-weight: 600; flex: 1; text-transform: capitalize; }
+        .btn-volver-hoy {
+            font-size: 0.78rem;
+            padding: 5px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--accent);
+            background: none;
+            color: var(--accent);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-volver-hoy:hover { background: #eff6ff; }
+
+        /* ── SEMANA LABELS ── */
+        .semana-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin: 20px 0 8px;
+        }
+        .semana-label:first-child { margin-top: 0; }
+
+        /* ── DÍA CARD ── */
+        .dia-seccion {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .dia-seccion.semana-1 { background: #fff; }
+        .dia-seccion.semana-2 { background: #faf8ff; border-color: #ddd6fe; }
+
+        .dia-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 14px;
+            cursor: pointer;
+            user-select: none;
+            font-weight: 600;
+            font-size: 0.88rem;
+        }
+        .dia-seccion.semana-1 .dia-header { background: #eef4ff; }
+        .dia-seccion.semana-2 .dia-header { background: #ede9fe; }
+        .dia-header:hover { filter: brightness(0.97); }
+        .chevron-dia { font-size: 0.68rem; color: var(--muted); transition: transform 0.15s; }
+        .dia-header.collapsed .chevron-dia { transform: rotate(-90deg); }
+        .hoy-badge {
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.6rem;
+            padding: 1px 7px;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        .contextos-fila {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px 12px 12px;
+        }
+        .contextos-fila.hidden { display: none; }
+
+        /* ── CONTEXT CARD ── */
+        .ctx-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 9px 12px;
+            cursor: pointer;
+            min-width: 120px;
+            flex: 1;
+            max-width: 190px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            transition: box-shadow 0.15s, border-color 0.15s;
+        }
+        .dia-seccion.semana-2 .ctx-card { background: #f9f5ff; }
+        .ctx-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-color: var(--accent); }
+        .ctx-nombre { font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; }
+
+        /* ── SEMÁFORO ── */
+        .semaforo { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+        .sem-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--gray);
+            opacity: 0.3;
+        }
+        .sem-dot.plan-on { background: var(--green);  opacity: 1; }
+        .sem-dot.pres-on { background: var(--accent); opacity: 1; }
+        .sem-dot.arr-on  { background: var(--orange); opacity: 1; }
+
+        /* ── VISTA SESIÓN ── */
+        #vista-sesion { display: none; }
+
+        .sesion-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .btn-volver {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            color: var(--text);
+        }
+        .btn-volver:hover { background: var(--bg); }
+        .sesion-titulo { font-size: 1.15rem; font-weight: 700; }
+        .sesion-fecha  { font-size: 0.82rem; color: var(--muted); margin-top: 1px; }
+
+        /* ── BLOQUES ── */
+        .bloque {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+        .bloque-hdr {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 9px 16px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+        }
+        .bloque-hdr h3 { font-size: 0.88rem; font-weight: 600; }
+        .chevron-bloque { font-size: 0.75rem; color: var(--muted); transition: transform 0.15s; }
+        .bloque-hdr.collapsed .chevron-bloque { transform: rotate(-90deg); }
+        .bloque-body { padding: 16px; }
+        .bloque-body.hidden { display: none; }
+
+        #pres-area {
+            width: 100%;
+            min-height: 150px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.83rem;
+            line-height: 1.5;
+            resize: vertical;
+            color: var(--text);
+        }
+        .pres-footer { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+        .btn { padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; border: 1px solid var(--border); background: var(--card-bg); color: var(--text); }
+        .btn:hover { background: var(--bg); }
+        .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .btn-primary:hover { background: #1d4ed8; }
+        .save-status { font-size: 0.73rem; color: var(--muted); margin-left: auto; }
+
+        .arrastre-header { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--orange); margin-bottom: 6px; }
+        .arrastre-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 7px 10px; background: #fff7ed;
+            border: 1px solid #fed7aa; border-radius: 6px;
+            margin-bottom: 5px; font-size: 0.83rem;
+        }
+        .arrastre-item .ai-texto { flex: 1; }
+        .btn-arr { padding: 3px 9px; border-radius: 4px; font-size: 0.73rem; cursor: pointer; border: 1px solid; white-space: nowrap; }
+        .btn-incluir   { background: #dcfce7; border-color: #86efac; color: #166534; }
+        .btn-descartar { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+
+        .plan-lista { margin-bottom: 12px; }
+        .plan-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+        .plan-item:last-child { border-bottom: none; }
+        .plan-item input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; accent-color: var(--green); }
+        .pi-texto { flex: 1; font-size: 0.83rem; }
+        .pi-texto.hecho { text-decoration: line-through; color: var(--muted); }
+        .pi-cat { font-size: 0.68rem; color: var(--muted); background: var(--bg); padding: 1px 5px; border-radius: 3px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pi-srp { font-size: 0.68rem; color: var(--accent); font-weight: 600; }
+        .btn-del { background: none; border: none; cursor: pointer; color: var(--gray); font-size: 0.85rem; padding: 2px 4px; line-height: 1; }
+        .btn-del:hover { color: var(--red); }
+
+        .plan-add { display: flex; gap: 8px; margin-bottom: 8px; }
+        .plan-add input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.83rem; }
+        .btn-import { font-size: 0.75rem; color: var(--accent); background: none; border: 1px dashed var(--accent); padding: 5px 12px; border-radius: 6px; cursor: pointer; display: block; width: 100%; text-align: center; margin-top: 6px; }
+        .btn-import:hover { background: #eff6ff; }
+
+        .rev-item { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.83rem; color: var(--muted); }
+        .rev-item:last-child { border-bottom: none; }
+        .vacio { font-size: 0.82rem; color: var(--muted); font-style: italic; }
+        .cargando { font-size: 0.82rem; color: var(--muted); }
+        .sep { height: 1px; background: var(--border); margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <h1 onclick="toggleCalendario()">
+        Portal PROFE
+        <span id="cal-arrow">▾</span>
+    </h1>
+    <span id="header-status"></span>
+</div>
+
+<div id="calendario-wrap">
+    <div class="cal-nav">
+        <button class="cal-btn" onclick="navCalendario(-1)">‹</button>
+        <div class="cal-mes" id="cal-mes-label"></div>
+        <button class="cal-btn" onclick="navCalendario(1)">›</button>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+</div>
+
+<div id="main">
+
+    <div id="vista-dashboard">
+        <div id="barra-nav-dia">
+            <span id="nav-dia-titulo"></span>
+            <button class="btn-volver-hoy" onclick="volverAHoy()">↩ Volver a hoy</button>
+        </div>
+        <div id="grid"></div>
+    </div>
+
+    <div id="vista-sesion">
+        <div class="sesion-nav">
+            <button class="btn-volver" onclick="volverDashboard()">← Volver</button>
+            <div>
+                <div class="sesion-titulo" id="s-titulo"></div>
+                <div class="sesion-fecha"  id="s-fecha"></div>
+            </div>
+        </div>
+
+        <div class="bloque">
+            <div class="bloque-hdr" onclick="toggleBloque(this)">
+                <h3>📋 Presentación</h3>
+                <span class="chevron-bloque">▾</span>
+            </div>
+            <div class="bloque-body" id="body-pres">
+                <textarea id="pres-area" placeholder="Escribe el contenido de la presentación...&#10;Separa diapositivas con ---"></textarea>
+                <div class="pres-footer">
+                    <button class="btn btn-primary" onclick="abrirPresentador()">Abrir en Presentador ↗</button>
+                    <span class="save-status" id="pres-status"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bloque">
+            <div class="bloque-hdr" onclick="toggleBloque(this)">
+                <h3>📌 Plan de clase</h3>
+                <span class="chevron-bloque">▾</span>
+            </div>
+            <div class="bloque-body" id="body-plan">
+                <div id="plan-arrastres"></div>
+                <div class="plan-lista" id="plan-lista"></div>
+                <div class="plan-add">
+                    <input type="text" id="plan-input"
+                        placeholder="Agregar actividad manual..."
+                        onkeydown="if(event.key==='Enter') agregarItem()">
+                    <button class="btn btn-primary" onclick="agregarItem()">+ Agregar</button>
+                </div>
+                <button class="btn-import" onclick="importarSRP()">↓ Importar pendientes desde SRP</button>
+            </div>
+        </div>
+
+        <div class="bloque">
+            <div class="bloque-hdr" onclick="toggleBloque(this)">
+                <h3>🗒 Revisión — clase anterior</h3>
+                <span class="chevron-bloque">▾</span>
+            </div>
+            <div class="bloque-body" id="body-rev">
+                <div id="rev-content" class="cargando">Cargando...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Alias para nombres de contexto que no caben en espacios compactos
+// Patrón ecosistema: si el elemento desborda, usar este alias en vez del nombre completo
+const NOMBRE_CORTO = {
+    'KIDS CASTIGADAS': 'KIDS',
+};
+
+// ═══════════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════════
+let sb;
+let contextos    = {};
+let horarioDia   = {};
+let sesionesMap  = {};
+let planMap      = {};
+let presMap      = {};
+let sesionActual = null;
+let presTimer    = null;
+let calMes       = new Date();
+let vistaOrigen  = 'dashboard';   // 'dashboard' | 'dia'
+let diaNavegado  = null;          // {fechaStr, diaSemana} al navegar desde calendario
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+    setStatus('Conectando...');
+    try {
+        sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+        await Promise.all([loadContextos(), loadHorario()]);
+        await renderDashboard();
+        setStatus('');
+    } catch (e) {
+        setStatus('Error de conexión');
+        console.error(e);
+    }
+});
+
+function setStatus(msg) { document.getElementById('header-status').textContent = msg; }
+
+// ═══════════════════════════════════════════════════════════
+// CARGA BASE
+// ═══════════════════════════════════════════════════════════
+async function loadContextos() {
+    const { data } = await sb.from('contextos').select('id, nombre, tipo').eq('activo', true);
+    (data || []).forEach(c => contextos[c.id] = c);
+}
+
+async function loadHorario() {
+    const { data } = await sb.from('horario').select('*').eq('activo', true).order('orden');
+    (data || []).forEach(h => {
+        if (!horarioDia[h.dia_semana]) horarioDia[h.dia_semana] = [];
+        horarioDia[h.dia_semana].push(h);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════
+// FECHAS
+// ═══════════════════════════════════════════════════════════
+function lunesDeSemana(base) {
+    const d = new Date(base);
+    const dow = d.getDay();
+    const off = dow === 0 ? 1 : dow === 6 ? 2 : -(dow - 1);
+    d.setDate(d.getDate() + off);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function getOchoDias() {
+    const lunes = lunesDeSemana(new Date());
+    return [0, 1, 2, 3, 7, 8, 9, 10].map((off, i) => {
+        const d = new Date(lunes);
+        d.setDate(lunes.getDate() + off);
+        return { fecha: d, fechaStr: isoDate(d), diaSemana: i % 4, semana: i < 4 ? 1 : 2 };
+    });
+}
+
+function isoDate(d) { return d.toISOString().split('T')[0]; }
+function fmtFecha(d) { return d.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' }); }
+function esHoy(str)  { return isoDate(new Date()) === str; }
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD — vista principal (hoy en adelante)
+// ═══════════════════════════════════════════════════════════
+async function renderDashboard() {
+    const hoy     = isoDate(new Date());
+    const visibles = getOchoDias().filter(d => d.fechaStr >= hoy);
+
+    await loadDatos(visibles.map(d => d.fechaStr));
+
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    let semActual = 0;
+
+    for (const dia of visibles) {
+        if (dia.semana !== semActual) {
+            semActual = dia.semana;
+            const lbl = document.createElement('div');
+            lbl.className   = 'semana-label';
+            lbl.textContent = semActual === 1 ? 'Esta semana' : 'Semana siguiente';
+            grid.appendChild(lbl);
+        }
+        grid.appendChild(buildDiaEl(dia, dia.semana));
+    }
+    requestAnimationFrame(ajustarNombres);
+}
+
+// Vista de un día específico (desde calendario)
+async function renderDia(fechaStr, diaSemana) {
+    await loadDatos([fechaStr]);
+
+    const d = new Date(fechaStr + 'T12:00:00');
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    grid.appendChild(buildDiaEl({ fecha: d, fechaStr, diaSemana, semana: 1 }, 1));
+
+    document.getElementById('nav-dia-titulo').textContent = fmtFecha(d);
+    document.getElementById('barra-nav-dia').classList.add('visible');
+    requestAnimationFrame(ajustarNombres);
+}
+
+async function loadDatos(fechas) {
+    const desde = new Date();
+    desde.setDate(desde.getDate() - 30);
+
+    const { data: sData } = await sb.from('sesiones')
+        .select('id, contexto_id, fecha')
+        .gte('fecha', isoDate(desde));
+
+    sesionesMap = {};
+    const ids = [];
+    (sData || []).forEach(s => {
+        sesionesMap[`${s.contexto_id}||${s.fecha}`] = s;
+        ids.push(s.id);
+    });
+
+    if (!ids.length) return;
+
+    const [{ data: pData }, { data: prData }] = await Promise.all([
+        sb.from('plan_sesion_items').select('id, sesion_id, completado, incluido').in('sesion_id', ids),
+        sb.from('presentaciones').select('sesion_id, contenido').in('sesion_id', ids),
+    ]);
+
+    planMap = {};
+    (pData || []).forEach(p => {
+        if (!planMap[p.sesion_id]) planMap[p.sesion_id] = [];
+        planMap[p.sesion_id].push(p);
+    });
+
+    presMap = {};
+    (prData || []).forEach(p => presMap[p.sesion_id] = p);
+}
+
+function buildDiaEl(diaInfo, semana) {
+    const sec = document.createElement('div');
+    sec.className = `dia-seccion semana-${semana}`;
+
+    const hdr = document.createElement('div');
+    hdr.className = 'dia-header';
+    hdr.innerHTML = `
+        <span class="chevron-dia">▾</span>
+        <span>${fmtFecha(diaInfo.fecha)}</span>
+        ${esHoy(diaInfo.fechaStr) ? '<span class="hoy-badge">HOY</span>' : ''}
+    `;
+
+    const fila = document.createElement('div');
+    fila.className = 'contextos-fila';
+
+    (horarioDia[diaInfo.diaSemana] || []).forEach(h => {
+        const ctx = contextos[h.contexto_id];
+        if (!ctx) return;
+        fila.appendChild(buildCard(ctx, h.contexto_id, diaInfo.fechaStr));
+    });
+
+    if (!fila.children.length) {
+        fila.innerHTML = '<span class="vacio" style="padding:4px 0">Sin contextos</span>';
+    }
+
+    hdr.addEventListener('click', () => {
+        hdr.classList.toggle('collapsed');
+        fila.classList.toggle('hidden');
+    });
+
+    sec.appendChild(hdr);
+    sec.appendChild(fila);
+    return sec;
+}
+
+function buildCard(ctx, cid, fechaStr) {
+    const sesion    = sesionesMap[`${cid}||${fechaStr}`];
+    const sid       = sesion?.id;
+    const tienePlan = sid && (planMap[sid]?.length > 0);
+    const tienePres = sid && !!(presMap[sid]?.contenido?.trim());
+    const tieneArr  = hayArrastre(cid, fechaStr);
+
+    const card = document.createElement('div');
+    card.className = 'ctx-card';
+    card.innerHTML = `
+        <span class="ctx-nombre" data-nombre="${ctx.nombre}" title="${ctx.nombre}">${ctx.nombre}</span>
+        <div class="semaforo">
+            <span class="sem-dot ${tienePlan ? 'plan-on' : ''}" title="Plan"></span>
+            <span class="sem-dot ${tienePres ? 'pres-on' : ''}" title="Presentación"></span>
+            <span class="sem-dot ${tieneArr  ? 'arr-on'  : ''}" title="Arrastre"></span>
+        </div>
+    `;
+    card.addEventListener('click', () => abrirSesion(cid, fechaStr, ctx.nombre));
+    return card;
+}
+
+function hayArrastre(cid, fechaStr) {
+    let ultimaFecha = '';
+    let ultimaSid   = null;
+    Object.entries(sesionesMap).forEach(([key, s]) => {
+        const [c, f] = key.split('||');
+        if (c === cid && f < fechaStr && f > ultimaFecha) {
+            ultimaFecha = f;
+            ultimaSid   = s.id;
+        }
+    });
+    if (!ultimaSid) return false;
+    return (planMap[ultimaSid] || []).some(i => !i.completado && i.incluido !== false);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CALENDARIO
+// ═══════════════════════════════════════════════════════════
+function toggleCalendario() {
+    const wrap  = document.getElementById('calendario-wrap');
+    const arrow = document.getElementById('cal-arrow');
+    wrap.classList.toggle('visible');
+    arrow.classList.toggle('abierto', wrap.classList.contains('visible'));
+    if (wrap.classList.contains('visible')) {
+        calMes = new Date();
+        renderCalendario();
+    }
+}
+
+function navCalendario(dir) {
+    calMes = new Date(calMes.getFullYear(), calMes.getMonth() + dir, 1);
+    renderCalendario();
+}
+
+function renderCalendario() {
+    const año = calMes.getFullYear();
+    const mes = calMes.getMonth();
+    const hoy = isoDate(new Date());
+
+    document.getElementById('cal-mes-label').textContent =
+        new Date(año, mes, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+
+    const grid = document.getElementById('cal-grid');
+    grid.innerHTML = '';
+
+    ['L','M','M','J','V','S','D'].forEach(d => {
+        const el = document.createElement('div');
+        el.className = 'cal-dow';
+        el.textContent = d;
+        grid.appendChild(el);
+    });
+
+    const primerDow = new Date(año, mes, 1).getDay();
+    const startCol  = primerDow === 0 ? 6 : primerDow - 1;
+    for (let i = 0; i < startCol; i++) {
+        const el = document.createElement('div');
+        el.className = 'cal-dia';
+        grid.appendChild(el);
+    }
+
+    const diasEnMes = new Date(año, mes + 1, 0).getDate();
+    for (let d = 1; d <= diasEnMes; d++) {
+        const fecha   = new Date(año, mes, d);
+        const dow     = fecha.getDay();  // 0=dom
+        const str     = isoDate(fecha);
+        const escolar = dow >= 1 && dow <= 4;
+
+        const el = document.createElement('div');
+        el.textContent = d;
+
+        if (str === hoy) {
+            el.className = 'cal-dia hoy';
+        } else if (escolar) {
+            el.className = 'cal-dia escolar';
+        } else {
+            el.className = 'cal-dia';
+        }
+
+        if (escolar) {
+            el.addEventListener('click', () => navegarADia(str, dow - 1));
+        }
+
+        grid.appendChild(el);
+    }
+}
+
+function navegarADia(fechaStr, diaSemana) {
+    document.getElementById('calendario-wrap').classList.remove('visible');
+    document.getElementById('cal-arrow').classList.remove('abierto');
+
+    const hoy = isoDate(new Date());
+    if (fechaStr >= hoy) {
+        // Día de hoy o futuro → volver/mantener dashboard
+        volverAHoy();
+        return;
+    }
+
+    // Día pasado → vista individual
+    vistaOrigen = 'dia';
+    diaNavegado = { fechaStr, diaSemana };
+    document.getElementById('vista-sesion').style.display    = 'none';
+    document.getElementById('vista-dashboard').style.display = 'block';
+    renderDia(fechaStr, diaSemana);
+}
+
+function volverAHoy() {
+    vistaOrigen = 'dashboard';
+    diaNavegado = null;
+    document.getElementById('barra-nav-dia').classList.remove('visible');
+    document.getElementById('vista-sesion').style.display    = 'none';
+    document.getElementById('vista-dashboard').style.display = 'block';
+    renderDashboard();
+}
+
+// ═══════════════════════════════════════════════════════════
+// VISTA SESIÓN
+// ═══════════════════════════════════════════════════════════
+async function abrirSesion(cid, fechaStr, nombre) {
+    document.getElementById('vista-dashboard').style.display = 'none';
+    document.getElementById('vista-sesion').style.display    = 'block';
+    document.getElementById('s-titulo').textContent          = nombre;
+    document.getElementById('s-fecha').textContent           = fmtFecha(new Date(fechaStr + 'T12:00:00'));
+    document.getElementById('plan-lista').innerHTML          = '<div class="cargando">Cargando...</div>';
+    document.getElementById('rev-content').innerHTML         = '<div class="cargando">Cargando...</div>';
+    document.getElementById('plan-arrastres').innerHTML      = '';
+    document.getElementById('pres-area').value               = '';
+    document.getElementById('pres-status').textContent       = '';
+
+    const sesion = await getOrCreate(cid, fechaStr);
+    sesionActual = { id: sesion.id, contexto_id: cid, fecha: fechaStr, nombre };
+
+    await Promise.all([
+        cargarPresentacion(sesion.id),
+        cargarPlan(sesion.id, cid, fechaStr),
+        cargarRevision(cid, fechaStr),
+    ]);
+}
+
+async function getOrCreate(cid, fechaStr) {
+    const { data: ex } = await sb.from('sesiones')
+        .select('id').eq('contexto_id', cid).eq('fecha', fechaStr).maybeSingle();
+    if (ex) return ex;
+    const { data: nueva } = await sb.from('sesiones')
+        .insert({ contexto_id: cid, fecha: fechaStr })
+        .select('id').single();
+    return nueva;
+}
+
+function volverDashboard() {
+    clearTimeout(presTimer);
+    presTimer = null;
+    document.getElementById('vista-sesion').style.display    = 'none';
+    document.getElementById('vista-dashboard').style.display = 'block';
+    sesionActual = null;
+
+    if (vistaOrigen === 'dia' && diaNavegado) {
+        renderDia(diaNavegado.fechaStr, diaNavegado.diaSemana);
+    } else {
+        renderDashboard();
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// PRESENTACIÓN
+// ═══════════════════════════════════════════════════════════
+async function cargarPresentacion(sid) {
+    const { data } = await sb.from('presentaciones')
+        .select('contenido').eq('sesion_id', sid).maybeSingle();
+    const area = document.getElementById('pres-area');
+    area.value = data?.contenido || '';
+    area.oninput = () => {
+        document.getElementById('pres-status').textContent = 'Sin guardar...';
+        clearTimeout(presTimer);
+        presTimer = setTimeout(() => guardarPres(sid), 1200);
+    };
+}
+
+async function guardarPres(sid) {
+    const contenido = document.getElementById('pres-area').value;
+    await sb.from('presentaciones').upsert(
+        { sesion_id: sid, contenido, updated_at: new Date().toISOString() },
+        { onConflict: 'sesion_id' }
+    );
+    document.getElementById('pres-status').textContent = 'Guardado ✓';
+    setTimeout(() => document.getElementById('pres-status').textContent = '', 2500);
+}
+
+function abrirPresentador() {
+    alert('El Presentador Pedagógico estará disponible próximamente.\nEl texto queda guardado aquí.');
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLAN
+// ═══════════════════════════════════════════════════════════
+async function cargarPlan(sid, cid, fechaStr) {
+    const { data: items } = await sb.from('plan_sesion_items')
+        .select('*').eq('sesion_id', sid).order('orden');
+    renderPlan(items || []);
+
+    const anterior = await sesionAnterior(cid, fechaStr);
+    if (anterior) {
+        const { data: arr } = await sb.from('plan_sesion_items')
+            .select('*').eq('sesion_id', anterior.id).eq('completado', false);
+        const textosActuales = new Set((items || []).map(i => i.texto));
+        renderArrastres((arr || []).filter(a => !textosActuales.has(a.texto)));
+    }
+}
+
+async function sesionAnterior(cid, fechaStr) {
+    const { data } = await sb.from('sesiones')
+        .select('id, fecha').eq('contexto_id', cid)
+        .lt('fecha', fechaStr).order('fecha', { ascending: false }).limit(1);
+    return data?.[0] || null;
+}
+
+function renderPlan(items) {
+    const lista = document.getElementById('plan-lista');
+    lista.innerHTML = '';
+    if (!items.length) { lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>'; return; }
+    items.forEach(it => lista.appendChild(buildItemEl(it)));
+}
+
+function buildItemEl(it) {
+    const el = document.createElement('div');
+    el.className = 'plan-item';
+    el.dataset.id = it.id;
+
+    const chk = document.createElement('input');
+    chk.type    = 'checkbox';
+    chk.checked = it.completado;
+
+    const span = document.createElement('span');
+    span.className   = 'pi-texto' + (it.completado ? ' hecho' : '');
+    span.textContent = it.texto;
+    chk.addEventListener('change', () => marcarHecho(it.id, chk.checked, span));
+
+    el.appendChild(chk);
+    el.appendChild(span);
+
+    if (it.categoria) {
+        const cat = document.createElement('span');
+        cat.className   = 'pi-cat';
+        cat.textContent = it.categoria.replace('pendientes_', '');
+        el.appendChild(cat);
+    }
+    if (it.origen === 'srp') {
+        const srp = document.createElement('span');
+        srp.className   = 'pi-srp';
+        srp.textContent = 'SRP';
+        el.appendChild(srp);
+    }
+
+    const del = document.createElement('button');
+    del.className   = 'btn-del';
+    del.textContent = '✕';
+    del.title       = 'Eliminar';
+    del.addEventListener('click', () => eliminarItem(it.id, el));
+    el.appendChild(del);
+    return el;
+}
+
+function renderArrastres(items) {
+    const cont = document.getElementById('plan-arrastres');
+    cont.innerHTML = '';
+    if (!items.length) return;
+
+    const hdr = document.createElement('div');
+    hdr.className   = 'arrastre-header';
+    hdr.textContent = `↩ Arrastre de clase anterior — ${items.length} pendiente${items.length > 1 ? 's' : ''}`;
+    cont.appendChild(hdr);
+
+    items.forEach(it => {
+        const el  = document.createElement('div');
+        el.className = 'arrastre-item';
+
+        const txt = document.createElement('span');
+        txt.className   = 'ai-texto';
+        txt.textContent = it.texto;
+
+        const btnInc = document.createElement('button');
+        btnInc.className   = 'btn-arr btn-incluir';
+        btnInc.textContent = 'Incluir';
+        btnInc.addEventListener('click', async () => {
+            await addItem(it.texto, it.categoria, 'srp', it.pendiente_id);
+            await sb.from('plan_sesion_items').update({ completado: true }).eq('id', it.id);
+            el.remove();
+        });
+
+        const btnDes = document.createElement('button');
+        btnDes.className   = 'btn-arr btn-descartar';
+        btnDes.textContent = 'Descartar';
+        btnDes.addEventListener('click', async () => {
+            await sb.from('plan_sesion_items').update({ completado: true }).eq('id', it.id);
+            el.remove();
+        });
+
+        el.appendChild(txt);
+        el.appendChild(btnInc);
+        el.appendChild(btnDes);
+        cont.appendChild(el);
+    });
+
+    const sep = document.createElement('div');
+    sep.className = 'sep';
+    cont.appendChild(sep);
+}
+
+async function agregarItem() {
+    const input = document.getElementById('plan-input');
+    const texto = input.value.trim();
+    if (!texto) return;
+    input.value = '';
+    await addItem(texto, '', 'manual', null);
+}
+
+async function addItem(texto, categoria, origen, pendienteId) {
+    if (!sesionActual) return;
+    const { count } = await sb.from('plan_sesion_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('sesion_id', sesionActual.id);
+    const { data } = await sb.from('plan_sesion_items').insert({
+        sesion_id: sesionActual.id, texto,
+        categoria: categoria || '', orden: count || 0,
+        origen, pendiente_id: pendienteId || null,
+        completado: false, incluido: true,
+    }).select().single();
+    if (data) {
+        const lista = document.getElementById('plan-lista');
+        const vacio = lista.querySelector('.vacio');
+        if (vacio) vacio.remove();
+        lista.appendChild(buildItemEl(data));
+    }
+}
+
+async function marcarHecho(id, valor, spanEl) {
+    await sb.from('plan_sesion_items').update({ completado: valor }).eq('id', id);
+    spanEl.classList.toggle('hecho', valor);
+}
+
+async function eliminarItem(id, el) {
+    await sb.from('plan_sesion_items').delete().eq('id', id);
+    el.remove();
+    const lista = document.getElementById('plan-lista');
+    if (!lista.querySelectorAll('.plan-item').length)
+        lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>';
+}
+
+async function importarSRP() {
+    if (!sesionActual) return;
+    const { data: pends } = await sb.from('pendientes')
+        .select('id, texto, categoria')
+        .eq('contexto_id', sesionActual.contexto_id)
+        .eq('estado', 'activo')
+        .in('categoria', ['pendientes_sala', 'pendientes_planificacion', 'pendientes_materiales']);
+
+    if (!pends?.length) { alert('No hay pendientes activos de SRP para este curso.'); return; }
+
+    const { data: enPlan } = await sb.from('plan_sesion_items')
+        .select('pendiente_id, texto').eq('sesion_id', sesionActual.id);
+    const idsEnPlan    = new Set((enPlan || []).map(i => i.pendiente_id).filter(Boolean));
+    const textosEnPlan = new Set((enPlan || []).map(i => i.texto));
+    const nuevos       = pends.filter(p => !idsEnPlan.has(p.id) && !textosEnPlan.has(p.texto));
+
+    if (!nuevos.length) { alert('Todos los pendientes de SRP ya están en el plan.'); return; }
+    for (const p of nuevos) await addItem(p.texto, p.categoria, 'srp', p.id);
+}
+
+// ═══════════════════════════════════════════════════════════
+// REVISIÓN
+// ═══════════════════════════════════════════════════════════
+async function cargarRevision(cid, fechaStr) {
+    const cont = document.getElementById('rev-content');
+    const ant  = await sesionAnterior(cid, fechaStr);
+    if (!ant) { cont.innerHTML = '<div class="vacio">Sin clases anteriores registradas.</div>'; return; }
+
+    const { data: srp } = await sb.from('sesiones_srp')
+        .select('expected_output, original_parse')
+        .eq('sesion_id', ant.id)
+        .order('created_at', { ascending: false }).limit(1);
+
+    if (!srp?.length) { cont.innerHTML = '<div class="vacio">Sin registro SRP para la clase anterior.</div>'; return; }
+
+    const parse = srp[0].expected_output || srp[0].original_parse;
+    if (!parse?.courses) { cont.innerHTML = '<div class="vacio">Sin datos de revisión.</div>'; return; }
+
+    const nombre = contextos[cid]?.nombre?.toUpperCase() || '';
+    const curso  = parse.courses.find(c => c.course?.toUpperCase() === nombre) || parse.courses[0];
+    if (!curso)  { cont.innerHTML = '<div class="vacio">Sin datos para este curso.</div>'; return; }
+
+    const revs = (curso.items || []).filter(i => i.category?.includes('revision'));
+    if (!revs.length) { cont.innerHTML = '<div class="vacio">Sin ítems de revisión en el último registro.</div>'; return; }
+
+    cont.innerHTML = revs.map(i => `<div class="rev-item">${i.text}</div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// NOMBRES CORTOS — detecta overflow y aplica alias
+// ═══════════════════════════════════════════════════════════
+function ajustarNombres() {
+    document.querySelectorAll('.ctx-nombre[data-nombre]').forEach(el => {
+        const nombre = el.dataset.nombre;
+        el.textContent = nombre;
+        if (el.scrollWidth > el.clientWidth && NOMBRE_CORTO[nombre]) {
+            el.textContent = NOMBRE_CORTO[nombre];
+        }
+    });
+}
+window.addEventListener('resize', () => requestAnimationFrame(ajustarNombres));
+
+// ═══════════════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════════════
+function toggleBloque(hdr) {
+    const body    = hdr.nextElementSibling;
+    const chevron = hdr.querySelector('.chevron-bloque');
+    hdr.classList.toggle('collapsed');
+    body.classList.toggle('hidden');
+    chevron.textContent = body.classList.contains('hidden') ? '▸' : '▾';
+}
+</script>
+
+</body>
+</html>

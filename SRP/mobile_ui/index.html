@@ -364,7 +364,7 @@
         .lw-section-sep { border: none; border-top: 1px solid var(--border); margin: 22px 0; opacity: 0.6; }
         .lw-item-card { background: var(--gray); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; margin-bottom: 9px; font-size: 1.16rem; line-height: 1.45; }
         .lw-empty { color: var(--text-dim); font-size: 1.02rem; padding: 6px 0 10px; }
-        .lw-revision-text { color: var(--text-dim); font-size: 1.1rem; line-height: 1.65; padding: 6px 0 10px; }
+        .lw-revision-text { color: var(--text-dim); font-size: 1.1rem; line-height: 1.65; padding: 6px 0 10px; white-space: pre-line; }
         .lw-revision-date { font-size: 0.87rem; color: var(--text-dim); opacity: .6; margin-bottom: 4px; }
 
         /* ── NAPP: nota inline ,,,n (renderizada en posición dentro del texto) ── */
@@ -1911,7 +1911,7 @@
             id: crypto.randomUUID(),
             curso: c.curso || 'CURSO NO DETECTADO',
             fecha: c.fecha || '',
-            revision: c.revision || '',
+            revision: Array.isArray(c.revision) ? c.revision.map(i => i.text || i).filter(Boolean).join('\n') : (c.revision || ''),
             categories: Object.fromEntries(
                 Object.entries(c.categories || {}).map(([k, arr]) => [
                     k, (arr || []).map(i => ({ id: crypto.randomUUID(), text: i.text }))
@@ -2106,7 +2106,8 @@
     }
 
     // ── Course autocomplete ──
-    const CURSOS_BASE = ['PRIMERO','SEGUNDO','TERCERO','CUARTO','QUINTO','SEXTO','SEPTIMO','OCTAVO','CUERDAS','CASTIGADAS','KIDS CASTIGADAS','RECREO','ENLACE','ORIENTACIÓN'];
+    const CURSOS_BASE   = ['PRIMERO','SEGUNDO','TERCERO','CUARTO','QUINTO','SEXTO','SEPTIMO','OCTAVO','CUERDAS','CASTIGADAS','KIDS CASTIGADAS','RECREO','ENLACE','ORIENTACIÓN'];
+    const NOMBRE_CORTO  = { 'KIDS CASTIGADAS': 'KIDS' };
     let knownCourses = [...CURSOS_BASE];
 
     function loadKnownCourses() {
@@ -2644,7 +2645,8 @@
             const wrap = document.createElement('div'); wrap.className = 'lw-course-selector';
             todos.forEach(name => {
                 const btn = document.createElement('button'); btn.className = 'lw-course-btn';
-                btn.textContent = lwTitleCase(name);
+                btn.textContent = lwTitleCase(NOMBRE_CORTO[name] || name);
+                btn.title = lwTitleCase(name);
                 btn.addEventListener('click', () => lwOpenCursoHistory(name));
                 wrap.appendChild(btn);
             });
@@ -2764,12 +2766,14 @@
 CURSOS VÁLIDOS (usar exactamente estos nombres):
 PRIMERO, SEGUNDO, TERCERO, CUARTO, QUINTO, SEXTO, SEPTIMO, OCTAVO, CUERDAS, CASTIGADAS, KIDS CASTIGADAS, RECREO, ENLACE, ORIENTACIÓN
 
-REGLA DE CURSO: Si el audio NO menciona explícitamente un curso, usa "GENERAL". NUNCA inferir ni inventar un curso — la duda siempre va a "GENERAL".
+REGLA DE CURSO: Si la nota NO menciona explícitamente un curso, usa "GENERAL". NUNCA inferir ni inventar un curso — la duda siempre va a "GENERAL".
+EXCEPCIÓN — Continuidad explícita entre notas: Si la nota indica de forma explícita que es continuación directa de una nota anterior ("siguiendo con lo anterior", "continúo", "complementando lo que dije", "para agregar a lo que grabé", o frases similares), el curso puede heredarse del contexto declarado. Esta excepción aplica SOLO cuando la señal de continuidad está explícita en el texto — no inferir continuidad sin ella.
 
 CATEGORÍAS:
-- revision: SOLO para describir lo que realmente ocurrió en una clase ya pasada (hechos, comportamientos, actividades realizadas). Si el contenido ya está clasificado en otra categoría, NO lo repitas en revision. Dejar vacío si el audio no describe una clase pasada.
-- pendientes_sala: Acciones ejecutables SOLO durante clase en vivo (cantar de nuevo, reorganizar grupos, reforzar rutinas).
-- pendientes_planificacion: Diseño pedagógico fuera de la clase (crear material, diseñar estrategias, aprender una canción para enseñarla).
+- revision: SOLO para describir lo que realmente ocurrió en una clase ya pasada. Agrupa observaciones relacionadas sobre el mismo aspecto pedagógico en un único ítem sintético (ej: todo lo sobre manejo del material → un ítem; todo lo sobre comportamiento del grupo → un ítem; todo lo sobre una actividad específica → un ítem). NO transcribir cláusula por cláusula — sintetiza. NO colapsar todo en un único ítem. Apunta a 3-8 ítems por clase según la riqueza del audio. Dejar vacío si el audio no describe una clase pasada.
+- pendientes_sala: Acciones que ejecutás simplemente llegando a la próxima clase, sin preparación previa (cantar, tocar, reorganizar grupos, avanzar contenido, reforzar rutina).
+- pendientes_planificacion: Trabajo que requiere preparación tuya ANTES de la clase (crear material, diseñar actividad, aprender algo para luego enseñarlo, estructurar evaluación).
+CRITERIO CLAVE sala vs planificacion: ¿Podés llegar y hacerlo directamente? → sala. ¿Requiere trabajo previo fuera del aula? → planificacion.
 - pendientes_materiales: Transporte físico de objetos entre espacios del colegio (llevar instrumentos, imprimir guías). NO incluye casa-colegio.
 - pendientes_casa: Tareas operacionales fuera del contexto institucional.
 - pendientes_administrativos: Procedimientos formales, documentación oficial.
@@ -2791,7 +2795,7 @@ Devuelve ÚNICAMENTE este JSON (sin texto adicional, sin markdown):
   {
     "curso": "NOMBRE_CURSO_o_GENERAL",
     "fecha": "descripción de fecha mencionada o vacío",
-    "revision": "descripción de clase ya ocurrida, o string vacío si no aplica",
+    "revision": [{"text": "observación atómica 1"}, {"text": "observación atómica 2"}],
     "categories": {
       "pendientes_sala": [{"text": "..."}],
       "pendientes_planificacion": [{"text": "..."}],

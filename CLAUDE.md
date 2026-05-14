@@ -121,6 +121,32 @@ La anon key es pública (va en el frontend). La secret key nunca va en el navega
 
 Jefatura actual: 8° básico (puede cambiar de año en año).
 
+**Alias de display para espacios compactos:**
+Cuando el nombre completo no cabe en una sola línea en un espacio compacto (card, badge, chip), usar el alias corto en lugar de truncar con ellipsis:
+
+| Nombre completo | Alias |
+|-----------------|-------|
+| KIDS CASTIGADAS | KIDS |
+
+**Patrón de implementación (HTML/JS vanilla):**
+```js
+const NOMBRE_CORTO = { 'KIDS CASTIGADAS': 'KIDS' };
+
+function ajustarNombres() {
+    document.querySelectorAll('[data-nombre]').forEach(el => {
+        const nombre = el.dataset.nombre;
+        el.textContent = nombre;
+        if (el.scrollWidth > el.clientWidth && NOMBRE_CORTO[nombre]) {
+            el.textContent = NOMBRE_CORTO[nombre];
+        }
+    });
+}
+window.addEventListener('resize', () => requestAnimationFrame(ajustarNombres));
+// Llamar con requestAnimationFrame(ajustarNombres) después de renderizar
+```
+CSS requerido en el elemento: `white-space: nowrap; overflow: hidden;`
+El atributo `title` siempre debe tener el nombre completo.
+
 ---
 
 ## Los 3 conceptos arquitecturales centrales
