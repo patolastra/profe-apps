@@ -579,11 +579,34 @@ function isoDate(d) { return d.toISOString().split('T')[0]; }
 function fmtFecha(d) { return d.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' }); }
 function esHoy(str)  { return isoDate(new Date()) === str; }
 
+function getDiaActivo() {
+    const hoy = new Date();
+    const dow = hoy.getDay();               // 0=dom, 1=lun…4=jue, 5=vie, 6=sab
+    if (dow >= 1 && dow <= 4) return isoDate(hoy);
+    const diff = dow === 5 ? 3 : dow === 6 ? 2 : 1;  // vie→+3, sab→+2, dom→+1
+    const prox = new Date(hoy);
+    prox.setDate(hoy.getDate() + diff);
+    return isoDate(prox);
+}
+
+function abrirDia(hdrEl) {
+    const yaAbierto = !hdrEl.classList.contains('collapsed');
+    document.querySelectorAll('.dia-header').forEach(h => {
+        h.classList.add('collapsed');
+        h.nextElementSibling.classList.add('hidden');
+    });
+    if (!yaAbierto) {
+        hdrEl.classList.remove('collapsed');
+        hdrEl.nextElementSibling.classList.remove('hidden');
+    }
+}
+
 // ═══════════════════════════════════════════════════════════
 // DASHBOARD — vista principal (hoy en adelante)
 // ═══════════════════════════════════════════════════════════
 async function renderDashboard() {
     const hoy     = isoDate(new Date());
+    const activo  = getDiaActivo();
     const visibles = getOchoDias().filter(d => d.fechaStr >= hoy);
 
     await loadDatos(visibles.map(d => d.fechaStr));
@@ -600,21 +623,44 @@ async function renderDashboard() {
             lbl.textContent = semActual === 1 ? 'Esta semana' : 'Semana siguiente';
             grid.appendChild(lbl);
         }
-        grid.appendChild(buildDiaEl(dia, dia.semana));
+        grid.appendChild(buildDiaEl(dia, dia.semana, dia.fechaStr === activo));
     }
     requestAnimationFrame(ajustarNombres);
 }
 
-// Vista de un día específico (desde calendario)
+// Vista de un día pasado específico (desde calendario) + días futuros abajo
 async function renderDia(fechaStr, diaSemana) {
-    await loadDatos([fechaStr]);
+    const hoy    = isoDate(new Date());
+    const activo = getDiaActivo();
+    const dPast  = new Date(fechaStr + 'T12:00:00');
+    const futuros = getOchoDias().filter(d => d.fechaStr >= hoy);
 
-    const d = new Date(fechaStr + 'T12:00:00');
+    await loadDatos([fechaStr, ...futuros.map(d => d.fechaStr)]);
+
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
-    grid.appendChild(buildDiaEl({ fecha: d, fechaStr, diaSemana, semana: 1 }, 1));
 
-    document.getElementById('nav-dia-titulo').textContent = fmtFecha(d);
+    const lbl0 = document.createElement('div');
+    lbl0.className   = 'semana-label';
+    lbl0.textContent = 'Día seleccionado';
+    grid.appendChild(lbl0);
+    grid.appendChild(buildDiaEl({ fecha: dPast, fechaStr, diaSemana, semana: 1 }, 1, true));
+
+    if (futuros.length) {
+        let semActual = 0;
+        for (const dia of futuros) {
+            if (dia.semana !== semActual) {
+                semActual = dia.semana;
+                const lbl = document.createElement('div');
+                lbl.className   = 'semana-label';
+                lbl.textContent = semActual === 1 ? 'Esta semana' : 'Semana siguiente';
+                grid.appendChild(lbl);
+            }
+            grid.appendChild(buildDiaEl(dia, dia.semana, dia.fechaStr === activo));
+        }
+    }
+
+    document.getElementById('nav-dia-titulo').textContent = fmtFecha(dPast);
     document.getElementById('barra-nav-dia').classList.add('visible');
     requestAnimationFrame(ajustarNombres);
 }
@@ -651,12 +697,12 @@ async function loadDatos(fechas) {
     (prData || []).forEach(p => presMap[p.sesion_id] = p);
 }
 
-function buildDiaEl(diaInfo, semana) {
+function buildDiaEl(diaInfo, semana, esActivo = false) {
     const sec = document.createElement('div');
     sec.className = `dia-seccion semana-${semana}`;
 
     const hdr = document.createElement('div');
-    hdr.className = 'dia-header';
+    hdr.className = 'dia-header' + (esActivo ? '' : ' collapsed');
     hdr.innerHTML = `
         <span class="chevron-dia">▾</span>
         <span>${fmtFecha(diaInfo.fecha)}</span>
@@ -664,7 +710,7 @@ function buildDiaEl(diaInfo, semana) {
     `;
 
     const fila = document.createElement('div');
-    fila.className = 'contextos-fila';
+    fila.className = 'contextos-fila' + (esActivo ? '' : ' hidden');
 
     (horarioDia[diaInfo.diaSemana] || []).forEach(h => {
         const ctx = contextos[h.contexto_id];
@@ -676,10 +722,7 @@ function buildDiaEl(diaInfo, semana) {
         fila.innerHTML = '<span class="vacio" style="padding:4px 0">Sin contextos</span>';
     }
 
-    hdr.addEventListener('click', () => {
-        hdr.classList.toggle('collapsed');
-        fila.classList.toggle('hidden');
-    });
+    hdr.addEventListener('click', () => abrirDia(hdr));
 
     sec.appendChild(hdr);
     sec.appendChild(fila);
