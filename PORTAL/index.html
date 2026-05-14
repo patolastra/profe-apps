@@ -366,15 +366,26 @@
         }
         .s-plan-item.dragging  { opacity: 0.38; }
         .s-plan-item.drag-over { border-top: 2px solid var(--accent); }
-        .s-plan-item input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; accent-color: var(--green); margin-top: 2px; }
+        .s-plan-item.editing   { border-color: var(--accent); background: #eff6ff; }
+        .s-plan-item input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; accent-color: var(--green); margin-top: 3px; }
         .s-drag-handle { cursor: grab; color: var(--gray); font-size: 0.78rem; flex-shrink: 0; user-select: none; padding: 2px 0; line-height: 1; }
         .s-drag-handle:active { cursor: grabbing; }
-        .s-pi-txt  { flex: 1; }
-        .pi-titulo { display: block; line-height: 1.4; }
-        .pi-bullets { list-style: disc; margin: 2px 0 0 14px; padding: 0; }
-        .pi-bullets li { font-size: 0.76rem; color: var(--muted); line-height: 1.5; }
+        .s-pi-txt  { flex: 1; cursor: pointer; }
+        .s-pi-txt:hover .pi-titulo { text-decoration: underline; text-underline-offset: 2px; }
+        .pi-titulo { display: block; line-height: 1.4; font-weight: 700; text-transform: uppercase; font-size: 0.8rem; }
+        .pi-bullets { list-style: disc; margin: 3px 0 0 14px; padding: 0; }
+        .pi-bullets li { font-size: 0.78rem; color: var(--text); line-height: 1.5; }
         .s-pi-txt.hecho .pi-titulo { text-decoration: line-through; color: var(--muted); }
-        .s-pi-txt.hecho .pi-bullets li { text-decoration: line-through; }
+        .s-pi-txt.hecho .pi-bullets li { text-decoration: line-through; color: var(--muted); }
+
+        /* ── Undo delete bar ── */
+        #plan-undo-del { display: none; align-items: center; justify-content: space-between; padding: 6px 10px; background: #fef3c7; border-top: 1px solid #fcd34d; font-size: 0.78rem; color: #92400e; flex-shrink: 0; }
+        #plan-undo-del button { background: none; border: 1px solid #f59e0b; color: #b45309; padding: 2px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
+        #plan-undo-del button:hover { background: #fffbeb; }
+
+        /* ── Botón cancelar edición ── */
+        #btn-plan-cancel { display: none; background: var(--gray); color: #fff; border: none; padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 0.82rem; flex-shrink: 0; }
+        #btn-plan-cancel:hover { background: #475569; }
         .s-pi-cat  { font-size: 0.63rem; color: var(--muted); background: var(--bg); padding: 1px 5px; border-radius: 3px; flex-shrink: 0; margin-top: 2px; }
         .s-pi-srp  { font-size: 0.63rem; color: var(--accent); font-weight: 700; flex-shrink: 0; margin-top: 2px; }
         .s-pi-del  { background: none; border: none; cursor: pointer; color: var(--gray); font-size: 0.82rem; padding: 1px 3px; flex-shrink: 0; }
@@ -478,13 +489,18 @@
                     <div id="plan-srp"></div>
                     <div id="plan-lista"></div>
                 </div>
+                <div id="plan-undo-del">
+                    <span id="plan-undo-msg"></span>
+                    <button onclick="deshacerBorrado()">↩ Deshacer</button>
+                </div>
                 <div class="s-add">
                     <textarea id="plan-input"
                         placeholder="Título de la actividad&#10;- sub-ítem (opcional)"
                         rows="1"
-                        onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();agregarItem()}"
+                        onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();accionPlan()}"
                         oninput="autoExpandTextarea(this)"></textarea>
-                    <button onclick="agregarItem()" title="Agregar (Ctrl+Enter)">+</button>
+                    <button id="btn-plan-cancel" onclick="cancelarEdicion()">✕</button>
+                    <button id="btn-plan-action" onclick="accionPlan()" title="Agregar (Ctrl+Enter)">+</button>
                 </div>
             </div>
 
@@ -521,6 +537,9 @@ let vistaOrigen  = 'dashboard';
 let diaNavegado  = null;
 let slides       = [];
 let slideIdx     = 0;
+let editandoId   = null;
+let editandoEl   = null;
+let deletedItem  = null;
 
 // ═══════════════════════════════════════════════════════════
 // INIT
@@ -912,6 +931,9 @@ async function abrirSesion(cid, fechaStr, nombre) {
     document.getElementById('pres-area').value          = '';
     document.getElementById('pres-status').textContent  = '';
     document.getElementById('prev-body').innerHTML      = '';
+    deletedItem = null;
+    ocultarUndoBorrado();
+    resetModoEdicion();
 
     const sesion = await getOrCreate(cid, fechaStr);
     sesionActual = { id: sesion.id, contexto_id: cid, fecha: fechaStr, nombre };
@@ -1049,8 +1071,11 @@ function buildTextoItem(texto, completado) {
 
 function buildItemEl(it) {
     const el = document.createElement('div');
-    el.className  = 's-plan-item';
-    el.dataset.id = it.id;
+    el.className         = 's-plan-item';
+    el.dataset.id        = it.id;
+    el.dataset.texto     = it.texto || '';
+    el.dataset.categoria = it.categoria || '';
+    el.dataset.origen    = it.origen || 'manual';
 
     const handle = document.createElement('span');
     handle.className   = 's-drag-handle';
@@ -1062,6 +1087,7 @@ function buildItemEl(it) {
     chk.checked = it.completado;
 
     const txtWrap = buildTextoItem(it.texto, it.completado);
+    txtWrap.addEventListener('click', () => cargarParaEditar(el));
     chk.addEventListener('change', () => marcarHecho(it.id, chk.checked, txtWrap));
 
     el.appendChild(handle);
@@ -1228,6 +1254,11 @@ function renderPendientesSRP(pends) {
     });
 }
 
+function accionPlan() {
+    if (editandoId) guardarEdicion();
+    else agregarItem();
+}
+
 async function agregarItem() {
     const ta    = document.getElementById('plan-input');
     const texto = ta.value.trim();
@@ -1236,6 +1267,92 @@ async function agregarItem() {
     ta.style.height = 'auto';
     ta.focus();
     await addItem(texto, '', 'manual', null);
+}
+
+function cargarParaEditar(el) {
+    const ta = document.getElementById('plan-input');
+    if (ta.value.trim() && editandoId !== el.dataset.id) {
+        if (!confirm('¿Descartar el texto actual?')) return;
+    }
+    if (editandoEl) editandoEl.classList.remove('editing');
+    editandoId = el.dataset.id;
+    editandoEl = el;
+    el.classList.add('editing');
+    ta.value = el.dataset.texto || '';
+    autoExpandTextarea(ta);
+    ta.focus();
+    document.getElementById('btn-plan-action').textContent = '✓';
+    document.getElementById('btn-plan-cancel').style.display = '';
+}
+
+async function guardarEdicion() {
+    const ta    = document.getElementById('plan-input');
+    const texto = ta.value.trim();
+    if (!texto) return;
+    const id = editandoId;
+    const el = editandoEl;
+    await sb.from('plan_sesion_items').update({ texto }).eq('id', id);
+    if (el) {
+        const nuevoData = {
+            id,
+            texto,
+            categoria:   el.dataset.categoria || '',
+            origen:      el.dataset.origen || 'manual',
+            completado:  el.querySelector('input[type="checkbox"]').checked,
+            incluido:    true,
+            pendiente_id: null,
+        };
+        el.replaceWith(buildItemEl(nuevoData));
+    }
+    resetModoEdicion();
+}
+
+function cancelarEdicion() {
+    if (editandoEl) editandoEl.classList.remove('editing');
+    resetModoEdicion();
+}
+
+function resetModoEdicion() {
+    editandoId = null;
+    editandoEl = null;
+    const ta = document.getElementById('plan-input');
+    if (ta) { ta.value = ''; ta.style.height = 'auto'; }
+    const btnAct = document.getElementById('btn-plan-action');
+    const btnCan = document.getElementById('btn-plan-cancel');
+    if (btnAct) btnAct.textContent = '+';
+    if (btnCan) btnCan.style.display = 'none';
+}
+
+async function deshacerBorrado() {
+    if (!deletedItem || !sesionActual) return;
+    const { data } = await sb.from('plan_sesion_items').insert({
+        sesion_id:   sesionActual.id,
+        texto:       deletedItem.texto,
+        categoria:   deletedItem.categoria,
+        origen:      deletedItem.origen,
+        completado:  deletedItem.completado,
+        incluido:    true,
+    }).select().single();
+    if (data) {
+        const lista = document.getElementById('plan-lista');
+        const vacio = lista.querySelector('.vacio');
+        if (vacio) vacio.remove();
+        lista.appendChild(buildItemEl(data));
+    }
+    deletedItem = null;
+    ocultarUndoBorrado();
+}
+
+function mostrarUndoBorrado() {
+    if (!deletedItem) return;
+    const titulo = (deletedItem.texto || '').split('\n')[0];
+    const corto  = titulo.length > 35 ? titulo.slice(0, 35) + '…' : titulo;
+    document.getElementById('plan-undo-msg').textContent = `Borrado: "${corto}"`;
+    document.getElementById('plan-undo-del').style.display = 'flex';
+}
+
+function ocultarUndoBorrado() {
+    document.getElementById('plan-undo-del').style.display = 'none';
 }
 
 async function addItem(texto, categoria, origen, pendienteId) {
@@ -1263,11 +1380,20 @@ async function marcarHecho(id, valor, wrapEl) {
 }
 
 async function eliminarItem(id, el) {
+    if (editandoId === id) cancelarEdicion();
+    deletedItem = {
+        id,
+        texto:     el.dataset.texto,
+        categoria: el.dataset.categoria,
+        origen:    el.dataset.origen,
+        completado: el.querySelector('input[type="checkbox"]').checked,
+    };
     await sb.from('plan_sesion_items').delete().eq('id', id);
     el.remove();
     const lista = document.getElementById('plan-lista');
     if (!lista.querySelectorAll('.s-plan-item').length)
         lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>';
+    mostrarUndoBorrado();
 }
 
 async function importarSRP() {
