@@ -124,19 +124,14 @@
             border: 1px solid var(--border);
             border-radius: 8px;
         }
-        #barra-nav-dia.visible { display: flex; }
-        #nav-dia-titulo { font-size: 0.88rem; font-weight: 600; flex: 1; text-transform: capitalize; }
-        .btn-volver-hoy {
-            font-size: 0.78rem;
-            padding: 5px 12px;
-            border-radius: 6px;
-            border: 1px solid var(--accent);
-            background: none;
-            color: var(--accent);
-            cursor: pointer;
-            white-space: nowrap;
+        #btn-ir-hoy {
+            display: none; font-size: 0.75rem; padding: 4px 12px;
+            border-radius: 5px; border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85);
+            cursor: pointer; white-space: nowrap; margin-left: auto;
         }
-        .btn-volver-hoy:hover { background: #eff6ff; }
+        #btn-ir-hoy:hover { background: rgba(255,255,255,0.18); }
+        #btn-ir-hoy.visible { display: block; }
 
         /* ── SEMANA LABELS ── */
         .semana-label {
@@ -434,6 +429,7 @@
         Portal PROFE
         <span id="cal-arrow">▾</span>
     </h1>
+    <button id="btn-ir-hoy" onclick="volverAHoy()">↩ Hoy</button>
     <span id="header-status"></span>
 </div>
 
@@ -449,10 +445,6 @@
 <div id="main">
 
     <div id="vista-dashboard">
-        <div id="barra-nav-dia">
-            <span id="nav-dia-titulo"></span>
-            <button class="btn-volver-hoy" onclick="volverAHoy()">↩ Volver a hoy</button>
-        </div>
         <div id="grid"></div>
     </div>
 
@@ -577,6 +569,7 @@ function getOchoDias() {
 
 function isoDate(d) { return d.toISOString().split('T')[0]; }
 function fmtFecha(d) { return d.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' }); }
+function fmtSemana(lun) { return 'Semana del ' + lun.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' }); }
 function esHoy(str)  { return isoDate(new Date()) === str; }
 
 function getDiaActivo() {
@@ -628,50 +621,67 @@ async function renderDashboard() {
     requestAnimationFrame(ajustarNombres);
 }
 
-// Vista de un día pasado específico (desde calendario) + días futuros abajo
+// Vista histórica: desde la semana del día seleccionado hasta semana siguiente de hoy
 async function renderDia(fechaStr, diaSemana) {
     const hoy    = isoDate(new Date());
-    const activo = getDiaActivo();
-    const dPast  = new Date(fechaStr + 'T12:00:00');
-    const futuros = getOchoDias().filter(d => d.fechaStr >= hoy);
+    const lunSel = lunesDeSemana(new Date(fechaStr + 'T12:00:00'));
+    const lunHoy = lunesDeSemana(new Date());
+    const lunSig = new Date(lunHoy);
+    lunSig.setDate(lunHoy.getDate() + 7);
 
-    await loadDatos([fechaStr, ...futuros.map(d => d.fechaStr)]);
+    // Todas las semanas de la seleccionada hasta semana siguiente de hoy
+    const semanas = [];
+    const cur = new Date(lunSel);
+    while (isoDate(cur) <= isoDate(lunSig)) {
+        semanas.push(new Date(cur));
+        cur.setDate(cur.getDate() + 7);
+    }
+
+    // Precargar todos los datos del rango
+    const todasFechas = semanas.flatMap(lun =>
+        [0, 1, 2, 3].map(off => { const d = new Date(lun); d.setDate(lun.getDate() + off); return isoDate(d); })
+    );
+    await loadDatos(todasFechas);
+
+    const lunHoyStr = isoDate(lunHoy);
+    const lunSigStr = isoDate(lunSig);
 
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
 
-    const lbl0 = document.createElement('div');
-    lbl0.className   = 'semana-label';
-    lbl0.textContent = 'Día seleccionado';
-    grid.appendChild(lbl0);
-    grid.appendChild(buildDiaEl({ fecha: dPast, fechaStr, diaSemana, semana: 1 }, 1, true));
+    semanas.forEach(lun => {
+        const lunStr = isoDate(lun);
 
-    if (futuros.length) {
-        let semActual = 0;
-        for (const dia of futuros) {
-            if (dia.semana !== semActual) {
-                semActual = dia.semana;
-                const lbl = document.createElement('div');
-                lbl.className   = 'semana-label';
-                lbl.textContent = semActual === 1 ? 'Esta semana' : 'Semana siguiente';
-                grid.appendChild(lbl);
-            }
-            grid.appendChild(buildDiaEl(dia, dia.semana, dia.fechaStr === activo));
-        }
-    }
+        const lbl = document.createElement('div');
+        lbl.className   = 'semana-label';
+        if (lunStr === lunSigStr)      lbl.textContent = 'Semana siguiente';
+        else if (lunStr === lunHoyStr) lbl.textContent = 'Esta semana';
+        else                           lbl.textContent = fmtSemana(lun);
+        grid.appendChild(lbl);
 
-    document.getElementById('nav-dia-titulo').textContent = fmtFecha(dPast);
-    document.getElementById('barra-nav-dia').classList.add('visible');
+        [0, 1, 2, 3].forEach(off => {
+            const d = new Date(lun);
+            d.setDate(lun.getDate() + off);
+            const dStr = isoDate(d);
+            grid.appendChild(buildDiaEl(
+                { fecha: d, fechaStr: dStr, diaSemana: off, semana: 1 },
+                1,
+                dStr === fechaStr   // solo el día específico seleccionado empieza abierto
+            ));
+        });
+    });
+
     requestAnimationFrame(ajustarNombres);
 }
 
 async function loadDatos(fechas) {
-    const desde = new Date();
-    desde.setDate(desde.getDate() - 30);
+    const desdeFecha = fechas.length
+        ? fechas.reduce((a, b) => a < b ? a : b)
+        : isoDate(new Date());
 
     const { data: sData } = await sb.from('sesiones')
         .select('id, contexto_id, fecha')
-        .gte('fecha', isoDate(desde));
+        .gte('fecha', desdeFecha);
 
     sesionesMap = {};
     const ids = [];
@@ -841,24 +851,23 @@ function navegarADia(fechaStr, diaSemana) {
 
     const hoy = isoDate(new Date());
     if (fechaStr >= hoy) {
-        // Día de hoy o futuro → volver/mantener dashboard
         volverAHoy();
         return;
     }
 
-    // Día pasado → vista individual
     vistaOrigen = 'dia';
     diaNavegado = { fechaStr, diaSemana };
     document.getElementById('vista-sesion').classList.remove('show');
     document.body.classList.remove('sesion-activa');
     document.getElementById('vista-dashboard').style.display = 'block';
+    document.getElementById('btn-ir-hoy').classList.add('visible');
     renderDia(fechaStr, diaSemana);
 }
 
 function volverAHoy() {
     vistaOrigen = 'dashboard';
     diaNavegado = null;
-    document.getElementById('barra-nav-dia').classList.remove('visible');
+    document.getElementById('btn-ir-hoy').classList.remove('visible');
     document.getElementById('vista-sesion').classList.remove('show');
     document.body.classList.remove('sesion-activa');
     document.getElementById('vista-dashboard').style.display = 'block';
