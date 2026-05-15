@@ -117,23 +117,25 @@
             line-height: 1.35;
             animation: aparecer 0.18s ease-out;
         }
-        .slide-content.centrado { text-align: center; }
+        .slide-content.centrado { text-align: center; align-items: center; }
         .slide-content.centrado ul { list-style-position: inside; padding-left: 0; }
+        .slide-content.centrado li { text-align: center; }
 
         @keyframes aparecer {
             from { opacity: 0; transform: translateY(5px); }
             to   { opacity: 1; transform: translateY(0); }
         }
 
-        /* Tipografía escalable con em (relativa al font-size del wrapper) */
+        /* Tipografía: solo 2 tamaños — título (h1) y subtítulo (todo lo demás) */
         .slide-content h1 {
-            font-size: 2.1em; font-weight: 800; line-height: 1.08;
+            font-size: 2.2em; font-weight: 800; line-height: 1.08;
             color: var(--slide-h1); margin-bottom: 0.3em;
             overflow-wrap: break-word;
         }
+        /* h2, p, li → mismo tamaño subtítulo */
         .slide-content h2 {
-            font-size: 1.4em; font-weight: 600; line-height: 1.15;
-            color: var(--slide-h2); margin-bottom: 0.35em;
+            font-size: 1em; font-weight: 600; line-height: 1.45;
+            color: var(--slide-h2); margin-bottom: 0.25em;
             overflow-wrap: break-word;
         }
         .slide-content p {
@@ -421,21 +423,24 @@ function parseInline(s) {
         .replace(/__(.+?)__/g,     '<span class="c2">$1</span>');
 }
 
+function tieneMarkdownInline(raw) {
+    return /\*\*[\s\S]+?\*\*/.test(raw) || /__[\s\S]+?__/.test(raw) || /==[\s\S]+?==/.test(raw);
+}
+
 function renderizarSlideHtml(raw) {
     const lines = raw.split('\n');
-    let html = '', inList = false, centrado = false;
+    let html = '', inList = false, centradoForzado = false;
 
     for (const line of lines) {
         const t = line.trim();
 
-        // Directiva de centrado
-        if (t === '@centrar' || t === '@center') { centrado = true; continue; }
+        // Override explícito de centrado
+        if (t === '@centrar' || t === '@center') { centradoForzado = true; continue; }
 
         // Bloque destacado: línea completa ==texto==
         if (t.startsWith('==') && t.endsWith('==') && t.length > 4) {
             if (inList) { html += '</ul>'; inList = false; }
-            const txt = parseInline(esc(t.slice(2, -2)));
-            html += `<div class="hl">${txt}</div>`;
+            html += `<div class="hl">${parseInline(esc(t.slice(2, -2)))}</div>`;
             continue;
         }
 
@@ -454,6 +459,9 @@ function renderizarSlideHtml(raw) {
         }
     }
     if (inList) html += '</ul>';
+
+    // Centrado por defecto; izquierda si hay markdown inline (salvo override)
+    const centrado = centradoForzado || !tieneMarkdownInline(raw);
     return { html, centrado };
 }
 
