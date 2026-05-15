@@ -154,10 +154,12 @@
         .slide-content li::marker { color: var(--slide-li); }
 
         /* Markdown inline */
-        .slide-content .c1 { color: var(--slide-c1); font-weight: 700; }
-        .slide-content .c2 { color: var(--slide-c2); font-weight: 700; }
+        .slide-content .c1  { color: var(--slide-c1); font-weight: 700; }
+        .slide-content .c2  { color: var(--slide-c2); font-weight: 700; }
+        .slide-content em   { font-style: italic; }
+        .slide-content .izq { text-align: left; }
 
-        /* ==texto== inline (dentro de headings o párrafos) */
+        /* &texto& inline */
         .slide-content .hl-i {
             background: var(--hl-bg);
             color: var(--hl-text);
@@ -427,50 +429,85 @@ function formatearFecha(fechaStr) {
 // ── PARSER MARKDOWN ──────────────────────────────────────
 
 // Aplica marcas inline a una cadena ya escapada
-function parseInline(s) {
+// Escapa HTML sin procesar markup (para bloques &...&)
+function pEsc(s) {
     return s
-        .replace(/\*\*(.+?)\*\*/g, '<span class="c1">$1</span>')
-        .replace(/__(.+?)__/g,     '<span class="c2">$1</span>')
-        .replace(/==(.+?)==/g,     '<span class="hl-i">$1</span>');
+        .replace(/\x01/g,'$').replace(/\x02/g,'%').replace(/\x03/g,'&amp;')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// Marcadores: $ color1, % color2, & destacado, _ itálica
+// Dobles ($$ %% &&) → carácter literal; sin cerrar → hasta fin de línea
+function parseInline(raw) {
+    let s = raw.replace(/\$\$/g,'\x01').replace(/%%/g,'\x02').replace(/&&/g,'\x03');
+    let out = '', color = null, italic = false, i = 0;
+    while (i < s.length) {
+        const c = s[i];
+        if (c === '&') {
+            if (italic) { out += '</em>'; italic = false; }
+            if (color)  { out += '</span>'; color = null; }
+            const j = s.indexOf('&', i + 1);
+            out += '<span class="hl-i">' + pEsc(j === -1 ? s.slice(i+1) : s.slice(i+1,j)) + '</span>';
+            i = j === -1 ? s.length : j + 1;
+        } else if (c === '$') {
+            if (color === 'c1') { out += '</span>'; color = null; }
+            else { if (color) out += '</span>'; out += '<span class="c1">'; color = 'c1'; }
+            i++;
+        } else if (c === '%') {
+            if (color === 'c2') { out += '</span>'; color = null; }
+            else { if (color) out += '</span>'; out += '<span class="c2">'; color = 'c2'; }
+            i++;
+        } else if (c === '_') {
+            italic = !italic; out += italic ? '<em>' : '</em>'; i++;
+        } else if (c === '\x01') { out += '$'; i++; }
+        else if (c === '\x02') { out += '%'; i++; }
+        else if (c === '\x03') { out += '&amp;'; i++; }
+        else if (c === '<')    { out += '&lt;'; i++; }
+        else if (c === '>')    { out += '&gt;'; i++; }
+        else if (c === '&')    { out += '&amp;'; i++; }
+        else { out += c; i++; }
+    }
+    if (italic) out += '</em>';
+    if (color)  out += '</span>';
+    return out;
+}
 
 function renderizarSlideHtml(raw) {
     const lines = raw.split('\n');
-    let html = '', inList = false, centradoForzado = false;
-
+    let html = '', inList = false;
     for (const line of lines) {
         const t = line.trim();
-
-        // Override explícito de centrado
-        if (t === '@centrar' || t === '@center') { centradoForzado = true; continue; }
-
-        // Bloque destacado: línea completa ==texto==
-        if (t.startsWith('==') && t.endsWith('==') && t.length > 4) {
+        if (!t) continue;
+        // Bloque destacado: línea empieza con & (no &&)
+        if (t.startsWith('&') && !t.startsWith('&&')) {
             if (inList) { html += '</ul>'; inList = false; }
-            html += `<div class="hl">${parseInline(esc(t.slice(2, -2)))}</div>`;
+            let c = t.slice(1);
+            if (c.endsWith('&')) c = c.slice(0, -1);
+            html += `<div class="hl">${pEsc(c)}</div>`;
             continue;
         }
-
-        if (t.startsWith('# ')) {
+        // Prefijo IZ → alineación izquierda
+        let izq = false, tc = t;
+        if (t.startsWith('IZ ') || t === 'IZ') {
+            izq = true; tc = t.startsWith('IZ ') ? t.slice(3) : '';
+        }
+        const cls = izq ? ' class="izq"' : '';
+        if (tc.startsWith('# ')) {
             if (inList) { html += '</ul>'; inList = false; }
-            html += `<h1>${parseInline(esc(t.slice(2)))}</h1>`;
-        } else if (t.startsWith('## ')) {
+            html += `<h1${cls}>${parseInline(tc.slice(2))}</h1>`;
+        } else if (tc.startsWith('## ')) {
             if (inList) { html += '</ul>'; inList = false; }
-            html += `<h2>${parseInline(esc(t.slice(3)))}</h2>`;
-        } else if (t.startsWith('- ')) {
+            html += `<h2${cls}>${parseInline(tc.slice(3))}</h2>`;
+        } else if (tc.startsWith('- ')) {
             if (!inList) { html += '<ul>'; inList = true; }
-            html += `<li>${parseInline(esc(t.slice(2)))}</li>`;
-        } else if (t) {
+            html += `<li${cls}>${parseInline(tc.slice(2))}</li>`;
+        } else if (tc) {
             if (inList) { html += '</ul>'; inList = false; }
-            html += `<p>${parseInline(esc(t))}</p>`;
+            html += `<p${cls}>${parseInline(tc)}</p>`;
         }
     }
     if (inList) html += '</ul>';
-
-    // Siempre centrado (salvo @izquierda en el futuro)
-    const centrado = true;
-    return { html, centrado };
+    return { html, centrado: true };
 }
 
 // ── AUTO-FIT ─────────────────────────────────────────────
