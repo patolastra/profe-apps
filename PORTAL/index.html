@@ -499,20 +499,6 @@
         /* Slides UR buttons */
         .slides-ur-btns { margin-left: auto; display: flex; gap: 3px; }
 
-        /* ── PRESENT MODE ─────────────────────────────────────── */
-        #present-overlay { position: fixed; inset: 0; background: #000; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 9000; }
-        #present-overlay.show { display: flex; }
-        #present-slide { width: 86vw; max-width: 1200px; background: #1e2040; border-radius: 16px; padding: 56px 72px; display: flex; flex-direction: column; justify-content: center; min-height: 52vh; cursor: pointer; color: #f0f0f0; }
-        #present-slide h1 { font-size: clamp(2rem,4vw,3.5rem); font-weight: 700; margin-bottom: 14px; line-height: 1.15; }
-        #present-slide h2 { font-size: clamp(1.2rem,2.5vw,2rem); font-weight: 600; color: #9090b0; margin-bottom: 10px; }
-        #present-slide p  { font-size: clamp(1rem,2vw,1.55rem); line-height: 1.7; margin-bottom: 8px; }
-        #present-slide ul { padding-left: 24px; }
-        #present-slide li { font-size: clamp(1rem,2vw,1.55rem); line-height: 1.8; margin-bottom: 5px; }
-        .p-footer { margin-top: 20px; display: flex; align-items: center; gap: 14px; }
-        .p-counter { color: #555; font-size: 0.88rem; min-width: 60px; text-align: center; }
-        .p-nav { background: rgba(255,255,255,.08); border: none; color: #ccc; padding: 7px 20px; border-radius: 7px; cursor: pointer; font-size: 0.9rem; }
-        .p-nav:hover { background: rgba(255,255,255,.16); }
-        #p-salir { position: fixed; top: 12px; right: 16px; background: rgba(255,255,255,.08); border: none; color: #aaa; padding: 5px 12px; border-radius: 7px; cursor: pointer; font-size: 0.78rem; }
 
         /* ── SEMÁFORO — nuevos estados plan ── */
         .sem-dot.plan-yellow { background: #ca8a04; opacity: 1; }
@@ -601,7 +587,7 @@
             <span id="sync-label"></span>
         </div>
         <div class="hdr-ses-right">
-            <button class="hdr-btn" onclick="presentar()">PRESENTAR ↗</button>
+            <button class="hdr-btn" onclick="abrirPizarra()">PRESENTAR ↗</button>
         </div>
     </div>
 </div>
@@ -699,7 +685,6 @@ let calMes         = new Date();
 let vistaOrigen    = 'dashboard';
 let diaNavegado    = null;
 let slides         = [];
-let slideIdx       = 0;
 let editandoId        = null;
 let editandoEl        = null;
 let modoTriptico      = 'plan';
@@ -730,9 +715,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         await renderDashboard();
         await asignarPendientesHuerfanos();
         setStatus('');
-        const urlP = new URLSearchParams(location.search);
-        const sesP = urlP.get('sesion');
-        if (sesP) await iniciarModoPresent(sesP);
     } catch (e) {
         setStatus('Error de conexión');
         console.error(e);
@@ -1373,11 +1355,9 @@ async function guardarPres(sid) {
     }
 }
 
-function presentar() {
-    if (!slides.length) { alert('Sin diapositivas aún.'); return; }
-    slideIdx = 0;
-    mostrarSlide();
-    document.getElementById('present-overlay').classList.add('show');
+function abrirPizarra() {
+    if (!sesionActual) return;
+    window.open(`../PIZARRA/index.html?sesion=${sesionActual.id}`, '_blank');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2100,7 +2080,15 @@ function buildSlideEl(raw, idx) {
 
     // Contenido renderizado
     const inner = document.createElement('div');
-    inner.innerHTML = renderizarSlideHtml(raw);
+    const primeraLinea = raw.trim().split('\n')[0];
+    if (primeraLinea.startsWith('@youtube:')) {
+        inner.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;gap:5px;color:#9090b0"><span style="font-size:1.1rem">▶</span><span style="font-size:0.65rem">YouTube</span></div>';
+    } else if (primeraLinea.startsWith('@mensaje:')) {
+        const txtMsg = primeraLinea.replace('@mensaje:', '').trim();
+        inner.innerHTML = `<p style="text-align:center;font-size:0.8rem;font-weight:700;padding:4px 0">${esc(txtMsg)}</p>`;
+    } else {
+        inner.innerHTML = renderizarSlideHtml(raw);
+    }
     el.appendChild(inner);
 
     // Drag & drop
@@ -2254,35 +2242,6 @@ function redoSlides() {
     actualizarBotonesURSlides();
 }
 
-function mostrarSlide() {
-    document.getElementById('present-slide').innerHTML =
-        slides[slideIdx] ? renderizarSlideHtml(slides[slideIdx]) : '';
-    document.getElementById('p-counter').textContent = `${slideIdx + 1} / ${slides.length}`;
-}
-
-function nextSlide() {
-    if (slideIdx < slides.length - 1) { slideIdx++; mostrarSlide(); }
-}
-
-function prevSlide() {
-    if (slideIdx > 0) { slideIdx--; mostrarSlide(); }
-}
-
-function salirPresentar() {
-    document.getElementById('present-overlay').classList.remove('show');
-}
-
-async function iniciarModoPresent(sid) {
-    const { data } = await sb.from('presentaciones')
-        .select('contenido').eq('sesion_id', sid).maybeSingle();
-    if (!data?.contenido?.trim()) return;
-    slides = parsearSlides(data.contenido);
-    if (!slides.length) return;
-    slideIdx = 0;
-    mostrarSlide();
-    document.getElementById('present-overlay').classList.add('show');
-}
-
 // Tracking de zona para enrutamiento de Ctrl+Z
 document.addEventListener('DOMContentLoaded', () => {
     const previewCol = document.querySelector('.s-col-preview');
@@ -2293,13 +2252,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('keydown', e => {
-    const ov = document.getElementById('present-overlay');
-    if (ov?.classList.contains('show')) {
-        if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); nextSlide(); }
-        if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                    { e.preventDefault(); prevSlide(); }
-        if (e.key === 'Escape') salirPresentar();
-        return;
-    }
     if (e.key === 'Escape' && editandoId) { cancelarEdicion(); return; }
     if (e.key === 'Tab' && sesionActual && !['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)) {
         e.preventDefault();
@@ -2371,15 +2323,6 @@ function toggleBloque(hdr) {
 </script>
 
 
-<div id="present-overlay">
-    <div id="present-slide" onclick="nextSlide()"></div>
-    <div class="p-footer">
-        <button class="p-nav" onclick="prevSlide()">‹</button>
-        <span class="p-counter" id="p-counter">1 / 1</span>
-        <button class="p-nav" onclick="nextSlide()">›</button>
-    </div>
-    <button id="p-salir" onclick="salirPresentar()">✕ Salir</button>
-</div>
 
 </body>
 </html>

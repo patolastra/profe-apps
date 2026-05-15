@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pizarra</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase/config.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #0a0a14; color: #f0f0f0;
+        }
+
+        /* ── MODO PRESENTACIÓN ─────────────────────────── */
+        #app-pres {
+            display: flex; flex-direction: column; height: 100vh;
+        }
+
+        #pres-header {
+            height: 44px; flex-shrink: 0;
+            background: rgba(0,0,0,0.65);
+            display: flex; align-items: center;
+            padding: 0 16px; gap: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        #pres-titulo {
+            flex: 1; font-size: 0.85rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            color: rgba(255,255,255,0.7);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #pres-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        #pres-contador {
+            font-size: 0.76rem; color: rgba(255,255,255,0.3);
+            min-width: 44px; text-align: right;
+        }
+        .hdr-icon-btn {
+            background: none; border: none; color: rgba(255,255,255,0.35);
+            cursor: pointer; font-size: 1.05rem; padding: 5px;
+            line-height: 1; border-radius: 5px;
+            transition: color 0.15s, background 0.15s;
+        }
+        .hdr-icon-btn:hover { color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.07); }
+
+        /* ── ÁREA DE SLIDE ──────────────────────────────── */
+        #slide-area {
+            flex: 1; position: relative; overflow: hidden;
+            cursor: pointer;
+        }
+        #slide-area.tipo-youtube { cursor: default; }
+
+        /* Slide TEXTO */
+        .slide-texto {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column; justify-content: center;
+            padding: clamp(28px,5vw,72px) clamp(28px,7vw,96px);
+            background: #1e2040;
+        }
+        .slide-texto h1 {
+            font-size: clamp(1.9rem,4.2vw,3.8rem); font-weight: 700;
+            line-height: 1.1; margin-bottom: 0.4em;
+        }
+        .slide-texto h2 {
+            font-size: clamp(1.15rem,2.4vw,2.1rem); font-weight: 600;
+            color: #9090b0; line-height: 1.2; margin-bottom: 0.4em;
+        }
+        .slide-texto p {
+            font-size: clamp(1rem,1.9vw,1.65rem); line-height: 1.65; margin-bottom: 0.3em;
+        }
+        .slide-texto ul { padding-left: 1.3em; }
+        .slide-texto li {
+            font-size: clamp(1rem,1.9vw,1.65rem); line-height: 1.75; margin-bottom: 0.18em;
+        }
+
+        /* Slide MENSAJE */
+        .slide-mensaje {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: #0a0a14; padding: 40px;
+        }
+        .slide-mensaje .msg-texto {
+            font-size: clamp(2.6rem,6.5vw,6.5rem);
+            font-weight: 700; text-align: center; line-height: 1.2;
+            color: #f8f8f0;
+        }
+
+        /* Slide YOUTUBE */
+        .slide-youtube {
+            position: absolute; inset: 0; background: #000;
+        }
+        .slide-youtube iframe {
+            width: 100%; height: 100%; border: 0; display: block;
+        }
+
+        /* ── FOOTER NAV ─────────────────────────────────── */
+        #pres-footer {
+            height: 52px; flex-shrink: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex; align-items: center; justify-content: center;
+            gap: 20px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .nav-btn {
+            background: rgba(255,255,255,0.07); border: none;
+            color: rgba(255,255,255,0.65); font-size: 1.5rem;
+            width: 48px; height: 36px; border-radius: 8px;
+            cursor: pointer; line-height: 1;
+            transition: background 0.12s, color 0.12s;
+        }
+        .nav-btn:hover  { background: rgba(255,255,255,0.14); color: #fff; }
+        .nav-btn:active { background: rgba(255,255,255,0.22); }
+        #pres-contador-footer {
+            font-size: 0.82rem; color: rgba(255,255,255,0.28);
+            min-width: 56px; text-align: center;
+        }
+
+        /* ── MODO REMOTO (celular) ──────────────────────── */
+        #app-remoto {
+            display: flex; flex-direction: column;
+            height: 100vh; background: #0f172a;
+            align-items: center; justify-content: space-between;
+            padding: 28px 20px 32px;
+        }
+        #rem-header { width: 100%; text-align: center; }
+        #rem-sesion-label {
+            font-size: 1.05rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: rgba(255,255,255,0.75);
+        }
+        #rem-estado {
+            font-size: 0.72rem; color: rgba(255,255,255,0.3);
+            margin-top: 6px; display: flex; align-items: center;
+            justify-content: center; gap: 5px;
+        }
+        #rem-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #444; display: inline-block;
+            transition: background 0.3s;
+            flex-shrink: 0;
+        }
+        #rem-dot.conectado { background: #22c55e; }
+        #rem-slide-info {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 12px; padding: 20px 0;
+        }
+        #rem-contador {
+            font-size: 2.2rem; font-weight: 700; color: rgba(255,255,255,0.45);
+        }
+        #rem-slide-titulo {
+            font-size: 1rem; color: rgba(255,255,255,0.35);
+            text-align: center; max-width: 280px; line-height: 1.4;
+        }
+        #rem-nav {
+            display: flex; gap: 16px; width: 100%;
+        }
+        #rem-nav button {
+            flex: 1; height: 80px;
+            background: rgba(255,255,255,0.08); border: none;
+            color: rgba(255,255,255,0.8); font-size: 2.4rem;
+            border-radius: 16px; cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.1s;
+        }
+        #rem-nav button:active { background: rgba(255,255,255,0.2); }
+        #rem-hint {
+            font-size: 0.7rem; color: rgba(255,255,255,0.16);
+            margin-top: 10px; text-align: center;
+        }
+
+        /* ── PANTALLA ERROR ─────────────────────────────── */
+        #app-error {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100vh; gap: 14px; padding: 40px; text-align: center;
+        }
+        #error-msg   { font-size: 1.05rem; color: rgba(255,255,255,0.6); }
+        .error-hint  { font-size: 0.85rem; color: rgba(255,255,255,0.25); }
+
+        /* ── ESTADO VACÍO ───────────────────────────────── */
+        .slide-vacio {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: #12121e; gap: 10px;
+        }
+        .slide-vacio .vac-titulo { font-size: 1.2rem; color: #444; }
+        .slide-vacio .vac-hint   { font-size: 0.78rem; color: #333; }
+    </style>
+</head>
+<body>
+
+<!-- MODO PRESENTACIÓN -->
+<div id="app-pres" style="display:none">
+    <div id="pres-header">
+        <span id="pres-titulo">Cargando…</span>
+        <div id="pres-controls">
+            <span id="pres-contador"></span>
+            <button class="hdr-icon-btn" onclick="toggleFullscreen()" title="Pantalla completa (F)">⛶</button>
+            <button class="hdr-icon-btn" onclick="recargarSlides()" title="Recargar slides (R)">↺</button>
+        </div>
+    </div>
+    <div id="slide-area" onclick="handleClickArea()"></div>
+    <div id="pres-footer">
+        <button class="nav-btn" onclick="retroceder()" title="Anterior (←)">‹</button>
+        <span id="pres-contador-footer">— / —</span>
+        <button class="nav-btn" onclick="avanzar()" title="Siguiente (→)">›</button>
+    </div>
+</div>
+
+<!-- MODO REMOTO (celular) -->
+<div id="app-remoto" style="display:none">
+    <div id="rem-header">
+        <div id="rem-sesion-label">PIZARRA</div>
+        <div id="rem-estado">
+            <span id="rem-dot"></span>
+            <span id="rem-estado-txt">Conectando…</span>
+        </div>
+    </div>
+    <div id="rem-slide-info">
+        <div id="rem-contador">— / —</div>
+        <div id="rem-slide-titulo">—</div>
+    </div>
+    <div id="rem-nav">
+        <button onclick="enviarCmd('prev')">‹</button>
+        <button onclick="enviarCmd('next')">›</button>
+    </div>
+    <div id="rem-hint">Controla la Pizarra desde aquí</div>
+</div>
+
+<!-- ERROR -->
+<div id="app-error" style="display:none">
+    <p id="error-msg"></p>
+    <p class="error-hint">Abre esta app desde el Portal → botón PRESENTAR ↗</p>
+</div>
+
+<script>
+let sb, sesionId, canal;
+let slides = [], slideIdx = 0;
+
+// ── UTILS ────────────────────────────────────────────────
+
+function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function parsearSlides(txt) {
+    if (!txt?.trim()) return [];
+    return txt.split(/\n---\n/).map(s => s.trim()).filter(Boolean);
+}
+
+function tipoSlide(raw) {
+    const primera = raw.trim().split('\n')[0];
+    if (primera.startsWith('@youtube:')) return 'youtube';
+    if (primera.startsWith('@mensaje:')) return 'mensaje';
+    return 'texto';
+}
+
+function extraerYoutubeId(raw) {
+    const val = raw.trim().split('\n')[0].replace('@youtube:', '').trim();
+    const m = val.match(/(?:youtu\.be\/|[?&]v=|\/embed\/)([a-zA-Z0-9_-]{11})/);
+    return m ? m[1] : val.slice(0, 11);
+}
+
+function tituloSlide(raw) {
+    const tipo = tipoSlide(raw);
+    if (tipo === 'youtube') return '▶ Video';
+    if (tipo === 'mensaje') return raw.trim().split('\n')[0].replace('@mensaje:', '').trim();
+    const primera = raw.trim().split('\n')[0];
+    return primera.replace(/^#+ */, '') || '—';
+}
+
+function renderizarSlideHtml(raw) {
+    const lines = raw.split('\n');
+    let html = '', inList = false;
+    for (const line of lines) {
+        if (line.startsWith('# ')) {
+            if (inList) { html += '</ul>'; inList = false; }
+            html += `<h1>${esc(line.slice(2))}</h1>`;
+        } else if (line.startsWith('## ')) {
+            if (inList) { html += '</ul>'; inList = false; }
+            html += `<h2>${esc(line.slice(3))}</h2>`;
+        } else if (line.startsWith('- ')) {
+            if (!inList) { html += '<ul>'; inList = true; }
+            html += `<li>${esc(line.slice(2))}</li>`;
+        } else if (line.trim()) {
+            if (inList) { html += '</ul>'; inList = false; }
+            html += `<p>${esc(line)}</p>`;
+        }
+    }
+    if (inList) html += '</ul>';
+    return html;
+}
+
+function formatearFecha(fechaStr) {
+    const d = new Date(fechaStr + 'T12:00:00');
+    return d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+// ── RENDER ───────────────────────────────────────────────
+
+function renderSlide() {
+    const area = document.getElementById('slide-area');
+    if (!slides.length) {
+        area.className = '';
+        area.innerHTML = `<div class="slide-vacio">
+            <div class="vac-titulo">Sin diapositivas</div>
+            <div class="vac-hint">Crea slides en el Portal y recarga (R)</div>
+        </div>`;
+        actualizarContadores();
+        return;
+    }
+
+    const raw  = slides[slideIdx];
+    const tipo = tipoSlide(raw);
+    area.className = 'tipo-' + tipo;
+
+    if (tipo === 'youtube') {
+        const id = extraerYoutubeId(raw);
+        area.innerHTML = `<div class="slide-youtube">
+            <iframe src="https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1"
+                allow="autoplay; fullscreen" allowfullscreen></iframe>
+        </div>`;
+    } else if (tipo === 'mensaje') {
+        const texto = raw.trim().split('\n')[0].replace('@mensaje:', '').trim();
+        area.innerHTML = `<div class="slide-mensaje"><div class="msg-texto">${esc(texto)}</div></div>`;
+    } else {
+        area.innerHTML = `<div class="slide-texto">${renderizarSlideHtml(raw)}</div>`;
+    }
+
+    actualizarContadores();
+    broadcastEstado();
+}
+
+function actualizarContadores() {
+    const total = slides.length;
+    const txt = total ? `${slideIdx + 1} / ${total}` : '— / —';
+    const c1 = document.getElementById('pres-contador');
+    const c2 = document.getElementById('pres-contador-footer');
+    if (c1) c1.textContent = txt;
+    if (c2) c2.textContent = txt;
+}
+
+// ── NAVEGACIÓN ───────────────────────────────────────────
+
+function irA(idx) {
+    if (!slides.length) return;
+    slideIdx = Math.max(0, Math.min(idx, slides.length - 1));
+    renderSlide();
+}
+
+function avanzar()   { if (slideIdx < slides.length - 1) irA(slideIdx + 1); }
+function retroceder() { if (slideIdx > 0) irA(slideIdx - 1); }
+
+function handleClickArea() {
+    // El click en iframe YouTube no llega aquí (iframe lo intercepta), solo texto y mensaje
+    avanzar();
+}
+
+// ── FULLSCREEN ───────────────────────────────────────────
+
+function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+        document.exitFullscreen().catch(() => {});
+    }
+}
+
+// ── RECARGAR ─────────────────────────────────────────────
+
+async function recargarSlides() {
+    try {
+        const { data } = await sb.from('presentaciones')
+            .select('contenido').eq('sesion_id', sesionId).maybeSingle();
+        const nuevos = parsearSlides(data?.contenido || '');
+        slideIdx = Math.min(slideIdx, Math.max(0, nuevos.length - 1));
+        slides = nuevos;
+        renderSlide();
+    } catch (e) {
+        console.error('Error recargando slides:', e);
+    }
+}
+
+// ── REALTIME ─────────────────────────────────────────────
+
+function broadcastEstado() {
+    if (!canal || !slides.length) return;
+    canal.send({
+        type: 'broadcast', event: 'estado',
+        payload: {
+            idx: slideIdx,
+            total: slides.length,
+            titulo: tituloSlide(slides[slideIdx])
+        }
+    });
+}
+
+// ── MODO PRESENTACIÓN ────────────────────────────────────
+
+async function iniciarModoPres(sid) {
+    document.getElementById('app-pres').style.display = 'flex';
+
+    // Título desde sesión
+    try {
+        const { data: ses } = await sb.from('sesiones')
+            .select('fecha, contextos(nombre)')
+            .eq('id', sid).single();
+        if (ses) {
+            const nombre = ses.contextos?.nombre || '';
+            const fecha  = formatearFecha(ses.fecha);
+            document.getElementById('pres-titulo').textContent = `${nombre} · ${fecha}`;
+            document.title = `Pizarra — ${nombre}`;
+        }
+    } catch (_) {
+        document.getElementById('pres-titulo').textContent = 'Pizarra';
+    }
+
+    // Cargar slides
+    const { data } = await sb.from('presentaciones')
+        .select('contenido').eq('sesion_id', sid).maybeSingle();
+    slides = parsearSlides(data?.contenido || '');
+    slideIdx = 0;
+    renderSlide();
+
+    // Escuchar comandos del remoto
+    canal = sb.channel(`pizarra:${sid}`)
+        .on('broadcast', { event: 'cmd' }, ({ payload }) => {
+            if (payload.action === 'next') avanzar();
+            else if (payload.action === 'prev') retroceder();
+            else if (payload.action === 'goto' && typeof payload.idx === 'number') irA(payload.idx);
+        })
+        .subscribe();
+}
+
+// ── MODO REMOTO ──────────────────────────────────────────
+
+async function iniciarModoRemoto(sid) {
+    document.getElementById('app-remoto').style.display = 'flex';
+
+    try {
+        const { data: ses } = await sb.from('sesiones')
+            .select('fecha, contextos(nombre)')
+            .eq('id', sid).single();
+        if (ses) {
+            const nombre = ses.contextos?.nombre || '';
+            const fecha  = formatearFecha(ses.fecha);
+            document.getElementById('rem-sesion-label').textContent = nombre;
+            document.title = `Remoto — ${nombre}`;
+        }
+    } catch (_) {}
+
+    canal = sb.channel(`pizarra:${sid}`)
+        .on('broadcast', { event: 'estado' }, ({ payload }) => {
+            const c = document.getElementById('rem-contador');
+            const t = document.getElementById('rem-slide-titulo');
+            if (c) c.textContent = `${payload.idx + 1} / ${payload.total}`;
+            if (t) t.textContent = payload.titulo || '—';
+        })
+        .subscribe((status) => {
+            const dot = document.getElementById('rem-dot');
+            const txt = document.getElementById('rem-estado-txt');
+            const ok  = status === 'SUBSCRIBED';
+            if (dot) dot.classList.toggle('conectado', ok);
+            if (txt) txt.textContent = ok ? 'Conectado' : 'Conectando…';
+        });
+}
+
+function enviarCmd(action) {
+    if (!canal) return;
+    canal.send({ type: 'broadcast', event: 'cmd', payload: { action } });
+}
+
+// ── TECLADO ──────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+    if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); avanzar(); }
+    else if (['ArrowLeft', 'ArrowUp'].includes(e.key))    { e.preventDefault(); retroceder(); }
+    else if (e.key === 'f' || e.key === 'F')               toggleFullscreen();
+    else if (e.key === 'r' || e.key === 'R')               recargarSlides();
+});
+
+// ── SWIPE (pantallas táctiles) ───────────────────────────
+
+let touchX0 = 0;
+document.addEventListener('touchstart', e => { touchX0 = e.changedTouches[0].clientX; }, { passive: true });
+document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchX0;
+    if (Math.abs(dx) > 55) { dx < 0 ? avanzar() : retroceder(); }
+}, { passive: true });
+
+// ── INIT ─────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const params = new URLSearchParams(location.search);
+    sesionId = params.get('sesion');
+    const modo = params.get('modo') || 'pres';
+
+    if (!sesionId) {
+        document.getElementById('app-error').style.display = 'flex';
+        document.getElementById('error-msg').textContent = 'No se especificó ninguna sesión.';
+        return;
+    }
+
+    try {
+        sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    } catch (e) {
+        document.getElementById('app-error').style.display = 'flex';
+        document.getElementById('error-msg').textContent = 'Error al conectar con Supabase.';
+        return;
+    }
+
+    try {
+        if (modo === 'remoto') {
+            await iniciarModoRemoto(sesionId);
+        } else {
+            await iniciarModoPres(sesionId);
+        }
+    } catch (e) {
+        console.error('Error iniciando Pizarra:', e);
+        // mostrar lo que se pudo cargar
+    }
+});
+</script>
+</body>
+</html>
