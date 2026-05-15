@@ -488,7 +488,7 @@
 
         /* ── MODAL REVISIÓN ANTERIOR ── */
         #revision-modal {
-            display: none; position: absolute; top: 36px; left: 0; right: 0;
+            display: none; position: absolute; top: 0; left: 0; right: 0;
             bottom: 0; background: rgba(15,23,42,0.55); z-index: 200;
             align-items: flex-start; justify-content: center; padding: 10px;
         }
@@ -1361,6 +1361,7 @@ let dragSrcEl = null;
 function initDrag(el) {
     el.draggable = true;
     el.addEventListener('dragstart', e => {
+        if (el.closest('.s-mensajes-body.hidden')) { e.preventDefault(); return; }
         dragSrcEl = el;
         e.dataTransfer.effectAllowed = 'move';
         requestAnimationFrame(() => el.classList.add('dragging'));
@@ -1450,13 +1451,15 @@ async function guardarEdicion() {
         const nuevoData = {
             id,
             texto,
-            categoria:   el.dataset.categoria || '',
-            origen:      el.dataset.origen || 'manual',
-            completado:  el.querySelector('input[type="checkbox"]').checked,
-            incluido:    true,
-            pendiente_id: null,
+            categoria:        el.dataset.categoria || '',
+            origen:           el.dataset.origen || 'manual',
+            completado:       el.querySelector('input[type="checkbox"]').checked,
+            incluido:         true,
+            pendiente_id:     null,
+            es_planificacion: el.dataset.esPlani === '1',
+            es_nuevo:         false,
         };
-        el.replaceWith(buildItemEl(nuevoData));
+        el.replaceWith(buildItemEl(nuevoData, el.dataset.bloque));
     }
     resetModoEdicion();
 }
@@ -1480,18 +1483,17 @@ function resetModoEdicion() {
 async function deshacerBorrado() {
     if (!deletedItem || !sesionActual) return;
     const { data } = await sb.from('plan_sesion_items').insert({
-        sesion_id:   sesionActual.id,
-        texto:       deletedItem.texto,
-        categoria:   deletedItem.categoria,
-        origen:      deletedItem.origen,
-        completado:  deletedItem.completado,
-        incluido:    true,
+        sesion_id:        sesionActual.id,
+        texto:            deletedItem.texto,
+        categoria:        deletedItem.categoria,
+        origen:           deletedItem.origen,
+        completado:       deletedItem.completado,
+        incluido:         true,
+        es_planificacion: deletedItem.es_planificacion || false,
     }).select().single();
     if (data) {
-        const lista = document.getElementById('plan-lista');
-        const vacio = lista.querySelector('.vacio');
-        if (vacio) vacio.remove();
-        lista.appendChild(buildItemEl(data));
+        const bloque = data.es_planificacion ? 'planif' : 'sala';
+        insertItemEnBloque(buildItemEl(data, bloque), bloque);
     }
     deletedItem = null;
     ocultarUndoBorrado();
@@ -1538,7 +1540,8 @@ async function togglePlanif(id, el) {
 
 // ── Creación proactiva de sesiones ───────────────────────────
 async function crearSesionesPendientes() {
-    const dias = getOchoDias();
+    const hoy = isoDate(new Date());
+    const dias = getOchoDias().filter(d => d.fechaStr >= hoy);
     const inserts = [];
     dias.forEach(({ fechaStr, diaSemana }) => {
         (horarioDia[diaSemana] || []).forEach(h => {
@@ -1552,12 +1555,11 @@ async function crearSesionesPendientes() {
 // ── Asignar pendientes huérfanos (sesion_id = null) ──────────
 async function asignarPendientesHuerfanos() {
     const { data: huerfanos } = await sb.from('pendientes')
-        .select('id, contexto_id').eq('estado', 'activo').is('sesion_id', null);
+        .select('id, contexto_id, categoria').eq('estado', 'activo').is('sesion_id', null);
     if (!huerfanos?.length) return;
 
     const updates = [];
     huerfanos.forEach(p => {
-        // Encontrar próxima sesión de ese contexto en sesionesMap
         let mejorFecha = '';
         let mejorSid   = null;
         const hoy = isoDate(new Date());
@@ -1567,14 +1569,22 @@ async function asignarPendientesHuerfanos() {
                 if (!mejorFecha || f < mejorFecha) { mejorFecha = f; mejorSid = s.id; }
             }
         });
-        if (mejorSid) updates.push({ id: p.id, sesion_id: mejorSid });
+        if (mejorSid) updates.push({ id: p.id, sesion_id: mejorSid, categoria: p.categoria });
     });
 
-    if (updates.length) {
-        await Promise.all(updates.map(u =>
-            sb.from('pendientes').update({ sesion_id: u.sesion_id }).eq('id', u.id)
-        ));
-    }
+    if (!updates.length) return;
+
+    await Promise.all(updates.map(u =>
+        sb.from('pendientes').update({ sesion_id: u.sesion_id }).eq('id', u.id)
+    ));
+
+    let changed = false;
+    updates.forEach(u => {
+        if (!pendientesMap[u.sesion_id]) pendientesMap[u.sesion_id] = {};
+        pendientesMap[u.sesion_id][u.categoria] = (pendientesMap[u.sesion_id][u.categoria] || 0) + 1;
+        changed = true;
+    });
+    if (changed) await renderDashboard();
 }
 
 // ── Modal Revisión anterior ───────────────────────────────────
@@ -1614,13 +1624,43 @@ async function addItem(texto, categoria, origen, pendienteId) {
         categoria: categoria || '', orden: count || 0,
         origen, pendiente_id: pendienteId || null,
         completado: false, incluido: true,
+        es_planificacion: false, es_nuevo: false,
     }).select().single();
-    if (data) {
-        const lista = document.getElementById('plan-lista');
-        const vacio = lista.querySelector('.vacio');
-        if (vacio) vacio.remove();
-        lista.appendChild(buildItemEl(data));
+    if (data) insertItemEnBloque(buildItemEl(data, 'sala'), 'sala');
+}
+
+function insertItemEnBloque(el, bloque) {
+    const lista = document.getElementById('plan-lista');
+    const vacio = lista.querySelector('.vacio');
+    if (vacio) vacio.remove();
+
+    const existentes = [...lista.querySelectorAll(`.s-plan-item[data-bloque="${bloque}"]`)];
+    if (existentes.length) {
+        existentes[existentes.length - 1].after(el);
+        return;
     }
+
+    if (bloque === 'sala') {
+        const hayOtros = lista.querySelector('.s-plan-item[data-bloque="planif"], .s-plan-item[data-bloque="nuevo"]');
+        if (hayOtros) {
+            let hdr = [...lista.querySelectorAll('.s-bloque-hdr')]
+                .find(h => h.textContent === 'Para la clase');
+            if (!hdr) {
+                hdr = document.createElement('div');
+                hdr.className   = 's-bloque-hdr';
+                hdr.textContent = 'Para la clase';
+                const mensajesHdr = lista.querySelector('.s-mensajes-hdr');
+                if (mensajesHdr) mensajesHdr.parentElement.before(hdr);
+                else lista.appendChild(hdr);
+            }
+            hdr.after(el);
+            return;
+        }
+    }
+
+    const mensajesHdr = lista.querySelector('.s-mensajes-hdr');
+    if (mensajesHdr) mensajesHdr.parentElement.before(el);
+    else lista.appendChild(el);
 }
 
 async function marcarHecho(id, valor, wrapEl) {
@@ -1637,10 +1677,11 @@ async function eliminarItem(id, el) {
     } else {
         deletedItem = {
             id,
-            texto:      el.dataset.texto,
-            categoria:  el.dataset.categoria,
-            origen:     el.dataset.origen,
-            completado: el.querySelector('input[type="checkbox"]').checked,
+            texto:            el.dataset.texto,
+            categoria:        el.dataset.categoria,
+            origen:           el.dataset.origen,
+            completado:       el.querySelector('input[type="checkbox"]').checked,
+            es_planificacion: el.dataset.esPlani === '1',
         };
         await sb.from('plan_sesion_items').delete().eq('id', id);
         mostrarUndoBorrado();
