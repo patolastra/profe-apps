@@ -485,7 +485,13 @@
             padding-top: 2.75%;   /* ≈ 5% de la altura — simula header 44px */
             padding-bottom: 3.1%; /* ≈ 5.5% de la altura — simula footer 50px */
         }
-        .slide-prev .sn { position: absolute; bottom: 4px; right: 6px; font-size: 0.52rem; color: rgba(0,0,0,0.25); }
+        .slide-prev .sn {
+            position: absolute; bottom: 5px; right: 6px;
+            font-size: 0.58rem; font-weight: 700; line-height: 1.6;
+            background: rgba(0,0,0,0.12); color: rgba(0,0,0,0.5);
+            border-radius: 3px; padding: 1px 5px;
+        }
+        .slide-prev.activa { outline: 2.5px solid var(--slide-c1, #ea580c); outline-offset: 2px; }
         .slide-prev .slide-content {
             font-size: 8px; /* valor inicial; JS lo sobreescribe con autoFit */
             line-height: 1.2; text-align: center;
@@ -2144,24 +2150,63 @@ function autoFitSlide(el) {
     content.style.fontSize = lo + 'px';
 }
 
+function scrollTextareaToPos(ta, pos) {
+    const lineas = ta.value.slice(0, pos).split('\n').length - 1;
+    const lh = parseFloat(getComputedStyle(ta).lineHeight) || 18;
+    ta.scrollTop = Math.max(0, lineas * lh - ta.clientHeight / 4);
+}
+
+function resaltarSlideActiva(cursorPos) {
+    let found = false;
+    document.querySelectorAll('#prev-body .slide-prev').forEach(sl => {
+        sl.classList.remove('activa');
+        if (!found && sl.dataset.selStart !== undefined) {
+            const s = parseInt(sl.dataset.selStart);
+            const e = parseInt(sl.dataset.selEnd);
+            if (cursorPos >= s && cursorPos <= e) {
+                sl.classList.add('activa');
+                sl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                found = true;
+            }
+        }
+    });
+}
+
 function actualizarPreview() {
-    const txt = document.getElementById('pres-area').value;
-    slides = parsearSlides(txt);
+    const taEl = document.getElementById('pres-area');
+    const txt  = taEl ? taEl.value : '';
     const body = document.getElementById('prev-body');
     if (!body) return;
     body.innerHTML = '';
 
-    // Aplicar layout de columnas
     body.classList.toggle('cols-1', slidesColCount === '1');
     body.classList.toggle('cols-2', slidesColCount === '2');
 
     if (sesionActual) aplicarTemaPreview(sesionActual.id);
 
+    // Construir slides rastreando posición de carácter para selección bidireccional
+    const SEP = '\n---\n';
+    const rawParts = txt.split(SEP);
+    slides = [];
+    let charPos = 0, slideIdx = 0;
+    rawParts.forEach((part, i) => {
+        const trimmed = part.trim();
+        if (trimmed) {
+            const leadWS  = part.length - part.trimStart().length;
+            const trailWS = part.length - part.trimEnd().length;
+            slides.push(trimmed);
+            const el = buildSlideEl(trimmed, slideIdx++);
+            el.dataset.selStart = charPos + leadWS;
+            el.dataset.selEnd   = charPos + part.length - trailWS;
+            body.appendChild(el);
+        }
+        charPos += part.length + (i < rawParts.length - 1 ? SEP.length : 0);
+    });
+
     if (!slides.length) {
         body.innerHTML = '<div class="vacio" style="padding:12px">Sin contenido.</div>';
         return;
     }
-    slides.forEach((raw, i) => body.appendChild(buildSlideEl(raw, i)));
     requestAnimationFrame(() => {
         document.querySelectorAll('#prev-body .slide-prev').forEach(autoFitSlide);
     });
@@ -2243,6 +2288,19 @@ function buildSlideEl(raw, idx) {
         const tgtI = all.indexOf(el);
         if (srcI < tgtI) el.after(dragSlideSrc); else el.before(dragSlideSrc);
         el.classList.remove('drag-over');
+    });
+
+    // Click: marcar activa y seleccionar texto correspondiente en el textarea
+    el.addEventListener('click', () => {
+        const ta = document.getElementById('pres-area');
+        if (!ta || el.dataset.selStart === undefined) return;
+        document.querySelectorAll('#prev-body .slide-prev').forEach(s => s.classList.remove('activa'));
+        el.classList.add('activa');
+        const start = parseInt(el.dataset.selStart);
+        const end   = parseInt(el.dataset.selEnd);
+        ta.focus();
+        ta.setSelectionRange(start, end);
+        scrollTextareaToPos(ta, start);
     });
 
     return el;
@@ -2378,6 +2436,13 @@ document.addEventListener('DOMContentLoaded', () => {
         new ResizeObserver(() => {
             document.querySelectorAll('#prev-body .slide-prev').forEach(autoFitSlide);
         }).observe(prevBody);
+    }
+    // Cursor en textarea → resaltar slide correspondiente en preview
+    const taEl = document.getElementById('pres-area');
+    if (taEl) {
+        ['click', 'keyup'].forEach(ev =>
+            taEl.addEventListener(ev, () => resaltarSlideActiva(taEl.selectionStart))
+        );
     }
 });
 
