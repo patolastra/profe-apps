@@ -440,6 +440,74 @@
         .p-nav { background: rgba(255,255,255,.08); border: none; color: #ccc; padding: 7px 20px; border-radius: 7px; cursor: pointer; font-size: 0.9rem; }
         .p-nav:hover { background: rgba(255,255,255,.16); }
         #p-salir { position: fixed; top: 12px; right: 16px; background: rgba(255,255,255,.08); border: none; color: #aaa; padding: 5px 12px; border-radius: 7px; cursor: pointer; font-size: 0.78rem; }
+
+        /* ── SEMÁFORO — nuevos estados plan ── */
+        .sem-dot.plan-yellow { background: #ca8a04; opacity: 1; }
+        .sem-dot.plan-red    { background: var(--red); opacity: 1; }
+
+        /* ── PLAN — bloques (separadores de sección) ── */
+        .s-bloque-hdr {
+            font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; padding: 8px 2px 4px; color: var(--muted);
+            border-top: 1px solid var(--border); margin-top: 4px;
+        }
+        .s-bloque-hdr:first-child { border-top: none; margin-top: 0; }
+
+        /* ── PLAN ITEM — planificación (amarillo) ── */
+        .s-plan-item.planif { background: #fefce8; border-color: #fde047; }
+        .s-plan-item.planif .pi-titulo { color: #854d0e; }
+
+        /* ── PLAN ITEM — badge Nuevo ── */
+        .s-nuevo-badge {
+            font-size: 0.55rem; font-weight: 700; background: var(--accent);
+            color: #fff; padding: 1px 5px; border-radius: 8px;
+            text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;
+        }
+
+        /* ── PLAN ITEM — botón planificación (!) ── */
+        .s-btn-planif {
+            background: none; border: 1px solid var(--border); color: var(--muted);
+            font-size: 0.68rem; font-weight: 700; padding: 0 5px; border-radius: 4px;
+            cursor: pointer; flex-shrink: 0; opacity: 0; transition: opacity 0.12s;
+            line-height: 1.6;
+        }
+        .s-plan-item:hover .s-btn-planif { opacity: 1; }
+        .s-plan-item.planif .s-btn-planif { background: #fef08a; border-color: #fde047; color: #854d0e; }
+
+        /* ── MENSAJES — sección colapsable ── */
+        .s-mensajes-hdr {
+            display: flex; align-items: center; gap: 5px; cursor: pointer;
+            font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; padding: 8px 2px 4px;
+            border-top: 1px solid var(--border); margin-top: 4px; color: var(--muted);
+            user-select: none;
+        }
+        .chevron-m { font-size: 0.58rem; transition: transform 0.15s; }
+        .s-mensajes-hdr.collapsed .chevron-m { transform: rotate(-90deg); }
+        .s-mensajes-body.hidden { display: none; }
+
+        /* ── MODAL REVISIÓN ANTERIOR ── */
+        #revision-modal {
+            display: none; position: absolute; top: 36px; left: 0; right: 0;
+            bottom: 0; background: rgba(15,23,42,0.55); z-index: 200;
+            align-items: flex-start; justify-content: center; padding: 10px;
+        }
+        #revision-modal.show { display: flex; }
+        #revision-inner {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: 10px; width: 100%; max-height: 80%;
+            display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+        }
+        #revision-hdr {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; background: #f8fafc; border-bottom: 1px solid var(--border);
+            font-size: 0.72rem; font-weight: 700; flex-shrink: 0;
+        }
+        #revision-hdr button { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+        #revision-body { padding: 10px 12px; overflow-y: auto; font-size: 0.8rem; }
+        .rev-it { padding: 5px 0; border-bottom: 1px solid var(--border); color: var(--text); }
+        .rev-it:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
@@ -479,14 +547,21 @@
         </div>
 
         <div class="s-split">
-            <div class="s-col s-col-plan">
+            <div class="s-col s-col-plan" style="position:relative">
                 <div class="s-col-hdr">
                     Plan de clase
-                    <button class="import-btn" onclick="importarSRP()">↓ Importar SRP</button>
+                    <button class="import-btn" onclick="abrirRevision()">↩ Revisión anterior</button>
+                </div>
+                <div id="revision-modal">
+                    <div id="revision-inner">
+                        <div id="revision-hdr">
+                            <span id="revision-titulo">Revisión — clase anterior</span>
+                            <button onclick="cerrarRevision()">✕</button>
+                        </div>
+                        <div id="revision-body"><div class="vacio">Cargando...</div></div>
+                    </div>
                 </div>
                 <div class="s-col-body" id="col-plan-body">
-                    <div id="plan-arrastres"></div>
-                    <div id="plan-srp"></div>
                     <div id="plan-lista"></div>
                 </div>
                 <div id="plan-undo-del">
@@ -525,21 +600,27 @@ const NOMBRE_CORTO = { 'KIDS CASTIGADAS': 'KIDS' };
 // ESTADO
 // ═══════════════════════════════════════════════════════════
 let sb;
-let contextos    = {};
-let horarioDia   = {};
-let sesionesMap  = {};
-let planMap      = {};
-let presMap      = {};
-let sesionActual = null;
-let presTimer    = null;
-let calMes       = new Date();
-let vistaOrigen  = 'dashboard';
-let diaNavegado  = null;
-let slides       = [];
-let slideIdx     = 0;
-let editandoId   = null;
-let editandoEl   = null;
-let deletedItem  = null;
+let contextos      = {};
+let horarioDia     = {};
+let sesionesMap    = {};
+let planMap        = {};
+let pendientesMap  = {};
+let presMap        = {};
+let sesionActual   = null;
+let presTimer      = null;
+let calMes         = new Date();
+let vistaOrigen    = 'dashboard';
+let diaNavegado    = null;
+let slides         = [];
+let slideIdx       = 0;
+let editandoId     = null;
+let editandoEl     = null;
+let deletedItem    = null;
+
+const CATS_PLAN = new Set([
+    'pendientes_sala', 'pendientes_planificacion',
+    'posible_repertorio', 'mensajes'
+]);
 
 // ═══════════════════════════════════════════════════════════
 // INIT
@@ -549,7 +630,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
         await Promise.all([loadContextos(), loadHorario()]);
+        await crearSesionesPendientes();
         await renderDashboard();
+        await asignarPendientesHuerfanos();
         setStatus('');
         const urlP = new URLSearchParams(location.search);
         const sesP = urlP.get('sesion');
@@ -734,15 +817,29 @@ async function loadDatos(fechas) {
 
     if (!ids.length) return;
 
-    const [{ data: pData }, { data: prData }] = await Promise.all([
-        sb.from('plan_sesion_items').select('id, sesion_id, completado, incluido').in('sesion_id', ids),
+    const [{ data: pData }, { data: prData }, { data: pendData }] = await Promise.all([
+        sb.from('plan_sesion_items')
+            .select('id, sesion_id, completado, incluido, es_planificacion')
+            .in('sesion_id', ids),
         sb.from('presentaciones').select('sesion_id, contenido').in('sesion_id', ids),
+        sb.from('pendientes')
+            .select('sesion_id, categoria')
+            .eq('estado', 'activo')
+            .in('sesion_id', ids),
     ]);
 
     planMap = {};
     (pData || []).forEach(p => {
         if (!planMap[p.sesion_id]) planMap[p.sesion_id] = [];
         planMap[p.sesion_id].push(p);
+    });
+
+    pendientesMap = {};
+    (pendData || []).forEach(p => {
+        if (!p.sesion_id) return;
+        if (!pendientesMap[p.sesion_id]) pendientesMap[p.sesion_id] = {};
+        pendientesMap[p.sesion_id][p.categoria] =
+            (pendientesMap[p.sesion_id][p.categoria] || 0) + 1;
     });
 
     presMap = {};
@@ -781,19 +878,48 @@ function buildDiaEl(diaInfo, semana, esActivo = false) {
     return sec;
 }
 
+function esHoyOMañana(fechaStr) {
+    const hoy    = new Date();
+    const manana = new Date(hoy); manana.setDate(hoy.getDate() + 1);
+    return fechaStr === isoDate(hoy) || fechaStr === isoDate(manana);
+}
+
+function getEstadoPlan(sid, fechaStr) {
+    if (!sid) return 'gray';
+    const items = (planMap[sid] || []).filter(i => i.incluido !== false);
+    const pends = pendientesMap[sid] || {};
+
+    if (!items.length) {
+        const hayPlanif = (pends['pendientes_planificacion'] || 0) > 0;
+        if (!hayPlanif) return 'gray';
+        return esHoyOMañana(fechaStr) ? 'red' : 'yellow';
+    }
+
+    const planifPendientes = items.filter(i => i.es_planificacion && !i.completado);
+    if (!planifPendientes.length) return 'green';
+    return esHoyOMañana(fechaStr) ? 'red' : 'yellow';
+}
+
+function dotClasePlan(estado) {
+    if (estado === 'green')  return 'plan-on';
+    if (estado === 'yellow') return 'plan-yellow';
+    if (estado === 'red')    return 'plan-red';
+    return '';
+}
+
 function buildCard(ctx, cid, fechaStr) {
     const sesion    = sesionesMap[`${cid}||${fechaStr}`];
     const sid       = sesion?.id;
-    const tienePlan = sid && (planMap[sid]?.length > 0);
     const tienePres = sid && !!(presMap[sid]?.contenido?.trim());
     const tieneArr  = hayArrastre(cid, fechaStr);
+    const estadoPlan = getEstadoPlan(sid, fechaStr);
 
     const card = document.createElement('div');
     card.className = 'ctx-card';
     card.innerHTML = `
         <span class="ctx-nombre" data-nombre="${ctx.nombre}" title="${ctx.nombre}">${ctx.nombre}</span>
         <div class="semaforo">
-            <span class="sem-dot ${tienePlan ? 'plan-on' : ''}" title="Plan"></span>
+            <span class="sem-dot ${dotClasePlan(estadoPlan)}" title="Plan"></span>
             <span class="sem-dot ${tienePres ? 'pres-on' : ''}" title="Presentación"></span>
             <span class="sem-dot ${tieneArr  ? 'arr-on'  : ''}" title="Arrastre"></span>
         </div>
@@ -925,12 +1051,11 @@ async function abrirSesion(cid, fechaStr, nombre) {
     document.body.classList.add('sesion-activa');
     document.getElementById('s-titulo').textContent     = nombre;
     document.getElementById('s-fecha').textContent      = fmtFecha(new Date(fechaStr + 'T12:00:00'));
-    document.getElementById('plan-lista').innerHTML     = '<div class="cargando">Cargando...</div>';
-    document.getElementById('plan-arrastres').innerHTML = '';
-    document.getElementById('plan-srp').innerHTML       = '';
-    document.getElementById('pres-area').value          = '';
-    document.getElementById('pres-status').textContent  = '';
-    document.getElementById('prev-body').innerHTML      = '';
+    document.getElementById('plan-lista').innerHTML    = '<div class="cargando">Cargando...</div>';
+    document.getElementById('pres-area').value         = '';
+    document.getElementById('pres-status').textContent = '';
+    document.getElementById('prev-body').innerHTML     = '';
+    cerrarRevision();
     deletedItem = null;
     ocultarUndoBorrado();
     resetModoEdicion();
@@ -958,6 +1083,7 @@ function volverDashboard() {
     clearTimeout(presTimer);
     presTimer = null;
     const fechaEditada = sesionActual?.fecha;
+    cerrarRevision();
     document.getElementById('vista-sesion').classList.remove('show');
     document.body.classList.remove('sesion-activa');
     document.getElementById('vista-dashboard').style.display = 'block';
@@ -1008,25 +1134,73 @@ function presentar() {
 // PLAN
 // ═══════════════════════════════════════════════════════════
 async function cargarPlan(sid, cid, fechaStr) {
-    const [{ data: items }, { data: pendsSRP }, anterior] = await Promise.all([
-        sb.from('plan_sesion_items').select('*').eq('sesion_id', sid).order('orden'),
-        sb.from('pendientes').select('id, texto, categoria').eq('sesion_id', sid).eq('estado', 'activo').neq('categoria', 'revision'),
+    const esOctavo = sesionActual?.nombre === 'OCTAVO';
+    const cats = new Set(CATS_PLAN);
+    if (esOctavo) cats.add('jefatura');
+
+    const [{ data: existentes }, { data: pends }, anterior] = await Promise.all([
+        sb.from('plan_sesion_items')
+            .select('*').eq('sesion_id', sid).eq('incluido', true).order('orden'),
+        sb.from('pendientes')
+            .select('*').eq('sesion_id', sid).eq('estado', 'activo'),
         sesionAnterior(cid, fechaStr),
     ]);
 
-    renderPlan(items || []);
-
-    const idsEnPlan    = new Set((items || []).map(i => i.pendiente_id).filter(Boolean));
-    const textosEnPlan = new Set((items || []).map(i => i.texto));
-
-    const pendNuevos = (pendsSRP || []).filter(p => !idsEnPlan.has(p.id) && !textosEnPlan.has(p.texto));
-    renderPendientesSRP(pendNuevos);
-
+    let arrastres = [];
     if (anterior) {
         const { data: arr } = await sb.from('plan_sesion_items')
-            .select('*').eq('sesion_id', anterior.id).eq('completado', false);
-        renderArrastres((arr || []).filter(a => !textosEnPlan.has(a.texto)));
+            .select('*').eq('sesion_id', anterior.id)
+            .eq('completado', false).eq('incluido', true);
+        arrastres = arr || [];
     }
+
+    const pendsFiltrados = (pends || []).filter(p => cats.has(p.categoria));
+    const pendIdsEnPlan  = new Set((existentes || []).map(i => i.pendiente_id).filter(Boolean));
+    const textosEnPlan   = new Set((existentes || []).map(i => i.texto));
+    const esNuevo        = (existentes || []).length > 0;
+
+    const pendNuevos  = pendsFiltrados.filter(p => !pendIdsEnPlan.has(p.id) && !textosEnPlan.has(p.texto));
+    const arrNuevos   = arrastres.filter(a => !textosEnPlan.has(a.texto));
+
+    let allItems = [...(existentes || [])];
+    let orden    = allItems.length;
+
+    if (pendNuevos.length) {
+        const ins = pendNuevos.map((p, i) => ({
+            sesion_id:       sid,
+            texto:           p.texto,
+            categoria:       p.categoria,
+            orden:           orden + i,
+            origen:          'srp',
+            pendiente_id:    p.id,
+            completado:      false,
+            incluido:        true,
+            es_planificacion: p.categoria === 'pendientes_planificacion',
+            es_nuevo:        esNuevo,
+        }));
+        const { data: ins2 } = await sb.from('plan_sesion_items').insert(ins).select();
+        allItems = [...allItems, ...(ins2 || [])];
+        orden   += pendNuevos.length;
+    }
+
+    if (arrNuevos.length) {
+        const ins = arrNuevos.map((a, i) => ({
+            sesion_id:       sid,
+            texto:           a.texto,
+            categoria:       a.categoria || '',
+            orden:           orden + i,
+            origen:          'srp',
+            pendiente_id:    a.pendiente_id || null,
+            completado:      false,
+            incluido:        true,
+            es_planificacion: a.es_planificacion || false,
+            es_nuevo:        true,
+        }));
+        const { data: ins2 } = await sb.from('plan_sesion_items').insert(ins).select();
+        allItems = [...allItems, ...(ins2 || [])];
+    }
+
+    renderPlan(allItems);
 }
 
 async function sesionAnterior(cid, fechaStr) {
@@ -1039,8 +1213,60 @@ async function sesionAnterior(cid, fechaStr) {
 function renderPlan(items) {
     const lista = document.getElementById('plan-lista');
     lista.innerHTML = '';
-    if (!items.length) { lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>'; return; }
-    items.forEach(it => lista.appendChild(buildItemEl(it)));
+
+    if (!items.length) {
+        lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>';
+        return;
+    }
+
+    const nuevos   = items.filter(i => i.es_nuevo);
+    const planif   = items.filter(i => !i.es_nuevo && i.es_planificacion);
+    const sala     = items.filter(i => !i.es_nuevo && !i.es_planificacion && i.categoria !== 'mensajes');
+    const mensajes = items.filter(i => !i.es_nuevo && !i.es_planificacion && i.categoria === 'mensajes');
+
+    if (nuevos.length) {
+        addBloqueHdr(lista, `Nuevo — ${nuevos.length}`);
+        nuevos.forEach(it => lista.appendChild(buildItemEl(it, 'nuevo')));
+    }
+    if (planif.length) {
+        addBloqueHdr(lista, 'Por preparar');
+        planif.forEach(it => lista.appendChild(buildItemEl(it, 'planif')));
+    }
+    if (sala.length) {
+        if (planif.length || nuevos.length) addBloqueHdr(lista, 'Para la clase');
+        sala.forEach(it => lista.appendChild(buildItemEl(it, 'sala')));
+    }
+    if (mensajes.length) {
+        lista.appendChild(buildMensajesSec(mensajes));
+    }
+}
+
+function addBloqueHdr(parent, texto) {
+    const h = document.createElement('div');
+    h.className   = 's-bloque-hdr';
+    h.textContent = texto;
+    parent.appendChild(h);
+}
+
+function buildMensajesSec(items) {
+    const wrap = document.createElement('div');
+
+    const hdr = document.createElement('div');
+    hdr.className = 's-mensajes-hdr collapsed';
+    hdr.innerHTML = `<span class="chevron-m">▾</span> Mensajes (${items.length})`;
+
+    const body = document.createElement('div');
+    body.className = 's-mensajes-body hidden';
+    items.forEach(it => body.appendChild(buildItemEl(it, 'mensajes')));
+
+    hdr.addEventListener('click', () => {
+        hdr.classList.toggle('collapsed');
+        body.classList.toggle('hidden');
+    });
+
+    wrap.appendChild(hdr);
+    wrap.appendChild(body);
+    return wrap;
 }
 
 function buildTextoItem(texto, completado) {
@@ -1069,13 +1295,23 @@ function buildTextoItem(texto, completado) {
     return wrap;
 }
 
-function buildItemEl(it) {
+function buildItemEl(it, bloque) {
+    const b = bloque || (it.es_nuevo ? 'nuevo' : it.es_planificacion ? 'planif' : it.categoria === 'mensajes' ? 'mensajes' : 'sala');
+
     const el = document.createElement('div');
-    el.className         = 's-plan-item';
+    el.className         = 's-plan-item' + (it.es_planificacion ? ' planif' : '');
     el.dataset.id        = it.id;
     el.dataset.texto     = it.texto || '';
     el.dataset.categoria = it.categoria || '';
     el.dataset.origen    = it.origen || 'manual';
+    el.dataset.esPlani   = it.es_planificacion ? '1' : '0';
+    el.dataset.esNuevo   = it.es_nuevo ? '1' : '0';
+    el.dataset.bloque    = b;
+
+    // Marcar como visto al primer click en el item
+    if (it.es_nuevo) {
+        el.addEventListener('click', () => marcarVisto(el), { once: true });
+    }
 
     const handle = document.createElement('span');
     handle.className   = 's-drag-handle';
@@ -1087,31 +1323,32 @@ function buildItemEl(it) {
     chk.checked = it.completado;
 
     const txtWrap = buildTextoItem(it.texto, it.completado);
-    txtWrap.addEventListener('click', () => cargarParaEditar(el));
+    txtWrap.addEventListener('dblclick', () => cargarParaEditar(el));
     chk.addEventListener('change', () => marcarHecho(it.id, chk.checked, txtWrap));
+
+    const btnPlanif = document.createElement('button');
+    btnPlanif.className   = 's-btn-planif';
+    btnPlanif.textContent = '!';
+    btnPlanif.title       = it.es_planificacion ? 'Quitar de planificación' : 'Marcar como por preparar';
+    btnPlanif.addEventListener('click', e => { e.stopPropagation(); togglePlanif(it.id, el); });
 
     el.appendChild(handle);
     el.appendChild(chk);
     el.appendChild(txtWrap);
+    el.appendChild(btnPlanif);
 
-    if (it.categoria) {
-        const cat = document.createElement('span');
-        cat.className   = 's-pi-cat';
-        cat.textContent = it.categoria.replace('pendientes_', '');
-        el.appendChild(cat);
-    }
-    if (it.origen === 'srp') {
-        const srp = document.createElement('span');
-        srp.className   = 's-pi-srp';
-        srp.textContent = 'SRP';
-        el.appendChild(srp);
+    if (it.es_nuevo) {
+        const badge = document.createElement('span');
+        badge.className   = 's-nuevo-badge';
+        badge.textContent = 'Nuevo';
+        el.appendChild(badge);
     }
 
     const del = document.createElement('button');
     del.className   = 's-pi-del';
     del.textContent = '✕';
-    del.title       = 'Eliminar';
-    del.addEventListener('click', () => eliminarItem(it.id, el));
+    del.title       = it.origen === 'manual' ? 'Eliminar' : 'No incluir en esta sesión';
+    del.addEventListener('click', e => { e.stopPropagation(); eliminarItem(it.id, el); });
     el.appendChild(del);
 
     initDrag(el);
@@ -1138,7 +1375,7 @@ function initDrag(el) {
     el.addEventListener('dragover', e => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        if (dragSrcEl && dragSrcEl !== el) {
+        if (dragSrcEl && dragSrcEl !== el && dragSrcEl.dataset.bloque === el.dataset.bloque) {
             document.querySelectorAll('#plan-lista .s-plan-item')
                 .forEach(i => i.classList.remove('drag-over'));
             el.classList.add('drag-over');
@@ -1147,6 +1384,7 @@ function initDrag(el) {
     el.addEventListener('drop', e => {
         e.preventDefault();
         if (!dragSrcEl || dragSrcEl === el) return;
+        if (dragSrcEl.dataset.bloque !== el.dataset.bloque) return;
         const lista = document.getElementById('plan-lista');
         const all   = [...lista.querySelectorAll('.s-plan-item')];
         const srcI  = all.indexOf(dragSrcEl);
@@ -1169,90 +1407,6 @@ function autoExpandTextarea(ta) {
     ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
 }
 
-function renderArrastres(items) {
-    const cont = document.getElementById('plan-arrastres');
-    cont.innerHTML = '';
-    if (!items.length) return;
-
-    const hdr = document.createElement('div');
-    hdr.className   = 's-arr-hdr';
-    hdr.textContent = `↩ Arrastre — ${items.length} pendiente${items.length > 1 ? 's' : ''}`;
-    cont.appendChild(hdr);
-
-    items.forEach(it => {
-        const el = document.createElement('div');
-        el.className = 's-arr-item';
-
-        const txt = document.createElement('span');
-        txt.className   = 'ai-texto';
-        txt.textContent = it.texto;
-
-        const btnInc = document.createElement('button');
-        btnInc.className   = 's-arr-btn s-btn-inc';
-        btnInc.textContent = 'Incluir';
-        btnInc.addEventListener('click', async () => {
-            await addItem(it.texto, it.categoria, 'srp', it.pendiente_id);
-            await sb.from('plan_sesion_items').update({ completado: true }).eq('id', it.id);
-            el.remove();
-        });
-
-        const btnDes = document.createElement('button');
-        btnDes.className   = 's-arr-btn s-btn-des';
-        btnDes.textContent = 'Descartar';
-        btnDes.addEventListener('click', async () => {
-            await sb.from('plan_sesion_items').update({ completado: true }).eq('id', it.id);
-            el.remove();
-        });
-
-        el.appendChild(txt);
-        el.appendChild(btnInc);
-        el.appendChild(btnDes);
-        cont.appendChild(el);
-    });
-}
-
-function renderPendientesSRP(pends) {
-    const cont = document.getElementById('plan-srp');
-    cont.innerHTML = '';
-    if (!pends.length) return;
-
-    const hdr = document.createElement('div');
-    hdr.className   = 's-arr-hdr';
-    hdr.textContent = `SRP — ${pends.length} pendiente${pends.length > 1 ? 's' : ''}`;
-    cont.appendChild(hdr);
-
-    pends.forEach(it => {
-        const el = document.createElement('div');
-        el.className = 's-arr-item';
-
-        const txt = document.createElement('span');
-        txt.className   = 'ai-texto';
-        txt.textContent = it.texto;
-
-        const catTag = document.createElement('span');
-        catTag.className   = 's-pi-cat';
-        catTag.textContent = it.categoria.replace('pendientes_', '');
-
-        const btnInc = document.createElement('button');
-        btnInc.className   = 's-arr-btn s-btn-inc';
-        btnInc.textContent = 'Incluir';
-        btnInc.addEventListener('click', async () => {
-            await addItem(it.texto, it.categoria, 'srp', it.id);
-            el.remove();
-        });
-
-        const btnDes = document.createElement('button');
-        btnDes.className   = 's-arr-btn s-btn-des';
-        btnDes.textContent = 'Ignorar';
-        btnDes.addEventListener('click', () => el.remove());
-
-        el.appendChild(txt);
-        el.appendChild(catTag);
-        el.appendChild(btnInc);
-        el.appendChild(btnDes);
-        cont.appendChild(el);
-    });
-}
 
 function accionPlan() {
     if (editandoId) guardarEdicion();
@@ -1355,6 +1509,101 @@ function ocultarUndoBorrado() {
     document.getElementById('plan-undo-del').style.display = 'none';
 }
 
+// ── Marcar item "nuevo" como visto ──────────────────────────
+async function marcarVisto(el) {
+    if (el.dataset.esNuevo !== '1') return;
+    el.dataset.esNuevo = '0';
+    const badge = el.querySelector('.s-nuevo-badge');
+    if (badge) badge.remove();
+    await sb.from('plan_sesion_items').update({ es_nuevo: false }).eq('id', el.dataset.id);
+    // Si ya no quedan nuevos, quitar el header de bloque
+    const lista = document.getElementById('plan-lista');
+    if (!lista.querySelector('.s-plan-item[data-es-nuevo="1"]')) {
+        const hdr = [...lista.querySelectorAll('.s-bloque-hdr')]
+            .find(h => h.textContent.startsWith('Nuevo'));
+        if (hdr) hdr.remove();
+    }
+}
+
+// ── Toggle planificación (!) ─────────────────────────────────
+async function togglePlanif(id, el) {
+    const nuevaVal = el.dataset.esPlani !== '1';
+    await sb.from('plan_sesion_items').update({ es_planificacion: nuevaVal }).eq('id', id);
+    // Recargar el plan completo para re-ordenar bloques
+    if (sesionActual) {
+        document.getElementById('plan-lista').innerHTML = '<div class="cargando">…</div>';
+        await cargarPlan(sesionActual.id, sesionActual.contexto_id, sesionActual.fecha);
+    }
+}
+
+// ── Creación proactiva de sesiones ───────────────────────────
+async function crearSesionesPendientes() {
+    const dias = getOchoDias();
+    const inserts = [];
+    dias.forEach(({ fechaStr, diaSemana }) => {
+        (horarioDia[diaSemana] || []).forEach(h => {
+            inserts.push({ contexto_id: h.contexto_id, fecha: fechaStr });
+        });
+    });
+    if (!inserts.length) return;
+    await sb.from('sesiones').upsert(inserts, { onConflict: 'contexto_id,fecha', ignoreDuplicates: true });
+}
+
+// ── Asignar pendientes huérfanos (sesion_id = null) ──────────
+async function asignarPendientesHuerfanos() {
+    const { data: huerfanos } = await sb.from('pendientes')
+        .select('id, contexto_id').eq('estado', 'activo').is('sesion_id', null);
+    if (!huerfanos?.length) return;
+
+    const updates = [];
+    huerfanos.forEach(p => {
+        // Encontrar próxima sesión de ese contexto en sesionesMap
+        let mejorFecha = '';
+        let mejorSid   = null;
+        const hoy = isoDate(new Date());
+        Object.entries(sesionesMap).forEach(([key, s]) => {
+            const [cid, f] = key.split('||');
+            if (cid === p.contexto_id && f >= hoy) {
+                if (!mejorFecha || f < mejorFecha) { mejorFecha = f; mejorSid = s.id; }
+            }
+        });
+        if (mejorSid) updates.push({ id: p.id, sesion_id: mejorSid });
+    });
+
+    if (updates.length) {
+        await Promise.all(updates.map(u =>
+            sb.from('pendientes').update({ sesion_id: u.sesion_id }).eq('id', u.id)
+        ));
+    }
+}
+
+// ── Modal Revisión anterior ───────────────────────────────────
+async function abrirRevision() {
+    if (!sesionActual) return;
+    document.getElementById('revision-modal').classList.add('show');
+    const body = document.getElementById('revision-body');
+    body.innerHTML = '<div class="vacio">Cargando...</div>';
+
+    const ant = await sesionAnterior(sesionActual.contexto_id, sesionActual.fecha);
+    if (!ant) { body.innerHTML = '<div class="vacio">Sin clase anterior registrada.</div>'; return; }
+
+    const { data } = await sb.from('pendientes')
+        .select('texto, categoria')
+        .eq('sesion_id', ant.id)
+        .eq('categoria', 'revision')
+        .eq('estado', 'activo');
+
+    if (!data?.length) { body.innerHTML = '<div class="vacio">Sin ítems de revisión en la clase anterior.</div>'; return; }
+
+    document.getElementById('revision-titulo').textContent =
+        `Revisión — ${fmtFecha(new Date(ant.fecha + 'T12:00:00'))}`;
+    body.innerHTML = data.map(i => `<div class="rev-it">${i.texto}</div>`).join('');
+}
+
+function cerrarRevision() {
+    document.getElementById('revision-modal')?.classList.remove('show');
+}
+
 async function addItem(texto, categoria, origen, pendienteId) {
     if (!sesionActual) return;
     const { count } = await sb.from('plan_sesion_items')
@@ -1381,68 +1630,29 @@ async function marcarHecho(id, valor, wrapEl) {
 
 async function eliminarItem(id, el) {
     if (editandoId === id) cancelarEdicion();
-    deletedItem = {
-        id,
-        texto:     el.dataset.texto,
-        categoria: el.dataset.categoria,
-        origen:    el.dataset.origen,
-        completado: el.querySelector('input[type="checkbox"]').checked,
-    };
-    await sb.from('plan_sesion_items').delete().eq('id', id);
+    const esSRP = el.dataset.origen !== 'manual';
+
+    if (esSRP) {
+        await sb.from('plan_sesion_items').update({ incluido: false }).eq('id', id);
+    } else {
+        deletedItem = {
+            id,
+            texto:      el.dataset.texto,
+            categoria:  el.dataset.categoria,
+            origen:     el.dataset.origen,
+            completado: el.querySelector('input[type="checkbox"]').checked,
+        };
+        await sb.from('plan_sesion_items').delete().eq('id', id);
+        mostrarUndoBorrado();
+    }
+
     el.remove();
     const lista = document.getElementById('plan-lista');
     if (!lista.querySelectorAll('.s-plan-item').length)
         lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>';
-    mostrarUndoBorrado();
 }
 
-async function importarSRP() {
-    if (!sesionActual) return;
-    const { data: pends } = await sb.from('pendientes')
-        .select('id, texto, categoria')
-        .eq('contexto_id', sesionActual.contexto_id)
-        .eq('estado', 'activo')
-        .in('categoria', ['pendientes_sala', 'pendientes_planificacion', 'pendientes_materiales']);
 
-    if (!pends?.length) { alert('No hay pendientes activos de SRP para este curso.'); return; }
-
-    const { data: enPlan } = await sb.from('plan_sesion_items')
-        .select('pendiente_id, texto').eq('sesion_id', sesionActual.id);
-    const idsEnPlan    = new Set((enPlan || []).map(i => i.pendiente_id).filter(Boolean));
-    const textosEnPlan = new Set((enPlan || []).map(i => i.texto));
-    const nuevos       = pends.filter(p => !idsEnPlan.has(p.id) && !textosEnPlan.has(p.texto));
-
-    if (!nuevos.length) { alert('Todos los pendientes de SRP ya están en el plan.'); return; }
-    for (const p of nuevos) await addItem(p.texto, p.categoria, 'srp', p.id);
-}
-
-// ═══════════════════════════════════════════════════════════
-// REVISIÓN
-// ═══════════════════════════════════════════════════════════
-async function cargarRevision(cid, fechaStr) {
-    const cont = document.getElementById('rev-content');
-    const ant  = await sesionAnterior(cid, fechaStr);
-    if (!ant) { cont.innerHTML = '<div class="vacio">Sin clases anteriores registradas.</div>'; return; }
-
-    const { data: srp } = await sb.from('sesiones_srp')
-        .select('expected_output, original_parse')
-        .eq('sesion_id', ant.id)
-        .order('created_at', { ascending: false }).limit(1);
-
-    if (!srp?.length) { cont.innerHTML = '<div class="vacio">Sin registro SRP para la clase anterior.</div>'; return; }
-
-    const parse = srp[0].expected_output || srp[0].original_parse;
-    if (!parse?.courses) { cont.innerHTML = '<div class="vacio">Sin datos de revisión.</div>'; return; }
-
-    const nombre = contextos[cid]?.nombre?.toUpperCase() || '';
-    const curso  = parse.courses.find(c => c.course?.toUpperCase() === nombre) || parse.courses[0];
-    if (!curso)  { cont.innerHTML = '<div class="vacio">Sin datos para este curso.</div>'; return; }
-
-    const revs = (curso.items || []).filter(i => i.category?.includes('revision'));
-    if (!revs.length) { cont.innerHTML = '<div class="vacio">Sin ítems de revisión en el último registro.</div>'; return; }
-
-    cont.innerHTML = revs.map(i => `<div class="rev-item">${i.text}</div>`).join('');
-}
 
 // ═══════════════════════════════════════════════════════════
 // PRESENTADOR — slides
