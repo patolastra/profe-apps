@@ -1,0 +1,2623 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal PROFE</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase/config.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:      #e2e8f0;
+            --card-bg: #fff;
+            --border:  #e2e8f0;
+            --text:    #1e293b;
+            --muted:   #64748b;
+            --accent:  #2563eb;
+            --green:   #16a34a;
+            --orange:  #ea580c;
+            --gray:    #94a3b8;
+            --red:     #dc2626;
+        }
+
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+
+        /* ── HEADER ── */
+        #header {
+            background: #1e293b;
+            color: #fff;
+            padding: 13px 24px;
+            display: flex;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            min-height: 52px;
+        }
+        #hdr-dash {
+            display: flex; align-items: center; width: 100%;
+        }
+        #hdr-ses {
+            display: none; align-items: center; width: 100%;
+        }
+        body.sesion-activa #hdr-dash { display: none; }
+        body.sesion-activa #hdr-ses  { display: flex; }
+
+        .hdr-cal-btn {
+            background: none; border: none; color: #fff; cursor: pointer;
+            font-size: 1.25rem; padding: 0; line-height: 1;
+            opacity: 0.8; transition: opacity 0.15s; flex-shrink: 0;
+        }
+        .hdr-cal-btn:hover { opacity: 1; }
+        #header-status { font-size: 0.75rem; opacity: 0.5; margin-left: auto; }
+        .hdr-ses-left  { display: flex; align-items: center; gap: 16px; flex: 1; }
+        .hdr-ses-right { display: flex; justify-content: flex-end; }
+        #sync-label {
+            font-size: 0.72rem; color: rgba(255,255,255,0.42);
+            font-weight: 400; font-style: italic; white-space: nowrap;
+        }
+        #sync-label[data-state="saving"] { color: rgba(255,255,255,0.6); }
+        #sync-label[data-state="saved"]  { color: rgba(255,255,255,0.42); }
+        #sync-label[data-state="error"]  { color: #fca5a5; font-style: normal; font-weight: 600; }
+        .hdr-btn {
+            background: none; border: none; color: rgba(255,255,255,0.85);
+            cursor: pointer; font-size: 1.27rem; font-weight: 700;
+            letter-spacing: 0.05em; text-transform: uppercase;
+            padding: 0; font-family: inherit;
+        }
+        .hdr-btn:hover { color: #fff; }
+        #hdr-ses-titulo {
+            font-size: 1.27rem; font-weight: 600; color: #fff; letter-spacing: 0.02em;
+        }
+
+        /* ── CALENDARIO ── */
+        #calendario-wrap {
+            background: #1a2540;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding: 14px 24px 18px;
+            display: none;
+        }
+        #calendario-wrap.visible { display: block; }
+
+        .cal-nav {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .cal-mes { font-size: 0.82rem; font-weight: 700; color: #fff; flex: 1; text-transform: capitalize; }
+        .cal-btn {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: #fff;
+            padding: 3px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.82rem;
+        }
+        .cal-btn:hover { background: rgba(255,255,255,0.2); }
+
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+            max-width: 340px;
+        }
+        .cal-dow {
+            text-align: center;
+            font-size: 0.6rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.35);
+            padding: 2px 0 4px;
+            text-transform: uppercase;
+        }
+        .cal-dia {
+            text-align: center;
+            font-size: 0.73rem;
+            padding: 4px 2px;
+            border-radius: 4px;
+            color: rgba(255,255,255,0.2);
+        }
+        .cal-dia.escolar {
+            color: rgba(255,255,255,0.7);
+            cursor: pointer;
+        }
+        .cal-dia.escolar:hover { background: rgba(255,255,255,0.12); }
+        .cal-dia.hoy {
+            background: var(--accent);
+            color: #fff !important;
+            font-weight: 700;
+        }
+
+        /* ── LAYOUT ── */
+        #main { max-width: 960px; margin: 0 auto; padding: 20px 16px; }
+
+        #btn-ir-hoy {
+            display: none; font-size: 0.8rem; padding: 4px 12px;
+            border-radius: 5px; border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85);
+            cursor: pointer; white-space: nowrap; font-weight: 700;
+            text-transform: uppercase; font-family: inherit;
+        }
+        #btn-ir-hoy:hover { background: rgba(255,255,255,0.18); }
+        #btn-ir-hoy.visible { display: block; }
+
+        /* ── SEMANA LABELS ── */
+        .semana-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin: 20px 0 8px;
+        }
+        .semana-label:first-child { margin-top: 0; }
+
+        /* ── DÍA CARD ── */
+        .dia-seccion {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        /* ── GRUPOS DE SEMANA ── */
+        .semana-grupo { border-radius: 12px; margin-bottom: 12px; padding: 10px 10px 6px; }
+        .semana-grupo.semana-1 { background: #fff;    border: 1px solid var(--border); }
+        .semana-grupo.semana-2 { background: #f0ebff; border: 1px solid #ddd6fe; }
+        .semana-grupo > .semana-label { margin: 0 0 6px; }
+
+        .dia-seccion.semana-1 { background: #f6f9ff; }
+        .dia-seccion.semana-2 { background: #faf8ff; border-color: #ddd6fe; }
+
+        .dia-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 14px;
+            cursor: pointer;
+            user-select: none;
+            font-weight: 600;
+            font-size: 0.88rem;
+        }
+        .dia-seccion.semana-1 .dia-header { background: #eef4ff; }
+        .dia-seccion.semana-2 .dia-header { background: #ede9fe; }
+        .dia-header:hover { filter: brightness(0.97); }
+        .chevron-dia { font-size: 0.68rem; color: var(--muted); transition: transform 0.15s; }
+        .dia-header.collapsed .chevron-dia { transform: rotate(-90deg); }
+        .hoy-badge {
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.6rem;
+            padding: 1px 7px;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        .contextos-fila {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px 12px 12px;
+        }
+        .contextos-fila.hidden { display: none; }
+
+        /* ── CONTEXT CARD ── */
+        .ctx-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 9px 12px;
+            cursor: pointer;
+            min-width: 120px;
+            flex: 1;
+            max-width: 190px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            transition: box-shadow 0.15s, border-color 0.15s;
+        }
+        .dia-seccion.semana-2 .ctx-card { background: #f9f5ff; }
+        .ctx-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-color: var(--accent); }
+        .ctx-nombre { font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; }
+
+        /* ── SEMÁFORO ── */
+        .semaforo { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+        .sem-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--gray);
+            opacity: 0.3;
+        }
+        .sem-dot.plan-on { background: var(--green);  opacity: 1; }
+        .sem-dot.pres-on { background: var(--accent); opacity: 1; }
+        .sem-dot.arr-on  { background: var(--orange); opacity: 1; }
+
+        /* ── VISTA SESIÓN ── */
+        #vista-sesion { display: none; }
+
+
+        /* ── BLOQUES ── */
+        .bloque {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+        .bloque-hdr {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 9px 16px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+        }
+        .bloque-hdr h3 { font-size: 0.88rem; font-weight: 600; }
+        .chevron-bloque { font-size: 0.75rem; color: var(--muted); transition: transform 0.15s; }
+        .bloque-hdr.collapsed .chevron-bloque { transform: rotate(-90deg); }
+        .bloque-body { padding: 16px; }
+        .bloque-body.hidden { display: none; }
+
+        #pres-area {
+            width: 100%;
+            min-height: 150px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.83rem;
+            line-height: 1.5;
+            resize: vertical;
+            color: var(--text);
+        }
+        .pres-footer { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+        .btn { padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; border: 1px solid var(--border); background: var(--card-bg); color: var(--text); }
+        .btn:hover { background: var(--bg); }
+        .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .btn-primary:hover { background: #1d4ed8; }
+        .save-status { font-size: 0.73rem; color: var(--muted); margin-left: auto; }
+
+        .arrastre-header { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--orange); margin-bottom: 6px; }
+        .arrastre-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 7px 10px; background: #fff7ed;
+            border: 1px solid #fed7aa; border-radius: 6px;
+            margin-bottom: 5px; font-size: 0.83rem;
+        }
+        .arrastre-item .ai-texto { flex: 1; }
+        .btn-arr { padding: 3px 9px; border-radius: 4px; font-size: 0.73rem; cursor: pointer; border: 1px solid; white-space: nowrap; }
+        .btn-incluir   { background: #dcfce7; border-color: #86efac; color: #166534; }
+        .btn-descartar { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+
+        .plan-lista { margin-bottom: 12px; }
+        .plan-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+        .plan-item:last-child { border-bottom: none; }
+        .plan-item input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; accent-color: var(--green); }
+        .pi-texto { flex: 1; font-size: 0.83rem; }
+        .pi-texto.hecho { text-decoration: line-through; color: var(--muted); }
+        .pi-cat { font-size: 0.68rem; color: var(--muted); background: var(--bg); padding: 1px 5px; border-radius: 3px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pi-srp { font-size: 0.68rem; color: var(--accent); font-weight: 600; }
+        .btn-del { background: none; border: none; cursor: pointer; color: var(--gray); font-size: 0.85rem; padding: 2px 4px; line-height: 1; }
+        .btn-del:hover { color: var(--red); }
+
+        .plan-add { display: flex; gap: 8px; margin-bottom: 8px; }
+        .plan-add input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.83rem; }
+        .btn-import { font-size: 0.75rem; color: var(--accent); background: none; border: 1px dashed var(--accent); padding: 5px 12px; border-radius: 6px; cursor: pointer; display: block; width: 100%; text-align: center; margin-top: 6px; }
+        .btn-import:hover { background: #eff6ff; }
+
+        .rev-item { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.83rem; color: var(--muted); }
+        .rev-item:last-child { border-bottom: none; }
+        .vacio { font-size: 0.82rem; color: var(--muted); font-style: italic; }
+        .cargando { font-size: 0.82rem; color: var(--muted); }
+        .sep { height: 1px; background: var(--border); margin: 10px 0; }
+
+        /* ── MODOS TRÍPTICO ── */
+        .s-split.modo-plan .s-col-plan   { width: var(--plan-w, 64%); }
+        .s-split.modo-plan .s-col-editor { display: none; }
+        .s-split.modo-pres .s-col-plan   { width: 27%; }
+        .s-split.modo-pres .s-col-editor { width: 37%; display: flex; }
+        .s-split.modo-pres .s-add        { display: none; }
+
+        /* ── TOGGLE BAR ── */
+        #modo-toggle {
+            width: 26px; flex-shrink: 0; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; border-left: 1px solid var(--border);
+            background: #f8fafc; color: var(--muted); font-size: 1rem;
+            user-select: none; transition: background 0.15s, color 0.15s;
+        }
+        #modo-toggle:hover { background: var(--bg); color: var(--accent); }
+        .s-split.modo-plan #modo-toggle { color: var(--accent); background: #eff6ff; }
+
+        /* ── RESIZE HANDLE ── */
+        #rev-resize {
+            width: 5px; flex-shrink: 0; cursor: col-resize;
+            background: transparent; display: none;
+        }
+        #rev-resize:hover, #rev-resize.active { background: rgba(37,99,235,0.18); }
+        .s-split.modo-plan #rev-resize { display: block; }
+
+        /* ── REVISIÓN INLINE — secciones colapsables ── */
+        #rev-panel { flex: 1; overflow-y: auto; display: none; flex-direction: column; }
+        .rev-seccion { flex-shrink: 0; border-bottom: 1px solid var(--border); }
+        .rev-seccion:last-child { border-bottom: none; }
+        .rev-sec-hdr {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 7px 12px; cursor: pointer; user-select: none;
+            font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.07em; color: var(--muted); background: #f8fafc;
+        }
+        .rev-sec-hdr:hover { background: var(--bg); }
+        .rev-sec-body { padding: 8px 12px; font-size: 0.82rem; }
+        .rev-sec-body.hidden { display: none; }
+        .rev-chevron { font-size: 0.65rem; }
+        #rev-fecha-lbl {
+            padding: 5px 12px; font-size: 0.82rem; color: var(--muted);
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
+            border-bottom: 1px solid var(--border); flex-shrink: 0; background: #f8fafc;
+        }
+        .rev-poema {
+            padding: 20px 16px; text-align: center; color: var(--muted);
+            font-style: italic; line-height: 2; font-size: 0.85rem;
+        }
+
+        /* ── MODO SESIÓN — layout 3 columnas ─────────────────── */
+        body.sesion-activa { overflow: hidden; }
+        body.sesion-activa #main { max-width: none; padding: 0; height: calc(100vh - 52px); overflow: hidden; display: flex; flex-direction: column; }
+
+        #vista-sesion { display: none; flex-direction: column; height: 100%; }
+        #vista-sesion.show { display: flex; }
+
+
+        .s-split { flex: 1; display: flex; overflow: hidden; }
+
+        .s-col { display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+        .s-col:last-child { border-right: none; }
+        .s-col-plan    { width: 27%; }
+        .s-col-editor  { width: 37%; }
+        .s-col-preview { flex: 1; }
+
+        .s-split.modo-plan #prev-col-hdr { display: none; }
+
+        .s-col-hdr {
+            padding: 5px 13px; font-size: 0.82rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted);
+            background: #f8fafc; border-bottom: 1px solid var(--border);
+            flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+        }
+        .s-col-hdr .import-btn {
+            margin-left: auto; font-size: 0.75rem; color: var(--accent);
+            background: none; border: 1px dashed var(--accent);
+            padding: 2px 8px; border-radius: 4px; cursor: pointer;
+        }
+        .s-col-hdr .import-btn:hover { background: #eff6ff; }
+
+        .s-col-body { flex: 1; overflow-y: auto; padding: 8px 0; }
+
+        .s-plan-item {
+            display: flex; align-items: flex-start; gap: 7px;
+            padding: 6px 8px; border: 1px solid var(--border);
+            border-radius: 6px; margin-bottom: 5px;
+            background: var(--card-bg); font-size: 0.82rem;
+            cursor: pointer; transition: background 0.12s, border-color 0.12s;
+        }
+        .s-plan-item:hover { background: #eff4ff; border-color: #bfcef9; }
+        .s-plan-item.planif:hover { background: #fef9c3; border-color: #fcd34d; }
+        .s-plan-item.repertorio:hover { background: #dcfce7; border-color: #4ade80; }
+        .s-plan-item.dragging  { opacity: 0.38; }
+        .s-plan-item.drag-over { border-top: 2px solid var(--accent); }
+        .s-plan-item.editing   { border-color: var(--accent); background: #eff6ff; }
+        .s-drag-handle { cursor: grab; color: var(--gray); font-size: 0.78rem; flex-shrink: 0; user-select: none; padding: 2px 0; line-height: 1; opacity: 0; transition: opacity 0.12s; }
+        .s-plan-item:hover .s-drag-handle { opacity: 1; }
+        .s-drag-handle:active { cursor: grabbing; }
+        .s-pi-txt  { flex: 1; cursor: pointer; }
+        .pi-titulo { display: block; line-height: 1.4; font-weight: 700; text-transform: uppercase; font-size: 0.80rem; }
+        .pi-titulo.pi-inline { display: inline; }
+        .pi-inline-sub { font-size: 0.78rem; color: var(--text); font-weight: 400; text-transform: none; }
+        .s-pi-txt.hecho .pi-inline-sub { text-decoration: line-through; color: var(--muted); }
+        .pi-bullets { list-style: disc; margin: 3px 0 0 14px; padding: 0; }
+        .pi-bullets li { font-size: 0.78rem; color: var(--text); line-height: 1.5; }
+
+        /* ── Repertorio — coloratura verde ── */
+        .s-plan-item.repertorio { background: #f0fdf4; border-color: #86efac; }
+        .s-plan-item.repertorio .pi-titulo { color: #166534; }
+        .s-pi-txt.hecho .pi-titulo { text-decoration: line-through; color: var(--muted); }
+        .s-pi-txt.hecho .pi-bullets li { text-decoration: line-through; color: var(--muted); }
+
+        /* ── Undo / Redo ── */
+        .ur-btns { margin-left: auto; display: flex; gap: 3px; }
+        .slides-ur-btns { margin-left: auto; display: flex; gap: 3px; }
+        .ur-btns button, .slides-ur-btns button { background: none; border: 1px solid var(--border); color: var(--muted); padding: 1px 7px; border-radius: 4px; cursor: pointer; font-size: 0.78rem; line-height: 1.5; transition: background 0.1s; }
+        .ur-btns button:hover:not(:disabled), .slides-ur-btns button:hover:not(:disabled) { background: var(--bg); color: var(--text); }
+        .ur-btns button:disabled, .slides-ur-btns button:disabled { opacity: 0.3; cursor: default; }
+
+        /* ── Botón cancelar edición ── */
+        #btn-plan-cancel { display: none; background: var(--gray); color: #fff; border: none; padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 0.82rem; flex-shrink: 0; }
+        #btn-plan-cancel:hover { background: #475569; }
+        .s-pi-cat  { font-size: 0.63rem; color: var(--muted); background: var(--bg); padding: 1px 5px; border-radius: 3px; flex-shrink: 0; margin-top: 2px; }
+        .s-pi-srp  { font-size: 0.63rem; color: var(--accent); font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+        .s-pi-del  { background: none; border: none; cursor: pointer; color: var(--gray); font-size: 0.82rem; padding: 1px 3px; flex-shrink: 0; opacity: 0; transition: opacity 0.12s; }
+        .s-plan-item:hover .s-pi-del { opacity: 1; }
+        .s-pi-del:hover { color: var(--red); }
+
+        .s-add { display: flex; gap: 6px; padding: 5px 12px; border-top: 1px solid var(--border); background: #f8fafc; flex-shrink: 0; align-items: flex-end; }
+        .s-add textarea {
+            flex: 1; padding: 6px 8px; border: 1px solid var(--border);
+            border-radius: 5px; font-size: 0.82rem; color: var(--text);
+            font-family: inherit; resize: none; min-height: 80px; max-height: 480px;
+            line-height: 1.45; overflow-y: auto;
+        }
+        .s-add textarea:focus { outline: none; border-color: var(--accent); }
+        .s-add-btns { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+        .s-add button { background: var(--accent); color: #fff; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 0.85rem; }
+
+        .s-sub-hdr { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); padding: 10px 2px 5px; border-top: 1px solid var(--border); margin-top: 8px; }
+
+        .s-arr-hdr  { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--orange); margin-bottom: 5px; }
+        .s-arr-item { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; margin-bottom: 5px; font-size: 0.80rem; }
+        .s-arr-item .ai-texto { flex: 1; }
+        .s-arr-btn  { padding: 2px 8px; border-radius: 4px; font-size: 0.68rem; cursor: pointer; border: 1px solid; white-space: nowrap; }
+        .s-btn-inc  { background: #dcfce7; border-color: #86efac; color: #166534; }
+        .s-btn-des  { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+
+        #pres-area {
+            flex: 1; resize: none; border: none; outline: none;
+            padding: 12px 14px; font-family: 'Courier New', monospace;
+            font-size: 0.83rem; line-height: 1.6; color: var(--text);
+            background: var(--card-bg);
+        }
+        .s-editor-footer { padding: 5px 12px; font-size: 0.70rem; color: var(--muted); border-top: 1px solid var(--border); background: #f8fafc; text-align: right; flex-shrink: 0; }
+
+        /* Slide preview — render fiel a la Pizarra */
+        .slide-prev {
+            background: var(--slide-bg, #f8f8f8);
+            font-family: var(--slide-font, system-ui, sans-serif);
+            border-radius: 8px; aspect-ratio: 16/9;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            overflow: hidden; position: relative; cursor: grab; user-select: none;
+            padding-top: 2.75%;   /* ≈ 5% de la altura — simula header 44px */
+            padding-bottom: 3.1%; /* ≈ 5.5% de la altura — simula footer 50px */
+        }
+        .slide-prev .sn {
+            position: absolute; bottom: 5px; right: 6px;
+            font-size: 0.58rem; font-weight: 700; line-height: 1.6;
+            background: rgba(0,0,0,0.12); color: rgba(0,0,0,0.5);
+            border-radius: 3px; padding: 1px 5px;
+        }
+        .slide-prev.activa { outline: 2.5px solid #1e293b; outline-offset: 2px; }
+        .slide-prev .slide-content {
+            font-size: 8px; /* valor inicial; JS lo sobreescribe con autoFit */
+            line-height: 1.2; text-align: center;
+            width: calc(100% - 14px);
+            color: var(--slide-text);
+        }
+        .slide-prev .slide-content h1 { font-size: 1.6em; font-weight: 800; color: var(--slide-h1); margin-bottom: 0.18em; line-height: 1.05; }
+        .slide-prev .slide-content h2 { font-size: 1em; font-weight: 600; color: var(--slide-h2); margin-bottom: 0.12em; line-height: 1.2; }
+        .slide-prev .slide-content p  { font-size: 1em; line-height: 1.3; font-weight: 700; color: var(--slide-text); margin-bottom: 0.12em; }
+        .slide-prev .slide-content ul { padding-left: 1.2em; margin-bottom: 0.1em; text-align: left; }
+        .slide-prev .slide-content li { font-size: 1em; line-height: 1.3; font-weight: 700; color: var(--slide-text); margin-bottom: 0.08em; text-align: left; }
+        .slide-prev .slide-content li::marker { color: var(--slide-li); }
+        .slide-prev .slide-content .c1  { color: var(--slide-c1); font-weight: 700; }
+        .slide-prev .slide-content .c2  { color: var(--slide-c2); font-weight: 700; }
+        .slide-prev .slide-content em   { font-style: italic; }
+        .slide-prev .slide-content .izq { text-align: left; }
+        .slide-prev .slide-content .hl-i { background: var(--hl-bg); color: var(--hl-text); border: 1px solid var(--hl-border); border-radius: 4px; padding: 0.02em 0.2em; font-weight: 700; }
+        .slide-prev .slide-content .hl   { display: block; background: var(--hl-bg); border: 2px solid var(--hl-border); color: var(--hl-text); padding: 0.3em 0.7em; border-radius: 6px; font-size: 0.95em; font-weight: 700; margin: 0.25em 0; }
+        /* Tipos especiales */
+        .slide-prev.tipo-youtube { background: #0f0f0f; }
+        .slide-prev.tipo-mensaje { background: #1e2040; }
+        .slide-prev.tipo-mensaje .slide-content p { color: #fff; font-weight: 700; }
+        .slide-prev.dragging  { opacity: 0.35; }
+        .slide-prev.drag-over { outline: 2px solid #60a5fa; outline-offset: 2px; }
+
+        /* Slide hover actions */
+        .slide-prev .slide-actions { position: absolute; top: 5px; right: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
+        .slide-prev:hover .slide-actions { opacity: 1; }
+        .slide-act-btn { background: rgba(0,0,0,0.12); border: none; color: rgba(0,0,0,0.6); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; cursor: pointer; line-height: 1.5; }
+        .slide-act-btn:hover { background: rgba(0,0,0,0.25); color: #000; }
+        .slide-act-btn.del:hover { background: rgba(220,38,38,0.7); color: #fff; }
+        .slide-prev.tipo-youtube .slide-act-btn,
+        .slide-prev.tipo-mensaje .slide-act-btn { background: rgba(255,255,255,0.15); color: #ccc; }
+        .slide-prev.tipo-youtube .slide-act-btn:hover,
+        .slide-prev.tipo-mensaje .slide-act-btn:hover { background: rgba(255,255,255,0.3); color: #fff; }
+
+        /* Slides grid layout */
+        #prev-body.cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px !important; align-content: start; }
+        #prev-body.cols-1 { display: flex; flex-direction: column; gap: 8px; padding: 8px !important; }
+        #prev-body.cols-1 .slide-prev,
+        #prev-body.cols-2 .slide-prev { margin-bottom: 0; }
+
+        /* Slides UR buttons */
+        .slides-ur-btns { margin-left: auto; display: flex; gap: 3px; }
+
+
+        /* ── SEMÁFORO — nuevos estados plan ── */
+        .sem-dot.plan-yellow { background: #ca8a04; opacity: 1; }
+        .sem-dot.plan-red    { background: var(--red); opacity: 1; }
+
+        /* ── PLAN — bloques (separadores de sección) ── */
+        .s-bloque-hdr {
+            font-size: 0.60rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; padding: 8px 2px 4px; color: var(--muted);
+            border-top: 1px solid var(--border); margin-top: 4px;
+        }
+        .s-bloque-hdr:first-child { border-top: none; margin-top: 0; }
+
+        /* ── PLAN ITEM — planificación (amarillo) ── */
+        .s-plan-item.planif { background: #fefce8; border-color: #fde047; }
+        .s-plan-item.planif .pi-titulo { color: #854d0e; }
+
+        /* ── PLAN ITEM — badge Nuevo ── */
+        .s-nuevo-badge {
+            font-size: 0.55rem; font-weight: 700; background: var(--accent);
+            color: #fff; padding: 1px 5px; border-radius: 8px;
+            text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;
+        }
+
+        /* ── PLAN ITEM — botón planificación (!) ── */
+        .s-btn-planif {
+            background: none; border: 1px solid var(--border); color: var(--muted);
+            font-size: 0.68rem; font-weight: 700; padding: 0 5px; border-radius: 4px;
+            cursor: pointer; flex-shrink: 0; opacity: 0; transition: opacity 0.12s;
+            line-height: 1.6;
+        }
+        .s-plan-item:hover .s-btn-planif { opacity: 1; }
+        .s-plan-item.planif .s-btn-planif { background: #fef08a; border-color: #fde047; color: #854d0e; }
+
+        /* ── MENSAJES — sección colapsable ── */
+        .s-mensajes-hdr {
+            display: flex; align-items: center; gap: 5px; cursor: pointer;
+            font-size: 0.60rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; padding: 8px 2px 4px;
+            border-top: 1px solid var(--border); margin-top: 4px; color: var(--muted);
+            user-select: none;
+        }
+        .chevron-m { font-size: 0.58rem; transition: transform 0.15s; }
+        .s-mensajes-hdr.collapsed .chevron-m { transform: rotate(-90deg); }
+        .s-mensajes-body.hidden { display: none; }
+
+        /* ── MODAL REVISIÓN ANTERIOR ── */
+        #revision-modal {
+            display: none; position: absolute; top: 0; left: 0; right: 0;
+            bottom: 0; background: rgba(15,23,42,0.55); z-index: 200;
+            align-items: flex-start; justify-content: center; padding: 10px;
+        }
+        #revision-modal.show { display: flex; }
+        #revision-inner {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: 10px; width: 100%; max-height: 80%;
+            display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+        }
+        #revision-hdr {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; background: #f8fafc; border-bottom: 1px solid var(--border);
+            font-size: 0.72rem; font-weight: 700; flex-shrink: 0;
+        }
+        #revision-hdr button { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+        #revision-body { padding: 10px 12px; overflow-y: auto; font-size: 0.8rem; }
+        .rev-it { padding: 5px 0; border-bottom: 1px solid var(--border); color: var(--text); }
+        .rev-it:last-child { border-bottom: none; }
+
+        /* ── CHEATSHEET MARKDOWN ── */
+        #md-cheat {
+            display: none; position: fixed; inset: 0;
+            background: rgba(15,23,42,0.5); z-index: 500;
+            align-items: center; justify-content: center;
+        }
+        #md-cheat.show { display: flex; }
+        #md-cheat-box {
+            background: #1e293b; color: #e2e8f0;
+            border-radius: 12px; width: 420px; max-width: 92vw;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+            overflow: hidden;
+        }
+        #md-cheat-hdr {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; background: #0f172a;
+            font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em;
+            text-transform: uppercase; color: #94a3b8;
+        }
+        #md-cheat-hdr button {
+            background: none; border: none; color: #64748b; cursor: pointer;
+            font-size: 1rem; line-height: 1; padding: 2px 4px;
+        }
+        #md-cheat-hdr button:hover { color: #e2e8f0; }
+        #md-cheat-body { padding: 14px 16px; font-size: 0.8rem; line-height: 1.6; }
+        .cheat-sec { margin-bottom: 12px; }
+        .cheat-sec:last-child { margin-bottom: 0; }
+        .cheat-sec-title {
+            font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: #64748b; margin-bottom: 5px;
+            border-bottom: 1px solid #334155; padding-bottom: 3px;
+        }
+        .cheat-row { display: flex; align-items: baseline; gap: 10px; padding: 2px 0; }
+        .cheat-code {
+            font-family: 'Courier New', monospace; font-size: 0.78rem;
+            background: #0f172a; color: #7dd3fc; padding: 1px 6px;
+            border-radius: 4px; white-space: nowrap; flex-shrink: 0; min-width: 130px;
+        }
+        .cheat-desc { color: #cbd5e1; font-size: 0.78rem; }
+        .cheat-foot {
+            margin-top: 10px; padding-top: 8px; border-top: 1px solid #334155;
+            font-size: 0.7rem; color: #475569; text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <!-- Modo dashboard -->
+    <div id="hdr-dash">
+        <button id="btn-ir-hoy" onclick="volverAHoy()">↩ HOY</button>
+        <button class="hdr-cal-btn" onclick="toggleCalendario()" title="Calendario">📅</button>
+        <span id="header-status"></span>
+    </div>
+    <!-- Modo sesión -->
+    <div id="hdr-ses">
+        <div class="hdr-ses-left">
+            <button class="hdr-btn" onclick="volverDashboard()">← VOLVER</button>
+            <button class="hdr-cal-btn" onclick="toggleCalendario()" title="Calendario">📅</button>
+            <span id="hdr-ses-titulo"></span>
+            <span id="sync-label"></span>
+        </div>
+        <div class="hdr-ses-right">
+            <button class="hdr-btn" onclick="abrirPizarra()">PRESENTAR ↗</button>
+        </div>
+    </div>
+</div>
+
+<div id="calendario-wrap">
+    <div class="cal-nav">
+        <button class="cal-btn" onclick="navCalendario(-1)">‹</button>
+        <div class="cal-mes" id="cal-mes-label"></div>
+        <button class="cal-btn" onclick="navCalendario(1)">›</button>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+</div>
+
+<div id="main">
+
+    <div id="vista-dashboard">
+        <div id="grid"></div>
+    </div>
+
+    <div id="vista-sesion">
+        <div class="s-split modo-plan">
+            <div class="s-col s-col-plan" style="position:relative">
+                <div class="s-col-hdr">Plan de clase
+                    <div class="ur-btns">
+                        <button id="btn-undo" onclick="undoAction()" title="Deshacer (Ctrl+Z)" disabled>↩</button>
+                        <button id="btn-redo" onclick="redoAction()" title="Rehacer (Ctrl+Shift+Z)" disabled>↪</button>
+                    </div>
+                </div>
+                <div id="revision-modal">
+                    <div id="revision-inner">
+                        <div id="revision-hdr">
+                            <span id="revision-titulo">Revisión — clase anterior</span>
+                            <button onclick="cerrarRevision()">✕</button>
+                        </div>
+                        <div id="revision-body"><div class="vacio">Cargando...</div></div>
+                    </div>
+                </div>
+                <div class="s-col-body" id="col-plan-body">
+                    <div id="plan-lista"></div>
+                </div>
+                <div class="s-add">
+                    <textarea id="plan-input"
+                        placeholder="Título de la actividad&#10;- sub-ítem (opcional)"
+                        rows="1"
+                        onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();accionPlan()}"
+                        oninput="autoExpandTextarea(this)"></textarea>
+                    <div class="s-add-btns">
+                        <button id="btn-plan-cancel" onclick="cancelarEdicion()">✕</button>
+                        <button id="btn-plan-action" onclick="accionPlan()" title="Agregar (Ctrl+Enter)">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="rev-resize"></div>
+
+            <div class="s-col s-col-editor">
+                <div class="s-col-hdr">Presentación</div>
+                <textarea id="pres-area" placeholder="# Título&#10;---&#10;## Subtítulo&#10;- ítem 1&#10;- ítem 2"></textarea>
+                <div class="s-editor-footer" id="pres-status"></div>
+            </div>
+
+            <div class="s-col s-col-preview">
+                <div class="s-col-hdr" id="prev-col-hdr"><span id="prev-col-hdr-txt">Revisión</span>
+                    <div class="slides-ur-btns" id="slides-ur-wrap" style="display:none">
+                        <button id="btn-undo-slides" onclick="undoSlides()" title="Deshacer slide (Ctrl+Z en preview)" disabled>↩</button>
+                        <button id="btn-redo-slides" onclick="redoSlides()" title="Rehacer slide" disabled>↪</button>
+                        <button id="btn-slides-cols" onclick="toggleSlidesCols()" title="Alternar 1/2 columnas" style="margin-left:4px" data-cols="1">⊞</button>
+                        <button onclick="toggleCheatsheet()" title="Referencia markdown (?)" style="margin-left:4px">?</button>
+                    </div>
+                </div>
+                <div class="s-col-body cols-1" id="prev-body" style="display:none"></div>
+                <div id="rev-panel"></div>
+            </div>
+
+            <div id="modo-toggle" onclick="toggleModo()" title="Cambiar modo (Tab)">⇄</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const NOMBRE_CORTO = { 'KIDS CASTIGADAS': 'KIDS' };
+
+// ═══════════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════════
+let sb;
+let contextos      = {};
+let horarioDia     = {};
+let sesionesMap    = {};
+let planMap        = {};
+let pendientesMap  = {};
+let presMap        = {};
+let sesionActual   = null;
+let presTimer      = null;
+let calMes         = new Date();
+let vistaOrigen    = 'dashboard';
+let diaNavegado    = null;
+let slides         = [];
+let editandoId        = null;
+let editandoEl        = null;
+let modoTriptico      = 'plan';
+let undoStack         = [];
+let redoStack         = [];
+let dragSnapshotBefore = null;
+let undoStackSlides   = [];
+let redoStackSlides   = [];
+let slidesColCount    = localStorage.getItem('portal_slides_cols') || '1';
+let zonaCtrlZ         = 'plan';   // 'plan' | 'slides'
+let dragSlideSrc           = null;
+let presAreaTextoGuardado  = null;
+
+const CATS_PLAN = new Set([
+    'pendientes_sala', 'pendientes_planificacion',
+    'posible_repertorio', 'mensajes'
+]);
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+    setStatus('Conectando...');
+    try {
+        sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+        await Promise.all([loadContextos(), loadHorario()]);
+        await crearSesionesPendientes();
+        await renderDashboard();
+        await asignarPendientesHuerfanos();
+        setStatus('');
+    } catch (e) {
+        setStatus('Error de conexión');
+        console.error(e);
+    }
+});
+
+function setStatus(msg) { document.getElementById('header-status').textContent = msg; }
+
+function setSyncState(state) {
+    const lbl = document.getElementById('sync-label');
+    if (!lbl) return;
+    lbl.dataset.state = state;
+    if (state === 'saving') { lbl.textContent = 'guardando…'; }
+    else if (state === 'saved') {
+        lbl.textContent = 'guardado ✓';
+        setTimeout(() => { lbl.textContent = ''; delete lbl.dataset.state; }, 2000);
+    } else if (state === 'error') {
+        lbl.textContent = 'error al guardar';
+    } else {
+        lbl.textContent = '';
+        delete lbl.dataset.state;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// HISTORIAL — Undo / Redo
+// ═══════════════════════════════════════════════════════════
+function resetHistorial() {
+    undoStack = [];
+    redoStack = [];
+    undoStackSlides = [];
+    redoStackSlides = [];
+    actualizarBotonesUR();
+    actualizarBotonesURSlides();
+}
+
+function pushUndo(op) {
+    undoStack.push(op);
+    redoStack = [];
+    actualizarBotonesUR();
+}
+
+function actualizarBotonesUR() {
+    const u = document.getElementById('btn-undo');
+    const r = document.getElementById('btn-redo');
+    if (u) u.disabled = !undoStack.length;
+    if (r) r.disabled = !redoStack.length;
+}
+
+async function undoAction() {
+    if (!undoStack.length || !sesionActual) return;
+    const op = undoStack.pop();
+    const inv = await aplicarOp(op);
+    if (inv) redoStack.push(inv);
+    actualizarBotonesUR();
+}
+
+async function redoAction() {
+    if (!redoStack.length || !sesionActual) return;
+    const op = redoStack.pop();
+    const inv = await aplicarOp(op);
+    if (inv) undoStack.push(inv);
+    actualizarBotonesUR();
+}
+
+async function aplicarOp(op) {
+    if (op.type === 'restaurar_texto') {
+        const el = document.querySelector(`#plan-lista [data-id="${op.id}"]`);
+        const textoActual = el?.dataset.texto || '';
+        await sb.from('plan_sesion_items').update({ texto: op.texto }).eq('id', op.id);
+        if (el) {
+            const nd = { id: op.id, texto: op.texto, categoria: op.categoria,
+                         origen: op.origen, completado: false, incluido: true,
+                         pendiente_id: null, es_planificacion: op.esPlani, es_nuevo: false };
+            el.replaceWith(buildItemEl(nd, op.bloque));
+        }
+        return { ...op, texto: textoActual };
+    }
+
+    if (op.type === 'reinsertar') {
+        const { data } = await sb.from('plan_sesion_items').insert({
+            sesion_id: sesionActual.id, texto: op.item.texto,
+            categoria: op.item.categoria, origen: op.item.origen,
+            completado: false, incluido: true,
+            es_planificacion: op.item.es_planificacion || false,
+        }).select().single();
+        if (data) insertItemEnBloque(buildItemEl(data, op.bloque), op.bloque);
+        return { type: 'eliminar_id', id: data?.id, item: op.item, bloque: op.bloque };
+    }
+
+    if (op.type === 'eliminar_id') {
+        await sb.from('plan_sesion_items').delete().eq('id', op.id);
+        document.querySelector(`#plan-lista [data-id="${op.id}"]`)?.remove();
+        const lista = document.getElementById('plan-lista');
+        if (!lista.querySelectorAll('.s-plan-item').length)
+            lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>';
+        return { type: 'reinsertar', item: op.item, bloque: op.bloque };
+    }
+
+    if (op.type === 'reincluir') {
+        await sb.from('plan_sesion_items').update({ incluido: true }).eq('id', op.id);
+        insertItemEnBloque(buildItemEl(op.item, op.bloque), op.bloque);
+        return { type: 'excluir', id: op.id, item: op.item, bloque: op.bloque };
+    }
+
+    if (op.type === 'excluir') {
+        await sb.from('plan_sesion_items').update({ incluido: false }).eq('id', op.id);
+        document.querySelector(`#plan-lista [data-id="${op.id}"]`)?.remove();
+        const lista = document.getElementById('plan-lista');
+        if (!lista.querySelectorAll('.s-plan-item').length)
+            lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>';
+        return { type: 'reincluir', id: op.id, item: op.item, bloque: op.bloque };
+    }
+
+    if (op.type === 'restaurar_orden') {
+        const snap = snapshotOrden();
+        aplicarSnapshotOrden(op.snapshot);
+        await actualizarOrden();
+        return { type: 'restaurar_orden', snapshot: snap };
+    }
+
+    return null;
+}
+
+function snapshotOrden() {
+    return [...document.querySelectorAll('#plan-lista .s-plan-item')]
+        .map((el, i) => ({ id: el.dataset.id, orden: i }));
+}
+
+function aplicarSnapshotOrden(snapshot) {
+    const lista = document.getElementById('plan-lista');
+    const elMap = {};
+    [...lista.querySelectorAll('.s-plan-item')].forEach(el => elMap[el.dataset.id] = el);
+    const mensajesWrap = lista.querySelector('.s-mensajes-hdr')?.parentElement;
+    [...snapshot].sort((a, b) => a.orden - b.orden).forEach(o => {
+        const el = elMap[o.id];
+        if (!el) return;
+        if (mensajesWrap) lista.insertBefore(el, mensajesWrap);
+        else lista.appendChild(el);
+    });
+}
+
+function fmtTituloSesion(nombre, fechaStr) {
+    const d   = new Date(fechaStr + 'T12:00:00');
+    const dia = d.toLocaleDateString('es-CL', { weekday: 'long' });
+    const num = d.getDate();
+    const mes = d.toLocaleDateString('es-CL', { month: 'long' });
+    return `${nombre}, ${dia} ${num} de ${mes}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// CARGA BASE
+// ═══════════════════════════════════════════════════════════
+async function loadContextos() {
+    const { data } = await sb.from('contextos').select('id, nombre, tipo').eq('activo', true);
+    (data || []).forEach(c => contextos[c.id] = c);
+}
+
+async function loadHorario() {
+    const { data } = await sb.from('horario').select('*').eq('activo', true).order('orden');
+    (data || []).forEach(h => {
+        if (!horarioDia[h.dia_semana]) horarioDia[h.dia_semana] = [];
+        horarioDia[h.dia_semana].push(h);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════
+// FECHAS
+// ═══════════════════════════════════════════════════════════
+function lunesDeSemana(base) {
+    const d = new Date(base);
+    const dow = d.getDay();
+    const off = dow === 0 ? 1 : dow === 6 ? 2 : -(dow - 1);
+    d.setDate(d.getDate() + off);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function getOchoDias() {
+    const lunes = lunesDeSemana(new Date());
+    return [0, 1, 2, 3, 7, 8, 9, 10].map((off, i) => {
+        const d = new Date(lunes);
+        d.setDate(lunes.getDate() + off);
+        return { fecha: d, fechaStr: isoDate(d), diaSemana: i % 4, semana: i < 4 ? 1 : 2 };
+    });
+}
+
+function isoDate(d) { return d.toISOString().split('T')[0]; }
+function fmtFecha(d) { return d.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' }); }
+function fmtSemana(lun) { return 'Semana del ' + lun.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' }); }
+function esHoy(str)  { return isoDate(new Date()) === str; }
+
+function getDiaActivo() {
+    const hoy = new Date();
+    const dow = hoy.getDay();               // 0=dom, 1=lun…4=jue, 5=vie, 6=sab
+    if (dow >= 1 && dow <= 4) return isoDate(hoy);
+    const diff = dow === 5 ? 3 : dow === 6 ? 2 : 1;  // vie→+3, sab→+2, dom→+1
+    const prox = new Date(hoy);
+    prox.setDate(hoy.getDate() + diff);
+    return isoDate(prox);
+}
+
+function abrirDia(hdrEl) {
+    const yaAbierto = !hdrEl.classList.contains('collapsed');
+    document.querySelectorAll('.dia-header').forEach(h => {
+        h.classList.add('collapsed');
+        h.nextElementSibling.classList.add('hidden');
+    });
+    if (!yaAbierto) {
+        hdrEl.classList.remove('collapsed');
+        hdrEl.nextElementSibling.classList.remove('hidden');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD — vista principal (hoy en adelante)
+// ═══════════════════════════════════════════════════════════
+async function renderDashboard(expandirFecha = null) {
+    const hoy    = isoDate(new Date());
+    const activo = (expandirFecha && expandirFecha >= hoy) ? expandirFecha : getDiaActivo();
+    const visibles = getOchoDias().filter(d => d.fechaStr >= hoy);
+
+    await loadDatos(visibles.map(d => d.fechaStr));
+
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+
+    [1, 2].forEach(semana => {
+        const dias = visibles.filter(d => d.semana === semana);
+        if (!dias.length) return;
+
+        const grupo = document.createElement('div');
+        grupo.className = `semana-grupo semana-${semana}`;
+
+        const lbl = document.createElement('div');
+        lbl.className   = 'semana-label';
+        lbl.textContent = semana === 1 ? 'Esta semana' : 'Semana siguiente';
+        grupo.appendChild(lbl);
+
+        dias.forEach(dia => grupo.appendChild(buildDiaEl(dia, semana, dia.fechaStr === activo)));
+        grid.appendChild(grupo);
+    });
+    requestAnimationFrame(ajustarNombres);
+}
+
+// Vista histórica: desde la semana del día seleccionado hasta semana siguiente de hoy
+async function renderDia(fechaStr, diaSemana) {
+    const hoy    = isoDate(new Date());
+    const lunSel = lunesDeSemana(new Date(fechaStr + 'T12:00:00'));
+    const lunHoy = lunesDeSemana(new Date());
+    const lunSig = new Date(lunHoy);
+    lunSig.setDate(lunHoy.getDate() + 7);
+
+    // Todas las semanas de la seleccionada hasta semana siguiente de hoy
+    const semanas = [];
+    const cur = new Date(lunSel);
+    while (isoDate(cur) <= isoDate(lunSig)) {
+        semanas.push(new Date(cur));
+        cur.setDate(cur.getDate() + 7);
+    }
+
+    // Precargar todos los datos del rango
+    const todasFechas = semanas.flatMap(lun =>
+        [0, 1, 2, 3].map(off => { const d = new Date(lun); d.setDate(lun.getDate() + off); return isoDate(d); })
+    );
+    await loadDatos(todasFechas);
+
+    const lunHoyStr = isoDate(lunHoy);
+    const lunSigStr = isoDate(lunSig);
+
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+
+    semanas.forEach((lun, idx) => {
+        const lunStr = isoDate(lun);
+        const semana = (idx % 2) + 1;   // alterna 1, 2, 1, 2...
+
+        const grupo = document.createElement('div');
+        grupo.className = `semana-grupo semana-${semana}`;
+
+        const lbl = document.createElement('div');
+        lbl.className   = 'semana-label';
+        if (lunStr === lunSigStr)      lbl.textContent = 'Semana siguiente';
+        else if (lunStr === lunHoyStr) lbl.textContent = 'Esta semana';
+        else                           lbl.textContent = fmtSemana(lun);
+        grupo.appendChild(lbl);
+
+        [0, 1, 2, 3].forEach(off => {
+            const d = new Date(lun);
+            d.setDate(lun.getDate() + off);
+            const dStr = isoDate(d);
+            grupo.appendChild(buildDiaEl(
+                { fecha: d, fechaStr: dStr, diaSemana: off, semana },
+                semana,
+                dStr === fechaStr
+            ));
+        });
+
+        grid.appendChild(grupo);
+    });
+
+    requestAnimationFrame(ajustarNombres);
+}
+
+async function loadDatos(fechas) {
+    const desdeFecha = fechas.length
+        ? fechas.reduce((a, b) => a < b ? a : b)
+        : isoDate(new Date());
+
+    const { data: sData } = await sb.from('sesiones')
+        .select('id, contexto_id, fecha')
+        .gte('fecha', desdeFecha);
+
+    sesionesMap = {};
+    const ids = [];
+    (sData || []).forEach(s => {
+        sesionesMap[`${s.contexto_id}||${s.fecha}`] = s;
+        ids.push(s.id);
+    });
+
+    if (!ids.length) return;
+
+    const [{ data: pData }, { data: prData }, { data: pendData }] = await Promise.all([
+        sb.from('plan_sesion_items')
+            .select('id, sesion_id, completado, incluido, es_planificacion')
+            .in('sesion_id', ids),
+        sb.from('presentaciones').select('sesion_id, contenido').in('sesion_id', ids),
+        sb.from('pendientes')
+            .select('sesion_id, categoria')
+            .eq('estado', 'activo')
+            .in('sesion_id', ids),
+    ]);
+
+    planMap = {};
+    (pData || []).forEach(p => {
+        if (!planMap[p.sesion_id]) planMap[p.sesion_id] = [];
+        planMap[p.sesion_id].push(p);
+    });
+
+    pendientesMap = {};
+    (pendData || []).forEach(p => {
+        if (!p.sesion_id) return;
+        if (!pendientesMap[p.sesion_id]) pendientesMap[p.sesion_id] = {};
+        pendientesMap[p.sesion_id][p.categoria] =
+            (pendientesMap[p.sesion_id][p.categoria] || 0) + 1;
+    });
+
+    presMap = {};
+    (prData || []).forEach(p => presMap[p.sesion_id] = p);
+}
+
+function buildDiaEl(diaInfo, semana, esActivo = false) {
+    const sec = document.createElement('div');
+    sec.className = `dia-seccion semana-${semana}`;
+
+    const hdr = document.createElement('div');
+    hdr.className = 'dia-header' + (esActivo ? '' : ' collapsed');
+    hdr.innerHTML = `
+        <span class="chevron-dia">▾</span>
+        <span>${fmtFecha(diaInfo.fecha)}</span>
+        ${esHoy(diaInfo.fechaStr) ? '<span class="hoy-badge">HOY</span>' : ''}
+    `;
+
+    const fila = document.createElement('div');
+    fila.className = 'contextos-fila' + (esActivo ? '' : ' hidden');
+
+    (horarioDia[diaInfo.diaSemana] || []).forEach(h => {
+        const ctx = contextos[h.contexto_id];
+        if (!ctx) return;
+        fila.appendChild(buildCard(ctx, h.contexto_id, diaInfo.fechaStr));
+    });
+
+    if (!fila.children.length) {
+        fila.innerHTML = '<span class="vacio" style="padding:4px 0">Sin contextos</span>';
+    }
+
+    hdr.addEventListener('click', () => abrirDia(hdr));
+
+    sec.appendChild(hdr);
+    sec.appendChild(fila);
+    return sec;
+}
+
+function esHoyOMañana(fechaStr) {
+    const hoy    = new Date();
+    const manana = new Date(hoy); manana.setDate(hoy.getDate() + 1);
+    return fechaStr === isoDate(hoy) || fechaStr === isoDate(manana);
+}
+
+function getEstadoPlan(sid, fechaStr) {
+    if (!sid) return 'gray';
+    const items = (planMap[sid] || []).filter(i => i.incluido !== false);
+    const pends = pendientesMap[sid] || {};
+
+    if (!items.length) {
+        const hayPlanif = (pends['pendientes_planificacion'] || 0) > 0;
+        if (!hayPlanif) return 'gray';
+        return esHoyOMañana(fechaStr) ? 'red' : 'yellow';
+    }
+
+    const planifPendientes = items.filter(i => i.es_planificacion && !i.completado);
+    if (!planifPendientes.length) return 'green';
+    return esHoyOMañana(fechaStr) ? 'red' : 'yellow';
+}
+
+function dotClasePlan(estado) {
+    if (estado === 'green')  return 'plan-on';
+    if (estado === 'yellow') return 'plan-yellow';
+    if (estado === 'red')    return 'plan-red';
+    return '';
+}
+
+function buildCard(ctx, cid, fechaStr) {
+    const sesion    = sesionesMap[`${cid}||${fechaStr}`];
+    const sid       = sesion?.id;
+    const tienePres = sid && !!(presMap[sid]?.contenido?.trim());
+    const tieneArr  = hayArrastre(cid, fechaStr);
+    const estadoPlan = getEstadoPlan(sid, fechaStr);
+
+    const card = document.createElement('div');
+    card.className = 'ctx-card';
+    card.innerHTML = `
+        <span class="ctx-nombre" data-nombre="${ctx.nombre}" title="${ctx.nombre}">${ctx.nombre}</span>
+        <div class="semaforo">
+            <span class="sem-dot ${dotClasePlan(estadoPlan)}" title="Plan"></span>
+            <span class="sem-dot ${tienePres ? 'pres-on' : ''}" title="Presentación"></span>
+            <span class="sem-dot ${tieneArr  ? 'arr-on'  : ''}" title="Arrastre"></span>
+        </div>
+    `;
+    card.addEventListener('click', () => abrirSesion(cid, fechaStr, ctx.nombre));
+    return card;
+}
+
+function hayArrastre(cid, fechaStr) {
+    let ultimaFecha = '';
+    let ultimaSid   = null;
+    Object.entries(sesionesMap).forEach(([key, s]) => {
+        const [c, f] = key.split('||');
+        if (c === cid && f < fechaStr && f > ultimaFecha) {
+            ultimaFecha = f;
+            ultimaSid   = s.id;
+        }
+    });
+    if (!ultimaSid) return false;
+    return (planMap[ultimaSid] || []).some(i => !i.completado && i.incluido !== false);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CALENDARIO
+// ═══════════════════════════════════════════════════════════
+function toggleCalendario() {
+    const wrap = document.getElementById('calendario-wrap');
+    wrap.classList.toggle('visible');
+    if (wrap.classList.contains('visible')) {
+        calMes = new Date();
+        renderCalendario();
+    }
+}
+
+function navCalendario(dir) {
+    calMes = new Date(calMes.getFullYear(), calMes.getMonth() + dir, 1);
+    renderCalendario();
+}
+
+function renderCalendario() {
+    const año = calMes.getFullYear();
+    const mes = calMes.getMonth();
+    const hoy = isoDate(new Date());
+
+    document.getElementById('cal-mes-label').textContent =
+        new Date(año, mes, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+
+    const grid = document.getElementById('cal-grid');
+    grid.innerHTML = '';
+
+    ['L','M','M','J','V','S','D'].forEach(d => {
+        const el = document.createElement('div');
+        el.className = 'cal-dow';
+        el.textContent = d;
+        grid.appendChild(el);
+    });
+
+    const primerDow = new Date(año, mes, 1).getDay();
+    const startCol  = primerDow === 0 ? 6 : primerDow - 1;
+    for (let i = 0; i < startCol; i++) {
+        const el = document.createElement('div');
+        el.className = 'cal-dia';
+        grid.appendChild(el);
+    }
+
+    const diasEnMes = new Date(año, mes + 1, 0).getDate();
+    for (let d = 1; d <= diasEnMes; d++) {
+        const fecha   = new Date(año, mes, d);
+        const dow     = fecha.getDay();  // 0=dom
+        const str     = isoDate(fecha);
+        const escolar = dow >= 1 && dow <= 4;
+
+        const el = document.createElement('div');
+        el.textContent = d;
+
+        if (str === hoy) {
+            el.className = 'cal-dia hoy';
+        } else if (escolar) {
+            el.className = 'cal-dia escolar';
+        } else {
+            el.className = 'cal-dia';
+        }
+
+        if (escolar) {
+            el.addEventListener('click', () => navegarADia(str, dow - 1));
+        }
+
+        grid.appendChild(el);
+    }
+}
+
+function navegarADia(fechaStr, diaSemana) {
+    document.getElementById('calendario-wrap').classList.remove('visible');
+
+    const hoy = isoDate(new Date());
+    if (fechaStr >= hoy) {
+        volverAHoy();
+        return;
+    }
+
+    vistaOrigen = 'dia';
+    diaNavegado = { fechaStr, diaSemana };
+    document.getElementById('vista-sesion').classList.remove('show');
+    document.body.classList.remove('sesion-activa');
+    document.getElementById('vista-dashboard').style.display = 'block';
+    document.getElementById('btn-ir-hoy').classList.add('visible');
+    renderDia(fechaStr, diaSemana);
+}
+
+function volverAHoy() {
+    vistaOrigen = 'dashboard';
+    diaNavegado = null;
+    document.getElementById('btn-ir-hoy').classList.remove('visible');
+    document.getElementById('vista-sesion').classList.remove('show');
+    document.body.classList.remove('sesion-activa');
+    document.getElementById('vista-dashboard').style.display = 'block';
+    renderDashboard();
+}
+
+// ═══════════════════════════════════════════════════════════
+// VISTA SESIÓN
+// ═══════════════════════════════════════════════════════════
+async function abrirSesion(cid, fechaStr, nombre) {
+    document.getElementById('vista-dashboard').style.display = 'none';
+    document.getElementById('vista-sesion').classList.add('show');
+    document.body.classList.add('sesion-activa');
+    document.getElementById('hdr-ses-titulo').textContent = fmtTituloSesion(nombre, fechaStr);
+    document.getElementById('plan-lista').innerHTML    = '<div class="cargando">Cargando...</div>';
+    document.getElementById('pres-area').value         = '';
+    document.getElementById('pres-status').textContent = '';
+    document.getElementById('prev-body').innerHTML     = '';
+    cerrarRevision();
+    resetHistorial();
+    resetModoEdicion();
+
+    const sesion = await getOrCreate(cid, fechaStr);
+    sesionActual = { id: sesion.id, contexto_id: cid, fecha: fechaStr, nombre };
+
+    modoTriptico = localStorage.getItem(`portal_modo_${cid}`) || 'plan';
+    aplicarModo();
+
+    await Promise.all([
+        cargarPresentacion(sesion.id),
+        cargarPlan(sesion.id, cid, fechaStr),
+        cargarRevisionInline(cid, fechaStr),
+    ]);
+}
+
+async function getOrCreate(cid, fechaStr) {
+    const { data: ex } = await sb.from('sesiones')
+        .select('id').eq('contexto_id', cid).eq('fecha', fechaStr).maybeSingle();
+    if (ex) return ex;
+    const { data: nueva } = await sb.from('sesiones')
+        .insert({ contexto_id: cid, fecha: fechaStr })
+        .select('id').single();
+    return nueva;
+}
+
+function volverDashboard() {
+    clearTimeout(presTimer);
+    presTimer = null;
+    const fechaEditada = sesionActual?.fecha;
+    cerrarRevision();
+    document.querySelector('.s-col-plan').style.width = '';
+    document.getElementById('vista-sesion').classList.remove('show');
+    document.body.classList.remove('sesion-activa');
+    document.getElementById('vista-dashboard').style.display = 'block';
+    sesionActual = null;
+
+    if (vistaOrigen === 'dia' && diaNavegado) {
+        renderDia(diaNavegado.fechaStr, diaNavegado.diaSemana);
+    } else {
+        renderDashboard(fechaEditada);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// PRESENTACIÓN
+// ═══════════════════════════════════════════════════════════
+async function cargarPresentacion(sid) {
+    const { data } = await sb.from('presentaciones')
+        .select('contenido').eq('sesion_id', sid).maybeSingle();
+    const area = document.getElementById('pres-area');
+    area.value = data?.contenido || '';
+    presAreaTextoGuardado = area.value;
+    actualizarPreview();
+    area.oninput = () => {
+        document.getElementById('pres-status').textContent = 'Sin guardar...';
+        clearTimeout(presTimer);
+        presTimer = setTimeout(() => guardarPres(sid), 1200);
+        actualizarPreview();
+    };
+}
+
+async function guardarPres(sid) {
+    const contenido = document.getElementById('pres-area').value;
+    // Empujar undo de slides si el texto cambió desde el último guardado
+    if (presAreaTextoGuardado !== null && presAreaTextoGuardado !== contenido) {
+        pushUndoSlides(presAreaTextoGuardado);
+    }
+    presAreaTextoGuardado = contenido;
+    setSyncState('saving');
+    try {
+        await sb.from('presentaciones').upsert(
+            { sesion_id: sid, contenido, updated_at: new Date().toISOString() },
+            { onConflict: 'sesion_id' }
+        );
+        setSyncState('saved');
+        document.getElementById('pres-status').textContent = 'Guardado ✓';
+        setTimeout(() => document.getElementById('pres-status').textContent = '', 2500);
+    } catch (e) {
+        setSyncState('error');
+    }
+}
+
+function abrirPizarra() {
+    if (!sesionActual) return;
+    window.open(`../PIZARRA/index.html?sesion=${sesionActual.id}`, '_blank');
+}
+
+const TEMAS_PIZARRA = [
+    { id:'polar',   font:'system-ui,-apple-system,sans-serif', bg:'#ffffff', text:'#1a1a2e', h1:'#0f172a', h2:'#64748b', c1:'#ea580c', c2:'#2563eb', li:'#ea580c', hlBg:'#fff7ed', hlBorder:'#ea580c', hlText:'#9a3412' },
+    { id:'amable',  font:'"Nunito",system-ui,sans-serif',       bg:'#fafaf5', text:'#1c1917', h1:'#0d7377', h2:'#0f9b8e', c1:'#f43f5e', c2:'#7c3aed', li:'#0d7377', hlBg:'#f0fdf4', hlBorder:'#16a34a', hlText:'#14532d' },
+    { id:'arenoso', font:'"Poppins",system-ui,sans-serif',      bg:'#fdf8f0', text:'#2d1b0e', h1:'#c2410c', h2:'#92400e', c1:'#dc2626', c2:'#1d4ed8', li:'#c2410c', hlBg:'#fef9c3', hlBorder:'#ca8a04', hlText:'#713f12' },
+    { id:'fresco',  font:'"DM Sans",system-ui,sans-serif',      bg:'#f0f4f8', text:'#1e293b', h1:'#0e4c92', h2:'#1e40af', c1:'#d97706', c2:'#0891b2', li:'#0e4c92', hlBg:'#eff6ff', hlBorder:'#3b82f6', hlText:'#1e3a8a' },
+];
+function temaParaSesion(uuid) {
+    let h = 0;
+    for (let i = 0; i < uuid.length; i++) h = Math.imul(31, h) + uuid.charCodeAt(i) | 0;
+    return TEMAS_PIZARRA[Math.abs(h) % TEMAS_PIZARRA.length];
+}
+function aplicarTemaPreview(sesionId) {
+    const body = document.getElementById('prev-body');
+    if (!body) return;
+    const t = temaParaSesion(sesionId);
+    const vars = { '--slide-bg': t.bg, '--slide-text': t.text, '--slide-h1': t.h1, '--slide-h2': t.h2,
+                   '--slide-c1': t.c1, '--slide-c2': t.c2, '--slide-li': t.li,
+                   '--hl-bg': t.hlBg, '--hl-border': t.hlBorder, '--hl-text': t.hlText,
+                   '--slide-font': t.font };
+    Object.entries(vars).forEach(([k, v]) => body.style.setProperty(k, v));
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLAN
+// ═══════════════════════════════════════════════════════════
+async function cargarPlan(sid, cid, fechaStr) {
+    const esOctavo = sesionActual?.nombre === 'OCTAVO';
+    const cats = new Set(CATS_PLAN);
+    if (esOctavo) cats.add('jefatura');
+
+    const [{ data: existentes }, { data: pends }, anterior] = await Promise.all([
+        sb.from('plan_sesion_items')
+            .select('*').eq('sesion_id', sid).eq('incluido', true).order('orden'),
+        sb.from('pendientes')
+            .select('*').eq('sesion_id', sid).eq('estado', 'activo'),
+        sesionAnterior(cid, fechaStr),
+    ]);
+
+    let arrastres = [];
+    if (anterior) {
+        const { data: arr } = await sb.from('plan_sesion_items')
+            .select('*').eq('sesion_id', anterior.id)
+            .eq('completado', false).eq('incluido', true);
+        arrastres = arr || [];
+    }
+
+    const pendsFiltrados = (pends || []).filter(p => cats.has(p.categoria));
+    const pendIdsEnPlan  = new Set((existentes || []).map(i => i.pendiente_id).filter(Boolean));
+    const textosEnPlan   = new Set((existentes || []).map(i => i.texto));
+    const esNuevo        = (existentes || []).length > 0;
+
+    const pendNuevos  = pendsFiltrados.filter(p => !pendIdsEnPlan.has(p.id) && !textosEnPlan.has(p.texto));
+    const arrNuevos   = arrastres.filter(a => !textosEnPlan.has(a.texto));
+
+    let allItems = [...(existentes || [])];
+    let orden    = allItems.length;
+
+    if (pendNuevos.length) {
+        const ins = pendNuevos.map((p, i) => ({
+            sesion_id:       sid,
+            texto:           p.texto,
+            categoria:       p.categoria,
+            orden:           orden + i,
+            origen:          'srp',
+            pendiente_id:    p.id,
+            completado:      false,
+            incluido:        true,
+            es_planificacion: p.categoria === 'pendientes_planificacion',
+            es_nuevo:        esNuevo,
+        }));
+        const { data: ins2 } = await sb.from('plan_sesion_items').insert(ins).select();
+        allItems = [...allItems, ...(ins2 || [])];
+        orden   += pendNuevos.length;
+    }
+
+    if (arrNuevos.length) {
+        const ins = arrNuevos.map((a, i) => ({
+            sesion_id:       sid,
+            texto:           a.texto,
+            categoria:       a.categoria || '',
+            orden:           orden + i,
+            origen:          'srp',
+            pendiente_id:    a.pendiente_id || null,
+            completado:      false,
+            incluido:        true,
+            es_planificacion: a.es_planificacion || false,
+            es_nuevo:        true,
+        }));
+        const { data: ins2 } = await sb.from('plan_sesion_items').insert(ins).select();
+        allItems = [...allItems, ...(ins2 || [])];
+    }
+
+    renderPlan(allItems);
+}
+
+async function sesionAnterior(cid, fechaStr) {
+    const { data } = await sb.from('sesiones')
+        .select('id, fecha').eq('contexto_id', cid)
+        .lt('fecha', fechaStr).order('fecha', { ascending: false }).limit(1);
+    return data?.[0] || null;
+}
+
+function renderPlan(items) {
+    const lista = document.getElementById('plan-lista');
+    lista.innerHTML = '';
+
+    if (!items.length) {
+        lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>';
+        return;
+    }
+
+    const nuevos     = items.filter(i => i.es_nuevo);
+    const planif     = items.filter(i => !i.es_nuevo && i.es_planificacion);
+    const sala       = items.filter(i => !i.es_nuevo && !i.es_planificacion && i.categoria !== 'mensajes' && i.categoria !== 'posible_repertorio');
+    const repertorio = items.filter(i => !i.es_nuevo && !i.es_planificacion && i.categoria === 'posible_repertorio');
+    const mensajes   = items.filter(i => !i.es_nuevo && !i.es_planificacion && i.categoria === 'mensajes');
+
+    nuevos.forEach(it => lista.appendChild(buildItemEl(it, 'nuevo')));
+    planif.forEach(it => lista.appendChild(buildItemEl(it, 'planif')));
+    sala.forEach(it => lista.appendChild(buildItemEl(it, 'sala')));
+    repertorio.forEach(it => lista.appendChild(buildItemEl(it, 'sala')));
+    if (mensajes.length) lista.appendChild(buildMensajesSec(mensajes));
+}
+
+function addBloqueHdr(parent, texto) {
+    const h = document.createElement('div');
+    h.className   = 's-bloque-hdr';
+    h.textContent = texto;
+    parent.appendChild(h);
+}
+
+function buildMensajesSec(items) {
+    const wrap = document.createElement('div');
+
+    const hdr = document.createElement('div');
+    hdr.className = 's-mensajes-hdr collapsed';
+    hdr.innerHTML = `<span class="chevron-m">▾</span> Mensajes (${items.length})`;
+
+    const body = document.createElement('div');
+    body.className = 's-mensajes-body hidden';
+    items.forEach(it => body.appendChild(buildItemEl(it, 'mensajes')));
+
+    hdr.addEventListener('click', () => {
+        hdr.classList.toggle('collapsed');
+        body.classList.toggle('hidden');
+    });
+
+    wrap.appendChild(hdr);
+    wrap.appendChild(body);
+    return wrap;
+}
+
+function buildTextoItem(texto, completado) {
+    const lines   = (texto || '').split('\n');
+    const primera = lines[0] || '';
+    const bullets = lines.slice(1).map(l => l.trim()).filter(l => l.startsWith('-'));
+
+    const wrap = document.createElement('div');
+    wrap.className = 's-pi-txt' + (completado ? ' hecho' : '');
+
+    const colonIdx = primera.indexOf(':');
+    const esSingleConColon = lines.length === 1
+        && colonIdx > 0
+        && colonIdx < primera.length - 1;
+
+    if (esSingleConColon) {
+        const tituloText = primera.slice(0, colonIdx + 1);
+        const subText    = primera.slice(colonIdx + 1).trim();
+
+        const tituloEl = document.createElement('span');
+        tituloEl.className   = 'pi-titulo pi-inline';
+        tituloEl.textContent = tituloText;
+        wrap.appendChild(tituloEl);
+
+        const subEl = document.createElement('span');
+        subEl.className   = 'pi-inline-sub';
+        subEl.textContent = ' ' + subText;
+        wrap.appendChild(subEl);
+    } else {
+        const tituloEl = document.createElement('span');
+        tituloEl.className   = 'pi-titulo';
+        tituloEl.textContent = primera;
+        wrap.appendChild(tituloEl);
+
+        if (bullets.length) {
+            const ul = document.createElement('ul');
+            ul.className = 'pi-bullets';
+            bullets.forEach(b => {
+                const li = document.createElement('li');
+                li.textContent = b.slice(1).trim();
+                ul.appendChild(li);
+            });
+            wrap.appendChild(ul);
+        }
+    }
+    return wrap;
+}
+
+function buildItemEl(it, bloque) {
+    const b = bloque || (it.es_nuevo ? 'nuevo' : it.es_planificacion ? 'planif' : it.categoria === 'mensajes' ? 'mensajes' : 'sala');
+
+    const el = document.createElement('div');
+    el.className         = 's-plan-item' + (it.es_planificacion ? ' planif' : '') + (it.categoria === 'posible_repertorio' ? ' repertorio' : '');
+    el.dataset.id        = it.id;
+    el.dataset.texto     = it.texto || '';
+    el.dataset.categoria = it.categoria || '';
+    el.dataset.origen    = it.origen || 'manual';
+    el.dataset.esPlani   = it.es_planificacion ? '1' : '0';
+    el.dataset.esNuevo   = it.es_nuevo ? '1' : '0';
+    el.dataset.bloque    = b;
+
+    // Marcar como visto al primer click en el item
+    if (it.es_nuevo) {
+        el.addEventListener('click', () => marcarVisto(el), { once: true });
+    }
+
+    const handle = document.createElement('span');
+    handle.className   = 's-drag-handle';
+    handle.textContent = '⠿';
+    handle.title       = 'Arrastrar para reordenar';
+
+    const txtWrap = buildTextoItem(it.texto, it.completado);
+    txtWrap.addEventListener('dblclick', () => cargarParaEditar(el));
+
+    const btnPlanif = document.createElement('button');
+    btnPlanif.className   = 's-btn-planif';
+    btnPlanif.textContent = '!';
+    btnPlanif.title       = it.es_planificacion ? 'Quitar de planificación' : 'Marcar como por preparar';
+    btnPlanif.addEventListener('click', e => { e.stopPropagation(); togglePlanif(it.id, el); });
+
+    el.appendChild(handle);
+    el.appendChild(txtWrap);
+    el.appendChild(btnPlanif);
+
+    if (it.es_nuevo) {
+        const badge = document.createElement('span');
+        badge.className   = 's-nuevo-badge';
+        badge.textContent = 'Nuevo';
+        el.appendChild(badge);
+    }
+
+    const del = document.createElement('button');
+    del.className   = 's-pi-del';
+    del.textContent = '✕';
+    del.title       = it.origen === 'manual' ? 'Eliminar' : 'No incluir en esta sesión';
+    del.addEventListener('click', e => { e.stopPropagation(); eliminarItem(it.id, el); });
+    el.appendChild(del);
+
+    initDrag(el);
+    return el;
+}
+
+// ── Drag & drop ──────────────────────────────────────────────
+let dragSrcEl = null;
+
+function initDrag(el) {
+    el.draggable = true;
+    el.addEventListener('dragstart', e => {
+        if (el.closest('.s-mensajes-body.hidden')) { e.preventDefault(); return; }
+        dragSrcEl = el;
+        dragSnapshotBefore = snapshotOrden();
+        e.dataTransfer.effectAllowed = 'move';
+        requestAnimationFrame(() => el.classList.add('dragging'));
+    });
+    el.addEventListener('dragend', async () => {
+        el.classList.remove('dragging');
+        document.querySelectorAll('#plan-lista .s-plan-item')
+            .forEach(i => i.classList.remove('drag-over'));
+        const snapAfter = snapshotOrden();
+        await actualizarOrden();
+        if (dragSnapshotBefore && JSON.stringify(dragSnapshotBefore) !== JSON.stringify(snapAfter)) {
+            pushUndo({ type: 'restaurar_orden', snapshot: dragSnapshotBefore });
+        }
+        dragSnapshotBefore = null;
+        dragSrcEl = null;
+    });
+    el.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (dragSrcEl && dragSrcEl !== el && dragSrcEl.dataset.bloque === el.dataset.bloque) {
+            document.querySelectorAll('#plan-lista .s-plan-item')
+                .forEach(i => i.classList.remove('drag-over'));
+            el.classList.add('drag-over');
+        }
+    });
+    el.addEventListener('drop', e => {
+        e.preventDefault();
+        if (!dragSrcEl || dragSrcEl === el) return;
+        if (dragSrcEl.dataset.bloque !== el.dataset.bloque) return;
+        const lista = document.getElementById('plan-lista');
+        const all   = [...lista.querySelectorAll('.s-plan-item')];
+        const srcI  = all.indexOf(dragSrcEl);
+        const tgtI  = all.indexOf(el);
+        if (srcI < tgtI) el.after(dragSrcEl); else el.before(dragSrcEl);
+        el.classList.remove('drag-over');
+    });
+}
+
+async function actualizarOrden() {
+    if (!sesionActual) return;
+    const items = [...document.querySelectorAll('#plan-lista .s-plan-item')];
+    await Promise.all(items.map((el, i) =>
+        sb.from('plan_sesion_items').update({ orden: i }).eq('id', el.dataset.id)
+    ));
+}
+
+function autoExpandTextarea(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 480) + 'px';
+}
+
+
+function accionPlan() {
+    if (editandoId) guardarEdicion();
+    else agregarItem();
+}
+
+async function agregarItem() {
+    const ta    = document.getElementById('plan-input');
+    const texto = ta.value.trim();
+    if (!texto) return;
+    ta.value = '';
+    ta.style.height = 'auto';
+    ta.focus();
+    await addItem(texto, '', 'manual', null);
+}
+
+function cargarParaEditar(el) {
+    const ta = document.getElementById('plan-input');
+    if (ta.value.trim() && editandoId !== el.dataset.id) {
+        if (!confirm('¿Descartar el texto actual?')) return;
+    }
+    if (editandoEl) editandoEl.classList.remove('editing');
+    editandoId = el.dataset.id;
+    editandoEl = el;
+    el.classList.add('editing');
+    ta.value = el.dataset.texto || '';
+    autoExpandTextarea(ta);
+    ta.focus();
+    document.getElementById('btn-plan-action').textContent = '✓';
+    document.getElementById('btn-plan-cancel').style.display = 'inline-block';
+}
+
+async function guardarEdicion() {
+    const ta    = document.getElementById('plan-input');
+    const texto = ta.value.trim();
+    if (!texto) return;
+    const id        = editandoId;
+    const el        = editandoEl;
+    const textoPrev = el?.dataset.texto     || '';
+    const bloque    = el?.dataset.bloque    || 'sala';
+    const categoria = el?.dataset.categoria || '';
+    const origen    = el?.dataset.origen    || 'manual';
+    const esPlani   = el?.dataset.esPlani   === '1';
+
+    setSyncState('saving');
+    let ok = false;
+    try { await sb.from('plan_sesion_items').update({ texto }).eq('id', id); setSyncState('saved'); ok = true; }
+    catch (e) { setSyncState('error'); }
+
+    if (ok && textoPrev !== texto) {
+        pushUndo({ type: 'restaurar_texto', id, texto: textoPrev, bloque, categoria, origen, esPlani });
+    }
+    if (el) {
+        el.replaceWith(buildItemEl(
+            { id, texto, categoria, origen, completado: false, incluido: true, pendiente_id: null, es_planificacion: esPlani, es_nuevo: false },
+            bloque
+        ));
+    }
+    resetModoEdicion();
+}
+
+function cancelarEdicion() {
+    if (editandoEl) editandoEl.classList.remove('editing');
+    resetModoEdicion();
+}
+
+function resetModoEdicion() {
+    editandoId = null;
+    editandoEl = null;
+    const ta = document.getElementById('plan-input');
+    if (ta) { ta.value = ''; ta.style.height = 'auto'; }
+    const btnAct = document.getElementById('btn-plan-action');
+    const btnCan = document.getElementById('btn-plan-cancel');
+    if (btnAct) btnAct.textContent = '+';
+    if (btnCan) btnCan.style.display = 'none';
+}
+
+
+// ── Marcar item "nuevo" como visto ──────────────────────────
+async function marcarVisto(el) {
+    if (el.dataset.esNuevo !== '1') return;
+    el.dataset.esNuevo = '0';
+    const badge = el.querySelector('.s-nuevo-badge');
+    if (badge) badge.remove();
+    await sb.from('plan_sesion_items').update({ es_nuevo: false }).eq('id', el.dataset.id);
+    // Si ya no quedan nuevos, quitar el header de bloque
+    const lista = document.getElementById('plan-lista');
+    if (!lista.querySelector('.s-plan-item[data-es-nuevo="1"]')) {
+        const hdr = [...lista.querySelectorAll('.s-bloque-hdr')]
+            .find(h => h.textContent.startsWith('Nuevo'));
+        if (hdr) hdr.remove();
+    }
+}
+
+// ── Toggle planificación (!) ─────────────────────────────────
+async function togglePlanif(id, el) {
+    const nuevaVal = el.dataset.esPlani !== '1';
+    await sb.from('plan_sesion_items').update({ es_planificacion: nuevaVal }).eq('id', id);
+    // Recargar el plan completo para re-ordenar bloques
+    if (sesionActual) {
+        document.getElementById('plan-lista').innerHTML = '<div class="cargando">…</div>';
+        await cargarPlan(sesionActual.id, sesionActual.contexto_id, sesionActual.fecha);
+    }
+}
+
+// ── Creación proactiva de sesiones ───────────────────────────
+async function crearSesionesPendientes() {
+    const hoy = isoDate(new Date());
+    const dias = getOchoDias().filter(d => d.fechaStr >= hoy);
+    const inserts = [];
+    dias.forEach(({ fechaStr, diaSemana }) => {
+        (horarioDia[diaSemana] || []).forEach(h => {
+            inserts.push({ contexto_id: h.contexto_id, fecha: fechaStr });
+        });
+    });
+    if (!inserts.length) return;
+    await sb.from('sesiones').upsert(inserts, { onConflict: 'contexto_id,fecha', ignoreDuplicates: true });
+}
+
+// ── Asignar pendientes huérfanos (sesion_id = null) ──────────
+async function asignarPendientesHuerfanos() {
+    const { data: huerfanos } = await sb.from('pendientes')
+        .select('id, contexto_id, categoria').eq('estado', 'activo').is('sesion_id', null);
+    if (!huerfanos?.length) return;
+
+    const updates = [];
+    huerfanos.forEach(p => {
+        let mejorFecha = '';
+        let mejorSid   = null;
+        const hoy = isoDate(new Date());
+        Object.entries(sesionesMap).forEach(([key, s]) => {
+            const [cid, f] = key.split('||');
+            if (cid === p.contexto_id && f >= hoy) {
+                if (!mejorFecha || f < mejorFecha) { mejorFecha = f; mejorSid = s.id; }
+            }
+        });
+        if (mejorSid) updates.push({ id: p.id, sesion_id: mejorSid, categoria: p.categoria });
+    });
+
+    if (!updates.length) return;
+
+    await Promise.all(updates.map(u =>
+        sb.from('pendientes').update({ sesion_id: u.sesion_id }).eq('id', u.id)
+    ));
+
+    let changed = false;
+    updates.forEach(u => {
+        if (!pendientesMap[u.sesion_id]) pendientesMap[u.sesion_id] = {};
+        pendientesMap[u.sesion_id][u.categoria] = (pendientesMap[u.sesion_id][u.categoria] || 0) + 1;
+        changed = true;
+    });
+    if (changed) await renderDashboard();
+}
+
+// ── Modos Tríptico ───────────────────────────────────────────
+function toggleModo() {
+    modoTriptico = modoTriptico === 'plan' ? 'pres' : 'plan';
+    aplicarModo(true);
+}
+
+function aplicarModo(guardar = false) {
+    const split      = document.querySelector('.s-split');
+    const hdr        = document.getElementById('prev-col-hdr');
+    const prevBody   = document.getElementById('prev-body');
+    const revPanel   = document.getElementById('rev-panel');
+    const planCol    = document.querySelector('.s-col-plan');
+    const btnPres    = document.querySelector('.hdr-ses-right');
+
+    split.classList.toggle('modo-plan', modoTriptico === 'plan');
+    split.classList.toggle('modo-pres', modoTriptico === 'pres');
+    if (btnPres) btnPres.style.display = modoTriptico === 'plan' ? 'none' : '';
+
+    const slidesUrWrap = document.getElementById('slides-ur-wrap');
+    const hdrTxt = document.getElementById('prev-col-hdr-txt');
+    if (modoTriptico === 'plan') {
+        if (hdrTxt) hdrTxt.textContent = 'Revisión';
+        prevBody.style.display = 'none';
+        revPanel.style.display = 'flex';
+        if (slidesUrWrap) slidesUrWrap.style.display = 'none';
+        const savedW = localStorage.getItem('portal_rev_plan_w');
+        if (savedW) planCol.style.width = savedW;
+    } else {
+        if (hdrTxt) hdrTxt.textContent = 'Vista previa';
+        prevBody.style.display = '';
+        revPanel.style.display = 'none';
+        if (slidesUrWrap) slidesUrWrap.style.display = '';
+        planCol.style.width    = '';
+        sincronizarBtnCols();
+    }
+
+    if (guardar && sesionActual) {
+        localStorage.setItem(`portal_modo_${sesionActual.contexto_id}`, modoTriptico);
+    }
+}
+
+// ── Revisión inline ──────────────────────────────────────────
+async function cargarRevisionInline(cid, fechaStr) {
+    const panel = document.getElementById('rev-panel');
+    panel.innerHTML = '<div class="cargando" style="padding:12px">Cargando revisión...</div>';
+
+    const ant = await sesionAnterior(cid, fechaStr);
+
+    if (!ant) {
+        panel.innerHTML = `<div class="rev-poema">
+            El tiempo fluye sin detenerse,<br>
+            cada clase nace de lo que fue.<br>
+            Aquí aún no hay historia que leer,<br>
+            este curso comienza desde cero — tuyo es.
+        </div>`;
+        return;
+    }
+
+    const dAnt = new Date(ant.fecha + 'T12:00:00');
+    const dia  = dAnt.toLocaleDateString('es-CL', { weekday: 'long' });
+    const num  = dAnt.getDate();
+    const mes  = dAnt.toLocaleDateString('es-CL', { month: 'long' });
+    const fechaLbl = `${dia} ${num} de ${mes}`;
+
+    const [{ data: rev }, { data: rep }, { data: planAnt }, { data: mat }] = await Promise.all([
+        sb.from('pendientes').select('texto').eq('sesion_id', ant.id).eq('categoria', 'revision').eq('estado', 'activo'),
+        sb.from('pendientes').select('texto').eq('sesion_id', ant.id).eq('categoria', 'posible_repertorio').eq('estado', 'activo'),
+        sb.from('plan_sesion_items').select('texto').eq('sesion_id', ant.id).eq('incluido', true).order('orden'),
+        sb.from('pendientes').select('texto').eq('sesion_id', ant.id).eq('categoria', 'pendientes_materiales').eq('estado', 'activo'),
+    ]);
+
+    panel.innerHTML = `
+        <div id="rev-fecha-lbl">CLASE ANTERIOR — ${fechaLbl}</div>
+        ${buildRevSeccion('REVISIÓN', rev, true)}
+        ${buildRevSeccion('REPERTORIO', rep, false)}
+        ${buildRevSeccion('PLAN', planAnt, false)}
+        ${buildRevSeccion('MATERIALES', mat, false)}
+    `;
+}
+
+function buildRevSeccion(titulo, items, abierto) {
+    const cuerpo = items?.length
+        ? items.map(i => `<div class="rev-it">${i.texto}</div>`).join('')
+        : `<div class="vacio">Sin datos.</div>`;
+    return `
+        <div class="rev-seccion">
+            <div class="rev-sec-hdr${abierto ? '' : ' collapsed'}" onclick="toggleRevSec(this)">
+                <span>${titulo}</span>
+                <span class="rev-chevron">${abierto ? '▾' : '▸'}</span>
+            </div>
+            <div class="rev-sec-body${abierto ? '' : ' hidden'}">${cuerpo}</div>
+        </div>`;
+}
+
+function toggleRevSec(hdr) {
+    hdr.classList.toggle('collapsed');
+    const body = hdr.nextElementSibling;
+    body.classList.toggle('hidden');
+    hdr.querySelector('.rev-chevron').textContent = body.classList.contains('hidden') ? '▸' : '▾';
+}
+
+// ── Modal Revisión anterior ───────────────────────────────────
+async function abrirRevision() {
+    if (!sesionActual) return;
+    document.getElementById('revision-modal').classList.add('show');
+    const body = document.getElementById('revision-body');
+    body.innerHTML = '<div class="vacio">Cargando...</div>';
+
+    const ant = await sesionAnterior(sesionActual.contexto_id, sesionActual.fecha);
+    if (!ant) { body.innerHTML = '<div class="vacio">Sin clase anterior registrada.</div>'; return; }
+
+    const { data } = await sb.from('pendientes')
+        .select('texto, categoria')
+        .eq('sesion_id', ant.id)
+        .eq('categoria', 'revision')
+        .eq('estado', 'activo');
+
+    if (!data?.length) { body.innerHTML = '<div class="vacio">Sin ítems de revisión en la clase anterior.</div>'; return; }
+
+    document.getElementById('revision-titulo').textContent =
+        `Revisión — ${fmtFecha(new Date(ant.fecha + 'T12:00:00'))}`;
+    body.innerHTML = data.map(i => `<div class="rev-it">${i.texto}</div>`).join('');
+}
+
+function cerrarRevision() {
+    document.getElementById('revision-modal')?.classList.remove('show');
+}
+
+async function addItem(texto, categoria, origen, pendienteId) {
+    if (!sesionActual) return;
+    setSyncState('saving');
+    try {
+        const { count } = await sb.from('plan_sesion_items')
+            .select('*', { count: 'exact', head: true })
+            .eq('sesion_id', sesionActual.id);
+        const { data } = await sb.from('plan_sesion_items').insert({
+            sesion_id: sesionActual.id, texto,
+            categoria: categoria || '', orden: count || 0,
+            origen, pendiente_id: pendienteId || null,
+            completado: false, incluido: true,
+            es_planificacion: false, es_nuevo: false,
+        }).select().single();
+        if (data) insertItemEnBloque(buildItemEl(data, 'sala'), 'sala');
+        setSyncState('saved');
+    } catch (e) {
+        setSyncState('error');
+    }
+}
+
+function insertItemEnBloque(el, bloque) {
+    const lista = document.getElementById('plan-lista');
+    const vacio = lista.querySelector('.vacio');
+    if (vacio) vacio.remove();
+
+    const existentes = [...lista.querySelectorAll(`.s-plan-item[data-bloque="${bloque}"]`)];
+    if (existentes.length) {
+        existentes[existentes.length - 1].after(el);
+        return;
+    }
+
+    const mensajesHdr = lista.querySelector('.s-mensajes-hdr');
+    if (mensajesHdr) mensajesHdr.parentElement.before(el);
+    else lista.appendChild(el);
+}
+
+
+async function eliminarItem(id, el) {
+    if (editandoId === id) cancelarEdicion();
+    const esSRP    = el.dataset.origen !== 'manual';
+    const itemData = { id, texto: el.dataset.texto, categoria: el.dataset.categoria,
+                       origen: el.dataset.origen, completado: false,
+                       es_planificacion: el.dataset.esPlani === '1' };
+    const bloque   = el.dataset.bloque;
+
+    if (esSRP) {
+        await sb.from('plan_sesion_items').update({ incluido: false }).eq('id', id);
+        pushUndo({ type: 'reincluir', id, item: itemData, bloque });
+    } else {
+        await sb.from('plan_sesion_items').delete().eq('id', id);
+        pushUndo({ type: 'reinsertar', item: itemData, bloque });
+    }
+
+    el.remove();
+    const lista = document.getElementById('plan-lista');
+    if (!lista.querySelectorAll('.s-plan-item').length)
+        lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>';
+}
+
+
+
+// ═══════════════════════════════════════════════════════════
+// PRESENTADOR — slides
+// ═══════════════════════════════════════════════════════════
+function parsearSlides(txt) {
+    if (!txt.trim()) return [];
+    return txt.split(/\n---\n/).map(s => s.trim()).filter(Boolean);
+}
+
+function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function pEsc(s) {
+    return s
+        .replace(/\x01/g,'$').replace(/\x02/g,'%').replace(/\x03/g,'&amp;')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function parseInlinePreview(raw) {
+    let s = raw.replace(/\$\$/g,'\x01').replace(/%%/g,'\x02').replace(/&&/g,'\x03');
+    let out = '', color = null, italic = false, i = 0;
+    while (i < s.length) {
+        const c = s[i];
+        if (c === '&') {
+            if (italic) { out += '</em>'; italic = false; }
+            if (color)  { out += '</span>'; color = null; }
+            const j = s.indexOf('&', i + 1);
+            out += '<span class="hl-i">' + pEsc(j === -1 ? s.slice(i+1) : s.slice(i+1,j)) + '</span>';
+            i = j === -1 ? s.length : j + 1;
+        } else if (c === '$') {
+            if (color === 'c1') { out += '</span>'; color = null; }
+            else { if (color) out += '</span>'; out += '<span class="c1">'; color = 'c1'; }
+            i++;
+        } else if (c === '%') {
+            if (color === 'c2') { out += '</span>'; color = null; }
+            else { if (color) out += '</span>'; out += '<span class="c2">'; color = 'c2'; }
+            i++;
+        } else if (c === '_') {
+            italic = !italic; out += italic ? '<em>' : '</em>'; i++;
+        } else if (c === '\x01') { out += '$'; i++; }
+        else if (c === '\x02') { out += '%'; i++; }
+        else if (c === '\x03') { out += '&amp;'; i++; }
+        else if (c === '<')    { out += '&lt;'; i++; }
+        else if (c === '>')    { out += '&gt;'; i++; }
+        else if (c === '&')    { out += '&amp;'; i++; }
+        else { out += c; i++; }
+    }
+    if (italic) out += '</em>';
+    if (color)  out += '</span>';
+    return out;
+}
+function renderizarSlideHtml(raw) {
+    const lines = raw.split('\n');
+    let html = '', inList = false;
+    for (const line of lines) {
+        const t = line.trim();
+        if (!t) continue;
+        if (t.startsWith('&') && !t.startsWith('&&')) {
+            if (inList) { html += '</ul>'; inList = false; }
+            let c = t.slice(1); if (c.endsWith('&')) c = c.slice(0, -1);
+            html += `<div class="hl">${pEsc(c)}</div>`;
+            continue;
+        }
+        let izq = false, tc = t;
+        if (t.startsWith('IZ ') || t === 'IZ') { izq = true; tc = t.startsWith('IZ ') ? t.slice(3) : ''; }
+        const cls = izq ? ' class="izq"' : '';
+        if (tc.startsWith('# ')) {
+            if (inList) { html += '</ul>'; inList = false; }
+            html += `<h1${cls}>${parseInlinePreview(tc.slice(2))}</h1>`;
+        } else if (tc.startsWith('## ')) {
+            if (inList) { html += '</ul>'; inList = false; }
+            html += `<h2${cls}>${parseInlinePreview(tc.slice(3))}</h2>`;
+        } else if (tc.startsWith('- ')) {
+            if (!inList) { html += '<ul>'; inList = true; }
+            html += `<li${cls}>${parseInlinePreview(tc.slice(2))}</li>`;
+        } else if (tc) {
+            if (inList) { html += '</ul>'; inList = false; }
+            html += `<p${cls}>${parseInlinePreview(tc)}</p>`;
+        }
+    }
+    if (inList) html += '</ul>';
+    return html;
+}
+
+function autoFitSlide(el) {
+    const content = el.querySelector('.slide-content');
+    if (!content || el.clientHeight === 0) return;
+    const st = getComputedStyle(el);
+    const availH = el.clientHeight - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
+    let lo = 4, hi = 60;
+    while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        content.style.fontSize = mid + 'px';
+        if (content.scrollHeight > availH + 1) hi = mid; else lo = mid;
+    }
+    content.style.fontSize = lo + 'px';
+}
+
+function scrollTextareaToPos(ta, pos) {
+    const lineas = ta.value.slice(0, pos).split('\n').length - 1;
+    const lh = parseFloat(getComputedStyle(ta).lineHeight) || 18;
+    ta.scrollTop = Math.max(0, lineas * lh - ta.clientHeight / 4);
+}
+
+function resaltarSlideActiva(cursorPos) {
+    let found = false;
+    document.querySelectorAll('#prev-body .slide-prev').forEach(sl => {
+        sl.classList.remove('activa');
+        if (!found && sl.dataset.selStart !== undefined) {
+            const s = parseInt(sl.dataset.selStart);
+            const e = parseInt(sl.dataset.selEnd);
+            if (cursorPos >= s && cursorPos <= e) {
+                sl.classList.add('activa');
+                sl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                found = true;
+            }
+        }
+    });
+}
+
+function actualizarPreview() {
+    const taEl = document.getElementById('pres-area');
+    const txt  = taEl ? taEl.value : '';
+    const body = document.getElementById('prev-body');
+    if (!body) return;
+    body.innerHTML = '';
+
+    body.classList.toggle('cols-1', slidesColCount === '1');
+    body.classList.toggle('cols-2', slidesColCount === '2');
+
+    if (sesionActual) aplicarTemaPreview(sesionActual.id);
+
+    // Construir slides rastreando posición de carácter para selección bidireccional
+    const SEP = '\n---\n';
+    const rawParts = txt.split(SEP);
+    slides = [];
+    let charPos = 0, slideIdx = 0;
+    rawParts.forEach((part, i) => {
+        const trimmed = part.trim();
+        if (trimmed) {
+            const leadWS  = part.length - part.trimStart().length;
+            const trailWS = part.length - part.trimEnd().length;
+            slides.push(trimmed);
+            const el = buildSlideEl(trimmed, slideIdx++);
+            el.dataset.selStart = charPos + leadWS;
+            el.dataset.selEnd   = charPos + part.length - trailWS;
+            body.appendChild(el);
+        }
+        charPos += part.length + (i < rawParts.length - 1 ? SEP.length : 0);
+    });
+
+    if (!slides.length) {
+        body.innerHTML = '<div class="vacio" style="padding:12px">Sin contenido.</div>';
+        return;
+    }
+    requestAnimationFrame(() => {
+        document.querySelectorAll('#prev-body .slide-prev').forEach(autoFitSlide);
+    });
+}
+
+function buildSlideEl(raw, idx) {
+    const el = document.createElement('div');
+    el.className  = 'slide-prev';
+    el.dataset.raw = raw;
+    el.draggable   = true;
+
+    // Número de slide
+    const sn = document.createElement('span');
+    sn.className = 'sn';
+    sn.textContent = idx + 1;
+    el.appendChild(sn);
+
+    // Botones hover
+    const acts = document.createElement('div');
+    acts.className = 'slide-actions';
+
+    const btnDup = document.createElement('button');
+    btnDup.className = 'slide-act-btn';
+    btnDup.textContent = '⧉';
+    btnDup.title = 'Duplicar';
+    btnDup.addEventListener('click', e => { e.stopPropagation(); duplicarSlide(el); });
+
+    const btnDel = document.createElement('button');
+    btnDel.className = 'slide-act-btn del';
+    btnDel.textContent = '✕';
+    btnDel.title = 'Eliminar slide';
+    btnDel.addEventListener('click', e => { e.stopPropagation(); eliminarSlide(el); });
+
+    acts.appendChild(btnDup);
+    acts.appendChild(btnDel);
+    el.appendChild(acts);
+
+    // Contenido renderizado
+    const inner = document.createElement('div');
+    inner.className = 'slide-content';
+    const primeraLinea = raw.trim().split('\n')[0];
+    if (primeraLinea.startsWith('@youtube:')) {
+        el.classList.add('tipo-youtube');
+        inner.innerHTML = '<p style="color:#aaa;text-align:center">▶ YouTube</p>';
+    } else if (primeraLinea.startsWith('@mensaje:')) {
+        el.classList.add('tipo-mensaje');
+        const txtMsg = primeraLinea.replace('@mensaje:', '').trim();
+        inner.innerHTML = `<p>${esc(txtMsg)}</p>`;
+    } else {
+        inner.innerHTML = renderizarSlideHtml(raw);
+    }
+    el.appendChild(inner);
+
+    // Drag & drop
+    el.addEventListener('dragstart', e => {
+        dragSlideSrc = el;
+        e.dataTransfer.effectAllowed = 'move';
+        requestAnimationFrame(() => el.classList.add('dragging'));
+    });
+    el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+        document.querySelectorAll('.slide-prev').forEach(s => s.classList.remove('drag-over'));
+        if (dragSlideSrc) { commitSlideReorder(); dragSlideSrc = null; }
+    });
+    el.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (dragSlideSrc && dragSlideSrc !== el) {
+            document.querySelectorAll('.slide-prev').forEach(s => s.classList.remove('drag-over'));
+            el.classList.add('drag-over');
+        }
+    });
+    el.addEventListener('drop', e => {
+        e.preventDefault();
+        if (!dragSlideSrc || dragSlideSrc === el) return;
+        const body = document.getElementById('prev-body');
+        const all  = [...body.querySelectorAll('.slide-prev')];
+        const srcI = all.indexOf(dragSlideSrc);
+        const tgtI = all.indexOf(el);
+        if (srcI < tgtI) el.after(dragSlideSrc); else el.before(dragSlideSrc);
+        el.classList.remove('drag-over');
+    });
+
+    // Click: marcar activa y seleccionar texto correspondiente en el textarea
+    el.addEventListener('click', () => {
+        const ta = document.getElementById('pres-area');
+        if (!ta || el.dataset.selStart === undefined) return;
+        document.querySelectorAll('#prev-body .slide-prev').forEach(s => s.classList.remove('activa'));
+        el.classList.add('activa');
+        const start = parseInt(el.dataset.selStart);
+        const end   = parseInt(el.dataset.selEnd);
+        ta.focus();
+        ta.setSelectionRange(start, end);
+        scrollTextareaToPos(ta, start);
+    });
+
+    return el;
+}
+
+function reensamblarTextoSlides() {
+    const body = document.getElementById('prev-body');
+    return [...body.querySelectorAll('.slide-prev')]
+        .map(el => el.dataset.raw)
+        .filter(Boolean)
+        .join('\n---\n');
+}
+
+function commitSlideReorder() {
+    const prevTxt = document.getElementById('pres-area').value;
+    const newTxt  = reensamblarTextoSlides();
+    if (newTxt === prevTxt) return;
+    pushUndoSlides(prevTxt);
+    document.getElementById('pres-area').value = newTxt;
+    presAreaTextoGuardado = newTxt;
+    renumerarSlides();
+    guardarDesdeSlides();
+}
+
+function renumerarSlides() {
+    document.querySelectorAll('#prev-body .slide-prev').forEach((el, i) => {
+        const sn = el.querySelector('.sn');
+        if (sn) sn.textContent = i + 1;
+    });
+}
+
+function eliminarSlide(el) {
+    const prevTxt = document.getElementById('pres-area').value;
+    pushUndoSlides(prevTxt);
+    el.remove();
+    const newTxt = reensamblarTextoSlides();
+    slides = parsearSlides(newTxt);
+    document.getElementById('pres-area').value = newTxt;
+    presAreaTextoGuardado = newTxt;
+    renumerarSlides();
+    guardarDesdeSlides();
+    const body = document.getElementById('prev-body');
+    if (!body.querySelector('.slide-prev')) {
+        body.innerHTML = '<div class="vacio" style="padding:12px">Sin contenido.</div>';
+    }
+}
+
+function duplicarSlide(el) {
+    const prevTxt = document.getElementById('pres-area').value;
+    pushUndoSlides(prevTxt);
+    const copia = buildSlideEl(el.dataset.raw, 0);
+    el.after(copia);
+    const newTxt = reensamblarTextoSlides();
+    slides = parsearSlides(newTxt);
+    document.getElementById('pres-area').value = newTxt;
+    presAreaTextoGuardado = newTxt;
+    renumerarSlides();
+    guardarDesdeSlides();
+}
+
+function guardarDesdeSlides() {
+    if (!sesionActual) return;
+    document.getElementById('pres-status').textContent = 'Sin guardar...';
+    clearTimeout(presTimer);
+    presTimer = setTimeout(() => guardarPres(sesionActual.id), 1200);
+}
+
+function toggleSlidesCols() {
+    slidesColCount = slidesColCount === '1' ? '2' : '1';
+    localStorage.setItem('portal_slides_cols', slidesColCount);
+    sincronizarBtnCols();
+    actualizarPreview();
+}
+
+function sincronizarBtnCols() {
+    const btn = document.getElementById('btn-slides-cols');
+    if (!btn) return;
+    // ⊞ = actualmente en 1-col → click pasará a 2-col
+    // ☰ = actualmente en 2-col → click pasará a 1-col
+    btn.textContent = slidesColCount === '1' ? '⊞' : '☰';
+    btn.title = slidesColCount === '1' ? 'Ver 2 columnas' : 'Ver 1 columna';
+}
+
+// ── Undo/Redo de slides ─────────────────────────────────────────
+function pushUndoSlides(prevTexto) {
+    undoStackSlides.push({ type: 'restaurar_slides', texto: prevTexto });
+    redoStackSlides = [];
+    actualizarBotonesURSlides();
+}
+
+function actualizarBotonesURSlides() {
+    const u = document.getElementById('btn-undo-slides');
+    const r = document.getElementById('btn-redo-slides');
+    if (u) u.disabled = !undoStackSlides.length;
+    if (r) r.disabled = !redoStackSlides.length;
+}
+
+function undoSlides() {
+    if (!undoStackSlides.length || !sesionActual) return;
+    const op       = undoStackSlides.pop();
+    const currTxt  = document.getElementById('pres-area').value;
+    redoStackSlides.push({ type: 'restaurar_slides', texto: currTxt });
+    document.getElementById('pres-area').value = op.texto;
+    presAreaTextoGuardado = op.texto;
+    slides = parsearSlides(op.texto);
+    actualizarPreview();
+    guardarDesdeSlides();
+    actualizarBotonesURSlides();
+}
+
+function redoSlides() {
+    if (!redoStackSlides.length || !sesionActual) return;
+    const op      = redoStackSlides.pop();
+    const currTxt = document.getElementById('pres-area').value;
+    undoStackSlides.push({ type: 'restaurar_slides', texto: currTxt });
+    document.getElementById('pres-area').value = op.texto;
+    presAreaTextoGuardado = op.texto;
+    slides = parsearSlides(op.texto);
+    actualizarPreview();
+    guardarDesdeSlides();
+    actualizarBotonesURSlides();
+}
+
+// Tracking de zona para enrutamiento de Ctrl+Z
+document.addEventListener('DOMContentLoaded', () => {
+    const previewCol = document.querySelector('.s-col-preview');
+    if (previewCol) {
+        previewCol.addEventListener('mouseenter', () => { zonaCtrlZ = 'slides'; });
+        previewCol.addEventListener('mouseleave', () => { zonaCtrlZ = 'plan'; });
+    }
+    const prevBody = document.getElementById('prev-body');
+    if (prevBody && window.ResizeObserver) {
+        new ResizeObserver(() => {
+            document.querySelectorAll('#prev-body .slide-prev').forEach(autoFitSlide);
+        }).observe(prevBody);
+    }
+    // Cursor en textarea → resaltar slide correspondiente en preview
+    const taEl = document.getElementById('pres-area');
+    if (taEl) {
+        ['click', 'keyup'].forEach(ev =>
+            taEl.addEventListener(ev, () => resaltarSlideActiva(taEl.selectionStart))
+        );
+    }
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        if (document.getElementById('md-cheat').classList.contains('show')) { toggleCheatsheet(); return; }
+        if (editandoId) { cancelarEdicion(); return; }
+    }
+    if (e.key === '?' && !['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)) {
+        e.preventDefault(); toggleCheatsheet(); return;
+    }
+    if (e.key === 'Tab' && sesionActual && !['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)) {
+        e.preventDefault();
+        toggleModo();
+        return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        if (document.activeElement === document.getElementById('plan-input')) return;
+        if (document.activeElement === document.getElementById('pres-area'))  return;
+        e.preventDefault();
+        if (modoTriptico === 'pres' && zonaCtrlZ === 'slides') {
+            if (e.shiftKey) redoSlides(); else undoSlides();
+        } else {
+            if (e.shiftKey) redoAction(); else undoAction();
+        }
+    }
+});
+
+// ── Resize handle ─────────────────────────────────────────────
+document.getElementById('rev-resize').addEventListener('mousedown', e => {
+    e.preventDefault();
+    const handle  = e.currentTarget;
+    const split   = document.querySelector('.s-split');
+    const planCol = document.querySelector('.s-col-plan');
+    handle.classList.add('active');
+    const startX     = e.clientX;
+    const startWidth = planCol.getBoundingClientRect().width;
+    const totalWidth = split.getBoundingClientRect().width - 26; // toggle bar
+
+    function onMove(e) {
+        const newW = Math.max(180, Math.min(totalWidth - 180, startWidth + e.clientX - startX));
+        const pct  = (newW / totalWidth * 100).toFixed(1) + '%';
+        planCol.style.width = pct;
+        localStorage.setItem('portal_rev_plan_w', pct);
+    }
+    function onUp() {
+        handle.classList.remove('active');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+});
+
+// ═══════════════════════════════════════════════════════════
+// NOMBRES CORTOS — detecta overflow y aplica alias
+// ═══════════════════════════════════════════════════════════
+function ajustarNombres() {
+    document.querySelectorAll('.ctx-nombre[data-nombre]').forEach(el => {
+        const nombre = el.dataset.nombre;
+        el.textContent = nombre;
+        if (el.scrollWidth > el.clientWidth && NOMBRE_CORTO[nombre]) {
+            el.textContent = NOMBRE_CORTO[nombre];
+        }
+    });
+}
+window.addEventListener('resize', () => requestAnimationFrame(ajustarNombres));
+
+// ═══════════════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════════════
+function toggleBloque(hdr) {
+    const body    = hdr.nextElementSibling;
+    const chevron = hdr.querySelector('.chevron-bloque');
+    hdr.classList.toggle('collapsed');
+    body.classList.toggle('hidden');
+    chevron.textContent = body.classList.contains('hidden') ? '▸' : '▾';
+}
+
+// ── CHEATSHEET MARKDOWN ──────────────────────────────────────
+function toggleCheatsheet() {
+    document.getElementById('md-cheat').classList.toggle('show');
+}
+</script>
+
+
+
+<!-- CHEATSHEET MARKDOWN -->
+<div id="md-cheat" onclick="if(event.target===this)toggleCheatsheet()">
+    <div id="md-cheat-box">
+        <div id="md-cheat-hdr">
+            Referencia de markdown
+            <button onclick="toggleCheatsheet()" title="Cerrar (? / Esc)">✕</button>
+        </div>
+        <div id="md-cheat-body">
+            <div class="cheat-sec">
+                <div class="cheat-sec-title">Separación de slides</div>
+                <div class="cheat-row"><span class="cheat-code">---</span><span class="cheat-desc">Nueva slide (línea sola)</span></div>
+            </div>
+            <div class="cheat-sec">
+                <div class="cheat-sec-title">Estructura de línea</div>
+                <div class="cheat-row"><span class="cheat-code"># Título</span><span class="cheat-desc">Título grande (h1)</span></div>
+                <div class="cheat-row"><span class="cheat-code">## Subtítulo</span><span class="cheat-desc">Subtítulo (h2)</span></div>
+                <div class="cheat-row"><span class="cheat-code">- ítem</span><span class="cheat-desc">Lista</span></div>
+                <div class="cheat-row"><span class="cheat-code">IZ texto</span><span class="cheat-desc">Alinear línea a la izquierda</span></div>
+                <div class="cheat-row"><span class="cheat-code">&amp;texto&amp;</span><span class="cheat-desc">Bloque resaltado (caja)</span></div>
+            </div>
+            <div class="cheat-sec">
+                <div class="cheat-sec-title">Formato inline</div>
+                <div class="cheat-row"><span class="cheat-code">$texto$</span><span class="cheat-desc">Color 1 (c1, rojo/naranja)</span></div>
+                <div class="cheat-row"><span class="cheat-code">%texto%</span><span class="cheat-desc">Color 2 (c2, azul/violeta)</span></div>
+                <div class="cheat-row"><span class="cheat-code">_texto_</span><span class="cheat-desc">Itálica</span></div>
+                <div class="cheat-row"><span class="cheat-code">&amp;texto&amp;</span><span class="cheat-desc">Highlight inline (caja chica)</span></div>
+                <div class="cheat-row" style="padding-top:4px;color:#64748b;font-size:0.7rem"><span style="min-width:130px">Sin cerrar:</span><span>el formato dura hasta el fin de línea</span></div>
+            </div>
+            <div class="cheat-sec">
+                <div class="cheat-sec-title">Tipos especiales (primera línea)</div>
+                <div class="cheat-row"><span class="cheat-code">@youtube:URL</span><span class="cheat-desc">Slide de video YouTube</span></div>
+                <div class="cheat-row"><span class="cheat-code">@mensaje:texto</span><span class="cheat-desc">Mensaje (fondo oscuro)</span></div>
+            </div>
+            <div class="cheat-sec">
+                <div class="cheat-sec-title">Literales (escapar símbolo)</div>
+                <div class="cheat-row"><span class="cheat-code">$$</span><span class="cheat-desc">Muestra $ sin aplicar color</span></div>
+                <div class="cheat-row"><span class="cheat-code">%%</span><span class="cheat-desc">Muestra % sin aplicar color</span></div>
+                <div class="cheat-row"><span class="cheat-code">&amp;&amp;</span><span class="cheat-desc">Muestra &amp; sin aplicar highlight</span></div>
+            </div>
+            <div class="cheat-foot">Presioná <strong>?</strong> o <strong>Esc</strong> para cerrar</div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
