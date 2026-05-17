@@ -1,0 +1,2069 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Repertorio</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase/config.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:       #e2e8f0;
+            --card-bg:  #ffffff;
+            --border:   #e2e8f0;
+            --text:     #1e293b;
+            --muted:    #64748b;
+            --accent:   #2563eb;
+            --accent2:  #7c3aed;
+            --green:    #16a34a;
+            --orange:   #ea580c;
+            --red:      #dc2626;
+            --gray:     #94a3b8;
+            --header-bg:#1e293b;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── HEADER ── */
+        #header {
+            background: var(--header-bg);
+            color: #fff;
+            padding: 0 20px;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-shrink: 0;
+            z-index: 200;
+        }
+        #header h1 {
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            opacity: 0.9;
+            flex-shrink: 0;
+        }
+        #search-wrap {
+            flex: 1;
+            max-width: 420px;
+            position: relative;
+        }
+        #search {
+            width: 100%;
+            padding: 7px 12px 7px 34px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+            font-size: 0.88rem;
+            outline: none;
+            transition: background 0.15s;
+        }
+        #search::placeholder { color: rgba(255,255,255,0.45); }
+        #search:focus { background: rgba(255,255,255,0.2); }
+        #search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.5;
+            font-size: 0.9rem;
+            pointer-events: none;
+        }
+        #header-count {
+            font-size: 0.72rem;
+            opacity: 0.45;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+        #btn-nueva {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 7px 14px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.15s;
+        }
+        #btn-nueva:hover { background: #1d4ed8; }
+
+        /* ── FILTROS ── */
+        #filtros-bar {
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        #filtros-bar::-webkit-scrollbar { display: none; }
+        .filtro-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+            flex-shrink: 0;
+            margin-right: 4px;
+        }
+        .chip {
+            padding: 5px 11px;
+            border-radius: 20px;
+            border: 1.5px solid var(--border);
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            background: #fff;
+            color: var(--muted);
+            transition: all 0.12s;
+            flex-shrink: 0;
+        }
+        .chip:hover { border-color: var(--accent); color: var(--accent); }
+        .chip.activo { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .chip.curso { }
+        .chip.estilo { border-style: dashed; }
+        .sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; margin: 0 4px; }
+
+        /* ── LAYOUT PRINCIPAL ── */
+        #main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── LISTA ── */
+        #lista-wrap {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        #lista {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 14px;
+        }
+
+        /* ── EMPTY STATE ── */
+        #empty {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 20px;
+            text-align: center;
+            color: var(--muted);
+            gap: 12px;
+        }
+        #empty.visible { display: flex; }
+        #empty .ico { font-size: 3rem; opacity: 0.3; }
+        #empty p { font-size: 0.9rem; }
+        #empty button {
+            margin-top: 8px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 9px 18px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* ── CARD ── */
+        .song-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.12s, box-shadow 0.12s;
+            border: 1.5px solid transparent;
+            display: flex;
+            flex-direction: column;
+        }
+        .song-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+        .song-card.activa {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+        }
+        .card-artwork {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            color: rgba(255,255,255,0.2);
+            flex-shrink: 0;
+        }
+        .card-artwork img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .card-body {
+            padding: 12px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .card-nombre {
+            font-weight: 700;
+            font-size: 0.9rem;
+            line-height: 1.3;
+            color: var(--text);
+        }
+        .card-artista {
+            font-size: 0.78rem;
+            color: var(--muted);
+        }
+        .card-assets {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+        .asset-ico {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--muted);
+            font-weight: 600;
+            letter-spacing: 0.03em;
+        }
+        .asset-ico.letra  { background: #eff6ff; color: #2563eb; }
+        .asset-ico.audio  { background: #f0fdf4; color: #16a34a; }
+        .asset-ico.tab    { background: #fdf4ff; color: #7c3aed; }
+        .asset-ico.metal  { background: #fff7ed; color: #ea580c; }
+        .asset-ico.flauta { background: #fef2f2; color: #dc2626; }
+        .asset-ico.cifrado{ background: #f0f9ff; color: #0284c7; }
+        .card-cursos {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-top: 2px;
+        }
+        .curso-badge {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #f1f5f9;
+            color: var(--muted);
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        /* ── PANEL DETALLE ── */
+        #panel {
+            width: 440px;
+            flex-shrink: 0;
+            background: #fff;
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.22s cubic-bezier(.4,0,.2,1);
+            overflow: hidden;
+        }
+        #panel.abierto { transform: translateX(0); }
+        #panel-header {
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        #panel-close {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: var(--muted);
+            padding: 4px;
+            border-radius: 6px;
+            line-height: 1;
+            transition: color 0.12s;
+        }
+        #panel-close:hover { color: var(--text); }
+        #panel-titulo {
+            font-weight: 700;
+            font-size: 1rem;
+            flex: 1;
+        }
+        #panel-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        /* ── PANEL SECCIONES ── */
+        .panel-artwork {
+            width: 100%;
+            aspect-ratio: 2.5/1;
+            object-fit: cover;
+            background: linear-gradient(135deg, #1e293b 0%, #475569 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: rgba(255,255,255,0.15);
+            position: relative;
+            flex-shrink: 0;
+        }
+        .panel-artwork img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .panel-meta {
+            padding: 18px 18px 0;
+        }
+        .panel-nombre {
+            font-size: 1.3rem;
+            font-weight: 800;
+            line-height: 1.2;
+            color: var(--text);
+        }
+        .panel-artista {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+        .panel-tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .panel-tag {
+            font-size: 0.72rem;
+            padding: 3px 9px;
+            border-radius: 20px;
+            background: var(--bg);
+            color: var(--muted);
+            font-weight: 600;
+        }
+        .panel-section {
+            padding: 16px 18px;
+            border-top: 1px solid var(--border);
+        }
+        .panel-section-title {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        /* Cursos asignados */
+        .cursos-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .curso-toggle {
+            padding: 5px 11px;
+            border-radius: 20px;
+            border: 1.5px solid var(--border);
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: #fff;
+            color: var(--muted);
+            transition: all 0.12s;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .curso-toggle.asignado {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .curso-toggle:hover:not(.asignado) {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Assets */
+        .asset-list { display: flex; flex-direction: column; gap: 8px; }
+        .asset-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: 8px;
+            background: var(--bg);
+            cursor: pointer;
+            transition: background 0.12s;
+        }
+        .asset-item:hover { background: #dde6f0; }
+        .asset-item-ico {
+            font-size: 1rem;
+            width: 28px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .asset-item-info { flex: 1; min-width: 0; }
+        .asset-item-tipo {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text);
+        }
+        .asset-item-etiqueta {
+            font-size: 0.72rem;
+            color: var(--muted);
+        }
+        .asset-item-actions {
+            display: flex;
+            gap: 4px;
+        }
+        .btn-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 4px;
+            border-radius: 5px;
+            color: var(--muted);
+            transition: color 0.12s, background 0.12s;
+        }
+        .btn-icon:hover { color: var(--text); background: rgba(0,0,0,0.06); }
+        .btn-icon.danger:hover { color: var(--red); }
+
+        .btn-add-asset {
+            width: 100%;
+            padding: 8px;
+            border: 1.5px dashed var(--border);
+            border-radius: 8px;
+            background: none;
+            color: var(--muted);
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: all 0.12s;
+            margin-top: 4px;
+        }
+        .btn-add-asset:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .panel-actions {
+            padding: 16px 18px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+        }
+        .btn-danger {
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1.5px solid #fecaca;
+            background: #fff;
+            color: var(--red);
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.12s;
+        }
+        .btn-danger:hover { background: #fef2f2; }
+
+        /* ── MODAL NUEVA CANCIÓN ── */
+        #modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        #modal-overlay.visible { display: flex; }
+        #modal {
+            background: #fff;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        #modal-header {
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #modal-header h2 { font-size: 1rem; font-weight: 700; flex: 1; }
+        #modal-close {
+            background: none; border: none; font-size: 1.2rem;
+            cursor: pointer; color: var(--muted); padding: 4px;
+            border-radius: 6px; line-height: 1;
+        }
+        #modal-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+
+        /* Búsqueda de importación */
+        #import-wrap {
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .import-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+        }
+        #import-row { display: flex; gap: 8px; }
+        #import-q {
+            flex: 1;
+            padding: 9px 12px;
+            border-radius: 8px;
+            border: 1.5px solid var(--border);
+            font-size: 0.88rem;
+            outline: none;
+            transition: border-color 0.12s;
+        }
+        #import-q:focus { border-color: var(--accent); }
+        #btn-importar {
+            padding: 9px 14px;
+            border-radius: 8px;
+            border: none;
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.12s;
+        }
+        #btn-importar:hover { background: #1d4ed8; }
+        #btn-importar:disabled { background: var(--gray); cursor: not-allowed; }
+        #import-resultados {
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+        }
+        #import-resultados.visible { display: flex; }
+        .import-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: #fff;
+            cursor: pointer;
+            border: 1.5px solid transparent;
+            transition: border-color 0.12s;
+        }
+        .import-item:hover { border-color: var(--accent); }
+        .import-item.seleccionado { border-color: var(--accent); background: #eff6ff; }
+        .import-thumb {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            object-fit: cover;
+            background: var(--bg);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: var(--muted);
+        }
+        .import-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
+        .import-info { flex: 1; min-width: 0; }
+        .import-nombre { font-size: 0.85rem; font-weight: 700; }
+        .import-sub { font-size: 0.75rem; color: var(--muted); }
+        #import-spinner { display: none; text-align: center; padding: 10px; font-size: 0.82rem; color: var(--muted); }
+        #import-spinner.visible { display: block; }
+        #import-error { display: none; font-size: 0.78rem; color: var(--red); padding: 6px 0; }
+        #import-error.visible { display: block; }
+
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        .form-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+        }
+        .form-input {
+            padding: 9px 12px;
+            border-radius: 8px;
+            border: 1.5px solid var(--border);
+            font-size: 0.88rem;
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.12s;
+        }
+        .form-input:focus { border-color: var(--accent); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        #modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .btn-secondary {
+            padding: 9px 16px;
+            border-radius: 8px;
+            border: 1.5px solid var(--border);
+            background: #fff;
+            color: var(--text);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.12s;
+        }
+        .btn-secondary:hover { background: var(--bg); }
+        .btn-primary {
+            padding: 9px 16px;
+            border-radius: 8px;
+            border: none;
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.12s;
+        }
+        .btn-primary:hover { background: #1d4ed8; }
+
+        /* ── MODAL ASSET ── */
+        #modal-asset-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 400;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        #modal-asset-overlay.visible { display: flex; }
+        #modal-asset {
+            background: #fff;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        #modal-asset-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #modal-asset-header h2 { font-size: 1rem; font-weight: 700; flex: 1; }
+        #modal-asset-close {
+            background: none; border: none; font-size: 1.2rem;
+            cursor: pointer; color: var(--muted); padding: 4px;
+            border-radius: 6px; line-height: 1;
+        }
+        #modal-asset-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+        /* Selector tipo asset */
+        .tipo-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .tipo-btn {
+            padding: 12px 8px;
+            border-radius: 10px;
+            border: 1.5px solid var(--border);
+            background: #fff;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.12s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+        .tipo-btn:hover { border-color: var(--accent); }
+        .tipo-btn.seleccionado { border-color: var(--accent); background: #eff6ff; }
+        .tipo-btn-ico { font-size: 1.3rem; }
+        .tipo-btn-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+        .tipo-btn.seleccionado .tipo-btn-label { color: var(--accent); }
+
+        #asset-campos { display: flex; flex-direction: column; gap: 12px; }
+        #asset-campos.oculto { display: none; }
+
+        .textarea-asset {
+            width: 100%;
+            min-height: 160px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1.5px solid var(--border);
+            font-size: 0.85rem;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.12s;
+            line-height: 1.6;
+        }
+        .textarea-asset:focus { border-color: var(--accent); }
+
+        #asset-lrclib-btn {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1.5px solid var(--border);
+            background: #fff;
+            color: var(--text);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.12s;
+            width: 100%;
+        }
+        #asset-lrclib-btn:hover { border-color: var(--accent); color: var(--accent); }
+        #asset-lrclib-estado { font-size: 0.75rem; color: var(--muted); text-align: center; }
+
+        #modal-asset-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        /* ── MODAL VER ASSET ── */
+        #modal-ver-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        #modal-ver-overlay.visible { display: flex; }
+        #modal-ver {
+            background: #fff;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 640px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        #modal-ver-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        #modal-ver-titulo { font-size: 0.95rem; font-weight: 700; flex: 1; }
+        #modal-ver-close {
+            background: none; border: none; font-size: 1.2rem;
+            cursor: pointer; color: var(--muted); padding: 4px;
+            border-radius: 6px; line-height: 1;
+        }
+        #modal-ver-contenido {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            font-size: 1rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            color: var(--text);
+        }
+        #modal-ver-audio {
+            padding: 14px 20px;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+            display: none;
+        }
+        #modal-ver-audio.visible { display: block; }
+        #modal-ver-audio iframe { width: 100%; height: 80px; border-radius: 8px; border: none; display: block; }
+
+        /* ── VISOR DE LETRA ── */
+        #visor-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #fff;
+            z-index: 700;
+            flex-direction: column;
+            font-family: 'Nunito', system-ui, sans-serif;
+        }
+        #visor-overlay.visible { display: flex; }
+
+        #visor-header {
+            flex-shrink: 0;
+            padding: 0 24px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        #visor-btn-cerrar {
+            background: none; border: none; cursor: pointer;
+            font-size: 1.1rem; color: #94a3b8; padding: 4px;
+            border-radius: 6px; line-height: 1; flex-shrink: 0;
+        }
+        #visor-btn-cerrar:hover { color: #475569; }
+        #visor-song-info { flex: 1; min-width: 0; }
+        #visor-song-nombre {
+            font-size: 0.85rem; font-weight: 700; color: #1e293b;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #visor-song-artista { font-size: 0.72rem; color: #94a3b8; }
+        #visor-modo-btn {
+            background: none; border: 1.5px solid #e2e8f0;
+            border-radius: 20px; padding: 4px 12px;
+            font-size: 0.72rem; font-weight: 700; color: #64748b;
+            cursor: pointer; flex-shrink: 0; transition: all 0.15s;
+        }
+        #visor-modo-btn:hover { border-color: #94a3b8; }
+
+        /* Audio en visor */
+        #visor-audio-wrap {
+            flex-shrink: 0;
+            padding: 10px 24px 0;
+        }
+        #visor-audio-wrap.oculto { display: none; }
+        #visor-audio { width: 100%; border-radius: 8px; }
+
+        /* Letras */
+        #visor-letras {
+            flex: 1;
+            overflow-y: auto;
+            padding: 50vh 40px 50vh;
+            scroll-behavior: smooth;
+            scrollbar-width: none;
+        }
+        #visor-letras::-webkit-scrollbar { display: none; }
+
+        .lyric-line {
+            display: block;
+            text-align: center;
+            font-style: italic;
+            font-size: 2.52rem;
+            line-height: 1.5;
+            color: #374151;
+            padding: 8px 24px;
+            border-radius: 8px;
+            transition: color 0.25s, font-size 0.25s;
+            cursor: pointer;
+            user-select: none;
+            white-space: normal;
+            word-break: break-word;
+        }
+        .lyric-line.pasada { color: #9ca3af; }
+        .lyric-line.activa {
+            color: #ea580c;
+            font-size: 3rem;
+        }
+        .lyric-line.vacia {
+            color: #e5e7eb;
+            font-size: 1rem;
+            cursor: default;
+        }
+
+        /* Controles flotantes */
+        #visor-controls {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            padding: 14px 24px 20px;
+            background: linear-gradient(to top, rgba(255,255,255,1) 60%, rgba(255,255,255,0));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .ctrl-btn {
+            padding: 9px 18px;
+            border-radius: 24px;
+            border: 1.5px solid #e2e8f0;
+            background: #fff;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            color: #374151;
+            transition: all 0.12s;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .ctrl-btn:hover { background: #f8fafc; border-color: #94a3b8; }
+        .ctrl-btn.manual-on { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+        #visor-elapsed {
+            font-size: 0.72rem; color: #94a3b8; font-variant-numeric: tabular-nums;
+            min-width: 42px; text-align: center;
+        }
+
+        /* ── TOASTS ── */
+        #toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: #1e293b;
+            color: #fff;
+            padding: 10px 18px;
+            border-radius: 24px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            z-index: 9999;
+            transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        #toast.visible { transform: translateX(-50%) translateY(0); }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 700px) {
+            #panel { position: fixed; inset: 0; width: 100%; z-index: 150; transform: translateX(100%); }
+            #lista { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+    <h1>Repertorio</h1>
+    <div id="search-wrap">
+        <span id="search-icon">🔍</span>
+        <input id="search" type="search" placeholder="Buscar canción o artista…">
+    </div>
+    <span id="header-count"></span>
+    <button id="btn-nueva" onclick="abrirModalNueva()">+ Canción</button>
+</div>
+
+<!-- FILTROS -->
+<div id="filtros-bar">
+    <span class="filtro-label">Filtrar:</span>
+    <button class="chip activo" data-filtro="todos" onclick="setFiltro(this)">Todos</button>
+    <div class="sep"></div>
+    <span class="filtro-label">Curso</span>
+    <div id="chips-cursos"></div>
+    <div class="sep"></div>
+    <span class="filtro-label">Estilo</span>
+    <div id="chips-estilos"></div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+    <div id="lista-wrap">
+        <div id="lista"></div>
+        <div id="empty">
+            <div class="ico">🎵</div>
+            <p>No hay canciones en el repertorio todavía.</p>
+            <button onclick="abrirModalNueva()">+ Agregar primera canción</button>
+        </div>
+    </div>
+    <div id="panel">
+        <div id="panel-header">
+            <button id="panel-close" onclick="cerrarPanel()">✕</button>
+            <span id="panel-titulo"></span>
+        </div>
+        <div id="panel-body"></div>
+    </div>
+</div>
+
+<!-- MODAL NUEVA CANCIÓN -->
+<div id="modal-overlay" onclick="if(event.target===this)cerrarModalNueva()">
+    <div id="modal">
+        <div id="modal-header">
+            <h2 id="modal-titulo-h">Nueva canción</h2>
+            <button id="modal-close" onclick="cerrarModalNueva()">✕</button>
+        </div>
+        <div id="modal-body">
+            <div id="import-wrap">
+                <div class="import-label">Importar metadata automáticamente</div>
+                <div id="import-row">
+                    <input id="import-q" type="text" class="form-input" placeholder="Ej: La Bamba Ritchie Valens" style="padding:9px 12px">
+                    <button id="btn-importar" onclick="buscarImport()">Buscar</button>
+                </div>
+                <div id="import-spinner" class="import-label">Buscando…</div>
+                <div id="import-error"></div>
+                <div id="import-resultados"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Nombre *</label>
+                    <input id="f-nombre" type="text" class="form-input" placeholder="La Bamba">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Artista</label>
+                    <input id="f-artista" type="text" class="form-input" placeholder="Ritchie Valens">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Año</label>
+                    <input id="f-año" type="text" class="form-input" placeholder="1958">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Estilo / Género</label>
+                    <input id="f-estilo" type="text" class="form-input" placeholder="Rock, Folk, Cumbia…">
+                </div>
+            </div>
+            <div class="form-group" id="artwork-group" style="display:none">
+                <div class="import-label">Artwork importado</div>
+                <img id="f-artwork-preview" style="width:80px;height:80px;border-radius:8px;object-fit:cover">
+            </div>
+            <div id="f-letra-estado" style="font-size:0.73rem;color:var(--muted);display:none">
+                📝 La letra se importará automáticamente desde LRCLIB al guardar
+            </div>
+        </div>
+        <div id="modal-footer">
+            <button class="btn-secondary" onclick="cerrarModalNueva()">Cancelar</button>
+            <button class="btn-primary" id="btn-guardar-cancion" onclick="guardarCancion()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL AGREGAR ASSET -->
+<div id="modal-asset-overlay" onclick="if(event.target===this)cerrarModalAsset()">
+    <div id="modal-asset">
+        <div id="modal-asset-header">
+            <h2>Agregar asset</h2>
+            <button id="modal-asset-close" onclick="cerrarModalAsset()">✕</button>
+        </div>
+        <div id="modal-asset-body">
+            <div>
+                <div class="form-label" style="margin-bottom:10px">Tipo de asset</div>
+                <div class="tipo-grid" id="tipo-grid">
+                    <button class="tipo-btn" data-tipo="letra" onclick="selTipo(this)">
+                        <span class="tipo-btn-ico">📝</span>
+                        <span class="tipo-btn-label">Letra</span>
+                    </button>
+                    <button class="tipo-btn" data-tipo="audio" onclick="selTipo(this)">
+                        <span class="tipo-btn-ico">🎵</span>
+                        <span class="tipo-btn-label">Audio</span>
+                    </button>
+                    <button class="tipo-btn" data-tipo="tab" onclick="selTipo(this)">
+                        <span class="tipo-btn-ico">🎸</span>
+                        <span class="tipo-btn-label">Tablatura</span>
+                    </button>
+                    <button class="tipo-btn" data-tipo="metalofono" onclick="selTipo(this)">
+                        <span class="tipo-btn-ico">🎼</span>
+                        <span class="tipo-btn-label">Metalófono</span>
+                    </button>
+                    <button class="tipo-btn" data-tipo="flauta" onclick="selTipo(this)">
+                        <span class="tipo-btn-ico">🎶</span>
+                        <span class="tipo-btn-label">Flauta</span>
+                    </button>
+                    <button class="tipo-btn" data-tipo="cifrado" onclick="selTipo(this)">
+                        <span class="tipo-btn-ico">🎹</span>
+                        <span class="tipo-btn-label">Cifrado</span>
+                    </button>
+                </div>
+            </div>
+            <div id="asset-campos" class="oculto">
+                <div class="form-group">
+                    <label class="form-label">Etiqueta (opcional)</label>
+                    <input id="asset-etiqueta" type="text" class="form-input" placeholder="Ej: guitarra fácil, versión original…">
+                </div>
+                <div id="asset-contenido-wrap">
+                    <div class="form-label" style="margin-bottom:6px">Contenido</div>
+                    <button id="asset-lrclib-btn" style="display:none" onclick="importarLRCLIB()">
+                        ↓ Importar letra desde LRCLIB
+                    </button>
+                    <div id="asset-lrclib-estado"></div>
+                    <textarea id="asset-contenido" class="textarea-asset" placeholder="Pega o escribe el contenido aquí…"></textarea>
+                    <div id="asset-audio-wrap" style="display:none">
+                        <input id="asset-audio-file" type="file" accept="audio/*" style="display:none" onchange="manejarAudio(this)">
+                        <button class="btn-secondary" style="width:100%;margin-top:4px" onclick="document.getElementById('asset-audio-file').click()">
+                            📂 Seleccionar archivo de audio
+                        </button>
+                        <div id="asset-audio-nombre" style="font-size:0.78rem;color:var(--muted);margin-top:8px;text-align:center"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="modal-asset-footer">
+            <button class="btn-secondary" onclick="cerrarModalAsset()">Cancelar</button>
+            <button class="btn-primary" onclick="guardarAsset()">Guardar asset</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL VER ASSET -->
+<div id="modal-ver-overlay" onclick="if(event.target===this)cerrarModalVer()">
+    <div id="modal-ver">
+        <div id="modal-ver-header">
+            <span id="modal-ver-titulo"></span>
+            <button id="modal-ver-close" onclick="cerrarModalVer()">✕</button>
+        </div>
+        <div id="modal-ver-contenido"></div>
+        <div id="modal-ver-audio">
+            <audio id="modal-ver-audio-el" controls style="width:100%;border-radius:8px"></audio>
+        </div>
+    </div>
+</div>
+
+<!-- VISOR DE LETRA SINCRONIZADA -->
+<div id="visor-overlay">
+    <div id="visor-header">
+        <button id="visor-btn-cerrar" onclick="cerrarVisor()">✕</button>
+        <div id="visor-song-info">
+            <div id="visor-song-nombre"></div>
+            <div id="visor-song-artista"></div>
+        </div>
+        <button id="visor-modo-btn" onclick="toggleModoManual()">Manual</button>
+    </div>
+    <div id="visor-audio-wrap">
+        <audio id="visor-audio" controls></audio>
+    </div>
+    <div id="visor-letras"></div>
+    <div id="visor-controls">
+        <span id="visor-elapsed">0:00</span>
+    </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ── CONSTANTES ──────────────────────────────────────────────────────────────
+const CONTEXTOS = [
+    'ORIENTACIÓN','TERCERO','CUARTO','CUERDAS','ENLACE','SEXTO',
+    'RECREO','QUINTO','PRIMERO','SEGUNDO','SEPTIMO',
+    'KIDS CASTIGADAS','OCTAVO','CASTIGADAS','GENERAL'
+];
+
+const TIPOS_ASSET = {
+    letra:     { ico: '📝', label: 'Letra',      clase: 'letra'   },
+    audio:     { ico: '🎵', label: 'Audio',      clase: 'audio'   },
+    tab:       { ico: '🎸', label: 'Tab',        clase: 'tab'     },
+    metalofono:{ ico: '🎼', label: 'Metalófono', clase: 'metal'   },
+    flauta:    { ico: '🎶', label: 'Flauta',     clase: 'flauta'  },
+    cifrado:   { ico: '🎹', label: 'Cifrado',    clase: 'cifrado' },
+};
+
+// ── ESTADO ──────────────────────────────────────────────────────────────────
+let canciones        = [];
+let songActiva       = null;
+let filtroActivo     = 'todos';
+let filtroExtra      = null;
+let editandoId       = null;
+let assetSongId      = null;
+let tipoSeleccionado = null;
+let audioFile        = null;
+
+// ── SUPABASE — CAPA DE DATOS ─────────────────────────────────────────────────
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const BUCKET = 'repertorio-audio';
+
+function genId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// Carga completa desde Supabase
+async function cargarTodo() {
+    const [{ data: songs }, { data: assets }, { data: ctxs }] = await Promise.all([
+        sb.from('repertorio_canciones').select('*').order('creado', { ascending: false }),
+        sb.from('repertorio_assets').select('*').order('orden'),
+        sb.from('repertorio_cancion_contextos').select('*'),
+    ]);
+    canciones = (songs || []).map(c => ({ ...c, contextos: [], assets: [] }));
+    for (const a of (assets || [])) {
+        const c = canciones.find(x => x.id === a.cancion_id);
+        if (c) c.assets.push(a);
+    }
+    for (const cc of (ctxs || [])) {
+        const c = canciones.find(x => x.id === cc.cancion_id);
+        if (c && !c.contextos.includes(cc.contexto)) c.contextos.push(cc.contexto);
+    }
+}
+
+// URL pública de un audio en Storage
+function audioUrl(storagePath) {
+    return sb.storage.from(BUCKET).getPublicUrl(storagePath).data.publicUrl;
+}
+
+// Guardar canción (upsert metadata)
+async function sbUpsertCancion(c) {
+    const { contextos, assets, ...data } = c;
+    const { error } = await sb.from('repertorio_canciones').upsert(data);
+    if (error) throw error;
+}
+
+// Guardar asset de texto
+async function sbUpsertAsset(a) {
+    const { error } = await sb.from('repertorio_assets').upsert(a);
+    if (error) throw error;
+}
+
+// Guardar contextos (reemplaza todos)
+async function sbGuardarContextos(cancionId, contextos) {
+    await sb.from('repertorio_cancion_contextos').delete().eq('cancion_id', cancionId);
+    if (contextos.length) {
+        await sb.from('repertorio_cancion_contextos').insert(
+            contextos.map(ctx => ({ cancion_id: cancionId, contexto: ctx }))
+        );
+    }
+}
+
+// Subir audio a Storage
+async function sbSubirAudio(assetId, file) {
+    const ext  = file.name.split('.').pop();
+    const path = `${assetId}.${ext}`;
+    const { error } = await sb.storage.from(BUCKET).upload(path, file, { upsert: true });
+    if (error) throw error;
+    return path;
+}
+
+// Eliminar asset
+async function sbEliminarAsset(a) {
+    if (a.storage_path) await sb.storage.from(BUCKET).remove([a.storage_path]);
+    await sb.from('repertorio_assets').delete().eq('id', a.id);
+}
+
+// Eliminar canción (CASCADE elimina assets y contextos en DB, pero Storage hay que limpiar)
+async function sbEliminarCancion(c) {
+    const audios = (c.assets || []).filter(a => a.storage_path);
+    if (audios.length) await sb.storage.from(BUCKET).remove(audios.map(a => a.storage_path));
+    await sb.from('repertorio_canciones').delete().eq('id', c.id);
+}
+
+// ── RENDER PRINCIPAL ─────────────────────────────────────────────────────────
+function render() {
+    const q = document.getElementById('search').value.trim().toLowerCase();
+    let lista = canciones;
+
+    // filtro búsqueda
+    if (q) {
+        lista = lista.filter(c =>
+            c.nombre.toLowerCase().includes(q) ||
+            (c.artista||'').toLowerCase().includes(q)
+        );
+    }
+    // filtro chip
+    if (filtroExtra) {
+        if (filtroExtra.tipo === 'curso') {
+            lista = lista.filter(c => (c.contextos||[]).includes(filtroExtra.valor));
+        } else if (filtroExtra.tipo === 'estilo') {
+            lista = lista.filter(c => (c.estilo||'').toLowerCase() === filtroExtra.valor.toLowerCase());
+        }
+    }
+
+    const el = document.getElementById('lista');
+    const empty = document.getElementById('empty');
+
+    if (lista.length === 0) {
+        el.innerHTML = '';
+        empty.classList.add('visible');
+    } else {
+        empty.classList.remove('visible');
+        el.innerHTML = lista.map(c => cardHTML(c)).join('');
+    }
+
+    // contador
+    document.getElementById('header-count').textContent =
+        canciones.length > 0 ? `${canciones.length} canción${canciones.length !== 1 ? 'es' : ''}` : '';
+
+    renderChips();
+}
+
+function cardHTML(c) {
+    const assets = (c.assets||[]);
+    const tipos  = [...new Set(assets.map(a => a.tipo))];
+    const activa = songActiva?.id === c.id ? 'activa' : '';
+
+    const artworkHTML = c.artwork_url
+        ? `<div class="card-artwork"><img src="${c.artwork_url}" alt="" onerror="this.parentElement.innerHTML='🎵'"></div>`
+        : `<div class="card-artwork">🎵</div>`;
+
+    const assetBadges = tipos.map(t => {
+        const info = TIPOS_ASSET[t];
+        return `<span class="asset-ico ${info.clase}">${info.label}</span>`;
+    }).join('');
+
+    const cursoBadges = (c.contextos||[]).map(ctx =>
+        `<span class="curso-badge">${ctx === 'KIDS CASTIGADAS' ? 'KIDS' : ctx}</span>`
+    ).join('');
+
+    return `
+    <div class="song-card ${activa}" onclick="abrirPanel('${c.id}')">
+        ${artworkHTML}
+        <div class="card-body">
+            <div class="card-nombre">${c.nombre}</div>
+            ${c.artista ? `<div class="card-artista">${c.artista}</div>` : ''}
+            <div class="card-assets">${assetBadges}</div>
+            <div class="card-cursos">${cursoBadges}</div>
+        </div>
+    </div>`;
+}
+
+function renderChips() {
+    // cursos que tienen canciones asignadas
+    const cursosUsados = [...new Set(canciones.flatMap(c => c.contextos||[]))].sort();
+    const estilosUsados = [...new Set(canciones.map(c => c.estilo).filter(Boolean))].sort();
+
+    const wrap = document.getElementById('chips-cursos');
+    wrap.innerHTML = cursosUsados.map(c => {
+        const activo = filtroExtra?.tipo === 'curso' && filtroExtra.valor === c ? 'activo' : '';
+        return `<button class="chip curso ${activo}" data-filtro="curso:${c}" onclick="setFiltro(this)">${c === 'KIDS CASTIGADAS' ? 'KIDS' : c}</button>`;
+    }).join('');
+
+    const wrapE = document.getElementById('chips-estilos');
+    wrapE.innerHTML = estilosUsados.map(e => {
+        const activo = filtroExtra?.tipo === 'estilo' && filtroExtra.valor === e ? 'activo' : '';
+        return `<button class="chip estilo ${activo}" data-filtro="estilo:${e}" onclick="setFiltro(this)">${e}</button>`;
+    }).join('');
+}
+
+function setFiltro(btn) {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('activo'));
+    btn.classList.add('activo');
+    const f = btn.dataset.filtro;
+    if (f === 'todos') {
+        filtroExtra = null;
+    } else if (f.startsWith('curso:')) {
+        filtroExtra = { tipo: 'curso', valor: f.slice(6) };
+    } else if (f.startsWith('estilo:')) {
+        filtroExtra = { tipo: 'estilo', valor: f.slice(7) };
+    }
+    render();
+}
+
+// ── PANEL DETALLE ────────────────────────────────────────────────────────────
+function abrirPanel(id) {
+    songActiva = canciones.find(c => c.id === id);
+    if (!songActiva) return;
+    document.getElementById('panel').classList.add('abierto');
+    document.getElementById('panel-titulo').textContent = songActiva.nombre;
+    renderPanel();
+    render(); // actualizar borde activa en card
+}
+
+function cerrarPanel() {
+    songActiva = null;
+    document.getElementById('panel').classList.remove('abierto');
+    render();
+}
+
+function renderPanel() {
+    if (!songActiva) return;
+    const c = songActiva;
+    const assets = c.assets || [];
+
+    const artworkHTML = c.artwork_url
+        ? `<div class="panel-artwork"><img src="${c.artwork_url}" alt=""></div>`
+        : `<div class="panel-artwork">🎵</div>`;
+
+    const tags = [c.año, c.estilo].filter(Boolean).map(t =>
+        `<span class="panel-tag">${t}</span>`).join('');
+
+    // cursos toggles
+    const cursosHTML = CONTEXTOS.map(ctx => {
+        const asignado = (c.contextos||[]).includes(ctx) ? 'asignado' : '';
+        const label = ctx === 'KIDS CASTIGADAS' ? 'KIDS' : ctx;
+        return `<button class="curso-toggle ${asignado}" onclick="toggleCurso('${ctx}', this)">${label}</button>`;
+    }).join('');
+
+    // assets
+    const assetsHTML = assets.length > 0
+        ? assets.map((a, i) => assetItemHTML(a, i)).join('')
+        : `<div style="font-size:0.8rem;color:var(--muted);padding:4px 0">Sin assets todavía.</div>`;
+
+    document.getElementById('panel-body').innerHTML = `
+        ${artworkHTML}
+        <div class="panel-meta">
+            <div class="panel-nombre">${c.nombre}</div>
+            ${c.artista ? `<div class="panel-artista">${c.artista}</div>` : ''}
+            <div class="panel-tags">${tags}</div>
+        </div>
+
+        <div class="panel-section">
+            <div class="panel-section-title">Cursos y talleres asignados</div>
+            <div class="cursos-grid">${cursosHTML}</div>
+        </div>
+
+        <div class="panel-section">
+            <div class="panel-section-title">Assets</div>
+            <div class="asset-list" id="asset-list">${assetsHTML}</div>
+            <button class="btn-add-asset" onclick="abrirModalAsset('${c.id}')">+ Agregar asset</button>
+        </div>
+
+        <div class="panel-actions">
+            <button class="btn-primary" style="flex:1" onclick="abrirVisor('${c.id}')">▶ Ver letra</button>
+            <button class="btn-secondary" onclick="editarCancion('${c.id}')">✏️</button>
+            <button class="btn-danger" onclick="eliminarCancion('${c.id}')">🗑</button>
+        </div>
+    `;
+}
+
+function assetItemHTML(a, i) {
+    const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo, clase: '' };
+    const etiq = a.etiqueta ? `<div class="asset-item-etiqueta">${a.etiqueta}</div>` : '';
+
+    if (a.tipo === 'audio') {
+        return `
+        <div class="asset-item">
+            <div class="asset-item-ico">🎵</div>
+            <div class="asset-item-info">
+                <div class="asset-item-tipo">Audio</div>
+                <div class="asset-item-etiqueta">${a.nombre || a.etiqueta || ''}</div>
+            </div>
+            <div class="asset-item-actions">
+                <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}', ${i})" title="Eliminar">🗑</button>
+            </div>
+        </div>`;
+    }
+
+    return `
+    <div class="asset-item">
+        <div class="asset-item-ico">${info.ico}</div>
+        <div class="asset-item-info">
+            <div class="asset-item-tipo">${info.label}</div>
+            ${etiq}
+        </div>
+        <div class="asset-item-actions">
+            <button class="btn-icon" onclick="verAsset('${songActiva.id}', ${i})" title="Ver">👁</button>
+            <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}', ${i})" title="Eliminar">🗑</button>
+        </div>
+    </div>`;
+}
+
+async function toggleCurso(ctx, btn) {
+    if (!songActiva) return;
+    const c = canciones.find(x => x.id === songActiva.id);
+    if (!c.contextos) c.contextos = [];
+    const idx = c.contextos.indexOf(ctx);
+    if (idx === -1) {
+        c.contextos.push(ctx);
+        btn.classList.add('asignado');
+    } else {
+        c.contextos.splice(idx, 1);
+        btn.classList.remove('asignado');
+    }
+    await sbGuardarContextos(c.id, c.contextos);
+    render();
+    toast('Curso actualizado');
+}
+
+// ── MODAL NUEVA / EDITAR ─────────────────────────────────────────────────────
+let importDatos = null;
+
+function abrirModalNueva() {
+    editandoId = null;
+    importDatos = null;
+    document.getElementById('modal-titulo-h').textContent = 'Nueva canción';
+    ['f-nombre','f-artista','f-año','f-estilo'].forEach(id =>
+        document.getElementById(id).value = '');
+    document.getElementById('artwork-group').style.display = 'none';
+    document.getElementById('import-resultados').classList.remove('visible');
+    document.getElementById('import-q').value = '';
+    document.getElementById('import-error').classList.remove('visible');
+    document.getElementById('import-spinner').classList.remove('visible');
+    document.getElementById('f-letra-estado').style.display = 'none';
+    document.getElementById('modal-overlay').classList.add('visible');
+    setTimeout(() => document.getElementById('f-nombre').focus(), 100);
+}
+
+function editarCancion(id) {
+    const c = canciones.find(x => x.id === id);
+    if (!c) return;
+    editandoId = id;
+    importDatos = null;
+    document.getElementById('modal-titulo-h').textContent = 'Editar canción';
+    document.getElementById('f-nombre').value  = c.nombre  || '';
+    document.getElementById('f-artista').value = c.artista || '';
+    document.getElementById('f-año').value     = c.año     || '';
+    document.getElementById('f-estilo').value  = c.estilo  || '';
+    if (c.artwork_url) {
+        document.getElementById('f-artwork-preview').src = c.artwork_url;
+        document.getElementById('artwork-group').style.display = '';
+        importDatos = { artwork_url: c.artwork_url };
+    } else {
+        document.getElementById('artwork-group').style.display = 'none';
+    }
+    document.getElementById('import-resultados').classList.remove('visible');
+    document.getElementById('import-q').value = '';
+    document.getElementById('modal-overlay').classList.add('visible');
+}
+
+function cerrarModalNueva() {
+    document.getElementById('modal-overlay').classList.remove('visible');
+    editandoId = null;
+    importDatos = null;
+}
+
+async function guardarCancion() {
+    const nombre  = document.getElementById('f-nombre').value.trim();
+    if (!nombre) { toast('Nombre requerido'); return; }
+    const artista = document.getElementById('f-artista').value.trim();
+
+    if (editandoId) {
+        const c = canciones.find(x => x.id === editandoId);
+        c.nombre  = nombre;
+        c.artista = artista;
+        c.año     = document.getElementById('f-año').value.trim();
+        c.estilo  = document.getElementById('f-estilo').value.trim();
+        if (importDatos?.artwork_url) c.artwork_url = importDatos.artwork_url;
+        await sbUpsertCancion(c);
+        songActiva = c;
+        renderPanel();
+        toast('Canción actualizada');
+        cerrarModalNueva();
+        render();
+        return;
+    }
+
+    const btn = document.getElementById('btn-guardar-cancion');
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+
+    const nueva = {
+        id:          genId(),
+        nombre,
+        artista,
+        año:         document.getElementById('f-año').value.trim(),
+        estilo:      document.getElementById('f-estilo').value.trim(),
+        artwork_url: importDatos?.artwork_url || '',
+        contextos:   [],
+        assets:      [],
+        creado:      Date.now(),
+    };
+
+    try {
+        await sbUpsertCancion(nueva);
+    } catch {
+        toast('Error al guardar en Supabase');
+        btn.disabled = false; btn.textContent = 'Guardar';
+        return;
+    }
+
+    // Importar letra desde LRCLIB
+    try {
+        btn.textContent = 'Buscando letra…';
+        const q = encodeURIComponent(`${nombre} ${artista}`);
+        const res = await fetch(`https://lrclib.net/api/search?q=${q}`);
+        const data = await res.json();
+        if (data.length) {
+            const hit    = data[0];
+            const plain  = hit.plainLyrics  || '';
+            const synced = hit.syncedLyrics || '';
+            if (plain || synced) {
+                const asset = {
+                    id: genId(), cancion_id: nueva.id, tipo: 'letra',
+                    etiqueta: '', contenido: plain, synced, lrclib_id: hit.id,
+                    nombre_archivo: '', storage_path: '', orden: 0,
+                };
+                await sbUpsertAsset(asset);
+                nueva.assets.push(asset);
+                toast('Canción y letra importadas ✓');
+            } else {
+                toast('Canción guardada — sin letra en LRCLIB');
+            }
+        } else {
+            toast('Canción guardada — sin letra en LRCLIB');
+        }
+    } catch {
+        toast('Canción guardada — sin conexión para letra');
+    }
+
+    canciones.unshift(nueva);
+    btn.disabled = false; btn.textContent = 'Guardar';
+    cerrarModalNueva();
+    render();
+    abrirPanel(nueva.id);
+}
+
+async function eliminarCancion(id) {
+    if (!confirm('¿Eliminar esta canción del repertorio?')) return;
+    const c = canciones.find(x => x.id === id);
+    if (!c) return;
+    await sbEliminarCancion(c);
+    canciones = canciones.filter(x => x.id !== id);
+    songActiva = null;
+    cerrarPanel();
+    toast('Canción eliminada');
+    render();
+}
+
+// ── IMPORTACIÓN ITUNES ────────────────────────────────────────────────────────
+async function buscarImport() {
+    const q = document.getElementById('import-q').value.trim();
+    if (!q) return;
+
+    document.getElementById('import-spinner').classList.add('visible');
+    document.getElementById('import-resultados').classList.remove('visible');
+    document.getElementById('import-error').classList.remove('visible');
+    document.getElementById('btn-importar').disabled = true;
+
+    try {
+        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=6&country=cl`;
+        const res = await fetch(url);
+        const data = await res.json();
+        mostrarResultados(data.results || []);
+    } catch (e) {
+        const err = document.getElementById('import-error');
+        err.textContent = 'Sin conexión o error al buscar. Puedes ingresar los datos manualmente.';
+        err.classList.add('visible');
+    } finally {
+        document.getElementById('import-spinner').classList.remove('visible');
+        document.getElementById('btn-importar').disabled = false;
+    }
+}
+
+function mostrarResultados(items) {
+    const wrap = document.getElementById('import-resultados');
+    if (items.length === 0) {
+        wrap.innerHTML = '<div style="font-size:0.78rem;color:var(--muted)">Sin resultados. Ingresa los datos manualmente.</div>';
+        wrap.classList.add('visible');
+        return;
+    }
+    wrap.innerHTML = items.map((it, i) => {
+        const thumb = it.artworkUrl60 || '';
+        const nombre = it.trackName || it.collectionName || '';
+        const artista = it.artistName || '';
+        const año = it.releaseDate ? it.releaseDate.slice(0,4) : '';
+        const genero = it.primaryGenreName || '';
+        const artwork = it.artworkUrl100 || thumb;
+        return `
+        <div class="import-item" onclick="seleccionarImport(this, ${i})"
+             data-nombre="${escapar(nombre)}"
+             data-artista="${escapar(artista)}"
+             data-año="${año}"
+             data-estilo="${escapar(genero)}"
+             data-artwork="${escapar(artwork)}">
+            <div class="import-thumb">
+                ${thumb ? `<img src="${thumb}" alt="">` : '🎵'}
+            </div>
+            <div class="import-info">
+                <div class="import-nombre">${nombre}</div>
+                <div class="import-sub">${artista}${año ? ` · ${año}` : ''}${genero ? ` · ${genero}` : ''}</div>
+            </div>
+        </div>`;
+    }).join('');
+    wrap.classList.add('visible');
+}
+
+function seleccionarImport(el, i) {
+    document.querySelectorAll('.import-item').forEach(x => x.classList.remove('seleccionado'));
+    el.classList.add('seleccionado');
+
+    document.getElementById('f-nombre').value  = el.dataset.nombre  || '';
+    document.getElementById('f-artista').value = el.dataset.artista || '';
+    document.getElementById('f-año').value     = el.dataset.año     || '';
+    document.getElementById('f-estilo').value  = el.dataset.estilo  || '';
+
+    importDatos = { artwork_url: el.dataset.artwork || null };
+
+    if (importDatos.artwork_url) {
+        document.getElementById('f-artwork-preview').src = importDatos.artwork_url;
+        document.getElementById('artwork-group').style.display = '';
+    }
+
+    // mostrar aviso de letra automática y actualizar botón Tidal
+    document.getElementById('f-letra-estado').style.display = '';
+}
+
+document.getElementById('import-q').addEventListener('keydown', e => {
+    if (e.key === 'Enter') buscarImport();
+});
+
+// ── MODAL ASSET ──────────────────────────────────────────────────────────────
+function abrirModalAsset(songId) {
+    assetSongId = songId;
+    tipoSeleccionado = null;
+    audioFile = null;
+    document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('seleccionado'));
+    document.getElementById('asset-campos').classList.add('oculto');
+    document.getElementById('asset-etiqueta').value = '';
+    document.getElementById('asset-contenido').value = '';
+    document.getElementById('asset-audio-nombre').textContent = '';
+    document.getElementById('asset-lrclib-btn').style.display = 'none';
+    document.getElementById('asset-lrclib-estado').textContent = '';
+    document.getElementById('modal-asset-overlay').classList.add('visible');
+}
+
+function cerrarModalAsset() {
+    document.getElementById('modal-asset-overlay').classList.remove('visible');
+    assetSongId = null;
+    tipoSeleccionado = null;
+    audioFile = null;
+}
+
+function selTipo(btn) {
+    document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('seleccionado'));
+    btn.classList.add('seleccionado');
+    tipoSeleccionado = btn.dataset.tipo;
+    document.getElementById('asset-campos').classList.remove('oculto');
+
+    const isAudio = tipoSeleccionado === 'audio';
+    const isLetra = tipoSeleccionado === 'letra';
+    document.getElementById('asset-contenido').style.display = isAudio ? 'none' : '';
+    document.getElementById('asset-audio-wrap').style.display = isAudio ? '' : 'none';
+    document.getElementById('asset-lrclib-btn').style.display = isLetra ? '' : 'none';
+    document.getElementById('asset-lrclib-estado').textContent = '';
+    if (isAudio) {
+        document.getElementById('asset-contenido-wrap').querySelector('.form-label').textContent = 'Archivo de audio';
+    } else {
+        document.getElementById('asset-contenido-wrap').querySelector('.form-label').textContent = 'Contenido';
+    }
+
+    const hints = {
+        tab:       'Pega la tablatura en texto o formato ASCII…',
+        metalofono:'Notas para metalófono (ej: DO RE MI FA SOL…)',
+        flauta:    'Notas para flauta (ej: DO RE MI…)',
+        cifrado:   'Acordes cifrado americano (ej: Am G F E7…)',
+        letra:     'Pega o escribe la letra aquí…',
+    };
+    document.getElementById('asset-contenido').placeholder = hints[tipoSeleccionado] || 'Contenido…';
+}
+
+async function importarLRCLIB() {
+    if (!assetSongId) return;
+    const c = canciones.find(x => x.id === assetSongId);
+    if (!c) return;
+
+    const estado = document.getElementById('asset-lrclib-estado');
+    estado.textContent = 'Buscando en LRCLIB…';
+    document.getElementById('asset-lrclib-btn').disabled = true;
+
+    try {
+        const q = encodeURIComponent(`${c.nombre} ${c.artista || ''}`);
+        const res = await fetch(`https://lrclib.net/api/search?q=${q}`);
+        const data = await res.json();
+        if (!data.length) {
+            estado.textContent = 'Sin resultados en LRCLIB. Ingresa la letra manualmente.';
+            return;
+        }
+        const hit = data[0];
+        document.getElementById('asset-contenido').value = hit.plainLyrics || '';
+        document.getElementById('asset-contenido').dataset.synced = hit.syncedLyrics || '';
+        estado.textContent = `Importado: "${hit.trackName}" — ${hit.artistName}${hit.syncedLyrics ? ' · con sync ✓' : ''}`;
+    } catch (e) {
+        estado.textContent = 'Sin conexión. Ingresa la letra manualmente.';
+    } finally {
+        document.getElementById('asset-lrclib-btn').disabled = false;
+    }
+}
+
+
+function manejarAudio(input) {
+    audioFile = input.files[0] || null;
+    document.getElementById('asset-audio-nombre').textContent = audioFile ? audioFile.name : '';
+}
+
+async function guardarAsset() {
+    if (!tipoSeleccionado) { toast('Selecciona un tipo'); return; }
+    const c = canciones.find(x => x.id === assetSongId);
+    if (!c) return;
+
+    const etiqueta  = document.getElementById('asset-etiqueta').value.trim();
+    const contenido = document.getElementById('asset-contenido').value.trim();
+
+    if (tipoSeleccionado === 'audio') {
+        if (!audioFile) { toast('Selecciona un archivo de audio'); return; }
+        const assetId = genId();
+        let storagePath = '';
+        try {
+            storagePath = await sbSubirAudio(assetId, audioFile);
+        } catch (e) { toast('Error al subir audio: ' + e.message); return; }
+        const asset = {
+            id: assetId, cancion_id: c.id, tipo: 'audio', etiqueta,
+            contenido: '', synced: '', nombre_archivo: audioFile.name,
+            storage_path: storagePath, orden: 0,
+        };
+        await sbUpsertAsset(asset);
+        if (!c.assets) c.assets = [];
+        c.assets.push(asset);
+        cerrarModalAsset();
+        songActiva = c;
+        renderPanel();
+        toast('Audio subido ✓');
+        return;
+    }
+
+    if (!contenido) { toast('Escribe el contenido'); return; }
+    if (!c.assets) c.assets = [];
+    const synced = tipoSeleccionado === 'letra'
+        ? (document.getElementById('asset-contenido').dataset.synced || '')
+        : '';
+    const asset = {
+        id: genId(), cancion_id: c.id, tipo: tipoSeleccionado, etiqueta,
+        contenido, synced: synced || '', nombre_archivo: '', storage_path: '', orden: 0,
+    };
+    await sbUpsertAsset(asset);
+    c.assets.push(asset);
+    cerrarModalAsset();
+    songActiva = c;
+    renderPanel();
+    toast('Asset guardado');
+}
+
+async function eliminarAsset(songId, idx) {
+    const c = canciones.find(x => x.id === songId);
+    if (!c || !confirm('¿Eliminar este asset?')) return;
+    const a = c.assets[idx];
+    await sbEliminarAsset(a);
+    c.assets.splice(idx, 1);
+    songActiva = c;
+    renderPanel();
+    toast('Asset eliminado');
+}
+
+// ── VER ASSET ────────────────────────────────────────────────────────────────
+function verAsset(songId, idx) {
+    const c = canciones.find(x => x.id === songId);
+    if (!c) return;
+    const a = c.assets[idx];
+    if (!a) return;
+
+    const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo };
+    const titulo = `${info.ico} ${info.label}${a.etiqueta ? ' · ' + a.etiqueta : ''} — ${c.nombre}`;
+    document.getElementById('modal-ver-titulo').textContent = titulo;
+
+    const audioEl     = document.getElementById('modal-ver-audio');
+    const audioTag    = document.getElementById('modal-ver-audio-el');
+    const contenidoEl = document.getElementById('modal-ver-contenido');
+
+    if (a.tipo === 'audio') {
+        contenidoEl.textContent = '';
+        audioTag.src = a.storage_path ? audioUrl(a.storage_path) : '';
+        audioEl.classList.add('visible');
+    } else {
+        audioEl.classList.remove('visible');
+        audioTag.src = '';
+        contenidoEl.textContent = a.contenido || '';
+    }
+
+    document.getElementById('modal-ver-overlay').classList.add('visible');
+}
+
+function cerrarModalVer() {
+    document.getElementById('modal-ver-overlay').classList.remove('visible');
+    const a = document.getElementById('modal-ver-audio-el');
+    a.pause(); a.src = '';
+}
+
+// ── UTILIDADES ───────────────────────────────────────────────────────────────
+function escapar(s) {
+    return (s||'').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+let toastTimer;
+function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('visible'), 2200);
+}
+
+// ── VISOR DE LETRA SINCRONIZADA ──────────────────────────────────────────────
+
+let visorSong    = null;
+let lrcLines     = [];
+let visorLineIdx = -1;
+let visorManual  = false;
+let visorObjUrl  = null;  // Object URL del audio actual
+
+// Parser LRC
+function parseLRC(text) {
+    if (!text) return [];
+    const lines = [];
+    const re = /\[(\d{2}):(\d{2})[.:](\d{2,3})\](.*)$/gm;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        const ms = parseInt(m[1]) * 60000
+                 + parseInt(m[2]) * 1000
+                 + (m[3].length === 2 ? parseInt(m[3]) * 10 : parseInt(m[3]));
+        const txt = m[4].trim();
+        lines.push({ time: ms, text: txt });
+    }
+    return lines.sort((a, b) => a.time - b.time);
+}
+
+// Abrir visor para una canción
+async function abrirVisor(songId) {
+    const c = canciones.find(x => x.id === songId);
+    if (!c) return;
+    visorSong    = c;
+    visorLineIdx = -1;
+    visorManual  = false;
+
+    const letra = (c.assets || []).find(a => a.tipo === 'letra');
+    const audio  = (c.assets || []).find(a => a.tipo === 'audio');
+    if (!letra) { toast('Sin letra — agrégala primero'); return; }
+
+    // Parsear LRC
+    if (letra.synced) {
+        lrcLines = parseLRC(letra.synced);
+    } else {
+        lrcLines = (letra.contenido || '').split('\n')
+            .map(t => t.trim()).filter(Boolean)
+            .map((text, i) => ({ time: i * 3000, text }));
+        visorManual = true;
+        toast('Sin sync LRC — modo manual activado');
+    }
+
+    // Header
+    document.getElementById('visor-song-nombre').textContent  = c.nombre;
+    document.getElementById('visor-song-artista').textContent = c.artista || '';
+    document.getElementById('visor-modo-btn').textContent = visorManual ? 'Auto' : 'Manual';
+    document.getElementById('visor-modo-btn').classList.toggle('manual-on', visorManual);
+
+    // Audio desde Supabase Storage
+    const audioEl = document.getElementById('visor-audio');
+    const wrap    = document.getElementById('visor-audio-wrap');
+    audioEl.src = '';
+    if (audio && audio.storage_path) {
+        audioEl.src = audioUrl(audio.storage_path);
+        wrap.classList.remove('oculto');
+    } else {
+        wrap.classList.add('oculto');
+    }
+
+    // Conectar sync automático
+    audioEl.ontimeupdate = () => {
+        if (visorManual) return;
+        const ms = audioEl.currentTime * 1000;
+        let newIdx = -1;
+        for (let i = 0; i < lrcLines.length; i++) {
+            if (lrcLines[i].time <= ms) newIdx = i; else break;
+        }
+        if (newIdx !== visorLineIdx) { visorLineIdx = newIdx; actualizarLineas(newIdx); }
+        // elapsed
+        const seg = Math.floor(audioEl.currentTime);
+        document.getElementById('visor-elapsed').textContent =
+            `${Math.floor(seg/60)}:${String(seg%60).padStart(2,'0')}`;
+    };
+
+    renderLineas();
+    document.getElementById('visor-elapsed').textContent = '0:00';
+    document.getElementById('visor-overlay').classList.add('visible');
+}
+
+function cerrarVisor() {
+    const audioEl = document.getElementById('visor-audio');
+    audioEl.pause(); audioEl.src = ''; audioEl.ontimeupdate = null;
+    document.getElementById('visor-overlay').classList.remove('visible');
+}
+
+// Renderizar todas las líneas
+function renderLineas() {
+    const wrap = document.getElementById('visor-letras');
+    wrap.innerHTML = lrcLines.map((l, i) => {
+        const cls = l.text ? '' : 'vacia';
+        return `<span class="lyric-line ${cls}" data-i="${i}" onclick="clickLinea(${i})">${l.text || '·'}</span>`;
+    }).join('');
+}
+
+// Actualizar estilos según línea activa
+function actualizarLineas(idx) {
+    const lineas = document.querySelectorAll('.lyric-line');
+    lineas.forEach((el, i) => {
+        el.classList.remove('activa', 'pasada');
+        if (i < idx)       el.classList.add('pasada');
+        else if (i === idx) el.classList.add('activa');
+    });
+    // Snap scroll
+    if (idx >= 0 && lineas[idx]) {
+        const container = document.getElementById('visor-letras');
+        const el = lineas[idx];
+        const target = el.offsetTop - container.clientHeight * 0.5 + el.offsetHeight / 2;
+        container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+    }
+}
+
+// Modo manual (teleprompter)
+function toggleModoManual() {
+    visorManual = !visorManual;
+    document.getElementById('visor-modo-btn').textContent = visorManual ? 'Auto' : 'Manual';
+    document.getElementById('visor-modo-btn').classList.toggle('manual-on', visorManual);
+    if (visorManual) {
+        if (visorLineIdx < 0) { visorLineIdx = 0; actualizarLineas(0); }
+    }
+}
+
+// Clic en una línea (avanzar manual o re-sincronizar)
+function clickLinea(i) {
+    if (visorManual) {
+        visorLineIdx = i;
+        actualizarLineas(i);
+    } else {
+        const audio = document.getElementById('visor-audio');
+        const t = Math.max(0, (lrcLines[i].time / 1000) - 2);
+        audio.currentTime = t;
+    }
+}
+
+// Teclado en visor
+document.addEventListener('keydown', e => {
+    if (!document.getElementById('visor-overlay').classList.contains('visible')) return;
+    if (e.key === 'Escape') { cerrarVisor(); return; }
+    if (visorManual) {
+        if (e.key === 'ArrowDown' || e.key === ' ') {
+            e.preventDefault();
+            const next = Math.min(visorLineIdx + 1, lrcLines.length - 1);
+            visorLineIdx = next; actualizarLineas(next);
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const prev = Math.max(visorLineIdx - 1, 0);
+            visorLineIdx = prev; actualizarLineas(prev);
+        }
+    }
+});
+
+// ── BÚSQUEDA EN TIEMPO REAL ───────────────────────────────────────────────────
+document.getElementById('search').addEventListener('input', render);
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+(async () => {
+    try {
+        await cargarTodo();
+    } catch (e) {
+        toast('Sin conexión — revisa Supabase');
+        console.error(e);
+    }
+    render();
+})();
+</script>
+</body>
+</html>
