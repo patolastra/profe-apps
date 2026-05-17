@@ -1519,7 +1519,7 @@ function assetItemHTML(a, i) {
                 <div class="asset-item-etiqueta">${desc}</div>
             </div>
             <div class="asset-item-actions">
-                ${isMetal ? `<button class="btn-icon" onclick="abrirMetalofono('${url}', '${desc || songActiva.nombre}')" title="Abrir en Metalófono">🎹</button>` : ''}
+                ${isMetal ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${(desc || songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">🎹</button>` : ''}
                 ${isAudio ? '' : `<a class="btn-icon" href="${url}" download="${desc || 'archivo'}" title="Descargar">⬇</a>`}
                 <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}', ${i})" title="Eliminar">🗑</button>
             </div>
@@ -2051,8 +2051,9 @@ function toast(msg) {
 let visorSong    = null;
 let lrcLines     = [];
 let visorLineIdx   = -1;
-let visorManual    = false;
-let seekTargetIdx  = -1;
+let visorManual       = false;
+let seekTargetIdx     = -1;
+let programmaticSeek  = false;
 let visorObjUrl  = null;  // Object URL del audio actual
 
 // Parser LRC
@@ -2112,6 +2113,12 @@ async function abrirVisor(songId) {
         wrap.classList.add('oculto');
     }
 
+    // Seek manual del usuario → cancelar pre-roll de click
+    audioEl.onseeked = () => {
+        if (programmaticSeek) { programmaticSeek = false; return; }
+        seekTargetIdx = -1;
+    };
+
     // Conectar sync automático
     audioEl.ontimeupdate = () => {
         if (visorManual) return;
@@ -2139,7 +2146,7 @@ async function abrirVisor(songId) {
 
 function cerrarVisor() {
     const audioEl = document.getElementById('visor-audio');
-    audioEl.pause(); audioEl.src = ''; audioEl.ontimeupdate = null;
+    audioEl.pause(); audioEl.src = ''; audioEl.ontimeupdate = null; audioEl.onseeked = null;
     document.getElementById('visor-overlay').classList.remove('visible');
 }
 
@@ -2207,6 +2214,7 @@ function clickLinea(i) {
         seekTargetIdx = i;
         visorLineIdx = i;
         actualizarLineas(i);
+        programmaticSeek = true;
         audio.currentTime = t;
         if (estabaReproduciendo) audio.play().catch(() => {});
     }
