@@ -1158,6 +1158,12 @@
                             📂 Seleccionar archivo de audio
                         </button>
                         <div id="asset-audio-nombre" style="font-size:0.78rem;color:var(--muted);margin-top:8px;text-align:center"></div>
+                        <div id="asset-upload-wrap" style="display:none;margin-top:10px">
+                            <div style="background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden">
+                                <div id="asset-upload-bar" style="background:var(--accent);height:100%;width:0%;transition:width 0.15s"></div>
+                            </div>
+                            <div id="asset-upload-pct" style="font-size:0.75rem;color:var(--muted);text-align:center;margin-top:4px">0%</div>
+                        </div>
                     </div>
                     <div id="asset-archivo-wrap" style="display:none;margin-top:8px">
                         <input id="asset-archivo-file" type="file" style="display:none" onchange="manejarArchivo(this)">
@@ -1311,13 +1317,27 @@ async function sbGuardarContextos(cancionId, contextos) {
 }
 
 // Subir archivo a Storage con prefijo por tipo
-async function sbSubirArchivo(tipo, assetId, file) {
+function sbSubirArchivo(tipo, assetId, file, onProgress) {
     const ext    = file.name.split('.').pop();
     const prefix = PREFIJOS_STORAGE[tipo] || tipo;
     const path   = `${prefix}/${assetId}.${ext}`;
-    const { error } = await sb.storage.from(BUCKET).upload(path, file, { upsert: true });
-    if (error) throw error;
-    return path;
+    const url    = `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`;
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url);
+        xhr.setRequestHeader('Authorization', 'Bearer ' + SUPABASE_ANON);
+        xhr.setRequestHeader('x-upsert', 'true');
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        if (onProgress) xhr.upload.onprogress = e => {
+            if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100));
+        };
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) resolve(path);
+            else reject(new Error('HTTP ' + xhr.status));
+        };
+        xhr.onerror = () => reject(new Error('Error de red'));
+        xhr.send(file);
+    });
 }
 
 // Eliminar asset
@@ -1793,6 +1813,8 @@ function abrirModalAsset(songId) {
     document.getElementById('asset-audio-nombre').textContent = '';
     document.getElementById('asset-archivo-nombre').textContent = '';
     document.getElementById('asset-audio-file').value   = '';
+    document.getElementById('asset-upload-wrap').style.display = 'none';
+    document.getElementById('asset-upload-bar').style.width = '0%';
     document.getElementById('asset-archivo-file').value = '';
     document.getElementById('asset-cifrado-file').value = '';
     document.getElementById('asset-lrclib-btn').style.display = 'none';
@@ -1835,6 +1857,10 @@ function selTipo(btn) {
             flauta:    '.mid,.midi',
         };
         document.getElementById('asset-archivo-file').accept = accepts[tipoSeleccionado];
+        document.getElementById('asset-archivo-file').click();
+    }
+    if (isAudio) {
+        document.getElementById('asset-audio-file').click();
     }
 
     const labels = {
@@ -1919,9 +1945,23 @@ async function guardarAsset() {
         if (!audioFile) { toast('Selecciona un archivo de audio'); return; }
         const assetId = genId();
         let storagePath = '';
+        const wrapProg = document.getElementById('asset-upload-wrap');
+        const bar      = document.getElementById('asset-upload-bar');
+        const pct      = document.getElementById('asset-upload-pct');
+        wrapProg.style.display = '';
+        bar.style.width = '0%'; pct.textContent = '0%';
+        document.getElementById('asset-guardar').disabled = true;
         try {
-            storagePath = await sbSubirArchivo('audio', assetId, audioFile);
-        } catch (e) { toast('Error al subir audio: ' + e.message); return; }
+            storagePath = await sbSubirArchivo('audio', assetId, audioFile, p => {
+                bar.style.width = p + '%'; pct.textContent = p + '%';
+            });
+        } catch (e) {
+            wrapProg.style.display = 'none';
+            document.getElementById('asset-guardar').disabled = false;
+            toast('Error al subir audio: ' + e.message); return;
+        }
+        wrapProg.style.display = 'none';
+        document.getElementById('asset-guardar').disabled = false;
         const asset = {
             id: assetId, cancion_id: c.id, tipo: 'audio', etiqueta,
             contenido: '', synced: '', nombre_archivo: audioFile.name,
