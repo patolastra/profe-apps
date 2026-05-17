@@ -52,6 +52,13 @@ CREATE POLICY "anon_all" ON repertorio_cancion_contextos
 -- ── STORAGE ───────────────────────────────────────────────────────────────────
 -- Crear el bucket manualmente en:
 -- Supabase Dashboard → Storage → New bucket
--- Nombre: repertorio-audio
+-- Nombre: repertorio-assets
 -- Public: YES (para streaming directo sin auth)
--- File size limit: 20 MB
+-- File size limit: 50 MB
+
+-- Políticas RLS para Storage (bucket repertorio-assets)
+-- El bucket público da lectura libre, pero escritura requiere políticas explícitas.
+CREATE POLICY "anon_select"  ON storage.objects FOR SELECT  TO anon USING (bucket_id = 'repertorio-assets');
+CREATE POLICY "anon_insert"  ON storage.objects FOR INSERT  TO anon WITH CHECK (bucket_id = 'repertorio-assets');
+CREATE POLICY "anon_update"  ON storage.objects FOR UPDATE  TO anon USING (bucket_id = 'repertorio-assets');
+CREATE POLICY "anon_delete"  ON storage.objects FOR DELETE  TO anon USING (bucket_id = 'repertorio-assets');
