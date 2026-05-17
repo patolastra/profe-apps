@@ -468,7 +468,7 @@ function temaParaSesion(uuid) {
 // ── ESTADO ───────────────────────────────────────────────
 let sb, sesionId, canal;
 let slides = [], slideIdx = 0;
-let repLines = [], repIdx = 0, repActivo = false;
+let repLines = [], repIdx = 0, repActivo = false, repGen = 0;
 
 // ── UTILS ────────────────────────────────────────────────
 
@@ -723,9 +723,10 @@ function renderSlide() {
 
     } else if (tipo === 'rep') {
         const { nombre, cancionId } = extraerRepData(raw);
+        const miGen = ++repGen;
         area.innerHTML = `<div class="slide-rep">
             <div class="rep-nombre">${esc(nombre)}</div>
-            <div class="rep-lineas" id="rep-lineas">Cargando letra…</div>
+            <div class="rep-lineas" id="rep-lineas" style="color:rgba(255,255,255,0.25);font-size:1rem">Cargando letra…</div>
             <div class="rep-counter" id="rep-counter"></div>
         </div>`;
         (async () => {
@@ -735,9 +736,10 @@ function renderSlide() {
                     .eq('cancion_id', cancionId)
                     .eq('tipo', 'letra')
                     .maybeSingle();
+                if (repGen !== miGen) return; // slide cambió mientras cargaba
                 if (!data) {
                     const el = document.getElementById('rep-lineas');
-                    if (el) el.textContent = 'Sin letra disponible';
+                    if (el) { el.textContent = 'Sin letra disponible'; el.style.color = 'rgba(255,255,255,0.25)'; }
                     return;
                 }
                 if (data.synced) {
@@ -749,8 +751,9 @@ function renderSlide() {
                 renderRepLineas();
             } catch (e) {
                 console.error(e);
+                if (repGen !== miGen) return;
                 const el = document.getElementById('rep-lineas');
-                if (el) el.textContent = 'Error al cargar letra';
+                if (el) { el.textContent = 'Error al cargar letra'; el.style.color = 'rgba(255,255,255,0.25)'; }
             }
         })();
 
@@ -796,7 +799,8 @@ function avanzar()    { if (slideIdx < slides.length - 1) irA(slideIdx + 1); }
 function retroceder() { if (slideIdx > 0) irA(slideIdx - 1); }
 
 function handleClickArea() {
-    avanzar(); // El iframe YouTube intercepta su propio click, así que no hay conflicto
+    if (repActivo && repLines.length) { repAvancar(); return; }
+    avanzar();
 }
 
 // ── FULLSCREEN ───────────────────────────────────────────
