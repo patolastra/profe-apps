@@ -1117,6 +1117,19 @@
                         </button>
                         <div id="asset-audio-nombre" style="font-size:0.78rem;color:var(--muted);margin-top:8px;text-align:center"></div>
                     </div>
+                    <div id="asset-archivo-wrap" style="display:none;margin-top:8px">
+                        <input id="asset-archivo-file" type="file" style="display:none" onchange="manejarArchivo(this)">
+                        <button class="btn-secondary" style="width:100%" onclick="document.getElementById('asset-archivo-file').click()">
+                            📂 Cargar archivo
+                        </button>
+                        <div id="asset-archivo-nombre" style="font-size:0.78rem;color:var(--muted);margin-top:8px;text-align:center"></div>
+                    </div>
+                    <div id="asset-cifrado-load-wrap" style="display:none;margin-top:8px">
+                        <input id="asset-cifrado-file" type="file" accept=".cho,.chordpro" style="display:none" onchange="cargarCifradoArchivo(this)">
+                        <button class="btn-secondary" style="width:100%" onclick="document.getElementById('asset-cifrado-file').click()">
+                            📂 Cargar desde .cho / .chordpro
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1189,10 +1202,12 @@ let editandoId       = null;
 let assetSongId      = null;
 let tipoSeleccionado = null;
 let audioFile        = null;
+let archivoFile      = null;
 
 // ── SUPABASE — CAPA DE DATOS ─────────────────────────────────────────────────
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const BUCKET = 'repertorio-audio';
+const BUCKET = 'repertorio-assets';
+const PREFIJOS_STORAGE = { audio: 'audio', tab: 'tab', metalofono: 'midi', flauta: 'midi' };
 
 function genId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -1216,8 +1231,8 @@ async function cargarTodo() {
     }
 }
 
-// URL pública de un audio en Storage
-function audioUrl(storagePath) {
+// URL pública de un archivo en Storage
+function storageUrl(storagePath) {
     return sb.storage.from(BUCKET).getPublicUrl(storagePath).data.publicUrl;
 }
 
@@ -1244,10 +1259,11 @@ async function sbGuardarContextos(cancionId, contextos) {
     }
 }
 
-// Subir audio a Storage
-async function sbSubirAudio(assetId, file) {
-    const ext  = file.name.split('.').pop();
-    const path = `${assetId}.${ext}`;
+// Subir archivo a Storage con prefijo por tipo
+async function sbSubirArchivo(tipo, assetId, file) {
+    const ext    = file.name.split('.').pop();
+    const prefix = PREFIJOS_STORAGE[tipo] || tipo;
+    const path   = `${prefix}/${assetId}.${ext}`;
     const { error } = await sb.storage.from(BUCKET).upload(path, file, { upsert: true });
     if (error) throw error;
     return path;
@@ -1261,8 +1277,8 @@ async function sbEliminarAsset(a) {
 
 // Eliminar canción (CASCADE elimina assets y contextos en DB, pero Storage hay que limpiar)
 async function sbEliminarCancion(c) {
-    const audios = (c.assets || []).filter(a => a.storage_path);
-    if (audios.length) await sb.storage.from(BUCKET).remove(audios.map(a => a.storage_path));
+    const archivos = (c.assets || []).filter(a => a.storage_path);
+    if (archivos.length) await sb.storage.from(BUCKET).remove(archivos.map(a => a.storage_path));
     await sb.from('repertorio_canciones').delete().eq('id', c.id);
 }
 
@@ -1438,20 +1454,26 @@ function assetItemHTML(a, i) {
     const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo, clase: '' };
     const etiq = a.etiqueta ? `<div class="asset-item-etiqueta">${a.etiqueta}</div>` : '';
 
-    if (a.tipo === 'audio') {
+    // Audio y binarios con archivo en Storage
+    if (a.storage_path) {
+        const url  = storageUrl(a.storage_path);
+        const desc = a.nombre_archivo || a.etiqueta || '';
+        const isAudio = a.tipo === 'audio';
         return `
         <div class="asset-item">
-            <div class="asset-item-ico">🎵</div>
+            <div class="asset-item-ico">${info.ico}</div>
             <div class="asset-item-info">
-                <div class="asset-item-tipo">Audio</div>
-                <div class="asset-item-etiqueta">${a.nombre || a.etiqueta || ''}</div>
+                <div class="asset-item-tipo">${info.label}</div>
+                <div class="asset-item-etiqueta">${desc}</div>
             </div>
             <div class="asset-item-actions">
+                ${isAudio ? '' : `<a class="btn-icon" href="${url}" download="${desc || 'archivo'}" title="Descargar">⬇</a>`}
                 <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}', ${i})" title="Eliminar">🗑</button>
             </div>
         </div>`;
     }
 
+    // Texto (letra, cifrado, notas)
     return `
     <div class="asset-item">
         <div class="asset-item-ico">${info.ico}</div>
@@ -1710,11 +1732,13 @@ function abrirModalAsset(songId) {
     assetSongId = songId;
     tipoSeleccionado = null;
     audioFile = null;
+    archivoFile = null;
     document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('seleccionado'));
     document.getElementById('asset-campos').classList.add('oculto');
     document.getElementById('asset-etiqueta').value = '';
     document.getElementById('asset-contenido').value = '';
     document.getElementById('asset-audio-nombre').textContent = '';
+    document.getElementById('asset-archivo-nombre').textContent = '';
     document.getElementById('asset-lrclib-btn').style.display = 'none';
     document.getElementById('asset-lrclib-estado').textContent = '';
     document.getElementById('modal-asset-overlay').classList.add('visible');
@@ -1725,31 +1749,53 @@ function cerrarModalAsset() {
     assetSongId = null;
     tipoSeleccionado = null;
     audioFile = null;
+    archivoFile = null;
 }
 
 function selTipo(btn) {
     document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('seleccionado'));
     btn.classList.add('seleccionado');
     tipoSeleccionado = btn.dataset.tipo;
+    archivoFile = null;
+    document.getElementById('asset-archivo-nombre').textContent = '';
     document.getElementById('asset-campos').classList.remove('oculto');
 
-    const isAudio = tipoSeleccionado === 'audio';
-    const isLetra = tipoSeleccionado === 'letra';
-    document.getElementById('asset-contenido').style.display = isAudio ? 'none' : '';
-    document.getElementById('asset-audio-wrap').style.display = isAudio ? '' : 'none';
-    document.getElementById('asset-lrclib-btn').style.display = isLetra ? '' : 'none';
-    document.getElementById('asset-lrclib-estado').textContent = '';
-    if (isAudio) {
-        document.getElementById('asset-contenido-wrap').querySelector('.form-label').textContent = 'Archivo de audio';
-    } else {
-        document.getElementById('asset-contenido-wrap').querySelector('.form-label').textContent = 'Contenido';
+    const isAudio   = tipoSeleccionado === 'audio';
+    const isLetra   = tipoSeleccionado === 'letra';
+    const isArchivo = ['tab', 'metalofono', 'flauta'].includes(tipoSeleccionado);
+    const isCifrado = tipoSeleccionado === 'cifrado';
+
+    document.getElementById('asset-contenido').style.display      = isAudio ? 'none' : '';
+    document.getElementById('asset-audio-wrap').style.display     = isAudio ? '' : 'none';
+    document.getElementById('asset-archivo-wrap').style.display   = isArchivo ? '' : 'none';
+    document.getElementById('asset-cifrado-load-wrap').style.display = isCifrado ? '' : 'none';
+    document.getElementById('asset-lrclib-btn').style.display     = isLetra ? '' : 'none';
+    document.getElementById('asset-lrclib-estado').textContent    = '';
+
+    if (isArchivo) {
+        const accepts = {
+            tab:       '.mxl,.mscz,.tg,.gp,.gp3,.gp4,.gp5,.gpx,.gp7,.mid,.midi',
+            metalofono:'.mid,.midi',
+            flauta:    '.mid,.midi',
+        };
+        document.getElementById('asset-archivo-file').accept = accepts[tipoSeleccionado];
     }
 
+    const labels = {
+        audio:     'Archivo de audio',
+        tab:       'Tablatura (archivo o texto ASCII)',
+        metalofono:'Metalófono (archivo MIDI o notas en texto)',
+        flauta:    'Flauta (archivo MIDI o notas en texto)',
+        cifrado:   'Cifrado',
+    };
+    document.getElementById('asset-contenido-wrap').querySelector('.form-label').textContent =
+        labels[tipoSeleccionado] || 'Contenido';
+
     const hints = {
-        tab:       'Pega la tablatura en texto o formato ASCII…',
-        metalofono:'Notas para metalófono (ej: DO RE MI FA SOL…)',
-        flauta:    'Notas para flauta (ej: DO RE MI…)',
-        cifrado:   'Acordes cifrado americano (ej: Am G F E7…)',
+        tab:       'O pega una tablatura en texto ASCII aquí…',
+        metalofono:'O escribe las notas: DO RE MI FA SOL…',
+        flauta:    'O escribe las notas: DO RE MI…',
+        cifrado:   'Texto ChordPro, o cifrado sincronizado:\n[00:12.00]Am\n[00:15.50]F  C\n[00:18.00]G',
         letra:     'Pega o escribe la letra aquí…',
     };
     document.getElementById('asset-contenido').placeholder = hints[tipoSeleccionado] || 'Contenido…';
@@ -1789,6 +1835,22 @@ function manejarAudio(input) {
     document.getElementById('asset-audio-nombre').textContent = audioFile ? audioFile.name : '';
 }
 
+function manejarArchivo(input) {
+    archivoFile = input.files[0] || null;
+    document.getElementById('asset-archivo-nombre').textContent = archivoFile ? archivoFile.name : '';
+}
+
+function cargarCifradoArchivo(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        document.getElementById('asset-contenido').value = e.target.result;
+        toast(`Cargado: ${file.name}`);
+    };
+    reader.readAsText(file);
+}
+
 async function guardarAsset() {
     if (!tipoSeleccionado) { toast('Selecciona un tipo'); return; }
     const c = canciones.find(x => x.id === assetSongId);
@@ -1802,7 +1864,7 @@ async function guardarAsset() {
         const assetId = genId();
         let storagePath = '';
         try {
-            storagePath = await sbSubirAudio(assetId, audioFile);
+            storagePath = await sbSubirArchivo('audio', assetId, audioFile);
         } catch (e) { toast('Error al subir audio: ' + e.message); return; }
         const asset = {
             id: assetId, cancion_id: c.id, tipo: 'audio', etiqueta,
@@ -1813,12 +1875,38 @@ async function guardarAsset() {
         if (!c.assets) c.assets = [];
         c.assets.push(asset);
         cerrarModalAsset();
-        songActiva = c;
-        renderPanel();
+        songActiva = c; renderPanel();
         toast('Audio subido ✓');
         return;
     }
 
+    // Archivos binarios (tab, metalofono, flauta) — archivo toma prioridad sobre texto
+    if (['tab', 'metalofono', 'flauta'].includes(tipoSeleccionado)) {
+        if (!archivoFile && !contenido) { toast('Carga un archivo o escribe el contenido'); return; }
+        const assetId = genId();
+        let storagePath = '', nombreArchivo = '';
+        if (archivoFile) {
+            try {
+                storagePath  = await sbSubirArchivo(tipoSeleccionado, assetId, archivoFile);
+                nombreArchivo = archivoFile.name;
+            } catch (e) { toast('Error al subir archivo: ' + e.message); return; }
+        }
+        const asset = {
+            id: assetId, cancion_id: c.id, tipo: tipoSeleccionado, etiqueta,
+            contenido: archivoFile ? '' : contenido,
+            synced: '', nombre_archivo: nombreArchivo,
+            storage_path: storagePath, orden: 0,
+        };
+        await sbUpsertAsset(asset);
+        if (!c.assets) c.assets = [];
+        c.assets.push(asset);
+        cerrarModalAsset();
+        songActiva = c; renderPanel();
+        toast('Asset guardado ✓');
+        return;
+    }
+
+    // Texto (letra, cifrado)
     if (!contenido) { toast('Escribe el contenido'); return; }
     if (!c.assets) c.assets = [];
     const synced = tipoSeleccionado === 'letra'
@@ -1831,8 +1919,7 @@ async function guardarAsset() {
     await sbUpsertAsset(asset);
     c.assets.push(asset);
     cerrarModalAsset();
-    songActiva = c;
-    renderPanel();
+    songActiva = c; renderPanel();
     toast('Asset guardado');
 }
 
@@ -1864,8 +1951,16 @@ function verAsset(songId, idx) {
 
     if (a.tipo === 'audio') {
         contenidoEl.textContent = '';
-        audioTag.src = a.storage_path ? audioUrl(a.storage_path) : '';
+        audioTag.src = a.storage_path ? storageUrl(a.storage_path) : '';
         audioEl.classList.add('visible');
+    } else if (a.storage_path) {
+        audioEl.classList.remove('visible');
+        audioTag.src = '';
+        const url = storageUrl(a.storage_path);
+        contenidoEl.innerHTML = `<a href="${url}" download="${a.nombre_archivo || 'archivo'}"
+            style="display:inline-flex;align-items:center;gap:8px;padding:12px 18px;background:#eff6ff;
+            color:#2563eb;border-radius:10px;font-weight:700;text-decoration:none;font-size:0.9rem;">
+            ⬇ Descargar ${a.nombre_archivo || info.label}</a>`;
     } else {
         audioEl.classList.remove('visible');
         audioTag.src = '';
@@ -1953,7 +2048,7 @@ async function abrirVisor(songId) {
     const wrap    = document.getElementById('visor-audio-wrap');
     audioEl.src = '';
     if (audio && audio.storage_path) {
-        audioEl.src = audioUrl(audio.storage_path);
+        audioEl.src = storageUrl(audio.storage_path);
         wrap.classList.remove('oculto');
     } else {
         wrap.classList.add('oculto');
