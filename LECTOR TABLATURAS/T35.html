@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lector Tablaturas T35</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #222; color: white; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 16px; overflow-x: hidden; }
+        .controls { background: #333; padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); display: flex; gap: 10px; align-items: center; width: 98%; justify-content: center; flex-wrap: wrap; }
+        canvas { background: #fff; border-radius: 5px; box-shadow: 0 0 20px rgba(0,0,0,0.5); cursor: crosshair; }
+        canvas.selecting { cursor: cell; }
+        button { padding: 8px 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; transition: 0.2s; font-size: 0.85rem; }
+        button:hover { opacity: 0.8; }
+        #btnPlay  { background: #27ae60; color: white; }
+        #btnPause { background: #c0392b; color: white; }
+        .btn-loop { background: #2980b9; color: white; }
+        .btn-loop-clear { background: #555; color: #ccc; }
+        .btn-active { background: #e67e22 !important; box-shadow: 0 0 8px #e67e22; }
+        .btn-sound { background: #8e44ad; color: white; }
+        .btn-sound.muted { background: #555; color: #aaa; }
+        .sep { color: #555; font-size: 1.2rem; user-select: none; }
+        .speed-row { display: flex; align-items: center; gap: 6px; }
+        .speed-row button { padding: 6px 10px; background: #555; color: white; font-size: 1rem; min-width: 32px; }
+        .speed-row input[type=range] { width: 90px; accent-color: #3498db; }
+        .speed-label { font-family: monospace; font-size: 0.9rem; background: #1a1a1a; padding: 4px 8px; border-radius: 4px; min-width: 46px; text-align: center; }
+        .time-label { font-family: monospace; font-size: 0.9rem; min-width: 60px; color: #aaa; }
+        input[type=file] { color: #ccc; font-size: 0.82rem; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <input type="file" id="fileInput" accept=".xml,.musicxml,.mxl">
+    <span class="sep">|</span>
+    <button id="btnPlay">▶ PLAY</button>
+    <button id="btnPause">⏸ PAUSA</button>
+    <span class="time-label" id="timeDisplay">0.00s</span>
+    <span class="sep">|</span>
+    <button id="btnLoopIn"    class="btn-loop">⟦ IN</button>
+    <button id="btnLoopOut"   class="btn-loop">OUT ⟧</button>
+    <button id="btnLoopClear" class="btn-loop-clear">✕ loop</button>
+    <span class="sep">|</span>
+    <div class="speed-row">
+        <button id="btnSpeedDown">−</button>
+        <input type="range" id="speedSlider" min="40" max="120" value="100" step="5">
+        <button id="btnSpeedUp">+</button>
+        <span class="speed-label" id="speedDisplay">100%</span>
+    </div>
+    <span class="sep">|</span>
+    <button id="btnSound" class="btn-sound">🔊</button>
+</div>
+
+<canvas id="tabCanvas"></canvas>
+
+<script>
+// ─── CONSTANTES ───────────────────────────────────────────────
+const SCALE        = 100;
+const ZOOM_X       = 1.4;
+const UNIT         = SCALE * ZOOM_X;
+const TARGET_X_PCT = 0.2;
+const STR_SPACING  = 40;
+const NOTE_R       = UNIT * 0.16;
+const OPEN_STRINGS = [64, 59, 55, 50, 45, 40]; // E4 B3 G3 D3 A2 E2
+const START_Y      = 100;
+const BOUNCE_H     = 30;
+const START_OFFSET = 1.5;
+
+const fretPad    = UNIT * 0.2;
+const fretTop    = START_Y - fretPad;
+const fretBottom = START_Y + 5 * STR_SPACING + fretPad;
+
+const FINGER_COLOR = { 1: '#f1c40f', 2: '#9b59b6', 3: '#3498db', 4: '#e74c3c' };
+
+// ─── ESTADO ───────────────────────────────────────────────────
+let notes       = [];
+let currentTime = 0;
+let prevTime    = 0;
+let isPlaying   = false;
+let lastTS      = 0;
+let ballY       = START_Y;
+let bpm         = 120;
+let beatsPerBar = 4;
+
+// Loop
+let loopActive = false;
+let loopIn     = 0;
+let loopOut    = 0;
+let loopReady  = false;   // fase "READY…" de 1 tiempo
+let readyStart = 0;
+let selIn      = false;
+let selOut     = false;
+
+// Velocidad
+let speed = 1.0;
+
+// Audio
+let audioCtx    = null;
+let soundOn     = true;
+
+// ─── CANVAS ───────────────────────────────────────────────────
+const canvas = document.getElementById('tabCanvas');
+const ctx    = canvas.getContext('2d');
+
+function resizeCanvas() {
+    canvas.width  = window.innerWidth  * 0.98;
+    canvas.height = 400;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function getX(t) {
+    return canvas.width * TARGET_X_PCT + (t - currentTime) * SCALE * ZOOM_X;
+}
+
+function noteWidth() {
+    return (60 / bpm) * SCALE * ZOOM_X;
+}
+
+// ─── AUDIO ────────────────────────────────────────────────────
+function ensureAudio() {
+    if (!audioCtx) audioCtx = new AudioContext();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playNote(midi) {
+    if (!soundOn || !audioCtx) return;
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const now  = audioCtx.currentTime;
+
+    const osc    = audioCtx.createOscillator();
+    const gain   = audioCtx.createGain();
+    const filter = audioCtx.createBiquadFilter();
+
+    osc.type          = 'sawtooth';
+    osc.frequency.value = freq;
+    filter.type       = 'lowpass';
+    filter.frequency.value = Math.min(freq * 5, 3800);
+    filter.Q.value    = 1.5;
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.38, now + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.06,  now + 0.18);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+
+    osc.start(now);
+    osc.stop(now + 1.3);
+}
+
+// ─── VELOCIDAD ────────────────────────────────────────────────
+function setSpeed(v) {
+    v = Math.max(40, Math.min(120, v));
+    speed = v / 100;
+    document.getElementById('speedSlider').value = v;
+    document.getElementById('speedDisplay').textContent = v + '%';
+}
+
+document.getElementById('speedSlider').oninput = e => setSpeed(+e.target.value);
+document.getElementById('btnSpeedDown').onclick = () => setSpeed(Math.round(speed * 100) - 5);
+document.getElementById('btnSpeedUp').onclick   = () => setSpeed(Math.round(speed * 100) + 5);
+
+// ─── SONIDO TOGGLE ────────────────────────────────────────────
+document.getElementById('btnSound').onclick = e => {
+    soundOn = !soundOn;
+    e.target.textContent = soundOn ? '🔊' : '🔇';
+    e.target.classList.toggle('muted', !soundOn);
+};
+
+// ─── PLAY / PAUSA ─────────────────────────────────────────────
+document.getElementById('btnPlay').onclick = () => {
+    ensureAudio();
+    if (loopActive) {
+        currentTime = loopIn;
+        prevTime    = loopIn - 0.001;
+        resetHits();
+    }
+    loopReady  = false;
+    isPlaying  = true;
+};
+
+document.getElementById('btnPause').onclick = () => {
+    isPlaying = false;
+    loopReady = false;
+};
+
+// ─── LOOP CONTROLS ────────────────────────────────────────────
+function clearLoopState() {
+    loopActive = false; loopReady = false;
+    selIn = false; selOut = false;
+    loopIn = 0; loopOut = 0;
+    canvas.classList.remove('selecting');
+    document.getElementById('btnLoopIn').classList.remove('btn-active');
+    document.getElementById('btnLoopOut').classList.remove('btn-active');
+}
+
+document.getElementById('btnLoopIn').onclick = e => {
+    isPlaying = false; loopReady = false;
+    loopActive = false;
+    selIn = true; selOut = false;
+    canvas.classList.add('selecting');
+    e.target.classList.add('btn-active');
+    document.getElementById('btnLoopOut').classList.remove('btn-active');
+};
+
+document.getElementById('btnLoopOut').onclick = e => {
+    isPlaying = false; loopReady = false;
+    loopActive = false;
+    selOut = true; selIn = false;
+    canvas.classList.add('selecting');
+    e.target.classList.add('btn-active');
+    document.getElementById('btnLoopIn').classList.remove('btn-active');
+};
+
+document.getElementById('btnLoopClear').onclick = clearLoopState;
+
+// Click en canvas para fijar puntos de loop
+canvas.addEventListener('click', e => {
+    if (!selIn && !selOut) return;
+
+    const rect   = e.target.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const nw     = noteWidth();
+
+    // Buscar la nota cuya píldora contiene el click en X
+    let found = null, minDist = Infinity;
+    for (const note of notes) {
+        const nx = getX(note.time);
+        if (clickX >= nx - 4 && clickX <= nx + nw + 4) {
+            const dist = Math.abs(clickX - (nx + nw / 2));
+            if (dist < minDist) { minDist = dist; found = note; }
+        }
+    }
+
+    if (!found) return; // no hay nota en ese punto, ignorar click
+
+    if (selIn) {
+        loopIn = found.time;
+        selIn  = false;
+        canvas.classList.remove('selecting');
+        document.getElementById('btnLoopIn').classList.remove('btn-active');
+    } else if (selOut) {
+        if (found.time > loopIn) {
+            loopOut    = found.time;
+            loopActive = true;
+            loopReady  = false;
+        }
+        selOut = false;
+        canvas.classList.remove('selecting');
+        document.getElementById('btnLoopOut').classList.remove('btn-active');
+    }
+});
+
+function resetHits() {
+    notes.forEach(n => { n.hit = false; });
+}
+
+// ─── ARCHIVO ──────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    let xml = '';
+    if (file.name.endsWith('.mxl')) {
+        const zip     = await JSZip.loadAsync(file);
+        const xmlName = Object.keys(zip.files).find(n => n.endsWith('.xml') && !n.includes('container.xml'));
+        xml = await zip.files[xmlName].async('string');
+    } else {
+        xml = await file.text();
+    }
+    parse(new DOMParser().parseFromString(xml, 'text/xml'));
+});
+
+function parse(doc) {
+    const out = [];
+    let divisions = 1, elapsed = 0;
+    for (const measure of doc.getElementsByTagName('measure')) {
+        const attr = measure.getElementsByTagName('attributes')[0];
+        if (attr) {
+            const d = attr.getElementsByTagName('divisions')[0];
+            if (d) divisions = +d.textContent;
+            const t = attr.getElementsByTagName('time')[0];
+            if (t) beatsPerBar = +(t.getElementsByTagName('beats')[0]?.textContent) || 4;
+        }
+        const snd = measure.getElementsByTagName('sound')[0];
+        if (snd?.getAttribute('tempo')) bpm = +snd.getAttribute('tempo');
+
+        for (const node of measure.children) {
+            if (node.nodeName !== 'note') continue;
+            const isChord = node.getElementsByTagName('chord').length > 0;
+            const dur     = +(node.getElementsByTagName('duration')[0]?.textContent || 0);
+            const durSec  = (dur / divisions) * (60 / bpm);
+            const tech    = node.getElementsByTagName('notations')[0]?.getElementsByTagName('technical')[0];
+            let str  = +(tech?.getElementsByTagName('string')[0]?.textContent);
+            let fret = +(tech?.getElementsByTagName('fret')[0]?.textContent);
+
+            if (isNaN(str) || str === 0) {
+                const pitch = node.getElementsByTagName('pitch')[0];
+                if (pitch) {
+                    const STEP = { C:0,D:2,E:4,F:5,G:7,A:9,B:11 };
+                    const midi = (+pitch.getElementsByTagName('octave')[0].textContent + 1) * 12
+                                 + STEP[pitch.getElementsByTagName('step')[0].textContent]
+                                 + +(pitch.getElementsByTagName('alter')[0]?.textContent || 0);
+                    for (let s = 0; s < 6; s++) {
+                        const f = midi - OPEN_STRINGS[s];
+                        if (f >= 0 && f <= 15) { str = s + 1; fret = f; break; }
+                    }
+                }
+            }
+
+            if (!node.getElementsByTagName('rest').length && str >= 1 && str <= 6) {
+                out.push({
+                    time:   elapsed + START_OFFSET,
+                    dur:    durSec,
+                    string: str,
+                    fret:   fret,
+                    finger: +(tech?.getElementsByTagName('fingering')[0]?.textContent) || 0,
+                    hit:    false,
+                    hitAt:  0,
+                });
+            }
+            if (!isChord) elapsed += durSec;
+        }
+    }
+    notes       = out;
+    currentTime = 0;
+    isPlaying   = false;
+    clearLoopState();
+    if (notes.length) ballY = START_Y + (notes[0].string - 1) * STR_SPACING;
+}
+
+// ─── ANIMACIÓN ────────────────────────────────────────────────
+function animLoop(ts) {
+    if (!lastTS) lastTS = ts;
+    const dt = (ts - lastTS) / 1000;
+    lastTS = ts;
+
+    if (isPlaying) {
+        prevTime     = currentTime;
+        currentTime += dt * speed;
+        document.getElementById('timeDisplay').textContent = currentTime.toFixed(2) + 's';
+
+        const beatDur = 60 / bpm;
+
+        // Loop: llega al fin → 1 tiempo de "READY…" → salta al inicio
+        if (loopActive && !loopReady && currentTime >= loopOut) {
+            loopReady  = true;
+            readyStart = currentTime;
+        }
+        if (loopReady && currentTime >= readyStart + beatDur) {
+            currentTime = loopIn;
+            prevTime    = loopIn - 0.001;
+            loopReady   = false;
+            resetHits();
+        }
+
+        // Disparar notas
+        if (!loopReady) {
+            for (const note of notes) {
+                if (note.hit) continue;
+                if (prevTime < note.time && note.time <= currentTime) {
+                    const inRange = !loopActive || (note.time >= loopIn && note.time <= loopOut);
+                    if (inRange) {
+                        note.hit   = true;
+                        note.hitAt = currentTime;
+                        playNote(OPEN_STRINGS[note.string - 1] + note.fret);
+                    }
+                }
+            }
+        }
+    }
+
+    updateBall();
+    render();
+    requestAnimationFrame(animLoop);
+}
+
+function updateBall() {
+    if (!notes.length) return;
+    const beatDur   = 60 / bpm;
+    const beats     = (currentTime - START_OFFSET) / beatDur;
+    const beatPhase = ((beats % 1) + 1) % 1;
+
+    if (loopReady || currentTime < START_OFFSET) {
+        const anchor = notes.find(n => n.time >= (loopActive ? loopIn : 0)) || notes[0];
+        ballY = START_Y + (anchor.string - 1) * STR_SPACING - Math.sin(beatPhase * Math.PI) * BOUNCE_H;
+        return;
+    }
+
+    let cur = null, nxt = null;
+    for (const n of notes) {
+        if (n.time <= currentTime) cur = n;
+        else { nxt = n; break; }
+    }
+    if (!cur) { ballY = START_Y + (notes[0].string - 1) * STR_SPACING; return; }
+    if (!nxt) { ballY = START_Y + (cur.string - 1) * STR_SPACING; return; }
+
+    const prog   = Math.max(0, Math.min(1, (currentTime - cur.time) / (nxt.time - cur.time)));
+    const baseY  = START_Y + (cur.string - 1) * STR_SPACING;
+    const targY  = START_Y + (nxt.string - 1) * STR_SPACING;
+    const bounce = Math.sin(prog * Math.PI) * BOUNCE_H * (1 + Math.abs(targY - baseY) / 100);
+    ballY = baseY + (targY - baseY) * prog - bounce;
+}
+
+// ─── RENDER ───────────────────────────────────────────────────
+function render() {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    drawBeatBg();
+    drawGrid();
+    drawStrings();
+    drawLoopMarkers();
+    drawNotes();
+    if (loopReady) drawReadyOverlay();
+    drawPlayhead();
+    drawBall(canvas.width * TARGET_X_PCT, ballY);
+}
+
+function drawBeatBg() {
+    const bd = 60 / bpm;
+    const s  = Math.floor((currentTime - 2 - START_OFFSET) / bd);
+    const e  = Math.ceil((currentTime + canvas.width / SCALE - START_OFFSET) / bd);
+    for (let i = s; i <= e; i++) {
+        if (i < 0) continue;
+        const t = i * bd + START_OFFSET;
+        const x = getX(t);
+        const w = bd * SCALE * ZOOM_X;
+        if (loopActive && t >= loopIn - 0.01 && t < loopOut)
+            ctx.fillStyle = 'rgba(46,204,113,0.07)';
+        else
+            ctx.fillStyle = (i % 2 === 0) ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.01)';
+        ctx.fillRect(x, fretTop, w, fretBottom - fretTop);
+    }
+}
+
+function drawGrid() {
+    const bd = 60 / bpm;
+    const s  = Math.floor((currentTime - 2 - START_OFFSET) / bd);
+    const e  = Math.ceil((currentTime + canvas.width / SCALE - START_OFFSET) / bd);
+    for (let i = s; i <= e; i++) {
+        if (i < 0) continue;
+        const t        = i * bd + START_OFFSET;
+        const x        = getX(t);
+        const isMeasure = (i % beatsPerBar === 0);
+        ctx.strokeStyle = isMeasure ? '#555' : 'rgba(0,0,0,0.12)';
+        ctx.lineWidth   = isMeasure ? Math.max(1, UNIT * 0.03) : Math.max(0.5, UNIT * 0.01);
+        ctx.beginPath();
+        ctx.moveTo(x, isMeasure ? fretTop     : fretTop + 5);
+        ctx.lineTo(x, isMeasure ? fretBottom  : fretBottom - 5);
+        ctx.stroke();
+    }
+}
+
+function drawStrings() {
+    for (let i = 0; i < 6; i++) {
+        const y = START_Y + i * STR_SPACING;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 1 + i * 0.7; ctx.stroke();
+    }
+}
+
+function drawLoopMarkers() {
+    // Marca del IN (mientras se está seleccionando o ya activo)
+    if (loopIn > 0) {
+        const x = getX(loopIn);
+        ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x, fretTop); ctx.lineTo(x, fretBottom); ctx.stroke();
+        ctx.fillStyle = '#27ae60'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'left';
+        ctx.fillText('IN', x + 3, fretTop + 12);
+    }
+    if (loopActive && loopOut > 0) {
+        const x = getX(loopOut);
+        ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x, fretTop); ctx.lineTo(x, fretBottom); ctx.stroke();
+        ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'right';
+        ctx.fillText('OUT', x - 3, fretTop + 12);
+    }
+}
+
+function drawNotes() {
+    const nw = noteWidth();
+    for (const note of notes) {
+        const x = getX(note.time);
+        if (x + nw < -100 || x > canvas.width + 100) continue;
+        drawPill(x, START_Y + (note.string - 1) * STR_SPACING, nw, note);
+    }
+}
+
+function drawPill(x, y, w, note) {
+    let color = '#222', txtColor = 'white', sc = 1;
+    if (note.hit) {
+        color = '#2ecc71';
+        const age = currentTime - note.hitAt;
+        if (age < 0.15) sc = 1 + Math.sin((age / 0.15) * Math.PI) * 0.1;
+    } else if (note.fret === 0) {
+        color = '#bdc3c7'; txtColor = '#333';
+    } else if (note.finger && FINGER_COLOR[note.finger]) {
+        color = FINGER_COLOR[note.finger];
+    }
+
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(sc, sc); ctx.translate(-x, -y);
+    ctx.fillStyle   = color;
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+    ctx.lineWidth   = 1.5;
+    roundRect(x, y - NOTE_R, w, NOTE_R * 2, NOTE_R);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle    = txtColor;
+    ctx.font         = `bold ${Math.max(10, UNIT * 0.11)}px Arial`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(note.fret, x + Math.min(NOTE_R, w * 0.3), y);
+    ctx.restore();
+}
+
+function roundRect(x, y, w, h, r) {
+    if (w < 2 * r) r = w / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+}
+
+function drawReadyOverlay() {
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(0, fretTop, canvas.width, fretBottom - fretTop);
+    ctx.fillStyle    = 'white';
+    ctx.font         = 'bold 22px Arial';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('READY…', canvas.width / 2, (fretTop + fretBottom) / 2);
+}
+
+function drawPlayhead() {
+    const x = canvas.width * TARGET_X_PCT;
+    ctx.beginPath(); ctx.setLineDash([3, 5]);
+    ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+    ctx.strokeStyle = 'rgba(220,50,50,0.5)'; ctx.lineWidth = 1;
+    ctx.stroke(); ctx.setLineDash([]);
+}
+
+function drawBall(x, y) {
+    const r = NOTE_R * 0.7;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle   = 'white';
+    ctx.shadowBlur  = UNIT * 0.1;
+    ctx.shadowColor = 'rgba(255,255,255,0.8)';
+    ctx.fill();
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.shadowBlur  = 0;
+}
+
+requestAnimationFrame(animLoop);
+</script>
+</body>
+</html>
