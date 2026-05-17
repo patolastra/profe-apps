@@ -1998,8 +1998,9 @@ function toast(msg) {
 
 let visorSong    = null;
 let lrcLines     = [];
-let visorLineIdx = -1;
-let visorManual  = false;
+let visorLineIdx   = -1;
+let visorManual    = false;
+let seekTargetIdx  = -1;
 let visorObjUrl  = null;  // Object URL del audio actual
 
 // Parser LRC
@@ -2023,8 +2024,9 @@ async function abrirVisor(songId) {
     const c = canciones.find(x => x.id === songId);
     if (!c) return;
     visorSong    = c;
-    visorLineIdx = -1;
-    visorManual  = false;
+    visorLineIdx  = -1;
+    visorManual   = false;
+    seekTargetIdx = -1;
 
     const letra = (c.assets || []).find(a => a.tipo === 'letra');
     const audio  = (c.assets || []).find(a => a.tipo === 'audio');
@@ -2062,6 +2064,11 @@ async function abrirVisor(songId) {
     audioEl.ontimeupdate = () => {
         if (visorManual) return;
         const ms = audioEl.currentTime * 1000;
+        // Si estamos en pre-roll de un click, esperar a que llegue al timestamp objetivo
+        if (seekTargetIdx >= 0) {
+            if (ms < lrcLines[seekTargetIdx].time) return;
+            seekTargetIdx = -1;
+        }
         let newIdx = -1;
         for (let i = 0; i < lrcLines.length; i++) {
             if (lrcLines[i].time <= ms) newIdx = i; else break;
@@ -2128,10 +2135,13 @@ function clickLinea(i) {
     } else {
         const audio = document.getElementById('visor-audio');
         const estabaReproduciendo = !audio.paused;
-        const t = Math.max(0, (lrcLines[i].time / 1000) - 2);
-        audio.currentTime = t;
+        // Buscar 1 segundo antes del inicio de la línea, pero nunca antes de la línea anterior
+        const limiteInf = i > 0 ? lrcLines[i - 1].time : 0;
+        const t = Math.max(limiteInf, lrcLines[i].time - 1000) / 1000;
+        seekTargetIdx = i;
         visorLineIdx = i;
         actualizarLineas(i);
+        audio.currentTime = t;
         if (estabaReproduciendo) audio.play().catch(() => {});
     }
 }
