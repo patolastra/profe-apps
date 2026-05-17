@@ -19,17 +19,19 @@ Ecosistema de aplicaciones pedagógicas para un profesor de música en escuela p
 | Carpeta | Módulo | Estado |
 |---------|--------|--------|
 | `SRP/` | Sistema de Revisión Pedagógica — captura de voz → IA → pendientes organizados | **Producción** |
-| `PRESENTADOR PEDAGÓGICO/` | Renderer de presentaciones desde texto estructurado, offline-first | Planificado |
+| `PIZARRA/` | **Pizarra** (= Presentador Pedagógico) — runtime markdown → slides en clase, fullscreen, YouTube embed | **Funcional** |
+| `PRESENTADOR PEDAGÓGICO/` | *(carpeta vacía — el módulo vive en `PIZARRA/`)* | — |
 | `CUADERNO MIDI/` | Captura rápida de melodías, exporta MIDI | Planificado |
 | `METALÓFONO APP/` | Herramienta pedagógica visual basada en MIDI | En desarrollo |
 | `LECTOR TABLATURAS/` | Lector de partituras MXL/MSCZ | En desarrollo |
 | `FLAUTA APP/` | Digitaciones y ejercicios interactivos | Planificado |
 | `HUIRO APP/` | Práctica rítmica y patrones | Planificado |
 | `CIFRADO AMERICANO/` | Cifrado de acordes | Planificado |
-| *(sin carpeta)* | **Portal** — hub de planificación en PC, dashboard temporal | Pendiente (Fase 4) |
+| `REPERTORIO/` | **Repertorio** — biblioteca de canciones, visor letras sincronizado, importación iTunes+LRCLIB | **v1 completa** |
+| *(sin carpeta)* | **Portal** — hub de planificación en PC, dashboard temporal | En prototipo (Fase 4) |
 | *(sin carpeta)* | **Libro de Clases** — evaluaciones con modo mobile offline | Pendiente (Fase 5) |
 
-**Sub-secciones dentro de SRP** (no son módulos independientes): Repertorio, Captura de ideas, Bienestar, Jefatura, Administrativos, Mensajes, Planificaciones.
+**Sub-secciones dentro de SRP** (no son módulos independientes): Captura de ideas, Bienestar, Jefatura, Administrativos, Mensajes, Planificaciones.
 
 **Módulo futuro considerado:** Biblioteca Musical — interfaz navegable sobre Supabase Storage para explorar MIDIs, ejercicios y canciones. Depende de Fases 4+.
 
@@ -195,10 +197,12 @@ Las carpetas de apps sin `CLAUDE.md` propio (Metalófono, Tablaturas, etc.) no t
 
 | Fase | Qué | Estado |
 |------|-----|--------|
-| 1 | SRP Mobile UI completa (Bitácora + Panel como PWA) | En curso |
-| 2 | SRP como API HTTP (FastAPI) + deploy | Pendiente |
+| 1 | SRP Mobile UI completa (Bitácora + Panel como PWA) | ✅ Completa (2026-05-13) |
+| 2 | SRP como API HTTP (FastAPI) + deploy | ⏸ Pospuesta indefinidamente |
 | 3 | Supabase: DB + horario + sesiones (eje temporal) | ✅ Completa (2026-05-12) |
-| 4 | Portal: Dashboard temporal + planificación de sesiones | Pendiente |
-| 5 | Libro de Clases (modo mobile evaluación prioritario) | Pendiente |
-| 6 | Presentaciones (offline + invitado) + deep linking básico | Pendiente |
-| 7 | Integración herramientas de música + `?asset=uuid` | Pendiente |
+| 4 | Portal: Dashboard temporal + planificación de sesiones | 🔄 En prototipo |
+| 4b | Pizarra (`PIZARRA/index.html`) — runtime de presentación standalone | ✅ Completa (2026-05-15) |
+| deploy | GitHub Pages — `https://patolastra.github.io/profe-apps/` | ✅ Activo (2026-05-16) |
+| 5 | Libro de Clases (modo mobile evaluación prioritario) | 📋 Pendiente |
+| 6 | Presentaciones (offline + invitado) + deep linking básico | 📋 Pendiente |
+| 7 | Integración herramientas de música + `?asset=uuid` | 📋 Pendiente |
