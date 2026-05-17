@@ -1489,15 +1489,28 @@ async function cargarPlan(sid, cid, fechaStr) {
         arrastres = arr || [];
     }
 
+    // Limpiar duplicados ya existentes en BD: por cada texto, conservar el de menor id
+    const textosVistos = new Map();
+    const idsEliminar  = [];
+    for (const it of (existentes || [])) {
+        if (textosVistos.has(it.texto)) { idsEliminar.push(it.id); }
+        else { textosVistos.set(it.texto, it); }
+    }
+    if (idsEliminar.length) {
+        await sb.from('plan_sesion_items').update({ incluido: false }).in('id', idsEliminar);
+    }
+    const existentesFiltrados = (existentes || []).filter(i => !idsEliminar.includes(i.id));
+
     const pendsFiltrados = (pends || []).filter(p => cats.has(p.categoria));
-    const pendIdsEnPlan  = new Set((existentes || []).map(i => i.pendiente_id).filter(Boolean));
-    const textosEnPlan   = new Set((existentes || []).map(i => i.texto));
-    const esNuevo        = (existentes || []).length > 0;
+    const pendIdsEnPlan  = new Set(existentesFiltrados.map(i => i.pendiente_id).filter(Boolean));
+    const textosEnPlan   = new Set(existentesFiltrados.map(i => i.texto));
+    const esNuevo        = existentesFiltrados.length > 0;
 
     const pendNuevos  = pendsFiltrados.filter(p => !pendIdsEnPlan.has(p.id) && !textosEnPlan.has(p.texto));
-    const arrNuevos   = arrastres.filter(a => !textosEnPlan.has(a.texto));
+    const todosTextos = new Set([...textosEnPlan, ...pendNuevos.map(p => p.texto)]);
+    const arrNuevos   = arrastres.filter(a => !todosTextos.has(a.texto));
 
-    let allItems = [...(existentes || [])];
+    let allItems = [...existentesFiltrados];
     let orden    = allItems.length;
 
     if (pendNuevos.length) {
