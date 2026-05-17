@@ -217,6 +217,24 @@
         #slide-area.tipo-youtube + #pres-footer .nav-btn:hover { background: rgba(255,255,255,0.28); color: #fff; }
         #slide-area.tipo-youtube + #pres-footer #pres-contador-footer { color: rgba(255,255,255,0.7); }
 
+        /* ── SLIDE: METALÓFONO ──────────────────────────── */
+        .slide-metal {
+            position: fixed; inset: 0; z-index: 50;
+            background: #111116;
+        }
+        .slide-metal iframe {
+            width: 100%; height: 100%; border: 0; display: block;
+        }
+        #slide-area.tipo-metal + #pres-footer {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 60;
+            background: rgba(0,0,0,0.45);
+        }
+        #slide-area.tipo-metal + #pres-footer .nav-btn,
+        #slide-area.tipo-metal + #pres-footer #pres-contador-footer { opacity: 1; }
+        #slide-area.tipo-metal + #pres-footer .nav-btn { color: #fff; background: rgba(255,255,255,0.15); }
+        #slide-area.tipo-metal + #pres-footer .nav-btn:hover { background: rgba(255,255,255,0.28); color: #fff; }
+        #slide-area.tipo-metal + #pres-footer #pres-contador-footer { color: rgba(255,255,255,0.7); }
+
         /* ── SLIDE: VACÍO ────────────────────────────────── */
         .slide-vacio {
             position: absolute; inset: 0;
@@ -416,6 +434,7 @@ function parsearSlides(txt) {
 function tipoSlide(raw) {
     const p = raw.trim().split('\n')[0];
     if (p.startsWith('@youtube:')) return 'youtube';
+    if (p.startsWith('@metal:'))   return 'metal';
     if (p.startsWith('@mensaje:')) return 'mensaje';
     return 'texto';
 }
@@ -426,9 +445,17 @@ function extraerYoutubeId(raw) {
     return m ? m[1] : val.slice(0, 11);
 }
 
+function extraerMetalData(raw) {
+    const val = raw.trim().split('\n')[0].replace('@metal:', '').trim();
+    const pipe = val.indexOf('|');
+    if (pipe >= 0) return { nombre: val.slice(0, pipe).trim(), url: val.slice(pipe + 1).trim() };
+    return { nombre: decodeURIComponent(val.split('/').pop().split('?')[0]) || 'Melodía', url: val };
+}
+
 function tituloSlide(raw) {
     const tipo = tipoSlide(raw);
     if (tipo === 'youtube') return '▶ Video';
+    if (tipo === 'metal')   return '🎹 ' + extraerMetalData(raw).nombre;
     if (tipo === 'mensaje') return raw.trim().split('\n')[0].replace('@mensaje:', '').trim();
     return raw.trim().split('\n')[0].replace(/^#+ */, '') || '—';
 }
@@ -578,6 +605,15 @@ function renderSlide() {
             <iframe src="https://www.youtube.com/embed/${id}?rel=0&modestbranding=1"
                 allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
                 allowfullscreen></iframe>
+        </div>`;
+
+    } else if (tipo === 'metal') {
+        const { nombre, url } = extraerMetalData(raw);
+        const base = new URL('../METALÓFONO APP/METAL21 (ALPHA).HTML', location.href);
+        base.searchParams.set('midi', url);
+        base.searchParams.set('nombre', nombre);
+        area.innerHTML = `<div class="slide-metal">
+            <iframe src="${base.toString()}" allow="autoplay" allowfullscreen></iframe>
         </div>`;
 
     } else if (tipo === 'mensaje') {
