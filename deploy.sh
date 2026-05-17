@@ -4,8 +4,8 @@ set -e
 echo "Desplegando a GitHub Pages..."
 
 git checkout gh-pages
-git checkout master -- PORTAL/ PIZARRA/ supabase/
-git add PORTAL/ PIZARRA/ supabase/
+git checkout master -- PORTAL/ PIZARRA/ REPERTORIO/ supabase/
+git add PORTAL/ PIZARRA/ REPERTORIO/ supabase/
 
 if git diff --cached --quiet; then
   echo "Sin cambios desde el último deploy."
