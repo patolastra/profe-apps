@@ -240,6 +240,50 @@
         body.slide-metal-active .nav-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
         body.slide-metal-active #pres-contador-footer { color: #94a3b8; opacity: 1; }
 
+        /* ── SLIDE: REP (Letra sincronizada) ─────────────── */
+        .slide-rep {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: #0d1117; padding: 5vh 8vw;
+            overflow: hidden;
+        }
+        #slide-area.tipo-rep { cursor: default; }
+        .rep-nombre {
+            position: absolute; top: 12px;
+            font-size: 0.72rem; color: rgba(255,255,255,0.2);
+            text-transform: uppercase; letter-spacing: 0.08em;
+            font-family: system-ui, sans-serif;
+        }
+        .rep-lineas {
+            display: flex; flex-direction: column;
+            align-items: center; gap: 0.5em; text-align: center;
+            width: 100%; font-family: var(--slide-font);
+        }
+        .rep-linea {
+            font-weight: 700; line-height: 1.3;
+            overflow-wrap: break-word; max-width: 100%;
+        }
+        .rep-linea.prev   { opacity: 0.18; font-size: 0.62em; }
+        .rep-linea.activa { opacity: 1;    color: #fff; font-size: 1em; }
+        .rep-linea.next   { opacity: 0.32; font-size: 0.75em; }
+        .rep-counter {
+            position: absolute; bottom: 12px;
+            font-size: 0.68rem; color: rgba(255,255,255,0.15);
+            font-family: system-ui, sans-serif;
+        }
+        body.slide-rep-active #pres-header { background: #0d1117; }
+        body.slide-rep-active #pres-footer  { background: #0d1117; }
+        body.slide-rep-active #pres-titulo,
+        body.slide-rep-active #pres-contador { color: #334155; }
+        body.slide-rep-active .hdr-icon-btn  { color: #334155; }
+        body.slide-rep-active .hdr-icon-btn:hover { background: rgba(255,255,255,0.08); color: #94a3b8; }
+        body.slide-rep-active #pres-header:hover #pres-titulo,
+        body.slide-rep-active #pres-header:hover #pres-controls { opacity: 1; }
+        body.slide-rep-active .nav-btn { color: #334155; background: rgba(255,255,255,0.05); opacity: 1; }
+        body.slide-rep-active .nav-btn:hover { background: rgba(255,255,255,0.12); color: #94a3b8; }
+        body.slide-rep-active #pres-contador-footer { color: #334155; opacity: 1; }
+
         /* ── SLIDE: VACÍO ────────────────────────────────── */
         .slide-vacio {
             position: absolute; inset: 0;
@@ -424,6 +468,7 @@ function temaParaSesion(uuid) {
 // ── ESTADO ───────────────────────────────────────────────
 let sb, sesionId, canal;
 let slides = [], slideIdx = 0;
+let repLines = [], repIdx = 0, repActivo = false, repGen = 0;
 
 // ── UTILS ────────────────────────────────────────────────
 
@@ -440,6 +485,7 @@ function tipoSlide(raw) {
     const p = raw.trim().split('\n')[0];
     if (p.startsWith('@youtube:')) return 'youtube';
     if (p.startsWith('@metal:'))   return 'metal';
+    if (p.startsWith('@rep:'))     return 'rep';
     if (p.startsWith('@mensaje:')) return 'mensaje';
     return 'texto';
 }
@@ -457,10 +503,25 @@ function extraerMetalData(raw) {
     return { nombre: decodeURIComponent(val.split('/').pop().split('?')[0]) || 'Melodía', url: val };
 }
 
+function extraerRepData(raw) {
+    const val = raw.trim().split('\n')[0].replace('@rep:', '').trim();
+    const pipe = val.indexOf('|');
+    if (pipe >= 0) return { nombre: val.slice(0, pipe).trim(), cancionId: val.slice(pipe + 1).trim() };
+    return { nombre: 'Canción', cancionId: val };
+}
+
+function parseLRC(text) {
+    return text.split('\n')
+        .map(l => l.match(/\[(\d+):(\d+\.\d+)\](.*)/))
+        .filter(Boolean)
+        .map(([, m, s, t]) => ({ time: (+m * 60 + +s) * 1000, text: t.trim() }));
+}
+
 function tituloSlide(raw) {
     const tipo = tipoSlide(raw);
     if (tipo === 'youtube') return '▶ Video';
     if (tipo === 'metal')   return '🎹 ' + extraerMetalData(raw).nombre;
+    if (tipo === 'rep')     return '🎵 ' + extraerRepData(raw).nombre;
     if (tipo === 'mensaje') return raw.trim().split('\n')[0].replace('@mensaje:', '').trim();
     return raw.trim().split('\n')[0].replace(/^#+ */, '') || '—';
 }
@@ -574,17 +635,52 @@ function autoFit(contenedor) {
     content.style.fontSize = lo + 'px';
 }
 
+function autoFitRep() {
+    const slide = document.querySelector('#slide-area .slide-rep');
+    const wrap  = document.getElementById('rep-lineas');
+    if (!slide || !wrap) return;
+    const maxH = slide.clientHeight - 80;
+    let lo = 12, hi = 220;
+    while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        wrap.style.fontSize = mid + 'px';
+        if (wrap.scrollHeight > maxH) hi = mid; else lo = mid;
+    }
+    wrap.style.fontSize = lo + 'px';
+}
+
 let rafFit = 0;
 function autoFitPendiente() {
     cancelAnimationFrame(rafFit);
     rafFit = requestAnimationFrame(() => {
         const c = document.querySelector('#slide-area .slide-texto, #slide-area .slide-mensaje');
         if (c) autoFit(c);
+        if (repActivo) autoFitRep();
     });
 }
 
 // Re-ajustar al cambiar tamaño de ventana
 window.addEventListener('resize', autoFitPendiente);
+
+// ── REP: LETRAS ──────────────────────────────────────
+
+function renderRepLineas() {
+    const wrap = document.getElementById('rep-lineas');
+    const ctr  = document.getElementById('rep-counter');
+    if (!wrap || !repLines.length) return;
+    const prev = repIdx > 0 ? repLines[repIdx - 1] : null;
+    const curr = repLines[repIdx] ?? '';
+    const next = repIdx < repLines.length - 1 ? repLines[repIdx + 1] : null;
+    wrap.innerHTML =
+        (prev !== null ? `<div class="rep-linea prev">${esc(prev)}</div>` : '') +
+        `<div class="rep-linea activa">${esc(curr)}</div>` +
+        (next !== null ? `<div class="rep-linea next">${esc(next)}</div>` : '');
+    if (ctr) ctr.textContent = `${repIdx + 1} / ${repLines.length}`;
+    autoFitPendiente();
+}
+
+function repAvancar()    { if (repIdx < repLines.length - 1) { repIdx++; renderRepLineas(); } }
+function repRetroceder() { if (repIdx > 0)                   { repIdx--; renderRepLineas(); } }
 
 // ── RENDER ───────────────────────────────────────────────
 
@@ -603,7 +699,10 @@ function renderSlide() {
     const raw  = slides[slideIdx];
     const tipo = tipoSlide(raw);
     area.className = 'tipo-' + tipo;
+    repActivo = (tipo === 'rep');
+    if (!repActivo) { repLines = []; repIdx = 0; }
     document.body.classList.toggle('slide-metal-active', tipo === 'metal');
+    document.body.classList.toggle('slide-rep-active',   tipo === 'rep');
 
     if (tipo === 'youtube') {
         const id = extraerYoutubeId(raw);
@@ -621,6 +720,42 @@ function renderSlide() {
         area.innerHTML = `<div class="slide-metal">
             <iframe src="${base.toString()}" allow="autoplay" allowfullscreen></iframe>
         </div>`;
+
+    } else if (tipo === 'rep') {
+        const { nombre, cancionId } = extraerRepData(raw);
+        const miGen = ++repGen;
+        area.innerHTML = `<div class="slide-rep">
+            <div class="rep-nombre">${esc(nombre)}</div>
+            <div class="rep-lineas" id="rep-lineas" style="color:rgba(255,255,255,0.25);font-size:1rem">Cargando letra…</div>
+            <div class="rep-counter" id="rep-counter"></div>
+        </div>`;
+        (async () => {
+            try {
+                const { data } = await sb.from('repertorio_assets')
+                    .select('contenido, synced')
+                    .eq('cancion_id', cancionId)
+                    .eq('tipo', 'letra')
+                    .maybeSingle();
+                if (repGen !== miGen) return; // slide cambió mientras cargaba
+                if (!data) {
+                    const el = document.getElementById('rep-lineas');
+                    if (el) { el.textContent = 'Sin letra disponible'; el.style.color = 'rgba(255,255,255,0.25)'; }
+                    return;
+                }
+                if (data.synced) {
+                    repLines = parseLRC(data.synced).map(l => l.text).filter(Boolean);
+                } else {
+                    repLines = (data.contenido || '').split('\n').map(t => t.trim()).filter(Boolean);
+                }
+                repIdx = 0;
+                renderRepLineas();
+            } catch (e) {
+                console.error(e);
+                if (repGen !== miGen) return;
+                const el = document.getElementById('rep-lineas');
+                if (el) { el.textContent = 'Error al cargar letra'; el.style.color = 'rgba(255,255,255,0.25)'; }
+            }
+        })();
 
     } else if (tipo === 'mensaje') {
         const texto = raw.trim().split('\n')[0].replace('@mensaje:', '').trim();
@@ -664,7 +799,8 @@ function avanzar()    { if (slideIdx < slides.length - 1) irA(slideIdx + 1); }
 function retroceder() { if (slideIdx > 0) irA(slideIdx - 1); }
 
 function handleClickArea() {
-    avanzar(); // El iframe YouTube intercepta su propio click, así que no hay conflicto
+    if (repActivo && repLines.length) { repAvancar(); return; }
+    avanzar();
 }
 
 // ── FULLSCREEN ───────────────────────────────────────────
@@ -722,7 +858,8 @@ async function iniciarModoPres(sid) {
     const { data } = await sb.from('presentaciones')
         .select('contenido').eq('sesion_id', sid).maybeSingle();
     slides = parsearSlides(data?.contenido || '');
-    slideIdx = 0;
+    const slideParam = parseInt(params.get('slide') || '0');
+    slideIdx = Math.max(0, Math.min(slideParam, slides.length - 1));
     renderSlide();
 
     canal = sb.channel(`pizarra:${sid}`)
@@ -772,6 +909,13 @@ function enviarCmd(action) {
 // ── TECLADO ──────────────────────────────────────────────
 
 document.addEventListener('keydown', e => {
+    if (repActivo && repLines.length) {
+        if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); repAvancar(); }
+        else if (['ArrowLeft', 'ArrowUp'].includes(e.key))    { e.preventDefault(); repRetroceder(); }
+        else if (e.key === 'f' || e.key === 'F')               toggleFullscreen();
+        else if (e.key === 'r' || e.key === 'R')               recargarSlides();
+        return;
+    }
     if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); avanzar(); }
     else if (['ArrowLeft', 'ArrowUp'].includes(e.key))    { e.preventDefault(); retroceder(); }
     else if (e.key === 'f' || e.key === 'F')               toggleFullscreen();
@@ -784,7 +928,10 @@ let tX0 = 0;
 document.addEventListener('touchstart', e => { tX0 = e.changedTouches[0].clientX; }, { passive: true });
 document.addEventListener('touchend',   e => {
     const dx = e.changedTouches[0].clientX - tX0;
-    if (Math.abs(dx) > 55) { dx < 0 ? avanzar() : retroceder(); }
+    if (Math.abs(dx) > 55) {
+        if (repActivo && repLines.length) { dx < 0 ? repAvancar() : repRetroceder(); }
+        else                              { dx < 0 ? avanzar()    : retroceder(); }
+    }
 }, { passive: true });
 
 // ── INIT ─────────────────────────────────────────────────

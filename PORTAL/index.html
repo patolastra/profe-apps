@@ -645,6 +645,52 @@
         .metal-item-cancion { font-size: 0.75rem; color: #94a3b8; }
         #metal-picker-empty { padding: 24px; text-align: center; color: #64748b; font-size: 0.82rem; }
 
+        /* ── DROPDOWN "INSERTAR" ── */
+        .insertar-wrap { position: relative; display: inline-block; }
+        .insertar-menu {
+            display: none; position: fixed; z-index: 600;
+            background: #1e293b; border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+            overflow: hidden; min-width: 168px;
+        }
+        .insertar-menu.show { display: block; }
+        .insertar-menu button {
+            display: flex; align-items: center; gap: 8px;
+            width: 100%; text-align: left;
+            padding: 9px 14px; background: none; border: none;
+            color: #e2e8f0; font-size: 0.82rem; cursor: pointer;
+            border-bottom: 1px solid #334155; font-family: inherit;
+        }
+        .insertar-menu button:last-child { border-bottom: none; }
+        .insertar-menu button:hover { background: #273549; }
+
+        /* ── PICKER CANCIÓN ── */
+        #rep-picker {
+            display: none; position: fixed; inset: 0;
+            background: rgba(15,23,42,0.55); z-index: 500;
+            align-items: center; justify-content: center;
+        }
+        #rep-picker.show { display: flex; }
+        #rep-picker-box {
+            background: #1e293b; color: #e2e8f0;
+            border-radius: 12px; width: 420px; max-width: 92vw;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.4); overflow: hidden;
+            max-height: 80vh; display: flex; flex-direction: column;
+        }
+        #rep-picker-hdr {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; background: #0f172a;
+            font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em;
+            text-transform: uppercase; color: #94a3b8; flex-shrink: 0;
+        }
+        #rep-picker-hdr button {
+            background: none; border: none; color: #64748b; cursor: pointer;
+            font-size: 1rem; line-height: 1; padding: 2px 4px;
+        }
+        #rep-picker-hdr button:hover { color: #e2e8f0; }
+        #rep-picker-list { overflow-y: auto; padding: 8px; }
+        #rep-picker-empty { padding: 24px; text-align: center; color: #64748b; font-size: 0.82rem; }
+
         /* ── CHEATSHEET MARKDOWN ── */
         #md-cheat {
             display: none; position: fixed; inset: 0;
@@ -766,7 +812,9 @@
 
             <div class="s-col s-col-editor">
                 <div class="s-col-hdr">Presentación
-                    <button class="import-btn" onclick="abrirPickerMetal()" title="Insertar slide de Metalófono">🎹</button>
+                    <div class="insertar-wrap">
+                        <button class="import-btn" id="btn-insertar" onclick="toggleMenuInsertar(event)" title="Insertar slide">＋ Insertar</button>
+                    </div>
                 </div>
                 <textarea id="pres-area" placeholder="# Título&#10;---&#10;## Subtítulo&#10;- ítem 1&#10;- ítem 2"></textarea>
                 <div class="s-editor-footer" id="pres-status"></div>
@@ -1481,7 +1529,9 @@ async function guardarPres(sid) {
 
 function abrirPizarra() {
     if (!sesionActual) return;
-    window.open(`../PIZARRA/index.html?sesion=${sesionActual.id}`, '_blank');
+    const activa = document.querySelector('#prev-body .slide-prev.activa');
+    const slide = activa ? parseInt(activa.dataset.idx) : 0;
+    window.open(`../PIZARRA/index.html?sesion=${sesionActual.id}&slide=${slide}`, '_blank');
 }
 
 const TEMAS_PIZARRA = [
@@ -2315,6 +2365,7 @@ function buildSlideEl(raw, idx) {
     const el = document.createElement('div');
     el.className  = 'slide-prev';
     el.dataset.raw = raw;
+    el.dataset.idx = idx;
     el.draggable   = true;
 
     // Número de slide
@@ -2675,9 +2726,95 @@ function insertarMetal(nombre, url) {
     cerrarPickerMetal();
     ta.focus();
 }
+
+// ── MENÚ INSERTAR ────────────────────────────────────────────
+function toggleMenuInsertar(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('insertar-menu');
+    const btn  = document.getElementById('btn-insertar');
+    const rect = btn.getBoundingClientRect();
+    menu.style.top   = (rect.bottom + 4) + 'px';
+    menu.style.right = (window.innerWidth - rect.right) + 'px';
+    menu.classList.toggle('show');
+}
+function cerrarMenuInsertar() {
+    document.getElementById('insertar-menu').classList.remove('show');
+}
+document.addEventListener('click', () => cerrarMenuInsertar());
+
+function insertarYoutube() {
+    const url = prompt('URL del video de YouTube:');
+    if (!url?.trim()) return;
+    const ta = document.getElementById('pres-area');
+    const insert = '\n---\n@youtube:' + url.trim() + '\n---\n';
+    const start = ta.selectionStart;
+    ta.value = ta.value.slice(0, start) + insert + ta.value.slice(ta.selectionEnd);
+    ta.selectionStart = ta.selectionEnd = start + insert.length;
+    ta.dispatchEvent(new Event('input'));
+    ta.focus();
+}
+
+// ── PICKER CANCIÓN ────────────────────────────────────────────
+async function abrirPickerRep() {
+    const list = document.getElementById('rep-picker-list');
+    list.innerHTML = '<div id="rep-picker-empty">Cargando…</div>';
+    document.getElementById('rep-picker').classList.add('show');
+
+    const { data, error } = await sb
+        .from('repertorio_assets')
+        .select('id, etiqueta, cancion_id, repertorio_canciones(nombre, artista)')
+        .eq('tipo', 'letra')
+        .order('cancion_id');
+
+    if (error) {
+        list.innerHTML = '<div id="rep-picker-empty">Error al conectar. Verificá la conexión.</div>';
+        return;
+    }
+    if (!data?.length) {
+        list.innerHTML = '<div id="rep-picker-empty">No hay canciones con letra en el Repertorio todavía.</div>';
+        return;
+    }
+
+    list.innerHTML = data.map(a => {
+        const nombre  = a.repertorio_canciones?.nombre  || 'Canción';
+        const artista = a.repertorio_canciones?.artista || '';
+        return `<div class="metal-item"
+            data-nombre="${nombre.replace(/"/g,'&quot;')}"
+            data-id="${a.cancion_id}"
+            onclick="insertarRep(this.dataset.nombre,this.dataset.id)">
+            <div class="metal-item-ico">🎵</div>
+            <div>
+                <div class="metal-item-nombre">${nombre}</div>
+                ${artista ? `<div class="metal-item-cancion">${artista}</div>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function cerrarPickerRep() {
+    document.getElementById('rep-picker').classList.remove('show');
+}
+
+function insertarRep(nombre, cancionId) {
+    const ta = document.getElementById('pres-area');
+    const insert = '\n---\n@rep:' + nombre + '|' + cancionId + '\n---\n';
+    const start = ta.selectionStart;
+    ta.value = ta.value.slice(0, start) + insert + ta.value.slice(ta.selectionEnd);
+    ta.selectionStart = ta.selectionEnd = start + insert.length;
+    ta.dispatchEvent(new Event('input'));
+    cerrarPickerRep();
+    ta.focus();
+}
 </script>
 
 
+
+<!-- DROPDOWN INSERTAR — fuera de todo overflow:hidden para que position:fixed funcione -->
+<div class="insertar-menu" id="insertar-menu">
+    <button onclick="cerrarMenuInsertar();abrirPickerRep()">🎵 Canción (letra)</button>
+    <button onclick="cerrarMenuInsertar();abrirPickerMetal()">🎹 Metalófono</button>
+    <button onclick="cerrarMenuInsertar();insertarYoutube()">▶ YouTube</button>
+</div>
 
 <!-- CHEATSHEET MARKDOWN -->
 <div id="metal-picker" onclick="if(event.target===this)cerrarPickerMetal()">
@@ -2687,6 +2824,16 @@ function insertarMetal(nombre, url) {
             <button onclick="cerrarPickerMetal()">✕</button>
         </div>
         <div id="metal-picker-list"></div>
+    </div>
+</div>
+
+<div id="rep-picker" onclick="if(event.target===this)cerrarPickerRep()">
+    <div id="rep-picker-box">
+        <div id="rep-picker-hdr">
+            🎵 Insertar canción
+            <button onclick="cerrarPickerRep()">✕</button>
+        </div>
+        <div id="rep-picker-list"></div>
     </div>
 </div>
 
