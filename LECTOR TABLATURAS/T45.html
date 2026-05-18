@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lector Tablaturas T45</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #222; color: white;
+               margin: 0; padding: 0; overflow: hidden; }
+        .controls { position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+                    background: rgba(30,30,30,.92); padding: 10px 16px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,.5);
+                    display: flex; gap: 10px; align-items: center;
+                    justify-content: center; flex-wrap: wrap;
+                    backdrop-filter: blur(4px); }
+        canvas { position: fixed; top: 0; left: 0;
+                 background: #fdf5e0; cursor: crosshair; }
+        canvas.selecting { cursor: cell; }
+        button { padding: 8px 14px; font-weight: bold; cursor: pointer;
+                 border: none; border-radius: 5px; transition: .15s; font-size: .85rem; }
+        button:hover { opacity: .82; }
+        #btnPlay    { background: #27ae60; color: #fff; }
+        #btnPause   { background: #c0392b; color: #fff; }
+        #btnRestart { background: #555; color: #fff; }
+        .btn-loop       { background: #2980b9; color: #fff; }
+        .btn-loop-clear { background: #555; color: #ccc; }
+        .btn-active     { background: #e67e22 !important; box-shadow: 0 0 8px #e67e22; }
+        .btn-sound-group { display: flex; gap: 4px; }
+        .btn-snd  { background: #444; color: #ccc; padding: 7px 12px; }
+        .btn-snd.active { background: #8e44ad; color: #fff; }
+        .btn-mute { background: #8e44ad; color: #fff; }
+        .btn-mute.muted { background: #555; color: #aaa; }
+        .sep  { color: #555; font-size: 1.2rem; user-select: none; }
+        .speed-row { display: flex; align-items: center; gap: 6px; }
+        .speed-row button { padding: 6px 10px; background: #555; color: #fff;
+                            font-size: 1rem; min-width: 32px; }
+        .speed-row input[type=range] { width: 90px; accent-color: #3498db; }
+        .speed-label { font-family: monospace; font-size: .9rem;
+                       background: #1a1a1a; padding: 4px 8px;
+                       border-radius: 4px; min-width: 46px; text-align: center; }
+        .time-label { font-family: monospace; font-size: .9rem;
+                      min-width: 60px; color: #aaa; }
+        input[type=file] { color: #ccc; font-size: .82rem; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <div class="btn-sound-group">
+        <button class="btn-snd active" data-snd="guitarra">Guitarra</button>
+        <button class="btn-snd"        data-snd="bajo">Bajo</button>
+        <button class="btn-snd"        data-snd="ukulele">Ukulele</button>
+    </div>
+    <span class="sep">|</span>
+    <input type="file" id="fileInput" accept=".xml,.musicxml,.mxl">
+    <span class="sep">|</span>
+    <button id="btnPlay">▶ PLAY</button>
+    <button id="btnPause">⏸ PAUSA</button>
+    <button id="btnRestart" title="Volver al inicio">↺</button>
+    <span class="time-label" id="timeDisplay">0.00s</span>
+    <span class="sep">|</span>
+    <button id="btnLoopIn"    class="btn-loop">⟦ IN</button>
+    <button id="btnLoopOut"   class="btn-loop">OUT ⟧</button>
+    <button id="btnLoopClear" class="btn-loop-clear">✕ loop</button>
+    <span class="sep">|</span>
+    <div class="speed-row">
+        <button id="btnSpeedDown">−</button>
+        <input type="range" id="speedSlider" min="40" max="120" value="100" step="5">
+        <button id="btnSpeedUp">+</button>
+        <span class="speed-label" id="speedDisplay">100%</span>
+    </div>
+    <span class="sep">|</span>
+    <button id="btnMute" class="btn-mute">🔊</button>
+</div>
+
+<canvas id="tabCanvas"></canvas>
+
+<script>
+// ─── CANVAS (primero) ─────────────────────────────────────────────────────
+const canvas = document.getElementById('tabCanvas');
+const ctx    = canvas.getContext('2d');
+
+// ─── CONSTANTES ───────────────────────────────────────────────────────────
+const SCALE          = 100;
+const ZOOM_X         = 1.4;
+const DEFAULT_ZOOM   = SCALE * ZOOM_X;
+const MAX_ZOOM_FACTOR = 2;
+const TARGET_X_PCT   = 0.2;
+const STR_SPACING    = 50;
+const NOTE_R         = 26;
+const MIN_CHIP_PX    = NOTE_R * 2;
+const BOUNCE_H     = 36;
+const FRET_PAD     = 22;
+const OPEN_STRINGS = [64, 59, 55, 50, 45, 40];
+const FINGER_COLOR = { 1:'#E8A800', 2:'#9B30CC', 3:'#1A9FCA', 4:'#D94030' };
+
+let START_Y   = 110;
+let fretTop   = START_Y - FRET_PAD;
+let fretBottom= START_Y + 5 * STR_SPACING + FRET_PAD;
+
+function applyResize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    START_Y    = Math.round(canvas.height * 0.34);
+    fretTop    = START_Y - FRET_PAD;
+    fretBottom = START_Y + 5 * STR_SPACING + FRET_PAD;
+}
+applyResize();
+window.addEventListener('resize', applyResize);
+
+// ─── PERSPECTIVA ──────────────────────────────────────────────────────────
+// Solo el fretboard (strings, grid, fondo) se dibuja proyectado.
+// Las notas y la bola se dibujan planas pero en las coordenadas ya proyectadas.
+const PERSP_DIST  = 900;
+const PERSP_ANGLE = 14 * Math.PI / 180;
+
+function project(x, y) {
+    const W = canvas.width, H = canvas.height;
+    const cy = y - H / 2;
+    const cx = x - W / 2;
+    const fz    = cy * Math.sin(PERSP_ANGLE);
+    const fy    = cy * Math.cos(PERSP_ANGLE);
+    const scale = PERSP_DIST / (PERSP_DIST - fz);
+    return { x: cx * scale + W / 2, y: fy * scale + H / 2, s: scale };
+}
+
+// ─── PARÁMETROS KS ────────────────────────────────────────────────────────
+const KS_PARAMS = {
+    guitarra: { feedback: 0.9960, smooth: 3, gain: 0.6 },
+    bajo:     { feedback: 0.9985, smooth: 3, gain: 0.5 },
+    ukulele:  { feedback: 0.9820, smooth: 1, gain: 0.6 },
+};
+
+// ─── ESTADO ───────────────────────────────────────────────────────────────
+let notes        = [];
+let measureData  = [];
+let currentTime  = 0;
+let prevTime     = 0;
+let isPlaying    = false;
+let lastTS       = 0;
+let ballY        = START_Y;
+let bpm          = 120;
+let beatsPerBar  = 4;
+
+// Tres fases antes de la primera nota:
+//   [0, approachEnd)    → scroll entrante, bola quieta, sin sonido
+//   [approachEnd, startOffset) → precuenta: bola rebota + clicks metrónomo
+//   [startOffset, ...)  → reproducción normal
+let approachEnd  = 1.0;   // recalculado en parseXML (= 1 beat)
+let startOffset  = 3.0;   // recalculado en parseXML (= 1 beat + 1 compás)
+
+let tabEnded     = false;
+let fallVY       = 0;
+let loopActive   = false;
+let loopIn = 0,  loopOut = 0;
+let loopReady    = false, readyStart = 0;
+let selIn = false, selOut = false;
+
+let speed        = 1.0;
+let soundOn      = true;
+let audioCtx     = null;
+let ksCache      = new Map();
+let ksP          = KS_PARAMS.guitarra;
+
+let lastClickBeat = -1;   // último beat de precuenta ya sonado
+
+// ─── AUDIO: CLICK DE METRÓNOMO ────────────────────────────────────────────
+function playClick(accent) {
+    if (!audioCtx) return;
+    const now  = audioCtx.currentTime;
+    const freq = accent ? 1800 : 1100;
+    const vol  = accent ? 0.45 : 0.28;
+
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type           = 'triangle';
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+    osc.start(now);
+    osc.stop(now + 0.045);
+}
+
+// ─── KARPLUS-STRONG ───────────────────────────────────────────────────────
+function buildKSBuffer(midi) {
+    const sr   = audioCtx.sampleRate;
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const N    = Math.max(2, Math.round(sr / freq));
+    const LEN  = Math.ceil(3.5 * sr);
+
+    const delay = new Float32Array(N);
+    for (let i = 0; i < N; i++) delay[i] = Math.random() * 2 - 1;
+    for (let s = 0; s < ksP.smooth; s++) {
+        for (let i = 0; i < N - 1; i++) delay[i] = (delay[i] + delay[i + 1]) * 0.5;
+    }
+    let peak = 0;
+    for (let i = 0; i < N; i++) { const a = Math.abs(delay[i]); if (a > peak) peak = a; }
+    if (peak > 0) { const sc = ksP.gain / peak; for (let i = 0; i < N; i++) delay[i] *= sc; }
+
+    const buf = audioCtx.createBuffer(1, LEN, sr);
+    const out = buf.getChannelData(0);
+    let p = 0;
+    for (let i = 0; i < LEN; i++) {
+        const cur = delay[p];
+        const nxt = delay[(p + 1) % N];
+        delay[p]  = (cur + nxt) * 0.5 * ksP.feedback;
+        out[i]    = cur;
+        p = (p + 1) % N;
+    }
+    return buf;
+}
+
+function ensureAudio() {
+    if (!audioCtx) audioCtx = new AudioContext();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playNote(midi, dur) {
+    if (!soundOn || !audioCtx || isNaN(midi)) return;
+    if (!ksCache.has(midi)) ksCache.set(midi, buildKSBuffer(midi));
+    const src = audioCtx.createBufferSource();
+    src.buffer = ksCache.get(midi);
+    src.connect(audioCtx.destination);
+    src.start();
+    if (dur > 0) src.stop(audioCtx.currentTime + Math.max(0.1, dur / speed));
+}
+
+// ─── HELPERS DE COLOR ─────────────────────────────────────────────────────
+function darken(hex, amt) {
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    return `rgb(${Math.round(r*(1-amt))},${Math.round(g*(1-amt))},${Math.round(b*(1-amt))})`;
+}
+function lighten(hex, amt) {
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    return `rgb(${Math.min(255,Math.round(r+(255-r)*amt))},${Math.min(255,Math.round(g+(255-g)*amt))},${Math.min(255,Math.round(b+(255-b)*amt))})`;
+}
+
+// ─── TIPO DE SONIDO ───────────────────────────────────────────────────────
+function setSoundType(key) {
+    ksP     = KS_PARAMS[key];
+    ksCache = new Map();
+    document.querySelectorAll('.btn-snd').forEach(b =>
+        b.classList.toggle('active', b.dataset.snd === key));
+}
+document.querySelectorAll('.btn-snd').forEach(b => b.onclick = () => setSoundType(b.dataset.snd));
+
+// ─── VELOCIDAD ────────────────────────────────────────────────────────────
+function setSpeed(v) {
+    v = Math.max(40, Math.min(120, v));
+    speed = v / 100;
+    document.getElementById('speedSlider').value = v;
+    document.getElementById('speedDisplay').textContent = v + '%';
+}
+document.getElementById('speedSlider').oninput = e => setSpeed(+e.target.value);
+document.getElementById('btnSpeedDown').onclick = () => setSpeed(Math.round(speed * 100) - 5);
+document.getElementById('btnSpeedUp').onclick   = () => setSpeed(Math.round(speed * 100) + 5);
+
+// ─── MUTE ─────────────────────────────────────────────────────────────────
+document.getElementById('btnMute').onclick = e => {
+    soundOn = !soundOn;
+    e.target.textContent = soundOn ? '🔊' : '🔇';
+    e.target.classList.toggle('muted', !soundOn);
+};
+
+// ─── PLAY / PAUSA / RESTART ───────────────────────────────────────────────
+function doRestart() {
+    ensureAudio();
+    currentTime = 0; prevTime = 0;
+    tabEnded = false; loopReady = false;
+    lastClickBeat = -1; fallVY = 0;
+    resetHits();
+    isPlaying = true;
+}
+document.getElementById('btnPlay').onclick = () => {
+    ensureAudio();
+    tabEnded = false;
+    if (loopActive) { currentTime = loopIn; prevTime = loopIn - 0.001; resetHits(); }
+    lastClickBeat = -1;
+    loopReady = false;
+    isPlaying = true;
+};
+document.getElementById('btnPause').onclick  = () => { isPlaying = false; loopReady = false; };
+document.getElementById('btnRestart').onclick = doRestart;
+
+function navigateMeasures(delta) {
+    if (!notes.length) return;
+    const measureDur = beatsPerBar * (60 / bpm);
+    currentTime = Math.max(0, currentTime + delta * measureDur);
+    prevTime    = currentTime - 0.001;
+    lastClickBeat = -1;
+    tabEnded    = false;
+    loopReady   = false;
+    notes.forEach(n => { n.hit = n.time < currentTime; n.hitAt = n.hit ? n.time : 0; });
+}
+
+document.addEventListener('keydown', e => {
+    if (e.code === 'ArrowRight') { e.preventDefault(); navigateMeasures(1);  return; }
+    if (e.code === 'ArrowLeft')  { e.preventDefault(); navigateMeasures(-1); return; }
+    if (e.code !== 'Space') return;
+    e.preventDefault();
+    if (!notes.length) return;
+    ensureAudio();
+    if (tabEnded) { doRestart(); return; }
+    if (isPlaying) {
+        isPlaying = false; loopReady = false;
+    } else {
+        tabEnded = false;
+        if (loopActive) { currentTime = loopIn; prevTime = loopIn - 0.001; resetHits(); }
+        lastClickBeat = -1; loopReady = false;
+        isPlaying = true;
+    }
+});
+
+// ─── LOOP ─────────────────────────────────────────────────────────────────
+function clearLoopState() {
+    loopActive = loopReady = selIn = selOut = false;
+    loopIn = loopOut = 0;
+    canvas.classList.remove('selecting');
+    document.getElementById('btnLoopIn').classList.remove('btn-active');
+    document.getElementById('btnLoopOut').classList.remove('btn-active');
+}
+
+document.getElementById('btnLoopIn').onclick = e => {
+    isPlaying = false; loopActive = false; loopReady = false;
+    selIn = true; selOut = false;
+    canvas.classList.add('selecting');
+    e.target.classList.add('btn-active');
+    document.getElementById('btnLoopOut').classList.remove('btn-active');
+};
+document.getElementById('btnLoopOut').onclick = e => {
+    isPlaying = false; loopActive = false; loopReady = false;
+    selOut = true; selIn = false;
+    canvas.classList.add('selecting');
+    e.target.classList.add('btn-active');
+    document.getElementById('btnLoopIn').classList.remove('btn-active');
+};
+document.getElementById('btnLoopClear').onclick = clearLoopState;
+
+canvas.addEventListener('click', e => {
+    if (!selIn && !selOut) return;
+    const rect   = canvas.getBoundingClientRect();
+    const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    let found = null, minDist = Infinity;
+    for (const note of notes) {
+        const nw = note.durSec * note.zoom;
+        const cy = START_Y + (note.string - 1) * STR_SPACING;
+        const { x: px } = project(getX(note.time) + nw / 2, cy);
+        if (clickX >= px - nw / 2 - 4 && clickX <= px + nw / 2 + 4) {
+            const d = Math.abs(clickX - px);
+            if (d < minDist) { minDist = d; found = note; }
+        }
+    }
+    if (!found) return;
+    if (selIn) {
+        loopIn = found.time; selIn = false;
+        canvas.classList.remove('selecting');
+        document.getElementById('btnLoopIn').classList.remove('btn-active');
+    } else if (selOut && found.time > loopIn) {
+        loopOut = found.time; loopActive = true; selOut = false;
+        canvas.classList.remove('selecting');
+        document.getElementById('btnLoopOut').classList.remove('btn-active');
+    }
+});
+
+function resetHits() { notes.forEach(n => n.hit = false); }
+
+// ─── PARSEO MusicXML ──────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    let xml = '';
+    if (file.name.endsWith('.mxl')) {
+        const zip  = await JSZip.loadAsync(file);
+        const name = Object.keys(zip.files).find(n =>
+            n.endsWith('.xml') && !n.includes('container.xml'));
+        xml = await zip.files[name].async('string');
+    } else {
+        xml = await file.text();
+    }
+    parseXML(new DOMParser().parseFromString(xml, 'text/xml'));
+});
+
+function parseXML(doc) {
+    const out         = [];
+    const rawMeasures = [];
+    let divisions = 1, elapsed = 0;
+    const STEP = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+
+    for (const measure of doc.getElementsByTagName('measure')) {
+        const mStart = elapsed;
+        let mMinDur  = Infinity;
+
+        const attr = measure.getElementsByTagName('attributes')[0];
+        if (attr) {
+            const d = attr.getElementsByTagName('divisions')[0];
+            if (d) divisions = +d.textContent;
+            const t = attr.getElementsByTagName('time')[0];
+            if (t) beatsPerBar = +(t.getElementsByTagName('beats')[0]?.textContent) || 4;
+        }
+        const snd = measure.getElementsByTagName('sound')[0];
+        if (snd?.getAttribute('tempo')) bpm = +snd.getAttribute('tempo');
+
+        for (const node of measure.children) {
+            if (node.nodeName !== 'note') continue;
+            const isChord = node.getElementsByTagName('chord').length > 0;
+            const dur     = +(node.getElementsByTagName('duration')[0]?.textContent || 0);
+            const durSec  = (dur / divisions) * (60 / bpm);
+            const tech    = node.getElementsByTagName('notations')[0]
+                                ?.getElementsByTagName('technical')[0];
+            let str  = +(tech?.getElementsByTagName('string')[0]?.textContent);
+            let fret = +(tech?.getElementsByTagName('fret')[0]?.textContent);
+
+            if (!str || isNaN(str)) {
+                const pitch = node.getElementsByTagName('pitch')[0];
+                if (pitch) {
+                    const midi = (+pitch.getElementsByTagName('octave')[0].textContent + 1) * 12
+                        + STEP[pitch.getElementsByTagName('step')[0].textContent]
+                        + +(pitch.getElementsByTagName('alter')[0]?.textContent || 0);
+                    for (let s = 0; s < 6; s++) {
+                        const f = midi - OPEN_STRINGS[s];
+                        if (f >= 0 && f <= 22) { str = s + 1; fret = f; break; }
+                    }
+                }
+            }
+
+            const tieStop = [...node.getElementsByTagName('tie')]
+                .some(t => t.getAttribute('type') === 'stop');
+            const isRest  = !!node.getElementsByTagName('rest').length;
+
+            if (!isRest && str >= 1 && str <= 6 && !isNaN(fret)) {
+                if (!isChord) mMinDur = Math.min(mMinDur, durSec);
+                if (tieStop) {
+                    for (let i = out.length - 1; i >= 0; i--) {
+                        if (out[i].string === str && out[i].fret === fret) {
+                            out[i].durSec += durSec; break;
+                        }
+                    }
+                } else {
+                    out.push({ time: elapsed, string: str, fret: fret,
+                        finger: +(tech?.getElementsByTagName('fingering')[0]?.textContent) || 0,
+                        durSec: durSec, measureIdx: rawMeasures.length,
+                        hit: false, hitAt: 0 });
+                }
+            }
+            if (!isChord) elapsed += durSec;
+        }
+
+        rawMeasures.push({ tStart: mStart, tEnd: elapsed,
+            minDur: mMinDur === Infinity ? 60 / bpm : mMinDur });
+    }
+
+    const beatDur = 60 / bpm;
+    approachEnd   = 2 * beatDur;
+    startOffset   = approachEnd + beatsPerBar * beatDur;
+    for (const n of out) n.time += startOffset;
+
+    // Zoom por compás: clamp(DEFAULT, MIN_CHIP_PX/minDur, DEFAULT*MAX_ZOOM_FACTOR)
+    let pixelStart = 0;
+    measureData = rawMeasures.map(m => {
+        const tStart = m.tStart + startOffset;
+        const tEnd   = m.tEnd   + startOffset;
+        const zoom   = Math.min(DEFAULT_ZOOM * MAX_ZOOM_FACTOR,
+                               Math.max(DEFAULT_ZOOM, MIN_CHIP_PX / m.minDur));
+        const entry  = { tStart, tEnd, zoom, pixelStart };
+        pixelStart  += (tEnd - tStart) * zoom;
+        return entry;
+    });
+
+    for (const n of out) n.zoom = (measureData[n.measureIdx] ?? measureData[0]).zoom;
+
+    notes = out;
+    currentTime = 0; isPlaying = false;
+    tabEnded = false; lastClickBeat = -1;
+    ksCache = new Map();
+    clearLoopState();
+    if (notes.length) ballY = START_Y + (notes[0].string - 1) * STR_SPACING;
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────
+function pixelAt(t) {
+    if (!measureData.length) return t * DEFAULT_ZOOM;
+    for (let i = 0; i < measureData.length; i++) {
+        const m = measureData[i];
+        if (t < m.tEnd || i === measureData.length - 1)
+            return m.pixelStart + (t - m.tStart) * m.zoom;
+    }
+    return measureData[measureData.length - 1].pixelStart;
+}
+function getX(t)  { return canvas.width * TARGET_X_PCT + pixelAt(t) - pixelAt(currentTime); }
+function noteW()  { return (60 / bpm) * DEFAULT_ZOOM; }
+
+// ─── ANIMACIÓN ────────────────────────────────────────────────────────────
+function animLoop(ts) {
+    if (!lastTS) lastTS = ts;
+    const dt = (ts - lastTS) / 1000;
+    lastTS = ts;
+
+    if (isPlaying) {
+        prevTime     = currentTime;
+        currentTime += dt * speed;
+        document.getElementById('timeDisplay').textContent = currentTime.toFixed(2) + 's';
+
+        const beatDur = 60 / bpm;
+
+        // Fin de tab: la bola hace un salto hacia arriba y luego cae
+        if (!loopActive && notes.length) {
+            const endTime = notes[notes.length - 1].time + beatDur;
+            if (currentTime > endTime) {
+                isPlaying = false;
+                tabEnded  = true;
+                fallVY    = -520;   // impulso hacia arriba → luego gravedad la tira abajo
+            }
+        }
+
+        // Clicks de precuenta
+        if (soundOn && currentTime >= approachEnd && currentTime < startOffset) {
+            const beatsSince  = (currentTime - approachEnd) / beatDur;
+            const currentBeat = Math.floor(beatsSince);
+            if (currentBeat !== lastClickBeat) {
+                lastClickBeat = currentBeat;
+                playClick(currentBeat === 0);
+            }
+        }
+        if (currentTime < approachEnd) lastClickBeat = -1;
+
+        // Loop ready
+        if (loopActive && !loopReady && currentTime >= loopOut) {
+            loopReady = true; readyStart = currentTime;
+        }
+        if (loopReady && currentTime >= readyStart + beatDur) {
+            currentTime = loopIn; prevTime = loopIn - 0.001;
+            loopReady = false; resetHits();
+        }
+
+        // Disparar notas
+        if (!loopReady) {
+            for (const note of notes) {
+                if (note.hit || !(prevTime < note.time && note.time <= currentTime)) continue;
+                const inRange = !loopActive || (note.time >= loopIn && note.time <= loopOut);
+                if (inRange) {
+                    note.hit   = true;
+                    note.hitAt = currentTime;
+                    playNote(OPEN_STRINGS[note.string - 1] + note.fret, note.durSec);
+                }
+            }
+        }
+    }
+
+    updateBall();
+    // Física de caída con salto previo: gravedad acumula velocidad descendente
+    if (tabEnded) { fallVY += 2200 * dt; ballY += fallVY * dt; }
+    render();
+    requestAnimationFrame(animLoop);
+}
+
+function getBallYAtTime(t) {
+    if (!notes.length) return START_Y;
+    const beatDur         = 60 / bpm;
+    const stringY         = START_Y + (notes[0].string - 1) * STR_SPACING;
+    const preImpulseStart = approachEnd - beatDur;
+
+    if (t < preImpulseStart) return stringY;
+
+    if (t < approachEnd) {
+        const phase = (t - preImpulseStart) / beatDur;
+        return stringY - Math.sin(phase * Math.PI) * BOUNCE_H;
+    }
+
+    if (t < startOffset) {
+        const phase = ((t - approachEnd) / beatDur) % 1;
+        return stringY - Math.sin(phase * Math.PI) * BOUNCE_H;
+    }
+
+    let cur = null, nxt = null;
+    for (const n of notes) { if (n.time <= t) cur = n; else { nxt = n; break; } }
+    if (!cur) return stringY;
+    if (!nxt) return START_Y + (cur.string - 1) * STR_SPACING;
+    const prog  = Math.max(0, Math.min(1, (t - cur.time) / (nxt.time - cur.time)));
+    const baseY = START_Y + (cur.string - 1) * STR_SPACING;
+    const targY = START_Y + (nxt.string - 1) * STR_SPACING;
+    return baseY + (targY - baseY) * prog
+         - Math.sin(prog * Math.PI) * BOUNCE_H * (1 + Math.abs(targY - baseY) / 100);
+}
+
+function updateBall() {
+    if (!notes.length || tabEnded) return;
+    const beatDur = 60 / bpm;
+
+    if (loopReady) {
+        const phase  = ((currentTime / beatDur) % 1 + 1) % 1;
+        const anchor = notes.find(n => n.time >= loopIn) || notes[0];
+        ballY = START_Y + (anchor.string - 1) * STR_SPACING - Math.sin(phase * Math.PI) * BOUNCE_H;
+        return;
+    }
+
+    ballY = getBallYAtTime(currentTime);
+}
+
+function drawBallTrail() {
+    if (!notes.length) return;
+    const beatDur   = 60 / bpm;
+    const pastRange = 3.5 * beatDur;
+    const futRange  = 9.0 * beatDur;
+    const dt_grid   = 4 / DEFAULT_ZOOM;
+    const tStart    = Math.max(0, currentTime - pastRange);
+
+    for (let t = tStart; t <= currentTime + futRange; t += dt_grid) {
+        const x = getX(t);
+        if (x < -10 || x > canvas.width + 10) continue;
+        const y   = getBallYAtTime(t);
+        const { x: px, y: py } = project(x, y);
+        const dt    = t - currentTime;
+        const frac  = Math.abs(dt) / (dt >= 0 ? futRange : pastRange);
+        const alpha = (1 - frac * frac) * 0.65;
+        const r     = 2.2 * (1 - frac * 0.5);
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(220,215,195,${alpha})`;
+        ctx.fill();
+    }
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────
+function render() {
+    ctx.fillStyle = '#fdf5e0';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const W2 = canvas.width;
+    const ftTL = project(-W2, fretTop),  ftTR = project(2*W2, fretTop);
+    const fbBR = project(2*W2, fretBottom), fbBL = project(-W2, fretBottom);
+    ctx.beginPath();
+    ctx.moveTo(ftTL.x, ftTL.y); ctx.lineTo(ftTR.x, ftTR.y);
+    ctx.lineTo(fbBR.x, fbBR.y); ctx.lineTo(fbBL.x, fbBL.y);
+    ctx.closePath();
+    ctx.fillStyle = '#2d1a0a'; ctx.fill();
+
+    drawBeatBg();
+    drawGrid();
+    drawStrings();
+    drawLoopMarkers();
+    drawNotes();
+    if (loopReady) drawReadyOverlay();
+    if (tabEnded)  drawEndOverlay();
+    drawBallTrail();
+    // Renderizar bola mientras esté dentro de pantalla (permite verla saltar hacia arriba)
+    if (ballY > -60 && ballY < canvas.height + 60) {
+        const pb = project(canvas.width * TARGET_X_PCT, ballY);
+        drawBall(pb.x, pb.y);
+    }
+}
+
+function drawBeatBg() {
+    if (!measureData.length) return;
+    const bd = 60 / bpm;
+    let globalBeat = 0;
+    for (let mi = 0; mi < measureData.length; mi++) {
+        const m  = measureData[mi];
+        if (getX(m.tEnd)   < -200) { globalBeat += beatsPerBar; continue; }
+        if (getX(m.tStart) > canvas.width + 200) break;
+        const beatsInMeasure = Math.max(1, Math.round((m.tEnd - m.tStart) / bd));
+        for (let b = 0; b < beatsInMeasure; b++) {
+            const bt  = m.tStart + b * bd;
+            const bx0 = getX(bt);
+            const bx1 = getX(bt + bd);
+            if (bx1 < -100 || bx0 > canvas.width + 100) { globalBeat++; continue; }
+            const inLoop = loopActive && bt >= loopIn - 0.01 && bt < loopOut;
+            ctx.fillStyle = inLoop ? 'rgba(46,204,113,.13)'
+                          : (globalBeat % 2 === 0 ? 'rgba(255,190,80,.07)' : 'rgba(0,0,0,.18)');
+            const tl = project(bx0, fretTop),  tr = project(bx1, fretTop);
+            const br = project(bx1, fretBottom), bl = project(bx0, fretBottom);
+            ctx.beginPath();
+            ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+            ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+            ctx.closePath(); ctx.fill();
+            globalBeat++;
+        }
+    }
+}
+
+function drawGrid() {
+    if (!measureData.length) return;
+    const bd = 60 / bpm;
+    for (let mi = 0; mi < measureData.length; mi++) {
+        const m  = measureData[mi];
+        if (getX(m.tEnd)   < -200) continue;
+        if (getX(m.tStart) > canvas.width + 200) break;
+        const beatsInMeasure = Math.max(1, Math.round((m.tEnd - m.tStart) / bd));
+        for (let b = 0; b < beatsInMeasure; b++) {
+            const bx    = getX(m.tStart + b * bd);
+            if (bx < -50 || bx > canvas.width + 50) continue;
+            const isBar = (b === 0);
+            const yTop  = isBar ? fretTop    : fretTop    + 5;
+            const yBot  = isBar ? fretBottom : fretBottom - 5;
+            const pt    = project(bx, yTop), pb = project(bx, yBot);
+            ctx.strokeStyle = isBar ? 'rgba(255,255,255,.38)' : 'rgba(255,255,255,.10)';
+            ctx.lineWidth   = isBar ? Math.max(1, DEFAULT_ZOOM * .03) : Math.max(.5, DEFAULT_ZOOM * .01);
+            ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+        }
+    }
+}
+
+function drawStrings() {
+    const W = canvas.width;
+    for (let i = 0; i < 6; i++) {
+        const y     = START_Y + i * STR_SPACING;
+        const pL    = project(-W, y);
+        const pR    = project(2 * W, y);
+        const thick = 1 + i * 0.7;
+        const wound = i >= 3;  // cuerdas 4, 5, 6
+
+        const PLAIN_COLORS  = ['#f2f2f4', '#c4c4c8', '#b0b0b4'];
+        const WOUND_COLORS  = ['#9a6025', '#a66828', '#b0702c'];
+        const baseClr = wound ? WOUND_COLORS[i - 3] : PLAIN_COLORS[i];
+        const shadClr = wound ? 'rgba(40,15,0,0.60)'  : 'rgba(0,0,0,0.40)';
+        const hiClr   = wound ? 'rgba(185,130,60,0.60)' : (i === 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.60)');
+
+        // Sombra inferior → volumen
+        ctx.beginPath();
+        ctx.moveTo(pL.x, pL.y + thick * 0.55);
+        ctx.lineTo(pR.x, pR.y + thick * 0.55);
+        ctx.strokeStyle = shadClr; ctx.lineWidth = thick; ctx.stroke();
+
+        // Cuerda base
+        ctx.beginPath();
+        ctx.moveTo(pL.x, pL.y); ctx.lineTo(pR.x, pR.y);
+        ctx.strokeStyle = baseClr; ctx.lineWidth = thick; ctx.stroke();
+
+        // Highlight superior → redondez
+        ctx.beginPath();
+        ctx.moveTo(pL.x, pL.y - thick * 0.28);
+        ctx.lineTo(pR.x, pR.y - thick * 0.28);
+        ctx.strokeStyle = hiClr; ctx.lineWidth = Math.max(0.5, thick * 0.38); ctx.stroke();
+
+        // Entorchado en cuerdas 4-6: marcas diagonales a intervalos regulares
+        if (wound) {
+            const spacing = thick * 2.0;
+            ctx.strokeStyle = 'rgba(70,35,0,0.42)';
+            ctx.lineWidth   = 0.85;
+            for (let x = pL.x; x < pR.x; x += spacing) {
+                const t  = (x - pL.x) / (pR.x - pL.x);
+                const sy = pL.y + t * (pR.y - pL.y);
+                ctx.beginPath();
+                ctx.moveTo(x - thick * 0.25, sy - thick * 0.65);
+                ctx.lineTo(x + thick * 0.25, sy + thick * 0.65);
+                ctx.stroke();
+            }
+        }
+    }
+}
+
+function drawLoopMarkers() {
+    if (loopIn > 0) {
+        const x  = getX(loopIn);
+        const pt = project(x, fretTop); const pb = project(x, fretBottom);
+        ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+        ctx.fillStyle = '#27ae60'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'left';
+        ctx.fillText('IN', pt.x + 3, pt.y + 12);
+    }
+    if (loopActive && loopOut > 0) {
+        const x  = getX(loopOut);
+        const pt = project(x, fretTop); const pb = project(x, fretBottom);
+        ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+        ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'right';
+        ctx.fillText('OUT', pt.x - 3, pt.y + 12);
+    }
+}
+
+function drawNotes() {
+    for (const note of notes) {
+        const nw = note.durSec * note.zoom;
+        const cx = getX(note.time);
+        if (cx + nw < -100 || cx > canvas.width + 100) continue;
+        const cy = START_Y + (note.string - 1) * STR_SPACING;
+        const { x: px, y: py } = project(cx + nw / 2, cy);
+        drawPill(px - nw / 2, py, nw, note);
+    }
+}
+
+function drawPill(x, y, w, note) {
+    let color = '#DC6A20', txtColor = '#fff', sc = 1;
+    if (note.hit) {
+        color = '#22C55E';
+        const age = currentTime - note.hitAt;
+        if (age < .15) sc = 1 + Math.sin((age / .15) * Math.PI) * .1;
+    } else if (note.fret === 0) {
+        color = '#6B7480'; txtColor = '#fff';
+    } else if (note.finger && FINGER_COLOR[note.finger]) {
+        color = FINGER_COLOR[note.finger];
+    }
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(sc, sc); ctx.translate(-x, -y);
+
+    roundRect(x, y - NOTE_R, w, NOTE_R * 2, NOTE_R);
+    const grad = ctx.createLinearGradient(x, y - NOTE_R, x, y + NOTE_R);
+    grad.addColorStop(0,   lighten(color, 0.30));
+    grad.addColorStop(0.45, color);
+    grad.addColorStop(1,   darken(color, 0.28));
+    ctx.fillStyle   = grad;
+    ctx.strokeStyle = darken(color, 0.38);
+    ctx.lineWidth   = 1;
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle    = txtColor;
+    ctx.font         = `bold ${Math.max(11, NOTE_R * 0.62)}px Arial`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(note.fret, x + Math.min(NOTE_R, w * .3), y);
+    ctx.restore();
+}
+
+function roundRect(x, y, w, h, r) {
+    if (w < 2 * r) r = w / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+function drawReadyOverlay() {
+    ctx.fillStyle = 'rgba(0,0,0,.45)';
+    ctx.fillRect(0, fretTop, canvas.width, fretBottom - fretTop);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 22px Arial';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('READY…', canvas.width / 2, (fretTop + fretBottom) / 2);
+}
+
+function drawEndOverlay() {
+    const cx = canvas.width / 2;
+    const cy = (fretTop + fretBottom) / 2;
+    ctx.fillStyle = 'rgba(0,0,0,.6)';
+    ctx.fillRect(0, fretTop, canvas.width, fretBottom - fretTop);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 28px Arial';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('FIN', cx, cy - 18);
+    ctx.font = '15px Arial'; ctx.fillStyle = '#aaa';
+    ctx.fillText('↺ para repetir  ·  carga otra tab para cambiar melodía', cx, cy + 14);
+}
+
+function drawBall(x, y) {
+    const r = NOTE_R * .7;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle   = '#fff';
+    ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+}
+
+requestAnimationFrame(animLoop);
+</script>
+</body>
+</html>
