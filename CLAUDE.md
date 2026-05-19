@@ -28,6 +28,7 @@ Ecosistema de aplicaciones pedagógicas para un profesor de música en escuela p
 | `HUIRO APP/` | Práctica rítmica y patrones | Planificado |
 | `CIFRADO AMERICANO/` | Cifrado de acordes | Planificado |
 | `REPERTORIO/` | **Repertorio** — biblioteca de canciones, visor letras sincronizado, importación iTunes+LRCLIB | **v1 completa** |
+| `ANALIZADOR/` | **Analizador Pedagógico** — estadísticas de uso + análisis Gemini | Funcional |
 | *(sin carpeta)* | **Portal** — hub de planificación en PC, dashboard temporal | En prototipo (Fase 4) |
 | *(sin carpeta)* | **Libro de Clases** — evaluaciones con modo mobile offline | Pendiente (Fase 5) |
 

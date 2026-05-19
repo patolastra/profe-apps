@@ -109,6 +109,37 @@
         .rep-item:hover { background:#2a2a2a; border-color:#444; }
         .rep-item .rep-nombre { font-weight:bold; }
         .rep-item .rep-meta { font-size:.8rem; color:#aaa; margin-top:2px; }
+
+        /* ── PISTAS DE ACOMPAÑAMIENTO ─────────────────────────────── */
+        .btn-pistas { background: #1a5276; color: #fff; }
+        .btn-pistas.activo { background: #2980b9; box-shadow: 0 0 8px #2980b988; }
+        #panelPistas {
+            display: none; position: fixed; z-index: 300;
+            background: #252525; border-radius: 8px; min-width: 210px;
+            box-shadow: 0 8px 32px rgba(0,0,0,.75); border: 1px solid #383838;
+            overflow: hidden;
+        }
+        #panelPistas.open { display: block; }
+        .pistas-header {
+            padding: 9px 14px; font-size: .78rem; font-weight: 600;
+            color: #777; text-transform: uppercase; letter-spacing: .05em;
+            border-bottom: 1px solid #333;
+        }
+        .pista-row {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; border-bottom: 1px solid #2a2a2a;
+        }
+        .pista-row:last-child { border-bottom: none; }
+        .pista-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+        .pista-nombre { flex: 1; font-size: .88rem; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .btn-pista-mute {
+            background: #2d2d2d; border: 1px solid #444; color: #bbb;
+            border-radius: 4px; padding: 3px 9px; cursor: pointer;
+            font-size: .82rem; white-space: nowrap;
+        }
+        .btn-pista-mute:hover { background: #3a3a3a; }
+        .btn-pista-mute.muted { background: #1a1a1a; color: #555; border-color: #2a2a2a; }
+        .pistas-vacio { padding: 12px 14px; color: #666; font-size: .84rem; font-style: italic; }
     </style>
 </head>
 <body>
@@ -158,7 +189,15 @@
         <span class="sep">|</span>
         <button id="btnSwing" class="btn-swing">𝄞 Swing</button>
         <button id="btnMute" class="btn-mute">🔊</button>
+        <span class="sep">|</span>
+        <button id="btnPistas" class="btn-pistas" onclick="togglePistasPanel(this)">🎵 Pistas</button>
     </div>
+</div>
+
+<!-- PANEL PISTAS -->
+<div id="panelPistas">
+    <div class="pistas-header">Acompañamiento</div>
+    <div id="listaPistas"></div>
 </div>
 
 <!-- MODAL REPERTORIO -->
@@ -308,6 +347,8 @@ let swingOn    = false;
 let swingRatio = 0.62;   // 62% largo / 38% corto ≈ swing jazz estándar
 let lastXmlDoc = null;
 
+let accompTracks = []; // [{ label, notes:[{time,midi,durSec,hit}], muted, color }]
+
 // ─── HELPERS DE COLOR ─────────────────────────────────────────────────────
 function darken(hex, amt) {
     const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
@@ -404,6 +445,7 @@ function navigateMeasures(delta) {
     prevTime    = currentTime - 0.001;
     lastClickBeat = -1; tabEnded = false; loopReady = false;
     notes.forEach(n => { n.hit = n.time < currentTime; n.hitAt = n.hit ? n.time : 0; });
+    accompTracks.forEach(t => t.notes.forEach(n => { n.hit = n.time < currentTime; }));
 }
 
 document.addEventListener('keydown', e => {
@@ -473,7 +515,10 @@ canvas.addEventListener('click', e => {
     }
 });
 
-function resetHits() { notes.forEach(n => n.hit = false); }
+function resetHits() {
+    notes.forEach(n => n.hit = false);
+    accompTracks.forEach(t => t.notes.forEach(n => n.hit = false));
+}
 
 // ─── PARSEO MusicXML ──────────────────────────────────────────────────────
 document.getElementById('fileInput').addEventListener('change', async e => {
@@ -523,7 +568,23 @@ function parseXML(doc, fromToggle = false) {
     let divisions = 1, elapsed = 0;
     const STEP = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
 
-    for (const measure of doc.getElementsByTagName('measure')) {
+    // Buscar la primera parte que tenga clef TAB; si no hay, usar la primera parte
+    const allParts = Array.from(doc.getElementsByTagName('part'));
+    let targetPart = allParts[0];
+    const tabStaves = new Set();
+    for (const part of allParts) {
+        for (const clef of part.getElementsByTagName('clef')) {
+            if (clef.getElementsByTagName('sign')[0]?.textContent === 'TAB') {
+                const n = clef.getAttribute('number');
+                tabStaves.add(n ? +n : 1);
+                targetPart = part;
+            }
+        }
+        if (tabStaves.size > 0) break;
+    }
+    const hasTabFilter = tabStaves.size > 0;
+
+    for (const measure of targetPart.getElementsByTagName('measure')) {
         const mStart = elapsed;
         let mMinDur  = Infinity;
 
@@ -539,6 +600,14 @@ function parseXML(doc, fromToggle = false) {
 
         for (const node of measure.children) {
             if (node.nodeName !== 'note') continue;
+
+            // Ignorar notas que no pertenecen al staff TAB (evita duplicados del staff de notación)
+            if (hasTabFilter) {
+                const staffEl = node.getElementsByTagName('staff')[0];
+                const staffNum = staffEl ? +staffEl.textContent : 1;
+                if (!tabStaves.has(staffNum)) continue;
+            }
+
             const isChord = node.getElementsByTagName('chord').length > 0;
             const dur     = +(node.getElementsByTagName('duration')[0]?.textContent || 0);
             const durSec  = (dur / divisions) * (60 / bpm);
@@ -620,6 +689,9 @@ function parseXML(doc, fromToggle = false) {
     clearLoopState();
     if (notes.length) ballY = START_Y + (notes[0].string - 1) * STR_SPACING;
 
+    accompTracks = parseAccompParts(doc, startOffset);
+    if (pistasOpen) renderListaPistas();
+
     if (!fromToggle) document.getElementById('landing').classList.add('oculto');
 }
 
@@ -671,6 +743,15 @@ function animLoop(ts) {
                 const inRange = !loopActive || (note.time >= loopIn && note.time <= loopOut);
                 if (inRange) { note.hit = true; note.hitAt = currentTime;
                     playNote(OPEN_STRINGS[note.string - 1] + note.fret, note.durSec); }
+            }
+            for (let ti = 0; ti < accompTracks.length; ti++) {
+                const track = accompTracks[ti];
+                if (track.muted) continue;
+                for (const note of track.notes) {
+                    if (note.hit || !(prevTime < note.time && note.time <= currentTime)) continue;
+                    const inRange = !loopActive || (note.time >= loopIn && note.time <= loopOut);
+                    if (inRange) { note.hit = true; playAccompNote(note.midi, note.durSec, ti, note.drum); }
+                }
             }
         }
     }
@@ -1029,6 +1110,273 @@ async function cargarDesdeStorage(storagePath, nombreArchivo) {
         alert('Error cargando la tablatura: ' + err.message);
     }
 }
+
+// ─── PARSEO PISTAS DE ACOMPAÑAMIENTO ─────────────────────────────────────
+function parseAccompParts(doc, sOffset) {
+    const STEP   = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+    const COLORS = ['#3498db', '#e67e22'];
+
+    const partNames = {};
+    const instrMaps = {}; // pid → { instrId → midiUnpitched }
+    const partList  = doc.getElementsByTagName('part-list')[0];
+    if (partList) {
+        for (const sp of partList.getElementsByTagName('score-part')) {
+            const pid  = sp.getAttribute('id');
+            const name = sp.getElementsByTagName('part-name')[0]?.textContent?.trim() || pid;
+            partNames[pid] = name;
+            const imap = {};
+            for (const mi of sp.getElementsByTagName('midi-instrument')) {
+                const iid = mi.getAttribute('id');
+                const unp = mi.getElementsByTagName('midi-unpitched')[0];
+                if (unp) imap[iid] = +unp.textContent;
+            }
+            instrMaps[pid] = imap;
+        }
+    }
+
+    const tracks   = [];
+    const allParts = Array.from(doc.getElementsByTagName('part'));
+
+    for (const part of allParts) {
+        if (tracks.length >= 2) break;
+        const hasTab = Array.from(part.getElementsByTagName('clef'))
+            .some(c => c.getElementsByTagName('sign')[0]?.textContent === 'TAB');
+        if (hasTab) continue;
+
+        const pid        = part.getAttribute('id');
+        const label      = partNames[pid] || pid;
+        const imap       = instrMaps[pid] || {};
+        const isDrumPart = Object.keys(imap).length > 0;
+        const notes      = [];
+        let el = 0, ldiv = 1, lbpm = bpm;
+
+        for (const measure of part.getElementsByTagName('measure')) {
+            const attr = measure.getElementsByTagName('attributes')[0];
+            if (attr) {
+                const d = attr.getElementsByTagName('divisions')[0];
+                if (d) ldiv = +d.textContent;
+            }
+            const snd = measure.getElementsByTagName('sound')[0];
+            if (snd?.getAttribute('tempo')) lbpm = +snd.getAttribute('tempo');
+
+            for (const node of measure.children) {
+                if (node.nodeName === 'backup') {
+                    const d = +(node.getElementsByTagName('duration')[0]?.textContent || 0);
+                    el -= (d / ldiv) * (60 / lbpm);
+                    continue;
+                }
+                if (node.nodeName !== 'note') continue;
+
+                const isChord = !!node.getElementsByTagName('chord').length;
+                const isRest  = !!node.getElementsByTagName('rest').length;
+                const dur     = +(node.getElementsByTagName('duration')[0]?.textContent || 0);
+                const durSec  = (dur / ldiv) * (60 / lbpm);
+
+                if (!isRest) {
+                    const unpEl   = node.getElementsByTagName('unpitched')[0];
+                    const pitchEl = node.getElementsByTagName('pitch')[0];
+
+                    if (unpEl) {
+                        const iid      = node.getElementsByTagName('instrument')[0]?.getAttribute('id');
+                        const drumMidi = imap[iid] ?? 38;
+                        const tieStop  = [...node.getElementsByTagName('tie')]
+                            .some(t => t.getAttribute('type') === 'stop');
+                        if (!tieStop)
+                            notes.push({ time: el + sOffset, midi: drumMidi, durSec, hit: false, drum: true });
+                    } else if (pitchEl) {
+                        const oct  = +pitchEl.getElementsByTagName('octave')[0].textContent;
+                        const stp  = pitchEl.getElementsByTagName('step')[0].textContent;
+                        const alt  = +(pitchEl.getElementsByTagName('alter')[0]?.textContent || 0);
+                        const midi = (oct + 1) * 12 + STEP[stp] + alt;
+                        const tieStop = [...node.getElementsByTagName('tie')]
+                            .some(t => t.getAttribute('type') === 'stop');
+                        if (tieStop) {
+                            for (let i = notes.length - 1; i >= 0; i--)
+                                if (notes[i].midi === midi) { notes[i].durSec += durSec; break; }
+                        } else {
+                            notes.push({ time: el + sOffset, midi, durSec, hit: false, drum: false });
+                        }
+                    }
+                }
+                if (!isChord) el += durSec;
+            }
+        }
+
+        if (notes.length)
+            tracks.push({ label, notes, muted: false, color: COLORS[tracks.length], drum: isDrumPart });
+    }
+    return tracks;
+}
+
+// ─── SÍNTESIS ACOMPAÑAMIENTO ──────────────────────────────────────────────
+function playTriangle(midi, durSec, vol) {
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const osc  = audioCtx.createOscillator();
+    const g    = audioCtx.createGain();
+    osc.type = 'triangle'; osc.frequency.value = freq;
+    osc.connect(g); g.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    const d   = Math.max(0.08, Math.min(durSec / speed, 2.0));
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(vol, now + 0.015);
+    g.gain.setValueAtTime(vol, now + d * 0.6);
+    g.gain.linearRampToValueAtTime(0, now + d);
+    osc.start(now); osc.stop(now + d + 0.01);
+}
+
+function playSine(midi, durSec, vol) {
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const osc  = audioCtx.createOscillator();
+    const g    = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.value = freq;
+    osc.connect(g); g.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    const d   = Math.max(0.05, Math.min(durSec / speed * 0.5, 0.45));
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + d);
+    osc.start(now); osc.stop(now + d + 0.01);
+}
+
+function playAccompNote(midi, durSec, trackIdx, isDrum) {
+    if (!soundOn || !audioCtx || isNaN(midi)) return;
+    if (isDrum)          { playDrum(midi); return; }
+    if (trackIdx === 0)  playTriangle(midi, durSec, 0.12);
+    else                 playSine(midi, durSec, 0.18);
+}
+
+// ─── SÍNTESIS BATERÍA ─────────────────────────────────────────────────────
+function playKick() {
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const g   = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.08);
+    g.gain.setValueAtTime(1.0, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.start(now); osc.stop(now + 0.36);
+}
+
+function playSnare() {
+    const now = audioCtx.currentTime;
+    const sr  = audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, sr * 0.2, sr);
+    const d   = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const noise  = audioCtx.createBufferSource();
+    noise.buffer = buf;
+    const filt   = audioCtx.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = 3000; filt.Q.value = 0.5;
+    const g  = audioCtx.createGain();
+    noise.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.7, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    noise.start(now); noise.stop(now + 0.15);
+    // componente tonal
+    const osc = audioCtx.createOscillator();
+    const g2  = audioCtx.createGain();
+    osc.type = 'triangle'; osc.frequency.value = 200;
+    osc.connect(g2); g2.connect(audioCtx.destination);
+    g2.gain.setValueAtTime(0.25, now);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    osc.start(now); osc.stop(now + 0.08);
+}
+
+function playHihat(open) {
+    const now  = audioCtx.currentTime;
+    const sr   = audioCtx.sampleRate;
+    const decay = open ? 0.32 : 0.055;
+    const buf  = audioCtx.createBuffer(1, Math.ceil(sr * (decay + 0.02)), sr);
+    const d    = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const noise  = audioCtx.createBufferSource();
+    noise.buffer = buf;
+    const filt   = audioCtx.createBiquadFilter();
+    filt.type = 'highpass'; filt.frequency.value = 7000;
+    const g  = audioCtx.createGain();
+    noise.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.35, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + decay);
+    noise.start(now); noise.stop(now + decay + 0.01);
+}
+
+function playCymbal(decay) {
+    const now = audioCtx.currentTime;
+    const sr  = audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, Math.ceil(sr * (decay + 0.05)), sr);
+    const d   = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const noise  = audioCtx.createBufferSource();
+    noise.buffer = buf;
+    const filt   = audioCtx.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = 8000; filt.Q.value = 0.3;
+    const g  = audioCtx.createGain();
+    noise.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.28, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + decay);
+    noise.start(now); noise.stop(now + decay + 0.01);
+}
+
+function playDrum(midiUnpitched) {
+    if (!soundOn || !audioCtx) return;
+    switch (midiUnpitched) {
+        case 35: case 36:             playKick(); break;
+        case 38: case 40:             playSnare(); break;
+        case 42: case 44:             playHihat(false); break;
+        case 46:                      playHihat(true); break;
+        case 49: case 57:             playCymbal(0.7); break;
+        case 51: case 53: case 59:    playCymbal(0.3); break;
+        default:                      playSnare(); break;
+    }
+}
+
+// ─── PANEL PISTAS ─────────────────────────────────────────────────────────
+let pistasOpen = false;
+
+function togglePistasPanel(btn) {
+    const panel = document.getElementById('panelPistas');
+    if (pistasOpen) {
+        panel.classList.remove('open'); btn.classList.remove('activo');
+        pistasOpen = false; return;
+    }
+    renderListaPistas();
+    const rect = btn.getBoundingClientRect();
+    panel.style.top  = (rect.bottom + 6) + 'px';
+    panel.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+    panel.classList.add('open'); btn.classList.add('activo');
+    pistasOpen = true;
+}
+
+function renderListaPistas() {
+    const lista = document.getElementById('listaPistas');
+    if (!accompTracks.length) {
+        lista.innerHTML = '<div class="pistas-vacio">Sin pistas en este archivo</div>';
+        return;
+    }
+    lista.innerHTML = accompTracks.map((t, i) => `
+        <div class="pista-row">
+            <span class="pista-dot" style="background:${t.color}"></span>
+            <span class="pista-nombre" title="${t.label}">${t.label}</span>
+            <button class="btn-pista-mute${t.muted ? ' muted' : ''}" onclick="toggleMutePista(${i})">
+                ${t.muted ? '🔇' : '🔊'}
+            </button>
+        </div>`).join('');
+}
+
+function toggleMutePista(idx) {
+    accompTracks[idx].muted = !accompTracks[idx].muted;
+    renderListaPistas();
+}
+
+document.addEventListener('click', e => {
+    if (!pistasOpen) return;
+    if (!e.target.closest('#panelPistas') && e.target.id !== 'btnPistas' && !e.target.closest('#btnPistas')) {
+        document.getElementById('panelPistas').classList.remove('open');
+        document.getElementById('btnPistas').classList.remove('activo');
+        pistasOpen = false;
+    }
+});
 
 requestAnimationFrame(animLoop);
 </script>
