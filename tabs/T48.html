@@ -488,15 +488,23 @@ document.getElementById('btnMute').onclick = e => {
     e.target.classList.toggle('muted', !soundOn);
 };
 
-// ─── SWING (auto-detectado desde el XML) ──────────────────────────────────
-function detectSwing(doc) {
+// ─── SWING (auto-detectado desde el XML o nombre de archivo) ──────────────
+function detectSwing(doc, fileName) {
+    // MusicXML 4.0: elemento <swing> hijo de <sound> sin <straight> = swing activo
+    for (const sw of doc.getElementsByTagName('swing')) {
+        if (!sw.getElementsByTagName('straight').length) return true;
+    }
+    // <sound swing="yes"/> — atributo (formatos más viejos)
     for (const snd of doc.getElementsByTagName('sound')) {
         const sw = snd.getAttribute('swing');
         if (sw === 'yes' || sw === '1' || sw === 'true') return true;
     }
+    // <words> que contenga "swing" — texto añadido en MuseScore desde paleta
     for (const w of doc.getElementsByTagName('words')) {
-        if (w.textContent.toLowerCase().trim().includes('swing')) return true;
+        if (w.textContent.toLowerCase().includes('swing')) return true;
     }
+    // Fallback: nombre del archivo contiene "swing" (ej: cancion_swing.mxl)
+    if (fileName && fileName.toLowerCase().includes('swing')) return true;
     return false;
 }
 
@@ -784,7 +792,7 @@ function parseXML(doc, fromToggle = false) {
     for (const n of out) n.time += startOffset;
 
     // Detectar swing desde el XML y aplicar
-    swingOn = detectSwing(doc);
+    swingOn = detectSwing(doc, currentFileName || '');
     if (swingOn) applySwingTransform(out);
 
     // Recalcular minDur por compás con las duraciones reales (post-swing)
