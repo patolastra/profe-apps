@@ -109,6 +109,65 @@
         .rep-item:hover { background:#2a2a2a; border-color:#444; }
         .rep-item .rep-nombre { font-weight:bold; }
         .rep-item .rep-meta { font-size:.8rem; color:#aaa; margin-top:2px; }
+
+        /* ── PISTAS DE ACOMPAÑAMIENTO ─────────────────────────────── */
+        .btn-pistas { background: #1a5276; color: #fff; }
+        .btn-pistas.activo { background: #2980b9; box-shadow: 0 0 8px #2980b988; }
+        #panelPistas {
+            display: none; position: fixed; z-index: 300;
+            background: #252525; border-radius: 8px; min-width: 210px;
+            box-shadow: 0 8px 32px rgba(0,0,0,.75); border: 1px solid #383838;
+            overflow: hidden;
+        }
+        #panelPistas.open { display: block; }
+        .pistas-header {
+            padding: 9px 14px; font-size: .78rem; font-weight: 600;
+            color: #777; text-transform: uppercase; letter-spacing: .05em;
+            border-bottom: 1px solid #333;
+        }
+        .pista-row {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; border-bottom: 1px solid #2a2a2a;
+        }
+        .pista-row:last-child { border-bottom: none; }
+        .pista-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+        .pista-nombre { flex: 1; font-size: .88rem; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .btn-pista-mute {
+            background: #2d2d2d; border: 1px solid #444; color: #bbb;
+            border-radius: 4px; padding: 3px 9px; cursor: pointer;
+            font-size: .82rem; white-space: nowrap;
+        }
+        .btn-pista-mute:hover { background: #3a3a3a; }
+        .btn-pista-mute.muted { background: #1a1a1a; color: #555; border-color: #2a2a2a; }
+        .pistas-vacio { padding: 12px 14px; color: #666; font-size: .84rem; font-style: italic; }
+
+        /* ── EDITOR DE DIGITACIÓN ─────────────────────────────── */
+        #editor-hud {
+            display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+            background: rgba(10,10,20,.93); backdrop-filter: blur(6px);
+            border-top: 2px solid #e67e22; padding: 10px 24px;
+            flex-direction: column; gap: 4px;
+        }
+        #editor-hud.visible { display: flex; }
+        .hud-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+        .hud-title { font-weight: 700; font-size: .95rem; color: #e67e22; letter-spacing: .04em; }
+        .hud-nota  { font-family: monospace; font-size: .9rem; color: #aaa; }
+        .hud-info  { font-family: monospace; font-size: .9rem; color: #ccc; }
+        .hud-dedo  { font-size: 1rem; font-weight: 700; min-width: 120px; }
+        .hud-keys  { font-size: .78rem; color: #555; }
+        .hud-keys span { color: #888; }
+
+        /* ── TOAST ─────────────────────────────────────────────── */
+        #toast {
+            display: none; position: fixed; bottom: 90px; left: 50%;
+            transform: translateX(-50%); z-index: 999;
+            background: rgba(39,174,96,.93); color: #fff;
+            padding: 10px 28px; border-radius: 8px;
+            font-size: .95rem; font-weight: 600; white-space: nowrap;
+            box-shadow: 0 4px 16px rgba(0,0,0,.5);
+        }
+        #toast.error { background: rgba(192,57,43,.93); }
+        #toast.visible { display: block; }
     </style>
 </head>
 <body>
@@ -156,9 +215,17 @@
             <span class="speed-label" id="speedDisplay">100%</span>
         </div>
         <span class="sep">|</span>
-        <button id="btnSwing" class="btn-swing">𝄞 Swing</button>
+        <span id="swingBadge" style="display:none;background:#b8860b;color:#fff;padding:4px 10px;border-radius:5px;font-size:.82rem;font-weight:700;letter-spacing:.04em">♩ Swing</span>
         <button id="btnMute" class="btn-mute">🔊</button>
+        <span class="sep">|</span>
+        <button id="btnPistas" class="btn-pistas" onclick="togglePistasPanel(this)">🎵 Pistas</button>
     </div>
+</div>
+
+<!-- PANEL PISTAS -->
+<div id="panelPistas">
+    <div class="pistas-header">Acompañamiento</div>
+    <div id="listaPistas"></div>
 </div>
 
 <!-- MODAL REPERTORIO -->
@@ -171,6 +238,29 @@
         <div id="listaRepertorio" class="rep-list"></div>
     </div>
 </div>
+
+<!-- EDITOR DE DIGITACIÓN HUD -->
+<div id="editor-hud">
+    <div class="hud-row">
+        <span class="hud-title">✏ EDITOR DE DIGITACIÓN</span>
+        <span class="hud-nota" id="hud-nota">Nota — / —</span>
+        <span class="hud-info" id="hud-info"></span>
+        <span class="hud-dedo" id="hud-dedo" style="color:#888">Dedo: —</span>
+    </div>
+    <div class="hud-row">
+        <span class="hud-keys">
+            <span>← →</span> navegar ·
+            <span>1</span> índice ·
+            <span>2</span> medio ·
+            <span>3</span> anular ·
+            <span>4</span> meñique ·
+            <span>0</span> borrar dedo ·
+            <span>Ctrl+S</span> guardar ·
+            <span>Esc</span> salir
+        </span>
+    </div>
+</div>
+<div id="toast"></div>
 
 <canvas id="tabCanvas"></canvas>
 
@@ -308,6 +398,17 @@ let swingOn    = false;
 let swingRatio = 0.62;   // 62% largo / 38% corto ≈ swing jazz estándar
 let lastXmlDoc = null;
 
+let accompTracks = []; // [{ label, notes:[{time,midi,durSec,hit}], muted, color }]
+
+// ─── EDITOR DE DIGITACIÓN ─────────────────────────────────────────────────
+let currentFileSource      = null;  // 'local' | 'supabase'
+let currentStoragePath     = null;
+let currentFileName        = null;
+let currentInternalXmlName = null;
+let currentFileHandle      = null;  // FileSystemFileHandle (local con showOpenFilePicker)
+let editorMode             = false;
+let editorActiveIdx        = 0;
+
 // ─── HELPERS DE COLOR ─────────────────────────────────────────────────────
 function darken(hex, amt) {
     const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
@@ -351,7 +452,24 @@ document.addEventListener('click', e => {
 });
 
 function abrirBiblioteca() { cerrarAbrirMenu(); abrirModalRep(); }
-function abrirLocal()      { cerrarAbrirMenu(); document.getElementById('fileInput').click(); }
+async function abrirLocal() {
+    cerrarAbrirMenu();
+    if (window.showOpenFilePicker) {
+        try {
+            const [handle] = await window.showOpenFilePicker({
+                types: [{ description: 'Tablaturas',
+                    accept: { 'application/zip': ['.mxl'],
+                              'application/xml': ['.xml', '.musicxml'] } }]
+            });
+            const file = await handle.getFile();
+            await procesarArchivoLocal(file, handle);
+            return;
+        } catch (err) {
+            if (err.name === 'AbortError') return;
+        }
+    }
+    document.getElementById('fileInput').click();
+}
 
 // ─── VELOCIDAD ────────────────────────────────────────────────────────────
 function setSpeed(v) {
@@ -371,12 +489,25 @@ document.getElementById('btnMute').onclick = e => {
     e.target.classList.toggle('muted', !soundOn);
 };
 
-// ─── SWING ────────────────────────────────────────────────────────────────
-document.getElementById('btnSwing').onclick = e => {
-    swingOn = !swingOn;
-    e.target.classList.toggle('activo', swingOn);
-    if (lastXmlDoc) parseXML(lastXmlDoc, true);
-};
+// ─── SWING (auto-detectado desde el XML o nombre de archivo) ──────────────
+function detectSwing(doc, fileName) {
+    // MusicXML 4.0: elemento <swing> hijo de <sound> sin <straight> = swing activo
+    for (const sw of doc.getElementsByTagName('swing')) {
+        if (!sw.getElementsByTagName('straight').length) return true;
+    }
+    // <sound swing="yes"/> — atributo
+    for (const snd of doc.getElementsByTagName('sound')) {
+        const sw = snd.getAttribute('swing');
+        if (sw === 'yes' || sw === '1' || sw === 'true') return true;
+    }
+    // <words> que contenga "swing" — texto añadido desde paleta de MuseScore
+    for (const w of doc.getElementsByTagName('words')) {
+        if (w.textContent.toLowerCase().includes('swing')) return true;
+    }
+    // Fallback: nombre del archivo contiene "swing"
+    if (fileName && fileName.toLowerCase().includes('swing')) return true;
+    return false;
+}
 
 // ─── PLAY / PAUSA / RESTART ───────────────────────────────────────────────
 function doRestart() {
@@ -404,9 +535,41 @@ function navigateMeasures(delta) {
     prevTime    = currentTime - 0.001;
     lastClickBeat = -1; tabEnded = false; loopReady = false;
     notes.forEach(n => { n.hit = n.time < currentTime; n.hitAt = n.hit ? n.time : 0; });
+    accompTracks.forEach(t => t.notes.forEach(n => { n.hit = n.time < currentTime; }));
 }
 
 document.addEventListener('keydown', e => {
+    // Shortcut oculto: activar editor de digitación
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') {
+        e.preventDefault();
+        activarEditorDigitacion();
+        return;
+    }
+    // Modo editor: interceptar todas las teclas
+    if (editorMode) {
+        e.preventDefault();
+        if (e.ctrlKey && e.code === 'KeyS') {
+            guardarDigitacion();
+        } else if (e.code === 'ArrowRight') {
+            editorActiveIdx = Math.min(notes.length - 1, editorActiveIdx + 1);
+            currentTime = notes[editorActiveIdx].time;
+        } else if (e.code === 'ArrowLeft') {
+            editorActiveIdx = Math.max(0, editorActiveIdx - 1);
+            currentTime = notes[editorActiveIdx].time;
+        } else if (['Digit0','Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
+            const f = parseInt(e.key);
+            actualizarDedo(notes[editorActiveIdx], f);
+            if (f > 0 && editorActiveIdx < notes.length - 1) {
+                editorActiveIdx++;
+                currentTime = notes[editorActiveIdx].time;
+            }
+        } else if (e.code === 'Escape') {
+            editorMode = false;
+            document.getElementById('editor-hud').classList.remove('visible');
+        }
+        actualizarHUD();
+        return;
+    }
     if (e.code === 'ArrowRight') { e.preventDefault(); navigateMeasures(1);  return; }
     if (e.code === 'ArrowLeft')  { e.preventDefault(); navigateMeasures(-1); return; }
     if (e.code !== 'Space') return;
@@ -473,47 +636,75 @@ canvas.addEventListener('click', e => {
     }
 });
 
-function resetHits() { notes.forEach(n => n.hit = false); }
+function resetHits() {
+    notes.forEach(n => n.hit = false);
+    accompTracks.forEach(t => t.notes.forEach(n => n.hit = false));
+}
 
 // ─── PARSEO MusicXML ──────────────────────────────────────────────────────
-document.getElementById('fileInput').addEventListener('change', async e => {
-    const file = e.target.files[0];
-    if (!file) return;
+async function procesarArchivoLocal(file, handle = null) {
+    if (!await confirmarSiEditorAbierto()) return;
+    cerrarEditorSilencioso();
+    currentFileHandle = handle;
+    currentFileSource = 'local';
+    currentFileName   = file.name;
     let xml = '';
-    if (file.name.endsWith('.mxl')) {
+    if (file.name.toLowerCase().endsWith('.mxl')) {
         const zip  = await JSZip.loadAsync(file);
         const name = Object.keys(zip.files).find(n =>
             n.endsWith('.xml') && !n.includes('container.xml'));
+        currentInternalXmlName = name || file.name.replace(/\.mxl$/i, '.xml');
         xml = await zip.files[name].async('string');
     } else {
+        currentInternalXmlName = file.name;
         xml = await file.text();
     }
     parseXML(new DOMParser().parseFromString(xml, 'text/xml'));
+}
+
+document.getElementById('fileInput').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    await procesarArchivoLocal(file, null);
     e.target.value = '';
 });
 
-function applySwingTransform(notes) {
+function applySwingTransform(notes, beatPhaseOffset = 0) {
     const beatDur   = 60 / bpm;
     const eighthDur = beatDur / 2;
     const tol       = eighthDur * 0.15;
 
-    for (let i = 0; i < notes.length - 1; i++) {
-        const n1 = notes[i];
-        const n2 = notes[i + 1];
-        // Ambas deben ser corcheas rectas
-        if (Math.abs(n1.durSec - eighthDur) > tol) continue;
-        if (Math.abs(n2.durSec - eighthDur) > tol) continue;
-        // Deben ser consecutivas
-        if (Math.abs(n2.time - (n1.time + n1.durSec)) > tol) continue;
-        // n1 debe estar en posición par de corchea (downbeat del par)
-        const eighthIdx = Math.round((n1.time - startOffset) / eighthDur);
-        if (eighthIdx % 2 !== 0) continue;
-        // Aplicar swing
-        const pairDur = n1.durSec + n2.durSec;
-        n1.durSec = pairDur * swingRatio;
-        n2.time   = n1.time + n1.durSec;
-        n2.durSec = pairDur * (1 - swingRatio);
-        i++;  // saltar n2 (ya procesada como nota corta)
+    // Agrupar por instante de tiempo (maneja acordes: varias notas en el mismo tiempo)
+    const timeGroups = new Map();
+    for (const n of notes) {
+        if (Math.abs(n.durSec - eighthDur) > tol) continue; // no es corchea recta
+        const key = Math.round(n.time / tol);
+        if (!timeGroups.has(key)) timeGroups.set(key, { time: n.time, dur: n.durSec, notes: [] });
+        timeGroups.get(key).notes.push(n);
+    }
+
+    // Para cada beat, buscar grupo en tiempo fuerte (down) y contratiem (up)
+    // Se descuenta beatPhaseOffset para corregir el desfase de la anacrusis
+    const beats = new Map();
+    for (const group of timeGroups.values()) {
+        const corrected = group.time - beatPhaseOffset;
+        const beatIdx   = Math.floor(corrected / beatDur);
+        const posInBeat = corrected - beatIdx * beatDur;
+        if (!beats.has(beatIdx)) beats.set(beatIdx, {});
+        const slot = beats.get(beatIdx);
+        if (posInBeat < eighthDur - tol) slot.down = group;
+        else if (posInBeat >= eighthDur - tol) slot.up = group;
+    }
+
+    // Swingear solo los beats que tienen AMBOS (down + up) — si falta uno, no tocar nada
+    for (const pair of beats.values()) {
+        if (!pair.down || !pair.up) continue;
+        const pairDur    = pair.down.dur + pair.up.dur;
+        const newDownDur = pairDur * swingRatio;
+        const newUpTime  = pair.down.time + newDownDur;
+        const newUpDur   = pairDur * (1 - swingRatio);
+        for (const n of pair.down.notes) n.durSec = newDownDur;
+        for (const n of pair.up.notes)   { n.time = newUpTime; n.durSec = newUpDur; }
     }
 }
 
@@ -523,7 +714,23 @@ function parseXML(doc, fromToggle = false) {
     let divisions = 1, elapsed = 0;
     const STEP = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
 
-    for (const measure of doc.getElementsByTagName('measure')) {
+    // Buscar la primera parte que tenga clef TAB; si no hay, usar la primera parte
+    const allParts = Array.from(doc.getElementsByTagName('part'));
+    let targetPart = allParts[0];
+    const tabStaves = new Set();
+    for (const part of allParts) {
+        for (const clef of part.getElementsByTagName('clef')) {
+            if (clef.getElementsByTagName('sign')[0]?.textContent === 'TAB') {
+                const n = clef.getAttribute('number');
+                tabStaves.add(n ? +n : 1);
+                targetPart = part;
+            }
+        }
+        if (tabStaves.size > 0) break;
+    }
+    const hasTabFilter = tabStaves.size > 0;
+
+    for (const measure of targetPart.getElementsByTagName('measure')) {
         const mStart = elapsed;
         let mMinDur  = Infinity;
 
@@ -539,6 +746,14 @@ function parseXML(doc, fromToggle = false) {
 
         for (const node of measure.children) {
             if (node.nodeName !== 'note') continue;
+
+            // Ignorar notas que no pertenecen al staff TAB (evita duplicados del staff de notación)
+            if (hasTabFilter) {
+                const staffEl = node.getElementsByTagName('staff')[0];
+                const staffNum = staffEl ? +staffEl.textContent : 1;
+                if (!tabStaves.has(staffNum)) continue;
+            }
+
             const isChord = node.getElementsByTagName('chord').length > 0;
             const dur     = +(node.getElementsByTagName('duration')[0]?.textContent || 0);
             const durSec  = (dur / divisions) * (60 / bpm);
@@ -576,7 +791,7 @@ function parseXML(doc, fromToggle = false) {
                     out.push({ time: elapsed, string: str, fret: fret,
                         finger: +(tech?.getElementsByTagName('fingering')[0]?.textContent) || 0,
                         durSec: durSec, measureIdx: rawMeasures.length,
-                        hit: false, hitAt: 0, isChord });
+                        hit: false, hitAt: 0, isChord, xmlEl: node });
                 }
             }
             if (!isChord) elapsed += durSec;
@@ -591,8 +806,15 @@ function parseXML(doc, fromToggle = false) {
     startOffset   = approachEnd + beatsPerBar * beatDur;
     for (const n of out) n.time += startOffset;
 
-    // Aplicar swing antes de calcular zoom
-    if (swingOn) applySwingTransform(out);
+    // Detectar swing desde el XML y aplicar
+    swingOn = detectSwing(doc, currentFileName || '');
+    document.getElementById('swingBadge').style.display = swingOn ? '' : 'none';
+    // Corregir desfase de anacrusis: si el primer compás dura menos que un compás completo,
+    // su duración módulo beatDur indica cuánto hay que restar para alinear los tiempos fuertes
+    const firstMeasureDur = rawMeasures.length > 0 ? rawMeasures[0].tEnd - rawMeasures[0].tStart : 0;
+    const beatPhaseOffset = firstMeasureDur < beatsPerBar * beatDur * 0.95
+        ? firstMeasureDur % beatDur : 0;
+    if (swingOn) applySwingTransform(out, beatPhaseOffset);
 
     // Recalcular minDur por compás con las duraciones reales (post-swing)
     for (let mi = 0; mi < rawMeasures.length; mi++) {
@@ -619,6 +841,10 @@ function parseXML(doc, fromToggle = false) {
     ksCache = new Map();
     clearLoopState();
     if (notes.length) ballY = START_Y + (notes[0].string - 1) * STR_SPACING;
+
+    accompTracks = parseAccompParts(doc, startOffset);
+    if (swingOn) accompTracks.forEach(t => applySwingTransform(t.notes, beatPhaseOffset));
+    if (pistasOpen) renderListaPistas();
 
     if (!fromToggle) document.getElementById('landing').classList.add('oculto');
 }
@@ -671,6 +897,15 @@ function animLoop(ts) {
                 const inRange = !loopActive || (note.time >= loopIn && note.time <= loopOut);
                 if (inRange) { note.hit = true; note.hitAt = currentTime;
                     playNote(OPEN_STRINGS[note.string - 1] + note.fret, note.durSec); }
+            }
+            for (let ti = 0; ti < accompTracks.length; ti++) {
+                const track = accompTracks[ti];
+                if (track.muted) continue;
+                for (const note of track.notes) {
+                    if (note.hit || !(prevTime < note.time && note.time <= currentTime)) continue;
+                    const inRange = !loopActive || (note.time >= loopIn && note.time <= loopOut);
+                    if (inRange) { note.hit = true; playAccompNote(note.midi, note.durSec, ti, note.drum); }
+                }
             }
         }
     }
@@ -864,17 +1099,18 @@ function drawLoopMarkers() {
 }
 
 function drawNotes() {
-    for (const note of notes) {
+    for (let i = 0; i < notes.length; i++) {
+        const note = notes[i];
         const nw = note.durSec * note.zoom;
         const cx = getX(note.time);
         if (cx + nw < -100 || cx > canvas.width + 100) continue;
         const cy = START_Y + (note.string - 1) * STR_SPACING;
         const { x: px, y: py } = project(cx + nw / 2, cy);
-        drawPill(px - nw / 2, py, nw, note);
+        drawPill(px - nw / 2, py, nw, note, i);
     }
 }
 
-function drawPill(x, y, w, note) {
+function drawPill(x, y, w, note, noteIdx = -1) {
     let color = '#DC6A20', txtColor = '#fff', sc = 1;
     if (note.hit) {
         color = '#22C55E';
@@ -913,6 +1149,17 @@ function drawPill(x, y, w, note) {
     ctx.fillText(note.fret, tx, drawY);
 
     ctx.restore();
+
+    if (editorMode && noteIdx === editorActiveIdx) {
+        ctx.save();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth   = 3;
+        ctx.setLineDash([5, 4]);
+        roundRect(x - 4, y - NOTE_R - 4, w + 8, NOTE_R * 2 + 8, NOTE_R + 3);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+    }
 }
 
 function roundRect(x, y, w, h, r) {
@@ -1009,10 +1256,17 @@ async function abrirModalRep() {
 
 async function cargarDesdeStorage(storagePath, nombreArchivo) {
     cerrarModalRep();
+    if (!await confirmarSiEditorAbierto()) return;
+    cerrarEditorSilencioso();
     try {
         const url  = `${SB_URL}/storage/v1/object/public/repertorio-assets/${storagePath}`;
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('No se pudo descargar el archivo (HTTP ' + resp.status + ')');
+
+        currentFileSource  = 'supabase';
+        currentStoragePath = storagePath;
+        currentFileName    = nombreArchivo;
+        currentFileHandle  = null;
 
         let xml = '';
         if (nombreArchivo.toLowerCase().endsWith('.mxl')) {
@@ -1020,13 +1274,419 @@ async function cargarDesdeStorage(storagePath, nombreArchivo) {
             const name = Object.keys(zip.files).find(n =>
                 n.endsWith('.xml') && !n.includes('container.xml'));
             if (!name) throw new Error('No se encontró XML dentro del MXL');
+            currentInternalXmlName = name;
             xml = await zip.files[name].async('string');
         } else {
+            currentInternalXmlName = nombreArchivo;
             xml = await resp.text();
         }
         parseXML(new DOMParser().parseFromString(xml, 'text/xml'));
     } catch (err) {
         alert('Error cargando la tablatura: ' + err.message);
+    }
+}
+
+// ─── PARSEO PISTAS DE ACOMPAÑAMIENTO ─────────────────────────────────────
+function parseAccompParts(doc, sOffset) {
+    const STEP   = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+    const COLORS = ['#3498db', '#e67e22'];
+
+    const partNames = {};
+    const instrMaps = {}; // pid → { instrId → midiUnpitched }
+    const partList  = doc.getElementsByTagName('part-list')[0];
+    if (partList) {
+        for (const sp of partList.getElementsByTagName('score-part')) {
+            const pid  = sp.getAttribute('id');
+            const name = sp.getElementsByTagName('part-name')[0]?.textContent?.trim() || pid;
+            partNames[pid] = name;
+            const imap = {};
+            for (const mi of sp.getElementsByTagName('midi-instrument')) {
+                const iid = mi.getAttribute('id');
+                const unp = mi.getElementsByTagName('midi-unpitched')[0];
+                if (unp) imap[iid] = +unp.textContent;
+            }
+            instrMaps[pid] = imap;
+        }
+    }
+
+    const tracks   = [];
+    const allParts = Array.from(doc.getElementsByTagName('part'));
+
+    for (const part of allParts) {
+        if (tracks.length >= 2) break;
+        const hasTab = Array.from(part.getElementsByTagName('clef'))
+            .some(c => c.getElementsByTagName('sign')[0]?.textContent === 'TAB');
+        if (hasTab) continue;
+
+        const pid        = part.getAttribute('id');
+        const label      = partNames[pid] || pid;
+        const imap       = instrMaps[pid] || {};
+        const isDrumPart = Object.keys(imap).length > 0;
+        const notes      = [];
+        let el = 0, ldiv = 1, lbpm = bpm;
+
+        for (const measure of part.getElementsByTagName('measure')) {
+            const attr = measure.getElementsByTagName('attributes')[0];
+            if (attr) {
+                const d = attr.getElementsByTagName('divisions')[0];
+                if (d) ldiv = +d.textContent;
+            }
+            const snd = measure.getElementsByTagName('sound')[0];
+            if (snd?.getAttribute('tempo')) lbpm = +snd.getAttribute('tempo');
+
+            for (const node of measure.children) {
+                if (node.nodeName === 'backup') {
+                    const d = +(node.getElementsByTagName('duration')[0]?.textContent || 0);
+                    el -= (d / ldiv) * (60 / lbpm);
+                    continue;
+                }
+                if (node.nodeName !== 'note') continue;
+
+                const isChord = !!node.getElementsByTagName('chord').length;
+                const isRest  = !!node.getElementsByTagName('rest').length;
+                const dur     = +(node.getElementsByTagName('duration')[0]?.textContent || 0);
+                const durSec  = (dur / ldiv) * (60 / lbpm);
+
+                if (!isRest) {
+                    const unpEl   = node.getElementsByTagName('unpitched')[0];
+                    const pitchEl = node.getElementsByTagName('pitch')[0];
+
+                    if (unpEl) {
+                        const iid      = node.getElementsByTagName('instrument')[0]?.getAttribute('id');
+                        const drumMidi = imap[iid] ?? 38;
+                        const tieStop  = [...node.getElementsByTagName('tie')]
+                            .some(t => t.getAttribute('type') === 'stop');
+                        if (!tieStop)
+                            notes.push({ time: el + sOffset, midi: drumMidi, durSec, hit: false, drum: true });
+                    } else if (pitchEl) {
+                        const oct  = +pitchEl.getElementsByTagName('octave')[0].textContent;
+                        const stp  = pitchEl.getElementsByTagName('step')[0].textContent;
+                        const alt  = +(pitchEl.getElementsByTagName('alter')[0]?.textContent || 0);
+                        const midi = (oct + 1) * 12 + STEP[stp] + alt;
+                        const tieStop = [...node.getElementsByTagName('tie')]
+                            .some(t => t.getAttribute('type') === 'stop');
+                        if (tieStop) {
+                            for (let i = notes.length - 1; i >= 0; i--)
+                                if (notes[i].midi === midi) { notes[i].durSec += durSec; break; }
+                        } else {
+                            notes.push({ time: el + sOffset, midi, durSec, hit: false, drum: false });
+                        }
+                    }
+                }
+                if (!isChord) el += durSec;
+            }
+        }
+
+        if (notes.length)
+            tracks.push({ label, notes, muted: false, color: COLORS[tracks.length], drum: isDrumPart });
+    }
+    return tracks;
+}
+
+// ─── SÍNTESIS ACOMPAÑAMIENTO ──────────────────────────────────────────────
+function playTriangle(midi, durSec, vol) {
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const osc  = audioCtx.createOscillator();
+    const g    = audioCtx.createGain();
+    osc.type = 'triangle'; osc.frequency.value = freq;
+    osc.connect(g); g.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    const d   = Math.max(0.08, Math.min(durSec / speed, 2.0));
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(vol, now + 0.015);
+    g.gain.setValueAtTime(vol, now + d * 0.6);
+    g.gain.linearRampToValueAtTime(0, now + d);
+    osc.start(now); osc.stop(now + d + 0.01);
+}
+
+function playSine(midi, durSec, vol) {
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const osc  = audioCtx.createOscillator();
+    const g    = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.value = freq;
+    osc.connect(g); g.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    const d   = Math.max(0.05, Math.min(durSec / speed * 0.5, 0.45));
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + d);
+    osc.start(now); osc.stop(now + d + 0.01);
+}
+
+function playAccompNote(midi, durSec, trackIdx, isDrum) {
+    if (!soundOn || !audioCtx || isNaN(midi)) return;
+    if (isDrum)          { playDrum(midi); return; }
+    if (trackIdx === 0)  playTriangle(midi, durSec, 0.12);
+    else                 playSine(midi, durSec, 0.18);
+}
+
+// ─── SÍNTESIS BATERÍA ─────────────────────────────────────────────────────
+function playKick() {
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const g   = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.08);
+    g.gain.setValueAtTime(1.0, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.start(now); osc.stop(now + 0.36);
+}
+
+function playSnare() {
+    const now = audioCtx.currentTime;
+    const sr  = audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, sr * 0.2, sr);
+    const d   = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const noise  = audioCtx.createBufferSource();
+    noise.buffer = buf;
+    const filt   = audioCtx.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = 3000; filt.Q.value = 0.5;
+    const g  = audioCtx.createGain();
+    noise.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.7, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    noise.start(now); noise.stop(now + 0.15);
+    // componente tonal
+    const osc = audioCtx.createOscillator();
+    const g2  = audioCtx.createGain();
+    osc.type = 'triangle'; osc.frequency.value = 200;
+    osc.connect(g2); g2.connect(audioCtx.destination);
+    g2.gain.setValueAtTime(0.25, now);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    osc.start(now); osc.stop(now + 0.08);
+}
+
+function playHihat(open) {
+    const now  = audioCtx.currentTime;
+    const sr   = audioCtx.sampleRate;
+    const decay = open ? 0.32 : 0.055;
+    const buf  = audioCtx.createBuffer(1, Math.ceil(sr * (decay + 0.02)), sr);
+    const d    = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const noise  = audioCtx.createBufferSource();
+    noise.buffer = buf;
+    const filt   = audioCtx.createBiquadFilter();
+    filt.type = 'highpass'; filt.frequency.value = 7000;
+    const g  = audioCtx.createGain();
+    noise.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.35, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + decay);
+    noise.start(now); noise.stop(now + decay + 0.01);
+}
+
+function playCymbal(decay) {
+    const now = audioCtx.currentTime;
+    const sr  = audioCtx.sampleRate;
+    const buf = audioCtx.createBuffer(1, Math.ceil(sr * (decay + 0.05)), sr);
+    const d   = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const noise  = audioCtx.createBufferSource();
+    noise.buffer = buf;
+    const filt   = audioCtx.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = 8000; filt.Q.value = 0.3;
+    const g  = audioCtx.createGain();
+    noise.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.28, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + decay);
+    noise.start(now); noise.stop(now + decay + 0.01);
+}
+
+function playDrum(midiUnpitched) {
+    if (!soundOn || !audioCtx) return;
+    switch (midiUnpitched) {
+        case 35: case 36:             playKick(); break;
+        case 38: case 40:             playSnare(); break;
+        case 42: case 44:             playHihat(false); break;
+        case 46:                      playHihat(true); break;
+        case 49: case 57:             playCymbal(0.7); break;
+        case 51: case 53: case 59:    playCymbal(0.3); break;
+        default:                      playSnare(); break;
+    }
+}
+
+// ─── PANEL PISTAS ─────────────────────────────────────────────────────────
+let pistasOpen = false;
+
+function togglePistasPanel(btn) {
+    const panel = document.getElementById('panelPistas');
+    if (pistasOpen) {
+        panel.classList.remove('open'); btn.classList.remove('activo');
+        pistasOpen = false; return;
+    }
+    renderListaPistas();
+    const rect = btn.getBoundingClientRect();
+    panel.style.top  = (rect.bottom + 6) + 'px';
+    panel.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+    panel.classList.add('open'); btn.classList.add('activo');
+    pistasOpen = true;
+}
+
+function renderListaPistas() {
+    const lista = document.getElementById('listaPistas');
+    if (!accompTracks.length) {
+        lista.innerHTML = '<div class="pistas-vacio">Sin pistas en este archivo</div>';
+        return;
+    }
+    lista.innerHTML = accompTracks.map((t, i) => `
+        <div class="pista-row">
+            <span class="pista-dot" style="background:${t.color}"></span>
+            <span class="pista-nombre" title="${t.label}">${t.label}</span>
+            <button class="btn-pista-mute${t.muted ? ' muted' : ''}" onclick="toggleMutePista(${i})">
+                ${t.muted ? '🔇' : '🔊'}
+            </button>
+        </div>`).join('');
+}
+
+function toggleMutePista(idx) {
+    accompTracks[idx].muted = !accompTracks[idx].muted;
+    renderListaPistas();
+}
+
+document.addEventListener('click', e => {
+    if (!pistasOpen) return;
+    if (!e.target.closest('#panelPistas') && e.target.id !== 'btnPistas' && !e.target.closest('#btnPistas')) {
+        document.getElementById('panelPistas').classList.remove('open');
+        document.getElementById('btnPistas').classList.remove('activo');
+        pistasOpen = false;
+    }
+});
+
+// ─── EDITOR DE DIGITACIÓN ─────────────────────────────────────────────────
+const FINGER_NAMES = ['—', 'índice', 'medio', 'anular', 'meñique'];
+
+function cerrarEditorSilencioso() {
+    editorMode = false;
+    document.getElementById('editor-hud').classList.remove('visible');
+}
+
+async function confirmarSiEditorAbierto() {
+    if (!editorMode) return true;
+    const guardar = confirm('Hay digitaciones sin guardar.\n¿Guardar antes de cambiar de tablatura?');
+    if (guardar) {
+        await guardarDigitacion();
+        return true;
+    }
+    return confirm('¿Descartar los cambios de digitación y abrir de todas formas?');
+}
+
+function activarEditorDigitacion() {
+    if (!notes.length) return;
+    const clave   = new Date().getDate().toString();
+    const entrada = prompt('Contraseña:');
+    if (entrada === null) return;
+    if (entrada !== clave) { alert('Contraseña incorrecta.'); return; }
+    if (isPlaying) { isPlaying = false; loopReady = false; }
+    editorMode      = true;
+    editorActiveIdx = 0;
+    currentTime     = notes[0].time;
+    actualizarHUD();
+}
+
+function actualizarDedo(note, finger) {
+    note.finger = finger;
+    if (!note.xmlEl) return;
+    const doc = note.xmlEl.ownerDocument;
+    let notationsEls = note.xmlEl.getElementsByTagName('notations');
+    let notations = notationsEls.length ? notationsEls[0] : null;
+    if (!notations) {
+        notations = doc.createElement('notations');
+        note.xmlEl.appendChild(notations);
+    }
+    let techEls = notations.getElementsByTagName('technical');
+    let tech = techEls.length ? techEls[0] : null;
+    if (!tech) {
+        tech = doc.createElement('technical');
+        notations.appendChild(tech);
+    }
+    let fingerEls = tech.getElementsByTagName('fingering');
+    let fingerEl  = fingerEls.length ? fingerEls[0] : null;
+    if (finger === 0) {
+        if (fingerEl) fingerEl.parentNode.removeChild(fingerEl);
+    } else {
+        if (!fingerEl) {
+            fingerEl = doc.createElement('fingering');
+            tech.appendChild(fingerEl);
+        }
+        fingerEl.textContent = finger;
+    }
+}
+
+function actualizarHUD() {
+    const hud = document.getElementById('editor-hud');
+    if (!editorMode || !notes.length) { hud.classList.remove('visible'); return; }
+    hud.classList.add('visible');
+    const note        = notes[editorActiveIdx];
+    const fingerName  = FINGER_NAMES[note.finger] || '—';
+    const fingerColor = note.finger ? FINGER_COLOR[note.finger] : '#888';
+    document.getElementById('hud-nota').textContent = `Nota ${editorActiveIdx + 1} / ${notes.length}`;
+    document.getElementById('hud-info').textContent = `Cuerda ${note.string}  ·  Traste ${note.fret}`;
+    const fingerEl = document.getElementById('hud-dedo');
+    fingerEl.textContent = `Dedo: ${fingerName}`;
+    fingerEl.style.color = fingerColor;
+}
+
+function mostrarToast(msg, esError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className   = 'visible' + (esError ? ' error' : '');
+    clearTimeout(mostrarToast._tid);
+    mostrarToast._tid = setTimeout(() => { t.className = ''; }, 3000);
+}
+
+async function guardarDigitacion() {
+    if (!currentFileSource) { mostrarToast('Sin archivo cargado', true); return; }
+    mostrarToast('Guardando…');
+    try {
+        const xmlString = new XMLSerializer().serializeToString(lastXmlDoc);
+
+        if (currentFileSource === 'supabase') {
+            let body, mime;
+            if (currentFileName.toLowerCase().endsWith('.mxl')) {
+                const zip = new JSZip();
+                zip.file(currentInternalXmlName, xmlString);
+                body = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip' });
+                mime = 'application/zip';
+            } else {
+                body = new Blob([xmlString], { type: 'application/xml' });
+                mime = 'application/xml';
+            }
+            const res = await fetch(
+                `${SB_URL}/storage/v1/object/repertorio-assets/${currentStoragePath}`,
+                { method: 'PUT',
+                  headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY,
+                             'Content-Type': mime, 'x-upsert': 'true' },
+                  body }
+            );
+            if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + await res.text());
+            mostrarToast('Digitación guardada en la biblioteca ✓');
+
+        } else if (currentFileSource === 'local') {
+            let blob;
+            if (currentFileName.toLowerCase().endsWith('.mxl')) {
+                const zip = new JSZip();
+                zip.file(currentInternalXmlName, xmlString);
+                blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip' });
+            } else {
+                blob = new Blob([xmlString], { type: 'application/xml' });
+            }
+            if (currentFileHandle) {
+                const writable = await currentFileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                mostrarToast('Archivo guardado ✓');
+            } else {
+                const url = URL.createObjectURL(blob);
+                const a   = document.createElement('a');
+                a.href = url; a.download = currentFileName;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                mostrarToast('Descargado — reemplaza el original manualmente');
+            }
+        }
+    } catch (err) {
+        mostrarToast('Error al guardar: ' + err.message, true);
     }
 }
 
