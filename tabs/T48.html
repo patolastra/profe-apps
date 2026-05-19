@@ -215,7 +215,6 @@
             <span class="speed-label" id="speedDisplay">100%</span>
         </div>
         <span class="sep">|</span>
-        <button id="btnSwing" class="btn-swing">𝄞 Swing</button>
         <button id="btnMute" class="btn-mute">🔊</button>
         <span class="sep">|</span>
         <button id="btnPistas" class="btn-pistas" onclick="togglePistasPanel(this)">🎵 Pistas</button>
@@ -489,12 +488,17 @@ document.getElementById('btnMute').onclick = e => {
     e.target.classList.toggle('muted', !soundOn);
 };
 
-// ─── SWING ────────────────────────────────────────────────────────────────
-document.getElementById('btnSwing').onclick = e => {
-    swingOn = !swingOn;
-    e.target.classList.toggle('activo', swingOn);
-    if (lastXmlDoc) parseXML(lastXmlDoc, true);
-};
+// ─── SWING (auto-detectado desde el XML) ──────────────────────────────────
+function detectSwing(doc) {
+    for (const snd of doc.getElementsByTagName('sound')) {
+        const sw = snd.getAttribute('swing');
+        if (sw === 'yes' || sw === '1' || sw === 'true') return true;
+    }
+    for (const w of doc.getElementsByTagName('words')) {
+        if (w.textContent.toLowerCase().trim().includes('swing')) return true;
+    }
+    return false;
+}
 
 // ─── PLAY / PAUSA / RESTART ───────────────────────────────────────────────
 function doRestart() {
@@ -779,7 +783,8 @@ function parseXML(doc, fromToggle = false) {
     startOffset   = approachEnd + beatsPerBar * beatDur;
     for (const n of out) n.time += startOffset;
 
-    // Aplicar swing antes de calcular zoom
+    // Detectar swing desde el XML y aplicar
+    swingOn = detectSwing(doc);
     if (swingOn) applySwingTransform(out);
 
     // Recalcular minDur por compás con las duraciones reales (post-swing)
@@ -809,6 +814,7 @@ function parseXML(doc, fromToggle = false) {
     if (notes.length) ballY = START_Y + (notes[0].string - 1) * STR_SPACING;
 
     accompTracks = parseAccompParts(doc, startOffset);
+    if (swingOn) accompTracks.forEach(t => applySwingTransform(t.notes));
     if (pistasOpen) renderListaPistas();
 
     if (!fromToggle) document.getElementById('landing').classList.add('oculto');
