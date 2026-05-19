@@ -670,20 +670,24 @@ document.getElementById('fileInput').addEventListener('change', async e => {
 });
 
 function applySwingTransform(notes) {
-    if (!notes.length) return;
-    const beatDur  = 60 / bpm;
-    const halfBeat = beatDur / 2;
-    // Cuánto desplazar las notas en el "y": de 0.5 beat → swingRatio beat
-    const shift    = beatDur * (swingRatio - 0.5);
-    const tol      = halfBeat * 0.25;
+    const beatDur   = 60 / bpm;
+    const eighthDur = beatDur / 2;
+    const tol       = eighthDur * 0.15;
 
-    for (const n of notes) {
-        // Posición dentro del tiempo actual (0 = en tiempo, halfBeat = "y")
-        const posInBeat = ((n.time - startOffset) % beatDur + beatDur) % beatDur;
-        if (Math.abs(posInBeat - halfBeat) < tol) {
-            n.time   += shift;
-            n.durSec  = Math.max(n.durSec - shift, halfBeat * 0.1);
-        }
+    for (let i = 0; i < notes.length - 1; i++) {
+        const n1 = notes[i];
+        const n2 = notes[i + 1];
+        // Ambas deben ser corcheas rectas
+        if (Math.abs(n1.durSec - eighthDur) > tol) continue;
+        if (Math.abs(n2.durSec - eighthDur) > tol) continue;
+        // Deben ser consecutivas
+        if (Math.abs(n2.time - (n1.time + n1.durSec)) > tol) continue;
+        // Aplicar swing
+        const pairDur = n1.durSec + n2.durSec;
+        n1.durSec = pairDur * swingRatio;
+        n2.time   = n1.time + n1.durSec;
+        n2.durSec = pairDur * (1 - swingRatio);
+        i++;  // saltar n2 (ya procesada como nota corta)
     }
 }
 
