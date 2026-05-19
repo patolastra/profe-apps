@@ -712,6 +712,19 @@
         } catch (e) { console.warn('Supabase no disponible:', e); }
     })();
 
+    async function logEvento(accion, opts = {}) {
+        if (!sbClient) return;
+        try {
+            await sbClient.from('eventos_uso').insert({
+                app: 'srp',
+                accion,
+                contexto_id: opts.contexto_id ?? null,
+                sesion_id:   opts.sesion_id   ?? null,
+                metadata:    opts.meta        ?? {}
+            });
+        } catch (_) {}
+    }
+
     async function supabaseSync(fullRecord, timestamp, dataSnapshot) {
         if (!sbClient) return;
         try {
@@ -1824,6 +1837,7 @@
 
     async function processAllWithGemini() {
         if (!confirm('¿Procesar todas las notas de la bandeja?')) return;
+        logEvento('procesar_gemini');
         clearPendingResults();
         resetProcView();
         const apiKey = localStorage.getItem('gemini_api_key');
@@ -2102,6 +2116,7 @@
     async function submitTextNote() {
         const text = document.getElementById('text-note-input').value.trim();
         if (!text) return;
+        logEvento('texto_manual');
         const now = new Date();
         const item = { type: 'text', textContent: text, timestamp: now.getTime(), timeStr: get24hTime(now), dateGroup: formatDateGroup(now.getTime()) };
         const tx = db.transaction(['grabaciones'], 'readwrite');
@@ -2247,6 +2262,7 @@
             return;
         }
 
+        logEvento('foto_video', { meta: { tipo: taggerState.type } });
         const now  = new Date();
         const ab   = await taggerState.blob.arrayBuffer();
         const blob = new Blob([ab], { type: taggerState.blob.type });
@@ -3595,6 +3611,7 @@ Categorías vacías: array vacío [].`;
     // ============================================================
     async function saveAndFinish() {
         if (!db) return;
+        logEvento('guardar_bandeja');
         const btn = document.getElementById('proc-save-btn');
         btn.disabled = true;
         btn.textContent = 'Guardando...';
@@ -3896,6 +3913,7 @@ Categorías vacías: array vacío [].`;
     document.getElementById('hit-area').addEventListener('click', () => { if (!isRecording) startRecording(); else togglePause(); });
 
     async function startRecording() {
+        logEvento('grabar_inicio');
         try {
             currentStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const preferredTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/mp4'];
@@ -3968,6 +3986,7 @@ Categorías vacías: array vacío [].`;
     }
 
     async function saveRecording(blob) {
+        logEvento('grabar_fin');
         const tx = db.transaction(['grabaciones'], 'readwrite');
         const store = tx.objectStore('grabaciones');
         const now = new Date();

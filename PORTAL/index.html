@@ -895,6 +895,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function setStatus(msg) { document.getElementById('header-status').textContent = msg; }
 
+async function logEvento(accion, opts = {}) {
+    if (!sb) return;
+    try {
+        await sb.from('eventos_uso').insert({
+            app:        'portal',
+            accion,
+            contexto_id: opts.contexto_id ?? sesionActual?.contexto_id ?? null,
+            sesion_id:   opts.sesion_id   ?? sesionActual?.id          ?? null,
+            metadata:    opts.meta        ?? {}
+        });
+    } catch (_) {}
+}
+
 function setSyncState(state) {
     const lbl = document.getElementById('sync-label');
     if (!lbl) return;
@@ -1449,6 +1462,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
 
     const sesion = await getOrCreate(cid, fechaStr);
     sesionActual = { id: sesion.id, contexto_id: cid, fecha: fechaStr, nombre };
+    logEvento('abrir_sesion', { contexto_id: cid, sesion_id: sesion.id });
 
     modoTriptico = localStorage.getItem(`portal_modo_${cid}`) || 'plan';
     aplicarModo();
@@ -1519,6 +1533,7 @@ async function guardarPres(sid) {
             { sesion_id: sid, contenido, updated_at: new Date().toISOString() },
             { onConflict: 'sesion_id' }
         );
+        logEvento('guardar_presentacion');
         setSyncState('saved');
         document.getElementById('pres-status').textContent = 'Guardado ✓';
         setTimeout(() => document.getElementById('pres-status').textContent = '', 2500);
@@ -1529,6 +1544,7 @@ async function guardarPres(sid) {
 
 function abrirPizarra() {
     if (!sesionActual) return;
+    logEvento('abrir_pizarra');
     const activa = document.querySelector('#prev-body .slide-prev.activa');
     const slide = activa ? parseInt(activa.dataset.idx) : 0;
     window.open(`../PIZARRA/index.html?sesion=${sesionActual.id}&slide=${slide}`, '_blank');
@@ -1871,6 +1887,7 @@ async function agregarItem() {
     ta.value = '';
     ta.style.height = 'auto';
     ta.focus();
+    logEvento('agregar_item_manual');
     await addItem(texto, '', 'manual', null);
 }
 
@@ -2116,6 +2133,7 @@ function toggleRevSec(hdr) {
 // ── Modal Revisión anterior ───────────────────────────────────
 async function abrirRevision() {
     if (!sesionActual) return;
+    logEvento('abrir_revision');
     document.getElementById('revision-modal').classList.add('show');
     const body = document.getElementById('revision-body');
     body.innerHTML = '<div class="vacio">Cargando...</div>';

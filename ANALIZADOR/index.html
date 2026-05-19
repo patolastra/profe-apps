@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analizador Pedagógico</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
+<style>
+:root {
+    --bg:       #0d1117;
+    --bg2:      #161b22;
+    --bg3:      #21262d;
+    --border:   #30363d;
+    --text:     #e6edf3;
+    --text2:    #8b949e;
+    --accent:   #58a6ff;
+    --green:    #3fb950;
+    --yellow:   #d29922;
+    --red:      #f85149;
+    --purple:   #bc8cff;
+    --radius:   8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 2rem 1rem 4rem;
+    font-size: 15px;
+    line-height: 1.5;
+}
+a { color: var(--accent); }
+header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+}
+header p.sub {
+    color: var(--text2);
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+.container { max-width: 860px; margin: 0 auto; }
+
+/* Config */
+.config-panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    margin-bottom: 2rem;
+}
+.config-field { display: flex; flex-direction: column; gap: 0.3rem; flex: 1; min-width: 160px; }
+.config-field label { font-size: 0.8rem; color: var(--text2); font-weight: 500; }
+select, input[type="password"], input[type="text"] {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    outline: none;
+    width: 100%;
+}
+select:focus, input:focus { border-color: var(--accent); }
+
+/* Buttons */
+.btn-primary {
+    background: var(--accent);
+    color: #0d1117;
+    border: none;
+    border-radius: 6px;
+    padding: 0.55rem 1.4rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    align-self: flex-end;
+    transition: opacity 0.12s;
+}
+.btn-primary:hover { opacity: 0.88; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-sec {
+    background: var(--bg3);
+    color: var(--text2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: border-color 0.12s;
+}
+.btn-sec:hover { border-color: var(--text2); color: var(--text); }
+
+/* Loading */
+#loading {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text2);
+}
+.spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 1rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#loading-msg { font-size: 0.9rem; }
+
+/* Cards resumen */
+.cards-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+}
+.stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+}
+.stat-card .val {
+    font-size: 1.8rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--accent);
+}
+.stat-card .lbl {
+    font-size: 0.78rem;
+    color: var(--text2);
+    margin-top: 0.3rem;
+}
+
+/* Sections */
+.stats-section {
+    margin-bottom: 2rem;
+}
+.stats-section h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.8rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Tables */
+.tbl-wrap { overflow-x: auto; }
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    color: var(--text2);
+    font-weight: 500;
+    font-size: 0.78rem;
+    border-bottom: 1px solid var(--border);
+}
+td {
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg2); }
+.tasa-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--bg3);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 60px;
+}
+.bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--green);
+    transition: width 0.3s;
+}
+.bar-fill.low { background: var(--red); }
+.bar-fill.mid { background: var(--yellow); }
+.tasa-pct { font-size: 0.8rem; color: var(--text2); width: 34px; text-align: right; }
+.tag-cat {
+    display: inline-block;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.75rem;
+    color: var(--text2);
+}
+.num { text-align: right; }
+
+/* SRP mini stats */
+.srp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem;
+}
+.srp-item {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+}
+.srp-item .val { font-size: 1.3rem; font-weight: 700; color: var(--purple); }
+.srp-item .lbl { font-size: 0.75rem; color: var(--text2); margin-top: 0.2rem; }
+
+/* Gemini */
+.gemini-section {
+    margin-top: 2.5rem;
+    border-top: 2px solid var(--border);
+    padding-top: 1.5rem;
+}
+.gemini-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+.gemini-header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+.gemini-body {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    color: var(--text);
+    line-height: 1.7;
+    white-space: pre-wrap;
+    font-size: 0.9rem;
+}
+.gemini-body.cargando { color: var(--text2); font-style: italic; }
+.gemini-body.error { color: var(--red); }
+
+/* Toast */
+#toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(4rem);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    transition: transform 0.2s;
+    pointer-events: none;
+    z-index: 999;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+.vacio { color: var(--text2); font-style: italic; font-size: 0.88rem; padding: 0.5rem 0; }
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<div class="container">
+    <header>
+        <h1>Analizador Pedagógico</h1>
+        <p class="sub">Patrones de uso y práctica docente — Ecosistema PROFE</p>
+    </header>
+
+    <div class="config-panel">
+        <div class="config-field">
+            <label>Periodo</label>
+            <select id="sel-dias">
+                <option value="30">Últimos 30 días</option>
+                <option value="60">Últimos 60 días</option>
+                <option value="90" selected>Últimos 90 días</option>
+            </select>
+        </div>
+        <div class="config-field" style="flex:2; min-width:220px">
+            <label>API Key Gemini</label>
+            <input type="password" id="inp-apikey" placeholder="AIza...">
+        </div>
+        <button class="btn-primary" id="btn-generar">Generar informe</button>
+    </div>
+
+    <div id="loading" style="display:none">
+        <div class="spinner"></div>
+        <p id="loading-msg">Cargando datos...</p>
+    </div>
+
+    <div id="resultados" style="display:none">
+        <div class="cards-row" id="cards-resumen"></div>
+
+        <div class="stats-section">
+            <h2>Pendientes por contexto</h2>
+            <div class="tbl-wrap" id="tabla-contextos"></div>
+        </div>
+
+        <div class="stats-section">
+            <h2>Categorías de pendientes</h2>
+            <div class="tbl-wrap" id="tabla-categorias"></div>
+        </div>
+
+        <div class="stats-section">
+            <h2>Uso de SRP</h2>
+            <div class="srp-grid" id="stats-srp"></div>
+        </div>
+
+        <div class="stats-section">
+            <h2>Plan de sesión — completitud por contexto</h2>
+            <div class="tbl-wrap" id="tabla-plan"></div>
+        </div>
+
+        <div class="stats-section" id="sec-eventos" style="display:none">
+            <h2>Interacciones con la app</h2>
+            <div class="tbl-wrap" id="tabla-eventos"></div>
+        </div>
+
+        <div class="gemini-section">
+            <div class="gemini-header">
+                <h2>Análisis Gemini</h2>
+                <button class="btn-sec" id="btn-copiar">Copiar texto</button>
+            </div>
+            <div class="gemini-body cargando" id="gemini-output">El análisis aparecerá aquí...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const GEMINI_MODELS = ['gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+
+const CAT_LABELS = {
+    pendientes_sala:           '🎵 Sala',
+    pendientes_planificacion:  '🧠 Planificación',
+    pendientes_materiales:     '🎒 Materiales',
+    pendientes_casa:           '🏠 Casa',
+    pendientes_administrativos:'📋 Administrativos',
+    pendientes_mensajes:       '💬 Mensajes',
+    pendientes_jefatura:       '👥 Jefatura',
+    pendientes_apps:           '💻 Apps',
+    posible_repertorio:        '🎼 Repertorio',
+    revision:                  'Revisión',
+};
+
+let sb = null;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+function setLoading(show, msg = '') {
+    document.getElementById('loading').style.display = show ? 'block' : 'none';
+    if (msg) document.getElementById('loading-msg').textContent = msg;
+}
+
+function pct(n, d) {
+    if (!d) return '0%';
+    return Math.round(n / d * 100) + '%';
+}
+
+function barHtml(n, d) {
+    const p = d ? Math.round(n / d * 100) : 0;
+    const cls = p < 30 ? 'low' : p < 60 ? 'mid' : '';
+    return `<div class="tasa-bar">
+        <div class="bar-track"><div class="bar-fill ${cls}" style="width:${p}%"></div></div>
+        <span class="tasa-pct">${p}%</span>
+    </div>`;
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) document.getElementById('inp-apikey').value = savedKey;
+
+    document.getElementById('btn-generar').addEventListener('click', generarInforme);
+    document.getElementById('btn-copiar').addEventListener('click', copiarTexto);
+});
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+
+async function generarInforme() {
+    const apiKey = document.getElementById('inp-apikey').value.trim();
+    if (!apiKey) { toast('Ingresá la API Key de Gemini'); return; }
+
+    const dias = parseInt(document.getElementById('sel-dias').value);
+    localStorage.setItem('gemini_api_key', apiKey);
+
+    document.getElementById('btn-generar').disabled = true;
+    document.getElementById('resultados').style.display = 'none';
+    setLoading(true, 'Cargando datos de Supabase...');
+
+    try {
+        const data = await cargarDatos(dias);
+        setLoading(true, 'Calculando estadísticas...');
+        const stats = computarStats(data);
+        renderStats(stats, dias, data);
+
+        document.getElementById('resultados').style.display = 'block';
+        setLoading(false);
+
+        document.getElementById('gemini-output').className = 'gemini-body cargando';
+        document.getElementById('gemini-output').textContent = 'Consultando a Gemini...';
+
+        const prompt = construirPromptGemini(stats, dias);
+        const narrativa = await llamarGemini(prompt, apiKey);
+
+        const out = document.getElementById('gemini-output');
+        out.className = 'gemini-body';
+        out.textContent = narrativa;
+
+    } catch (e) {
+        setLoading(false);
+        console.error(e);
+        toast('Error: ' + e.message);
+    } finally {
+        document.getElementById('btn-generar').disabled = false;
+    }
+}
+
+// ── Data fetching ─────────────────────────────────────────────────────────────
+
+async function cargarDatos(dias) {
+    const desde = new Date(Date.now() - dias * 86400000).toISOString();
+
+    const [rPend, rSrp, rPlan, rEventos] = await Promise.all([
+        sb.from('pendientes')
+          .select('categoria, estado, created_at, contextos(nombre, tipo)')
+          .gte('created_at', desde),
+        sb.from('sesiones_srp')
+          .select('id, created_at')
+          .gte('created_at', desde),
+        sb.from('plan_sesion_items')
+          .select('completado, origen, created_at, sesiones(fecha, contextos(nombre))')
+          .gte('created_at', desde),
+        sb.from('eventos_uso')
+          .select('app, accion, created_at, metadata')
+          .gte('created_at', desde),
+    ]);
+
+    return {
+        pendientes:  rPend.data   || [],
+        sesionesSrp: rSrp.data    || [],
+        planItems:   rPlan.data   || [],
+        eventos:     rEventos.data || [],
+    };
+}
+
+// ── Stats computation ─────────────────────────────────────────────────────────
+
+function computarStats({ pendientes, sesionesSrp, planItems, eventos }) {
+    // Pendientes por contexto
+    const porContexto = {};
+    for (const p of pendientes) {
+        if (p.categoria === 'revision') continue; // no cuenta como pendiente
+        const nombre = p.contextos?.nombre || 'GENERAL';
+        if (!porContexto[nombre]) porContexto[nombre] = { total: 0, completados: 0, descartados: 0 };
+        porContexto[nombre].total++;
+        if (p.estado === 'completado') porContexto[nombre].completados++;
+        if (p.estado === 'descartado') porContexto[nombre].descartados++;
+    }
+
+    // Pendientes por categoría
+    const porCategoria = {};
+    for (const p of pendientes) {
+        if (p.categoria === 'revision') continue;
+        const cat = p.categoria || 'sin_categoria';
+        porCategoria[cat] = (porCategoria[cat] || 0) + 1;
+    }
+
+    // SRP: días activos, día más activo, promedio pendientes/grabación
+    const diasSrp = {};
+    const diaSemana = { 0:'Dom', 1:'Lun', 2:'Mar', 3:'Mié', 4:'Jue', 5:'Vie', 6:'Sáb' };
+    for (const s of sesionesSrp) {
+        const d = new Date(s.created_at);
+        const dia = diaSemana[d.getDay()];
+        diasSrp[dia] = (diasSrp[dia] || 0) + 1;
+    }
+    const diasActivosSrp = new Set(sesionesSrp.map(s => s.created_at?.split('T')[0])).size;
+    const totalPendientes = pendientes.filter(p => p.categoria !== 'revision').length;
+    const promPendXGrab = sesionesSrp.length > 0
+        ? (totalPendientes / sesionesSrp.length).toFixed(1)
+        : 0;
+    const diaMasActivo = Object.entries(diasSrp).sort((a, b) => b[1] - a[1])[0];
+
+    // Plan items por contexto
+    const porPlan = {};
+    for (const item of planItems) {
+        const nombre = item.sesiones?.contextos?.nombre || 'GENERAL';
+        if (!porPlan[nombre]) porPlan[nombre] = { total: 0, completados: 0, manual: 0, srp: 0 };
+        porPlan[nombre].total++;
+        if (item.completado) porPlan[nombre].completados++;
+        if (item.origen === 'manual') porPlan[nombre].manual++;
+        if (item.origen === 'srp') porPlan[nombre].srp++;
+    }
+
+    // Eventos UI
+    const porEvento = {};
+    for (const e of eventos) {
+        const key = `${e.app}/${e.accion}`;
+        porEvento[key] = (porEvento[key] || 0) + 1;
+    }
+
+    return {
+        porContexto,
+        porCategoria,
+        srp: { total: sesionesSrp.length, diasActivos: diasActivosSrp, diasSrp, diaMasActivo, promPendXGrab },
+        porPlan,
+        porEvento,
+        totales: {
+            pendientes: totalPendientes,
+            completados: Object.values(porContexto).reduce((a, b) => a + b.completados, 0),
+            planItems: planItems.length,
+            planCompletados: planItems.filter(i => i.completado).length,
+        },
+    };
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────────
+
+function renderStats(stats, dias, rawData) {
+    // Cards resumen
+    const { totales, srp } = stats;
+    document.getElementById('cards-resumen').innerHTML = [
+        { val: totales.pendientes, lbl: 'pendientes capturados' },
+        { val: pct(totales.completados, totales.pendientes), lbl: 'tasa de completitud' },
+        { val: srp.total, lbl: 'usos de SRP' },
+        { val: totales.planItems, lbl: 'plan items creados' },
+        { val: rawData.eventos.length, lbl: 'eventos de UI' },
+    ].map(c => `<div class="stat-card"><div class="val">${c.val}</div><div class="lbl">${c.lbl}</div></div>`).join('');
+
+    // Tabla por contexto
+    const ctxEntries = Object.entries(stats.porContexto).sort((a, b) => b[1].total - a[1].total);
+    if (ctxEntries.length) {
+        document.getElementById('tabla-contextos').innerHTML = `<table>
+            <thead><tr>
+                <th>Contexto</th>
+                <th class="num">Capturados</th>
+                <th class="num">Completados</th>
+                <th>Tasa</th>
+            </tr></thead>
+            <tbody>${ctxEntries.map(([nombre, v]) => `<tr>
+                <td>${nombre}</td>
+                <td class="num">${v.total}</td>
+                <td class="num">${v.completados}</td>
+                <td>${barHtml(v.completados, v.total)}</td>
+            </tr>`).join('')}</tbody>
+        </table>`;
+    } else {
+        document.getElementById('tabla-contextos').innerHTML = '<p class="vacio">Sin datos de pendientes en el período.</p>';
+    }
+
+    // Tabla por categoría
+    const catEntries = Object.entries(stats.porCategoria).sort((a, b) => b[1] - a[1]);
+    const catTotal = catEntries.reduce((a, [, v]) => a + v, 0);
+    if (catEntries.length) {
+        document.getElementById('tabla-categorias').innerHTML = `<table>
+            <thead><tr><th>Categoría</th><th class="num">Cantidad</th><th>Proporción</th></tr></thead>
+            <tbody>${catEntries.map(([cat, n]) => `<tr>
+                <td><span class="tag-cat">${CAT_LABELS[cat] || cat}</span></td>
+                <td class="num">${n}</td>
+                <td>${barHtml(n, catTotal)}</td>
+            </tr>`).join('')}</tbody>
+        </table>`;
+    } else {
+        document.getElementById('tabla-categorias').innerHTML = '<p class="vacio">Sin datos de categorías.</p>';
+    }
+
+    // SRP stats
+    const { diaMasActivo: dma, diasActivos, total: totalGrabs, promPendXGrab } = srp;
+    document.getElementById('stats-srp').innerHTML = [
+        { val: totalGrabs, lbl: 'grabaciones / usos' },
+        { val: diasActivos, lbl: 'días distintos' },
+        { val: dma ? `${dma[0]} (${dma[1]})` : '—', lbl: 'día más activo' },
+        { val: promPendXGrab, lbl: 'pendientes por uso' },
+    ].map(c => `<div class="srp-item"><div class="val">${c.val}</div><div class="lbl">${c.lbl}</div></div>`).join('');
+
+    // Tabla plan
+    const planEntries = Object.entries(stats.porPlan).sort((a, b) => b[1].total - a[1].total);
+    if (planEntries.length) {
+        document.getElementById('tabla-plan').innerHTML = `<table>
+            <thead><tr>
+                <th>Contexto</th>
+                <th class="num">Planificados</th>
+                <th class="num">Completados</th>
+                <th>Tasa</th>
+                <th class="num">Manual</th>
+                <th class="num">Desde SRP</th>
+            </tr></thead>
+            <tbody>${planEntries.map(([nombre, v]) => `<tr>
+                <td>${nombre}</td>
+                <td class="num">${v.total}</td>
+                <td class="num">${v.completados}</td>
+                <td>${barHtml(v.completados, v.total)}</td>
+                <td class="num">${v.manual}</td>
+                <td class="num">${v.srp}</td>
+            </tr>`).join('')}</tbody>
+        </table>`;
+    } else {
+        document.getElementById('tabla-plan').innerHTML = '<p class="vacio">Sin datos de plan de sesión en el período.</p>';
+    }
+
+    // Tabla eventos UI
+    const evEntries = Object.entries(stats.porEvento).sort((a, b) => b[1] - a[1]);
+    if (evEntries.length) {
+        document.getElementById('sec-eventos').style.display = 'block';
+        document.getElementById('tabla-eventos').innerHTML = `<table>
+            <thead><tr><th>App / Acción</th><th class="num">Veces</th></tr></thead>
+            <tbody>${evEntries.map(([key, n]) => `<tr>
+                <td><code style="font-size:0.82rem;color:var(--text2)">${key}</code></td>
+                <td class="num">${n}</td>
+            </tr>`).join('')}</tbody>
+        </table>`;
+    }
+}
+
+// ── Gemini ────────────────────────────────────────────────────────────────────
+
+function construirPromptGemini(stats, dias) {
+    const { porContexto, porCategoria, srp, porPlan, totales } = stats;
+
+    const resumen = {
+        periodo_dias: dias,
+        pendientes: {
+            total: totales.pendientes,
+            completados: totales.completados,
+            tasa_global: pct(totales.completados, totales.pendientes),
+            por_contexto: Object.fromEntries(
+                Object.entries(porContexto).map(([k, v]) => [k, {
+                    total: v.total,
+                    completados: v.completados,
+                    tasa: pct(v.completados, v.total),
+                }])
+            ),
+            por_categoria: Object.fromEntries(
+                Object.entries(porCategoria).sort((a, b) => b[1] - a[1])
+            ),
+        },
+        srp: {
+            total_usos: srp.total,
+            dias_activos: srp.diasActivos,
+            distribucion_semanal: srp.diasSrp,
+            dia_mas_activo: srp.diaMasActivo?.[0] || '—',
+            promedio_pendientes_por_uso: parseFloat(srp.promPendXGrab),
+        },
+        plan_de_sesion: {
+            total_items: totales.planItems,
+            completados: totales.planCompletados,
+            tasa_global: pct(totales.planCompletados, totales.planItems),
+            por_contexto: Object.fromEntries(
+                Object.entries(porPlan).map(([k, v]) => [k, {
+                    total: v.total,
+                    completados: v.completados,
+                    tasa: pct(v.completados, v.total),
+                    origen_manual: v.manual,
+                    origen_srp: v.srp,
+                }])
+            ),
+        },
+    };
+
+    return `Sos un analista pedagógico que estudia el uso real de un sistema de gestión docente. El usuario es un profesor de música de escuela pública (Santiago, Chile) que atiende 15 cursos y talleres distintos, todos con frecuencia semanal.
+
+Estas son las estadísticas de uso de los últimos ${dias} días, obtenidas directamente del sistema:
+
+${JSON.stringify(resumen, null, 2)}
+
+Contexto del sistema:
+- SRP: app mobile donde el profesor graba notas de voz después de clase → la IA las parsea y extrae pendientes por contexto y categoría
+- Plan de sesión: items que el profesor crea antes de clase (manual o importados desde SRP)
+- Categoría "revision" excluida (son notas descriptivas, no tareas)
+
+Tu análisis debe:
+1. Identificar 3-5 patrones concretos y relevantes. Nombrá contextos y categorías por su nombre real.
+2. Señalar al menos 1 contexto que parezca descuidado o con bajo seguimiento.
+3. Observar la relación entre captura y completitud (¿se captura mucho y se cierra poco?).
+4. Sugerir 2-3 acciones concretas y accionables que el profesor podría implementar.
+
+Responde en español. Sin headers markdown. Solo texto con bullet points (usa "•"). Sé directo y específico. Máximo 350 palabras.`;
+}
+
+async function llamarGemini(prompt, apiKey) {
+    for (const modelo of GEMINI_MODELS) {
+        try {
+            const res = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: 0.4, maxOutputTokens: 800 },
+                    }),
+                }
+            );
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            const texto = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (texto) return texto.trim();
+            throw new Error('Respuesta vacía');
+        } catch (e) {
+            console.warn(`${modelo} falló:`, e.message);
+        }
+    }
+    throw new Error('Todos los modelos Gemini fallaron');
+}
+
+// ── Copy ──────────────────────────────────────────────────────────────────────
+
+function copiarTexto() {
+    const narrativa = document.getElementById('gemini-output').textContent;
+    if (!narrativa || narrativa.includes('aparecerá aquí')) { toast('Aún no hay informe generado'); return; }
+    navigator.clipboard.writeText(narrativa).then(() => toast('Texto copiado')).catch(() => toast('Error al copiar'));
+}
+</script>
+</body>
+</html>
