@@ -157,6 +157,16 @@
         .hud-keys  { font-size: .78rem; color: #555; }
         .hud-keys span { color: #888; }
 
+        /* ── EDITOR DE RASGUEO ───────────────────────────────── */
+        #strum-hud {
+            display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+            background: rgba(10,10,20,.93); backdrop-filter: blur(6px);
+            border-top: 2px solid #2A7FDB; padding: 10px 24px;
+            flex-direction: column; gap: 4px;
+        }
+        #strum-hud.visible { display: flex; }
+        #strum-hud .hud-title { color: #2A7FDB; }
+
         /* ── TOAST ─────────────────────────────────────────────── */
         #toast {
             display: none; position: fixed; bottom: 90px; left: 50%;
@@ -216,6 +226,7 @@
         </div>
         <span class="sep">|</span>
         <span id="swingBadge" style="display:none;background:#b8860b;color:#fff;padding:4px 10px;border-radius:5px;font-size:.82rem;font-weight:700;letter-spacing:.04em">♩ Swing</span>
+        <button id="btnCifrado" onclick="toggleCifrado()" style="display:none;background:#555;color:#fff">C/Do</button>
         <button id="btnMute" class="btn-mute">🔊</button>
         <span class="sep">|</span>
         <button id="btnPistas" class="btn-pistas" onclick="togglePistasPanel(this)">🎵 Pistas</button>
@@ -240,6 +251,24 @@
 </div>
 
 <!-- EDITOR DE DIGITACIÓN HUD -->
+<div id="strum-hud">
+    <div class="hud-row">
+        <span class="hud-title">↓↑ EDITOR DE RASGUEO</span>
+        <span class="hud-nota" id="strum-nota">—</span>
+        <span class="hud-info" id="strum-acorde">—</span>
+        <span class="hud-dedo" id="strum-dir" style="color:#888">Dirección: —</span>
+    </div>
+    <div class="hud-row">
+        <span class="hud-keys">
+            <span>← →</span> navegar ·
+            <span>↓</span> rasgueo abajo ·
+            <span>↑</span> rasgueo arriba ·
+            <span>0</span> borrar ·
+            <span>Ctrl+S</span> guardar ·
+            <span>Esc</span> salir
+        </span>
+    </div>
+</div>
 <div id="editor-hud">
     <div class="hud-row">
         <span class="hud-title">✏ EDITOR DE DIGITACIÓN</span>
@@ -282,6 +311,9 @@ const BOUNCE_H        = 36;
 const FRET_PAD        = 22;
 const OPEN_STRINGS    = [64, 59, 55, 50, 45, 40];
 const FINGER_COLOR    = { 1:'#E8A800', 2:'#9B30CC', 3:'#1A9FCA', 4:'#D94030' };
+const STRUM_NONE = 0, STRUM_DOWN = 1, STRUM_UP = 2;
+const NOTE_TO_LATINO  = { C:'Do', D:'Re', E:'Mi', F:'Fa', G:'Sol', A:'La', B:'Si' };
+const CHORD_PALETTE   = ['#7B3FC4','#2A7FDB','#C4883F','#C43F4A','#3FC4A0','#8BC43F','#C43FAA'];
 
 let START_Y    = 110;
 let fretTop    = START_Y - FRET_PAD;
@@ -378,6 +410,7 @@ let lastTS      = 0;
 let ballY       = START_Y;
 let bpm         = 120;
 let beatsPerBar = 4;
+let beatType    = 4;   // denominador del compás (4=negra, 8=corchea, 2=blanca)
 
 let approachEnd = 1.0;
 let startOffset = 3.0;
@@ -408,6 +441,10 @@ let currentInternalXmlName = null;
 let currentFileHandle      = null;  // FileSystemFileHandle (local con showOpenFilePicker)
 let editorMode             = false;
 let editorActiveIdx        = 0;
+let strumEditorMode        = false;
+let strumEditorIdx         = 0;
+let latinoMode             = false;
+let chordMode              = false;
 
 // ─── HELPERS DE COLOR ─────────────────────────────────────────────────────
 function darken(hex, amt) {
@@ -545,7 +582,40 @@ document.addEventListener('keydown', e => {
         activarEditorDigitacion();
         return;
     }
-    // Modo editor: interceptar todas las teclas
+    // Shortcut oculto: activar editor de rasgueo
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyR') {
+        e.preventDefault();
+        activarEditorRasgueo();
+        return;
+    }
+    // Modo editor de rasgueo: interceptar todas las teclas
+    if (strumEditorMode) {
+        e.preventDefault();
+        const chordNotes = notes.filter(n => n.harmonyLabel && !n.isChord);
+        const maxIdx = chordNotes.length - 1;
+        if (e.code === 'ArrowRight') strumEditorIdx = Math.min(maxIdx, strumEditorIdx + 1);
+        if (e.code === 'ArrowLeft')  strumEditorIdx = Math.max(0, strumEditorIdx - 1);
+        if (e.code === 'ArrowDown') {
+            actualizarArco(chordNotes[strumEditorIdx], STRUM_DOWN);
+            if (strumEditorIdx < maxIdx) strumEditorIdx++;
+        }
+        if (e.code === 'ArrowUp') {
+            actualizarArco(chordNotes[strumEditorIdx], STRUM_UP);
+            if (strumEditorIdx < maxIdx) strumEditorIdx++;
+        }
+        if (e.code === 'Digit0' || e.code === 'Delete') {
+            actualizarArco(chordNotes[strumEditorIdx], STRUM_NONE);
+        }
+        if (e.ctrlKey && e.code === 'KeyS') guardarDigitacion();
+        if (e.code === 'Escape') {
+            strumEditorMode = false;
+            document.getElementById('strum-hud').classList.remove('visible');
+        }
+        currentTime = chordNotes[strumEditorIdx]?.time ?? currentTime;
+        actualizarHUDRasgueo();
+        return;
+    }
+    // Modo editor de digitación: interceptar todas las teclas
     if (editorMode) {
         e.preventDefault();
         if (e.ctrlKey && e.code === 'KeyS') {
@@ -696,15 +766,26 @@ function applySwingTransform(notes, beatPhaseOffset = 0) {
         else if (posInBeat >= eighthDur - tol) slot.up = group;
     }
 
-    // Swingear solo los beats que tienen AMBOS (down + up) — si falta uno, no tocar nada
-    for (const pair of beats.values()) {
-        if (!pair.down || !pair.up) continue;
-        const pairDur    = pair.down.dur + pair.up.dur;
-        const newDownDur = pairDur * swingRatio;
-        const newUpTime  = pair.down.time + newDownDur;
-        const newUpDur   = pairDur * (1 - swingRatio);
-        for (const n of pair.down.notes) n.durSec = newDownDur;
-        for (const n of pair.up.notes)   { n.time = newUpTime; n.durSec = newUpDur; }
+    // Swingear toda corchea según su posición en el beat, con o sin pareja
+    for (const [beatIdx, pair] of beats.entries()) {
+        const beatStart = beatIdx * beatDur + beatPhaseOffset;
+        if (pair.down && pair.up) {
+            // Par completo: split con duración real del par
+            const pairDur    = pair.down.dur + pair.up.dur;
+            const newDownDur = pairDur * swingRatio;
+            const newUpTime  = pair.down.time + newDownDur;
+            const newUpDur   = pairDur * (1 - swingRatio);
+            for (const n of pair.down.notes) n.durSec = newDownDur;
+            for (const n of pair.up.notes)   { n.time = newUpTime; n.durSec = newUpDur; }
+        } else if (pair.down) {
+            // Solo corchea en tiempo fuerte: alargar duración
+            for (const n of pair.down.notes) n.durSec = beatDur * swingRatio;
+        } else if (pair.up) {
+            // Solo corchea en contratiempo: mover y acortar
+            const newUpTime = beatStart + beatDur * swingRatio;
+            const newUpDur  = beatDur * (1 - swingRatio);
+            for (const n of pair.up.notes) { n.time = newUpTime; n.durSec = newUpDur; }
+        }
     }
 }
 
@@ -730,6 +811,8 @@ function parseXML(doc, fromToggle = false) {
     }
     const hasTabFilter = tabStaves.size > 0;
 
+    let currentHarmony = '';  // persiste entre compases (semántica MusicXML)
+
     for (const measure of targetPart.getElementsByTagName('measure')) {
         const mStart = elapsed;
         let mMinDur  = Infinity;
@@ -739,12 +822,24 @@ function parseXML(doc, fromToggle = false) {
             const d = attr.getElementsByTagName('divisions')[0];
             if (d) divisions = +d.textContent;
             const t = attr.getElementsByTagName('time')[0];
-            if (t) beatsPerBar = +(t.getElementsByTagName('beats')[0]?.textContent) || 4;
+            if (t) {
+                beatsPerBar = +(t.getElementsByTagName('beats')[0]?.textContent)     || 4;
+                beatType    = +(t.getElementsByTagName('beat-type')[0]?.textContent) || 4;
+            }
         }
         const snd = measure.getElementsByTagName('sound')[0];
         if (snd?.getAttribute('tempo')) bpm = +snd.getAttribute('tempo');
 
         for (const node of measure.children) {
+            if (node.nodeName === 'harmony') {
+                const rootStep   = node.getElementsByTagName('root-step')[0]?.textContent || '';
+                const rootAlter  = node.getElementsByTagName('root-alter')[0]?.textContent || '';
+                const kindEl     = node.getElementsByTagName('kind')[0];
+                const kindText   = kindEl?.getAttribute('text') || kindEl?.textContent || '';
+                const accidental = rootAlter === '-1' ? 'b' : rootAlter === '1' ? '#' : '';
+                currentHarmony   = rootStep + accidental + kindText;
+                continue;
+            }
             if (node.nodeName !== 'note') continue;
 
             // Ignorar notas que no pertenecen al staff TAB (evita duplicados del staff de notación)
@@ -788,10 +883,14 @@ function parseXML(doc, fromToggle = false) {
                         }
                     }
                 } else {
+                    const strum = tech?.getElementsByTagName('down-bow').length ? STRUM_DOWN
+                                : tech?.getElementsByTagName('up-bow').length   ? STRUM_UP
+                                : STRUM_NONE;
                     out.push({ time: elapsed, string: str, fret: fret,
                         finger: +(tech?.getElementsByTagName('fingering')[0]?.textContent) || 0,
                         durSec: durSec, measureIdx: rawMeasures.length,
-                        hit: false, hitAt: 0, isChord, xmlEl: node });
+                        hit: false, hitAt: 0, isChord, xmlEl: node,
+                        harmonyLabel: currentHarmony, strum, chordColor: null });
                 }
             }
             if (!isChord) elapsed += durSec;
@@ -801,31 +900,42 @@ function parseXML(doc, fromToggle = false) {
             minDur: mMinDur === Infinity ? 60 / bpm : mMinDur });
     }
 
-    const beatDur = 60 / bpm;
-    approachEnd   = 2 * beatDur;
-    startOffset   = approachEnd + beatsPerBar * beatDur;
-    for (const n of out) n.time += startOffset;
+    const beatDur    = 60 / bpm;
+    const pulseDur   = (4 / beatType) * beatDur;
+    const fullBarDur = beatsPerBar * pulseDur;
+    approachEnd      = 2 * beatDur;
 
-    // Detectar swing desde el XML y aplicar
+    // Detectar anacrusis y swing antes de calcular offsets
+    const firstMeasureDur = rawMeasures.length > 0 ? rawMeasures[0].tEnd - rawMeasures[0].tStart : 0;
+    const hasAnacrusis    = firstMeasureDur < fullBarDur * 0.95;
+    const beatPhaseOffset = hasAnacrusis ? firstMeasureDur % beatDur : 0;
+
     swingOn = detectSwing(doc, currentFileName || '');
     document.getElementById('swingBadge').style.display = swingOn ? '' : 'none';
-    // Corregir desfase de anacrusis: si el primer compás dura menos que un compás completo,
-    // su duración módulo beatDur indica cuánto hay que restar para alinear los tiempos fuertes
-    const firstMeasureDur = rawMeasures.length > 0 ? rawMeasures[0].tEnd - rawMeasures[0].tStart : 0;
-    const beatPhaseOffset = firstMeasureDur < beatsPerBar * beatDur * 0.95
-        ? firstMeasureDur % beatDur : 0;
     if (swingOn) applySwingTransform(out, beatPhaseOffset);
 
-    // Recalcular minDur por compás con las duraciones reales (post-swing)
-    for (let mi = 0; mi < rawMeasures.length; mi++) {
-        const mn = out.filter(n => n.measureIdx === mi && !n.isChord);
-        if (mn.length) rawMeasures[mi].minDur = Math.min(...mn.map(n => n.durSec));
+    // Sin anacrusis: 1 compás de precuenta. Con anacrusis: 2 compases,
+    // las notas de la anacrusis caen al final del segundo compás.
+    startOffset     = approachEnd + (hasAnacrusis ? 2 : 1) * fullBarDur;
+    const noteShift = hasAnacrusis ? startOffset - firstMeasureDur : startOffset;
+    for (const n of out) n.time += noteShift;
+
+    // Asignar color consistente por acorde y detectar chordMode
+    const chordColorMap = new Map();
+    let palIdx = 0;
+    for (const n of out) {
+        if (!n.harmonyLabel) continue;
+        if (!chordColorMap.has(n.harmonyLabel))
+            chordColorMap.set(n.harmonyLabel, CHORD_PALETTE[palIdx++ % CHORD_PALETTE.length]);
+        n.chordColor = chordColorMap.get(n.harmonyLabel);
     }
+    chordMode = out.some(n => n.harmonyLabel);
+    document.getElementById('btnCifrado').style.display = chordMode ? '' : 'none';
 
     let pixelStart = 0;
     measureData = rawMeasures.map(m => {
-        const tStart = m.tStart + startOffset;
-        const tEnd   = m.tEnd   + startOffset;
+        const tStart = m.tStart + noteShift;
+        const tEnd   = m.tEnd   + noteShift;
         const zoom   = Math.min(DEFAULT_ZOOM * MAX_ZOOM_FACTOR,
                                Math.max(DEFAULT_ZOOM, MIN_CHIP_PX / m.minDur));
         const entry  = { tStart, tEnd, zoom, pixelStart };
@@ -842,8 +952,9 @@ function parseXML(doc, fromToggle = false) {
     clearLoopState();
     if (notes.length) ballY = START_Y + (notes[0].string - 1) * STR_SPACING;
 
-    accompTracks = parseAccompParts(doc, startOffset);
+    accompTracks = parseAccompParts(doc, 0);
     if (swingOn) accompTracks.forEach(t => applySwingTransform(t.notes, beatPhaseOffset));
+    accompTracks.forEach(t => t.notes.forEach(n => n.time += noteShift));
     if (pistasOpen) renderListaPistas();
 
     if (!fromToggle) document.getElementById('landing').classList.add('oculto');
@@ -880,9 +991,13 @@ function animLoop(ts) {
         }
 
         if (soundOn && currentTime >= approachEnd && currentTime < startOffset) {
-            const beatsSince  = (currentTime - approachEnd) / beatDur;
-            const currentBeat = Math.floor(beatsSince);
-            if (currentBeat !== lastClickBeat) { lastClickBeat = currentBeat; playClick(currentBeat === 0); }
+            const pDur        = (4 / beatType) * beatDur;
+            const firstNote   = notes.length ? notes[0].time : startOffset;
+            if (currentTime < firstNote) {
+                const beatsSince  = (currentTime - approachEnd) / pDur;
+                const currentBeat = Math.floor(beatsSince);
+                if (currentBeat !== lastClickBeat) { lastClickBeat = currentBeat; playClick(currentBeat === 0); }
+            }
         }
         if (currentTime < approachEnd) lastClickBeat = -1;
 
@@ -892,11 +1007,29 @@ function animLoop(ts) {
         }
 
         if (!loopReady) {
+            // Agrupar notas del mismo instante para arpeggio de rasgueo
+            const pendientes = [];
             for (const note of notes) {
                 if (note.hit || !(prevTime < note.time && note.time <= currentTime)) continue;
                 const inRange = !loopActive || (note.time >= loopIn && note.time <= loopOut);
-                if (inRange) { note.hit = true; note.hitAt = currentTime;
-                    playNote(OPEN_STRINGS[note.string - 1] + note.fret, note.durSec); }
+                if (inRange) { note.hit = true; note.hitAt = currentTime; pendientes.push(note); }
+            }
+            const grupos = new Map();
+            for (const n of pendientes) {
+                const key = Math.round(n.time * 1000);
+                if (!grupos.has(key)) grupos.set(key, []);
+                grupos.get(key).push(n);
+            }
+            for (const grupo of grupos.values()) {
+                const strumDir = grupo.find(n => n.strum)?.strum || STRUM_NONE;
+                if (strumDir && grupo.length > 1) {
+                    const ordenadas = grupo.slice().sort((a, b) =>
+                        strumDir === STRUM_DOWN ? b.string - a.string : a.string - b.string);
+                    ordenadas.forEach((n, i) =>
+                        setTimeout(() => playNote(OPEN_STRINGS[n.string - 1] + n.fret, n.durSec), i * 18 / speed));
+                } else {
+                    for (const n of grupo) playNote(OPEN_STRINGS[n.string - 1] + n.fret, n.durSec);
+                }
             }
             for (let ti = 0; ti < accompTracks.length; ti++) {
                 const track = accompTracks[ti];
@@ -916,24 +1049,46 @@ function animLoop(ts) {
     requestAnimationFrame(animLoop);
 }
 
+const BALL_STRING_Y = START_Y + 2 * STR_SPACING; // cuerda 3 (para modo acordes)
+
+// Calcula el sin(phase*π) de un rebote con timing de swing si está activo.
+// cycleDur: duración de un pulso (por defecto negra = 60/bpm).
+function swingBounceSin(t, refTime, cycleDur) {
+    const dur     = cycleDur ?? (60 / bpm);
+    const elapsed = ((t - refTime) % dur + dur) % dur;
+    if (!swingOn) return Math.sin((elapsed / dur) * Math.PI);
+    const longDur  = dur * swingRatio;
+    const shortDur = dur * (1 - swingRatio);
+    return elapsed < longDur
+        ? Math.sin((elapsed / longDur)  * Math.PI)
+        : Math.sin(((elapsed - longDur) / shortDur) * Math.PI);
+}
+
 function getBallYAtTime(t) {
-    if (!notes.length) return START_Y;
+    if (!notes.length) return chordMode ? BALL_STRING_Y : START_Y;
     const beatDur         = 60 / bpm;
-    const stringY         = START_Y + (notes[0].string - 1) * STR_SPACING;
+    const stringY         = chordMode ? BALL_STRING_Y : START_Y + (notes[0].string - 1) * STR_SPACING;
     const preImpulseStart = approachEnd - beatDur;
 
     if (t < preImpulseStart) return stringY;
     if (t < approachEnd) {
+        // Arco único de impulso — sin swing para que sea suave
         const phase = (t - preImpulseStart) / beatDur;
         return stringY - Math.sin(phase * Math.PI) * BOUNCE_H;
     }
-    if (t < startOffset) {
-        const phase = ((t - approachEnd) / beatDur) % 1;
-        return stringY - Math.sin(phase * Math.PI) * BOUNCE_H;
+    const firstNoteTime = notes.length ? notes[0].time : startOffset;
+    if (t < firstNoteTime) {
+        const pulseDur = (4 / beatType) * (60 / bpm);
+        const elapsed  = ((t - approachEnd) % pulseDur + pulseDur) % pulseDur;
+        return stringY - Math.sin((elapsed / pulseDur) * Math.PI) * BOUNCE_H;
     }
     let cur = null, nxt = null;
     for (const n of notes) { if (n.time <= t) cur = n; else { nxt = n; break; } }
     if (!cur) return stringY;
+    if (chordMode) {
+        const prog = Math.max(0, Math.min(1, nxt ? (t - cur.time) / (nxt.time - cur.time) : 0));
+        return BALL_STRING_Y - Math.sin(prog * Math.PI) * BOUNCE_H;
+    }
     if (!nxt) return START_Y + (cur.string - 1) * STR_SPACING;
     const prog  = Math.max(0, Math.min(1, (t - cur.time) / (nxt.time - cur.time)));
     const baseY = START_Y + (cur.string - 1) * STR_SPACING;
@@ -944,9 +1099,9 @@ function getBallYAtTime(t) {
 function updateBall() {
     if (!notes.length || tabEnded) return;
     if (loopReady) {
-        const phase  = ((currentTime / (60 / bpm)) % 1 + 1) % 1;
-        const anchor = notes.find(n => n.time >= loopIn) || notes[0];
-        ballY = START_Y + (anchor.string - 1) * STR_SPACING - Math.sin(phase * Math.PI) * BOUNCE_H;
+        const anchor = chordMode ? null : (notes.find(n => n.time >= loopIn) || notes[0]);
+        const baseY  = chordMode ? BALL_STRING_Y : START_Y + (anchor.string - 1) * STR_SPACING;
+        ballY = baseY - swingBounceSin(currentTime, readyStart) * BOUNCE_H;
         return;
     }
     ballY = getBallYAtTime(currentTime);
@@ -986,7 +1141,7 @@ function render() {
     ctx.lineTo(fbBR.x, fbBR.y); ctx.lineTo(fbBL.x, fbBL.y);
     ctx.closePath(); ctx.fillStyle = '#2d1a0a'; ctx.fill();
 
-    drawBeatBg(); drawGrid(); drawStrings(); drawLoopMarkers(); drawNotes();
+    drawBeatBg(); drawGrid(); drawStrings(); drawLoopMarkers(); drawChordBlocks(); drawNotes();
     if (loopReady) drawReadyOverlay();
     if (tabEnded)  drawEndOverlay();
     drawBallTrail();
@@ -999,8 +1154,27 @@ function render() {
 function drawBeatBg() {
     if (!measureData.length) return;
     const bd = 60 / bpm;
+    // Compás sintético de anacrusis (segundo compás de precuenta)
+    if (notes.length && notes[0].time < startOffset) {
+        const pDur = (4 / beatType) * bd;
+        const tBar = startOffset - beatsPerBar * pDur;
+        for (let b = 0; b < beatsPerBar; b++) {
+            const bt  = tBar + b * pDur;
+            const bx0 = getX(bt), bx1 = getX(bt + pDur);
+            if (bx1 < -100 || bx0 > canvas.width + 100) continue;
+            ctx.fillStyle = b % 2 === 0 ? 'rgba(255,190,80,.05)' : 'rgba(0,0,0,.12)';
+            const tl = project(bx0, fretTop),  tr = project(bx1, fretTop);
+            const br = project(bx1, fretBottom), bl = project(bx0, fretBottom);
+            ctx.beginPath();
+            ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+            ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+            ctx.closePath(); ctx.fill();
+        }
+    }
+    const anacrusis = notes.length && notes[0].time < startOffset;
     let globalBeat = 0;
     for (let mi = 0; mi < measureData.length; mi++) {
+        if (anacrusis && mi === 0) { globalBeat += beatsPerBar; continue; }
         const m = measureData[mi];
         if (getX(m.tEnd)   < -200) { globalBeat += beatsPerBar; continue; }
         if (getX(m.tStart) > canvas.width + 200) break;
@@ -1025,7 +1199,25 @@ function drawBeatBg() {
 function drawGrid() {
     if (!measureData.length) return;
     const bd = 60 / bpm;
+    // Compás sintético de anacrusis (segundo compás de precuenta)
+    if (notes.length && notes[0].time < startOffset) {
+        const pDur = (4 / beatType) * bd;
+        const tBar = startOffset - beatsPerBar * pDur;
+        for (let b = 0; b < beatsPerBar; b++) {
+            const bx = getX(tBar + b * pDur);
+            if (bx < -50 || bx > canvas.width + 50) continue;
+            const isBar = (b === 0);
+            const yTop  = isBar ? fretTop    : fretTop    + 5;
+            const yBot  = isBar ? fretBottom : fretBottom - 5;
+            const pt = project(bx, yTop), pb = project(bx, yBot);
+            ctx.strokeStyle = isBar ? 'rgba(255,255,255,.38)' : 'rgba(255,255,255,.10)';
+            ctx.lineWidth   = isBar ? Math.max(1, DEFAULT_ZOOM * .03) : Math.max(.5, DEFAULT_ZOOM * .01);
+            ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+        }
+    }
+    const anacrusisGrid = notes.length && notes[0].time < startOffset;
     for (let mi = 0; mi < measureData.length; mi++) {
+        if (anacrusisGrid && mi === 0) continue;
         const m = measureData[mi];
         if (getX(m.tEnd)   < -200) continue;
         if (getX(m.tStart) > canvas.width + 200) break;
@@ -1101,6 +1293,7 @@ function drawLoopMarkers() {
 function drawNotes() {
     for (let i = 0; i < notes.length; i++) {
         const note = notes[i];
+        if (chordMode && note.harmonyLabel) continue; // renderizado por drawChordBlocks
         const nw = note.durSec * note.zoom;
         const cx = getX(note.time);
         if (cx + nw < -100 || cx > canvas.width + 100) continue;
@@ -1108,6 +1301,130 @@ function drawNotes() {
         const { x: px, y: py } = project(cx + nw / 2, cy);
         drawPill(px - nw / 2, py, nw, note, i);
     }
+}
+
+function drawChordBlocks() {
+    if (!chordMode) return;
+
+    // Construir spans por cambio de acorde
+    const spans = [];
+    let cur = null;
+    for (const n of notes) {
+        if (n.isChord || !n.harmonyLabel) continue;
+        if (!cur || n.harmonyLabel !== cur.label) {
+            cur = { label: n.harmonyLabel, color: n.chordColor,
+                    tStart: n.time, tEnd: n.time + n.durSec, strums: [] };
+            spans.push(cur);
+        }
+        cur.tEnd = n.time + n.durSec;
+        if (n.strum) cur.strums.push({ t: n.time, strum: n.strum });
+    }
+
+    const yTop = START_Y - NOTE_R - 12;
+    const yBot = START_Y + 5 * STR_SPACING + NOTE_R + 12;
+    const h    = yBot - yTop;
+
+    for (const span of spans) {
+        const x1 = getX(span.tStart);
+        const x2 = getX(span.tEnd);
+        if (x2 < -20 || x1 > canvas.width + 20) continue;
+
+        // Proyectar las 4 esquinas del bloque para obtener un trapecio
+        // que sigue exactamente la perspectiva del diapasón
+        const tl = project(x1, yTop);  // arriba-izquierda (lejos)
+        const tr = project(x2, yTop);  // arriba-derecha
+        const br = project(x2, yBot);  // abajo-derecha (cerca)
+        const bl = project(x1, yBot);  // abajo-izquierda
+
+        ctx.save();
+
+        // Trapecio coloreado
+        ctx.globalAlpha = 0.78;
+        ctx.fillStyle = span.color;
+        ctx.beginPath();
+        ctx.moveTo(tl.x, tl.y);
+        ctx.lineTo(tr.x, tr.y);
+        ctx.lineTo(br.x, br.y);
+        ctx.lineTo(bl.x, bl.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Franja superior más clara (efecto Yousician)
+        const topH = 7;
+        const tlS = project(x1, yTop + topH);
+        const trS = project(x2, yTop + topH);
+        ctx.globalAlpha = 0.30;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(tl.x, tl.y);
+        ctx.lineTo(tr.x, tr.y);
+        ctx.lineTo(trS.x, trS.y);
+        ctx.lineTo(tlS.x, tlS.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Nombre del acorde — solo si el bloque es suficientemente ancho
+        const yCtr = yTop + h / 2;
+        const midL = project(x1, yCtr);
+        const midR = project(x2, yCtr);
+        const blockWidth = midR.x - midL.x;
+        if (blockWidth >= 52) {
+            const label = latinoMode ? convertirALatino(span.label) : span.label;
+            const { x: pCtr, y: pCtrY } = project(canvas.width * TARGET_X_PCT, yCtr);
+            ctx.font = 'bold 32px Segoe UI';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(0,0,0,0.55)';
+            ctx.shadowBlur = 5;
+            ctx.fillStyle = '#fff';
+            const textX = Math.max(midL.x + 36, Math.min(midR.x - 36, pCtr));
+            ctx.fillText(label, textX, pCtrY);
+            ctx.shadowBlur = 0;
+        }
+
+        // Flechas de rasgueo
+        for (const s of span.strums) {
+            const sProj = project(getX(s.t), yCtr);
+            const { y: sTop } = project(getX(s.t), yTop);
+            const { y: sBot } = project(getX(s.t), yBot);
+            drawStrumArrow(sProj.x, sTop, sBot - sTop, s.strum);
+        }
+
+        ctx.restore();
+    }
+}
+
+function drawStrumArrow(x, blockTop, blockH, strum) {
+    const cy = blockTop + blockH / 2;
+    const sz = 18;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+    ctx.lineWidth   = 3.5;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    ctx.beginPath();
+    if (strum === STRUM_DOWN) {
+        ctx.moveTo(x - sz / 2, cy - sz / 2);
+        ctx.lineTo(x, cy + sz / 2);
+        ctx.lineTo(x + sz / 2, cy - sz / 2);
+    } else {
+        ctx.moveTo(x - sz / 2, cy + sz / 2);
+        ctx.lineTo(x, cy - sz / 2);
+        ctx.lineTo(x + sz / 2, cy + sz / 2);
+    }
+    ctx.stroke();
+    ctx.restore();
+}
+
+function convertirALatino(label) {
+    return label.replace(/^([A-G])(b|#)?/, (_, note, acc) =>
+        (NOTE_TO_LATINO[note] || note) + (acc || ''));
+}
+
+function toggleCifrado() {
+    latinoMode = !latinoMode;
+    document.getElementById('btnCifrado').textContent = latinoMode ? 'Do→C' : 'C→Do';
 }
 
 function drawPill(x, y, w, note, noteIdx = -1) {
@@ -1557,8 +1874,10 @@ document.addEventListener('click', e => {
 const FINGER_NAMES = ['—', 'índice', 'medio', 'anular', 'meñique'];
 
 function cerrarEditorSilencioso() {
-    editorMode = false;
+    editorMode      = false;
+    strumEditorMode = false;
     document.getElementById('editor-hud').classList.remove('visible');
+    document.getElementById('strum-hud').classList.remove('visible');
 }
 
 async function confirmarSiEditorAbierto() {
@@ -1582,6 +1901,50 @@ function activarEditorDigitacion() {
     editorActiveIdx = 0;
     currentTime     = notes[0].time;
     actualizarHUD();
+}
+
+function activarEditorRasgueo() {
+    if (!notes.length || !chordMode) return;
+    const clave   = new Date().getDate().toString();
+    const entrada = prompt('Contraseña:');
+    if (entrada === null) return;
+    if (entrada !== clave) { alert('Contraseña incorrecta.'); return; }
+    if (isPlaying) { isPlaying = false; loopReady = false; }
+    strumEditorMode = true;
+    strumEditorIdx  = 0;
+    currentTime     = notes.filter(n => n.harmonyLabel && !n.isChord)[0]?.time ?? 0;
+    actualizarHUDRasgueo();
+}
+
+function actualizarArco(note, strum) {
+    note.strum = strum;
+    if (!note.xmlEl) return;
+    const doc = note.xmlEl.ownerDocument;
+    let notations = note.xmlEl.getElementsByTagName('notations')[0];
+    if (!notations) { notations = doc.createElement('notations'); note.xmlEl.appendChild(notations); }
+    let tech = notations.getElementsByTagName('technical')[0];
+    if (!tech) { tech = doc.createElement('technical'); notations.appendChild(tech); }
+    const d = tech.getElementsByTagName('down-bow')[0];
+    const u = tech.getElementsByTagName('up-bow')[0];
+    if (d) d.parentNode.removeChild(d);
+    if (u) u.parentNode.removeChild(u);
+    if (strum === STRUM_DOWN) tech.appendChild(doc.createElement('down-bow'));
+    if (strum === STRUM_UP)   tech.appendChild(doc.createElement('up-bow'));
+}
+
+function actualizarHUDRasgueo() {
+    const hud = document.getElementById('strum-hud');
+    if (!strumEditorMode) { hud.classList.remove('visible'); return; }
+    hud.classList.add('visible');
+    const chordNotes = notes.filter(n => n.harmonyLabel && !n.isChord);
+    const note = chordNotes[strumEditorIdx];
+    if (!note) return;
+    const dir = note.strum === STRUM_DOWN ? '↓ Abajo' : note.strum === STRUM_UP ? '↑ Arriba' : '—';
+    document.getElementById('strum-nota').textContent   = `Tiempo ${strumEditorIdx + 1} / ${chordNotes.length}`;
+    document.getElementById('strum-acorde').textContent = note.harmonyLabel ? `Acorde: ${note.harmonyLabel}` : '';
+    const dirEl = document.getElementById('strum-dir');
+    dirEl.textContent = `Dirección: ${dir}`;
+    dirEl.style.color = note.strum === STRUM_DOWN ? '#E8A800' : note.strum === STRUM_UP ? '#4A9EE8' : '#888';
 }
 
 function actualizarDedo(note, finger) {
