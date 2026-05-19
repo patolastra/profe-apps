@@ -433,12 +433,23 @@ async function generarInforme() {
         document.getElementById('gemini-output').className = 'gemini-body cargando';
         document.getElementById('gemini-output').textContent = 'Consultando a Gemini...';
 
-        const prompt = construirPromptGemini(stats, dias);
-        const narrativa = await llamarGemini(prompt, apiKey);
-
+        const sinDatos = stats.totales.pendientes === 0 && stats.srp.total === 0 && stats.totales.planItems === 0;
         const out = document.getElementById('gemini-output');
-        out.className = 'gemini-body';
-        out.textContent = narrativa;
+        if (sinDatos) {
+            out.className = 'gemini-body cargando';
+            out.textContent = 'Sin datos suficientes en el período para generar un análisis.';
+        } else {
+            const prompt = construirPromptGemini(stats, dias);
+            try {
+                const narrativa = await llamarGemini(prompt, apiKey);
+                out.className = 'gemini-body';
+                out.textContent = narrativa;
+            } catch (eg) {
+                console.error(eg);
+                out.className = 'gemini-body error';
+                out.textContent = 'Error al consultar Gemini: ' + eg.message;
+            }
+        }
 
     } catch (e) {
         setLoading(false);
@@ -456,18 +467,28 @@ async function cargarDatos(dias) {
 
     const [rPend, rSrp, rPlan, rEventos] = await Promise.all([
         sb.from('pendientes')
-          .select('categoria, estado, created_at, contextos(nombre, tipo)')
-          .gte('created_at', desde),
+          .select('categoria, estado, created_at, contextos(nombre)')
+          .gte('created_at', desde)
+          .limit(2000),
         sb.from('sesiones_srp')
-          .select('id, created_at')
-          .gte('created_at', desde),
+          .select('created_at')
+          .gte('created_at', desde)
+          .limit(2000),
         sb.from('plan_sesion_items')
           .select('completado, origen, created_at, sesiones(fecha, contextos(nombre))')
-          .gte('created_at', desde),
+          .gte('created_at', desde)
+          .limit(2000),
         sb.from('eventos_uso')
           .select('app, accion, created_at, metadata')
-          .gte('created_at', desde),
+          .gte('created_at', desde)
+          .limit(2000),
     ]);
+
+    if (rPend.error)  throw new Error('Pendientes: ' + rPend.error.message);
+    if (rSrp.error)   throw new Error('SRP: ' + rSrp.error.message);
+    if (rPlan.error)  throw new Error('Plan: ' + rPlan.error.message);
+    // eventos_uso: tabla nueva, fallo no crítico
+    if (rEventos.error) console.warn('eventos_uso no disponible:', rEventos.error.message);
 
     return {
         pendientes:  rPend.data   || [],
@@ -507,7 +528,9 @@ function computarStats({ pendientes, sesionesSrp, planItems, eventos }) {
         const dia = diaSemana[d.getDay()];
         diasSrp[dia] = (diasSrp[dia] || 0) + 1;
     }
-    const diasActivosSrp = new Set(sesionesSrp.map(s => s.created_at?.split('T')[0])).size;
+    const diasActivosSrp = new Set(
+        sesionesSrp.map(s => s.created_at ? new Date(s.created_at).toLocaleDateString('sv') : null).filter(Boolean)
+    ).size;
     const totalPendientes = pendientes.filter(p => p.categoria !== 'revision').length;
     const promPendXGrab = sesionesSrp.length > 0
         ? (totalPendientes / sesionesSrp.length).toFixed(1)
@@ -555,7 +578,7 @@ function renderStats(stats, dias, rawData) {
     document.getElementById('cards-resumen').innerHTML = [
         { val: totales.pendientes, lbl: 'pendientes capturados' },
         { val: pct(totales.completados, totales.pendientes), lbl: 'tasa de completitud' },
-        { val: srp.total, lbl: 'usos de SRP' },
+        { val: srp.total, lbl: 'bandejas guardadas' },
         { val: totales.planItems, lbl: 'plan items creados' },
         { val: rawData.eventos.length, lbl: 'eventos de UI' },
     ].map(c => `<div class="stat-card"><div class="val">${c.val}</div><div class="lbl">${c.lbl}</div></div>`).join('');
@@ -599,12 +622,16 @@ function renderStats(stats, dias, rawData) {
 
     // SRP stats
     const { diaMasActivo: dma, diasActivos, total: totalGrabs, promPendXGrab } = srp;
-    document.getElementById('stats-srp').innerHTML = [
-        { val: totalGrabs, lbl: 'grabaciones / usos' },
-        { val: diasActivos, lbl: 'días distintos' },
-        { val: dma ? `${dma[0]} (${dma[1]})` : '—', lbl: 'día más activo' },
-        { val: promPendXGrab, lbl: 'pendientes por uso' },
-    ].map(c => `<div class="srp-item"><div class="val">${c.val}</div><div class="lbl">${c.lbl}</div></div>`).join('');
+    if (totalGrabs === 0) {
+        document.getElementById('stats-srp').innerHTML = '<p class="vacio">Sin datos de SRP en el período.</p>';
+    } else {
+        document.getElementById('stats-srp').innerHTML = [
+            { val: totalGrabs, lbl: 'bandejas guardadas' },
+            { val: diasActivos, lbl: 'días distintos' },
+            { val: dma ? `${dma[0]} (${dma[1]})` : '—', lbl: 'día más activo' },
+            { val: promPendXGrab, lbl: 'pendientes por bandeja' },
+        ].map(c => `<div class="srp-item"><div class="val">${c.val}</div><div class="lbl">${c.lbl}</div></div>`).join('');
+    }
 
     // Tabla plan
     const planEntries = Object.entries(stats.porPlan).sort((a, b) => b[1].total - a[1].total);
@@ -642,6 +669,8 @@ function renderStats(stats, dias, rawData) {
                 <td class="num">${n}</td>
             </tr>`).join('')}</tbody>
         </table>`;
+    } else {
+        document.getElementById('sec-eventos').style.display = 'none';
     }
 }
 
@@ -672,7 +701,7 @@ function construirPromptGemini(stats, dias) {
             dias_activos: srp.diasActivos,
             distribucion_semanal: srp.diasSrp,
             dia_mas_activo: srp.diaMasActivo?.[0] || '—',
-            promedio_pendientes_por_uso: parseFloat(srp.promPendXGrab),
+            promedio_pendientes_por_bandeja: parseFloat(srp.promPendXGrab),
         },
         plan_de_sesion: {
             total_items: totales.planItems,
@@ -724,12 +753,14 @@ async function llamarGemini(prompt, apiKey) {
                     }),
                 }
             );
+            if (res.status === 401 || res.status === 403) throw new Error(`API key inválida o sin permisos (HTTP ${res.status})`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
             const texto = json.candidates?.[0]?.content?.parts?.[0]?.text;
             if (texto) return texto.trim();
             throw new Error('Respuesta vacía');
         } catch (e) {
+            if (e.message.includes('API key')) throw e;
             console.warn(`${modelo} falló:`, e.message);
         }
     }
@@ -739,9 +770,9 @@ async function llamarGemini(prompt, apiKey) {
 // ── Copy ──────────────────────────────────────────────────────────────────────
 
 function copiarTexto() {
-    const narrativa = document.getElementById('gemini-output').textContent;
-    if (!narrativa || narrativa.includes('aparecerá aquí')) { toast('Aún no hay informe generado'); return; }
-    navigator.clipboard.writeText(narrativa).then(() => toast('Texto copiado')).catch(() => toast('Error al copiar'));
+    const el = document.getElementById('gemini-output');
+    if (el.classList.contains('cargando') || el.classList.contains('error')) { toast('Aún no hay informe generado'); return; }
+    navigator.clipboard.writeText(el.textContent).then(() => toast('Texto copiado')).catch(() => toast('Error al copiar'));
 }
 </script>
 </body>

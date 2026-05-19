@@ -88,9 +88,10 @@ CREATE TABLE IF NOT EXISTS plan_sesion_items (
     orden        SMALLINT DEFAULT 0,
     origen       TEXT NOT NULL DEFAULT 'manual' CHECK (origen IN ('srp', 'manual')),
     pendiente_id UUID REFERENCES pendientes(id),
-    incluido     BOOLEAN DEFAULT true,
-    completado   BOOLEAN DEFAULT false,
-    created_at   TIMESTAMPTZ DEFAULT now()
+    incluido         BOOLEAN DEFAULT true,
+    completado       BOOLEAN DEFAULT false,
+    es_planificacion BOOLEAN DEFAULT false,
+    created_at       TIMESTAMPTZ DEFAULT now()
 );
 
 -- ── ÍNDICES ─────────────────────────────────────────────────
