@@ -501,13 +501,13 @@ let tabEnded    = false;
 let fallVY      = 0;
 let loopActive  = false;
 let loopIn = 0, loopOut = 0;
-let loopPhase        = 'inactive'; // 'passiveIn' | 'active' | 'passiveOut' | 'waiting'
-let loopPassiveInStart = 0;  // tStart de la medida que contiene loopIn
-let loopPassiveOutEnd  = 0;  // tEnd de la medida que contiene loopOut
-let loopWaitBarEnd     = 0;  // loopPassiveOutEnd + duración del compás de espera
-let loopNeedsWaiting   = false;
+let loopPhase        = 'inactive'; // 'passiveIn' | 'active' | 'passiveOut'
+let loopPassiveInStart  = 0;  // inicio del compás de precuenta (beat 1 del compás anterior al loop)
+let loopPassiveOutStart      = 0;  // tStart del compás que contiene loopOut
+let loopPassiveOutEnd        = 0;  // tEnd del compás que contiene loopOut
+let loopPassiveOutBallAnchor = 0;  // primer touchdown ENTERO después de loopOut (evita bounce en subdivisiones)
 let loopCyclePulseDur  = 0;  // duración del pulso según la métrica del compás
-let loopBallAnchorT    = 0;  // referencia temporal para el rebote en zonas pasivas
+let loopBallAnchorT    = 0;  // referencia temporal para el rebote en precuenta (passiveIn)
 let selIn = false, selOut = false;
 
 let speed   = 1.0;
@@ -668,7 +668,7 @@ document.getElementById('btnRestart').onclick = doRestart;
 
 function navigateMeasures(delta) {
     if (!notes.length) return;
-    const measureDur = beatsPerBar * (60 / bpm);
+    const measureDur = beatsPerBar * (4 / beatType) * (60 / bpm);
     currentTime = Math.max(0, currentTime + delta * measureDur);
     prevTime    = currentTime - 0.001;
     lastClickBeat = -1; tabEnded = false; if (loopActive) loopPhase = 'active';
@@ -1144,16 +1144,25 @@ function getMeasureForTime(t) {
 
 function initLoopCycle() {
     if (!measureData.length) return;
-    const pulseDur  = calcPulseDur();
-    const barDur    = beatsPerBar * pulseDur;
-    const mIn       = getMeasureForTime(loopIn);
-    const mOut      = getMeasureForTime(loopOut);
-    loopPassiveInStart = Math.max(0, mIn.tStart - barDur);
-    loopPassiveOutEnd  = mOut.tEnd;
-    loopBallAnchorT    = loopPassiveInStart;
-    const passiveDur   = (loopIn - loopPassiveInStart) + (loopPassiveOutEnd - loopOut);
-    loopNeedsWaiting   = passiveDur < pulseDur;
-    loopWaitBarEnd     = loopPassiveOutEnd + (loopNeedsWaiting ? barDur : 0);
+    const beatDur       = 60 / bpm;
+    const correctBarDur = beatsPerBar * (4 / beatType) * beatDur; // Bug 3 fix: correcto para 6/8, 2/2, etc.
+    const pulseDur      = calcPulseDur();
+    const mIn  = getMeasureForTime(loopIn);
+    const mOut = getMeasureForTime(loopOut - 0.001); // Bug 2 fix: evita retornar medida siguiente en boundary exacto
+
+    // Bug 1 fix: si loopIn está en la anacrusis, el compás "anterior" es el sintético de precuenta
+    const isAnacrusis = (mIn.tEnd - mIn.tStart) < correctBarDur * 0.95;
+    const rawStart    = isAnacrusis
+        ? startOffset - correctBarDur   // beat 1 del compás visual de precuenta
+        : mIn.tStart  - correctBarDur;  // beat 1 del compás anterior (caso normal)
+
+    loopPassiveInStart  = Math.max(0, rawStart);
+    loopPassiveOutStart = mOut.tStart;
+    loopPassiveOutEnd   = mOut.tEnd;
+    // Primer beat entero DESPUÉS de loopOut: evita touchdown en subdivisiones al salir del loop
+    const beatsIntoOut       = (loopOut - loopPassiveOutStart) / pulseDur;
+    loopPassiveOutBallAnchor = loopPassiveOutStart + Math.ceil(beatsIntoOut) * pulseDur;
+    loopBallAnchorT          = loopPassiveInStart;
     loopCyclePulseDur  = pulseDur;
     loopPhase          = 'passiveIn';
 }
@@ -1176,29 +1185,44 @@ function animLoop(ts) {
             if (currentTime > endTime) { isPlaying = false; tabEnded = true; fallVY = -520; }
         }
 
-        if (soundOn && currentTime >= approachEnd && currentTime < startOffset) {
-            const pDur        = (4 / beatType) * beatDur;
-            const firstNote   = notes.length ? notes[0].time : startOffset;
-            if (currentTime < firstNote) {
-                const beatsSince  = (currentTime - approachEnd) / pDur;
-                const currentBeat = Math.floor(beatsSince);
-                if (currentBeat !== lastClickBeat) { lastClickBeat = currentBeat; playClick(currentBeat === 0); }
-            }
-        }
-        if (currentTime < approachEnd) lastClickBeat = -1;
-
+        // --- Transiciones de fase (PRIMERO: el click lee el estado ya actualizado) ---
         if (loopActive) {
             if (loopPhase === 'active' && currentTime >= loopOut) {
                 loopPhase = 'passiveOut';
+                lastClickBeat = Math.floor((loopOut - loopPassiveOutStart) / loopCyclePulseDur);
             } else if (loopPhase === 'passiveOut' && currentTime >= loopPassiveOutEnd) {
-                if (loopNeedsWaiting) { loopPhase = 'waiting'; }
-                else { loopPhase = 'passiveIn'; currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); }
-            } else if (loopPhase === 'waiting' && currentTime >= loopWaitBarEnd) {
-                loopPhase = 'passiveIn'; currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits();
+                loopPhase = 'passiveIn'; currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); lastClickBeat = -1;
             } else if (loopPhase === 'passiveIn' && currentTime >= loopIn) {
                 loopPhase = 'active'; currentTime = loopIn; prevTime = loopIn - 0.001; resetHits();
             }
         }
+
+        // --- Click de precuenta (DESPUÉS: ve el loopPhase ya actualizado) ---
+        if (soundOn) {
+            const pDur          = calcPulseDur();
+            const correctBarDur = beatsPerBar * (4 / beatType) * beatDur;
+            const pulsesPerBar  = Math.round(correctBarDur / pDur);
+            let   clickAnchor   = -1;
+
+            if (loopActive && loopPhase === 'passiveIn') {
+                clickAnchor = loopPassiveInStart;
+            } else if (loopActive && loopPhase === 'passiveOut') {
+                clickAnchor = loopPassiveOutStart;
+            } else if (!loopActive) {
+                const firstNote = notes.length ? notes[0].time : startOffset;
+                if (currentTime >= approachEnd && currentTime < firstNote) clickAnchor = approachEnd;
+            }
+
+            if (clickAnchor >= 0) {
+                const elapsed     = currentTime - clickAnchor;
+                const currentBeat = Math.floor(elapsed / pDur);
+                if (elapsed >= 0 && currentBeat !== lastClickBeat) {
+                    lastClickBeat = currentBeat;
+                    playClick(currentBeat % pulsesPerBar === 0);
+                }
+            }
+        }
+        if (!loopActive && currentTime < approachEnd) lastClickBeat = -1;
 
         if (!loopActive || loopPhase === 'active') {
             // Marcar chord events como interpretados
@@ -1317,7 +1341,8 @@ function updateBall() {
     if (loopActive && loopPhase !== 'active') {
         const anchorNote = chordMode ? null : (notes.find(n => n.time >= loopIn) ?? notes[0]);
         const baseY  = chordMode ? BALL_STRING_Y : START_Y + (anchorNote.string - 1) * STR_SPACING;
-        ballY = baseY - swingBounceSin(currentTime, loopBallAnchorT, loopCyclePulseDur) * BOUNCE_H;
+        const anchor = loopPhase === 'passiveOut' ? loopPassiveOutBallAnchor : loopBallAnchorT;
+        ballY = baseY - swingBounceSin(currentTime, anchor, loopCyclePulseDur) * BOUNCE_H;
         return;
     }
     ballY = getBallYAtTime(currentTime);
@@ -1367,7 +1392,7 @@ function render() {
     ctx.closePath(); ctx.fillStyle = '#2d1a0a'; ctx.fill();
 
     drawBeatBg(); drawLoopRegion(); drawGrid(); drawStrings(); drawLoopMarkers(); drawChordBlocks(); drawNotes();
-    if (loopActive && loopPhase !== 'active') drawReadyOverlay();
+    // drawReadyOverlay eliminado: la precuenta ya comunica el estado de espera
     if (tabEnded)  drawEndOverlay();
     drawBallTrail();
     if (ballY > -60 && ballY < canvas.height + 60) {
