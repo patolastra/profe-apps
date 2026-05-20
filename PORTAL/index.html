@@ -446,6 +446,9 @@
         .s-pi-del  { background: none; border: none; cursor: pointer; color: var(--gray); font-size: 0.82rem; padding: 1px 3px; flex-shrink: 0; opacity: 0; transition: opacity 0.12s; }
         .s-plan-item:hover .s-pi-del { opacity: 1; }
         .s-pi-del:hover { color: var(--red); }
+        .s-pi-pat  { background: none; border: none; cursor: pointer; color: var(--gray); font-size: 0.82rem; padding: 1px 3px; flex-shrink: 0; opacity: 0; transition: opacity 0.12s; }
+        .s-plan-item:hover .s-pi-pat { opacity: 1; }
+        .s-pi-pat:hover { color: var(--orange); }
 
         .s-add { display: flex; gap: 6px; padding: 5px 12px; border-top: 1px solid var(--border); background: #f8fafc; flex-shrink: 0; align-items: flex-end; }
         .s-add textarea {
@@ -516,6 +519,9 @@
         .slide-prev.tipo-mensaje .slide-content p { color: #fff; font-weight: 700; }
         .slide-prev.dragging  { opacity: 0.35; }
         .slide-prev.drag-over { outline: 2px solid #60a5fa; outline-offset: 2px; }
+        .slide-prev.drop-after  { outline: 2px solid var(--orange); outline-offset: 2px; }
+        .slide-prev.drop-before { outline: 2px solid var(--orange); outline-offset: 2px; }
+        #pres-area.plan-drag-over { outline: 2px solid var(--orange); outline-offset: -2px; }
 
         /* Slide hover actions */
         .slide-prev .slide-actions { position: absolute; top: 5px; right: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
@@ -1019,6 +1025,35 @@ async function aplicarOp(op) {
         aplicarSnapshotOrden(op.snapshot);
         await actualizarOrden();
         return { type: 'restaurar_orden', snapshot: snap };
+    }
+
+    if (op.type === 'repatear') {
+        await sb.from('plan_sesion_items')
+            .update({ sesion_id: sesionActual.id })
+            .eq('id', op.id);
+        if (op.pendienteId) {
+            await sb.from('pendientes')
+                .update({ sesion_id: sesionActual.id })
+                .eq('id', op.pendienteId);
+        }
+        insertItemEnBloque(buildItemEl(op.item, op.bloque), op.bloque);
+        return { type: 'volver_patear', id: op.id, nextSesionId: op.nextSesionId, pendienteId: op.pendienteId, item: op.item, bloque: op.bloque };
+    }
+
+    if (op.type === 'volver_patear') {
+        await sb.from('plan_sesion_items')
+            .update({ sesion_id: op.nextSesionId })
+            .eq('id', op.id);
+        if (op.pendienteId) {
+            await sb.from('pendientes')
+                .update({ sesion_id: op.nextSesionId })
+                .eq('id', op.pendienteId);
+        }
+        document.querySelector(`#plan-lista [data-id="${op.id}"]`)?.remove();
+        const lista = document.getElementById('plan-lista');
+        if (!lista.querySelectorAll('.s-plan-item').length)
+            lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>';
+        return { type: 'repatear', id: op.id, nextSesionId: op.nextSesionId, pendienteId: op.pendienteId, item: op.item, bloque: op.bloque };
     }
 
     return null;
@@ -1588,7 +1623,8 @@ async function cargarPlan(sid, cid, fechaStr) {
     ]);
 
     let arrastres = [];
-    if (anterior) {
+    const hoy = isoDate(new Date());
+    if (anterior && anterior.fecha < hoy) {
         const { data: arr } = await sb.from('plan_sesion_items')
             .select('*').eq('sesion_id', anterior.id)
             .eq('completado', false).eq('incluido', true);
@@ -1765,13 +1801,14 @@ function buildItemEl(it, bloque) {
 
     const el = document.createElement('div');
     el.className         = 's-plan-item' + (it.es_planificacion ? ' planif' : '') + (it.categoria === 'posible_repertorio' ? ' repertorio' : '');
-    el.dataset.id        = it.id;
-    el.dataset.texto     = it.texto || '';
-    el.dataset.categoria = it.categoria || '';
-    el.dataset.origen    = it.origen || 'manual';
-    el.dataset.esPlani   = it.es_planificacion ? '1' : '0';
-    el.dataset.esNuevo   = it.es_nuevo ? '1' : '0';
-    el.dataset.bloque    = b;
+    el.dataset.id          = it.id;
+    el.dataset.texto       = it.texto || '';
+    el.dataset.categoria   = it.categoria || '';
+    el.dataset.origen      = it.origen || 'manual';
+    el.dataset.esPlani     = it.es_planificacion ? '1' : '0';
+    el.dataset.esNuevo     = it.es_nuevo ? '1' : '0';
+    el.dataset.bloque      = b;
+    el.dataset.pendienteId = it.pendiente_id || '';
 
     // Marcar como visto al primer click en el item
     if (it.es_nuevo) {
@@ -1803,6 +1840,19 @@ function buildItemEl(it, bloque) {
         el.appendChild(badge);
     }
 
+    const pat = document.createElement('button');
+    pat.className   = 's-pi-pat';
+    pat.textContent = '»';
+    if (sesionActual) {
+        const dp = new Date(sesionActual.fecha + 'T12:00:00');
+        dp.setDate(dp.getDate() + 7);
+        pat.title = `Patear al ${dp.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })}`;
+    } else {
+        pat.title = 'Patear para la semana siguiente';
+    }
+    pat.addEventListener('click', e => { e.stopPropagation(); patearItem(it.id, el); });
+    el.appendChild(pat);
+
     const del = document.createElement('button');
     del.className   = 's-pi-del';
     del.textContent = '✕';
@@ -1815,7 +1865,8 @@ function buildItemEl(it, bloque) {
 }
 
 // ── Drag & drop ──────────────────────────────────────────────
-let dragSrcEl = null;
+let dragSrcEl    = null;
+let dropTargetGap = null; // gap index where plan-item would be dropped onto textarea
 
 function initDrag(el) {
     el.draggable = true;
@@ -1823,13 +1874,15 @@ function initDrag(el) {
         if (el.closest('.s-mensajes-body.hidden')) { e.preventDefault(); return; }
         dragSrcEl = el;
         dragSnapshotBefore = snapshotOrden();
-        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.effectAllowed = 'copyMove';
         requestAnimationFrame(() => el.classList.add('dragging'));
     });
     el.addEventListener('dragend', async () => {
         el.classList.remove('dragging');
         document.querySelectorAll('#plan-lista .s-plan-item')
             .forEach(i => i.classList.remove('drag-over'));
+        actualizarDropIndicator(null);
+        dropTargetGap = null;
         const snapAfter = snapshotOrden();
         await actualizarOrden();
         if (dragSnapshotBefore && JSON.stringify(dragSnapshotBefore) !== JSON.stringify(snapAfter)) {
@@ -1858,6 +1911,65 @@ function initDrag(el) {
         if (srcI < tgtI) el.after(dragSrcEl); else el.before(dragSrcEl);
         el.classList.remove('drag-over');
     });
+}
+
+// ── Drag plan-item → textarea (insertar como slide) ──────────
+
+function getCharPosFromDragEvent(ta, e) {
+    const rect = ta.getBoundingClientRect();
+    const relY  = (e.clientY - rect.top) + ta.scrollTop;
+    const frac  = Math.max(0, Math.min(1, relY / ta.scrollHeight));
+    return Math.floor(frac * ta.value.length);
+}
+
+function snapToGapIdx(text, charPos) {
+    const SEP   = '\n---\n';
+    const parts = text.split(SEP);
+    let gap     = -1;
+    let accum   = 0;
+    for (let i = 0; i < parts.length; i++) {
+        const mid = accum + parts[i].length / 2;
+        if (charPos > mid) gap = i;
+        accum += parts[i].length + (i < parts.length - 1 ? SEP.length : 0);
+    }
+    return gap;
+}
+
+function actualizarDropIndicator(gap) {
+    const slides = [...document.querySelectorAll('#prev-body .slide-prev')];
+    slides.forEach(s => s.classList.remove('drop-after', 'drop-before'));
+    const ta = document.getElementById('pres-area');
+    if (ta) ta.classList.toggle('plan-drag-over', gap !== null);
+    if (gap === null) return;
+    if (gap === -1) slides[0]?.classList.add('drop-before');
+    else            slides[gap]?.classList.add('drop-after');
+}
+
+function insertSlideAtGap(texto, gap) {
+    const ta   = document.getElementById('pres-area');
+    const SEP  = '\n---\n';
+    const prev = ta.value;
+
+    const lines     = texto.split('\n');
+    const formatted = (lines[0].startsWith('#') ? lines[0] : '# ' + lines[0])
+        + (lines.length > 1 ? '\n' + lines.slice(1).join('\n') : '');
+
+    let newVal;
+    if (!prev.trim()) {
+        newVal = formatted;
+    } else if (gap === -1) {
+        newVal = formatted + SEP + prev;
+    } else {
+        const parts = prev.split(SEP);
+        parts.splice(gap + 1, 0, formatted);
+        newVal = parts.join(SEP);
+    }
+
+    pushUndoSlides(prev);
+    ta.value            = newVal;
+    presAreaTextoGuardado = newVal;
+    actualizarPreview();
+    if (sesionActual) guardarPres(sesionActual.id);
 }
 
 async function actualizarOrden() {
@@ -2217,6 +2329,53 @@ async function eliminarItem(id, el) {
         lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>';
 }
 
+async function patearItem(id, el) {
+    if (!sesionActual) return;
+    const d = new Date(sesionActual.fecha + 'T12:00:00');
+    d.setDate(d.getDate() + 7);
+    const nextFecha   = isoDate(d);
+    const pendienteId = el.dataset.pendienteId || null;
+    try {
+        const nextSesion = await getOrCreate(sesionActual.contexto_id, nextFecha);
+        await sb.from('plan_sesion_items')
+            .update({ sesion_id: nextSesion.id })
+            .eq('id', id);
+        if (pendienteId) {
+            await sb.from('pendientes')
+                .update({ sesion_id: nextSesion.id })
+                .eq('id', pendienteId);
+        }
+        pushUndo({
+            type:        'repatear',
+            id,
+            nextSesionId: nextSesion.id,
+            pendienteId,
+            bloque:      el.dataset.bloque,
+            item: {
+                id,
+                texto:            el.dataset.texto,
+                categoria:        el.dataset.categoria,
+                origen:           el.dataset.origen,
+                completado:       false,
+                es_planificacion: el.dataset.esPlani === '1',
+                es_nuevo:         false,
+                pendiente_id:     pendienteId,
+            },
+        });
+        el.style.transition = 'opacity 0.2s, transform 0.2s';
+        el.style.opacity    = '0';
+        el.style.transform  = 'translateX(20px)';
+        setTimeout(() => {
+            el.remove();
+            const lista = document.getElementById('plan-lista');
+            if (!lista.querySelectorAll('.s-plan-item').length)
+                lista.innerHTML = '<div class="vacio">Sin actividades aún.</div>';
+        }, 200);
+    } catch (err) {
+        console.error('patear:', err);
+    }
+}
+
 
 
 // ═══════════════════════════════════════════════════════════
@@ -2488,15 +2647,8 @@ function commitSlideReorder() {
     pushUndoSlides(prevTxt);
     document.getElementById('pres-area').value = newTxt;
     presAreaTextoGuardado = newTxt;
-    renumerarSlides();
+    actualizarPreview();
     guardarDesdeSlides();
-}
-
-function renumerarSlides() {
-    document.querySelectorAll('#prev-body .slide-prev').forEach((el, i) => {
-        const sn = el.querySelector('.sn');
-        if (sn) sn.textContent = i + 1;
-    });
 }
 
 function eliminarSlide(el) {
@@ -2504,27 +2656,20 @@ function eliminarSlide(el) {
     pushUndoSlides(prevTxt);
     el.remove();
     const newTxt = reensamblarTextoSlides();
-    slides = parsearSlides(newTxt);
     document.getElementById('pres-area').value = newTxt;
     presAreaTextoGuardado = newTxt;
-    renumerarSlides();
+    actualizarPreview();
     guardarDesdeSlides();
-    const body = document.getElementById('prev-body');
-    if (!body.querySelector('.slide-prev')) {
-        body.innerHTML = '<div class="vacio" style="padding:12px">Sin contenido.</div>';
-    }
 }
 
 function duplicarSlide(el) {
     const prevTxt = document.getElementById('pres-area').value;
     pushUndoSlides(prevTxt);
-    const copia = buildSlideEl(el.dataset.raw, 0);
-    el.after(copia);
+    el.after(buildSlideEl(el.dataset.raw, 0));
     const newTxt = reensamblarTextoSlides();
-    slides = parsearSlides(newTxt);
     document.getElementById('pres-area').value = newTxt;
     presAreaTextoGuardado = newTxt;
-    renumerarSlides();
+    actualizarPreview();
     guardarDesdeSlides();
 }
 
@@ -2610,6 +2755,28 @@ document.addEventListener('DOMContentLoaded', () => {
         ['click', 'keyup'].forEach(ev =>
             taEl.addEventListener(ev, () => resaltarSlideActiva(taEl.selectionStart))
         );
+        taEl.addEventListener('dragover', e => {
+            if (!dragSrcEl || modoTriptico !== 'pres') return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            const charPos = getCharPosFromDragEvent(taEl, e);
+            const gap = snapToGapIdx(taEl.value, charPos);
+            if (gap !== dropTargetGap) { dropTargetGap = gap; actualizarDropIndicator(gap); }
+        });
+        taEl.addEventListener('dragleave', e => {
+            if (!dragSrcEl) return;
+            dropTargetGap = null;
+            actualizarDropIndicator(null);
+        });
+        taEl.addEventListener('drop', e => {
+            if (!dragSrcEl || modoTriptico !== 'pres') return;
+            e.preventDefault();
+            const charPos = getCharPosFromDragEvent(taEl, e);
+            const gap = snapToGapIdx(taEl.value, charPos);
+            insertSlideAtGap(dragSrcEl.dataset.texto, gap);
+            dropTargetGap = null;
+            actualizarDropIndicator(null);
+        });
     }
 });
 
