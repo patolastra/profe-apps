@@ -94,6 +94,46 @@ CREATE TABLE IF NOT EXISTS plan_sesion_items (
     created_at       TIMESTAMPTZ DEFAULT now()
 );
 
+-- ── 8. ALUMNOS_TALLER ───────────────────────────────────────
+-- Nómina de alumnos por taller (MVP: CUERDAS)
+-- Futuro: migrar a Libro de Clases
+CREATE TABLE IF NOT EXISTS alumnos_taller (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre      TEXT NOT NULL,           -- nombre(s) de pila: "Juan"
+    apellido    TEXT DEFAULT '',         -- apellido(s): "García López"
+    contexto    TEXT NOT NULL REFERENCES contextos(nombre),
+    curso       TEXT DEFAULT '',         -- informativo: '6°B', '7°A', etc.
+    activo      BOOLEAN DEFAULT true,
+    orden       SMALLINT DEFAULT 0,
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+-- ── 9. ALUMNO_REPERTORIO ─────────────────────────────────────
+-- Canciones asignadas a cada alumno (su secuencia de lecciones)
+-- Futuro: gestionado desde Repertorio + Libro de Clases
+CREATE TABLE IF NOT EXISTS alumno_repertorio (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    alumno_id   UUID NOT NULL REFERENCES alumnos_taller(id) ON DELETE CASCADE,
+    cancion_id  TEXT NOT NULL REFERENCES repertorio_canciones(id) ON DELETE CASCADE,
+    orden       SMALLINT DEFAULT 0,
+    activo      BOOLEAN DEFAULT true,
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (alumno_id, cancion_id)
+);
+
+-- ── 10. PRACTICA_LOG ─────────────────────────────────────────
+-- Registro automático de cada sesión de práctica (= asistencia al taller)
+CREATE TABLE IF NOT EXISTS practica_log (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    alumno_id     UUID NOT NULL REFERENCES alumnos_taller(id) ON DELETE CASCADE,
+    cancion_id    TEXT REFERENCES repertorio_canciones(id),
+    storage_path  TEXT,
+    fecha         DATE NOT NULL DEFAULT CURRENT_DATE,
+    inicio        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    duracion_seg  INTEGER DEFAULT 0,
+    created_at    TIMESTAMPTZ DEFAULT now()
+);
+
 -- ── ÍNDICES ─────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_horario_dia        ON horario(dia_semana);
 CREATE INDEX IF NOT EXISTS idx_sesiones_fecha     ON sesiones(fecha);
@@ -104,6 +144,10 @@ CREATE INDEX IF NOT EXISTS idx_pendientes_estado  ON pendientes(estado);
 CREATE INDEX IF NOT EXISTS idx_presentaciones_sesion ON presentaciones(sesion_id);
 CREATE INDEX IF NOT EXISTS idx_plan_items_sesion     ON plan_sesion_items(sesion_id);
 CREATE INDEX IF NOT EXISTS idx_plan_items_pendiente  ON plan_sesion_items(pendiente_id);
+CREATE INDEX IF NOT EXISTS idx_alumnos_contexto      ON alumnos_taller(contexto);
+CREATE INDEX IF NOT EXISTS idx_alumno_rep_alumno     ON alumno_repertorio(alumno_id);
+CREATE INDEX IF NOT EXISTS idx_practica_alumno_fecha ON practica_log(alumno_id, fecha);
+CREATE INDEX IF NOT EXISTS idx_practica_fecha        ON practica_log(fecha);
 
 -- ── ROW LEVEL SECURITY ──────────────────────────────────────
 -- Habilitado pero permisivo por ahora (acceso con service key)
@@ -123,3 +167,11 @@ CREATE POLICY "acceso_total" ON pendientes        FOR ALL USING (true) WITH CHEC
 CREATE POLICY "acceso_total" ON sesiones_srp      FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acceso_total" ON presentaciones    FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acceso_total" ON plan_sesion_items FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE alumnos_taller    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alumno_repertorio ENABLE ROW LEVEL SECURITY;
+ALTER TABLE practica_log      ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "acceso_total" ON alumnos_taller    FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acceso_total" ON alumno_repertorio FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acceso_total" ON practica_log      FOR ALL USING (true) WITH CHECK (true);
