@@ -444,6 +444,10 @@ let editorMode             = false;
 let editorActiveIdx        = 0;
 let strumEditorMode        = false;
 let strumEditorIdx         = 0;
+let lastEditedTStart       = -1;
+let lastEditTime           = 0;
+let strumDirty             = false;
+let digitDirty             = false;
 let latinoMode             = false;
 let chordMode              = false;
 
@@ -548,7 +552,10 @@ function detectSwing(doc, fileName) {
 }
 
 // ─── PLAY / PAUSA / RESTART ───────────────────────────────────────────────
+function enModoEdicion() { return editorMode || strumEditorMode; }
+
 function doRestart() {
+    if (enModoEdicion()) return;
     ensureAudio();
     currentTime = 0; prevTime = 0;
     tabEnded = false; loopReady = false;
@@ -557,6 +564,7 @@ function doRestart() {
     isPlaying = true;
 }
 document.getElementById('btnPlay').onclick = () => {
+    if (enModoEdicion()) return;
     ensureAudio();
     tabEnded = false;
     if (loopActive) { currentTime = loopIn; prevTime = loopIn - 0.001; resetHits(); }
@@ -595,25 +603,43 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         const chordNotes = notes.filter(n => n.harmonyLabel && !n.isChord);
         const maxIdx = chordNotes.length - 1;
+        let goHome = false;
         if (e.code === 'ArrowRight') strumEditorIdx = Math.min(maxIdx, strumEditorIdx + 1);
-        if (e.code === 'ArrowLeft')  strumEditorIdx = Math.max(0, strumEditorIdx - 1);
+        if (e.code === 'ArrowLeft') {
+            if (strumEditorIdx > 0) strumEditorIdx--;
+            else goHome = true;
+        }
         if (e.code === 'ArrowDown') {
+            lastEditedTStart = chordNotes[strumEditorIdx].time;
+            lastEditTime     = Date.now();
+            strumDirty       = true;
             actualizarArco(chordNotes[strumEditorIdx], STRUM_DOWN);
             if (strumEditorIdx < maxIdx) strumEditorIdx++;
         }
         if (e.code === 'ArrowUp') {
+            lastEditedTStart = chordNotes[strumEditorIdx].time;
+            lastEditTime     = Date.now();
+            strumDirty       = true;
             actualizarArco(chordNotes[strumEditorIdx], STRUM_UP);
             if (strumEditorIdx < maxIdx) strumEditorIdx++;
         }
         if (e.code === 'Digit0' || e.code === 'Delete') {
+            lastEditedTStart = chordNotes[strumEditorIdx].time;
+            lastEditTime     = Date.now();
+            strumDirty       = true;
             actualizarArco(chordNotes[strumEditorIdx], STRUM_NONE);
         }
-        if (e.ctrlKey && e.code === 'KeyS') guardarDigitacion();
+        if (e.ctrlKey && e.code === 'KeyS') { guardarDigitacion(); strumDirty = false; }
         if (e.code === 'Escape') {
+            if (strumDirty) {
+                const guardar = confirm('Hay cambios sin guardar. ¿Guardar antes de salir?');
+                if (guardar) guardarDigitacion();
+            }
             strumEditorMode = false;
+            strumDirty      = false;
             document.getElementById('strum-hud').classList.remove('visible');
         }
-        currentTime = chordNotes[strumEditorIdx]?.time ?? currentTime;
+        currentTime = goHome ? (notes[0]?.time ?? startOffset) : (chordNotes[strumEditorIdx]?.time ?? currentTime);
         actualizarHUDRasgueo();
         return;
     }
@@ -621,7 +647,7 @@ document.addEventListener('keydown', e => {
     if (editorMode) {
         e.preventDefault();
         if (e.ctrlKey && e.code === 'KeyS') {
-            guardarDigitacion();
+            guardarDigitacion(); digitDirty = false;
         } else if (e.code === 'ArrowRight') {
             editorActiveIdx = Math.min(notes.length - 1, editorActiveIdx + 1);
             currentTime = notes[editorActiveIdx].time;
@@ -631,12 +657,18 @@ document.addEventListener('keydown', e => {
         } else if (['Digit0','Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
             const f = parseInt(e.key);
             actualizarDedo(notes[editorActiveIdx], f);
+            digitDirty = true;
             if (f > 0 && editorActiveIdx < notes.length - 1) {
                 editorActiveIdx++;
                 currentTime = notes[editorActiveIdx].time;
             }
         } else if (e.code === 'Escape') {
+            if (digitDirty) {
+                const guardar = confirm('Hay cambios sin guardar. ¿Guardar antes de salir?');
+                if (guardar) guardarDigitacion();
+            }
             editorMode = false;
+            digitDirty = false;
             document.getElementById('editor-hud').classList.remove('visible');
         }
         actualizarHUD();
@@ -646,7 +678,7 @@ document.addEventListener('keydown', e => {
     if (e.code === 'ArrowLeft')  { e.preventDefault(); navigateMeasures(-1); return; }
     if (e.code !== 'Space') return;
     e.preventDefault();
-    if (!notes.length) return;
+    if (!notes.length || enModoEdicion()) return;
     ensureAudio();
     if (tabEnded) { doRestart(); return; }
     if (isPlaying) { isPlaying = false; loopReady = false; }
@@ -1422,6 +1454,33 @@ function drawChordBlocks() {
 
             ctx.restore();
         }
+
+        // Flash de confirmación: borde blanco que se desvanece ~1s
+        const flashAge = Date.now() - lastEditTime;
+        if (ev.tStart === lastEditedTStart && flashAge < 2500) {
+            const alpha    = 1 - flashAge / 2500;
+            const allMinStr = Math.min(...ev.subBlocks.map(sb => sb.minStr));
+            const allMaxStr = Math.max(...ev.subBlocks.map(sb => sb.maxStr));
+            const fyTop = START_Y + (allMinStr - 1) * STR_SPACING - NOTE_R + 2;
+            const fyBot = START_Y + (allMaxStr - 1) * STR_SPACING + NOTE_R - 2;
+            const ftl = project(x1, fyTop);
+            const ftr = project(x2, fyTop);
+            const fbr = project(x2, fyBot);
+            const fbl = project(x1, fyBot);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth   = 7;
+            ctx.lineJoin    = 'round';
+            ctx.beginPath();
+            ctx.moveTo(ftl.x, ftl.y);
+            ctx.lineTo(ftr.x, ftr.y);
+            ctx.lineTo(fbr.x, fbr.y);
+            ctx.lineTo(fbl.x, fbl.y);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.restore();
+        }
     }
 }
 
@@ -1957,7 +2016,9 @@ function activarEditorDigitacion() {
     if (isPlaying) { isPlaying = false; loopReady = false; }
     editorMode      = true;
     editorActiveIdx = 0;
+    digitDirty      = false;
     currentTime     = notes[0].time;
+    resetHits();
     actualizarHUD();
 }
 
@@ -1970,7 +2031,9 @@ function activarEditorRasgueo() {
     if (isPlaying) { isPlaying = false; loopReady = false; }
     strumEditorMode = true;
     strumEditorIdx  = 0;
-    currentTime     = notes.filter(n => n.harmonyLabel && !n.isChord)[0]?.time ?? 0;
+    strumDirty      = false;
+    resetHits();
+    currentTime     = notes.filter(n => n.harmonyLabel && !n.isChord)[0]?.time ?? startOffset;
     actualizarHUDRasgueo();
 }
 
@@ -1988,6 +2051,7 @@ function actualizarArco(note, strum) {
     if (u) u.parentNode.removeChild(u);
     if (strum === STRUM_DOWN) tech.appendChild(doc.createElement('down-bow'));
     if (strum === STRUM_UP)   tech.appendChild(doc.createElement('up-bow'));
+    buildChordEvents();
 }
 
 function actualizarHUDRasgueo() {
