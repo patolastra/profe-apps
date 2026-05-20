@@ -532,6 +532,8 @@ let lastEditedTStart       = -1;
 let lastEditTime           = 0;
 let strumDirty             = false;
 let digitDirty             = false;
+let strumSnapshot          = null;
+let digitSnapshot          = null;
 let latinoMode             = false;
 let chordMode              = false;
 
@@ -718,6 +720,7 @@ document.addEventListener('keydown', e => {
             if (strumDirty) {
                 const guardar = confirm('Hay cambios sin guardar. ¿Guardar antes de salir?');
                 if (guardar) guardarDigitacion();
+                else strumSnapshot?.forEach((strum, note) => actualizarArco(note, strum));
             }
             strumEditorMode = false;
             strumDirty      = false;
@@ -750,6 +753,7 @@ document.addEventListener('keydown', e => {
             if (digitDirty) {
                 const guardar = confirm('Hay cambios sin guardar. ¿Guardar antes de salir?');
                 if (guardar) guardarDigitacion();
+                else digitSnapshot?.forEach((finger, note) => actualizarDedo(note, finger));
             }
             editorMode = false;
             digitDirty = false;
@@ -2153,6 +2157,7 @@ function activarEditorDigitacion() {
     editorMode      = true;
     editorActiveIdx = 0;
     digitDirty      = false;
+    digitSnapshot   = new Map(notes.map(n => [n, n.finger]));
     currentTime     = notes[0].time;
     resetHits();
     actualizarHUD();
@@ -2168,8 +2173,10 @@ function activarEditorRasgueo() {
     strumEditorMode = true;
     strumEditorIdx  = 0;
     strumDirty      = false;
+    const chordNotesSnap = notes.filter(n => n.harmonyLabel && !n.isChord);
+    strumSnapshot   = new Map(chordNotesSnap.map(n => [n, n.strum]));
     resetHits();
-    currentTime     = notes.filter(n => n.harmonyLabel && !n.isChord)[0]?.time ?? startOffset;
+    currentTime     = chordNotesSnap[0]?.time ?? startOffset;
     actualizarHUDRasgueo();
 }
 
