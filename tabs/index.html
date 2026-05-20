@@ -501,7 +501,13 @@ let tabEnded    = false;
 let fallVY      = 0;
 let loopActive  = false;
 let loopIn = 0, loopOut = 0;
-let loopReady   = false, readyStart = 0;
+let loopPhase        = 'inactive'; // 'passiveIn' | 'active' | 'passiveOut' | 'waiting'
+let loopPassiveInStart = 0;  // tStart de la medida que contiene loopIn
+let loopPassiveOutEnd  = 0;  // tEnd de la medida que contiene loopOut
+let loopWaitBarEnd     = 0;  // loopPassiveOutEnd + duración del compás de espera
+let loopNeedsWaiting   = false;
+let loopCyclePulseDur  = 0;  // duración del pulso según la métrica del compás
+let loopBallAnchorT    = 0;  // referencia temporal para el rebote en zonas pasivas
 let selIn = false, selOut = false;
 
 let speed   = 1.0;
@@ -644,7 +650,7 @@ function doRestart() {
     if (enModoEdicion()) return;
     ensureAudio();
     currentTime = 0; prevTime = 0;
-    tabEnded = false; loopReady = false;
+    tabEnded = false; if (loopActive) loopPhase = 'active';
     lastClickBeat = -1; fallVY = 0;
     resetHits();
     isPlaying = true;
@@ -653,11 +659,11 @@ document.getElementById('btnPlay').onclick = () => {
     if (enModoEdicion()) return;
     ensureAudio();
     tabEnded = false;
-    if (loopActive) { currentTime = loopIn; prevTime = loopIn - 0.001; resetHits(); }
-    lastClickBeat = -1; loopReady = false;
+    if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); }
+    lastClickBeat = -1;
     isPlaying = true;
 };
-document.getElementById('btnPause').onclick   = () => { isPlaying = false; loopReady = false; };
+document.getElementById('btnPause').onclick   = () => { isPlaying = false; };
 document.getElementById('btnRestart').onclick = doRestart;
 
 function navigateMeasures(delta) {
@@ -665,7 +671,7 @@ function navigateMeasures(delta) {
     const measureDur = beatsPerBar * (60 / bpm);
     currentTime = Math.max(0, currentTime + delta * measureDur);
     prevTime    = currentTime - 0.001;
-    lastClickBeat = -1; tabEnded = false; loopReady = false;
+    lastClickBeat = -1; tabEnded = false; if (loopActive) loopPhase = 'active';
     notes.forEach(n => { n.hit = n.time < currentTime; n.hitAt = n.hit ? n.time : 0; });
     accompTracks.forEach(t => t.notes.forEach(n => { n.hit = n.time < currentTime; }));
     chordEvents.forEach(e => { e.hit = e.tStart < currentTime; });
@@ -769,17 +775,17 @@ document.addEventListener('keydown', e => {
     if (!notes.length || enModoEdicion()) return;
     ensureAudio();
     if (tabEnded) { doRestart(); return; }
-    if (isPlaying) { isPlaying = false; loopReady = false; }
+    if (isPlaying) { isPlaying = false; }
     else {
         tabEnded = false;
-        if (loopActive) { currentTime = loopIn; prevTime = loopIn - 0.001; resetHits(); }
-        lastClickBeat = -1; loopReady = false; isPlaying = true;
+        if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); }
+        lastClickBeat = -1; isPlaying = true;
     }
 });
 
 // ─── LOOP ─────────────────────────────────────────────────────────────────
 function clearLoopState() {
-    loopActive = loopReady = selIn = selOut = false;
+    loopActive = selIn = selOut = false; loopPhase = 'inactive';
     loopIn = loopOut = 0;
     canvas.classList.remove('selecting');
     document.getElementById('btnLoopIn').classList.remove('btn-active');
@@ -787,14 +793,14 @@ function clearLoopState() {
 }
 
 document.getElementById('btnLoopIn').onclick = e => {
-    isPlaying = false; loopActive = false; loopReady = false;
+    isPlaying = false;
     selIn = true; selOut = false;
     canvas.classList.add('selecting');
     e.target.classList.add('btn-active');
     document.getElementById('btnLoopOut').classList.remove('btn-active');
 };
 document.getElementById('btnLoopOut').onclick = e => {
-    isPlaying = false; loopActive = false; loopReady = false;
+    isPlaying = false;
     selOut = true; selIn = false;
     canvas.classList.add('selecting');
     e.target.classList.add('btn-active');
@@ -802,29 +808,53 @@ document.getElementById('btnLoopOut').onclick = e => {
 };
 document.getElementById('btnLoopClear').onclick = clearLoopState;
 
+function getBlockStartTime(note) {
+    if (!note.harmonyLabel) return note.time;
+    return Math.min(...notes.filter(n =>
+        n.harmonyLabel === note.harmonyLabel && Math.abs(n.time - note.time) < 0.15
+    ).map(n => n.time));
+}
+
+function getBlockEndTime(note) {
+    if (!note.harmonyLabel) return note.time + note.durSec;
+    return Math.max(...notes.filter(n =>
+        n.harmonyLabel === note.harmonyLabel && Math.abs(n.time - note.time) < 0.15
+    ).map(n => n.time + n.durSec));
+}
+
 canvas.addEventListener('click', e => {
     if (!selIn && !selOut) return;
     const rect   = canvas.getBoundingClientRect();
     const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
-    let found = null, minDist = Infinity;
-    for (const note of notes) {
-        const nw = note.durSec * note.zoom;
-        const cy = START_Y + (note.string - 1) * STR_SPACING;
-        const { x: px } = project(getX(note.time) + nw / 2, cy);
-        if (clickX >= px - nw / 2 - 4 && clickX <= px + nw / 2 + 4) {
+
+    function hitTest(tolerance) {
+        let found = null, minDist = Infinity;
+        for (const note of notes) {
+            const nw = note.durSec * note.zoom;
+            const cy = START_Y + (note.string - 1) * STR_SPACING;
+            const { x: px } = project(getX(note.time) + nw / 2, cy);
+            if (clickX < px - nw / 2 - tolerance || clickX > px + nw / 2 + tolerance) continue;
             const d = Math.abs(clickX - px);
             if (d < minDist) { minDist = d; found = note; }
         }
+        return found;
     }
+
+    const found = hitTest(0) ?? hitTest(6);
+
     if (!found) return;
     if (selIn) {
-        loopIn = found.time; selIn = false;
+        loopIn = getBlockStartTime(found); selIn = false;
+        loopActive = loopOut > loopIn;
         canvas.classList.remove('selecting');
         document.getElementById('btnLoopIn').classList.remove('btn-active');
-    } else if (selOut && found.time > loopIn) {
-        loopOut = found.time; loopActive = true; selOut = false;
-        canvas.classList.remove('selecting');
-        document.getElementById('btnLoopOut').classList.remove('btn-active');
+    } else if (selOut) {
+        const endT = getBlockEndTime(found);
+        if (endT > loopIn) {
+            loopOut = endT; loopActive = true; selOut = false;
+            canvas.classList.remove('selecting');
+            document.getElementById('btnLoopOut').classList.remove('btn-active');
+        }
     }
 });
 
@@ -1097,6 +1127,37 @@ function pixelAt(t) {
 }
 function getX(t) { return canvas.width * TARGET_X_PCT + pixelAt(t) - pixelAt(currentTime); }
 
+// ─── HELPERS LOOP ─────────────────────────────────────────────────────────
+function calcPulseDur() {
+    const beatDur = 60 / bpm;
+    if (beatType === 8 && beatsPerBar % 3 === 0) return 1.5 * beatDur; // compás compuesto (6/8, 9/8…)
+    if (beatType === 2) return 2 * beatDur;                              // compás partido (2/2)
+    return beatDur;                                                       // compás simple (4/4, 3/4…)
+}
+
+function getMeasureForTime(t) {
+    for (const m of measureData) {
+        if (t >= m.tStart && t < m.tEnd) return m;
+    }
+    return measureData[measureData.length - 1];
+}
+
+function initLoopCycle() {
+    if (!measureData.length) return;
+    const pulseDur  = calcPulseDur();
+    const barDur    = beatsPerBar * pulseDur;
+    const mIn       = getMeasureForTime(loopIn);
+    const mOut      = getMeasureForTime(loopOut);
+    loopPassiveInStart = Math.max(0, mIn.tStart - barDur);
+    loopPassiveOutEnd  = mOut.tEnd;
+    loopBallAnchorT    = loopPassiveInStart;
+    const passiveDur   = (loopIn - loopPassiveInStart) + (loopPassiveOutEnd - loopOut);
+    loopNeedsWaiting   = passiveDur < pulseDur;
+    loopWaitBarEnd     = loopPassiveOutEnd + (loopNeedsWaiting ? barDur : 0);
+    loopCyclePulseDur  = pulseDur;
+    loopPhase          = 'passiveIn';
+}
+
 // ─── ANIMACIÓN ────────────────────────────────────────────────────────────
 function animLoop(ts) {
     if (!lastTS) lastTS = ts;
@@ -1126,12 +1187,20 @@ function animLoop(ts) {
         }
         if (currentTime < approachEnd) lastClickBeat = -1;
 
-        if (loopActive && !loopReady && currentTime >= loopOut) { loopReady = true; readyStart = currentTime; }
-        if (loopReady && currentTime >= readyStart + beatDur) {
-            currentTime = loopIn; prevTime = loopIn - 0.001; loopReady = false; resetHits();
+        if (loopActive) {
+            if (loopPhase === 'active' && currentTime >= loopOut) {
+                loopPhase = 'passiveOut';
+            } else if (loopPhase === 'passiveOut' && currentTime >= loopPassiveOutEnd) {
+                if (loopNeedsWaiting) { loopPhase = 'waiting'; }
+                else { loopPhase = 'passiveIn'; currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); }
+            } else if (loopPhase === 'waiting' && currentTime >= loopWaitBarEnd) {
+                loopPhase = 'passiveIn'; currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits();
+            } else if (loopPhase === 'passiveIn' && currentTime >= loopIn) {
+                loopPhase = 'active'; currentTime = loopIn; prevTime = loopIn - 0.001; resetHits();
+            }
         }
 
-        if (!loopReady) {
+        if (!loopActive || loopPhase === 'active') {
             // Marcar chord events como interpretados
             for (const ev of chordEvents) {
                 if (!ev.hit && prevTime < ev.tStart && ev.tStart <= currentTime) {
@@ -1245,10 +1314,10 @@ function getBallYAtTime(t) {
 
 function updateBall() {
     if (!notes.length || tabEnded) return;
-    if (loopReady) {
-        const anchor = chordMode ? null : (notes.find(n => n.time >= loopIn) || notes[0]);
-        const baseY  = chordMode ? BALL_STRING_Y : START_Y + (anchor.string - 1) * STR_SPACING;
-        ballY = baseY - swingBounceSin(currentTime, readyStart) * BOUNCE_H;
+    if (loopActive && loopPhase !== 'active') {
+        const anchorNote = chordMode ? null : (notes.find(n => n.time >= loopIn) ?? notes[0]);
+        const baseY  = chordMode ? BALL_STRING_Y : START_Y + (anchorNote.string - 1) * STR_SPACING;
+        ballY = baseY - swingBounceSin(currentTime, loopBallAnchorT, loopCyclePulseDur) * BOUNCE_H;
         return;
     }
     ballY = getBallYAtTime(currentTime);
@@ -1256,12 +1325,14 @@ function updateBall() {
 
 function drawBallTrail() {
     if (!notes.length) return;
+    if (loopActive && isPlaying && loopPhase !== 'active') return;
     const beatDur   = 60 / bpm;
     const pastRange = 3.5 * beatDur, futRange = 9.0 * beatDur;
     const dt_grid   = 4 / DEFAULT_ZOOM;
     const tStart    = Math.max(0, currentTime - pastRange);
+    const tFutEnd   = (loopActive && isPlaying) ? Math.min(currentTime + futRange, loopOut) : currentTime + futRange;
 
-    for (let t = tStart; t <= currentTime + futRange; t += dt_grid) {
+    for (let t = tStart; t <= tFutEnd; t += dt_grid) {
         const x = getX(t);
         if (x < -10 || x > canvas.width + 10) continue;
         const y   = getBallYAtTime(t);
@@ -1295,8 +1366,8 @@ function render() {
     ctx.lineTo(fbBR.x, fbBR.y); ctx.lineTo(fbBL.x, fbBL.y);
     ctx.closePath(); ctx.fillStyle = '#2d1a0a'; ctx.fill();
 
-    drawBeatBg(); drawGrid(); drawStrings(); drawLoopMarkers(); drawChordBlocks(); drawNotes();
-    if (loopReady) drawReadyOverlay();
+    drawBeatBg(); drawLoopRegion(); drawGrid(); drawStrings(); drawLoopMarkers(); drawChordBlocks(); drawNotes();
+    if (loopActive && loopPhase !== 'active') drawReadyOverlay();
     if (tabEnded)  drawEndOverlay();
     drawBallTrail();
     if (ballY > -60 && ballY < canvas.height + 60) {
@@ -1337,9 +1408,7 @@ function drawBeatBg() {
             const bt  = m.tStart + b * bd;
             const bx0 = getX(bt), bx1 = getX(bt + bd);
             if (bx1 < -100 || bx0 > canvas.width + 100) { globalBeat++; continue; }
-            const inLoop = loopActive && bt >= loopIn - 0.01 && bt < loopOut;
-            ctx.fillStyle = inLoop ? 'rgba(46,204,113,.13)'
-                          : (globalBeat % 2 === 0 ? 'rgba(255,190,80,.07)' : 'rgba(0,0,0,.18)');
+            ctx.fillStyle = globalBeat % 2 === 0 ? 'rgba(255,190,80,.07)' : 'rgba(0,0,0,.18)';
             const tl = project(bx0, fretTop),  tr = project(bx1, fretTop);
             const br = project(bx1, fretBottom), bl = project(bx0, fretBottom);
             ctx.beginPath();
@@ -1425,22 +1494,43 @@ function drawStrings() {
     }
 }
 
+function drawLoopRegion() {
+    if (!loopActive || loopIn <= 0 || loopOut <= 0) return;
+    const x1 = getX(loopIn), x2 = getX(loopOut);
+    if (x2 < -10 || x1 > canvas.width + 10) return;
+    const tl = project(x1, fretTop),  tr = project(x2, fretTop);
+    const br = project(x2, fretBottom), bl = project(x1, fretBottom);
+    ctx.fillStyle = 'rgba(46,204,113,.15)';
+    ctx.beginPath();
+    ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+    ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+    ctx.closePath(); ctx.fill();
+}
+
 function drawLoopMarkers() {
     if (loopIn > 0) {
-        const x  = getX(loopIn);
-        const pt = project(x, fretTop), pb = project(x, fretBottom);
-        ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
-        ctx.fillStyle = '#27ae60'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'left';
-        ctx.fillText('IN', pt.x + 3, pt.y + 12);
+        const x      = getX(loopIn);
+        const lnTop  = project(x, fretTop), bot = project(x, fretBottom);
+        const lblAnchor = project(x, fretTop - 14);
+        ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.moveTo(lnTop.x, lnTop.y); ctx.lineTo(bot.x, bot.y); ctx.stroke();
+        ctx.font = '900 34px Arial'; ctx.textAlign = 'left';
+        ctx.shadowColor = 'rgba(0,0,0,1)'; ctx.shadowBlur = 1; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
+        ctx.fillStyle = '#27ae60';
+        ctx.fillText('IN', lblAnchor.x + 5, lblAnchor.y - 4);
+        ctx.shadowColor = 'transparent';
     }
     if (loopActive && loopOut > 0) {
-        const x  = getX(loopOut);
-        const pt = project(x, fretTop), pb = project(x, fretBottom);
-        ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
-        ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'right';
-        ctx.fillText('OUT', pt.x - 3, pt.y + 12);
+        const x      = getX(loopOut);
+        const lnTop  = project(x, fretTop), bot = project(x, fretBottom);
+        const lblAnchor = project(x, fretTop - 14);
+        ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.moveTo(lnTop.x, lnTop.y); ctx.lineTo(bot.x, bot.y); ctx.stroke();
+        ctx.font = '900 34px Arial'; ctx.textAlign = 'right';
+        ctx.shadowColor = 'rgba(0,0,0,1)'; ctx.shadowBlur = 1; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillText('OUT', lblAnchor.x - 5, lblAnchor.y - 4);
+        ctx.shadowColor = 'transparent';
     }
 }
 
@@ -1448,6 +1538,7 @@ function drawNotes() {
     for (let i = 0; i < notes.length; i++) {
         const note = notes[i];
         if (chordMode && note.harmonyLabel) continue; // renderizado por drawChordBlocks
+        if (loopActive && isPlaying && (note.time < loopIn - 0.001 || note.time >= loopOut)) continue;
         const nw = note.durSec * note.zoom;
         const cx = getX(note.time);
         if (cx + nw < -100 || cx > canvas.width + 100) continue;
@@ -1461,6 +1552,7 @@ function drawChordBlocks() {
     if (!chordMode) return;
 
     for (const ev of chordEvents) {
+        if (loopActive && isPlaying && (ev.tStart < loopIn - 0.001 || ev.tStart >= loopOut)) continue;
         const x1raw = getX(ev.tStart);
         const x2raw = getX(ev.tEnd);
         if (x2raw < -100 || x1raw > canvas.width + 100) continue;
@@ -2153,7 +2245,7 @@ function activarEditorDigitacion() {
     const entrada = prompt('Contraseña:');
     if (entrada === null) return;
     if (entrada !== clave) { alert('Contraseña incorrecta.'); return; }
-    if (isPlaying) { isPlaying = false; loopReady = false; }
+    if (isPlaying) { isPlaying = false; }
     editorMode      = true;
     editorActiveIdx = 0;
     digitDirty      = false;
@@ -2169,7 +2261,7 @@ function activarEditorRasgueo() {
     const entrada = prompt('Contraseña:');
     if (entrada === null) return;
     if (entrada !== clave) { alert('Contraseña incorrecta.'); return; }
-    if (isPlaying) { isPlaying = false; loopReady = false; }
+    if (isPlaying) { isPlaying = false; }
     strumEditorMode = true;
     strumEditorIdx  = 0;
     strumDirty      = false;
