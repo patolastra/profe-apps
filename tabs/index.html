@@ -432,6 +432,7 @@ let swingRatio = 0.62;   // 62% largo / 38% corto ≈ swing jazz estándar
 let lastXmlDoc = null;
 
 let accompTracks = []; // [{ label, notes:[{time,midi,durSec,hit}], muted, color }]
+let chordEvents  = []; // [{ tStart, tEnd, label, color, strum, subBlocks, largestSub, hit, showLabel }]
 
 // ─── EDITOR DE DIGITACIÓN ─────────────────────────────────────────────────
 let currentFileSource      = null;  // 'local' | 'supabase'
@@ -573,6 +574,7 @@ function navigateMeasures(delta) {
     lastClickBeat = -1; tabEnded = false; loopReady = false;
     notes.forEach(n => { n.hit = n.time < currentTime; n.hitAt = n.hit ? n.time : 0; });
     accompTracks.forEach(t => t.notes.forEach(n => { n.hit = n.time < currentTime; }));
+    chordEvents.forEach(e => { e.hit = e.tStart < currentTime; });
 }
 
 document.addEventListener('keydown', e => {
@@ -707,8 +709,9 @@ canvas.addEventListener('click', e => {
 });
 
 function resetHits() {
-    notes.forEach(n => n.hit = false);
+    notes.forEach(n => { n.hit = false; n.hitAt = 0; });
     accompTracks.forEach(t => t.notes.forEach(n => n.hit = false));
+    chordEvents.forEach(e => e.hit = false);
 }
 
 // ─── PARSEO MusicXML ──────────────────────────────────────────────────────
@@ -812,6 +815,7 @@ function parseXML(doc, fromToggle = false) {
     const hasTabFilter = tabStaves.size > 0;
 
     let currentHarmony = '';  // persiste entre compases (semántica MusicXML)
+    let figStart       = 0;   // tiempo de inicio de la figura actual (no avanza con chord=True)
 
     for (const measure of targetPart.getElementsByTagName('measure')) {
         const mStart = elapsed;
@@ -875,7 +879,7 @@ function parseXML(doc, fromToggle = false) {
             const isRest  = !!node.getElementsByTagName('rest').length;
 
             if (!isRest && str >= 1 && str <= 6 && !isNaN(fret)) {
-                if (!isChord) mMinDur = Math.min(mMinDur, durSec);
+                if (!isChord) { figStart = elapsed; mMinDur = Math.min(mMinDur, durSec); }
                 if (tieStop) {
                     for (let i = out.length - 1; i >= 0; i--) {
                         if (out[i].string === str && out[i].fret === fret) {
@@ -886,7 +890,7 @@ function parseXML(doc, fromToggle = false) {
                     const strum = tech?.getElementsByTagName('down-bow').length ? STRUM_DOWN
                                 : tech?.getElementsByTagName('up-bow').length   ? STRUM_UP
                                 : STRUM_NONE;
-                    out.push({ time: elapsed, string: str, fret: fret,
+                    out.push({ time: figStart, string: str, fret: fret,
                         finger: +(tech?.getElementsByTagName('fingering')[0]?.textContent) || 0,
                         durSec: durSec, measureIdx: rawMeasures.length,
                         hit: false, hitAt: 0, isChord, xmlEl: node,
@@ -946,6 +950,7 @@ function parseXML(doc, fromToggle = false) {
     for (const n of out) n.zoom = (measureData[n.measureIdx] ?? measureData[0]).zoom;
 
     notes = out;
+    buildChordEvents();
     currentTime = 0; isPlaying = false;
     tabEnded = false; lastClickBeat = -1;
     ksCache = new Map();
@@ -1007,6 +1012,13 @@ function animLoop(ts) {
         }
 
         if (!loopReady) {
+            // Marcar chord events como interpretados
+            for (const ev of chordEvents) {
+                if (!ev.hit && prevTime < ev.tStart && ev.tStart <= currentTime) {
+                    const inRange = !loopActive || (ev.tStart >= loopIn && ev.tStart <= loopOut);
+                    if (inRange) ev.hit = true;
+                }
+            }
             // Agrupar notas del mismo instante para arpeggio de rasgueo
             const pendientes = [];
             for (const note of notes) {
@@ -1306,115 +1318,154 @@ function drawNotes() {
 function drawChordBlocks() {
     if (!chordMode) return;
 
-    // Construir spans por cambio de acorde
-    const spans = [];
-    let cur = null;
-    for (const n of notes) {
-        if (n.isChord || !n.harmonyLabel) continue;
-        if (!cur || n.harmonyLabel !== cur.label) {
-            cur = { label: n.harmonyLabel, color: n.chordColor,
-                    tStart: n.time, tEnd: n.time + n.durSec, strums: [] };
-            spans.push(cur);
+    for (const ev of chordEvents) {
+        const x1 = getX(ev.tStart);
+        const x2 = getX(ev.tEnd);
+        if (x2 < -100 || x1 > canvas.width + 100) continue;
+
+        const baseColor  = ev.hit ? '#27ae60' : ev.color;
+        const lightColor = lightenColor(baseColor, 55);
+
+        for (const sb of ev.subBlocks) {
+            const yTop = START_Y + (sb.minStr - 1) * STR_SPACING - NOTE_R + 2;
+            const yBot = START_Y + (sb.maxStr - 1) * STR_SPACING + NOTE_R - 2;
+
+            const tl = project(x1, yTop);
+            const tr = project(x2, yTop);
+            const br = project(x2, yBot);
+            const bl = project(x1, yBot);
+
+            ctx.save();
+
+            // Cara frontal
+            ctx.globalAlpha = 0.82;
+            ctx.fillStyle = baseColor;
+            ctx.beginPath();
+            ctx.moveTo(tl.x, tl.y);
+            ctx.lineTo(tr.x, tr.y);
+            ctx.lineTo(br.x, br.y);
+            ctx.lineTo(bl.x, bl.y);
+            ctx.closePath();
+            ctx.fill();
+
+            // Cara superior (efecto 3D parallelepiped)
+            ctx.globalAlpha = 0.90;
+            ctx.fillStyle = lightColor;
+            ctx.beginPath();
+            ctx.moveTo(tl.x - 4, tl.y - 7);
+            ctx.lineTo(tr.x - 4, tr.y - 7);
+            ctx.lineTo(tr.x, tr.y);
+            ctx.lineTo(tl.x, tl.y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.globalAlpha = 1;
+
+            // Chevrones: uno por cuerda del subbloque
+            if (ev.strum !== STRUM_NONE) {
+                const nStr = sb.maxStr - sb.minStr + 1;
+                ctx.strokeStyle = lightColor;
+                ctx.lineWidth   = 2.5;
+                ctx.lineCap     = 'round';
+                ctx.lineJoin    = 'round';
+                ctx.globalAlpha = 0.75;
+
+                for (let i = 0; i < nStr; i++) {
+                    const strY  = START_Y + (sb.minStr - 1 + i) * STR_SPACING;
+                    const chevH = STR_SPACING * 0.32;
+                    const pL    = project(x1, strY);
+                    const pR    = project(x2, strY);
+                    const midX  = (pL.x + pR.x) / 2;
+                    const midY  = (pL.y + pR.y) / 2;
+
+                    ctx.beginPath();
+                    if (ev.strum === STRUM_DOWN) {
+                        ctx.moveTo(pL.x + 3, midY - chevH);
+                        ctx.lineTo(midX,      midY + chevH);
+                        ctx.lineTo(pR.x - 3, midY - chevH);
+                    } else {
+                        ctx.moveTo(pL.x + 3, midY + chevH);
+                        ctx.lineTo(midX,      midY - chevH);
+                        ctx.lineTo(pR.x - 3, midY + chevH);
+                    }
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            // Etiqueta — solo en el subbloque más grande, alineada a la izquierda
+            if (sb === ev.largestSub && ev.showLabel) {
+                const yCtr = (yTop + yBot) / 2;
+                const midL = project(x1, yCtr);
+                const midR = project(x2, yCtr);
+                const bw   = midR.x - midL.x;
+                if (bw >= 28) {
+                    const label    = latinoMode ? convertirALatino(ev.label) : ev.label;
+                    const fontSize = Math.min(28, Math.max(11, bw * 0.28));
+                    const { y: labelY } = project(x1, yCtr);
+                    ctx.font         = `bold ${Math.round(fontSize)}px Segoe UI`;
+                    ctx.textAlign    = 'left';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle    = '#fff';
+                    ctx.shadowColor  = 'rgba(0,0,0,0.65)';
+                    ctx.shadowBlur   = 4;
+                    ctx.fillText(label, midL.x + 6, labelY);
+                    ctx.shadowBlur   = 0;
+                }
+            }
+
+            ctx.restore();
         }
-        cur.tEnd = n.time + n.durSec;
-        if (n.strum) cur.strums.push({ t: n.time, strum: n.strum });
-    }
-
-    const yTop = START_Y - NOTE_R - 12;
-    const yBot = START_Y + 5 * STR_SPACING + NOTE_R + 12;
-    const h    = yBot - yTop;
-
-    for (const span of spans) {
-        const x1 = getX(span.tStart);
-        const x2 = getX(span.tEnd);
-        if (x2 < -20 || x1 > canvas.width + 20) continue;
-
-        // Proyectar las 4 esquinas del bloque para obtener un trapecio
-        // que sigue exactamente la perspectiva del diapasón
-        const tl = project(x1, yTop);  // arriba-izquierda (lejos)
-        const tr = project(x2, yTop);  // arriba-derecha
-        const br = project(x2, yBot);  // abajo-derecha (cerca)
-        const bl = project(x1, yBot);  // abajo-izquierda
-
-        ctx.save();
-
-        // Trapecio coloreado
-        ctx.globalAlpha = 0.78;
-        ctx.fillStyle = span.color;
-        ctx.beginPath();
-        ctx.moveTo(tl.x, tl.y);
-        ctx.lineTo(tr.x, tr.y);
-        ctx.lineTo(br.x, br.y);
-        ctx.lineTo(bl.x, bl.y);
-        ctx.closePath();
-        ctx.fill();
-
-        // Franja superior más clara (efecto Yousician)
-        const topH = 7;
-        const tlS = project(x1, yTop + topH);
-        const trS = project(x2, yTop + topH);
-        ctx.globalAlpha = 0.30;
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.moveTo(tl.x, tl.y);
-        ctx.lineTo(tr.x, tr.y);
-        ctx.lineTo(trS.x, trS.y);
-        ctx.lineTo(tlS.x, tlS.y);
-        ctx.closePath();
-        ctx.fill();
-        ctx.globalAlpha = 1;
-
-        // Nombre del acorde — solo si el bloque es suficientemente ancho
-        const yCtr = yTop + h / 2;
-        const midL = project(x1, yCtr);
-        const midR = project(x2, yCtr);
-        const blockWidth = midR.x - midL.x;
-        if (blockWidth >= 52) {
-            const label = latinoMode ? convertirALatino(span.label) : span.label;
-            const { x: pCtr, y: pCtrY } = project(canvas.width * TARGET_X_PCT, yCtr);
-            ctx.font = 'bold 32px Segoe UI';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.shadowColor = 'rgba(0,0,0,0.55)';
-            ctx.shadowBlur = 5;
-            ctx.fillStyle = '#fff';
-            const textX = Math.max(midL.x + 36, Math.min(midR.x - 36, pCtr));
-            ctx.fillText(label, textX, pCtrY);
-            ctx.shadowBlur = 0;
-        }
-
-        // Flechas de rasgueo
-        for (const s of span.strums) {
-            const sProj = project(getX(s.t), yCtr);
-            const { y: sTop } = project(getX(s.t), yTop);
-            const { y: sBot } = project(getX(s.t), yBot);
-            drawStrumArrow(sProj.x, sTop, sBot - sTop, s.strum);
-        }
-
-        ctx.restore();
     }
 }
 
-function drawStrumArrow(x, blockTop, blockH, strum) {
-    const cy = blockTop + blockH / 2;
-    const sz = 18;
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-    ctx.lineWidth   = 3.5;
-    ctx.lineCap     = 'round';
-    ctx.lineJoin    = 'round';
-    ctx.beginPath();
-    if (strum === STRUM_DOWN) {
-        ctx.moveTo(x - sz / 2, cy - sz / 2);
-        ctx.lineTo(x, cy + sz / 2);
-        ctx.lineTo(x + sz / 2, cy - sz / 2);
-    } else {
-        ctx.moveTo(x - sz / 2, cy + sz / 2);
-        ctx.lineTo(x, cy - sz / 2);
-        ctx.lineTo(x + sz / 2, cy + sz / 2);
+function lightenColor(hex, amount) {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const r = Math.min(255, (num >> 16)         + amount);
+    const g = Math.min(255, ((num >> 8) & 0xff) + amount);
+    const b = Math.min(255, (num & 0xff)        + amount);
+    return `rgb(${r},${g},${b})`;
+}
+
+function buildChordEvents() {
+    chordEvents = [];
+    if (!notes.some(n => n.harmonyLabel)) return;
+
+    const byTime = new Map();
+    for (const n of notes) {
+        if (!n.harmonyLabel) continue;
+        const key = Math.round(n.time * 1000);
+        if (!byTime.has(key)) byTime.set(key, []);
+        byTime.get(key).push(n);
     }
-    ctx.stroke();
-    ctx.restore();
+
+    const sortedKeys = Array.from(byTime.keys()).sort((a, b) => a - b);
+    let prevLabel = null;
+
+    for (const key of sortedKeys) {
+        const group  = byTime.get(key);
+        const ref    = group[0];
+        const strs   = [...new Set(group.map(n => n.string))].sort((a, b) => a - b);
+
+        // Agrupar cuerdas consecutivas en sub-bloques
+        const subBlocks = [];
+        let cur = [strs[0]];
+        for (let i = 1; i < strs.length; i++) {
+            if (strs[i] === cur[cur.length - 1] + 1) { cur.push(strs[i]); }
+            else { subBlocks.push({ minStr: cur[0], maxStr: cur[cur.length - 1] }); cur = [strs[i]]; }
+        }
+        subBlocks.push({ minStr: cur[0], maxStr: cur[cur.length - 1] });
+
+        const largestSub = subBlocks.reduce((a, b) =>
+            (b.maxStr - b.minStr) > (a.maxStr - a.minStr) ? b : a);
+
+        chordEvents.push({
+            tStart: ref.time, tEnd: ref.time + ref.durSec,
+            label: ref.harmonyLabel, color: ref.chordColor, strum: ref.strum,
+            subBlocks, largestSub,
+            hit: false, showLabel: ref.harmonyLabel !== prevLabel
+        });
+        prevLabel = ref.harmonyLabel;
+    }
 }
 
 function convertirALatino(label) {
