@@ -839,7 +839,7 @@ function parseXML(doc, fromToggle = false) {
                 const rootStep   = node.getElementsByTagName('root-step')[0]?.textContent || '';
                 const rootAlter  = node.getElementsByTagName('root-alter')[0]?.textContent || '';
                 const kindEl     = node.getElementsByTagName('kind')[0];
-                const kindText   = kindEl?.getAttribute('text') || kindEl?.textContent || '';
+                const kindText   = kindEl?.getAttribute('text') ?? '';
                 const accidental = rootAlter === '-1' ? 'b' : rootAlter === '1' ? '#' : '';
                 currentHarmony   = rootStep + accidental + kindText;
                 continue;
@@ -1319,9 +1319,12 @@ function drawChordBlocks() {
     if (!chordMode) return;
 
     for (const ev of chordEvents) {
-        const x1 = getX(ev.tStart);
-        const x2 = getX(ev.tEnd);
-        if (x2 < -100 || x1 > canvas.width + 100) continue;
+        const x1raw = getX(ev.tStart);
+        const x2raw = getX(ev.tEnd);
+        if (x2raw < -100 || x1raw > canvas.width + 100) continue;
+
+        const x1 = x1raw + 3;
+        const x2 = x2raw - 3;
 
         const baseColor  = ev.hit ? '#27ae60' : ev.color;
         const lightColor = lightenColor(baseColor, 55);
@@ -1338,7 +1341,7 @@ function drawChordBlocks() {
             ctx.save();
 
             // Cara frontal
-            ctx.globalAlpha = 0.82;
+            ctx.globalAlpha = 1;
             ctx.fillStyle = baseColor;
             ctx.beginPath();
             ctx.moveTo(tl.x, tl.y);
@@ -1348,48 +1351,46 @@ function drawChordBlocks() {
             ctx.closePath();
             ctx.fill();
 
-            // Cara superior (efecto 3D parallelepiped)
-            ctx.globalAlpha = 0.90;
-            ctx.fillStyle = lightColor;
-            ctx.beginPath();
-            ctx.moveTo(tl.x - 4, tl.y - 7);
-            ctx.lineTo(tr.x - 4, tr.y - 7);
-            ctx.lineTo(tr.x, tr.y);
-            ctx.lineTo(tl.x, tl.y);
-            ctx.closePath();
-            ctx.fill();
-            ctx.globalAlpha = 1;
 
-            // Chevrones: uno por cuerda del subbloque
+            // Chevrones como franjas — clip al trapecio del subbloque
             if (ev.strum !== STRUM_NONE) {
-                const nStr = sb.maxStr - sb.minStr + 1;
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(tl.x, tl.y);
+                ctx.lineTo(tr.x, tr.y);
+                ctx.lineTo(br.x, br.y);
+                ctx.lineTo(bl.x, bl.y);
+                ctx.closePath();
+                ctx.clip();
+
+                const nStr  = sb.maxStr - sb.minStr + 1;
+                const chevH = STR_SPACING * 0.12;
+                const bw    = STR_SPACING * 0.46; // grosor de la franja
                 ctx.strokeStyle = lightColor;
-                ctx.lineWidth   = 2.5;
-                ctx.lineCap     = 'round';
-                ctx.lineJoin    = 'round';
-                ctx.globalAlpha = 0.75;
+                ctx.lineWidth   = bw;
+                ctx.lineCap     = 'butt';
+                ctx.lineJoin    = 'miter';
 
                 for (let i = 0; i < nStr; i++) {
-                    const strY  = START_Y + (sb.minStr - 1 + i) * STR_SPACING;
-                    const chevH = STR_SPACING * 0.32;
-                    const pL    = project(x1, strY);
-                    const pR    = project(x2, strY);
-                    const midX  = (pL.x + pR.x) / 2;
-                    const midY  = (pL.y + pR.y) / 2;
+                    const strY = START_Y + (sb.minStr - 1 + i) * STR_SPACING;
+                    const pL   = project(x1, strY);
+                    const pR   = project(x2, strY);
+                    const midX = (pL.x + pR.x) / 2;
+                    const midY = (pL.y + pR.y) / 2;
 
                     ctx.beginPath();
                     if (ev.strum === STRUM_DOWN) {
-                        ctx.moveTo(pL.x + 3, midY - chevH);
-                        ctx.lineTo(midX,      midY + chevH);
-                        ctx.lineTo(pR.x - 3, midY - chevH);
+                        ctx.moveTo(pL.x, midY - chevH);
+                        ctx.lineTo(midX, midY + chevH);
+                        ctx.lineTo(pR.x, midY - chevH);
                     } else {
-                        ctx.moveTo(pL.x + 3, midY + chevH);
-                        ctx.lineTo(midX,      midY - chevH);
-                        ctx.lineTo(pR.x - 3, midY + chevH);
+                        ctx.moveTo(pL.x, midY + chevH);
+                        ctx.lineTo(midX, midY - chevH);
+                        ctx.lineTo(pR.x, midY + chevH);
                     }
                     ctx.stroke();
                 }
-                ctx.globalAlpha = 1;
+                ctx.restore();
             }
 
             // Etiqueta — solo en el subbloque más grande, alineada a la izquierda
@@ -1398,18 +1399,24 @@ function drawChordBlocks() {
                 const midL = project(x1, yCtr);
                 const midR = project(x2, yCtr);
                 const bw   = midR.x - midL.x;
-                if (bw >= 28) {
-                    const label    = latinoMode ? convertirALatino(ev.label) : ev.label;
-                    const fontSize = Math.min(28, Math.max(11, bw * 0.28));
-                    const { y: labelY } = project(x1, yCtr);
-                    ctx.font         = `bold ${Math.round(fontSize)}px Segoe UI`;
-                    ctx.textAlign    = 'left';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillStyle    = '#fff';
-                    ctx.shadowColor  = 'rgba(0,0,0,0.65)';
-                    ctx.shadowBlur   = 4;
-                    ctx.fillText(label, midL.x + 6, labelY);
-                    ctx.shadowBlur   = 0;
+                if (bw >= 20) {
+                    const label = latinoMode ? convertirALatino(ev.label) : ev.label;
+                    const { y: labelY, s: sc } = project(x1, yCtr);
+                    const screenCx = midL.x + 8;
+                    const shear    = ((screenCx - canvas.width / 2) / canvas.width) * 0.35 * sc;
+                    ctx.save();
+                    ctx.translate(screenCx, labelY);
+                    ctx.transform(sc, 0, shear, sc * 0.62, 0, 0);
+                    ctx.font          = '88px Impact, Arial Black, sans-serif';
+                    ctx.textAlign     = 'left';
+                    ctx.textBaseline  = 'middle';
+                    ctx.shadowColor   = '#000';
+                    ctx.shadowBlur    = 2;
+                    ctx.shadowOffsetX = 2 / sc;
+                    ctx.shadowOffsetY = 2 / sc;
+                    ctx.fillStyle     = '#fff';
+                    ctx.fillText(label, 0, 0);
+                    ctx.restore();
                 }
             }
 
