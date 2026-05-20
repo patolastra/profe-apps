@@ -743,7 +743,7 @@ canvas.addEventListener('click', e => {
 function resetHits() {
     notes.forEach(n => { n.hit = false; n.hitAt = 0; });
     accompTracks.forEach(t => t.notes.forEach(n => n.hit = false));
-    chordEvents.forEach(e => e.hit = false);
+    chordEvents.forEach(e => { e.hit = false; e.hitAt = 0; });
 }
 
 // ─── PARSEO MusicXML ──────────────────────────────────────────────────────
@@ -1048,7 +1048,7 @@ function animLoop(ts) {
             for (const ev of chordEvents) {
                 if (!ev.hit && prevTime < ev.tStart && ev.tStart <= currentTime) {
                     const inRange = !loopActive || (ev.tStart >= loopIn && ev.tStart <= loopOut);
-                    if (inRange) ev.hit = true;
+                    if (inRange) { ev.hit = true; ev.hitAt = currentTime; }
                 }
             }
             // Agrupar notas del mismo instante para arpeggio de rasgueo
@@ -1361,9 +1361,23 @@ function drawChordBlocks() {
         const baseColor  = ev.hit ? '#27ae60' : ev.color;
         const lightColor = lightenColor(baseColor, 55);
 
+        const N_CHEV   = 6;
+        const yTopFull = START_Y + (ev.subBlocks[0].minStr - 1) * STR_SPACING - NOTE_R + 2;
+        const yBotFull = START_Y + (ev.subBlocks[ev.subBlocks.length - 1].maxStr - 1) * STR_SPACING + NOTE_R - 2;
+        const bandH    = (yBotFull - yTopFull) / N_CHEV;
+        const yCtrFull = (yTopFull + yBotFull) / 2;
+
+        const PUSH_DUR  = 0.25;
+        const pushAge   = currentTime - ev.hitAt;
+        const pushScale = (ev.hitAt > 0 && pushAge >= 0 && pushAge < PUSH_DUR)
+            ? 1 - 0.1 * Math.sin((pushAge / PUSH_DUR) * Math.PI)
+            : 1;
+
         for (const sb of ev.subBlocks) {
-            const yTop = START_Y + (sb.minStr - 1) * STR_SPACING - NOTE_R + 2;
-            const yBot = START_Y + (sb.maxStr - 1) * STR_SPACING + NOTE_R - 2;
+            const yTopRaw = START_Y + (sb.minStr - 1) * STR_SPACING - NOTE_R + 2;
+            const yBotRaw = START_Y + (sb.maxStr - 1) * STR_SPACING + NOTE_R - 2;
+            const yTop = yCtrFull + (yTopRaw - yCtrFull) * pushScale;
+            const yBot = yCtrFull + (yBotRaw - yCtrFull) * pushScale;
 
             const tl = project(x1, yTop);
             const tr = project(x2, yTop);
@@ -1384,7 +1398,7 @@ function drawChordBlocks() {
             ctx.fill();
 
 
-            // Chevrones como franjas — clip al trapecio del subbloque
+            // Chevrones como triángulos rellenos sin gaps
             if (ev.strum !== STRUM_NONE) {
                 ctx.save();
                 ctx.beginPath();
@@ -1395,33 +1409,40 @@ function drawChordBlocks() {
                 ctx.closePath();
                 ctx.clip();
 
-                const nStr  = sb.maxStr - sb.minStr + 1;
-                const chevH = STR_SPACING * 0.12;
-                const bw    = STR_SPACING * 0.46; // grosor de la franja
-                ctx.strokeStyle = lightColor;
-                ctx.lineWidth   = bw;
-                ctx.lineCap     = 'butt';
-                ctx.lineJoin    = 'miter';
+                ctx.fillStyle = lightColor;
 
-                for (let i = 0; i < nStr; i++) {
-                    const strY = START_Y + (sb.minStr - 1 + i) * STR_SPACING;
-                    const pL   = project(x1, strY);
-                    const pR   = project(x2, strY);
-                    const midX = (pL.x + pR.x) / 2;
-                    const midY = (pL.y + pR.y) / 2;
+                for (let i = 0; i < N_CHEV; i++) {
+                    const bandTop = yTopFull + i * bandH;
+                    const bandBot = yTopFull + (i + 1) * bandH;
+
+                    const pTL = project(x1, bandTop);
+                    const pTR = project(x2, bandTop);
+                    const pBL = project(x1, bandBot);
+                    const pBR = project(x2, bandBot);
+
+                    const midTopX = (pTL.x + pTR.x) / 2;
+                    const midTopY = (pTL.y + pTR.y) / 2;
+                    const midBotX = (pBL.x + pBR.x) / 2;
+                    const midBotY = (pBL.y + pBR.y) / 2;
+
+                    ctx.globalAlpha = ev.strum === STRUM_DOWN
+                        ? (N_CHEV - 1 - i) / (N_CHEV - 1)
+                        : i / (N_CHEV - 1);
 
                     ctx.beginPath();
                     if (ev.strum === STRUM_DOWN) {
-                        ctx.moveTo(pL.x, midY - chevH);
-                        ctx.lineTo(midX, midY + chevH);
-                        ctx.lineTo(pR.x, midY - chevH);
+                        ctx.moveTo(pTL.x, pTL.y);
+                        ctx.lineTo(midBotX, midBotY);
+                        ctx.lineTo(pTR.x, pTR.y);
                     } else {
-                        ctx.moveTo(pL.x, midY + chevH);
-                        ctx.lineTo(midX, midY - chevH);
-                        ctx.lineTo(pR.x, midY + chevH);
+                        ctx.moveTo(pBL.x, pBL.y);
+                        ctx.lineTo(midTopX, midTopY);
+                        ctx.lineTo(pBR.x, pBR.y);
                     }
-                    ctx.stroke();
+                    ctx.closePath();
+                    ctx.fill();
                 }
+                ctx.globalAlpha = 1;
                 ctx.restore();
             }
 
@@ -1432,7 +1453,7 @@ function drawChordBlocks() {
                 const midR = project(x2, yCtr);
                 const bw   = midR.x - midL.x;
                 if (bw >= 20) {
-                    const label = latinoMode ? convertirALatino(ev.label) : ev.label;
+                    const label = procesarLabel(latinoMode ? convertirALatino(ev.label) : ev.label);
                     const { y: labelY, s: sc } = project(x1, yCtr);
                     const screenCx = midL.x + 8;
                     const shear    = ((screenCx - canvas.width / 2) / canvas.width) * 0.35 * sc;
@@ -1528,7 +1549,7 @@ function buildChordEvents() {
             tStart: ref.time, tEnd: ref.time + ref.durSec,
             label: ref.harmonyLabel, color: ref.chordColor, strum: ref.strum,
             subBlocks, largestSub,
-            hit: false, showLabel: ref.harmonyLabel !== prevLabel
+            hit: false, hitAt: 0, showLabel: ref.harmonyLabel !== prevLabel
         });
         prevLabel = ref.harmonyLabel;
     }
@@ -1537,6 +1558,15 @@ function buildChordEvents() {
 function convertirALatino(label) {
     return label.replace(/^([A-G])(b|#)?/, (_, note, acc) =>
         (NOTE_TO_LATINO[note] || note) + (acc || ''));
+}
+
+function procesarLabel(label) {
+    return label
+        .replace('m7(b5)', 'ø')
+        .replace('dim7', '°7')
+        .replace('dim',  '°')
+        .replace('maj7', '△7')
+        .replace('aug',  '+');
 }
 
 function toggleCifrado() {
