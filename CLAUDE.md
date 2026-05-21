@@ -18,7 +18,10 @@ Ecosistema de aplicaciones pedagógicas para un profesor de música en escuela p
 
 | Carpeta | Módulo | Estado |
 |---------|--------|--------|
-| `SRP/` | Sistema de Revisión Pedagógica — captura de voz → IA → pendientes organizados | **Producción** |
+| `PC/` | **PC Shell** — launcher para PC: auth gate + "Hoy" + grid de módulos | **Completo** |
+| `MOVIL/` | **Mobile Shell** — launcher para celular: auth gate touch + clases de hoy + lista módulos | **Completo** |
+| `ADMIN/` | **Admin** — gestión de pendientes del sistema, 3 vistas (Hoy/Pendientes/Contextos), CRUD Supabase | **Completo** |
+| `SRP/` | **Grabación** — captura de voz → IA → pendientes organizados | **Producción** |
 | `PIZARRA/` | **Pizarra** (= Presentador Pedagógico) — runtime markdown → slides en clase, fullscreen, YouTube embed | **Funcional** |
 | `PRESENTADOR PEDAGÓGICO/` | *(carpeta vacía — el módulo vive en `PIZARRA/`)* | — |
 | `CUADERNO MIDI/` | Captura rápida de melodías, exporta MIDI | Planificado |
@@ -29,7 +32,7 @@ Ecosistema de aplicaciones pedagógicas para un profesor de música en escuela p
 | `CIFRADO AMERICANO/` | Cifrado de acordes | Planificado |
 | `REPERTORIO/` | **Repertorio** — biblioteca de canciones, visor letras sincronizado, importación iTunes+LRCLIB | **v1 completa** |
 | `ANALIZADOR/` | **Analizador Pedagógico** — estadísticas de uso + análisis Gemini | Funcional |
-| *(sin carpeta)* | **Portal** — hub de planificación en PC, dashboard temporal | En prototipo (Fase 4) |
+| `PORTAL/` | **Planning** — módulo de planificación de sesiones y dashboard | En desarrollo (Fase 4) |
 | *(sin carpeta)* | **Libro de Clases** — evaluaciones con modo mobile offline | Pendiente (Fase 5) |
 
 **Sub-secciones dentro de SRP** (no son módulos independientes): Captura de ideas, Bienestar, Jefatura, Administrativos, Mensajes, Planificaciones.
@@ -167,9 +170,16 @@ Toda app nueva debe leer y respetar estos parámetros URL estándar. Son la colu
 | `?asset=<uuid>` | uuid | Asset en Supabase Storage — deep linking futuro | Futuro |
 | `?alumno=<id>` | uuid | ID de alumno | Libro de Clases |
 
-**Clave compartida del ecosistema:** `new Date().getDate().toString()` — el número del día del mes (ej: "21"). Usada en Index y Lector Tablaturas para desbloquear modos de edición/acceso. Sin configuración — el profesor conoce la fecha.
+**Clave compartida del ecosistema:** `new Date().getDate().toString()` — el número del día del mes (ej: "21"). Usada como PIN en PC Shell y MOVIL Shell. Sin configuración — el profesor conoce la fecha.
 
-**Hub mobile:** SRP (`SRP/mobile_ui/index.html`) es el centro de operaciones del celular. El Index (`index.html`) es el hub para PC.
+**Arquitectura de entrada:**
+```
+index.html ──detect device──► PC/index.html    (PC Shell)
+                             ► MOVIL/index.html (Mobile Shell)
+```
+PC Shell y MOVIL Shell son los launchers con auth gate. Portal y SRP son módulos funcionales, no shells — solo verifican `sessionStorage.profe_auth === '1'` y redirigen si no hay auth.
+
+**modulos.js** (`modulos.js` en raíz) es la fuente única de verdad para todos los módulos del ecosistema. Flags por ítem: `pc`, `mobile`, `dock`, `dockSep`, `sep`, `disabled`. hrefs son root-relative; los consumidores prependen `'../'`. Agregar un módulo = una línea aquí; PC Shell, MOVIL Shell y Portal dock se actualizan solos.
 
 ---
 
@@ -197,13 +207,17 @@ Assets en Supabase Storage con UUID. Las apps aceptan `?asset=uuid` como paráme
 - **Admin (el profesor):** acceso total.
 - **Invitado (sustituto):** URL con token temporal. Solo ve la presentación de la sesión asignada. Sin acceso a SRP, notas ni datos de alumnos.
 
-**Estado actual de auth:** no existe ningún sistema de autenticación todavía. Las apps son archivos locales abiertos directamente en el navegador — no hay login, no hay sesión, no hay tokens. Las tablas `usuarios` y `tokens_invitado` están planificadas pero no creadas en Supabase. No construir funcionalidades que dependan de auth hasta que esto esté implementado.
+**Estado actual de auth:** PIN por oscuridad vía `sessionStorage`.
+- **PC Shell** y **MOVIL Shell** tienen auth gate: pantalla negra, PIN = `new Date().getDate()` (día del mes). PIN correcto → `sessionStorage.setItem('profe_auth','1')`. PIN incorrecto → Google.
+- **Todos los módulos** (Portal, SRP, Admin, etc.) verifican `sessionStorage.getItem('profe_auth') === '1'` al cargar y redirigen al shell correspondiente si no hay auth.
+- Auth dura la sesión del tab (sessionStorage se borra al cerrar el tab).
+- No existe tabla `usuarios` ni `tokens_invitado` en Supabase todavía. El sistema de invitados es trabajo futuro.
 
 ---
 
 ## Estado de deployment
 
-**Nada está desplegado.** Todo corre en archivos locales. No hay URL pública para ninguna app. Los hostings planificados (Vercel/GitHub Pages para frontend, Railway/Render para la API Python de SRP) son trabajo futuro de Fase 2 en adelante. No asumir infraestructura de hosting al trabajar en cualquier módulo.
+**GitHub Pages activo** — `https://patolastra.github.io/profe-apps/` (desde 2026-05-16). El repo `patolastra/profe-apps` es el source; cada `git push` a `master` despliega automáticamente. La API Python de SRP sigue pospuesta indefinidamente.
 
 ---
 
@@ -222,8 +236,9 @@ Las carpetas de apps sin `CLAUDE.md` propio (Metalófono, Tablaturas, etc.) no t
 | 1 | SRP Mobile UI completa (Bitácora + Panel como PWA) | ✅ Completa (2026-05-13) |
 | 2 | SRP como API HTTP (FastAPI) + deploy | ⏸ Pospuesta indefinidamente |
 | 3 | Supabase: DB + horario + sesiones (eje temporal) | ✅ Completa (2026-05-12) |
-| 4 | Portal: Dashboard temporal + planificación de sesiones | 🔄 En prototipo |
-| 4b | Pizarra (`PIZARRA/index.html`) — runtime de presentación standalone | ✅ Completa (2026-05-15) |
+| 4 | Portal: Dashboard + planificación de sesiones | ✅ Funcional (2026-05-21) |
+| 4b | Pizarra — runtime de presentación standalone | ✅ Completa (2026-05-15) |
+| 4c | Shells + Admin: arquitectura PC/MOVIL Shell + módulo Admin + modulos.js | ✅ Completa (2026-05-21) |
 | deploy | GitHub Pages — `https://patolastra.github.io/profe-apps/` | ✅ Activo (2026-05-16) |
 | 5 | Libro de Clases (modo mobile evaluación prioritario) | 📋 Pendiente |
 | 6 | Presentaciones (offline + invitado) + deep linking básico | 📋 Pendiente |
