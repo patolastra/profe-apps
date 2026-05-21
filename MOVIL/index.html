@@ -3,87 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PROFE — Mobile</title>
+    <title>PROFE</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="../supabase/config.js"></script>
+    <script src="../modulos.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
         :root {
-            --bg:     #0f172a;
-            --card:   #1e293b;
-            --border: #334155;
-            --text:   #f1f5f9;
-            --muted:  #94a3b8;
-            --accent: #3b82f6;
-            --green:  #22c55e;
+            --bg:      #0b1120;
+            --surface: #131c2e;
+            --card:    #1a2540;
+            --border:  #253455;
+            --text:    #f1f5f9;
+            --muted:   #7a8ba8;
+            --accent:  #3b82f6;
         }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+        }
 
         /* AUTH GATE */
-        #auth-gate { position: fixed; inset: 0; background: #0f172a; z-index: 9999; }
+        #auth-gate { position: fixed; inset: 0; background: var(--bg); z-index: 9999; }
         #auth-gate.desbloqueado { display: none; }
 
         /* HEADER */
         #header {
-            padding: 20px 20px 12px;
-            background: #0f172a;
+            padding: calc(20px + env(safe-area-inset-top, 0px)) 20px 16px;
+            background: linear-gradient(180deg, var(--bg) 60%, var(--surface) 100%);
+            display: flex; align-items: flex-end; justify-content: space-between;
         }
-        #hdr-saludo { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
-        #hdr-dia { font-size: 1.5rem; font-weight: 800; text-transform: capitalize; line-height: 1.1; }
-        #hdr-fecha { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+        #hdr-dia {
+            font-size: 1.65rem; font-weight: 800;
+            text-transform: capitalize; line-height: 1;
+            letter-spacing: -0.02em;
+        }
+        #hdr-sub {
+            font-size: 0.76rem; color: var(--muted);
+            margin-top: 5px; display: flex; align-items: center; gap: 7px;
+        }
+        #hdr-pendientes {
+            display: none;
+            align-items: center; gap: 4px;
+            background: rgba(59,130,246,0.12);
+            border: 1px solid rgba(59,130,246,0.22);
+            border-radius: 20px; padding: 2px 9px;
+            font-size: 0.66rem; font-weight: 700; color: #60a5fa;
+        }
 
         /* HOY */
         #sec-hoy { padding: 16px 20px 0; }
         .sec-label {
-            font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em;
+            font-size: 0.61rem; font-weight: 700; letter-spacing: 0.12em;
             text-transform: uppercase; color: var(--muted);
             margin-bottom: 10px;
         }
-        #hoy-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+        #hoy-scroll {
+            display: flex; gap: 8px;
+            overflow-x: auto;
+            margin: 0 -20px; padding: 0 20px 8px;
+            scrollbar-width: none;
+        }
         #hoy-scroll::-webkit-scrollbar { display: none; }
         .hoy-chip {
             display: inline-flex; flex-direction: column; align-items: center;
             background: var(--card); border: 1px solid var(--border);
-            border-radius: 12px; padding: 10px 14px;
-            flex-shrink: 0; text-decoration: none;
-            min-width: 80px;
+            border-radius: 14px; padding: 10px 15px;
+            flex-shrink: 0; text-decoration: none; gap: 2px;
+            transition: border-color 0.15s;
+            min-width: 82px;
         }
-        .hoy-chip-hora { font-size: 0.68rem; color: var(--muted); margin-bottom: 3px; }
-        .hoy-chip-nombre { font-size: 0.82rem; font-weight: 700; color: var(--text); text-align: center; }
-        .hoy-vacio { font-size: 0.85rem; color: var(--muted); font-style: italic; padding: 8px 0; }
+        .hoy-chip.proxima {
+            border-color: rgba(59,130,246,0.45);
+            background: rgba(59,130,246,0.07);
+        }
+        .hoy-chip-hora {
+            font-size: 0.68rem; color: var(--muted);
+            font-variant-numeric: tabular-nums;
+        }
+        .hoy-chip.proxima .hoy-chip-hora { color: #60a5fa; }
+        .hoy-chip-nombre {
+            font-size: 0.82rem; font-weight: 700;
+            color: var(--text); text-align: center;
+            white-space: nowrap;
+        }
+        .hoy-chip-tag {
+            font-size: 0.57rem; font-weight: 700; letter-spacing: 0.05em;
+            color: #60a5fa; text-transform: uppercase; margin-top: 1px;
+        }
+        .hoy-vacio { font-size: 0.84rem; color: var(--muted); font-style: italic; padding: 8px 0; }
 
         /* MÓDULOS */
-        #sec-modulos { padding: 20px 20px 40px; }
-        #modulos-list { display: flex; flex-direction: column; gap: 8px; }
+        #sec-modulos { padding: 20px 20px 0; }
+        #modulos-list { display: flex; flex-direction: column; gap: 6px; }
 
         .mod-item {
-            display: flex; align-items: center; gap: 14px;
+            display: flex; align-items: center; gap: 13px;
             background: var(--card); border: 1px solid var(--border);
-            border-radius: 14px; padding: 14px 16px;
+            border-radius: 16px; padding: 12px 14px;
             text-decoration: none; color: var(--text);
-            transition: background 0.15s;
-            min-height: 64px;
+            transition: background 0.1s, border-color 0.1s;
+            min-height: 68px;
         }
-        .mod-item:active { background: #263348; }
-        .mod-item.disabled { opacity: 0.35; pointer-events: none; }
-        .mod-ico { font-size: 1.8rem; width: 42px; text-align: center; flex-shrink: 0; }
-        .mod-info { flex: 1; }
+        .mod-item:active:not(.disabled) {
+            background: #1f2f4a;
+            border-color: rgba(59,130,246,0.28);
+        }
+        .mod-item.disabled {
+            opacity: 0.28; pointer-events: none;
+            min-height: 50px;
+        }
+
+        .mod-ico-wrap {
+            width: 46px; height: 46px; border-radius: 13px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.55rem; flex-shrink: 0;
+        }
+        .mod-item.disabled .mod-ico-wrap { background: rgba(148,163,184,0.08) !important; }
+        .mod-item.disabled .mod-ico-wrap { font-size: 1.2rem; width: 36px; height: 36px; }
+
+        .mod-info { flex: 1; min-width: 0; }
         .mod-nombre { font-size: 0.95rem; font-weight: 700; }
-        .mod-desc { font-size: 0.75rem; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+        .mod-desc {
+            font-size: 0.72rem; color: var(--muted);
+            margin-top: 2px; line-height: 1.3;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .mod-item.disabled .mod-nombre { font-size: 0.86rem; }
+        .mod-item.disabled .mod-desc { display: none; }
+
         .mod-badge {
-            font-size: 0.6rem; font-weight: 700; padding: 2px 7px;
-            border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em;
+            font-size: 0.62rem; font-weight: 700; padding: 2px 8px;
+            border-radius: 20px; text-transform: uppercase; letter-spacing: 0.04em;
             flex-shrink: 0;
         }
-        .badge-activo { background: rgba(34,197,94,0.15); color: #4ade80; }
-        .badge-alpha  { background: rgba(234,179,8,0.15);  color: #fbbf24; }
-        .badge-pronto { background: rgba(148,163,184,0.1); color: #64748b; }
+        .badge-activo { background: rgba(34,197,94,0.1);  color: #4ade80; }
+        .badge-alpha  { background: rgba(234,179,8,0.1);  color: #fbbf24; }
+        .badge-pronto { background: rgba(148,163,184,0.1); color: #3d4f68; }
 
-        .mod-sep { height: 1px; background: var(--border); margin: 4px 0; }
+        /* Badge dinámico (count pendientes) */
+        .mod-count {
+            background: var(--accent); color: #fff;
+            font-size: 0.75rem; font-weight: 800;
+            min-width: 24px; text-align: center;
+            padding: 2px 7px; border-radius: 20px;
+            flex-shrink: 0;
+        }
 
-        /* chevron */
-        .mod-item::after { content: '›'; font-size: 1.2rem; color: var(--muted); }
-        .mod-item.disabled::after { content: ''; }
+        .mod-sep { height: 1px; background: var(--border); margin: 4px 0; opacity: 0.5; }
+
+        .mod-item:not(.disabled)::after {
+            content: '›'; font-size: 1.35rem;
+            color: var(--muted); opacity: 0.45; flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
@@ -91,9 +166,15 @@
 <div id="auth-gate"></div>
 
 <div id="header">
-    <div id="hdr-saludo">Hola, profe</div>
-    <div id="hdr-dia"></div>
-    <div id="hdr-fecha"></div>
+    <div>
+        <div id="hdr-dia"></div>
+        <div id="hdr-sub">
+            <span id="hdr-fecha"></span>
+            <span id="hdr-pendientes">
+                <span id="hdr-pend-count"></span> pendientes
+            </span>
+        </div>
+    </div>
 </div>
 
 <section id="sec-hoy">
@@ -106,7 +187,6 @@
     <div id="modulos-list"></div>
 </section>
 
-<script src="../modulos.js"></script>
 <script>
 // ── AUTH GATE ──────────────────────────────────────────────────────────────
 (function() {
@@ -157,12 +237,20 @@ const DIAS  = ['domingo','lunes','martes','miércoles','jueves','viernes','sába
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const JS_A_SB = { 1:0, 2:1, 3:2, 4:3 };
 
-// ── HEADER FECHA ───────────────────────────────────────────────────────────
+// Color de acento por módulo (fondo del ícono)
+const MOD_ACCENT = {
+    'Grabación': '#ef4444',
+    'Admin':     '#3b82f6',
+    'Remoto':    '#8b5cf6',
+    'Planning':  '#0ea5e9',
+    'Repertorio':'#f59e0b',
+};
+
+// ── HEADER ─────────────────────────────────────────────────────────────────
 (function() {
     const hoy = new Date();
-    document.getElementById('hdr-dia').textContent = DIAS[hoy.getDay()];
-    document.getElementById('hdr-fecha').textContent =
-        `${hoy.getDate()} de ${MESES[hoy.getMonth()]}`;
+    document.getElementById('hdr-dia').textContent  = DIAS[hoy.getDay()];
+    document.getElementById('hdr-fecha').textContent = `${hoy.getDate()} de ${MESES[hoy.getMonth()]}`;
 })();
 
 // ── MÓDULOS ────────────────────────────────────────────────────────────────
@@ -180,23 +268,41 @@ function renderModulos() {
             ? Object.assign(document.createElement('a'), { href: '../' + m.href })
             : document.createElement('div');
         el.className = 'mod-item' + (m.disabled ? ' disabled' : '');
+
+        const color    = MOD_ACCENT[m.nombre];
+        const icoStyle = !m.disabled && color ? `background:${color}1e;` : '';
         const badgeClass = { activo:'badge-activo', alpha:'badge-alpha', pronto:'badge-pronto' }[m.badge];
+
+        // Badge derecho: Admin → conteo dinámico, resto → badge estático
+        let rightEl = '';
+        if (m.nombre === 'Admin' && !m.disabled) {
+            rightEl = `<span class="mod-count" id="admin-badge" style="display:none"></span>`;
+        } else if (m.badge && !m.disabled) {
+            rightEl = `<span class="mod-badge ${badgeClass}">${m.badge === 'pronto' ? 'Pronto' : m.badge}</span>`;
+        }
+
         el.innerHTML = `
-            <div class="mod-ico">${m.ico}</div>
+            <div class="mod-ico-wrap" style="${icoStyle}">${m.ico}</div>
             <div class="mod-info">
                 <div class="mod-nombre">${m.nombre}</div>
                 <div class="mod-desc">${m.desc}</div>
             </div>
-            <span class="mod-badge ${badgeClass}">${m.badge === 'pronto' ? 'Pronto' : m.badge}</span>`;
+            ${rightEl}`;
         list.appendChild(el);
     });
 }
 
 // ── HOY ────────────────────────────────────────────────────────────────────
+function horaAMin(str) {
+    if (!str) return -1;
+    const [h, m] = str.split(':').map(Number);
+    return h * 60 + m;
+}
+
 async function cargarHoy() {
     const container = document.getElementById('hoy-scroll');
-    const hoy = new Date();
-    const diaSB = JS_A_SB[hoy.getDay()];
+    const hoy       = new Date();
+    const diaSB     = JS_A_SB[hoy.getDay()];
 
     if (diaSB === undefined) {
         container.innerHTML = '<span class="hoy-vacio">Sin clases hoy</span>';
@@ -215,23 +321,47 @@ async function cargarHoy() {
         return;
     }
 
+    const ahoraMin  = hoy.getHours() * 60 + hoy.getMinutes();
+    const proximaIdx = data.findIndex(h => horaAMin(h.hora_inicio) >= ahoraMin);
+
     container.innerHTML = '';
-    data.forEach(h => {
-        const nombre = h.contextos?.nombre || '?';
-        const hora   = h.hora_inicio ? h.hora_inicio.slice(0, 5) : '';
+    data.forEach((h, i) => {
+        const nombre    = h.contextos?.nombre || '?';
+        const hora      = h.hora_inicio ? h.hora_inicio.slice(0, 5) : '';
+        const esProxima = i === proximaIdx;
         const chip = document.createElement('a');
-        chip.className = 'hoy-chip';
+        chip.className = 'hoy-chip' + (esProxima ? ' proxima' : '');
         chip.href = `../PORTAL/index.html?ctx=${encodeURIComponent(nombre)}`;
         chip.innerHTML = `
             ${hora ? `<span class="hoy-chip-hora">${hora}</span>` : ''}
-            <span class="hoy-chip-nombre">${nombre}</span>`;
+            <span class="hoy-chip-nombre">${nombre}</span>
+            ${esProxima ? `<span class="hoy-chip-tag">próxima</span>` : ''}`;
         container.appendChild(chip);
     });
+}
+
+// ── PENDIENTES (badge Admin + header) ─────────────────────────────────────
+async function cargarPendientes() {
+    const { count } = await sb
+        .from('pendientes')
+        .select('id', { count: 'exact', head: true })
+        .eq('estado', 'activo');
+
+    if (!count) return;
+
+    // Header
+    document.getElementById('hdr-pend-count').textContent = count;
+    document.getElementById('hdr-pendientes').style.display = 'inline-flex';
+
+    // Card Admin
+    const badge = document.getElementById('admin-badge');
+    if (badge) { badge.textContent = count; badge.style.display = ''; }
 }
 
 // ── INIT ───────────────────────────────────────────────────────────────────
 renderModulos();
 cargarHoy();
+cargarPendientes();
 </script>
 </body>
 </html>
