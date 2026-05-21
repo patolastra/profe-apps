@@ -348,6 +348,92 @@
             font-family: system-ui, sans-serif;
         }
 
+        /* ── OVERLAY MENSAJE (modo pres) ─────────────────── */
+        #piz-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.65);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 200;
+            animation: fadeInOv 0.25s ease;
+        }
+        @keyframes fadeInOv { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
+        #piz-overlay-box {
+            background: #fff; border-radius: 20px;
+            padding: 40px 52px; max-width: 80%;
+            text-align: center;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.45);
+        }
+        #piz-overlay-texto {
+            font-size: clamp(1.3rem, 3vw, 2.1rem);
+            font-weight: 700; color: #1a1a2e;
+            font-family: system-ui, sans-serif;
+            line-height: 1.35;
+        }
+
+        /* ── TIMER (modo pres) ───────────────────────────── */
+        #piz-timer {
+            position: fixed; bottom: 22px; right: 22px;
+            background: rgba(15,23,42,0.88);
+            color: #fff;
+            padding: 9px 18px; border-radius: 12px;
+            font-size: 2rem; font-weight: 700;
+            font-family: system-ui, sans-serif;
+            z-index: 150;
+            backdrop-filter: blur(4px);
+            transition: color 0.3s;
+        }
+        #piz-timer.urgente { color: #ef4444; animation: pulsarTimer 0.8s infinite; }
+        @keyframes pulsarTimer { 0%,100% { opacity:1; } 50% { opacity:0.55; } }
+
+        /* ── REMOTO EXTRAS ───────────────────────────────── */
+        #rem-extras {
+            width: 100%; display: flex; flex-direction: column; gap: 10px;
+        }
+        #rem-msg-input {
+            width: 100%; padding: 10px 12px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px;
+            color: #fff; font-size: 0.88rem;
+            font-family: system-ui, sans-serif;
+            resize: none;
+        }
+        #rem-msg-input::placeholder { color: rgba(255,255,255,0.28); }
+        .rem-fila {
+            display: flex; gap: 8px;
+        }
+        .rem-btn {
+            flex: 1; padding: 10px 8px;
+            border: none; border-radius: 10px;
+            font-size: 0.82rem; font-weight: 600;
+            cursor: pointer; font-family: system-ui;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.1s;
+        }
+        .rem-btn.azul { background: #2563eb; color: #fff; }
+        .rem-btn.azul:active { background: #1d4ed8; }
+        .rem-btn.gris {
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.65);
+        }
+        .rem-btn.gris:active { background: rgba(255,255,255,0.18); }
+        #rem-timer-min {
+            width: 70px; padding: 10px 8px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px;
+            color: #fff; font-size: 0.88rem;
+            font-family: system-ui; text-align: center;
+            flex-shrink: 0;
+        }
+        #rem-timer-min::-webkit-inner-spin-button,
+        #rem-timer-min::-webkit-outer-spin-button { display: none; }
+        .rem-seccion-label {
+            font-size: 0.62rem; text-transform: uppercase;
+            letter-spacing: 0.08em; color: rgba(255,255,255,0.22);
+            font-family: system-ui;
+        }
+
         /* ── ERROR ───────────────────────────────────────── */
         #app-error {
             display: flex; flex-direction: column;
@@ -377,6 +463,10 @@
         <span id="pres-contador-footer">— / —</span>
         <button class="nav-btn" onclick="avanzar()" title="Siguiente (→)">›</button>
     </div>
+    <div id="piz-overlay" style="display:none">
+        <div id="piz-overlay-box"><p id="piz-overlay-texto"></p></div>
+    </div>
+    <div id="piz-timer" style="display:none"><span id="piz-timer-display">0:00</span></div>
 </div>
 
 <!-- MODO REMOTO -->
@@ -395,6 +485,24 @@
     <div id="rem-nav">
         <button onclick="enviarCmd('prev')">‹</button>
         <button onclick="enviarCmd('next')">›</button>
+    </div>
+    <div id="rem-extras">
+        <div class="rem-seccion-label">Mensaje en pantalla</div>
+        <textarea id="rem-msg-input" rows="2" placeholder="Escribe un mensaje…"></textarea>
+        <div class="rem-fila">
+            <button class="rem-btn azul" onclick="enviarMensaje()">Enviar</button>
+            <button class="rem-btn gris" onclick="enviarCmd('clear')">Limpiar pantalla</button>
+        </div>
+        <div class="rem-seccion-label" style="margin-top:4px">Timer</div>
+        <div class="rem-fila">
+            <button class="rem-btn gris" onclick="enviarTimer(5)">5 min</button>
+            <button class="rem-btn gris" onclick="enviarTimer(10)">10 min</button>
+            <button class="rem-btn gris" onclick="enviarTimer(15)">15 min</button>
+        </div>
+        <div class="rem-fila">
+            <input type="number" id="rem-timer-min" min="1" max="90" placeholder="min">
+            <button class="rem-btn gris" style="flex:1" onclick="enviarTimerCustom()">Iniciar timer</button>
+        </div>
     </div>
     <div id="rem-hint">Controla la Pizarra desde aquí</div>
 </div>
@@ -864,11 +972,50 @@ async function iniciarModoPres(sid) {
 
     canal = sb.channel(`pizarra:${sid}`)
         .on('broadcast', { event: 'cmd' }, ({ payload }) => {
-            if (payload.action === 'next') avanzar();
-            else if (payload.action === 'prev') retroceder();
+            if      (payload.action === 'next')  avanzar();
+            else if (payload.action === 'prev')  retroceder();
             else if (payload.action === 'goto' && typeof payload.idx === 'number') irA(payload.idx);
+            else if (payload.action === 'overlay') mostrarOverlay(payload.texto, payload.duracion || 30);
+            else if (payload.action === 'timer')   iniciarTimer(payload.segundos);
+            else if (payload.action === 'clear')   limpiarRemoto();
         })
         .subscribe();
+}
+
+// ── OVERLAY / TIMER (recibidos desde remoto) ─────────────
+let _timerInterval = null;
+
+function mostrarOverlay(texto, duracion) {
+    const el = document.getElementById('piz-overlay');
+    document.getElementById('piz-overlay-texto').textContent = texto;
+    el.style.display = 'flex';
+    clearTimeout(el._autoOff);
+    el._autoOff = setTimeout(() => el.style.display = 'none', duracion * 1000);
+}
+
+function iniciarTimer(segundos) {
+    const el   = document.getElementById('piz-timer');
+    const disp = document.getElementById('piz-timer-display');
+    el.style.display = 'flex';
+    clearInterval(_timerInterval);
+    let rem = segundos;
+    const tick = () => {
+        const m = Math.floor(rem / 60), s = rem % 60;
+        disp.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+        el.classList.toggle('urgente', rem <= 30);
+        if (rem <= 0) { clearInterval(_timerInterval); setTimeout(() => el.style.display = 'none', 3000); }
+        rem--;
+    };
+    tick();
+    _timerInterval = setInterval(tick, 1000);
+}
+
+function limpiarRemoto() {
+    const ov = document.getElementById('piz-overlay');
+    ov.style.display = 'none';
+    clearTimeout(ov._autoOff);
+    document.getElementById('piz-timer').style.display = 'none';
+    clearInterval(_timerInterval);
 }
 
 // ── MODO REMOTO ──────────────────────────────────────────
@@ -901,9 +1048,23 @@ async function iniciarModoRemoto(sid) {
         });
 }
 
-function enviarCmd(action) {
+function enviarCmd(action, extra = {}) {
     if (!canal) return;
-    canal.send({ type: 'broadcast', event: 'cmd', payload: { action } });
+    canal.send({ type: 'broadcast', event: 'cmd', payload: { action, ...extra } });
+}
+
+function enviarMensaje() {
+    const texto = document.getElementById('rem-msg-input').value.trim();
+    if (!texto) return;
+    enviarCmd('overlay', { texto, duracion: 30 });
+    document.getElementById('rem-msg-input').value = '';
+}
+
+function enviarTimer(min) { enviarCmd('timer', { segundos: min * 60 }); }
+
+function enviarTimerCustom() {
+    const min = parseInt(document.getElementById('rem-timer-min').value);
+    if (!isNaN(min) && min >= 1) enviarTimer(min);
 }
 
 // ── TECLADO ──────────────────────────────────────────────

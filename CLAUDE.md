@@ -152,6 +152,27 @@ El atributo `title` siempre debe tener el nombre completo.
 
 ---
 
+## Protocolo de deep linking inter-módulo
+
+Toda app nueva debe leer y respetar estos parámetros URL estándar. Son la columna vertebral de la interoperabilidad del ecosistema.
+
+| Parámetro | Tipo | Descripción | Apps que lo usan |
+|-----------|------|-------------|-----------------|
+| `?ctx=<NOMBRE>` | string | Contexto activo — uppercase, igual al campo `nombre` en tabla `contextos` | Portal, Repertorio, Libro de Clases |
+| `?modo=<modo>` | string | Modo de la app: `pres`, `remoto`, `catalogo`, `entrenamiento`, `alumno`… | Pizarra, Repertorio |
+| `?sesion=<uuid>` | uuid | ID de sesión Supabase | Pizarra |
+| `?slide=<n>` | int | Número de slide | Pizarra |
+| `?tab=<path>` | string | Path de tab relativo a `tabs/TABS/` | Lector Tablaturas |
+| `?cancion=<id>` | int/uuid | ID de canción en Supabase | Repertorio |
+| `?asset=<uuid>` | uuid | Asset en Supabase Storage — deep linking futuro | Futuro |
+| `?alumno=<id>` | uuid | ID de alumno | Libro de Clases |
+
+**Clave compartida del ecosistema:** `new Date().getDate().toString()` — el número del día del mes (ej: "21"). Usada en Index y Lector Tablaturas para desbloquear modos de edición/acceso. Sin configuración — el profesor conoce la fecha.
+
+**Hub mobile:** SRP (`SRP/mobile_ui/index.html`) es el centro de operaciones del celular. El Index (`index.html`) es el hub para PC.
+
+---
+
 ## Los 3 conceptos arquitecturales centrales
 
 ### 1. Eje temporal
