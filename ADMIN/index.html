@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Admin — PROFE</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase/config.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        :root {
+            --bg:      #f1f5f9;
+            --card:    #fff;
+            --border:  #e2e8f0;
+            --text:    #1e293b;
+            --muted:   #64748b;
+            --accent:  #2563eb;
+            --green:   #16a34a;
+            --red:     #dc2626;
+            --header:  #0f172a;
+        }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+        /* HEADER */
+        #header {
+            background: var(--header); color: #fff;
+            padding: 0 20px;
+            height: 52px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 80;
+        }
+        #hdr-back {
+            background: none; border: none; color: rgba(255,255,255,0.75);
+            font-size: 0.85rem; font-weight: 600; cursor: pointer;
+            padding: 0; display: flex; align-items: center; gap: 4px;
+        }
+        #hdr-back:hover { color: #fff; }
+        #hdr-title { font-size: 1rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+        #hdr-count { font-size: 0.72rem; color: rgba(255,255,255,0.45); }
+
+        /* LAYOUT PC / MOBILE */
+        #layout {
+            display: flex;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* SIDEBAR (PC ≥768px) */
+        #sidebar {
+            width: 180px;
+            flex-shrink: 0;
+            padding: 20px 12px;
+            position: sticky;
+            top: 52px;
+            height: calc(100vh - 52px);
+            overflow-y: auto;
+        }
+        .sb-tab {
+            display: flex; align-items: center; gap: 8px;
+            padding: 9px 12px; border-radius: 10px;
+            font-size: 0.88rem; font-weight: 600;
+            color: var(--muted); cursor: pointer;
+            transition: background 0.12s, color 0.12s;
+            margin-bottom: 2px;
+        }
+        .sb-tab:hover { background: #e8edf4; color: var(--text); }
+        .sb-tab.activo { background: var(--accent); color: #fff; }
+        .sb-tab-ico { font-size: 1.1rem; }
+        .sb-tab-badge {
+            margin-left: auto; background: rgba(255,255,255,0.25);
+            font-size: 0.65rem; font-weight: 700;
+            padding: 1px 6px; border-radius: 20px;
+        }
+        .sb-tab:not(.activo) .sb-tab-badge { background: #e2e8f0; color: var(--muted); }
+
+        /* TABS MOBILE */
+        #tabs-mobile {
+            display: none;
+            background: var(--card); border-bottom: 1px solid var(--border);
+            position: sticky; top: 52px; z-index: 70;
+        }
+        .tab-row { display: flex; }
+        .tab-btn {
+            flex: 1; padding: 11px 4px; text-align: center;
+            font-size: 0.78rem; font-weight: 600; color: var(--muted);
+            cursor: pointer; border-bottom: 2px solid transparent;
+            transition: color 0.12s, border-color 0.12s;
+        }
+        .tab-btn.activo { color: var(--accent); border-bottom-color: var(--accent); }
+
+        /* CONTENIDO PRINCIPAL */
+        #contenido { flex: 1; padding: 20px 16px 60px; min-width: 0; }
+
+        @media (max-width: 767px) {
+            #sidebar { display: none; }
+            #tabs-mobile { display: block; }
+            #contenido { padding: 16px 14px 60px; }
+        }
+
+        /* SECCIÓN LABEL */
+        .sec-label {
+            font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em;
+            text-transform: uppercase; color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        /* CONTEXTO GROUP */
+        .ctx-group { margin-bottom: 18px; }
+        .ctx-group-hdr {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; background: var(--card);
+            border-radius: 10px 10px 0 0; border: 1px solid var(--border);
+            cursor: pointer; user-select: none;
+        }
+        .ctx-group-hdr:only-child { border-radius: 10px; }
+        .ctx-group-nombre { font-size: 0.88rem; font-weight: 700; }
+        .ctx-group-hora { font-size: 0.72rem; color: var(--muted); margin-left: auto; }
+        .ctx-group-count { font-size: 0.7rem; color: var(--muted); }
+        .ctx-group-items {
+            border: 1px solid var(--border); border-top: none;
+            border-radius: 0 0 10px 10px;
+            overflow: hidden;
+        }
+        .ctx-vacio { font-size: 0.82rem; color: var(--muted); font-style: italic; padding: 10px 14px; background: var(--card); }
+
+        /* CAT GROUP */
+        .cat-group { background: var(--card); }
+        .cat-group-hdr {
+            display: flex; align-items: center; gap: 6px;
+            padding: 7px 14px; background: #f8fafc;
+            border-top: 1px solid var(--border);
+            font-size: 0.72rem; font-weight: 700;
+            color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
+        }
+
+        /* PENDIENTE ITEM */
+        .pend-item {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 9px 14px; border-top: 1px solid #f0f4f8;
+            background: var(--card);
+        }
+        .pend-item:first-child { border-top: none; }
+        .pend-texto {
+            flex: 1; font-size: 0.85rem; line-height: 1.45;
+            min-width: 0; word-break: break-word;
+        }
+        .pend-texto-input {
+            flex: 1; font-size: 0.85rem; line-height: 1.45;
+            border: 1px solid var(--accent); border-radius: 6px;
+            padding: 3px 7px; font-family: inherit;
+            color: var(--text); background: #f0f7ff;
+            min-width: 0;
+        }
+        .pend-acciones { display: flex; gap: 4px; flex-shrink: 0; margin-top: 1px; }
+        .pend-btn {
+            background: none; border: none; cursor: pointer;
+            font-size: 1rem; line-height: 1; padding: 2px 4px;
+            border-radius: 5px; opacity: 0.55;
+            transition: opacity 0.12s, background 0.12s;
+        }
+        .pend-btn:hover { opacity: 1; background: #f1f5f9; }
+        .pend-btn.ok:hover { color: var(--green); }
+        .pend-btn.del:hover { color: var(--red); }
+
+        /* FILTROS PENDIENTES */
+        #filtros-wrap { margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .filtro-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 5px 12px; border-radius: 20px;
+            font-size: 0.78rem; font-weight: 600;
+            background: var(--card); border: 1px solid var(--border);
+            cursor: pointer; transition: all 0.12s;
+            color: var(--muted);
+        }
+        .filtro-chip.activo { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .filtro-chip:hover:not(.activo) { border-color: #94a3b8; color: var(--text); }
+        #filtro-ctx {
+            padding: 5px 10px; border-radius: 20px; border: 1px solid var(--border);
+            font-size: 0.78rem; font-family: inherit; background: var(--card);
+            color: var(--text); cursor: pointer;
+        }
+
+        /* LISTA PENDIENTES (vista plana) */
+        #pend-list { display: flex; flex-direction: column; gap: 6px; }
+        .pend-flat {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 10px; padding: 10px 14px;
+            display: flex; align-items: flex-start; gap: 10px;
+        }
+        .pend-flat-meta {
+            font-size: 0.68rem; color: var(--muted);
+            margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap;
+        }
+        .pend-flat-cat { display: flex; align-items: center; gap: 3px; }
+
+        /* BTN AGREGAR */
+        #btn-agregar {
+            display: flex; align-items: center; gap: 6px;
+            padding: 8px 16px; border-radius: 20px;
+            background: var(--accent); color: #fff; border: none;
+            font-size: 0.82rem; font-weight: 700; cursor: pointer;
+            margin-bottom: 14px;
+        }
+        #btn-agregar:hover { background: #1d4ed8; }
+
+        /* MODAL AGREGAR */
+        #modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5); z-index: 200;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        #modal-overlay.visible { display: flex; }
+        #modal-box {
+            background: var(--card); border-radius: 16px;
+            padding: 24px; width: 100%; max-width: 480px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+        }
+        #modal-box h3 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; }
+        .modal-field { margin-bottom: 12px; }
+        .modal-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+        .modal-select, .modal-textarea {
+            width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 0.88rem; font-family: inherit;
+            color: var(--text); background: #f8fafc;
+        }
+        .modal-textarea { min-height: 72px; resize: vertical; }
+        .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .modal-btn-cancel {
+            padding: 8px 18px; border-radius: 8px;
+            background: #f1f5f9; border: none; font-size: 0.85rem;
+            cursor: pointer; color: var(--muted);
+        }
+        .modal-btn-ok {
+            padding: 8px 20px; border-radius: 8px;
+            background: var(--accent); color: #fff; border: none;
+            font-size: 0.85rem; font-weight: 700; cursor: pointer;
+        }
+
+        /* CONTEXTOS VIEW */
+        #ctx-list { display: flex; flex-direction: column; gap: 8px; }
+        .ctx-card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 12px; overflow: hidden;
+        }
+        .ctx-card-hdr {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 16px; cursor: pointer; user-select: none;
+        }
+        .ctx-card-hdr:hover { background: #f8fafc; }
+        .ctx-card-nombre { font-size: 0.92rem; font-weight: 700; flex: 1; }
+        .ctx-card-tipo { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+        .ctx-card-badge {
+            font-size: 0.68rem; font-weight: 700; padding: 2px 8px;
+            border-radius: 20px; background: #fef3c7; color: #92400e;
+        }
+        .ctx-card-badge.cero { background: #f1f5f9; color: #94a3b8; }
+        .ctx-card-chevron { color: var(--muted); font-size: 0.9rem; transition: transform 0.15s; }
+        .ctx-card-body { display: none; border-top: 1px solid var(--border); padding: 10px 16px; }
+        .ctx-card.expandido .ctx-card-chevron { transform: rotate(90deg); }
+        .ctx-card.expandido .ctx-card-body { display: block; }
+        .ctx-ses-grupo { margin-bottom: 12px; }
+        .ctx-ses-fecha {
+            font-size: 0.68rem; font-weight: 700; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.06em;
+            margin-bottom: 6px;
+        }
+
+        /* ESTADO VACÍO */
+        .vacío { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 0.88rem; }
+
+        /* SPINNER */
+        #spinner { text-align: center; padding: 40px; color: var(--muted); font-size: 0.88rem; }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <button id="hdr-back" onclick="volverShell()">← Volver</button>
+    <div id="hdr-title">Admin</div>
+    <div id="hdr-count"></div>
+</div>
+
+<div id="tabs-mobile">
+    <div class="tab-row">
+        <div class="tab-btn activo" data-tab="hoy" onclick="cambiarTab('hoy')">Hoy</div>
+        <div class="tab-btn" data-tab="pendientes" onclick="cambiarTab('pendientes')">Pendientes</div>
+        <div class="tab-btn" data-tab="contextos" onclick="cambiarTab('contextos')">Contextos</div>
+    </div>
+</div>
+
+<div id="layout">
+    <nav id="sidebar">
+        <div class="sb-tab activo" data-tab="hoy" onclick="cambiarTab('hoy')">
+            <span class="sb-tab-ico">📅</span> Hoy
+            <span class="sb-tab-badge" id="badge-hoy">—</span>
+        </div>
+        <div class="sb-tab" data-tab="pendientes" onclick="cambiarTab('pendientes')">
+            <span class="sb-tab-ico">📋</span> Pendientes
+            <span class="sb-tab-badge" id="badge-pend">—</span>
+        </div>
+        <div class="sb-tab" data-tab="contextos" onclick="cambiarTab('contextos')">
+            <span class="sb-tab-ico">🏫</span> Contextos
+        </div>
+    </nav>
+
+    <div id="contenido">
+        <div id="spinner">Cargando…</div>
+        <div id="vista-hoy" style="display:none"></div>
+        <div id="vista-pendientes" style="display:none"></div>
+        <div id="vista-contextos" style="display:none"></div>
+    </div>
+</div>
+
+<!-- MODAL AGREGAR -->
+<div id="modal-overlay">
+    <div id="modal-box">
+        <h3>Agregar pendiente</h3>
+        <div class="modal-field">
+            <div class="modal-label">Contexto</div>
+            <select class="modal-select" id="m-ctx"></select>
+        </div>
+        <div class="modal-field">
+            <div class="modal-label">Categoría</div>
+            <select class="modal-select" id="m-cat"></select>
+        </div>
+        <div class="modal-field">
+            <div class="modal-label">Texto</div>
+            <textarea class="modal-textarea" id="m-texto" placeholder="Descripción del pendiente…"></textarea>
+        </div>
+        <div class="modal-btns">
+            <button class="modal-btn-cancel" onclick="cerrarModal()">Cancelar</button>
+            <button class="modal-btn-ok" onclick="guardarNuevo()">Agregar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── AUTH ───────────────────────────────────────────────────────────────────
+(function() {
+    if (sessionStorage.getItem('profe_auth') !== '1') {
+        const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
+        window.location.replace(mobile ? '../MOVIL/index.html' : '../PC/index.html');
+    }
+})();
+
+function volverShell() {
+    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
+    window.location.href = mobile ? '../MOVIL/index.html' : '../PC/index.html';
+}
+
+// ── SUPABASE ───────────────────────────────────────────────────────────────
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ── DATOS EN MEMORIA ───────────────────────────────────────────────────────
+let contextos   = {};   // id → { id, nombre, tipo }
+let horario     = [];   // [ { dia_semana, orden, hora_inicio, contexto_id } ]
+let pendientes  = [];   // todos los activos
+let sesiones    = {};   // id → { id, contexto_id, fecha }
+let tabActivo   = 'hoy';
+
+const JS_A_SB = { 1:0, 2:1, 3:2, 4:3 };
+
+const CATS = [
+    { id:'pendientes_sala',            emoji:'🎵', label:'Sala' },
+    { id:'pendientes_planificacion',   emoji:'🧠', label:'Planificación' },
+    { id:'pendientes_materiales',      emoji:'🎒', label:'Materiales' },
+    { id:'pendientes_casa',            emoji:'🏠', label:'Casa' },
+    { id:'pendientes_administrativos', emoji:'📋', label:'Admin' },
+    { id:'pendientes_mensajes',        emoji:'💬', label:'Mensajes' },
+    { id:'pendientes_jefatura',        emoji:'👥', label:'Jefatura' },
+    { id:'pendientes_apps',            emoji:'💻', label:'Apps' },
+    { id:'posible_repertorio',         emoji:'🎼', label:'Repertorio' },
+];
+const CATS_MAP = Object.fromEntries(CATS.map(c => [c.id, c]));
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+function isoDate(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+const HOY = isoDate(new Date());
+
+function catInfo(id) {
+    return CATS_MAP[id] || { emoji:'📌', label: id };
+}
+
+function fmtFecha(iso) {
+    const [y,m,d] = iso.split('-');
+    const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    return `${parseInt(d)} ${meses[parseInt(m)-1]}`;
+}
+
+// ── CARGA INICIAL ──────────────────────────────────────────────────────────
+async function init() {
+    try {
+        const [ctxRes, horRes, pendsRes, sesRes] = await Promise.all([
+            sb.from('contextos').select('id,nombre,tipo').eq('activo', true),
+            sb.from('horario').select('contexto_id,dia_semana,orden,hora_inicio').eq('activo', true).order('orden'),
+            sb.from('pendientes')
+                .select('id,contexto_id,sesion_id,categoria,texto,estado,fecha_captura')
+                .eq('estado', 'activo')
+                .order('fecha_captura', { ascending: false }),
+            sb.from('sesiones').select('id,contexto_id,fecha').gte('fecha', HOY).order('fecha')
+        ]);
+
+        (ctxRes.data || []).forEach(c => { contextos[c.id] = c; });
+        horario    = horRes.data  || [];
+        pendientes = pendsRes.data || [];
+        (sesRes.data || []).forEach(s => { sesiones[s.id] = s; });
+
+        actualizarBadges();
+        renderTab(tabActivo);
+        document.getElementById('spinner').style.display = 'none';
+
+        const total = pendientes.length;
+        document.getElementById('hdr-count').textContent = total ? `${total} activos` : '';
+    } catch (e) {
+        document.getElementById('spinner').textContent = 'Error al cargar datos.';
+        console.error(e);
+    }
+}
+
+function actualizarBadges() {
+    document.getElementById('badge-pend').textContent = pendientes.length || '0';
+    const diaSB = JS_A_SB[new Date().getDay()];
+    if (diaSB !== undefined) {
+        const ctxHoy = horario.filter(h => h.dia_semana === diaSB).map(h => h.contexto_id);
+        const hoyCount = pendientes.filter(p => ctxHoy.includes(p.contexto_id)).length;
+        document.getElementById('badge-hoy').textContent = hoyCount || '0';
+    } else {
+        document.getElementById('badge-hoy').textContent = '0';
+    }
+}
+
+// ── TABS ───────────────────────────────────────────────────────────────────
+function cambiarTab(tab) {
+    tabActivo = tab;
+    document.querySelectorAll('.sb-tab,.tab-btn').forEach(el => {
+        el.classList.toggle('activo', el.dataset.tab === tab);
+    });
+    ['hoy','pendientes','contextos'].forEach(t => {
+        document.getElementById(`vista-${t}`).style.display = t === tab ? 'block' : 'none';
+    });
+    renderTab(tab);
+}
+
+function renderTab(tab) {
+    if (tab === 'hoy')        renderHoy();
+    else if (tab === 'pendientes') renderPendientes();
+    else if (tab === 'contextos')  renderContextos();
+}
+
+// ── VISTA HOY ──────────────────────────────────────────────────────────────
+function renderHoy() {
+    const el = document.getElementById('vista-hoy');
+    const diaSB = JS_A_SB[new Date().getDay()];
+
+    if (diaSB === undefined) {
+        el.innerHTML = '<div class="vacío">Sin clases hoy — descansando</div>'; return;
+    }
+
+    const ctxHoy = horario.filter(h => h.dia_semana === diaSB).sort((a,b) => a.orden - b.orden);
+    if (!ctxHoy.length) { el.innerHTML = '<div class="vacío">Sin contextos programados hoy</div>'; return; }
+
+    el.innerHTML = '';
+    ctxHoy.forEach(h => {
+        const ctx = contextos[h.contexto_id];
+        if (!ctx) return;
+        const pendCtx = pendientes.filter(p => p.contexto_id === ctx.id);
+        const hora = h.hora_inicio ? h.hora_inicio.slice(0,5) : '';
+
+        const group = document.createElement('div');
+        group.className = 'ctx-group';
+
+        const hdr = document.createElement('div');
+        hdr.className = 'ctx-group-hdr';
+        hdr.innerHTML = `<span class="ctx-group-nombre">${ctx.nombre}</span>
+            ${hora ? `<span class="ctx-group-hora">${hora}</span>` : ''}
+            <span class="ctx-group-count">${pendCtx.length} pendiente${pendCtx.length !== 1 ? 's' : ''}</span>`;
+        group.appendChild(hdr);
+
+        if (!pendCtx.length) {
+            const vacio = document.createElement('div');
+            vacio.className = 'ctx-vacio';
+            vacio.textContent = 'Sin pendientes activos';
+            group.appendChild(vacio);
+        } else {
+            const body = document.createElement('div');
+            body.className = 'ctx-group-items';
+            body.innerHTML = buildPendItems(pendCtx);
+            group.appendChild(body);
+        }
+
+        el.appendChild(group);
+    });
+}
+
+// ── VISTA PENDIENTES ───────────────────────────────────────────────────────
+let filtrosCat = [];
+let filtroCtx  = '';
+
+function renderPendientes() {
+    const el = document.getElementById('vista-pendientes');
+
+    let html = '<button id="btn-agregar" onclick="abrirModal()">＋ Agregar pendiente</button>';
+    html += '<div id="filtros-wrap">';
+    html += `<select id="filtro-ctx" onchange="filtroCtxChange(this.value)">
+        <option value="">Todos los contextos</option>
+        ${Object.values(contextos).sort((a,b)=>a.nombre.localeCompare(b.nombre))
+            .map(c => `<option value="${c.id}" ${filtroCtx===c.id?'selected':''}>${c.nombre}</option>`).join('')}
+    </select>`;
+    CATS.forEach(c => {
+        const activo = filtrosCat.includes(c.id);
+        html += `<div class="filtro-chip${activo?' activo':''}" onclick="toggleFiltro('${c.id}')">${c.emoji} ${c.label}</div>`;
+    });
+    html += '</div>';
+    html += '<div id="pend-list"></div>';
+
+    el.innerHTML = html;
+    renderListaPendientes();
+}
+
+function renderListaPendientes() {
+    const list = document.getElementById('pend-list');
+    if (!list) return;
+
+    let filtrado = pendientes;
+    if (filtroCtx)        filtrado = filtrado.filter(p => p.contexto_id === filtroCtx);
+    if (filtrosCat.length) filtrado = filtrado.filter(p => filtrosCat.includes(p.categoria));
+
+    if (!filtrado.length) {
+        list.innerHTML = '<div class="vacío">Sin pendientes para los filtros activos</div>'; return;
+    }
+
+    list.innerHTML = '';
+    filtrado.forEach(p => {
+        const ctx  = contextos[p.contexto_id];
+        const ses  = p.sesion_id ? sesiones[p.sesion_id] : null;
+        const cat  = catInfo(p.categoria);
+        const div  = document.createElement('div');
+        div.className = 'pend-flat';
+        div.dataset.id = p.id;
+        div.innerHTML = `
+            <div style="flex:1;min-width:0">
+                <div class="pend-texto" id="texto-${p.id}">${esc(p.texto)}</div>
+                <div class="pend-flat-meta">
+                    <span>${cat.emoji} ${cat.label}</span>
+                    ${ctx ? `<span>· ${ctx.nombre}</span>` : ''}
+                    ${ses ? `<span>· ${fmtFecha(ses.fecha)}</span>` : ''}
+                </div>
+            </div>
+            <div class="pend-acciones">
+                <button class="pend-btn ok" title="Completar" onclick="completar('${p.id}')">✓</button>
+                <button class="pend-btn" title="Editar" onclick="editarInline('${p.id}')">✏️</button>
+                <button class="pend-btn del" title="Descartar" onclick="descartar('${p.id}')">✕</button>
+            </div>`;
+        list.appendChild(div);
+    });
+}
+
+function toggleFiltro(catId) {
+    if (filtrosCat.includes(catId)) filtrosCat = filtrosCat.filter(c => c !== catId);
+    else filtrosCat.push(catId);
+    renderPendientes();
+}
+
+function filtroCtxChange(val) {
+    filtroCtx = val;
+    renderPendientes();
+}
+
+// ── VISTA CONTEXTOS ────────────────────────────────────────────────────────
+function renderContextos() {
+    const el = document.getElementById('vista-contextos');
+    const ctxOrden = Object.values(contextos).sort((a,b) => a.nombre.localeCompare(b.nombre));
+
+    el.innerHTML = '<div id="ctx-list"></div>';
+    const list = document.getElementById('ctx-list');
+
+    ctxOrden.forEach(ctx => {
+        const pendCtx = pendientes.filter(p => p.contexto_id === ctx.id);
+        const card = document.createElement('div');
+        card.className = 'ctx-card';
+        card.dataset.id = ctx.id;
+
+        card.innerHTML = `
+            <div class="ctx-card-hdr" onclick="toggleCtxCard('${ctx.id}')">
+                <div>
+                    <div class="ctx-card-nombre">${ctx.nombre}</div>
+                    <div class="ctx-card-tipo">${ctx.tipo}</div>
+                </div>
+                <span class="ctx-card-badge${pendCtx.length?'':' cero'}">${pendCtx.length} pendiente${pendCtx.length!==1?'s':''}</span>
+                <span class="ctx-card-chevron">›</span>
+            </div>
+            <div class="ctx-card-body" id="ctx-body-${ctx.id}"></div>`;
+        list.appendChild(card);
+    });
+}
+
+function toggleCtxCard(ctxId) {
+    const card = document.querySelector(`.ctx-card[data-id="${ctxId}"]`);
+    const body = document.getElementById(`ctx-body-${ctxId}`);
+    const expandido = card.classList.toggle('expandido');
+    if (expandido && !body.innerHTML) {
+        renderCtxBody(ctxId, body);
+    }
+}
+
+function renderCtxBody(ctxId, body) {
+    const pendCtx = pendientes.filter(p => p.contexto_id === ctxId);
+    if (!pendCtx.length) {
+        body.innerHTML = '<div class="ctx-vacio">Sin pendientes activos</div>'; return;
+    }
+    const porSesion = {};
+    const sinSesion = [];
+    pendCtx.forEach(p => {
+        const ses = p.sesion_id ? sesiones[p.sesion_id] : null;
+        const key = ses ? ses.fecha : '__sin';
+        if (!porSesion[key]) porSesion[key] = [];
+        porSesion[key].push(p);
+        if (!ses) sinSesion.push(p);
+    });
+
+    let html = '';
+    Object.keys(porSesion).sort().forEach(key => {
+        const label = key === '__sin' ? 'Sin sesión asignada' : fmtFecha(key);
+        html += `<div class="ctx-ses-grupo">
+            <div class="ctx-ses-fecha">${label}</div>
+            ${buildPendItems(porSesion[key])}
+        </div>`;
+    });
+    body.innerHTML = html;
+    attachHandlers(body);
+}
+
+// ── BUILDER DE ITEMS ───────────────────────────────────────────────────────
+function buildPendItems(pends) {
+    if (!pends.length) return '<div class="ctx-vacio">Sin ítems</div>';
+
+    const porCat = {};
+    pends.forEach(p => {
+        if (!porCat[p.categoria]) porCat[p.categoria] = [];
+        porCat[p.categoria].push(p);
+    });
+
+    let html = '';
+    Object.keys(porCat).forEach(catId => {
+        const cat = catInfo(catId);
+        html += `<div class="cat-group">
+            <div class="cat-group-hdr">${cat.emoji} ${cat.label}</div>`;
+        porCat[catId].forEach(p => {
+            html += `<div class="pend-item" data-id="${p.id}">
+                <div class="pend-texto" id="texto-${p.id}">${esc(p.texto)}</div>
+                <div class="pend-acciones">
+                    <button class="pend-btn ok"  title="Completar" onclick="completar('${p.id}')">✓</button>
+                    <button class="pend-btn"      title="Editar"    onclick="editarInline('${p.id}')">✏️</button>
+                    <button class="pend-btn del"  title="Descartar" onclick="descartar('${p.id}')">✕</button>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+    });
+    return html;
+}
+
+function attachHandlers(container) {
+    // Los onclick inline ya funcionan — no se necesita extra
+}
+
+function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── ACCIONES SOBRE PENDIENTES ──────────────────────────────────────────────
+function quitarDeMemoria(id) {
+    pendientes = pendientes.filter(p => p.id !== id);
+    actualizarBadges();
+    document.getElementById('hdr-count').textContent =
+        pendientes.length ? `${pendientes.length} activos` : '';
+}
+
+async function completar(id) {
+    const { error } = await sb.from('pendientes').update({ estado:'completado' }).eq('id', id);
+    if (!error) { quitarDeMemoria(id); quitarDOM(id); }
+}
+
+async function descartar(id) {
+    const { error } = await sb.from('pendientes').update({ estado:'descartado' }).eq('id', id);
+    if (!error) { quitarDeMemoria(id); quitarDOM(id); }
+}
+
+function quitarDOM(id) {
+    document.querySelectorAll(`[data-id="${id}"], .pend-flat[data-id="${id}"]`).forEach(el => {
+        el.style.transition = 'opacity 0.2s';
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 200);
+    });
+}
+
+function editarInline(id) {
+    const el = document.getElementById(`texto-${id}`);
+    if (!el) return;
+    const textoActual = el.textContent;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = textoActual;
+    input.className = 'pend-texto-input';
+    input.onkeydown = async e => {
+        if (e.key === 'Enter') { await guardarEdicion(id, input.value, el, input); }
+        if (e.key === 'Escape') { el.style.display = ''; input.remove(); }
+    };
+    input.onblur = async () => { await guardarEdicion(id, input.value, el, input); };
+    el.style.display = 'none';
+    el.parentNode.insertBefore(input, el);
+    input.focus();
+    input.select();
+}
+
+async function guardarEdicion(id, nuevoTexto, elTexto, input) {
+    nuevoTexto = nuevoTexto.trim();
+    if (!nuevoTexto) { elTexto.style.display = ''; input.remove(); return; }
+    const { error } = await sb.from('pendientes').update({ texto: nuevoTexto }).eq('id', id);
+    if (!error) {
+        const p = pendientes.find(x => x.id === id);
+        if (p) p.texto = nuevoTexto;
+        elTexto.textContent = nuevoTexto;
+    }
+    elTexto.style.display = '';
+    input.remove();
+}
+
+// ── MODAL AGREGAR ──────────────────────────────────────────────────────────
+function abrirModal() {
+    const ctxSel = document.getElementById('m-ctx');
+    ctxSel.innerHTML = Object.values(contextos)
+        .sort((a,b) => a.nombre.localeCompare(b.nombre))
+        .map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+
+    const catSel = document.getElementById('m-cat');
+    catSel.innerHTML = CATS.map(c => `<option value="${c.id}">${c.emoji} ${c.label}</option>`).join('');
+
+    document.getElementById('m-texto').value = '';
+    document.getElementById('modal-overlay').classList.add('visible');
+    setTimeout(() => document.getElementById('m-texto').focus(), 50);
+}
+
+function cerrarModal() {
+    document.getElementById('modal-overlay').classList.remove('visible');
+}
+
+async function guardarNuevo() {
+    const ctxId = document.getElementById('m-ctx').value;
+    const catId = document.getElementById('m-cat').value;
+    const texto = document.getElementById('m-texto').value.trim();
+    if (!texto) { document.getElementById('m-texto').focus(); return; }
+
+    const sesId = await getOrCreateSesion(ctxId);
+
+    const { data, error } = await sb.from('pendientes').insert({
+        contexto_id: ctxId,
+        sesion_id:   sesId,
+        categoria:   catId,
+        texto,
+        estado:      'activo',
+        fecha_captura: new Date().toISOString()
+    }).select('id,contexto_id,sesion_id,categoria,texto,estado,fecha_captura').single();
+
+    if (!error && data) {
+        pendientes.unshift(data);
+        actualizarBadges();
+        cerrarModal();
+        renderTab(tabActivo);
+    }
+}
+
+async function getOrCreateSesion(ctxId) {
+    const proxima = Object.values(sesiones).find(s => s.contexto_id === ctxId && s.fecha >= HOY);
+    if (proxima) return proxima.id;
+
+    const { data } = await sb.from('sesiones')
+        .insert({ contexto_id: ctxId, fecha: HOY })
+        .select('id,contexto_id,fecha').single();
+    if (data) { sesiones[data.id] = data; return data.id; }
+    return null;
+}
+
+// ── CERRAR MODAL CON CLICK FUERA ───────────────────────────────────────────
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+    if (e.target === this) cerrarModal();
+});
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
