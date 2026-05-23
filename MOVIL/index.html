@@ -437,6 +437,8 @@ async function cargarDatos() {
         return;
     }
 
+    document.getElementById('clases-lista').innerHTML = '<div class="pend-vacio">Cargando…</div>';
+
     let horRes, pendsRes;
     try {
         [horRes, pendsRes] = await Promise.all([
@@ -480,7 +482,7 @@ function semColor(ctxId) {
     return 'rojo';
 }
 
-function renderGenerales() {
+function renderGenerales(abiertos = new Set()) {
     const card      = document.getElementById('card-generales');
     const contenedor = document.getElementById('pend-generales');
     if (!pendGlobales.length) { card.style.display = 'none'; return; }
@@ -491,9 +493,10 @@ function renderGenerales() {
         if (!grupos[p.contexto_id]) grupos[p.contexto_id] = { nombre: p.contextos?.nombre || '—', items: [] };
         grupos[p.contexto_id].items.push(p);
     });
-    Object.values(grupos).forEach(({ nombre, items }) => {
+    Object.entries(grupos).forEach(([ctxId, { nombre, items }]) => {
         const group = document.createElement('div');
-        group.className = 'gen-group';
+        group.className = 'gen-group' + (abiertos.has(ctxId) ? ' open' : '');
+        group.dataset.ctxid = ctxId;
         const hdr = document.createElement('div');
         hdr.className = 'gen-group-hdr';
         hdr.innerHTML = `<span class="gen-chevron">›</span><span class="gen-nombre">${esc(nombre)}</span><span class="ctx-count">${items.length}</span>`;
@@ -511,7 +514,7 @@ function renderGenerales() {
     });
 }
 
-function renderClases() {
+function renderClases(abiertos = new Set()) {
     const lista = document.getElementById('clases-lista');
     lista.innerHTML = '';
     if (!clasesHoy.length) { lista.innerHTML = '<div class="pend-vacio">Sin clases programadas</div>'; return; }
@@ -519,6 +522,7 @@ function renderClases() {
         const pends     = pendientes.filter(p => p.contexto_id === c.ctxId);
         const n         = pends.length;
         const portalHref = `../PORTAL/index.html?ctx=${encodeURIComponent(c.nombre)}`;
+        const dotClass   = n === 0 ? 'verde' : n <= 2 ? 'amarillo' : 'rojo';
         if (n === 0) {
             const a = document.createElement('a');
             a.className = 'clase-row';
@@ -527,10 +531,11 @@ function renderClases() {
             lista.appendChild(a);
         } else {
             const group = document.createElement('div');
-            group.className = 'clase-group';
+            group.className = 'clase-group' + (abiertos.has(c.ctxId) ? ' open' : '');
+            group.dataset.ctxid = c.ctxId;
             const hdr = document.createElement('div');
             hdr.className = 'clase-row';
-            hdr.innerHTML = `<span class="clase-hora">${esc(c.hora)}</span><span class="clase-nombre">${esc(c.nombre)}</span><span class="ctx-count">${n}</span><span class="sem-dot ${semColor(c.ctxId)}"></span><span class="clase-chevron">›</span>`;
+            hdr.innerHTML = `<span class="clase-hora">${esc(c.hora)}</span><span class="clase-nombre">${esc(c.nombre)}</span><span class="ctx-count">${n}</span><span class="sem-dot ${dotClass}"></span><span class="clase-chevron">›</span>`;
             hdr.onclick = () => group.classList.toggle('open');
             const itemsDiv = document.createElement('div');
             itemsDiv.className = 'clase-items';
@@ -552,10 +557,12 @@ async function completar(id, btn) {
     item.style.opacity = '0';
     const { error } = await sb.from('pendientes').update({ estado: 'completado' }).eq('id', id);
     if (error) { item.style.opacity = '1'; btn.disabled = false; return; }
+    const clasesAbiertas = new Set([...document.querySelectorAll('#clases-lista .clase-group.open')].map(el => el.dataset.ctxid));
+    const genAbiertas    = new Set([...document.querySelectorAll('#pend-generales .gen-group.open')].map(el => el.dataset.ctxid));
     pendientes = pendientes.filter(p => p.id !== id);
     const ctxsHoy = new Set(clasesHoy.map(c => c.ctxId));
     pendGlobales  = pendientes.filter(p => !ctxsHoy.has(p.contexto_id));
-    setTimeout(() => { renderGenerales(); renderClases(); }, 200);
+    setTimeout(() => { renderGenerales(genAbiertas); renderClases(clasesAbiertas); }, 200);
 }
 
 // ── DRAWER ─────────────────────────────────────────────────────────────────
