@@ -163,6 +163,29 @@
         }
         #btn-srp-ico { font-size: 1.6rem; pointer-events: none; }
 
+        /* ── NAPPS TOGGLE ── */
+        #drawer-napps {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 18px 12px; cursor: pointer; user-select: none;
+        }
+        #drawer-napps:active { background: rgba(255,255,255,0.03); }
+        .drawer-napps-label {
+            font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
+            text-transform: uppercase; color: var(--muted);
+        }
+        .napps-switch {
+            width: 28px; height: 16px; border-radius: 8px;
+            background: var(--border); position: relative; transition: background 0.2s; flex-shrink: 0;
+        }
+        .napps-switch::after {
+            content: ''; position: absolute; top: 2px; left: 2px;
+            width: 12px; height: 12px; border-radius: 50%;
+            background: #fff; transition: transform 0.2s;
+        }
+        .napps-switch.on { background: var(--accent); }
+        .napps-switch.on::after { transform: translateX(12px); }
+        .napp-note { font-style: italic; color: var(--yellow); }
+
         /* ── DRAWER ── */
         #drawer-backdrop {
             display: none; position: fixed; inset: 0;
@@ -320,7 +343,11 @@
 <div id="drawer-backdrop"></div>
 <div id="drawer">
     <div id="drawer-handle"></div>
-    <div id="drawer-title">Módulos</div>
+    <div id="drawer-napps">
+        <span class="drawer-napps-label">NAPPS</span>
+        <div id="drawer-napps-toggle" class="napps-switch"></div>
+    </div>
+    <div class="drawer-sep"></div>
     <div id="drawer-list"></div>
 </div>
 
@@ -421,9 +448,10 @@ const JS_A_SB = { 1:0, 2:1, 3:2, 4:3 };
 })();
 
 // ── DATOS EN MEMORIA ───────────────────────────────────────────────────────
-let pendientes  = [];   // [ { id, contexto_id, categoria, texto, contextos } ]
-let clasesHoy   = [];   // [ { ctxId, nombre, hora } ] ordenadas
-let pendGlobales = [];  // pendientes cuyo contexto no está en clasesHoy
+let pendientes   = [];   // [ { id, contexto_id, categoria, texto, contextos } ]
+let clasesHoy    = [];   // [ { ctxId, nombre, hora } ] ordenadas
+let pendGlobales = [];   // pendientes cuyo contexto no está en clasesHoy
+let showNapps    = localStorage.getItem('napps') === '1';
 
 // ── CARGA INICIAL ──────────────────────────────────────────────────────────
 async function cargarDatos() {
@@ -498,7 +526,7 @@ function renderGenerales(abiertos = new Set()) {
         itemsDiv.className = 'gen-items';
         itemsDiv.innerHTML = items.map(p => `
             <div class="pend-item" data-id="${p.id}">
-                <span class="pend-texto">${esc(p.texto)}</span>
+                <span class="pend-texto">${formatText(p.texto)}</span>
                 <button class="pend-ok" onclick="completar('${p.id}', this)" title="Completar">✓</button>
             </div>`).join('');
         group.appendChild(hdr);
@@ -534,7 +562,7 @@ function renderClases(abiertos = new Set()) {
             itemsDiv.className = 'clase-items';
             itemsDiv.innerHTML = pends.map(p => `
                 <div class="pend-item" data-id="${p.id}">
-                    <span class="pend-texto">${esc(p.texto)}</span>
+                    <span class="pend-texto">${formatText(p.texto)}</span>
                     <button class="pend-ok" onclick="completar('${p.id}', this)" title="Completar">✓</button>
                 </div>`).join('') + `<a class="clase-portal-btn" href="${portalHref}">Planificación →</a>`;
             group.appendChild(hdr);
@@ -560,22 +588,39 @@ async function completar(id, btn) {
 
 // ── DRAWER ─────────────────────────────────────────────────────────────────
 function renderDrawer() {
-    if (typeof MODULOS_CONFIG === 'undefined') return;
+    const nappsToggle = document.getElementById('drawer-napps-toggle');
+    nappsToggle.classList.toggle('on', showNapps);
+    document.getElementById('drawer-napps').onclick = () => {
+        showNapps = !showNapps;
+        localStorage.setItem('napps', showNapps ? '1' : '0');
+        nappsToggle.classList.toggle('on', showNapps);
+        renderGenerales(); renderClases();
+    };
+
+    const ITEMS = [
+        { ico:'🗂️', nombre:'Bandeja',        href:'../SRP/mobile_ui/index.html?pantalla=1' },
+        { ico:'📡', nombre:'Remoto',          href:'../PIZARRA/index.html?modo=remoto' },
+        { sep: true },
+        { ico:'💻', nombre:'Apps',            href:'../ADMIN/index.html?seccion=apps' },
+        { ico:'🏠', nombre:'Casa',            href:'../ADMIN/index.html?seccion=casa' },
+        { ico:'📋', nombre:'Administrativos', href:'../ADMIN/index.html?seccion=administrativos' },
+        { ico:'👥', nombre:'Jefatura',        href:'../ADMIN/index.html?seccion=jefatura' },
+        { ico:'💬', nombre:'Mensajes',        href:'../ADMIN/index.html?seccion=mensajes' },
+        { ico:'🎵', nombre:'Repertorio',      href:'../REPERTORIO/index.html' },
+        { ico:'🧠', nombre:'Planificaciones', href:'../PORTAL/index.html' },
+        { ico:'📚', nombre:'Cursos',          href:'../ADMIN/index.html?seccion=cursos' },
+    ];
+
     const list = document.getElementById('drawer-list');
     list.innerHTML = '';
-    MODULOS_CONFIG.filter(m => !m.dockSep && m.mobile !== false).forEach(m => {
+    ITEMS.forEach(m => {
         if (m.sep) {
-            const sep = document.createElement('div');
-            sep.className = 'drawer-sep';
-            list.appendChild(sep);
+            list.appendChild(Object.assign(document.createElement('div'), { className: 'drawer-sep' }));
             return;
         }
-        const el = m.href
-            ? Object.assign(document.createElement('a'), { href: '../' + m.href })
-            : document.createElement('div');
-        el.className = 'drawer-item' + (m.disabled ? ' disabled' : '');
-        el.innerHTML = `<span class="drawer-ico">${m.ico}</span><span class="drawer-nombre">${m.nombre}</span>`;
-        list.appendChild(el);
+        const a = Object.assign(document.createElement('a'), { href: m.href, className: 'drawer-item' });
+        a.innerHTML = `<span class="drawer-ico">${m.ico}</span><span class="drawer-nombre">${esc(m.nombre)}</span>`;
+        list.appendChild(a);
     });
 }
 
@@ -825,6 +870,14 @@ async function saveGrabacion(item) {
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function formatText(s) {
+    const safe = esc(s);
+    if (!showNapps) return safe.replace(/,,,n[\s\S]*?[nN],,,/g,'').replace(/,,,n[\s\S]*$/,'').trim();
+    return safe
+        .replace(/,,,n([\s\S]*?)[nN],,,/g, (_, n) => `<em class="napp-note">[${n.trim()}]</em>`)
+        .replace(/,,,n([\s\S]*)$/, (_, n) => `<em class="napp-note">[${n.trim()}]</em>`);
+}
 
 // ── INIT ───────────────────────────────────────────────────────────────────
 renderDrawer();
