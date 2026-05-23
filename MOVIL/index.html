@@ -423,10 +423,6 @@ const CATS = {
     posible_repertorio:         '🎼',
 };
 
-function isoDate(d) {
-    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
-
 // ── HEADER ─────────────────────────────────────────────────────────────────
 (function() {
     const hoy = new Date();
@@ -441,8 +437,10 @@ let clasesHoy   = [];   // [ { ctxId, nombre, hora } ] ordenadas
 
 // ── CARGA INICIAL ──────────────────────────────────────────────────────────
 async function cargarDatos() {
-    const hoy   = new Date();
-    const diaSB = JS_A_SB[hoy.getDay()];
+    const hoy    = new Date();
+    const params = new URLSearchParams(location.search);
+    const diaJS  = params.has('dia') ? parseInt(params.get('dia')) : hoy.getDay();
+    const diaSB  = JS_A_SB[diaJS];
 
     if (diaSB === undefined) {
         document.getElementById('pend-grupos').innerHTML = '<div class="pend-vacio">Fin de semana — sin clases hoy</div>';
@@ -450,21 +448,36 @@ async function cargarDatos() {
         return;
     }
 
-    const [horRes, pendsRes] = await Promise.all([
-        sb.from('horario')
-          .select('hora_inicio, orden, contextos(id, nombre)')
-          .eq('dia_semana', diaSB).eq('activo', true).order('orden'),
-        sb.from('pendientes')
-          .select('id, contexto_id, categoria, texto')
-          .eq('estado', 'activo')
-    ]);
+    let horRes, pendsRes;
+    try {
+        [horRes, pendsRes] = await Promise.all([
+            sb.from('horario')
+              .select('hora_inicio, orden, contextos(id, nombre)')
+              .eq('dia_semana', diaSB).eq('activo', true).order('orden'),
+            sb.from('pendientes')
+              .select('id, contexto_id, categoria, texto')
+              .eq('estado', 'activo')
+        ]);
+    } catch {
+        document.getElementById('pend-grupos').innerHTML  = '<div class="pend-vacio">Error de conexión</div>';
+        document.getElementById('clases-lista').innerHTML = '<div class="pend-vacio">Error de conexión</div>';
+        return;
+    }
+
+    if (horRes.error || pendsRes.error) {
+        document.getElementById('pend-grupos').innerHTML  = '<div class="pend-vacio">Error cargando datos</div>';
+        document.getElementById('clases-lista').innerHTML = '<div class="pend-vacio">Error cargando datos</div>';
+        return;
+    }
 
     pendientes = pendsRes.data || [];
-    clasesHoy  = (horRes.data || []).map(h => ({
-        ctxId:  h.contextos.id,
-        nombre: h.contextos.nombre,
-        hora:   h.hora_inicio ? h.hora_inicio.slice(0,5) : ''
-    }));
+    clasesHoy  = (horRes.data || [])
+        .filter(h => h.contextos)   // descarta filas con FK rota
+        .map(h => ({
+            ctxId:  h.contextos.id,
+            nombre: h.contextos.nombre,
+            hora:   h.hora_inicio ? h.hora_inicio.slice(0,5) : ''
+        }));
 
     renderPendientes();
     renderClases();
@@ -494,7 +507,7 @@ function renderPendientes() {
         hdr.className = 'ctx-group-hdr';
         hdr.innerHTML = `
             <span class="ctx-chevron">›</span>
-            <span class="ctx-nombre">${c.nombre}</span>
+            <span class="ctx-nombre">${esc(c.nombre)}</span>
             <span class="ctx-count">${pends.length}</span>`;
         hdr.onclick = () => group.classList.toggle('open');
 
@@ -514,20 +527,16 @@ function renderPendientes() {
 }
 
 async function completar(id, btn) {
+    btn.disabled = true;  // evitar doble tap
     const item = btn.closest('.pend-item');
     item.style.opacity = '0';
     const { error } = await sb.from('pendientes').update({ estado: 'completado' }).eq('id', id);
-    if (error) { item.style.opacity = '1'; return; }
+    if (error) { item.style.opacity = '1'; btn.disabled = false; return; }
 
-    // Quitar de memoria
     pendientes = pendientes.filter(p => p.id !== id);
 
     setTimeout(() => {
         item.remove();
-        // Si el grupo quedó vacío, quitarlo
-        const group = document.querySelector(`.ctx-group[data-ctx="${
-            pendientes.find ? '' : ''
-        }"]`);
         // Buscar grupos vacíos y eliminarlos
         document.querySelectorAll('.ctx-group').forEach(g => {
             if (!g.querySelector('.pend-item')) {
@@ -570,8 +579,8 @@ function renderClases() {
         a.className = 'clase-fila';
         a.href = `../PORTAL/index.html?ctx=${encodeURIComponent(c.nombre)}`;
         a.innerHTML = `
-            <span class="clase-hora">${c.hora}</span>
-            <span class="clase-nombre">${c.nombre}</span>
+            <span class="clase-hora">${esc(c.hora)}</span>
+            <span class="clase-nombre">${esc(c.nombre)}</span>
             <span class="sem-dot ${semColor(c.ctxId)}"></span>`;
         lista.appendChild(a);
     });
@@ -579,6 +588,7 @@ function renderClases() {
 
 // ── DRAWER ─────────────────────────────────────────────────────────────────
 function renderDrawer() {
+    if (typeof MODULOS_CONFIG === 'undefined') return;
     const list = document.getElementById('drawer-list');
     list.innerHTML = '';
     MODULOS_CONFIG.filter(m => !m.dockSep && m.mobile !== false).forEach(m => {
@@ -642,6 +652,11 @@ function cerrarDrawer() {
         dragging = false;
     });
 
+    btn.addEventListener('touchcancel', () => {
+        btn.classList.remove('pulsing');
+        dragging = false;
+    });
+
     // Click de ratón (desktop)
     btn.addEventListener('click', mostrarCaptureMenu);
 })();
@@ -675,13 +690,17 @@ async function guardarTexto() {
     const texto = document.getElementById('text-input').value.trim();
     if (!texto) return;
     const now = new Date();
-    await saveGrabacion({
-        type:        'text',
-        textContent: texto,
-        timeStr:     `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
-        dateGroup:   'Hoy',
-        timestamp:   now.getTime()
-    });
+    try {
+        await saveGrabacion({
+            type:        'text',
+            textContent: texto,
+            timeStr:     `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+            dateGroup:   'Hoy',
+            timestamp:   now.getTime()
+        });
+    } catch (err) {
+        console.error('Error guardando nota:', err);
+    }
     cerrarTexto();
 }
 
@@ -693,13 +712,15 @@ function capturarFoto() {
     inp.onchange = async () => {
         const file = inp.files[0]; if (!file) return;
         const now = new Date();
-        await saveGrabacion({
-            type:      'photo',
-            blob:      file,
-            timeStr:   `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
-            dateGroup: 'Hoy',
-            timestamp: now.getTime()
-        });
+        try {
+            await saveGrabacion({
+                type:      'photo',
+                blob:      file,
+                timeStr:   `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+                dateGroup: 'Hoy',
+                timestamp: now.getTime()
+            });
+        } catch (err) { console.error('Error guardando foto:', err); }
     };
     inp.click();
 }
@@ -711,13 +732,15 @@ function capturarVideo() {
     inp.onchange = async () => {
         const file = inp.files[0]; if (!file) return;
         const now = new Date();
-        await saveGrabacion({
-            type:      'video',
-            blob:      file,
-            timeStr:   `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
-            dateGroup: 'Hoy',
-            timestamp: now.getTime()
-        });
+        try {
+            await saveGrabacion({
+                type:      'video',
+                blob:      file,
+                timeStr:   `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+                dateGroup: 'Hoy',
+                timestamp: now.getTime()
+            });
+        } catch (err) { console.error('Error guardando video:', err); }
     };
     inp.click();
 }
@@ -730,6 +753,11 @@ let recTimer      = null;
 let recSecs       = 0;
 
 async function iniciarGrabacion() {
+    // Evitar doble grabación
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') return;
+    // Liberar stream anterior si quedó huérfano
+    if (recStream) { recStream.getTracks().forEach(t => t.stop()); recStream = null; }
+
     cerrarCaptureMenu();
     try {
         recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -737,13 +765,19 @@ async function iniciarGrabacion() {
         alert('No se pudo acceder al micrófono.'); return;
     }
 
+    const stream   = recStream; // captura local para el closure
     const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg','audio/mp4']
         .find(t => MediaRecorder.isTypeSupported(t)) || '';
-    mediaRecorder = new MediaRecorder(recStream, mimeType ? { mimeType } : {});
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
     recChunks = [];
 
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data); };
     mediaRecorder.onstop = async () => {
+        // Liberar micrófono ANTES de cualquier await
+        stream.getTracks().forEach(t => t.stop());
+        if (recStream === stream) recStream = null;
+        ocultarRecordingOverlay();
+
         const blob = new Blob(recChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
         const now  = new Date();
         await saveGrabacion({
@@ -752,9 +786,7 @@ async function iniciarGrabacion() {
             timeStr:   `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
             dateGroup: 'Hoy',
             timestamp: now.getTime()
-        });
-        recStream.getTracks().forEach(t => t.stop());
-        ocultarRecordingOverlay();
+        }).catch(err => console.error('Error guardando grabación:', err));
     };
 
     mediaRecorder.start();
@@ -762,10 +794,18 @@ async function iniciarGrabacion() {
 }
 
 function detenerGrabacion() {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    } else if (recStream) {
+        // Por si el recorder ya estaba inactivo pero el stream no
+        recStream.getTracks().forEach(t => t.stop());
+        recStream = null;
+        ocultarRecordingOverlay();
+    }
 }
 
 function mostrarRecordingOverlay() {
+    clearInterval(recTimer);
     recSecs = 0;
     document.getElementById('rec-timer').textContent = '0:00';
     document.getElementById('rec-overlay').classList.add('visible');
