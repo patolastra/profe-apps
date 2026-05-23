@@ -38,9 +38,8 @@
             background: linear-gradient(180deg, var(--bg) 50%, var(--surface) 100%);
         }
         #hdr-line {
-            font-size: 0.88rem; font-weight: 700;
-            text-transform: capitalize; color: var(--muted);
-            letter-spacing: 0.02em;
+            font-size: 1.4rem; font-weight: 700;
+            color: var(--text);
         }
 
         /* ── MAIN ── */
@@ -62,43 +61,11 @@
         }
 
         /* ── CARD PENDIENTES ── */
-        .ctx-group { border-top: 1px solid var(--border); }
-        .ctx-group:first-child { border-top: none; }
-        .ctx-group-hdr {
-            display: flex; align-items: center; gap: 10px;
-            padding: 12px 16px; cursor: pointer; user-select: none;
-        }
-        .ctx-group-hdr:active { background: rgba(255,255,255,0.04); }
-        .ctx-chevron {
-            font-size: 0.85rem; color: var(--muted);
-            transition: transform 0.2s; flex-shrink: 0;
-        }
-        .ctx-group.open .ctx-chevron { transform: rotate(90deg); }
-        .ctx-nombre { font-size: 0.88rem; font-weight: 700; flex: 1; }
         .ctx-count {
             font-size: 0.65rem; font-weight: 800;
             background: rgba(59,130,246,0.15); color: #60a5fa;
             border-radius: 20px; padding: 2px 8px; flex-shrink: 0;
         }
-        .ctx-items {
-            display: none; border-top: 1px solid rgba(255,255,255,0.05);
-        }
-        .ctx-group.open .ctx-items { display: block; }
-        .pend-item {
-            display: flex; align-items: flex-start; gap: 10px;
-            padding: 9px 16px 9px 36px;
-            border-top: 1px solid rgba(255,255,255,0.04);
-            transition: opacity 0.2s;
-        }
-        .pend-item:first-child { border-top: none; }
-        .pend-ico { font-size: 0.9rem; flex-shrink: 0; margin-top: 1px; }
-        .pend-texto { flex: 1; font-size: 0.82rem; line-height: 1.45; color: var(--text); }
-        .pend-ok {
-            background: none; border: none; cursor: pointer;
-            font-size: 1rem; color: var(--muted); padding: 2px 4px;
-            flex-shrink: 0; opacity: 0.55; transition: opacity 0.12s, color 0.12s;
-        }
-        .pend-ok:active { opacity: 1; color: var(--green); }
         .pend-vacio { font-size: 0.82rem; color: var(--muted); font-style: italic; padding: 12px 16px; }
 
         /* ── CARD CLASES ── */
@@ -302,13 +269,6 @@
         <div id="pend-grupos"></div>
     </div>
 
-    <!-- Card 2: Clases de hoy -->
-    <div class="card" id="card-clases">
-        <div class="card-hdr">
-            <span class="card-title">🏫 Clases de hoy</span>
-        </div>
-        <div id="clases-lista"></div>
-    </div>
 
 </div>
 
@@ -411,23 +371,14 @@ const DIAS  = ['domingo','lunes','martes','miércoles','jueves','viernes','sába
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const JS_A_SB = { 1:0, 2:1, 3:2, 4:3 };
 
-const CATS = {
-    pendientes_sala:            '🎵',
-    pendientes_planificacion:   '🧠',
-    pendientes_materiales:      '🎒',
-    pendientes_casa:            '🏠',
-    pendientes_administrativos: '📋',
-    pendientes_mensajes:        '💬',
-    pendientes_jefatura:        '👥',
-    pendientes_apps:            '💻',
-    posible_repertorio:         '🎼',
-};
 
 // ── HEADER ─────────────────────────────────────────────────────────────────
 (function() {
-    const hoy = new Date();
-    const dia = DIAS[hoy.getDay()];
-    const fecha = `${hoy.getDate()} de ${MESES[hoy.getMonth()]}`;
+    const hoy    = new Date();
+    const params = new URLSearchParams(location.search);
+    const diaJS  = params.has('dia') ? parseInt(params.get('dia')) : hoy.getDay();
+    const dia    = DIAS[diaJS] || DIAS[hoy.getDay()];
+    const fecha  = `${hoy.getDate()} de ${MESES[hoy.getMonth()]}`;
     document.getElementById('hdr-line').textContent = `${dia.charAt(0).toUpperCase() + dia.slice(1)} · ${fecha}`;
 })();
 
@@ -444,7 +395,6 @@ async function cargarDatos() {
 
     if (diaSB === undefined) {
         document.getElementById('pend-grupos').innerHTML = '<div class="pend-vacio">Fin de semana — sin clases hoy</div>';
-        document.getElementById('clases-lista').innerHTML = '<div class="pend-vacio">Sin clases hoy</div>';
         return;
     }
 
@@ -459,20 +409,18 @@ async function cargarDatos() {
               .eq('estado', 'activo')
         ]);
     } catch {
-        document.getElementById('pend-grupos').innerHTML  = '<div class="pend-vacio">Error de conexión</div>';
-        document.getElementById('clases-lista').innerHTML = '<div class="pend-vacio">Error de conexión</div>';
+        document.getElementById('pend-grupos').innerHTML = '<div class="pend-vacio">Error de conexión</div>';
         return;
     }
 
     if (horRes.error || pendsRes.error) {
-        document.getElementById('pend-grupos').innerHTML  = '<div class="pend-vacio">Error cargando datos</div>';
-        document.getElementById('clases-lista').innerHTML = '<div class="pend-vacio">Error cargando datos</div>';
+        document.getElementById('pend-grupos').innerHTML = '<div class="pend-vacio">Error cargando datos</div>';
         return;
     }
 
     pendientes = pendsRes.data || [];
     clasesHoy  = (horRes.data || [])
-        .filter(h => h.contextos)   // descarta filas con FK rota
+        .filter(h => h.contextos)
         .map(h => ({
             ctxId:  h.contextos.id,
             nombre: h.contextos.nombre,
@@ -480,86 +428,9 @@ async function cargarDatos() {
         }));
 
     renderPendientes();
-    renderClases();
 }
 
 // ── PENDIENTES ─────────────────────────────────────────────────────────────
-function renderPendientes() {
-    const contenedor = document.getElementById('pend-grupos');
-    contenedor.innerHTML = '';
-
-    const ctxsConPends = clasesHoy.filter(c =>
-        pendientes.some(p => p.contexto_id === c.ctxId)
-    );
-
-    if (!ctxsConPends.length) {
-        contenedor.innerHTML = '<div class="pend-vacio">Sin pendientes para hoy 🎉</div>';
-        return;
-    }
-
-    ctxsConPends.forEach(c => {
-        const pends = pendientes.filter(p => p.contexto_id === c.ctxId);
-        const group = document.createElement('div');
-        group.className = 'ctx-group';
-        group.dataset.ctx = c.ctxId;
-
-        const hdr = document.createElement('div');
-        hdr.className = 'ctx-group-hdr';
-        hdr.innerHTML = `
-            <span class="ctx-chevron">›</span>
-            <span class="ctx-nombre">${esc(c.nombre)}</span>
-            <span class="ctx-count">${pends.length}</span>`;
-        hdr.onclick = () => group.classList.toggle('open');
-
-        const items = document.createElement('div');
-        items.className = 'ctx-items';
-        items.innerHTML = pends.map(p => `
-            <div class="pend-item" data-id="${p.id}">
-                <span class="pend-ico">${CATS[p.categoria] || '📌'}</span>
-                <span class="pend-texto">${esc(p.texto)}</span>
-                <button class="pend-ok" onclick="completar('${p.id}', this)" title="Completar">✓</button>
-            </div>`).join('');
-
-        group.appendChild(hdr);
-        group.appendChild(items);
-        contenedor.appendChild(group);
-    });
-}
-
-async function completar(id, btn) {
-    btn.disabled = true;  // evitar doble tap
-    const item = btn.closest('.pend-item');
-    item.style.opacity = '0';
-    const { error } = await sb.from('pendientes').update({ estado: 'completado' }).eq('id', id);
-    if (error) { item.style.opacity = '1'; btn.disabled = false; return; }
-
-    pendientes = pendientes.filter(p => p.id !== id);
-
-    setTimeout(() => {
-        item.remove();
-        // Buscar grupos vacíos y eliminarlos
-        document.querySelectorAll('.ctx-group').forEach(g => {
-            if (!g.querySelector('.pend-item')) {
-                g.remove();
-            }
-        });
-        // Actualizar counts
-        document.querySelectorAll('.ctx-group').forEach(g => {
-            const n = g.querySelectorAll('.pend-item').length;
-            const badge = g.querySelector('.ctx-count');
-            if (badge) badge.textContent = n;
-        });
-        // Si no quedan grupos
-        const contenedor = document.getElementById('pend-grupos');
-        if (!contenedor.querySelector('.ctx-group')) {
-            contenedor.innerHTML = '<div class="pend-vacio">Sin pendientes para hoy 🎉</div>';
-        }
-        // Actualizar semáforo
-        renderClases();
-    }, 200);
-}
-
-// ── CLASES ─────────────────────────────────────────────────────────────────
 function semColor(ctxId) {
     const n = pendientes.filter(p => p.contexto_id === ctxId).length;
     if (n === 0) return 'verde';
@@ -567,22 +438,26 @@ function semColor(ctxId) {
     return 'rojo';
 }
 
-function renderClases() {
-    const lista = document.getElementById('clases-lista');
+function renderPendientes() {
+    const contenedor = document.getElementById('pend-grupos');
+    contenedor.innerHTML = '';
+
     if (!clasesHoy.length) {
-        lista.innerHTML = '<div class="pend-vacio">Sin clases programadas</div>';
+        contenedor.innerHTML = '<div class="pend-vacio">Sin clases programadas</div>';
         return;
     }
-    lista.innerHTML = '';
+
     clasesHoy.forEach(c => {
+        const n = pendientes.filter(p => p.contexto_id === c.ctxId).length;
         const a = document.createElement('a');
         a.className = 'clase-fila';
         a.href = `../PORTAL/index.html?ctx=${encodeURIComponent(c.nombre)}`;
         a.innerHTML = `
             <span class="clase-hora">${esc(c.hora)}</span>
             <span class="clase-nombre">${esc(c.nombre)}</span>
+            ${n > 0 ? `<span class="ctx-count">${n}</span>` : ''}
             <span class="sem-dot ${semColor(c.ctxId)}"></span>`;
-        lista.appendChild(a);
+        contenedor.appendChild(a);
     });
 }
 
