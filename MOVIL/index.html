@@ -60,25 +60,65 @@
             flex: 1;
         }
 
-        /* ── CARD PENDIENTES ── */
+        /* ── ITEM COMPARTIDO ── */
         .ctx-count {
             font-size: 0.65rem; font-weight: 800;
             background: rgba(59,130,246,0.15); color: #60a5fa;
             border-radius: 20px; padding: 2px 8px; flex-shrink: 0;
         }
         .pend-vacio { font-size: 0.82rem; color: var(--muted); font-style: italic; padding: 12px 16px; }
+        .pend-item {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 9px 16px;
+            border-top: 1px solid rgba(255,255,255,0.04);
+            transition: opacity 0.2s;
+        }
+        .pend-item:first-child { border-top: none; }
+        .pend-texto { flex: 1; font-size: 0.82rem; line-height: 1.45; color: var(--text); }
+        .pend-ok {
+            background: none; border: none; cursor: pointer;
+            font-size: 1rem; color: var(--muted); padding: 2px 4px;
+            flex-shrink: 0; opacity: 0.55; transition: opacity 0.12s, color 0.12s;
+        }
+        .pend-ok:active { opacity: 1; color: var(--green); }
 
-        /* ── CARD CLASES ── */
-        .clase-fila {
+        /* ── CARD 1: GENERALES ── */
+        .gen-group { border-top: 1px solid var(--border); }
+        .gen-group:first-child { border-top: none; }
+        .gen-group-hdr {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 16px; cursor: pointer; user-select: none;
+        }
+        .gen-group-hdr:active { background: rgba(255,255,255,0.04); }
+        .gen-chevron { font-size: 0.85rem; color: var(--muted); transition: transform 0.2s; flex-shrink: 0; }
+        .gen-group.open .gen-chevron { transform: rotate(90deg); }
+        .gen-nombre { font-size: 0.88rem; font-weight: 700; flex: 1; }
+        .gen-items { display: none; border-top: 1px solid rgba(255,255,255,0.05); }
+        .gen-group.open .gen-items { display: block; }
+
+        /* ── CARD 2: CLASES ── */
+        .clase-group { border-top: 1px solid var(--border); }
+        .clase-group:first-child { border-top: none; }
+        .clase-row {
             display: flex; align-items: center; gap: 12px;
-            padding: 13px 16px; border-top: 1px solid var(--border);
+            padding: 13px 16px; cursor: pointer; user-select: none;
             text-decoration: none; color: var(--text);
             transition: background 0.1s;
         }
-        .clase-fila:first-child { border-top: none; }
-        .clase-fila:active { background: rgba(255,255,255,0.04); }
+        .clase-row:active { background: rgba(255,255,255,0.04); }
         .clase-hora { font-size: 0.75rem; color: var(--muted); width: 40px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
         .clase-nombre { flex: 1; font-size: 0.9rem; font-weight: 700; }
+        .clase-chevron { font-size: 0.85rem; color: var(--muted); transition: transform 0.2s; flex-shrink: 0; }
+        .clase-group.open .clase-chevron { transform: rotate(90deg); }
+        .clase-items { display: none; border-top: 1px solid rgba(255,255,255,0.05); }
+        .clase-group.open .clase-items { display: block; }
+        .clase-portal-btn {
+            display: block; text-align: right;
+            padding: 10px 16px; font-size: 0.82rem; font-weight: 700;
+            color: var(--accent); text-decoration: none;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .clase-portal-btn:active { opacity: 0.7; }
         .sem-dot {
             width: 10px; height: 10px; border-radius: 50%;
             flex-shrink: 0; background: var(--muted); opacity: 0.3;
@@ -260,16 +300,14 @@
 
 <!-- MAIN -->
 <div id="main">
-
-    <!-- Card 1: Pendientes de hoy -->
-    <div class="card" id="card-pendientes">
-        <div class="card-hdr">
-            <span class="card-title">📋 Pendientes de hoy</span>
-        </div>
-        <div id="pend-grupos"></div>
+    <div class="card" id="card-generales" style="display:none">
+        <div class="card-hdr"><span class="card-title">📌 Otros pendientes</span></div>
+        <div id="pend-generales"></div>
     </div>
-
-
+    <div class="card" id="card-clases">
+        <div class="card-hdr"><span class="card-title">🏫 Hoy</span></div>
+        <div id="clases-lista"></div>
+    </div>
 </div>
 
 <!-- BOTTOM BAR -->
@@ -383,8 +421,9 @@ const JS_A_SB = { 1:0, 2:1, 3:2, 4:3 };
 })();
 
 // ── DATOS EN MEMORIA ───────────────────────────────────────────────────────
-let pendientes  = [];   // [ { id, contexto_id, categoria, texto } ]
+let pendientes  = [];   // [ { id, contexto_id, categoria, texto, contextos } ]
 let clasesHoy   = [];   // [ { ctxId, nombre, hora } ] ordenadas
+let pendGlobales = [];  // pendientes cuyo contexto no está en clasesHoy
 
 // ── CARGA INICIAL ──────────────────────────────────────────────────────────
 async function cargarDatos() {
@@ -394,7 +433,7 @@ async function cargarDatos() {
     const diaSB  = JS_A_SB[diaJS];
 
     if (diaSB === undefined) {
-        document.getElementById('pend-grupos').innerHTML = '<div class="pend-vacio">Fin de semana — sin clases hoy</div>';
+        document.getElementById('clases-lista').innerHTML = '<div class="pend-vacio">Fin de semana — sin clases hoy</div>';
         return;
     }
 
@@ -405,16 +444,16 @@ async function cargarDatos() {
               .select('hora_inicio, orden, contextos(id, nombre)')
               .eq('dia_semana', diaSB).eq('activo', true).order('orden'),
             sb.from('pendientes')
-              .select('id, contexto_id, categoria, texto')
+              .select('id, contexto_id, categoria, texto, contextos(nombre)')
               .eq('estado', 'activo')
         ]);
     } catch {
-        document.getElementById('pend-grupos').innerHTML = '<div class="pend-vacio">Error de conexión</div>';
+        document.getElementById('clases-lista').innerHTML = '<div class="pend-vacio">Error de conexión</div>';
         return;
     }
 
     if (horRes.error || pendsRes.error) {
-        document.getElementById('pend-grupos').innerHTML = '<div class="pend-vacio">Error cargando datos</div>';
+        document.getElementById('clases-lista').innerHTML = '<div class="pend-vacio">Error cargando datos</div>';
         return;
     }
 
@@ -427,7 +466,10 @@ async function cargarDatos() {
             hora:   h.hora_inicio ? h.hora_inicio.slice(0,5) : ''
         }));
 
-    renderPendientes();
+    const ctxsHoy = new Set(clasesHoy.map(c => c.ctxId));
+    pendGlobales  = pendientes.filter(p => !ctxsHoy.has(p.contexto_id));
+    renderGenerales();
+    renderClases();
 }
 
 // ── PENDIENTES ─────────────────────────────────────────────────────────────
@@ -438,27 +480,82 @@ function semColor(ctxId) {
     return 'rojo';
 }
 
-function renderPendientes() {
-    const contenedor = document.getElementById('pend-grupos');
+function renderGenerales() {
+    const card      = document.getElementById('card-generales');
+    const contenedor = document.getElementById('pend-generales');
+    if (!pendGlobales.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
     contenedor.innerHTML = '';
-
-    if (!clasesHoy.length) {
-        contenedor.innerHTML = '<div class="pend-vacio">Sin clases programadas</div>';
-        return;
-    }
-
-    clasesHoy.forEach(c => {
-        const n = pendientes.filter(p => p.contexto_id === c.ctxId).length;
-        const a = document.createElement('a');
-        a.className = 'clase-fila';
-        a.href = `../PORTAL/index.html?ctx=${encodeURIComponent(c.nombre)}`;
-        a.innerHTML = `
-            <span class="clase-hora">${esc(c.hora)}</span>
-            <span class="clase-nombre">${esc(c.nombre)}</span>
-            ${n > 0 ? `<span class="ctx-count">${n}</span>` : ''}
-            <span class="sem-dot ${semColor(c.ctxId)}"></span>`;
-        contenedor.appendChild(a);
+    const grupos = {};
+    pendGlobales.forEach(p => {
+        if (!grupos[p.contexto_id]) grupos[p.contexto_id] = { nombre: p.contextos?.nombre || '—', items: [] };
+        grupos[p.contexto_id].items.push(p);
     });
+    Object.values(grupos).forEach(({ nombre, items }) => {
+        const group = document.createElement('div');
+        group.className = 'gen-group';
+        const hdr = document.createElement('div');
+        hdr.className = 'gen-group-hdr';
+        hdr.innerHTML = `<span class="gen-chevron">›</span><span class="gen-nombre">${esc(nombre)}</span><span class="ctx-count">${items.length}</span>`;
+        hdr.onclick = () => group.classList.toggle('open');
+        const itemsDiv = document.createElement('div');
+        itemsDiv.className = 'gen-items';
+        itemsDiv.innerHTML = items.map(p => `
+            <div class="pend-item" data-id="${p.id}">
+                <span class="pend-texto">${esc(p.texto)}</span>
+                <button class="pend-ok" onclick="completar('${p.id}', this)" title="Completar">✓</button>
+            </div>`).join('');
+        group.appendChild(hdr);
+        group.appendChild(itemsDiv);
+        contenedor.appendChild(group);
+    });
+}
+
+function renderClases() {
+    const lista = document.getElementById('clases-lista');
+    lista.innerHTML = '';
+    if (!clasesHoy.length) { lista.innerHTML = '<div class="pend-vacio">Sin clases programadas</div>'; return; }
+    clasesHoy.forEach(c => {
+        const pends     = pendientes.filter(p => p.contexto_id === c.ctxId);
+        const n         = pends.length;
+        const portalHref = `../PORTAL/index.html?ctx=${encodeURIComponent(c.nombre)}`;
+        if (n === 0) {
+            const a = document.createElement('a');
+            a.className = 'clase-row';
+            a.href = portalHref;
+            a.innerHTML = `<span class="clase-hora">${esc(c.hora)}</span><span class="clase-nombre">${esc(c.nombre)}</span><span class="sem-dot verde"></span>`;
+            lista.appendChild(a);
+        } else {
+            const group = document.createElement('div');
+            group.className = 'clase-group';
+            const hdr = document.createElement('div');
+            hdr.className = 'clase-row';
+            hdr.innerHTML = `<span class="clase-hora">${esc(c.hora)}</span><span class="clase-nombre">${esc(c.nombre)}</span><span class="ctx-count">${n}</span><span class="sem-dot ${semColor(c.ctxId)}"></span><span class="clase-chevron">›</span>`;
+            hdr.onclick = () => group.classList.toggle('open');
+            const itemsDiv = document.createElement('div');
+            itemsDiv.className = 'clase-items';
+            itemsDiv.innerHTML = pends.map(p => `
+                <div class="pend-item" data-id="${p.id}">
+                    <span class="pend-texto">${esc(p.texto)}</span>
+                    <button class="pend-ok" onclick="completar('${p.id}', this)" title="Completar">✓</button>
+                </div>`).join('') + `<a class="clase-portal-btn" href="${portalHref}">Planificación →</a>`;
+            group.appendChild(hdr);
+            group.appendChild(itemsDiv);
+            lista.appendChild(group);
+        }
+    });
+}
+
+async function completar(id, btn) {
+    btn.disabled = true;
+    const item = btn.closest('.pend-item');
+    item.style.opacity = '0';
+    const { error } = await sb.from('pendientes').update({ estado: 'completado' }).eq('id', id);
+    if (error) { item.style.opacity = '1'; btn.disabled = false; return; }
+    pendientes = pendientes.filter(p => p.id !== id);
+    const ctxsHoy = new Set(clasesHoy.map(c => c.ctxId));
+    pendGlobales  = pendientes.filter(p => !ctxsHoy.has(p.contexto_id));
+    setTimeout(() => { renderGenerales(); renderClases(); }, 200);
 }
 
 // ── DRAWER ─────────────────────────────────────────────────────────────────
