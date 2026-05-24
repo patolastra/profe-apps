@@ -385,6 +385,16 @@
         #piz-timer.urgente { color: #ef4444; animation: pulsarTimer 0.8s infinite; }
         @keyframes pulsarTimer { 0%,100% { opacity:1; } 50% { opacity:0.55; } }
 
+        /* ── PICKER DE SESIÓN (modo remoto sin sesion) ──── */
+        #app-picker { display: flex; flex-direction: column; height: 100vh; background: #0f172a; align-items: center; justify-content: space-between; padding: 28px 20px 32px; }
+        #pick-header { width: 100%; text-align: center; }
+        #pick-titulo { font-size: 1rem; font-weight: 700; color: rgba(255,255,255,0.7); font-family: system-ui; letter-spacing: 0.04em; }
+        #pick-lista { flex: 1; width: 100%; display: flex; flex-direction: column; gap: 10px; justify-content: center; padding: 20px 0; overflow-y: auto; }
+        .pick-btn { width: 100%; padding: 18px; background: rgba(255,255,255,0.07); border: none; border-radius: 16px; color: rgba(255,255,255,0.85); font-size: 1.1rem; font-weight: 700; font-family: system-ui; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; transition: background 0.1s; }
+        .pick-btn:active { background: rgba(255,255,255,0.18); }
+        .pick-btn:disabled { opacity: 0.45; }
+        #pick-hint { font-size: 0.68rem; color: rgba(255,255,255,0.14); text-align: center; font-family: system-ui; }
+
         /* ── REMOTO EXTRAS ───────────────────────────────── */
         #rem-extras {
             width: 100%; display: flex; flex-direction: column; gap: 10px;
@@ -505,6 +515,15 @@
         </div>
     </div>
     <div id="rem-hint">Controla la Pizarra desde aquí</div>
+</div>
+
+<!-- PICKER DE SESIÓN -->
+<div id="app-picker" style="display:none">
+    <div id="pick-header">
+        <div id="pick-titulo">¿Qué clase estás presentando?</div>
+    </div>
+    <div id="pick-lista"></div>
+    <div id="pick-hint">Toca para conectar el control remoto</div>
 </div>
 
 <!-- ERROR -->
@@ -1095,6 +1114,47 @@ document.addEventListener('touchend',   e => {
     }
 }, { passive: true });
 
+// ── PICKER DE SESIÓN ─────────────────────────────────
+
+const JS_A_SB = { 1:'lunes', 2:'martes', 3:'miercoles', 4:'jueves' };
+
+async function getOrCreateSesion(ctxId) {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const { data: existing } = await sb.from('sesiones')
+        .select('id').eq('contexto_id', ctxId).eq('fecha', hoy).maybeSingle();
+    if (existing) return existing.id;
+    const { data } = await sb.from('sesiones')
+        .insert({ contexto_id: ctxId, fecha: hoy })
+        .select('id').single();
+    return data?.id || null;
+}
+
+async function iniciarModoPicker() {
+    document.getElementById('app-picker').style.display = 'flex';
+    const diaSB = JS_A_SB[new Date().getDay()];
+    const lista = document.getElementById('pick-lista');
+    if (!diaSB) {
+        lista.innerHTML = '<p style="color:rgba(255,255,255,0.3);text-align:center;font-family:system-ui">No hay clases hoy</p>';
+        return;
+    }
+    const { data } = await sb.from('horario')
+        .select('orden, contextos(id, nombre)')
+        .eq('dia_semana', diaSB).eq('activo', true).order('orden');
+    lista.innerHTML = '';
+    (data || []).forEach(h => {
+        const btn = document.createElement('button');
+        btn.className = 'pick-btn';
+        btn.textContent = h.contextos?.nombre || '—';
+        btn.onclick = async () => {
+            btn.textContent = 'Conectando…';
+            btn.disabled = true;
+            const sid = await getOrCreateSesion(h.contextos.id);
+            if (sid) location.href = `?modo=remoto&sesion=${sid}`;
+        };
+        lista.appendChild(btn);
+    });
+}
+
 // ── INIT ─────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1103,8 +1163,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const modo = params.get('modo') || 'pres';
 
     if (!sesionId) {
-        document.getElementById('app-error').style.display = 'flex';
-        document.getElementById('error-msg').textContent = 'No se especificó ninguna sesión.';
+        if (modo === 'remoto') {
+            try {
+                sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+                await iniciarModoPicker();
+            } catch (e) {
+                document.getElementById('app-error').style.display = 'flex';
+                document.getElementById('error-msg').textContent = 'Error al cargar clases.';
+            }
+        } else {
+            document.getElementById('app-error').style.display = 'flex';
+            document.getElementById('error-msg').textContent = 'No se especificó ninguna sesión.';
+        }
         return;
     }
 
