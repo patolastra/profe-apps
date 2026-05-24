@@ -395,6 +395,32 @@
         .pick-btn:disabled { opacity: 0.45; }
         #pick-hint { font-size: 0.68rem; color: rgba(255,255,255,0.14); text-align: center; font-family: system-ui; }
 
+        /* ── REMOTO — MINIATURA SLIDE ───────────────────── */
+        #rem-preview {
+            width: 100%; aspect-ratio: 16/9;
+            border-radius: 12px; overflow: hidden;
+            background: var(--slide-bg, #fff);
+            font-family: var(--slide-font, system-ui);
+            display: flex; align-items: center; justify-content: center;
+            position: relative; flex-shrink: 0;
+        }
+        #rem-preview .slide-content {
+            font-size: 8px; text-align: center;
+            width: calc(100% - 14px);
+            color: var(--slide-text, #1a1a2e);
+        }
+        #rem-preview .slide-content h1 { font-size: 1.6em; font-weight: 800; color: var(--slide-h1, #0f172a); margin-bottom: 0.18em; line-height: 1.05; }
+        #rem-preview .slide-content h2 { font-size: 1em; font-weight: 600; color: var(--slide-h2, #64748b); margin-bottom: 0.12em; }
+        #rem-preview .slide-content p  { font-size: 1em; line-height: 1.3; font-weight: 700; color: var(--slide-text, #1a1a2e); margin-bottom: 0.12em; }
+        #rem-preview .slide-content ul { padding-left: 1.2em; margin-bottom: 0.1em; text-align: left; }
+        #rem-preview .slide-content li { font-size: 1em; line-height: 1.3; font-weight: 700; color: var(--slide-text, #1a1a2e); margin-bottom: 0.08em; }
+        #rem-preview .slide-content li::marker { color: var(--slide-li, #ea580c); }
+        #rem-preview .slide-content .c1 { color: var(--slide-c1, #ea580c); font-weight: 700; }
+        #rem-preview .slide-content .c2 { color: var(--slide-c2, #2563eb); font-weight: 700; }
+        #rem-preview.tipo-youtube { background: #0f0f0f; }
+        #rem-preview.tipo-youtube .slide-content { color: #aaa; }
+        #rem-preview-vacio { color: rgba(255,255,255,0.18); font-size: 0.75rem; font-family: system-ui; }
+
         /* ── REMOTO EXTRAS ───────────────────────────────── */
         #rem-extras {
             width: 100%; display: flex; flex-direction: column; gap: 10px;
@@ -489,6 +515,7 @@
         </div>
     </div>
     <div id="rem-slide-info">
+        <div id="rem-preview"><div id="rem-preview-vacio">Conectando…</div></div>
         <div id="rem-contador">— / —</div>
         <div id="rem-slide-titulo">—</div>
     </div>
@@ -959,7 +986,7 @@ function broadcastEstado() {
     if (!canal || !slides.length) return;
     canal.send({
         type: 'broadcast', event: 'estado',
-        payload: { idx: slideIdx, total: slides.length, titulo: tituloSlide(slides[slideIdx]) }
+        payload: { idx: slideIdx, total: slides.length, titulo: tituloSlide(slides[slideIdx]), raw: slides[slideIdx] || '' }
     });
 }
 
@@ -994,9 +1021,10 @@ async function iniciarModoPres(sid) {
             if      (payload.action === 'next')  avanzar();
             else if (payload.action === 'prev')  retroceder();
             else if (payload.action === 'goto' && typeof payload.idx === 'number') irA(payload.idx);
-            else if (payload.action === 'overlay') mostrarOverlay(payload.texto, payload.duracion || 30);
-            else if (payload.action === 'timer')   iniciarTimer(payload.segundos);
-            else if (payload.action === 'clear')   limpiarRemoto();
+            else if (payload.action === 'overlay')       mostrarOverlay(payload.texto, payload.duracion || 30);
+            else if (payload.action === 'timer')         iniciarTimer(payload.segundos);
+            else if (payload.action === 'clear')         limpiarRemoto();
+            else if (payload.action === 'requestEstado') broadcastEstado();
         })
         .subscribe();
 }
@@ -1051,12 +1079,34 @@ async function iniciarModoRemoto(sid) {
         }
     } catch (_) {}
 
+    // Aplicar tema al preview basado en sesionId
+    const tRem = temaParaSesion(sid);
+    const prevEl = document.getElementById('rem-preview');
+    if (prevEl) {
+        [['--slide-bg',tRem.bg],['--slide-text',tRem.text],['--slide-h1',tRem.h1],['--slide-h2',tRem.h2],
+         ['--slide-c1',tRem.c1],['--slide-c2',tRem.c2],['--slide-li',tRem.li],['--slide-font',tRem.font]]
+            .forEach(([k,v]) => prevEl.style.setProperty(k, v));
+    }
+
     canal = sb.channel(`pizarra:${sid}`)
         .on('broadcast', { event: 'estado' }, ({ payload }) => {
             const c = document.getElementById('rem-contador');
             const t = document.getElementById('rem-slide-titulo');
             if (c) c.textContent = `${payload.idx + 1} / ${payload.total}`;
             if (t) t.textContent = payload.titulo || '—';
+            // Renderizar miniatura del slide
+            const pv = document.getElementById('rem-preview');
+            if (pv && payload.raw !== undefined) {
+                const tipo = tipoSlide(payload.raw);
+                pv.className = tipo === 'youtube' ? 'tipo-youtube' : '';
+                if (tipo === 'youtube') {
+                    pv.innerHTML = '<div class="slide-content"><p>▶ YouTube</p></div>';
+                } else {
+                    const { html } = renderizarSlideHtml(payload.raw);
+                    pv.innerHTML = `<div class="slide-content">${html}</div>`;
+                }
+                autoFitSlide(pv);
+            }
         })
         .subscribe(status => {
             const dot = document.getElementById('rem-dot');
@@ -1064,6 +1114,7 @@ async function iniciarModoRemoto(sid) {
             const ok  = status === 'SUBSCRIBED';
             if (dot) dot.classList.toggle('conectado', ok);
             if (txt) txt.textContent = ok ? 'Conectado' : 'Conectando…';
+            if (ok) enviarCmd('requestEstado'); // pedir estado actual al PC
         });
 }
 
