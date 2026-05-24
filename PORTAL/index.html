@@ -1773,9 +1773,11 @@ async function cargarPlan(sid, cid, fechaStr) {
     const cats = new Set(CATS_PLAN);
     if (esOctavo) cats.add('jefatura');
 
-    const [{ data: existentes }, { data: pends }, anterior] = await Promise.all([
+    const [{ data: existentes }, { data: excluidos }, { data: pends }, anterior] = await Promise.all([
         sb.from('plan_sesion_items')
             .select('*').eq('sesion_id', sid).eq('incluido', true).order('orden'),
+        sb.from('plan_sesion_items')
+            .select('pendiente_id, texto').eq('sesion_id', sid).eq('incluido', false),
         sb.from('pendientes')
             .select('*').eq('sesion_id', sid).eq('estado', 'activo'),
         sesionAnterior(cid, fechaStr),
@@ -1803,8 +1805,15 @@ async function cargarPlan(sid, cid, fechaStr) {
     const existentesFiltrados = (existentes || []).filter(i => !idsEliminar.includes(i.id));
 
     const pendsFiltrados = (pends || []).filter(p => cats.has(p.categoria));
-    const pendIdsEnPlan  = new Set(existentesFiltrados.map(i => i.pendiente_id).filter(Boolean));
-    const textosEnPlan   = new Set(existentesFiltrados.map(i => i.texto));
+    // Incluir excluidos en los sets "ya vistos" para que no se re-inserten como NUEVO
+    const pendIdsEnPlan  = new Set([
+        ...existentesFiltrados.map(i => i.pendiente_id).filter(Boolean),
+        ...(excluidos || []).map(i => i.pendiente_id).filter(Boolean),
+    ]);
+    const textosEnPlan   = new Set([
+        ...existentesFiltrados.map(i => i.texto),
+        ...(excluidos || []).map(i => i.texto),
+    ]);
     const esNuevo        = existentesFiltrados.length > 0;
 
     const pendNuevos  = pendsFiltrados.filter(p => !pendIdsEnPlan.has(p.id) && !textosEnPlan.has(p.texto));
