@@ -1665,7 +1665,7 @@ async function guardarPres(sid) {
 
 function abrirPizarra() {
     if (!sesionActual) return;
-    if (presTimer) { clearTimeout(presTimer); presTimer = null; guardarPres(sesionActual.id); } // guardar antes de abrir
+    if (presTimer) { clearTimeout(presTimer); presTimer = null; guardarPres(sesionActual.id); }
     logEvento('abrir_pizarra');
     const activa = document.querySelector('#prev-body .slide-prev.activa');
     const slide = activa ? parseInt(activa.dataset.idx) : 0;
@@ -2328,9 +2328,6 @@ function aplicarModo(guardar = false) {
         if (slidesUrWrap) slidesUrWrap.style.display = '';
         planCol.style.width    = '';
         sincronizarBtnCols();
-        // Forzar reflow para que el panel sea medible, luego reconstruir slides
-        void prevBody.offsetHeight;
-        actualizarPreview();
     }
 
     if (guardar && sesionActual) {
@@ -2620,12 +2617,9 @@ function renderizarSlideHtml(raw) {
 
 function autoFitSlide(el) {
     const content = el.querySelector('.slide-content');
-    if (!content || el.clientWidth === 0) return;
+    if (!content || el.clientHeight === 0) return;
     const st = getComputedStyle(el);
-    // Si clientHeight es 0 (panel aún oculto), calcular desde el ancho con aspect-ratio 16:9
-    let availH = el.clientHeight || (el.clientWidth * 9 / 16);
-    availH -= parseFloat(st.paddingTop) + parseFloat(st.paddingBottom);
-    if (availH <= 0) return;
+    const availH = el.clientHeight - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
     let lo = 4, hi = 60;
     while (hi - lo > 1) {
         const mid = (lo + hi) >> 1;
@@ -2692,10 +2686,6 @@ function actualizarPreview() {
         body.innerHTML = '<div class="vacio" style="padding:12px">Sin contenido.</div>';
         return;
     }
-    // Forzar reflow sincrónico para que el layout esté disponible al medir
-    void body.offsetHeight;
-    document.querySelectorAll('#prev-body .slide-prev').forEach(autoFitSlide);
-    // RAF como seguro adicional
     requestAnimationFrame(() => {
         document.querySelectorAll('#prev-body .slide-prev').forEach(autoFitSlide);
     });
