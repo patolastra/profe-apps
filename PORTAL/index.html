@@ -1608,6 +1608,7 @@ async function getOrCreate(cid, fechaStr) {
 function volverDashboard() {
     clearTimeout(presTimer);
     presTimer = null;
+    if (sesionActual) guardarPres(sesionActual.id); // guardar cambios pendientes antes de salir
     const fechaEditada = sesionActual?.fecha;
     cerrarRevision();
     document.querySelector('.s-col-plan').style.width = '';
@@ -1664,6 +1665,7 @@ async function guardarPres(sid) {
 
 function abrirPizarra() {
     if (!sesionActual) return;
+    if (presTimer) { clearTimeout(presTimer); presTimer = null; guardarPres(sesionActual.id); } // guardar antes de abrir
     logEvento('abrir_pizarra');
     const activa = document.querySelector('#prev-body .slide-prev.activa');
     const slide = activa ? parseInt(activa.dataset.idx) : 0;
@@ -2047,7 +2049,7 @@ function initDrag(el) {
     el.addEventListener('dragover', e => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        if (dragSrcEl && dragSrcEl !== el && dragSrcEl.dataset.bloque === el.dataset.bloque) {
+        if (dragSrcEl && dragSrcEl !== el) {
             document.querySelectorAll('#plan-lista .s-plan-item')
                 .forEach(i => i.classList.remove('drag-over'));
             el.classList.add('drag-over');
@@ -2056,7 +2058,6 @@ function initDrag(el) {
     el.addEventListener('drop', e => {
         e.preventDefault();
         if (!dragSrcEl || dragSrcEl === el) return;
-        if (dragSrcEl.dataset.bloque !== el.dataset.bloque) return;
         const lista = document.getElementById('plan-lista');
         const all   = [...lista.querySelectorAll('.s-plan-item')];
         const srcI  = all.indexOf(dragSrcEl);
@@ -2945,7 +2946,7 @@ document.addEventListener('keydown', e => {
     if (e.key === '?' && !['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)) {
         e.preventDefault(); toggleCheatsheet(); return;
     }
-    if (e.key === 'Tab' && sesionActual && !['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)) {
+    if (e.key === 'Tab' && sesionActual) {
         e.preventDefault();
         toggleModo();
         return;
