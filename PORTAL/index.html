@@ -2328,10 +2328,8 @@ function aplicarModo(guardar = false) {
         if (slidesUrWrap) slidesUrWrap.style.display = '';
         planCol.style.width    = '';
         sincronizarBtnCols();
-        // Re-ajustar fuente: estaban ocultos cuando se calculó, clientHeight era 0
-        requestAnimationFrame(() => {
-            document.querySelectorAll('#prev-body .slide-prev').forEach(autoFitSlide);
-        });
+        // Reconstruir slides desde la fuente: panel acaba de hacerse visible
+        requestAnimationFrame(() => actualizarPreview());
     }
 
     if (guardar && sesionActual) {
@@ -2621,9 +2619,12 @@ function renderizarSlideHtml(raw) {
 
 function autoFitSlide(el) {
     const content = el.querySelector('.slide-content');
-    if (!content || el.clientHeight === 0) return;
+    if (!content || el.clientWidth === 0) return;
     const st = getComputedStyle(el);
-    const availH = el.clientHeight - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
+    // Si clientHeight es 0 (panel aún oculto), calcular desde el ancho con aspect-ratio 16:9
+    let availH = el.clientHeight || (el.clientWidth * 9 / 16);
+    availH -= parseFloat(st.paddingTop) + parseFloat(st.paddingBottom);
+    if (availH <= 0) return;
     let lo = 4, hi = 60;
     while (hi - lo > 1) {
         const mid = (lo + hi) >> 1;
