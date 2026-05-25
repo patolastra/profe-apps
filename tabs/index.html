@@ -310,6 +310,7 @@
         </div>
         <span class="sep">|</span>
         <span id="swingBadge" style="display:none;background:#b8860b;color:#fff;padding:4px 10px;border-radius:5px;font-size:.82rem;font-weight:700;letter-spacing:.04em">♩ Swing</span>
+        <span id="instrumentoBadge" style="display:none;color:#fff;padding:4px 10px;border-radius:5px;font-size:.82rem;font-weight:700;letter-spacing:.04em">🎸 Guitarra</span>
         <button id="btnCifrado" onclick="toggleCifrado()" style="display:none;background:#555;color:#fff">C/Do</button>
         <button id="btnPistas" class="btn-pistas" onclick="togglePistasPanel(this)">🎵 Pistas</button>
         <div id="badgeAlumno" class="badge-alumno">👤 <span id="badgeNombre"></span><button onclick="logoutAlumno()" title="Cerrar sesión del alumno">✕</button></div>
@@ -412,22 +413,33 @@ const NOTE_R          = 26;
 const MIN_CHIP_PX     = NOTE_R * 2;
 const BOUNCE_H        = 36;
 const FRET_PAD        = 22;
-const OPEN_STRINGS    = [64, 59, 55, 50, 45, 40];
 const FINGER_COLOR    = { 1:'#E8A800', 2:'#9B30CC', 3:'#1A9FCA', 4:'#D94030' };
+
+const TUNING = {
+    guitarra: [64, 59, 55, 50, 45, 40],  // E4 B3 G3 D3 A2 E2 (cuerdas 1-6)
+    ukelele:  [69, 64, 60, 67]           // A4 E4 C4 G4 (cuerdas 1-4, re-entrante)
+};
+const TIMBRE = {
+    guitarra: { sf: 'acoustic_guitar_nylon', ks: { feedback: 0.998, smooth: 12, gain: 0.85 }, filter: 2200, reverb: 0.35 },
+    ukelele:  { sf: 'acoustic_guitar_steel', ks: { feedback: 0.990, smooth: 6,  gain: 0.90 }, filter: 3500, reverb: 0.18 }
+};
+let currentInstrument = 'guitarra';
+let numStrings        = 6;
+let openStrings       = TUNING.guitarra.slice();
 const STRUM_NONE = 0, STRUM_DOWN = 1, STRUM_UP = 2;
 const NOTE_TO_LATINO  = { C:'Do', D:'Re', E:'Mi', F:'Fa', G:'Sol', A:'La', B:'Si' };
 const CHORD_PALETTE   = ['#7B3FC4','#2A7FDB','#C4883F','#C43F4A','#3FC4A0','#8BC43F','#C43FAA'];
 
 let START_Y    = 110;
 let fretTop    = START_Y - FRET_PAD;
-let fretBottom = START_Y + 5 * STR_SPACING + FRET_PAD;
+let fretBottom = START_Y + (numStrings - 1) * STR_SPACING + FRET_PAD;
 
 function applyResize() {
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
     START_Y    = Math.round(canvas.height * 0.34);
     fretTop    = START_Y - FRET_PAD;
-    fretBottom = START_Y + 5 * STR_SPACING + FRET_PAD;
+    fretBottom = START_Y + (numStrings - 1) * STR_SPACING + FRET_PAD;
 }
 applyResize();
 window.addEventListener('resize', applyResize);
@@ -446,10 +458,7 @@ function project(x, y) {
 }
 
 // ─── AUDIO KS ─────────────────────────────────────────────────────────────
-const KS_PARAMS = {
-    guitarra: { feedback: 0.998, smooth: 12, gain: 0.85 },
-};
-let ksP = KS_PARAMS.guitarra;
+let ksP = TIMBRE.guitarra.ks;
 
 // Nodos globales del bus de audio (creados en ensureAudio)
 let guitarBus  = null;  // entrada de todas las notas de guitarra
@@ -479,14 +488,14 @@ function ensureAudio() {
 
         bodyFilter = audioCtx.createBiquadFilter();
         bodyFilter.type = 'lowpass';
-        bodyFilter.frequency.value = 2200;
+        bodyFilter.frequency.value = TIMBRE[currentInstrument].filter;
         bodyFilter.Q.value = 0.6;
 
         reverbNode = audioCtx.createConvolver();
         reverbNode.buffer = buildReverbIR(1.8, 2.5);
 
         reverbGain = audioCtx.createGain();
-        reverbGain.gain.value = 0.35;
+        reverbGain.gain.value = TIMBRE[currentInstrument].reverb;
 
         dryGain = audioCtx.createGain();
         dryGain.gain.value = 0.88;
@@ -513,7 +522,7 @@ function ensureAudio() {
 
         // Cargar soundfont — KS queda como fallback hasta que cargue
         if (typeof Soundfont !== 'undefined') {
-            Soundfont.instrument(audioCtx, 'acoustic_guitar_nylon', {
+            Soundfont.instrument(audioCtx, TIMBRE[currentInstrument].sf, {
                 soundfont: 'MusyngKite',
                 gain: 4
             }).then(instr => {
@@ -1049,8 +1058,67 @@ function applySwingTransform(notes, beatPhaseOffset = 0) {
     }
 }
 
+function detectarInstrumento(doc) {
+    const txt = el => (el?.textContent || '').toLowerCase();
+    const partList = doc.getElementsByTagName('part-list')[0];
+
+    if (txt(partList?.getElementsByTagName('instrument-sound')[0]).includes('ukulele'))
+        return 'ukelele';
+
+    const names = txt(partList?.getElementsByTagName('instrument-name')[0])
+                + ' ' + txt(partList?.getElementsByTagName('part-name')[0]);
+    if (names.includes('ukulele') || names.includes('ukelele'))
+        return 'ukelele';
+
+    for (const p of doc.getElementsByTagName('part')) {
+        const lines = p.getElementsByTagName('staff-lines')[0];
+        if (lines && +lines.textContent === 4) return 'ukelele';
+    }
+
+    return 'guitarra';
+}
+
+function aplicarTimbreInstrumento() {
+    const t = TIMBRE[currentInstrument];
+    ksP = t.ks;
+    ksCache = new Map();
+    openStrings = TUNING[currentInstrument].slice();
+    numStrings  = openStrings.length;
+    fretBottom  = START_Y + (numStrings - 1) * STR_SPACING + FRET_PAD;
+
+    if (audioCtx) {
+        bodyFilter.frequency.value = t.filter;
+        reverbGain.gain.value = t.reverb;
+        if (typeof Soundfont !== 'undefined') {
+            guitarSF = null;
+            Soundfont.instrument(audioCtx, t.sf, { soundfont: 'MusyngKite', gain: 4 })
+                .then(instr => { guitarSF = instr; }).catch(() => {});
+        }
+    }
+}
+
+function actualizarBadgeInstrumento() {
+    const badge = document.getElementById('instrumentoBadge');
+    if (!badge) return;
+    badge.style.display = (currentFileName || currentStoragePath) ? '' : 'none';
+    if (currentInstrument === 'ukelele') {
+        badge.textContent = '🎵 Ukelele';
+        badge.style.background = '#7c4a1e';
+    } else {
+        badge.textContent = '🎸 Guitarra';
+        badge.style.background = '#1a6b4a';
+    }
+}
+
 function parseXML(doc, fromToggle = false) {
     lastXmlDoc = doc;
+
+    const instrDetectado = detectarInstrumento(doc);
+    if (instrDetectado !== currentInstrument) {
+        currentInstrument = instrDetectado;
+        aplicarTimbreInstrumento();
+    }
+    actualizarBadgeInstrumento();
     const out = [], rawMeasures = [];
     let divisions = 1, elapsed = 0;
     const STEP = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
@@ -1124,8 +1192,8 @@ function parseXML(doc, fromToggle = false) {
                     const midi = (+pitch.getElementsByTagName('octave')[0].textContent + 1) * 12
                         + STEP[pitch.getElementsByTagName('step')[0].textContent]
                         + +(pitch.getElementsByTagName('alter')[0]?.textContent || 0);
-                    for (let s = 0; s < 6; s++) {
-                        const f = midi - OPEN_STRINGS[s];
+                    for (let s = 0; s < openStrings.length; s++) {
+                        const f = midi - openStrings[s];
                         if (f >= 0 && f <= 22) { str = s + 1; fret = f; break; }
                     }
                 }
@@ -1378,7 +1446,7 @@ function animLoop(ts) {
                     const durBeats = noteDur * safeBpm / 60;
                     const STRUM_MS = Math.max(0.010, Math.min(0.035, 0.035 * durBeats / 4));
                     ordenadas.forEach((n, i) => {
-                        const midi = OPEN_STRINGS[n.string - 1] + n.fret;
+                        const midi = openStrings[n.string - 1] + n.fret;
                         if (guitarSF && partituraOn) {
                             const when = audioCtx.currentTime + i * STRUM_MS / speed;
                             guitarSF.play(midi, when, {
@@ -1390,7 +1458,7 @@ function animLoop(ts) {
                         }
                     });
                 } else {
-                    for (const n of grupo) playNote(OPEN_STRINGS[n.string - 1] + n.fret, n.durSec);
+                    for (const n of grupo) playNote(openStrings[n.string - 1] + n.fret, n.durSec);
                 }
             }
             for (let ti = 0; ti < accompTracks.length; ti++) {
@@ -1608,16 +1676,18 @@ function drawGrid() {
 
 function drawStrings() {
     const W = canvas.width;
-    for (let i = 0; i < 6; i++) {
+    const woundFrom = currentInstrument === 'ukelele' ? numStrings : 3;
+    for (let i = 0; i < numStrings; i++) {
         const y     = START_Y + i * STR_SPACING;
         const pL    = project(-W, y), pR = project(2 * W, y);
         const thick = 1 + i * 0.7;
-        const wound = i >= 3;
+        const wound = i >= woundFrom;
         const PLAIN_COLORS = ['#f2f2f4', '#c4c4c8', '#b0b0b4'];
         const WOUND_COLORS = ['#9a6025', '#a66828', '#b0702c'];
-        const baseClr = wound ? WOUND_COLORS[i - 3] : PLAIN_COLORS[i];
+        const pi = wound ? i - woundFrom : i % PLAIN_COLORS.length;
+        const baseClr = wound ? WOUND_COLORS[pi] : PLAIN_COLORS[pi];
         const shadClr = wound ? 'rgba(40,15,0,0.60)'    : 'rgba(0,0,0,0.40)';
-        const hiClr   = wound ? 'rgba(185,130,60,0.60)' : (i === 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.60)');
+        const hiClr   = wound ? 'rgba(185,130,60,0.60)' : (pi === 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.60)');
 
         ctx.beginPath(); ctx.moveTo(pL.x, pL.y + thick * 0.55); ctx.lineTo(pR.x, pR.y + thick * 0.55);
         ctx.strokeStyle = shadClr; ctx.lineWidth = thick; ctx.stroke();
