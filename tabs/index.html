@@ -1184,16 +1184,22 @@ function parseXML(doc, fromToggle = false) {
             }
             if (node.nodeName !== 'note') continue;
 
-            // Ignorar notas que no pertenecen al staff TAB (evita duplicados del staff de notación)
-            if (hasTabFilter) {
-                const staffEl = node.getElementsByTagName('staff')[0];
-                const staffNum = staffEl ? +staffEl.textContent : 1;
-                if (!tabStaves.has(staffNum)) continue;
-            }
-
             const isChord = node.getElementsByTagName('chord').length > 0;
             const dur     = +(node.getElementsByTagName('duration')[0]?.textContent || 0);
             const durSec  = (dur / divisions) * (60 / bpm);
+
+            // Ignorar notas que no pertenecen al staff TAB, pero avanzar elapsed para
+            // mantener la sincronía con los backup/forward del XML (hay 3 backups por compás
+            // en partituras de 2 staves: entre voz1-voz2, entre voz2-voz5, entre voz5-voz6)
+            if (hasTabFilter) {
+                const staffEl = node.getElementsByTagName('staff')[0];
+                const staffNum = staffEl ? +staffEl.textContent : 1;
+                if (!tabStaves.has(staffNum)) {
+                    if (!isChord) elapsed += durSec;
+                    continue;
+                }
+            }
+
             const tech    = node.getElementsByTagName('notations')[0]
                                 ?.getElementsByTagName('technical')[0];
             let str  = +(tech?.getElementsByTagName('string')[0]?.textContent);
