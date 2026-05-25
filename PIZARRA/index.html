@@ -656,6 +656,7 @@ let sb, sesionId, canal;
 let slides = [], slideIdx = 0;
 let repLines = [], repIdx = 0, repActivo = false, repGen = 0;
 let repLrcLines = [], repHasSync = false, repHasAudio = false;
+let repBrowsing = false, repBrowsingTimer = null;
 
 // ── UTILS ────────────────────────────────────────────────
 
@@ -859,6 +860,14 @@ function renderRepLineas() {
     const wrap = document.getElementById('rep-lineas');
     const ctr  = document.getElementById('rep-counter');
     if (!wrap || !repLines.length) return;
+    if (repIdx < 0) {
+        // Esperando que el audio llegue al primer verso
+        const first = repLines[0] ?? '';
+        wrap.innerHTML = first ? `<div class="rep-linea next" data-idx="0">${esc(first)}</div>` : '';
+        if (ctr) ctr.textContent = `– / ${repLines.length}`;
+        autoFitPendiente();
+        return;
+    }
     const prev = repIdx > 0 ? repLines[repIdx - 1] : null;
     const curr = repLines[repIdx] ?? '';
     const next = repIdx < repLines.length - 1 ? repLines[repIdx + 1] : null;
@@ -873,12 +882,17 @@ function renderRepLineas() {
 function repIrA(idx) {
     if (idx < 0 || idx >= repLines.length) return;
     repIdx = idx;
+    repBrowsing = true;
+    if (repBrowsingTimer) clearTimeout(repBrowsingTimer);
+    repBrowsingTimer = setTimeout(() => { repBrowsing = false; }, 2000);
     renderRepLineas();
 }
 
 function repSaltarAudio(idx) {
     if (idx < 0 || idx >= repLines.length) return;
     repIdx = idx;
+    repBrowsing = false;
+    if (repBrowsingTimer) { clearTimeout(repBrowsingTimer); repBrowsingTimer = null; }
     if (repHasSync && repLrcLines[idx]) {
         const audio = document.getElementById('rep-audio');
         if (audio) audio.currentTime = Math.max(0, repLrcLines[idx].time / 1000 - 1);
@@ -909,6 +923,7 @@ function renderSlide() {
     repActivo = (tipo === 'rep');
     if (!repActivo) {
         repLines = []; repIdx = 0; repLrcLines = []; repHasSync = false; repHasAudio = false;
+        repBrowsing = false; if (repBrowsingTimer) { clearTimeout(repBrowsingTimer); repBrowsingTimer = null; }
         const _ra = document.getElementById('rep-audio');
         if (_ra) { _ra.pause(); _ra.src = ''; _ra.controls = false; document.body.appendChild(_ra); }
     }
@@ -963,7 +978,7 @@ function renderSlide() {
                     repLrcLines = [];
                     repLines    = (letraAsset.contenido || '').split('\n').map(t => t.trim()).filter(Boolean);
                 }
-                repIdx = 0;
+                repIdx = repHasSync ? -1 : 0;
                 // Botón de modo sync (solo si hay LRC + audio)
                 if (repHasSync && repHasAudio) {
                     const slideDiv = document.querySelector('#slide-area .slide-rep');
@@ -979,7 +994,7 @@ function renderSlide() {
                 const repAudio = document.getElementById('rep-audio');
                 repAudio.pause(); repAudio.src = '';
                 repAudio.ontimeupdate = function () {
-                    if (!repActivo || !repLrcLines.length) return;
+                    if (!repActivo || !repLrcLines.length || repBrowsing) return;
                     const ms = this.currentTime * 1000;
                     let newIdx = -1;
                     for (let i = 0; i < repLrcLines.length; i++) {
