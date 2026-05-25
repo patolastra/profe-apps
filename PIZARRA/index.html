@@ -284,6 +284,16 @@
         body.slide-rep-active .nav-btn { color: #334155; background: rgba(0,0,0,0.04); opacity: 1; }
         body.slide-rep-active .nav-btn:hover { background: rgba(0,0,0,0.08); color: #1e293b; }
         body.slide-rep-active #pres-contador-footer { color: #334155; opacity: 1; }
+        #rep-mode-btn {
+            position: absolute; top: 10px; right: 12px;
+            font-size: 0.7rem; padding: 4px 12px;
+            border: 1.5px solid rgba(0,0,0,0.15); border-radius: 20px;
+            background: transparent; color: #334155; cursor: pointer;
+            font-family: system-ui, sans-serif; transition: all 0.15s;
+        }
+        #rep-mode-btn.playing {
+            background: #1e293b; color: #f8fafc; border-color: #1e293b;
+        }
 
         /* ── SLIDE: VACÍO ────────────────────────────────── */
         .slide-vacio {
@@ -639,11 +649,16 @@ function temaParaSesion(uuid) {
 let sb, sesionId, canal;
 let slides = [], slideIdx = 0;
 let repLines = [], repIdx = 0, repActivo = false, repGen = 0;
+let repLrcLines = [], repHasSync = false, repHasAudio = false;
 
 // ── UTILS ────────────────────────────────────────────────
 
 function esc(s) {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function repStorageUrl(path) {
+    return sb.storage.from('repertorio-assets').getPublicUrl(path).data.publicUrl;
 }
 
 function parsearSlides(txt) {
@@ -870,7 +885,11 @@ function renderSlide() {
     const tipo = tipoSlide(raw);
     area.className = 'tipo-' + tipo;
     repActivo = (tipo === 'rep');
-    if (!repActivo) { repLines = []; repIdx = 0; }
+    if (!repActivo) {
+        repLines = []; repIdx = 0; repLrcLines = []; repHasSync = false; repHasAudio = false;
+        const _ra = document.getElementById('rep-audio');
+        if (_ra) { _ra.pause(); _ra.src = ''; }
+    }
     document.body.classList.toggle('slide-metal-active', tipo === 'metal');
     document.body.classList.toggle('slide-rep-active',   tipo === 'rep');
 
@@ -901,23 +920,53 @@ function renderSlide() {
         </div>`;
         (async () => {
             try {
-                const { data } = await sb.from('repertorio_assets')
-                    .select('contenido, synced')
+                const { data: assets } = await sb.from('repertorio_assets')
+                    .select('tipo, contenido, synced, storage_path')
                     .eq('cancion_id', cancionId)
-                    .eq('tipo', 'letra')
-                    .maybeSingle();
-                if (repGen !== miGen) return; // slide cambió mientras cargaba
-                if (!data) {
+                    .in('tipo', ['letra', 'audio']);
+                if (repGen !== miGen) return;
+                const letraAsset = assets?.find(a => a.tipo === 'letra');
+                const audioAsset = assets?.find(a => a.tipo === 'audio');
+                if (!letraAsset) {
                     const el = document.getElementById('rep-lineas');
                     if (el) { el.textContent = 'Sin letra disponible'; el.style.color = 'rgba(0,0,0,0.25)'; }
                     return;
                 }
-                if (data.synced) {
-                    repLines = parseLRC(data.synced).map(l => l.text).filter(Boolean);
+                repHasSync  = !!(letraAsset.synced);
+                repHasAudio = !!(audioAsset?.storage_path);
+                if (repHasSync) {
+                    repLrcLines = parseLRC(letraAsset.synced);
+                    repLines    = repLrcLines.map(l => l.text).filter(Boolean);
                 } else {
-                    repLines = (data.contenido || '').split('\n').map(t => t.trim()).filter(Boolean);
+                    repLrcLines = [];
+                    repLines    = (letraAsset.contenido || '').split('\n').map(t => t.trim()).filter(Boolean);
                 }
                 repIdx = 0;
+                // Botón de modo sync (solo si hay LRC + audio)
+                if (repHasSync && repHasAudio) {
+                    const slideDiv = document.querySelector('#slide-area .slide-rep');
+                    if (slideDiv) {
+                        const btn = document.createElement('button');
+                        btn.id = 'rep-mode-btn';
+                        btn.textContent = '▶ Auto';
+                        btn.onclick = toggleRepSync;
+                        slideDiv.appendChild(btn);
+                    }
+                }
+                // Cargar audio
+                const repAudio = document.getElementById('rep-audio');
+                repAudio.pause(); repAudio.src = '';
+                repAudio.ontimeupdate = function () {
+                    if (!repActivo || !repLrcLines.length) return;
+                    const ms = this.currentTime * 1000;
+                    let newIdx = -1;
+                    for (let i = 0; i < repLrcLines.length; i++) {
+                        if (repLrcLines[i].time <= ms) newIdx = i; else break;
+                    }
+                    if (newIdx >= 0 && newIdx !== repIdx) { repIdx = newIdx; renderRepLineas(); }
+                };
+                repAudio.onended = () => actualizarBtnRepMode();
+                if (repHasAudio) repAudio.src = repStorageUrl(audioAsset.storage_path);
                 renderRepLineas();
             } catch (e) {
                 console.error(e);
@@ -968,8 +1017,35 @@ function irA(idx) {
 function avanzar()    { if (slideIdx < slides.length - 1) irA(slideIdx + 1); }
 function retroceder() { if (slideIdx > 0) irA(slideIdx - 1); }
 
+function toggleRepSync() {
+    const audio = document.getElementById('rep-audio');
+    if (!audio) return;
+    if (audio.paused) {
+        audio.play();
+    } else {
+        audio.pause();
+        const ms = audio.currentTime * 1000;
+        repIdx = Math.max(0, repLrcLines.filter(l => l.time <= ms).length - 1);
+        renderRepLineas();
+    }
+    actualizarBtnRepMode();
+}
+
+function actualizarBtnRepMode() {
+    const btn   = document.getElementById('rep-mode-btn');
+    const audio = document.getElementById('rep-audio');
+    if (!btn) return;
+    const playing = audio && !audio.paused;
+    btn.textContent = playing ? '⏸ Auto' : '▶ Auto';
+    btn.classList.toggle('playing', playing);
+}
+
 function handleClickArea() {
-    if (repActivo && repLines.length) { repAvancar(); return; }
+    if (repActivo && repLines.length) {
+        const ra = document.getElementById('rep-audio');
+        if (ra && !ra.paused) { ra.pause(); actualizarBtnRepMode(); }
+        repAvancar(); return;
+    }
     avanzar();
 }
 
@@ -1202,10 +1278,18 @@ function enviarTimerCustom() {
 
 document.addEventListener('keydown', e => {
     if (repActivo && repLines.length) {
-        if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); repAvancar(); }
-        else if (['ArrowLeft', 'ArrowUp'].includes(e.key))    { e.preventDefault(); repRetroceder(); }
-        else if (e.key === 'f' || e.key === 'F')               toggleFullscreen();
-        else if (e.key === 'r' || e.key === 'R')               recargarSlides();
+        if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) {
+            e.preventDefault();
+            const ra = document.getElementById('rep-audio');
+            if (ra && !ra.paused) { ra.pause(); actualizarBtnRepMode(); }
+            repAvancar();
+        } else if (['ArrowLeft', 'ArrowUp'].includes(e.key)) {
+            e.preventDefault();
+            const ra = document.getElementById('rep-audio');
+            if (ra && !ra.paused) { ra.pause(); actualizarBtnRepMode(); }
+            repRetroceder();
+        } else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+        else if (e.key === 'r' || e.key === 'R')   recargarSlides();
         return;
     }
     if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); avanzar(); }
@@ -1221,8 +1305,13 @@ document.addEventListener('touchstart', e => { tX0 = e.changedTouches[0].clientX
 document.addEventListener('touchend',   e => {
     const dx = e.changedTouches[0].clientX - tX0;
     if (Math.abs(dx) > 55) {
-        if (repActivo && repLines.length) { dx < 0 ? repAvancar() : repRetroceder(); }
-        else                              { dx < 0 ? avanzar()    : retroceder(); }
+        if (repActivo && repLines.length) {
+            const ra = document.getElementById('rep-audio');
+            if (ra && !ra.paused) { ra.pause(); actualizarBtnRepMode(); }
+            dx < 0 ? repAvancar() : repRetroceder();
+        } else {
+            dx < 0 ? avanzar() : retroceder();
+        }
     }
 }, { passive: true });
 
@@ -1304,5 +1393,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) { console.error('Pizarra init:', e); }
 });
 </script>
+<audio id="rep-audio" preload="auto"></audio>
 </body>
 </html>
