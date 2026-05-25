@@ -284,6 +284,12 @@
         body.slide-rep-active .nav-btn { color: #334155; background: rgba(0,0,0,0.04); opacity: 1; }
         body.slide-rep-active .nav-btn:hover { background: rgba(0,0,0,0.08); color: #1e293b; }
         body.slide-rep-active #pres-contador-footer { color: #334155; opacity: 1; }
+        .slide-rep > audio {
+            position: absolute;
+            bottom: 14px; left: 8vw; right: 8vw;
+            width: calc(100% - 16vw);
+        }
+        .slide-rep:has(> audio) .rep-counter { display: none; }
         #rep-mode-btn {
             position: absolute; top: 10px; right: 12px;
             font-size: 0.7rem; padding: 4px 12px;
@@ -857,15 +863,31 @@ function renderRepLineas() {
     const curr = repLines[repIdx] ?? '';
     const next = repIdx < repLines.length - 1 ? repLines[repIdx + 1] : null;
     wrap.innerHTML =
-        (prev !== null ? `<div class="rep-linea prev">${esc(prev)}</div>` : '') +
-        `<div class="rep-linea activa">${esc(curr)}</div>` +
-        (next !== null ? `<div class="rep-linea next">${esc(next)}</div>` : '');
+        (prev !== null ? `<div class="rep-linea prev" data-idx="${repIdx-1}">${esc(prev)}</div>` : '') +
+        `<div class="rep-linea activa" data-idx="${repIdx}">${esc(curr)}</div>` +
+        (next !== null ? `<div class="rep-linea next" data-idx="${repIdx+1}">${esc(next)}</div>` : '');
     if (ctr) ctr.textContent = `${repIdx + 1} / ${repLines.length}`;
     autoFitPendiente();
 }
 
-function repAvancar()    { if (repIdx < repLines.length - 1) { repIdx++; renderRepLineas(); } }
-function repRetroceder() { if (repIdx > 0)                   { repIdx--; renderRepLineas(); } }
+function repIrA(idx) {
+    if (idx < 0 || idx >= repLines.length) return;
+    repIdx = idx;
+    renderRepLineas();
+}
+
+function repSaltarAudio(idx) {
+    if (idx < 0 || idx >= repLines.length) return;
+    repIdx = idx;
+    if (repHasSync && repLrcLines[idx]) {
+        const audio = document.getElementById('rep-audio');
+        if (audio) audio.currentTime = Math.max(0, repLrcLines[idx].time / 1000 - 1);
+    }
+    renderRepLineas();
+}
+
+function repAvancar()    { repIrA(repIdx + 1); }
+function repRetroceder() { repIrA(repIdx - 1); }
 
 // ── RENDER ───────────────────────────────────────────────
 
@@ -888,7 +910,7 @@ function renderSlide() {
     if (!repActivo) {
         repLines = []; repIdx = 0; repLrcLines = []; repHasSync = false; repHasAudio = false;
         const _ra = document.getElementById('rep-audio');
-        if (_ra) { _ra.pause(); _ra.src = ''; }
+        if (_ra) { _ra.pause(); _ra.src = ''; _ra.controls = false; document.body.appendChild(_ra); }
     }
     document.body.classList.toggle('slide-metal-active', tipo === 'metal');
     document.body.classList.toggle('slide-rep-active',   tipo === 'rep');
@@ -968,8 +990,23 @@ function renderSlide() {
                 repAudio.onplay  = () => actualizarBtnRepMode();
                 repAudio.onpause = () => actualizarBtnRepMode();
                 repAudio.onended = () => actualizarBtnRepMode();
-                if (repHasAudio) repAudio.src = repStorageUrl(audioAsset.storage_path);
+                if (repHasAudio) {
+                    repAudio.src = repStorageUrl(audioAsset.storage_path);
+                    repAudio.controls = true;
+                    const slideDiv = document.querySelector('#slide-area .slide-rep');
+                    if (slideDiv) slideDiv.appendChild(repAudio);
+                }
                 renderRepLineas();
+                // Click en verso → saltar audio al timestamp
+                const wrapEl = document.getElementById('rep-lineas');
+                if (wrapEl) {
+                    wrapEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const linea = e.target.closest('[data-idx]');
+                        if (!linea) return;
+                        repSaltarAudio(parseInt(linea.dataset.idx));
+                    });
+                }
             } catch (e) {
                 console.error(e);
                 if (repGen !== miGen) return;
@@ -1300,6 +1337,16 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'f' || e.key === 'F')               toggleFullscreen();
     else if (e.key === 'r' || e.key === 'R')               recargarSlides();
 });
+
+// ── WHEEL (rep: navegar versos sin tocar audio) ──────────
+
+document.addEventListener('wheel', (e) => {
+    if (!repActivo || !repLines.length) return;
+    e.preventDefault();
+    repIrA(e.deltaY > 0
+        ? Math.min(repIdx + 1, repLines.length - 1)
+        : Math.max(repIdx - 1, 0));
+}, { passive: false });
 
 // ── SWIPE ────────────────────────────────────────────────
 
