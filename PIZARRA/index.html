@@ -197,21 +197,26 @@
             color: #f0ede8; line-height: 1.25;
         }
 
-        /* ── SLIDE: IMAGEN ──────────────────────────────── */
-        .slide-img {
-            position: absolute; inset: 0;
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            gap: 0.75rem; padding: 1.5rem;
-        }
-        .slide-img img {
+        /* ── SLIDE: TEXTO + IMAGEN (inline) ─────────────── */
+        /* Cuando el slide tiene @img:, slide-content crece para llenar el padre */
+        .slide-content.has-img {
             flex: 1; min-height: 0;
-            width: 100%; object-fit: contain;
-            border-radius: 8px;
+            display: flex; flex-direction: column;
+            width: 100%;
+            font-size: 28px; /* sin autoFit — imagen ocupa el resto */
         }
-        .slide-img .img-caption {
-            color: var(--slide-c2); font-size: 1.1rem;
-            text-align: center; opacity: 0.85; flex-shrink: 0;
+        .slide-inline-img {
+            flex: 1; min-height: 0;
+            max-width: 100%;
+            object-fit: contain;
+            border-radius: 8px;
+            align-self: center;
+            margin-top: 0.5rem;
+        }
+        .slide-content.has-img .img-caption {
+            color: var(--slide-c2); font-size: 0.85rem;
+            text-align: center; opacity: 0.85;
+            flex-shrink: 0; margin-top: 0.2rem;
         }
 
         /* ── SLIDE: YOUTUBE ──────────────────────────────── */
@@ -696,7 +701,6 @@ function tipoSlide(raw) {
     if (p.startsWith('@metal:'))   return 'metal';
     if (p.startsWith('@rep:'))     return 'rep';
     if (p.startsWith('@mensaje:')) return 'mensaje';
-    if (p.startsWith('@img:'))     return 'img';
     return 'texto';
 }
 
@@ -740,8 +744,9 @@ function tituloSlide(raw) {
     if (tipo === 'metal')   return '🎹 ' + extraerMetalData(raw).nombre;
     if (tipo === 'rep')     return '🎵 ' + extraerRepData(raw).nombre;
     if (tipo === 'mensaje') return raw.trim().split('\n')[0].replace('@mensaje:', '').trim();
-    if (tipo === 'img')     return '🖼 ' + (extraerImgData(raw).caption || 'Imagen');
-    return raw.trim().split('\n')[0].replace(/^#+ */, '') || '—';
+    const primeraLinea = raw.trim().split('\n')[0];
+    if (primeraLinea.startsWith('@img:')) return '🖼 ' + (extraerImgData(raw).caption || 'Imagen');
+    return primeraLinea.replace(/^#+ */, '') || '—';
 }
 
 function formatearFecha(fechaStr) {
@@ -797,10 +802,19 @@ function parseInline(raw) {
 
 function renderizarSlideHtml(raw) {
     const lines = raw.split('\n');
-    let html = '', inList = false;
+    let html = '', inList = false, hasImg = false;
     for (const line of lines) {
         const t = line.trim();
         if (!t) continue;
+        // Imagen inline: @img:URL o @img:URL|caption
+        if (t.startsWith('@img:')) {
+            if (inList) { html += '</ul>'; inList = false; }
+            hasImg = true;
+            const { url, caption } = extraerImgData(t);
+            html += `<img class="slide-inline-img" src="${esc(url)}" alt="${esc(caption)}">`;
+            if (caption) html += `<div class="img-caption">${esc(caption)}</div>`;
+            continue;
+        }
         // Bloque destacado: línea empieza con & (no &&)
         if (t.startsWith('&') && !t.startsWith('&&')) {
             if (inList) { html += '</ul>'; inList = false; }
@@ -830,7 +844,7 @@ function renderizarSlideHtml(raw) {
         }
     }
     if (inList) html += '</ul>';
-    return { html, centrado: true };
+    return { html, centrado: true, hasImg };
 }
 
 // ── AUTO-FIT ─────────────────────────────────────────────
@@ -973,13 +987,6 @@ function renderSlide() {
             <iframe src="${base.toString()}" allow="autoplay" allowfullscreen></iframe>
         </div>`;
 
-    } else if (tipo === 'img') {
-        const { url, caption } = extraerImgData(raw);
-        area.innerHTML = `<div class="slide-img">
-            <img src="${esc(url)}" alt="${esc(caption)}">
-            ${caption ? `<div class="img-caption">${esc(caption)}</div>` : ''}
-        </div>`;
-
     } else if (tipo === 'rep') {
         const { nombre, cancionId } = extraerRepData(raw);
         const miGen = ++repGen;
@@ -1073,11 +1080,12 @@ function renderSlide() {
         autoFitPendiente();
 
     } else {
-        const { html, centrado } = renderizarSlideHtml(raw);
+        const { html, centrado, hasImg } = renderizarSlideHtml(raw);
+        const extraClass = (centrado ? ' centrado' : '') + (hasImg ? ' has-img' : '');
         area.innerHTML = `<div class="slide-texto">
-            <div class="slide-content${centrado ? ' centrado' : ''}">${html}</div>
+            <div class="slide-content${extraClass}">${html}</div>
         </div>`;
-        autoFitPendiente();
+        if (!hasImg) autoFitPendiente();
     }
 
     actualizarContadores();
