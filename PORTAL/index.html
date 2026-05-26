@@ -700,6 +700,61 @@
         #rep-picker-list { overflow-y: auto; padding: 8px; }
         #rep-picker-empty { padding: 24px; text-align: center; color: #64748b; font-size: 0.82rem; }
 
+        /* ── PICKER IMAGEN ── */
+        #img-picker {
+            display: none; position: fixed; inset: 0;
+            background: rgba(15,23,42,0.55); z-index: 500;
+            align-items: center; justify-content: center;
+        }
+        #img-picker.show { display: flex; }
+        #img-picker-box {
+            background: #1e293b; color: #e2e8f0;
+            border-radius: 12px; width: 480px; max-width: 92vw;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.4); overflow: hidden;
+            max-height: 80vh; display: flex; flex-direction: column;
+        }
+        #img-picker-hdr {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; background: #0f172a;
+            font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em;
+            text-transform: uppercase; color: #94a3b8; flex-shrink: 0;
+        }
+        #img-picker-hdr button {
+            background: none; border: none; color: #64748b; cursor: pointer;
+            font-size: 1rem; line-height: 1; padding: 2px 4px;
+        }
+        #img-picker-hdr button:hover { color: #e2e8f0; }
+        #img-picker-actions {
+            padding: 10px 12px; border-bottom: 1px solid #334155; flex-shrink: 0;
+        }
+        #btn-subir-img {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 14px; background: #3b82f6; color: #fff;
+            border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 700;
+            cursor: pointer; font-family: inherit;
+        }
+        #btn-subir-img:hover { background: #2563eb; }
+        #btn-subir-img:disabled { background: #475569; cursor: default; }
+        #img-upload-status { font-size: 0.75rem; color: #94a3b8; margin-top: 6px; min-height: 1em; }
+        #img-picker-grid {
+            overflow-y: auto; padding: 10px;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+        }
+        .img-item {
+            aspect-ratio: 4/3; border-radius: 6px; overflow: hidden;
+            cursor: pointer; position: relative; background: #0f172a;
+            border: 2px solid transparent;
+        }
+        .img-item:hover { border-color: #3b82f6; }
+        .img-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .img-item-nombre {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: rgba(0,0,0,0.65); color: #f1f5f9;
+            font-size: 0.65rem; padding: 3px 5px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #img-picker-empty { padding: 24px; text-align: center; color: #64748b; font-size: 0.82rem; grid-column: 1/-1; }
+
         /* ── CHEATSHEET MARKDOWN ── */
         #md-cheat {
             display: none; position: fixed; inset: 0;
@@ -3082,6 +3137,85 @@ function insertarMetal(nombre, url) {
     ta.focus();
 }
 
+// ── PICKER IMAGEN ─────────────────────────────────────────────
+function imgPublicUrl(path) {
+    return sb.storage.from('repertorio-assets').getPublicUrl(path).data.publicUrl;
+}
+
+async function abrirPickerImg() {
+    document.getElementById('img-picker').classList.add('show');
+    document.getElementById('img-upload-status').textContent = '';
+    await recargarGridImg();
+}
+
+function cerrarPickerImg() {
+    document.getElementById('img-picker').classList.remove('show');
+    const input = document.getElementById('img-file-input');
+    input.value = '';
+}
+
+async function recargarGridImg() {
+    const grid = document.getElementById('img-picker-grid');
+    grid.innerHTML = '<div id="img-picker-empty">Cargando…</div>';
+
+    const { data, error } = await sb.storage.from('repertorio-assets').list('pizarra', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+
+    if (error) {
+        grid.innerHTML = '<div id="img-picker-empty">Error al conectar. Verificá la conexión.</div>';
+        return;
+    }
+    const archivos = (data || []).filter(f => f.name !== '.emptyFolderPlaceholder');
+    if (!archivos.length) {
+        grid.innerHTML = '<div id="img-picker-empty">No hay imágenes todavía. Subí una con el botón de arriba.</div>';
+        return;
+    }
+
+    grid.innerHTML = archivos.map(f => {
+        const path = 'pizarra/' + f.name;
+        const url  = imgPublicUrl(path);
+        const nombre = f.name.replace(/^\d+_/, '');
+        return `<div class="img-item" onclick="insertarImg(${JSON.stringify(nombre)},${JSON.stringify(url)})" title="${nombre}">
+            <img src="${url}" alt="${nombre}">
+            <div class="img-item-nombre">${nombre}</div>
+        </div>`;
+    }).join('');
+}
+
+async function uploadImg(file) {
+    if (!file) return;
+    const btn = document.getElementById('btn-subir-img');
+    const status = document.getElementById('img-upload-status');
+    btn.disabled = true;
+    status.textContent = 'Subiendo…';
+
+    const ext    = file.name.split('.').pop();
+    const base   = file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 40);
+    const path   = 'pizarra/' + Date.now() + '_' + base + '.' + ext;
+
+    const { error } = await sb.storage.from('repertorio-assets').upload(path, file, { upsert: false });
+
+    btn.disabled = false;
+    document.getElementById('img-file-input').value = '';
+
+    if (error) {
+        status.textContent = 'Error al subir: ' + error.message;
+        return;
+    }
+    status.textContent = '✓ Imagen subida';
+    await recargarGridImg();
+}
+
+function insertarImg(nombre, url) {
+    const ta = document.getElementById('pres-area');
+    const insert = '\n---\n@img:' + url + '|' + nombre + '\n---\n';
+    const start = ta.selectionStart;
+    ta.value = ta.value.slice(0, start) + insert + ta.value.slice(ta.selectionEnd);
+    ta.selectionStart = ta.selectionEnd = start + insert.length;
+    ta.dispatchEvent(new Event('input'));
+    cerrarPickerImg();
+    ta.focus();
+}
+
 // ── MENÚ INSERTAR ────────────────────────────────────────────
 function toggleMenuInsertar(e) {
     e.stopPropagation();
@@ -3169,6 +3303,7 @@ function insertarRep(nombre, cancionId) {
     <button onclick="cerrarMenuInsertar();abrirPickerRep()">🎵 Canción (letra)</button>
     <button onclick="cerrarMenuInsertar();abrirPickerMetal()">🎹 Metalófono</button>
     <button onclick="cerrarMenuInsertar();insertarYoutube()">▶ YouTube</button>
+    <button onclick="cerrarMenuInsertar();abrirPickerImg()">🖼 Imagen</button>
 </div>
 
 <!-- CHEATSHEET MARKDOWN -->
@@ -3189,6 +3324,21 @@ function insertarRep(nombre, cancionId) {
             <button onclick="cerrarPickerRep()">✕</button>
         </div>
         <div id="rep-picker-list"></div>
+    </div>
+</div>
+
+<div id="img-picker" onclick="if(event.target===this)cerrarPickerImg()">
+    <div id="img-picker-box">
+        <div id="img-picker-hdr">
+            🖼 Insertar imagen
+            <button onclick="cerrarPickerImg()">✕</button>
+        </div>
+        <div id="img-picker-actions">
+            <button id="btn-subir-img" onclick="document.getElementById('img-file-input').click()">+ Subir imagen</button>
+            <input type="file" id="img-file-input" accept="image/*" style="display:none" onchange="uploadImg(this.files[0])">
+            <div id="img-upload-status"></div>
+        </div>
+        <div id="img-picker-grid"></div>
     </div>
 </div>
 
@@ -3222,6 +3372,7 @@ function insertarRep(nombre, cancionId) {
             <div class="cheat-sec">
                 <div class="cheat-sec-title">Tipos especiales (primera línea)</div>
                 <div class="cheat-row"><span class="cheat-code">@youtube:URL</span><span class="cheat-desc">Slide de video YouTube</span></div>
+                <div class="cheat-row"><span class="cheat-code">@img:URL|título</span><span class="cheat-desc">Slide de imagen (título opcional)</span></div>
                 <div class="cheat-row"><span class="cheat-code">@mensaje:texto</span><span class="cheat-desc">Mensaje (fondo oscuro)</span></div>
             </div>
             <div class="cheat-sec">

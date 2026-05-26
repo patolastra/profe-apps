@@ -197,6 +197,22 @@
             color: #f0ede8; line-height: 1.25;
         }
 
+        /* ── SLIDE: IMAGEN ──────────────────────────────── */
+        .slide-img {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 0.75rem; padding: 1.5rem;
+        }
+        .slide-img img {
+            max-width: 100%; max-height: 80vh;
+            object-fit: contain; border-radius: 8px;
+        }
+        .slide-img .img-caption {
+            color: var(--slide-c2); font-size: 1.1rem;
+            text-align: center; opacity: 0.85;
+        }
+
         /* ── SLIDE: YOUTUBE ──────────────────────────────── */
         .slide-youtube {
             position: fixed; inset: 0; z-index: 50;
@@ -679,6 +695,7 @@ function tipoSlide(raw) {
     if (p.startsWith('@metal:'))   return 'metal';
     if (p.startsWith('@rep:'))     return 'rep';
     if (p.startsWith('@mensaje:')) return 'mensaje';
+    if (p.startsWith('@img:'))     return 'img';
     return 'texto';
 }
 
@@ -702,6 +719,13 @@ function extraerRepData(raw) {
     return { nombre: 'Canción', cancionId: val };
 }
 
+function extraerImgData(raw) {
+    const val = raw.trim().split('\n')[0].replace('@img:', '').trim();
+    const pipe = val.indexOf('|');
+    if (pipe >= 0) return { url: val.slice(0, pipe).trim(), caption: val.slice(pipe + 1).trim() };
+    return { url: val, caption: '' };
+}
+
 function parseLRC(text) {
     return text.split('\n')
         .map(l => l.match(/\[(\d+):(\d+\.\d+)\](.*)/))
@@ -715,6 +739,7 @@ function tituloSlide(raw) {
     if (tipo === 'metal')   return '🎹 ' + extraerMetalData(raw).nombre;
     if (tipo === 'rep')     return '🎵 ' + extraerRepData(raw).nombre;
     if (tipo === 'mensaje') return raw.trim().split('\n')[0].replace('@mensaje:', '').trim();
+    if (tipo === 'img')     return '🖼 ' + (extraerImgData(raw).caption || 'Imagen');
     return raw.trim().split('\n')[0].replace(/^#+ */, '') || '—';
 }
 
@@ -945,6 +970,13 @@ function renderSlide() {
         base.searchParams.set('nombre', nombre);
         area.innerHTML = `<div class="slide-metal">
             <iframe src="${base.toString()}" allow="autoplay" allowfullscreen></iframe>
+        </div>`;
+
+    } else if (tipo === 'img') {
+        const { url, caption } = extraerImgData(raw);
+        area.innerHTML = `<div class="slide-img">
+            <img src="${esc(url)}" alt="${esc(caption)}">
+            ${caption ? `<div class="img-caption">${esc(caption)}</div>` : ''}
         </div>`;
 
     } else if (tipo === 'rep') {
