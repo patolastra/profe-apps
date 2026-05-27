@@ -209,6 +209,14 @@
         .pal-add-form input { background: #262626; border: 1px solid #404040; color: #eee; border-radius: 4px; padding: 6px 10px; font-size: .86rem; font-family: inherit; }
         .pal-add-form input:focus { outline: none; border-color: #27ae60; }
         .pal-btn-add { background: #27ae60; color: #fff; border: none; border-radius: 4px; padding: 7px 14px; cursor: pointer; font-size: .86rem; font-weight: 600; white-space: nowrap; }
+        .pal-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+        .pal-chip { background: #2a2a2a; border: 1px solid #444; color: #aaa; border-radius: 4px; padding: 4px 9px; font-size: .78rem; cursor: pointer; user-select: none; transition: background .12s, color .12s; }
+        .pal-chip.on { background: #1a4a2a; border-color: #27ae60; color: #2ecc71; }
+        .pal-nivel-grp { display: flex; gap: 0; margin-top: 2px; }
+        .pal-nivel-btn { background: #2a2a2a; border: 1px solid #444; color: #777; padding: 4px 12px; font-size: .78rem; cursor: pointer; }
+        .pal-nivel-btn:first-child { border-radius: 4px 0 0 4px; }
+        .pal-nivel-btn:last-child  { border-radius: 0 4px 4px 0; border-left: none; }
+        .pal-nivel-btn.on { background: #1a3a5a; border-color: #3498db; color: #5dade2; }
         .pal-activo-bar { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
         .pal-activo-nombre { flex: 1; font-weight: 700; color: #2ecc71; font-size: .95rem; }
         .pal-btn-logout { background: #c0392b; color: #fff; border: none; border-radius: 4px; padding: 5px 12px; cursor: pointer; font-size: .8rem; }
@@ -2781,6 +2789,13 @@ function actualizarBadge() {
     }
 }
 
+// ── Helpers chips / nivel ──────────────────────────────────────────────────
+function toggleChip(el) { el.classList.toggle('on'); }
+function selNivel(el) {
+    document.querySelectorAll('#palNivelGrp .pal-nivel-btn').forEach(b => b.classList.remove('on'));
+    el.classList.add('on');
+}
+
 // ── Panel ──────────────────────────────────────────────────────────────────
 function abrirPanelAlumnos() {
     document.getElementById('panelAlumnos').classList.add('open');
@@ -2853,9 +2868,12 @@ async function renderPanelAlumnos() {
             const asistBadge = asistHoy.has(a.id)
                 ? `<span style="color:#27ae60;font-size:.72rem;margin-left:4px">✓${minHoy}min</span>`
                 : '';
+            const nivelBadge = a.nivel === 'medio'
+                ? `<span style="color:#5dade2;font-size:.7rem;margin-left:4px">●medio</span>`
+                : `<span style="color:#555;font-size:.7rem;margin-left:4px">●inicial</span>`;
 
             html += `<div class="pal-alumno-row">
-                <span class="pal-alumno-nombre">${esc(nombreCompleto(a))}${asistBadge}</span>
+                <span class="pal-alumno-nombre">${esc(nombreCompleto(a))}${asistBadge}${nivelBadge}</span>
                 <span class="pal-alumno-curso">${esc(a.curso)}</span>
                 ${esActivo
                     ? `<span style="color:#27ae60;font-size:.78rem;font-weight:700;white-space:nowrap">● activo</span>`
@@ -2891,11 +2909,24 @@ async function renderPanelAlumnos() {
         }
 
         // ── Agregar alumno ──────────────────────────────────────────────
-        html += `<div class="pal-add-form">
-            <input id="palNuevoNombre"   placeholder="Nombre" style="flex:1;min-width:90px">
-            <input id="palNuevoApellido" placeholder="Apellido" style="flex:1;min-width:100px">
-            <input id="palNuevoCurso"    placeholder="Curso" style="width:62px">
-            <button class="pal-btn-add" onclick="agregarAlumno()">+ Agregar</button>
+        html += `<div class="pal-add-form" style="flex-direction:column;gap:8px">
+            <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+                <input id="palNuevoNombre"   placeholder="Nombre"   style="flex:1;min-width:90px">
+                <input id="palNuevoApellido" placeholder="Apellido" style="flex:1;min-width:100px">
+                <input id="palNuevoCurso"    placeholder="Curso"    style="width:62px">
+            </div>
+            <div class="pal-chips" id="palChipsInstr">
+                <span class="pal-chip" data-v="Guitarra" onclick="toggleChip(this)">🎸 Guitarra</span>
+                <span class="pal-chip" data-v="Ukelele"  onclick="toggleChip(this)">🪕 Ukelele</span>
+                <span class="pal-chip" data-v="Bajo"     onclick="toggleChip(this)">🎵 Bajo</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+                <div class="pal-nivel-grp" id="palNivelGrp">
+                    <button class="pal-nivel-btn on" data-v="inicial" onclick="selNivel(this)">Inicial</button>
+                    <button class="pal-nivel-btn"    data-v="medio"   onclick="selNivel(this)">Medio</button>
+                </div>
+                <button class="pal-btn-add" onclick="agregarAlumno()">+ Agregar</button>
+            </div>
         </div></div>`;
 
         // ── Asistencia hoy ──────────────────────────────────────────────
@@ -2937,12 +2968,16 @@ function logoutAlumno() {
 }
 
 async function agregarAlumno() {
-    const nombre   = (document.getElementById('palNuevoNombre')?.value   || '').trim();
-    const apellido = (document.getElementById('palNuevoApellido')?.value || '').trim();
-    const curso    = (document.getElementById('palNuevoCurso')?.value    || '').trim();
+    const nombre      = (document.getElementById('palNuevoNombre')?.value   || '').trim();
+    const apellido    = (document.getElementById('palNuevoApellido')?.value || '').trim();
+    const curso       = (document.getElementById('palNuevoCurso')?.value    || '').trim();
+    const instrumentos = [...document.querySelectorAll('#palChipsInstr .pal-chip.on')]
+                            .map(c => c.dataset.v);
+    const nivelBtn    = document.querySelector('#palNivelGrp .pal-nivel-btn.on');
+    const nivel       = nivelBtn ? nivelBtn.dataset.v : 'inicial';
     if (!nombre) return;
     try {
-        await sbPost('/rest/v1/alumnos_taller', { nombre, apellido, contexto: 'CUERDAS', curso, orden: 0 });
+        await sbPost('/rest/v1/alumnos_taller', { nombre, apellido, contexto: 'CUERDAS', curso, instrumentos, nivel, orden: 0 });
         renderPanelAlumnos();
     } catch (e) { mostrarToast('Error al agregar alumno', true); }
 }
