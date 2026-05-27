@@ -279,7 +279,7 @@
         }
         .rep-lineas {
             display: flex; flex-direction: column;
-            align-items: center; gap: 0.5em; text-align: center;
+            align-items: flex-start; gap: 0.3em; text-align: left;
             width: 100%; font-family: var(--slide-font);
             color: #1e293b;
         }
@@ -287,9 +287,26 @@
             font-weight: 700; line-height: 1.3;
             overflow-wrap: break-word; max-width: 100%;
         }
-        .rep-linea.prev   { opacity: 0.18; font-size: 0.62em; }
-        .rep-linea.activa { opacity: 1;    color: #1e293b; font-size: 1em; }
-        .rep-linea.next   { opacity: 0.32; font-size: 0.75em; }
+        /* Estrofas */
+        .rep-stanza { width: 100%; margin-bottom: 0.6em; }
+        .rep-stanza-principal .rep-linea { font-size: 1em; color: #1e293b; opacity: 1; }
+        .rep-stanza-siguiente .rep-linea { font-size: 0.62em; color: #64748b; opacity: 0.55; }
+        .rep-stanza-principal .rep-linea.activa { color: #ea580c; font-size: 1.08em; }
+        .rep-stanza-siguiente .rep-linea.activa { color: #ea580c; opacity: 0.9; }
+        .rep-stanza-sep { height: 1px; background: rgba(0,0,0,0.08); width: 100%; margin: 0.3em 0; }
+        /* Toggle densidad */
+        .rep-dens-control {
+            position: absolute; top: 10px; left: 12px;
+            display: flex; gap: 3px; z-index: 10;
+        }
+        .rep-dens-btn {
+            padding: 3px 8px; border-radius: 5px;
+            border: 1px solid rgba(0,0,0,0.12); background: white;
+            font-size: 0.65rem; font-weight: 700; color: #64748b;
+            cursor: pointer; opacity: 0.6; transition: opacity 0.1s;
+        }
+        .rep-dens-btn:hover { opacity: 1; }
+        .rep-dens-btn.active { background: #1f2937; color: white; border-color: #1f2937; opacity: 1; }
         .rep-counter {
             position: absolute; bottom: 12px;
             font-size: 0.68rem; color: rgba(0,0,0,0.15);
@@ -679,6 +696,7 @@ let slides = [], slideIdx = 0;
 let repLines = [], repIdx = 0, repActivo = false, repGen = 0;
 let repLrcLines = [], repHasSync = false, repHasAudio = false;
 let repBrowsing = false, repBrowsingTimer = null;
+let repStanzas = [], repStanzaCount = 1, repActiveStanzaIdx = 0;
 
 // ── UTILS ────────────────────────────────────────────────
 
@@ -736,6 +754,45 @@ function parseLRC(text) {
         .map(l => l.match(/\[(\d+):(\d+\.\d+)\](.*)/))
         .filter(Boolean)
         .map(([, m, s, t]) => ({ time: (+m * 60 + +s) * 1000, text: t.trim() }));
+}
+
+function parseRepStanzas() {
+    const result = [];
+    let cur = [];
+    repLrcLines.forEach((l, i) => {
+        if (!l.text.trim()) {
+            if (cur.length) { result.push(cur); cur = []; }
+        } else {
+            cur.push({ ...l, origIdx: i });
+        }
+    });
+    if (cur.length) result.push(cur);
+    return result;
+}
+
+function repSiguienteNoVacio(fromIdx) {
+    for (let i = fromIdx + 1; i < repLrcLines.length; i++) {
+        if (repLrcLines[i].text.trim()) return i;
+    }
+    return null;
+}
+function repAnteriorNoVacio(fromIdx) {
+    for (let i = fromIdx - 1; i >= 0; i--) {
+        if (repLrcLines[i].text.trim()) return i;
+    }
+    return null;
+}
+
+function setRepDensidad(n) {
+    repStanzaCount = n;
+    document.querySelectorAll('.rep-dens-btn').forEach((b, i) => {
+        b.classList.toggle('active', i + 1 === n);
+    });
+    if (repIdx >= 0) {
+        const si = repStanzas.findIndex(s => s.some(l => l.origIdx === repIdx));
+        if (si >= 0) repActiveStanzaIdx = Math.min(si, Math.max(0, repStanzas.length - n));
+    }
+    renderRepLineas();
 }
 
 function tituloSlide(raw) {
@@ -899,28 +956,51 @@ window.addEventListener('resize', () => { autoFitPendiente(); autoFitPanelMsg();
 function renderRepLineas() {
     const wrap = document.getElementById('rep-lineas');
     const ctr  = document.getElementById('rep-counter');
-    if (!wrap || !repLines.length) return;
+    if (!wrap || !repStanzas.length) { if (wrap) wrap.innerHTML = ''; return; }
+
     if (repIdx < 0) {
-        // Esperando que el audio llegue al primer verso
-        const first = repLines[0] ?? '';
-        wrap.innerHTML = first ? `<div class="rep-linea next" data-idx="0">${esc(first)}</div>` : '';
+        // Esperando que el audio llegue al primer verso — mostrar primera estrofa
+        repActiveStanzaIdx = 0;
+        wrap.innerHTML = `<div class="rep-stanza rep-stanza-principal">` +
+            repStanzas[0].map(l => `<div class="rep-linea" data-idx="${l.origIdx}">${esc(l.text)}</div>`).join('') +
+        `</div>`;
         if (ctr) ctr.textContent = `– / ${repLines.length}`;
         autoFitPendiente();
         return;
     }
-    const prev = repIdx > 0 ? repLines[repIdx - 1] : null;
-    const curr = repLines[repIdx] ?? '';
-    const next = repIdx < repLines.length - 1 ? repLines[repIdx + 1] : null;
-    wrap.innerHTML =
-        (prev !== null ? `<div class="rep-linea prev" data-idx="${repIdx-1}">${esc(prev)}</div>` : '') +
-        `<div class="rep-linea activa" data-idx="${repIdx}">${esc(curr)}</div>` +
-        (next !== null ? `<div class="rep-linea next" data-idx="${repIdx+1}">${esc(next)}</div>` : '');
-    if (ctr) ctr.textContent = `${repIdx + 1} / ${repLines.length}`;
+
+    // Encontrar estrofa de la línea activa
+    const stanzaIdx = repStanzas.findIndex(s => s.some(l => l.origIdx === repIdx));
+    if (stanzaIdx >= 0) {
+        const fueraDeVentana = stanzaIdx < repActiveStanzaIdx ||
+                               stanzaIdx >= repActiveStanzaIdx + repStanzaCount;
+        if (fueraDeVentana) {
+            repActiveStanzaIdx = Math.min(
+                stanzaIdx,
+                Math.max(0, repStanzas.length - repStanzaCount)
+            );
+        }
+    }
+
+    const slice = repStanzas.slice(repActiveStanzaIdx, repActiveStanzaIdx + repStanzaCount);
+    wrap.innerHTML = slice.map((stanza, sIdx) => {
+        const cls = sIdx === 0 ? 'rep-stanza-principal' : 'rep-stanza-siguiente';
+        return `<div class="rep-stanza ${cls}">` +
+            stanza.map(l =>
+                `<div class="rep-linea${l.origIdx === repIdx ? ' activa' : ''}" data-idx="${l.origIdx}">${esc(l.text)}</div>`
+            ).join('') +
+        `</div>`;
+    }).join('<div class="rep-stanza-sep"></div>');
+
+    // Contador: posición en líneas no vacías
+    const posicion = repLrcLines.slice(0, repIdx + 1).filter(l => l.text.trim()).length;
+    if (ctr) ctr.textContent = `${posicion} / ${repLines.length}`;
     autoFitPendiente();
 }
 
 function repIrA(idx) {
-    if (idx < 0 || idx >= repLines.length) return;
+    if (idx < 0 || idx >= repLrcLines.length) return;
+    if (!repLrcLines[idx].text.trim()) return; // saltar líneas vacías (separadores)
     repIdx = idx;
     repBrowsing = true;
     if (repBrowsingTimer) clearTimeout(repBrowsingTimer);
@@ -929,7 +1009,8 @@ function repIrA(idx) {
 }
 
 function repSaltarAudio(idx) {
-    if (idx < 0 || idx >= repLines.length) return;
+    if (idx < 0 || idx >= repLrcLines.length) return;
+    if (!repLrcLines[idx].text.trim()) return;
     repIdx = idx;
     repBrowsing = false;
     if (repBrowsingTimer) { clearTimeout(repBrowsingTimer); repBrowsingTimer = null; }
@@ -940,8 +1021,20 @@ function repSaltarAudio(idx) {
     renderRepLineas();
 }
 
-function repAvancar()    { repIrA(repIdx + 1); }
-function repRetroceder() { repIrA(repIdx - 1); }
+function repAvancar() {
+    if (repIdx < 0) {
+        const first = repLrcLines.findIndex(l => l.text.trim());
+        if (first >= 0) repIrA(first);
+        return;
+    }
+    const next = repSiguienteNoVacio(repIdx);
+    if (next !== null) repIrA(next);
+}
+function repRetroceder() {
+    if (repIdx <= 0) return;
+    const prev = repAnteriorNoVacio(repIdx);
+    if (prev !== null) repIrA(prev);
+}
 
 // ── RENDER ───────────────────────────────────────────────
 
@@ -963,6 +1056,7 @@ function renderSlide() {
     repActivo = (tipo === 'rep');
     if (!repActivo) {
         repLines = []; repIdx = 0; repLrcLines = []; repHasSync = false; repHasAudio = false;
+        repStanzas = []; repActiveStanzaIdx = 0;
         repBrowsing = false; if (repBrowsingTimer) { clearTimeout(repBrowsingTimer); repBrowsingTimer = null; }
         const _ra = document.getElementById('rep-audio');
         if (_ra) { _ra.pause(); _ra.src = ''; _ra.controls = false; document.body.appendChild(_ra); }
@@ -992,6 +1086,11 @@ function renderSlide() {
         const miGen = ++repGen;
         area.innerHTML = `<div class="slide-rep">
             <div class="rep-nombre">${esc(nombre)}</div>
+            <div class="rep-dens-control">
+                <button class="rep-dens-btn active" onclick="setRepDensidad(1)">1</button>
+                <button class="rep-dens-btn" onclick="setRepDensidad(2)">2</button>
+                <button class="rep-dens-btn" onclick="setRepDensidad(3)">3</button>
+            </div>
             <div class="rep-lineas" id="rep-lineas" style="color:rgba(0,0,0,0.25);font-size:1rem">Cargando letra…</div>
             <div class="rep-counter" id="rep-counter"></div>
         </div>`;
@@ -1013,11 +1112,18 @@ function renderSlide() {
                 repHasAudio = !!(audioAsset?.storage_path);
                 if (repHasSync) {
                     repLrcLines = parseLRC(letraAsset.synced);
-                    repLines    = repLrcLines.map(l => l.text).filter(Boolean);
                 } else {
-                    repLrcLines = [];
-                    repLines    = (letraAsset.contenido || '').split('\n').map(t => t.trim()).filter(Boolean);
+                    repLrcLines = (letraAsset.contenido || '').split('\n')
+                        .map(t => t.trim()).filter(Boolean)
+                        .map((text, i) => ({ time: i * 3000, text }));
                 }
+                repLines = repLrcLines.filter(l => l.text.trim()).map(l => l.text);
+                repStanzas = parseRepStanzas();
+                repActiveStanzaIdx = 0;
+                // Sincronizar botones densidad (se mantiene preferencia entre canciones)
+                document.querySelectorAll('.rep-dens-btn').forEach((b, i) => {
+                    b.classList.toggle('active', i + 1 === repStanzaCount);
+                });
                 repIdx = repHasSync ? -1 : 0;
                 // Botón de modo sync (solo si hay LRC + audio)
                 if (repHasSync && repHasAudio) {
@@ -1038,7 +1144,9 @@ function renderSlide() {
                     const ms = this.currentTime * 1000;
                     let newIdx = -1;
                     for (let i = 0; i < repLrcLines.length; i++) {
-                        if (repLrcLines[i].time <= ms) newIdx = i; else break;
+                        if (repLrcLines[i].time <= ms) {
+                            if (repLrcLines[i].text.trim()) newIdx = i; // solo líneas con texto
+                        } else break;
                     }
                     if (newIdx >= 0 && newIdx !== repIdx) { repIdx = newIdx; renderRepLineas(); }
                 };
@@ -1121,7 +1229,11 @@ function toggleRepSync() {
     } else {
         audio.pause();
         const ms = audio.currentTime * 1000;
-        repIdx = Math.max(0, repLrcLines.filter(l => l.time <= ms).length - 1);
+        let pauseIdx = -1;
+        for (let i = 0; i < repLrcLines.length; i++) {
+            if (repLrcLines[i].time <= ms && repLrcLines[i].text.trim()) pauseIdx = i;
+        }
+        repIdx = pauseIdx >= 0 ? pauseIdx : Math.max(0, repLrcLines.findIndex(l => l.text.trim()));
         renderRepLineas();
     }
     // el estado del botón lo actualizan onplay / onpause / onended
@@ -1137,7 +1249,7 @@ function actualizarBtnRepMode() {
 }
 
 function handleClickArea() {
-    if (repActivo && repLines.length) {
+    if (repActivo && repStanzas.length) {
         const ra = document.getElementById('rep-audio');
         if (ra && !ra.paused) { ra.pause(); actualizarBtnRepMode(); }
         repAvancar(); return;
@@ -1373,7 +1485,7 @@ function enviarTimerCustom() {
 // ── TECLADO ──────────────────────────────────────────────
 
 document.addEventListener('keydown', e => {
-    if (repActivo && repLines.length) {
+    if (repActivo && repStanzas.length) {
         if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) {
             e.preventDefault();
             const ra = document.getElementById('rep-audio');
@@ -1397,11 +1509,9 @@ document.addEventListener('keydown', e => {
 // ── WHEEL (rep: navegar versos sin tocar audio) ──────────
 
 document.addEventListener('wheel', (e) => {
-    if (!repActivo || !repLines.length) return;
+    if (!repActivo || !repStanzas.length) return;
     e.preventDefault();
-    repIrA(e.deltaY > 0
-        ? Math.min(repIdx + 1, repLines.length - 1)
-        : Math.max(repIdx - 1, 0));
+    if (e.deltaY > 0) repAvancar(); else repRetroceder();
 }, { passive: false });
 
 // ── SWIPE ────────────────────────────────────────────────
@@ -1411,7 +1521,7 @@ document.addEventListener('touchstart', e => { tX0 = e.changedTouches[0].clientX
 document.addEventListener('touchend',   e => {
     const dx = e.changedTouches[0].clientX - tX0;
     if (Math.abs(dx) > 55) {
-        if (repActivo && repLines.length) {
+        if (repActivo && repStanzas.length) {
             const ra = document.getElementById('rep-audio');
             if (ra && !ra.paused) { ra.pause(); actualizarBtnRepMode(); }
             dx < 0 ? repAvancar() : repRetroceder();
