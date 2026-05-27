@@ -2732,6 +2732,7 @@ let panelAlumnosOpen  = false;
 let practicaLogId     = null;
 let practicaStartTime = null;
 let palRepAbierto     = null;   // id alumno con acordeón de repertorio abierto
+let palEditandoId     = null;   // id alumno en edición inline
 
 // Restaurar alumno desde localStorage al cargar
 (function () {
@@ -2855,6 +2856,7 @@ function cerrarPanelAlumnos() {
     document.getElementById('panelAlumnos').classList.remove('open');
     panelAlumnosOpen = false;
     palRepAbierto = null;
+    palEditandoId = null;
 }
 document.getElementById('panelAlumnos').addEventListener('click', e => {
     if (e.target === document.getElementById('panelAlumnos')) cerrarPanelAlumnos();
@@ -2913,6 +2915,7 @@ async function renderPanelAlumnos() {
         for (const a of alumnos) {
             const esActivo  = alumnoActual?.id === a.id;
             const repOpen   = palRepAbierto === a.id;
+            const editOpen  = palEditandoId === a.id;
             const minHoy    = Math.round((asistHoy.get(a.id) || 0) / 60);
             const asistBadge = asistHoy.has(a.id)
                 ? `<span style="color:#27ae60;font-size:.72rem;margin-left:4px">✓${minHoy}min</span>`
@@ -2930,7 +2933,35 @@ async function renderPanelAlumnos() {
                 }
                 <button class="pal-btn-rep${repOpen ? ' activo' : ''}"
                         onclick="toggleRepAcordeon('${a.id}')">📋</button>
+                <button class="pal-btn-rep${editOpen ? ' activo' : ''}"
+                        onclick="toggleEdicion('${a.id}')" title="Editar">✏️</button>
             </div>`;
+
+            if (editOpen) {
+                const instrs = ['Guitarra','Ukelele','Bajo'];
+                const alumnoInstrs = Array.isArray(a.instrumentos) ? a.instrumentos : [];
+                html += `<div class="pal-rep-accordion" style="display:flex;flex-direction:column;gap:8px;padding:8px 4px">
+                    <div style="display:flex;gap:7px;flex-wrap:wrap">
+                        <input id="palEditNombre"   value="${esc(a.nombre)}"          placeholder="Nombre"   style="flex:1;min-width:90px;background:#262626;border:1px solid #404040;color:#eee;border-radius:4px;padding:6px 10px;font-size:.86rem;font-family:inherit">
+                        <input id="palEditApellido" value="${esc(a.apellido||'')}"    placeholder="Apellido" style="flex:1;min-width:100px;background:#262626;border:1px solid #404040;color:#eee;border-radius:4px;padding:6px 10px;font-size:.86rem;font-family:inherit">
+                        <select id="palEditCurso" style="width:58px;background:#262626;border:1px solid #404040;color:#eee;border-radius:4px;padding:6px 4px;font-size:.86rem;font-family:inherit">
+                            <option value="">—</option>
+                            ${[1,2,3,4,5,6,7,8].map(n => `<option ${String(a.curso)===String(n)?'selected':''}>${n}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="pal-chips" id="palEditChips">
+                        ${instrs.map(i => `<span class="pal-chip${alumnoInstrs.includes(i)?' on':''}" data-v="${i}" onclick="toggleChip(this)">${i==='Guitarra'?'🎸':i==='Ukelele'?'🪕':'🎵'} ${i}</span>`).join('')}
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <div class="pal-nivel-grp" id="palEditNivel">
+                            <button class="pal-nivel-btn${a.nivel!=='medio'?' on':''}" data-v="inicial" onclick="selNivelEdit(this)">Inicial</button>
+                            <button class="pal-nivel-btn${a.nivel==='medio'?' on':''}" data-v="medio"   onclick="selNivelEdit(this)">Medio</button>
+                        </div>
+                        <button class="pal-btn-login" onclick="guardarEdicion('${a.id}')">✓ Guardar</button>
+                        <button class="pal-btn-rep" onclick="cancelarEdicion()">✕</button>
+                    </div>
+                </div>`;
+            }
 
             if (repOpen) {
                 const asigAlumno = asig[a.id] || new Set();
@@ -3038,6 +3069,33 @@ async function agregarAlumno() {
 function toggleRepAcordeon(alumnoId) {
     palRepAbierto = palRepAbierto === alumnoId ? null : alumnoId;
     renderPanelAlumnos();
+}
+
+function toggleEdicion(alumnoId) {
+    palEditandoId = palEditandoId === alumnoId ? null : alumnoId;
+    renderPanelAlumnos();
+}
+function cancelarEdicion() {
+    palEditandoId = null;
+    renderPanelAlumnos();
+}
+function selNivelEdit(el) {
+    document.querySelectorAll('#palEditNivel .pal-nivel-btn').forEach(b => b.classList.remove('on'));
+    el.classList.add('on');
+}
+async function guardarEdicion(alumnoId) {
+    const nombre      = (document.getElementById('palEditNombre')?.value   || '').trim();
+    const apellido    = (document.getElementById('palEditApellido')?.value || '').trim();
+    const curso       = document.getElementById('palEditCurso')?.value || '';
+    const instrumentos = [...document.querySelectorAll('#palEditChips .pal-chip.on')].map(c => c.dataset.v);
+    const nivelBtn    = document.querySelector('#palEditNivel .pal-nivel-btn.on');
+    const nivel       = nivelBtn ? nivelBtn.dataset.v : 'inicial';
+    if (!nombre) return;
+    try {
+        await sbPatch(`/rest/v1/alumnos_taller?id=eq.${alumnoId}`, { nombre, apellido, curso, instrumentos, nivel });
+        palEditandoId = null;
+        renderPanelAlumnos();
+    } catch (e) { mostrarToast('Error al guardar', true); }
 }
 
 async function toggleAsignacion(alumnoId, cancionId, asignar) {
