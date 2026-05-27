@@ -26,7 +26,7 @@
         #btnAbrirLanding {
             margin-top: 14px; padding: 16px 40px; font-size: 1.2rem; font-weight: 700;
             background: #e67e22; color: #fff; border: none; border-radius: 8px;
-            cursor: pointer; transition: background .15s; display: flex; align-items: center; gap: 10px;
+            cursor: pointer; transition: background .15s; display: block; margin: 14px auto 0;
         }
         #btnAbrirLanding:hover { background: #d35400; }
 
@@ -218,6 +218,9 @@
         .pal-nivel-btn:last-child  { border-radius: 0 4px 4px 0; border-left: none; }
         .pal-nivel-btn.on { background: #1a3a5a; border-color: #3498db; color: #5dade2; }
         .pal-activo-bar { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+        .wel-alumno-btn { display:block; width:260px; text-align:left; background:none; border:none; border-bottom:1px solid #1a3a5a; color:#c5d5e5; font-size:1rem; padding:11px 4px; cursor:pointer; }
+        .wel-alumno-btn:hover { color:#fff; }
+        .wel-alumno-nivel { font-size:.72rem; color:#4a6a8a; margin-left:8px; }
         .pal-activo-nombre { flex: 1; font-weight: 700; color: #2ecc71; font-size: .95rem; }
         .pal-btn-logout { background: #c0392b; color: #fff; border: none; border-radius: 4px; padding: 5px 12px; cursor: pointer; font-size: .8rem; }
         .pal-asist-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: .84rem; }
@@ -276,12 +279,16 @@
 
 <!-- LANDING -->
 <div id="landing">
-    <div class="landing-icon">🎸</div>
-    <div class="landing-title">Lector Tablaturas</div>
-    <div class="landing-sub">Cargá una tablatura MusicXML para comenzar</div>
-    <button id="btnAbrirLanding" onclick="toggleAbrirMenu(this)">
-        Abrir Tablatura <span style="font-size:.85em">▼</span>
-    </button>
+    <div id="welcomeInicio" style="display:flex;flex-direction:column;align-items:center;text-align:center">
+        <div class="landing-icon">🎸</div>
+        <div class="landing-title">Taller de Cuerdas</div>
+        <button id="btnAbrirLanding" onclick="abrirSelectorAlumnos()">Ingresar</button>
+    </div>
+    <div id="welcomeSelector" style="display:none;text-align:center">
+        <div class="landing-sub" style="margin-bottom:16px">¿Quién sos?</div>
+        <div id="listaAlumnosSelector"></div>
+        <button onclick="volverAInicio()" style="background:none;border:none;color:#4a6a8a;font-size:.85rem;cursor:pointer;margin-top:14px">← Volver</button>
+    </div>
 </div>
 
 <!-- DROPDOWN ABRIR (compartido entre landing y controles) -->
@@ -799,7 +806,7 @@ document.addEventListener('keydown', e => {
     // Shortcut oculto: panel de alumnos
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyA') {
         e.preventDefault();
-        panelAlumnosOpen ? cerrarPanelAlumnos() : abrirPanelAlumnos();
+        if (panelAlumnosOpen) { cerrarPanelAlumnos(); } else { ocultarWelcome(); abrirPanelAlumnos(); }
         return;
     }
     // Shortcut oculto: activar editor de digitación
@@ -2195,6 +2202,7 @@ async function abrirModalRep() {
 async function cargarDesdeStorage(storagePath, nombreArchivo) {
     detenerPractica();
     cerrarModalRep();
+    ocultarWelcome();
     if (!await confirmarSiEditorAbierto()) return;
     cerrarEditorSilencioso();
     try {
@@ -2729,8 +2737,9 @@ let palRepAbierto     = null;   // id alumno con acordeón de repertorio abierto
 (function () {
     try {
         const s = localStorage.getItem('lector_alumno');
-        if (s) { alumnoActual = JSON.parse(s); actualizarBadge(); }
-    } catch (e) {}
+        if (s) { alumnoActual = JSON.parse(s); actualizarBadge(); ocultarWelcome(); }
+        else    { mostrarWelcome(); }
+    } catch (e) { mostrarWelcome(); }
 })();
 
 // ── Helpers Supabase ───────────────────────────────────────────────────────
@@ -2787,6 +2796,46 @@ function actualizarBadge() {
     } else {
         badge.classList.remove('visible');
     }
+}
+
+// ── Welcome overlay ────────────────────────────────────────────────────────
+function mostrarWelcome() {
+    document.getElementById('welcomeInicio').style.display = '';
+    document.getElementById('welcomeSelector').style.display = 'none';
+    document.getElementById('landing').classList.remove('oculto');
+}
+function ocultarWelcome() {
+    document.getElementById('landing').classList.add('oculto');
+}
+function volverAInicio() {
+    document.getElementById('welcomeInicio').style.display = '';
+    document.getElementById('welcomeSelector').style.display = 'none';
+}
+async function abrirSelectorAlumnos() {
+    document.getElementById('welcomeInicio').style.display = 'none';
+    document.getElementById('welcomeSelector').style.display = '';
+    const lista = document.getElementById('listaAlumnosSelector');
+    lista.innerHTML = '<p style="color:#aaa;text-align:center;padding:12px">Cargando…</p>';
+    try {
+        const alumnos = await sbGet(
+            '/rest/v1/alumnos_taller?contexto=eq.CUERDAS&activo=eq.true&order=apellido.asc,nombre.asc'
+        );
+        lista.innerHTML = alumnos.map(a => {
+            const nivelTag = a.nivel
+                ? `<span class="wel-alumno-nivel">${esc(a.nivel)}</span>` : '';
+            return `<button class="wel-alumno-btn"
+                        onclick="loginDesdeSelector('${a.id}','${esc(a.nombre)}','${esc(a.apellido||'')}')">
+                        ${esc(nombreFormal(a))}${nivelTag}
+                    </button>`;
+        }).join('') || '<p style="color:#555;text-align:center;padding:8px">Sin alumnos registrados.</p>';
+    } catch (e) {
+        lista.innerHTML = '<p style="color:#e74c3c;text-align:center;padding:8px">Error al cargar.</p>';
+    }
+}
+function loginDesdeSelector(id, nombre, apellido) {
+    loginAlumno(id, nombre, apellido);
+    ocultarWelcome();
+    abrirModalRep();
 }
 
 // ── Helpers chips / nivel ──────────────────────────────────────────────────
@@ -2913,7 +2962,11 @@ async function renderPanelAlumnos() {
             <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
                 <input id="palNuevoNombre"   placeholder="Nombre"   style="flex:1;min-width:90px">
                 <input id="palNuevoApellido" placeholder="Apellido" style="flex:1;min-width:100px">
-                <input id="palNuevoCurso"    placeholder="Curso"    style="width:62px">
+                <select id="palNuevoCurso" style="width:62px;background:#262626;border:1px solid #404040;color:#eee;border-radius:4px;padding:6px 4px;font-size:.86rem;font-family:inherit">
+                <option value="">—</option>
+                <option>1</option><option>2</option><option>3</option><option>4</option>
+                <option>5</option><option>6</option><option>7</option><option>8</option>
+            </select>
             </div>
             <div class="pal-chips" id="palChipsInstr">
                 <span class="pal-chip" data-v="Guitarra" onclick="toggleChip(this)">🎸 Guitarra</span>
