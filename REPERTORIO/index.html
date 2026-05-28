@@ -1318,31 +1318,56 @@
         }
         #ent-loops-header button:hover { border-color: #ea580c; color: #ea580c; }
         .ent-loops-empty {
-            padding: 10px 16px;
+            padding: 10px 12px;
             font-size: 0.75rem; color: #334155;
         }
         .ent-loop-item {
-            display: flex; align-items: center; gap: 6px;
-            padding: 7px 10px;
+            display: flex; flex-direction: column; gap: 3px;
+            padding: 8px 10px;
             cursor: pointer;
             border-bottom: 1px solid #1e293b;
-            transition: background 0.1s;
-            flex-wrap: wrap;
+            border-left: 3px solid transparent;
+            transition: background 0.1s, border-color 0.1s;
+            user-select: none;
         }
         .ent-loop-item:hover { background: #1e293b; }
-        .ent-loop-item.activo { background: #1c1917; border-left: 3px solid #ea580c; }
-        .ent-loop-dot { font-size: 0.7rem; color: #475569; flex-shrink: 0; }
+        .ent-loop-item.activo { background: #140d06; border-left-color: #ea580c; }
+        .ent-loop-row1 { display: flex; align-items: center; gap: 6px; }
+        .ent-loop-row2 { display: flex; align-items: center; gap: 4px; padding-left: 16px; }
+        .ent-loop-dot { font-size: 0.65rem; color: #475569; flex-shrink: 0; }
         .ent-loop-item.activo .ent-loop-dot { color: #ea580c; }
-        .ent-loop-nombre { font-size: 0.82rem; font-weight: 600; color: #cbd5e1; flex: 1; }
+        .ent-loop-nombre {
+            font-size: 0.82rem; font-weight: 600; color: #cbd5e1; flex: 1;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
         .ent-loop-item.activo .ent-loop-nombre { color: #ea580c; }
-        .ent-loop-rango { font-size: 0.7rem; color: #475569; font-variant-numeric: tabular-nums; flex-shrink: 0; }
-        .ent-loop-count { font-size: 0.7rem; color: #ea580c; font-weight: 700; min-width: 24px; text-align: right; flex-shrink: 0; }
+        .ent-loop-field {
+            font-size: 0.7rem; color: #475569; font-variant-numeric: tabular-nums;
+            border-radius: 3px; padding: 1px 3px;
+            transition: background 0.1s;
+        }
+        .ent-loop-field:hover { background: #1e293b; color: #94a3b8; }
+        .ent-loop-arrow { font-size: 0.65rem; color: #334155; }
+        .ent-loop-sep   { font-size: 0.65rem; color: #334155; }
+        .ent-loop-count { font-size: 0.7rem; color: #ea580c; font-weight: 700; margin-left: auto; }
         .ent-loop-btn {
             background: none; border: none; cursor: pointer;
-            font-size: 0.78rem; color: #334155; padding: 2px 4px;
+            font-size: 0.75rem; color: #334155; padding: 1px 4px;
             border-radius: 4px; transition: color 0.1s; flex-shrink: 0;
         }
-        .ent-loop-btn:hover { color: #94a3b8; }
+        .ent-loop-btn:hover { color: #dc2626; }
+        .ent-inline-input {
+            background: #0f172a;
+            border: 1.5px solid #ea580c;
+            border-radius: 4px;
+            color: #f1f5f9;
+            font-size: inherit;
+            font-weight: inherit;
+            padding: 1px 5px;
+            outline: none;
+            min-width: 40px;
+            font-variant-numeric: tabular-nums;
+        }
     </style>
 </head>
 <body>
@@ -3303,6 +3328,13 @@ function entActivarLoop(loop, seekToStart = true) {
     entrenadorLoopActivo = loop;
     entrenadorLoopCount  = 0;
     if (seekToStart) entAudio().currentTime = loop.inicio / 1000;
+    // Aplicar velocidad propia del loop
+    if (loop.velocidad) {
+        entrenadorVelocidad = loop.velocidad;
+        entAudio().playbackRate = loop.velocidad;
+        document.getElementById('ent-vel-slider').value = loop.velocidad;
+        document.getElementById('ent-vel-label').textContent = entFmtVel(loop.velocidad);
+    }
     entRenderLoops();
     entActualizarMarcadores();
 }
@@ -3323,24 +3355,64 @@ function entrenadorNuevoLoop() {
     const fin    = Math.round(Math.min(dur, cur + 10000));
     const nombre = prompt('Nombre del loop (ej: Estrofa 1, Coro):', 'Loop ' + (entrenadorLoops.length + 1));
     if (nombre === null) return;
-    const loop = { id: 'loop_' + Date.now(), nombre: nombre || ('Loop ' + (entrenadorLoops.length + 1)), inicio, fin };
+    const loop = { id: 'loop_' + Date.now(), nombre: nombre || ('Loop ' + (entrenadorLoops.length + 1)), inicio, fin, velocidad: entrenadorVelocidad };
     entrenadorLoops.push(loop);
     localStorage.setItem(`entrenador_loops_${entrenadorSong.id}`, JSON.stringify(entrenadorLoops));
     entActivarLoop(loop);
 }
 
-function entEditarLoop(id) {
-    const loop = entrenadorLoops.find(l => l.id === id);
+function entEditInline(event, loopId, field) {
+    event.preventDefault();
+    event.stopPropagation();
+    const loop = entrenadorLoops.find(l => l.id === loopId);
     if (!loop) return;
-    const nombre = prompt('Nombre del loop:', loop.nombre);
-    if (nombre !== null) loop.nombre = nombre || loop.nombre;
-    const inicioStr = prompt('Inicio (m:ss):', entMsToMmSs(loop.inicio));
-    if (inicioStr !== null) { const ms = entMmSsToMs(inicioStr); if (ms !== null) loop.inicio = ms; }
-    const finStr = prompt('Fin (m:ss):', entMsToMmSs(loop.fin));
-    if (finStr !== null) { const ms = entMmSsToMs(finStr); if (ms !== null) loop.fin = ms; }
-    localStorage.setItem(`entrenador_loops_${entrenadorSong.id}`, JSON.stringify(entrenadorLoops));
-    if (entrenadorLoopActivo?.id === id) { entrenadorLoopActivo = loop; entActualizarMarcadores(); }
-    entRenderLoops();
+    const el = event.currentTarget;
+
+    let rawVal, parseInput;
+    if (field === 'nombre') {
+        rawVal = loop.nombre;
+        parseInput = v => v.trim() || loop.nombre;
+    } else if (field === 'inicio' || field === 'fin') {
+        rawVal = entMsToMmSs(loop[field]);
+        parseInput = v => { const ms = entMmSsToMs(v); return ms !== null ? ms : loop[field]; };
+    } else if (field === 'velocidad') {
+        rawVal = (loop.velocidad || 1.0).toFixed(2);
+        parseInput = v => { const n = parseFloat(v); return !isNaN(n) ? Math.max(0.5, Math.min(2.0, n)) : (loop.velocidad || 1.0); };
+    }
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = rawVal;
+    input.className = 'ent-inline-input';
+    input.style.width = field === 'nombre' ? '100%' : (Math.max(el.offsetWidth + 12, 48) + 'px');
+    el.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let done = false;
+    const save = () => {
+        if (done) return; done = true;
+        loop[field] = parseInput(input.value);
+        if (field === 'velocidad' && entrenadorLoopActivo?.id === loopId) {
+            entrenadorVelocidad = loop.velocidad;
+            entAudio().playbackRate = loop.velocidad;
+            document.getElementById('ent-vel-slider').value = loop.velocidad;
+            document.getElementById('ent-vel-label').textContent = entFmtVel(loop.velocidad);
+        }
+        if ((field === 'inicio' || field === 'fin') && entrenadorLoopActivo?.id === loopId) {
+            entrenadorLoopActivo = { ...entrenadorLoopActivo, [field]: loop[field] };
+            entActualizarMarcadores();
+        }
+        localStorage.setItem(`entrenador_loops_${entrenadorSong.id}`, JSON.stringify(entrenadorLoops));
+        entRenderLoops();
+    };
+    const cancel = () => { if (done) return; done = true; entRenderLoops(); };
+
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter')  { e.preventDefault(); save(); }
+        if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+    input.addEventListener('blur', save);
 }
 
 function entBorrarLoop(id) {
@@ -3359,14 +3431,22 @@ function entRenderLoops() {
     }
     wrap.innerHTML = entrenadorLoops.map(loop => {
         const isActivo = loop.id === entrenadorLoopActivo?.id;
-        const count    = isActivo ? ` ×${entrenadorLoopCount}` : '';
+        const count    = isActivo ? `<span class="ent-loop-count">×${entrenadorLoopCount}</span>` : '';
+        const vel      = (loop.velocidad || 1.0).toFixed(2).replace(/\.?0+$/, '') + 'x';
         return `<div class="ent-loop-item${isActivo ? ' activo' : ''}" onclick="entActivarLoop(entrenadorLoops.find(l=>l.id==='${loop.id}'))">
-            <span class="ent-loop-dot">${isActivo ? '●' : '○'}</span>
-            <span class="ent-loop-nombre">${loop.nombre}</span>
-            <span class="ent-loop-rango">${entMsToMmSs(loop.inicio)} → ${entMsToMmSs(loop.fin)}</span>
-            <span class="ent-loop-count">${count}</span>
-            <button class="ent-loop-btn" onclick="event.stopPropagation();entEditarLoop('${loop.id}')">✏</button>
-            <button class="ent-loop-btn" onclick="event.stopPropagation();entBorrarLoop('${loop.id}')">🗑</button>
+            <div class="ent-loop-row1">
+                <span class="ent-loop-dot">${isActivo ? '●' : '○'}</span>
+                <span class="ent-loop-nombre" oncontextmenu="entEditInline(event,'${loop.id}','nombre')">${loop.nombre}</span>
+                <button class="ent-loop-btn" onclick="event.stopPropagation();entBorrarLoop('${loop.id}')">🗑</button>
+            </div>
+            <div class="ent-loop-row2">
+                <span class="ent-loop-field" oncontextmenu="entEditInline(event,'${loop.id}','inicio')">${entMsToMmSs(loop.inicio)}</span>
+                <span class="ent-loop-arrow">→</span>
+                <span class="ent-loop-field" oncontextmenu="entEditInline(event,'${loop.id}','fin')">${entMsToMmSs(loop.fin)}</span>
+                <span class="ent-loop-sep">·</span>
+                <span class="ent-loop-field" oncontextmenu="entEditInline(event,'${loop.id}','velocidad')">${vel}</span>
+                ${count}
+            </div>
         </div>`;
     }).join('');
 }
