@@ -175,3 +175,13 @@ ALTER TABLE practica_log      ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "acceso_total" ON alumnos_taller    FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acceso_total" ON alumno_repertorio FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acceso_total" ON practica_log      FOR ALL USING (true) WITH CHECK (true);
+
+-- ── SESIONES DE ENTRENAMIENTO (Repertorio) ───────────────────────────────────
+CREATE TABLE IF NOT EXISTS repertorio_sesiones_entrenamiento (
+    id          TEXT PRIMARY KEY,
+    nombre      TEXT NOT NULL,
+    canciones   JSONB DEFAULT '[]',
+    creada_en   BIGINT
+);
+ALTER TABLE repertorio_sesiones_entrenamiento ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "acceso_total" ON repertorio_sesiones_entrenamiento FOR ALL USING (true) WITH CHECK (true);
