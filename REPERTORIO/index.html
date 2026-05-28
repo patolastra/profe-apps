@@ -1317,6 +1317,8 @@
             transition: all 0.15s;
         }
         #ent-loops-header button:hover { border-color: #ea580c; color: #ea580c; }
+        #ent-loop-toggle { font-size: 0.85rem; padding: 3px 7px; }
+        #ent-loop-toggle.on { background: #ea580c; border-color: #ea580c; color: #fff; }
         .ent-loops-empty {
             padding: 10px 12px;
             font-size: 0.75rem; color: #334155;
@@ -1652,6 +1654,7 @@
         <div id="ent-loops-panel">
             <div id="ent-loops-header">
                 <span>LOOPS</span>
+                <button id="ent-loop-toggle" onclick="entToggleLoop()" title="Activar/desactivar loopera">🔁</button>
                 <button onclick="entrenadorNuevoLoop()">+ Nuevo</button>
             </div>
             <div id="ent-loops-list"></div>
@@ -3076,6 +3079,7 @@ let entrenadorLineIdx      = -1;
 let entrenadorLoops        = [];
 let entrenadorLoopActivo   = null;
 let entrenadorLoopCount    = 0;
+let entrenadorLoopOn       = false;
 let entrenadorVelocidad    = 1.0;
 let entrenadorOcultar      = false;
 let entrenadorLineasOcultas = new Set();
@@ -3101,6 +3105,7 @@ function abrirEntrenador(songId) {
     entrenadorVelocidad     = cfg.velocidad || 1.0;
     entrenadorOcultar       = false;
     entrenadorLineasOcultas = new Set(cfg.lineasOcultas || []);
+    entrenadorLoopOn        = false;
 
     document.getElementById('ent-song-nombre').textContent  = c.nombre;
     document.getElementById('ent-song-artista').textContent = c.artista || '';
@@ -3244,7 +3249,7 @@ function entOnTimeUpdate() {
     const audioEl = entAudio();
     const ms = audioEl.currentTime * 1000;
 
-    if (entrenadorLoopActivo && ms >= entrenadorLoopActivo.fin) {
+    if (entrenadorLoopOn && entrenadorLoopActivo && ms >= entrenadorLoopActivo.fin) {
         audioEl.currentTime = entrenadorLoopActivo.inicio / 1000;
         entrenadorLoopCount++;
         entRenderLoops();
@@ -3275,7 +3280,7 @@ function entActualizarMarcadores() {
     const dur = audioEl.duration * 1000;
     const ma  = document.getElementById('ent-loop-a-marker');
     const mb  = document.getElementById('ent-loop-b-marker');
-    if (entrenadorLoopActivo) {
+    if (entrenadorLoopOn && entrenadorLoopActivo) {
         ma.style.display = '';
         mb.style.display = '';
         ma.style.left = (entrenadorLoopActivo.inicio / dur * 100) + '%';
@@ -3322,6 +3327,12 @@ function entrenadorToggleOcultar() {
     btn.textContent = entrenadorOcultar ? '🙈 Letra oculta' : '👁 Letra visible';
     btn.classList.toggle('oculto', entrenadorOcultar);
     entRenderZona();
+}
+
+function entToggleLoop() {
+    entrenadorLoopOn = !entrenadorLoopOn;
+    document.getElementById('ent-loop-toggle').classList.toggle('on', entrenadorLoopOn);
+    entActualizarMarcadores();
 }
 
 function entActivarLoop(loop, seekToStart = true) {
