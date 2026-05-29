@@ -1473,8 +1473,49 @@
         #ent-btn-ocultar:hover { border-color: #64748b; color: #cbd5e1; }
         #ent-btn-ocultar.oculto { background: #ea580c; border-color: #ea580c; color: #fff; }
 
+        /* Panel izquierdo — lista de canciones de la sesión */
+        #ent-sesion-lista {
+            flex: 0 0 20%;
+            background: #080f1a;
+            border-right: 1px solid #1e293b;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            scrollbar-width: thin;
+            scrollbar-color: #334155 transparent;
+        }
+        #esl-header {
+            display: flex; align-items: center;
+            padding: 10px 12px 6px;
+            font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em;
+            color: #475569; text-transform: uppercase;
+            border-bottom: 1px solid #1e293b;
+            flex-shrink: 0;
+        }
+        .esl-item {
+            display: flex; flex-direction: column; gap: 2px;
+            padding: 8px 10px;
+            border-left: 3px solid transparent;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        .esl-item:hover { background: #1e293b; }
+        .esl-item.activo { background: #140d06; border-left-color: #ea580c; }
+        .esl-item-num {
+            font-size: 0.6rem; color: #475569; font-variant-numeric: tabular-nums;
+        }
+        .esl-item-nombre {
+            font-size: 0.8rem; font-weight: 600; color: #cbd5e1;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .esl-item.activo .esl-item-nombre { color: #ea580c; }
+        .esl-item-artista {
+            font-size: 0.68rem; color: #475569;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
         #ent-loops-panel {
-            flex: 0 0 25%;
+            flex: 0 0 20%;
             background: #080f1a;
             border-left: 1px solid #1e293b;
             overflow-y: auto;
@@ -1844,6 +1885,10 @@
         </div>
     </div>
     <div id="ent-main">
+        <div id="ent-sesion-lista" style="display:none">
+            <div id="esl-header">SESIÓN</div>
+            <div id="esl-list"></div>
+        </div>
         <div id="ent-left">
             <div id="ent-zona"></div>
             <div id="ent-progress-wrap">
@@ -3968,15 +4013,18 @@ function abrirEntrenadorConConfig(song, sesionItem) {
 
     // Barra de sesión
     const nav = document.getElementById('ent-sesion-nav');
+    const listaSesion = document.getElementById('ent-sesion-lista');
     if (entModoSesion) {
         nav.style.display = '';
+        listaSesion.style.display = '';
         entActualizarNavSesion();
     } else if (entModoEditSesion) {
         nav.style.display = 'none';
-        // Cambiar botón cerrar para volver al editor
+        listaSesion.style.display = 'none';
         document.getElementById('ent-btn-cerrar').onclick = cerrarEntrenadorModoEdicion;
     } else {
         nav.style.display = 'none';
+        listaSesion.style.display = 'none';
         document.getElementById('ent-btn-cerrar').onclick = cerrarEntrenador;
     }
 
@@ -4020,6 +4068,30 @@ function entActualizarNavSesion() {
     document.getElementById('esn-label').textContent =
         `${song?.nombre || '?'} · ${entSesionCIdx + 1}/${total}`;
     document.getElementById('esn-auto-btn').classList.toggle('on', entAutoAvance);
+    entRenderListaSesion();
+}
+
+function entRenderListaSesion() {
+    const wrap = document.getElementById('esl-list');
+    if (!entSesionActual) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = entSesionActual.canciones.map((item, idx) => {
+        const s = canciones.find(c => c.id === item.cancion_id);
+        const isActivo = idx === entSesionCIdx;
+        return `<div class="esl-item${isActivo ? ' activo' : ''}" onclick="entIrACancionSesion(${idx})">
+            <div class="esl-item-num">${idx + 1} · ${item.loops?.length || 0} loop${item.loops?.length !== 1 ? 's' : ''}</div>
+            <div class="esl-item-nombre">${s?.nombre || '?'}</div>
+            <div class="esl-item-artista">${s?.artista || ''}</div>
+        </div>`;
+    }).join('');
+}
+
+function entIrACancionSesion(idx) {
+    if (!entModoSesion || idx === entSesionCIdx) return;
+    entSesionCIdx = idx;
+    const item = entSesionActual.canciones[idx];
+    const song = canciones.find(c => c.id === item.cancion_id);
+    if (!song) { toast('Canción no encontrada'); return; }
+    abrirEntrenadorConConfig(song, item);
 }
 
 function entSesionSiguiente() {
