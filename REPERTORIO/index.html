@@ -4527,17 +4527,35 @@ function entSalirEdicion() {
 
     const teniaSync = !!(entrenadorAssetActivo?.synced);
     const viejasLines = [...entrenadorLines];
-    entrenadorLines = ta.value.split('\n').map((text, i) => {
-        const vieja = viejasLines[i];
-        const time  = vieja ? vieja.time : (viejasLines[viejasLines.length - 1]?.time ?? 0) + (i * 3000);
-        return { time, text };
+
+    // Matchear timestamps por texto (no por índice) para que líneas reubicadas conserven su sync
+    const tsMap = new Map();
+    viejasLines.forEach(l => {
+        const key = l.text.trim();
+        if (!tsMap.has(key)) tsMap.set(key, []);
+        tsMap.get(key).push({ time: l.time, timeOut: l.timeOut });
     });
+    const nuevasLines = ta.value.split('\n');
+    const lineasNuevas = [];
+    entrenadorLines = nuevasLines.map(raw => {
+        const text = raw.trim();
+        const cola = tsMap.get(text);
+        const ts   = cola?.shift();
+        if (!ts) lineasNuevas.push(text || '(vacío)');
+        return { time: ts?.time ?? 0, timeOut: ts?.timeOut, text };
+    });
+    if (lineasNuevas.length) toast(`${lineasNuevas.length} verso${lineasNuevas.length > 1 ? 's' : ''} nuevo${lineasNuevas.length > 1 ? 's' : ''} sin sync — revisá los timestamps`);
     entrenadorStanzas = entParseStanzas();
 
     const asset = entrenadorAssetActivo;
     if (asset) {
         asset.contenido = entrenadorLines.map(l => l.text).join('\n');
-        if (teniaSync) asset.synced = entrenadorLines.map(l => `[${msToLrcTs(l.time)}]${l.text}`).join('\n');
+        if (teniaSync) {
+            asset.synced = entrenadorLines.map(l => {
+                const ts = `[${msToLrcTs(l.time)}${l.timeOut !== undefined ? '-' + msToLrcTs(l.timeOut) : ''}]`;
+                return `${ts}${l.text}`;
+            }).join('\n');
+        }
         sbUpsertAsset(asset).catch(() => {});
         const songAsset = (entrenadorSong?.assets || []).find(a => a.id === asset.id);
         if (songAsset) { songAsset.contenido = asset.contenido; if (teniaSync) songAsset.synced = asset.synced; }
