@@ -1442,22 +1442,22 @@
         #ent-btn-editar.activo { color: #ea580c; }
         .ent-lyric-line.tap-cursor { background: #1e3a5f; border-radius: 4px; outline: 2px solid #ea580c; }
         .ent-lyric-line.tap-cursor .ent-lyric-text { color: #f1f5f9 !important; }
-        /* Timestamps en modo sync: flotan en el margen, no mueven la letra */
-        #ent-zona.sync-mode .ent-lyric-line { position: relative; width: fit-content; }
-        .ent-ts-in, .ent-ts-out {
-            position: absolute;
-            top: 50%; transform: translateY(-20%);
+        /* Timestamps en modo sync: flex row estático, siempre visibles */
+        .ent-sync-line-row { display: flex; align-items: center; }
+        .ent-ts-in {
+            width: 42px; min-width: 42px; flex-shrink: 0;
+            text-align: right; padding-right: 8px;
             font-size: 11px; font-weight: 400; font-style: normal;
             color: #cbd5e1; white-space: nowrap;
-            font-family: 'Courier New', monospace;
-            pointer-events: none;
+            font-family: 'Courier New', monospace; pointer-events: none;
         }
-        .ent-ts-in  { right: calc(100% + 6px); }
-        .ent-ts-out { left:  calc(100% + 6px); }
-        /* Fallback: margen insuficiente — ocultar timestamps */
-        .ent-stanzas-wrapper.sync-narrow .ent-ts-in,
-        .ent-stanzas-wrapper.sync-narrow .ent-ts-out { display: none; }
-        .ent-lyric-line.tap-done .ent-ts-in  { color: #4ade80; }
+        .ent-ts-out {
+            flex-shrink: 0; padding-left: 8px;
+            font-size: 11px; font-weight: 400; font-style: normal;
+            color: #cbd5e1; white-space: nowrap;
+            font-family: 'Courier New', monospace; pointer-events: none;
+        }
+        .ent-lyric-line.tap-done .ent-ts-in,
         .ent-lyric-line.tap-done .ent-ts-out { color: #4ade80; }
         #ent-editor-textarea::selection { background: #334155; }
 
@@ -4423,7 +4423,7 @@ let entWrapperWidthGlobal = null;
 function entCalcularFontGlobal() {
     const zona = document.getElementById('ent-zona');
     if (!zona || !entrenadorLines.length) return;
-    const disponible = zona.clientWidth - 80;
+    const disponible = zona.clientWidth - 80 - (entSyncMode ? 100 : 0);
     if (disponible <= 0) return;
     const BASE = 2.2 * 16;
     const canvas = document.createElement('canvas');
@@ -4551,6 +4551,7 @@ function entSalirEdicion() {
 
 function entToggleSync() {
     entSyncMode = !entSyncMode;
+    entFontSizeGlobal = null;
     entTapCursor = entSyncMode ? entTapNextIdx(Math.max(0, entrenadorLineIdx)) : 0;
     const btn = document.getElementById('ent-btn-sync');
     btn.classList.toggle('on', entSyncMode);
@@ -4583,8 +4584,7 @@ function entRenderSync() {
             const activa = i === entrenadorLineIdx ? ' activa' : '';
             const tsIn   = `<span class="ent-ts-in">${msToDisplay(line?.time)}</span>`;
             const tsOut  = `<span class="ent-ts-out">${msToDisplay(line?.timeOut)}</span>`;
-            return `<span class="ent-lyric-line${activa}${tapCls}" data-orig="${i}" onclick="entTapMoveCursor(${i})"
-                >${tsIn}<span class="ent-lyric-text">${l.text || '·'}</span>${tsOut}</span>`;
+            return `<div class="ent-sync-line-row">${tsIn}<span class="ent-lyric-line${activa}${tapCls}" data-orig="${i}" onclick="entTapMoveCursor(${i})"><span class="ent-lyric-text">${l.text || '·'}</span></span>${tsOut}</div>`;
         }).join('');
         const sep = pos > 0 ? `<div class="ent-stanza-sep"></div>` : '';
         return `${sep}<div class="ent-stanza">${lines}</div>`;
@@ -4592,13 +4592,6 @@ function entRenderSync() {
 
     requestAnimationFrame(() => {
         entAjustarFontSize();
-        // Detectar margen usando entWrapperWidthGlobal (ya calculado por entAjustarFontSize)
-        const wrapper = zona.querySelector('.ent-stanzas-wrapper');
-        if (wrapper) {
-            const wrapperW = entWrapperWidthGlobal || wrapper.offsetWidth;
-            const margin = (zona.clientWidth - wrapperW) / 2;
-            wrapper.classList.toggle('sync-narrow', margin < 36);
-        }
         const cursor = zona.querySelector('.ent-lyric-line.tap-cursor');
         if (cursor) cursor.scrollIntoView({ block: 'center', behavior: 'smooth' });
     });
