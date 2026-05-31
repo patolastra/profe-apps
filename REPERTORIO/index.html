@@ -4548,7 +4548,7 @@ function entSalirEdicion() {
 
 function entToggleSync() {
     entSyncMode = !entSyncMode;
-    entTapCursor = 0;
+    entTapCursor = entSyncMode ? entTapNextIdx(0) : 0;
     const btn = document.getElementById('ent-btn-sync');
     btn.classList.toggle('on', entSyncMode);
     btn.textContent = entSyncMode ? '✕ Sync' : '⏱ Sync';
@@ -4620,18 +4620,25 @@ async function entGuardarSyncAsset() {
     sbUpsertAsset(asset).catch(e => console.error('Error guardando sync:', e));
 }
 
+// Avanza al siguiente índice con texto no vacío
+function entTapNextIdx(desde) {
+    let i = desde;
+    while (i < entrenadorLines.length && !entrenadorLines[i].text.trim()) i++;
+    return i;
+}
+// Retrocede al índice anterior con texto no vacío
+function entTapPrevIdx(desde) {
+    let i = desde - 1;
+    while (i > 0 && !entrenadorLines[i].text.trim()) i--;
+    return Math.max(0, i);
+}
+
+// I = sella inicio del verso actual + avanza cursor
 function entTapIn() {
     if (!entSyncMode || entTapCursor >= entrenadorLines.length) return;
     entrenadorLines[entTapCursor].time = Math.round((entAudio()?.currentTime || 0) * 1000);
     entSyncDirty = true;
-    entRenderSync();
-}
-
-function entTapOut() {
-    if (!entSyncMode || entTapCursor >= entrenadorLines.length) return;
-    entrenadorLines[entTapCursor].timeOut = Math.round((entAudio()?.currentTime || 0) * 1000);
-    entSyncDirty = true;
-    entTapCursor++;
+    entTapCursor = entTapNextIdx(entTapCursor + 1);
     entRenderSync();
     if (entTapCursor >= entrenadorLines.length) {
         entGuardarSyncAsset();
@@ -4639,9 +4646,20 @@ function entTapOut() {
     }
 }
 
+// O = sella cierre del verso ANTERIOR (opcional, no mueve cursor)
+function entTapOut() {
+    if (!entSyncMode) return;
+    const prevIdx = entTapPrevIdx(entTapCursor);
+    if (entrenadorLines[prevIdx]?.text.trim()) {
+        entrenadorLines[prevIdx].timeOut = Math.round((entAudio()?.currentTime || 0) * 1000);
+        entSyncDirty = true;
+        entRenderSync();
+    }
+}
+
 function entTapUndo() {
     if (!entSyncMode || entTapCursor === 0) return;
-    entTapCursor--;
+    entTapCursor = entTapPrevIdx(entTapCursor);
     entRenderSync();
 }
 
