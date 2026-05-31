@@ -1440,9 +1440,17 @@
         #ent-btn-sync.visible { display: inline-flex; }
         #ent-btn-sync.on { background: #ea580c; border-color: #ea580c; color: #fff; }
         #ent-btn-editar.activo { color: #ea580c; }
-        .ent-sync-row.tap-cursor { background: #1e3a5f; border-left: 3px solid #ea580c; }
-        .ent-sync-row.tap-cursor .ent-lyric-line { color: #f1f5f9 !important; }
-        .ent-sync-row.tap-done .ent-sync-ts { color: #4ade80; }
+        .ent-lyric-line.tap-cursor { background: #1e3a5f; border-radius: 4px; outline: 2px solid #ea580c; }
+        .ent-lyric-line.tap-cursor .ent-lyric-text { color: #f1f5f9 !important; }
+        .ent-ts-in, .ent-ts-out {
+            font-size: 0.65em; font-weight: 400; font-style: normal;
+            color: #475569; vertical-align: middle; white-space: nowrap;
+            font-family: 'Courier New', monospace;
+        }
+        .ent-ts-in  { margin-right: 0.5em; }
+        .ent-ts-out { margin-left:  0.5em; }
+        .ent-lyric-line.tap-done .ent-ts-in  { color: #4ade80; }
+        .ent-lyric-line.tap-done .ent-ts-out { color: #4ade80; }
         #ent-editor-textarea::selection { background: #334155; }
 
         #ent-progress-wrap {
@@ -4543,23 +4551,39 @@ function entToggleSync() {
     else entRenderZona();
 }
 
+function msToDisplay(ms) {
+    if (ms === undefined) return '--:--';
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
 function entRenderSync() {
     const zona = document.getElementById('ent-zona');
-    zona.innerHTML = entrenadorLines.map((l, i) => {
-        const tsIn  = l.time    !== undefined ? msToLrcTs(l.time)    : '--:--.--';
-        const tsOut = l.timeOut !== undefined ? msToLrcTs(l.timeOut) : '--:--.--';
-        const activa = i === entrenadorLineIdx ? ' activa' : '';
-        const tapCls = i === entTapCursor ? ' tap-cursor' : (i < entTapCursor ? ' tap-done' : '');
-        const texto  = l.text || '·';
-        return `<div class="ent-sync-row${tapCls}" data-idx="${i}">
-            <span class="ent-lyric-line${activa}" data-orig="${i}">${texto}</span>
-            <span class="ent-sync-ts">[${tsIn} – ${tsOut}]</span>
-            <button class="ent-sync-btn" onclick="entAjustarSync(${i},-1)">−1s</button>
-            <button class="ent-sync-btn" onclick="entAjustarSync(${i},1)">+1s</button>
-        </div>`;
-    }).join('');
-    zona.querySelectorAll('.ent-sync-row')[entTapCursor]
-        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (!entrenadorStanzas.length) {
+        zona.innerHTML = '<div style="color:#94a3b8">Sin letra</div>'; return;
+    }
+
+    zona.innerHTML = `<div class="ent-stanzas-wrapper">${entrenadorStanzas.map((stanza, pos) => {
+        const lines = stanza.map(l => {
+            const i      = l.origIdx;
+            const line   = entrenadorLines[i];
+            const tapCls = i === entTapCursor ? ' tap-cursor' : (i < entTapCursor ? ' tap-done' : '');
+            const activa = i === entrenadorLineIdx ? ' activa' : '';
+            const tsIn   = `<span class="ent-ts-in">${msToDisplay(line?.time)}</span>`;
+            const tsOut  = `<span class="ent-ts-out">${msToDisplay(line?.timeOut)}</span>`;
+            return `<span class="ent-lyric-line${activa}${tapCls}" data-orig="${i}"
+                >${tsIn}<span class="ent-lyric-text">${l.text || '·'}</span>${tsOut}</span>`;
+        }).join('');
+        const sep = pos > 0 ? `<div class="ent-stanza-sep"></div>` : '';
+        return `${sep}<div class="ent-stanza">${lines}</div>`;
+    }).join('')}</div>`;
+
+    requestAnimationFrame(() => {
+        entAjustarFontSize();
+        const cursor = zona.querySelector('.ent-lyric-line.tap-cursor');
+        if (cursor) cursor.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
 }
 
 function entAjustarSync(i, delta) {
