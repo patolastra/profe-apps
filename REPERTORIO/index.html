@@ -1330,7 +1330,15 @@
             border-radius: 6px; line-height: 1; flex-shrink: 0;
         }
         #ent-btn-cerrar:hover { color: #f1f5f9; }
-        #ent-song-info { flex: 1; min-width: 0; }
+        #ent-song-info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+        #ent-song-text { min-width: 0; flex: 1; }
+        .ent-panel-btn {
+            background: none; border: none; cursor: pointer; flex-shrink: 0;
+            font-size: 1rem; color: #475569; padding: 4px 6px;
+            border-radius: 6px; line-height: 1; transition: color 0.15s;
+        }
+        .ent-panel-btn:hover { color: #94a3b8; }
+        .ent-panel-btn.activo { color: #ea580c; }
         #ent-song-nombre {
             font-size: 0.88rem; font-weight: 700; color: #f1f5f9;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1375,8 +1383,18 @@
             scrollbar-width: thin;
             scrollbar-color: #334155 transparent;
         }
+        .ent-stanzas-wrapper {
+            width: fit-content;
+            max-width: 100%;
+        }
         .ent-stanza {
-            width: 100%; max-width: 640px;
+            width: 100%;
+        }
+        .ent-stanza-sep {
+            height: 48px;
+            width: 100%;
+        }
+        .ent-stanza-dim {
         }
         .ent-lyric-line {
             display: block;
@@ -1384,15 +1402,16 @@
             font-weight: 700;
             font-style: italic;
             line-height: 1.35;
-            color: #475569;
+            color: #94a3b8;
             padding: 2px 0;
             cursor: pointer;
             user-select: none;
+            white-space: nowrap;
             transition: color 0.18s;
             border-radius: 6px;
         }
         .ent-lyric-line:hover { color: #64748b; }
-        .ent-lyric-line.activa { color: #ea580c; font-size: 2.5rem; }
+        .ent-lyric-line.activa { color: #ea580c; }
         .ent-lyric-line.oculta { color: #1e293b; background: #334155; border-radius: 6px; padding: 2px 8px; }
 
         /* Modo sync del entrenador */
@@ -1420,6 +1439,8 @@
         #ent-btn-sync { display: none; }
         #ent-btn-sync.visible { display: inline-flex; }
         #ent-btn-sync.on { background: #ea580c; border-color: #ea580c; color: #fff; }
+        #ent-btn-editar.activo { color: #ea580c; }
+        #ent-editor-textarea::selection { background: #334155; }
 
         #ent-progress-wrap {
             flex-shrink: 0;
@@ -1899,8 +1920,12 @@
     <div id="ent-header">
         <button id="ent-btn-cerrar" onclick="cerrarEntrenador()">←</button>
         <div id="ent-song-info">
-            <div id="ent-song-nombre"></div>
-            <div id="ent-song-artista"></div>
+            <button id="ent-btn-toggle-lista" class="ent-panel-btn" onclick="entToggleLista()" title="Lista de canciones" style="display:none">☰</button>
+            <div id="ent-song-text">
+                <div id="ent-song-nombre"></div>
+                <div id="ent-song-artista"></div>
+            </div>
+            <button id="ent-btn-toggle-loops" class="ent-panel-btn activo" onclick="entToggleLoopsPanel()" title="Panel de loops">⟳</button>
         </div>
         <div id="ent-asset-chips"></div>
         <div id="ent-sesion-nav" style="display:none">
@@ -1940,6 +1965,7 @@
                 <div id="ent-ocultar-row">
                     <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()">👁 Letra visible</button>
                     <button id="ent-btn-sync" onclick="entToggleSync()">⏱ Sync</button>
+                    <button id="ent-btn-editar" onclick="entToggleEdicion()" title="Modo edición de letra (Esc para salir)">✏ Editar</button>
                 </div>
             </div>
         </div>
@@ -3375,6 +3401,7 @@ let entrenadorVelocidad    = 1.0;
 let entrenadorOcultar      = false;
 let entrenadorLineasOcultas = new Set();
 let entrenadorAssetActivo  = null;
+let entModoEdicion         = false;
 
 function entAudio() { return document.getElementById('entrenador-audio'); }
 
@@ -3439,6 +3466,8 @@ function cerrarEntrenador() {
         localStorage.setItem(`entrenador_loops_${entrenadorSong.id}`, JSON.stringify(entrenadorLoops));
     }
     document.getElementById('entrenador-overlay').classList.remove('visible');
+    document.getElementById('ent-btn-toggle-lista').style.display = 'none';
+    document.getElementById('ent-btn-toggle-lista').classList.remove('activo');
     entrenadorSong = null;
 }
 
@@ -3474,6 +3503,7 @@ function entCargarAsset(asset) {
             : (asset.contenido || '').split('\n').map((t, i) => ({ time: i * 3000, text: t.trim() }));
         entrenadorStanzas = entParseStanzas();
         entrenadorLineIdx = -1;
+        entFontSizeGlobal = null;
         entSyncMode = false;
         ocultarRow.style.display = '';
         const syncBtn = document.getElementById('ent-btn-sync');
@@ -3507,14 +3537,11 @@ function entParseStanzas() {
 function entRenderZona(forzarOrigIdx = null) {
     const zona = document.getElementById('ent-zona');
     if (!entrenadorStanzas.length) {
-        zona.innerHTML = '<div style="color:#475569">Sin letra</div>'; return;
+        zona.innerHTML = '<div style="color:#94a3b8">Sin letra</div>'; return;
     }
-    const refIdx = forzarOrigIdx !== null ? forzarOrigIdx : entrenadorLineIdx;
-    let stanzaIdx = entrenadorStanzas.findIndex(s => s.some(l => l.origIdx === refIdx));
-    if (stanzaIdx < 0) stanzaIdx = 0;
 
-    zona.innerHTML = `<div class="ent-stanza">` +
-        entrenadorStanzas[stanzaIdx].map(l => {
+    zona.innerHTML = `<div class="ent-stanzas-wrapper">${entrenadorStanzas.map((stanza, pos) => {
+        const lines = stanza.map(l => {
             const oculta = entrenadorOcultar || entrenadorLineasOcultas.has(l.origIdx);
             const texto  = oculta ? '█ █ █ █ █ █' : l.text;
             const cls    = `ent-lyric-line${l.origIdx === entrenadorLineIdx ? ' activa' : ''}${oculta ? ' oculta' : ''}`;
@@ -3524,8 +3551,16 @@ function entRenderZona(forzarOrigIdx = null) {
                 oncontextmenu="entEditLineaContextMenu(event,${l.origIdx})"
                 title="Click: ir al punto · Doble click: ocultar · Ctrl+click: crear loop · Click derecho: editar"
                 ><span class="ent-lyric-text">${texto}</span></span>`;
-        }).join('') +
-    `</div>`;
+        }).join('');
+        const sep = pos > 0 ? `<div class="ent-stanza-sep"></div>` : '';
+        return `${sep}<div class="ent-stanza">${lines}</div>`;
+    }).join('')}</div>`;
+
+    requestAnimationFrame(() => {
+        entAjustarFontSize();
+        const activa = zona.querySelector('.ent-lyric-line.activa');
+        if (activa) activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
 }
 
 function entClickLinea(e, i) {
@@ -3610,14 +3645,11 @@ function entEditLineaContextMenu(e, i) {
 
 function entActualizarLinea(idx) {
     entrenadorLineIdx = idx;
-    const lineas = document.querySelectorAll('.ent-lyric-line');
-    let lineaEnVista = false;
-    lineas.forEach(el => {
-        const orig = parseInt(el.dataset.orig);
-        el.classList.toggle('activa', orig === idx);
-        if (orig === idx) lineaEnVista = true;
+    document.querySelectorAll('.ent-lyric-line').forEach(el => {
+        el.classList.toggle('activa', parseInt(el.dataset.orig) === idx);
     });
-    if (!lineaEnVista) entRenderZona();
+    const activa = document.querySelector('.ent-lyric-line.activa');
+    if (activa) activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 function entOnTimeUpdate() {
@@ -3713,6 +3745,24 @@ function entrenadorToggleOcultar() {
     btn.textContent = entrenadorOcultar ? '🙈 Letra oculta' : '👁 Letra visible';
     btn.classList.toggle('oculto', entrenadorOcultar);
     entRenderZona();
+}
+
+function entToggleLista() {
+    const lista = document.getElementById('ent-sesion-lista');
+    const btn   = document.getElementById('ent-btn-toggle-lista');
+    const visible = lista.style.display !== 'none';
+    lista.style.display = visible ? 'none' : '';
+    btn.classList.toggle('activo', !visible);
+    requestAnimationFrame(entAjustarFontSize);
+}
+
+function entToggleLoopsPanel() {
+    const panel = document.getElementById('ent-loops-panel');
+    const btn   = document.getElementById('ent-btn-toggle-loops');
+    const visible = panel.style.display !== 'none';
+    panel.style.display = visible ? 'none' : '';
+    btn.classList.toggle('activo', !visible);
+    requestAnimationFrame(entAjustarFontSize);
 }
 
 function entToggleLoop() {
@@ -4163,9 +4213,13 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     // Barra de sesión
     const nav = document.getElementById('ent-sesion-nav');
     const listaSesion = document.getElementById('ent-sesion-lista');
+    const yaAbierto = document.getElementById('entrenador-overlay').classList.contains('visible');
     if (entModoSesion) {
         nav.style.display = '';
-        listaSesion.style.display = '';
+        if (!yaAbierto) {
+            listaSesion.style.display = '';
+            document.getElementById('ent-btn-toggle-lista').classList.add('activo');
+        }
         entActualizarNavSesion();
     } else if (entModoEditSesion) {
         nav.style.display = 'none';
@@ -4179,7 +4233,16 @@ function abrirEntrenadorConConfig(song, sesionItem) {
 
     entRenderChips(null);
     entRenderLoops();
+    if (!yaAbierto) {
+        document.getElementById('ent-loops-panel').style.display = '';
+        document.getElementById('ent-btn-toggle-loops').classList.add('activo');
+    }
     document.getElementById('entrenador-overlay').classList.add('visible');
+
+    if (!window._entResizeObs) {
+        window._entResizeObs = new ResizeObserver(() => { entFontSizeGlobal = null; requestAnimationFrame(entAjustarFontSize); });
+    }
+    window._entResizeObs.observe(document.getElementById('ent-zona'));
 }
 
 function cerrarEntrenadorModoEdicion() {
@@ -4205,6 +4268,8 @@ function practicarSesion(id) {
     entSesionActual   = JSON.parse(JSON.stringify(s));
     entSesionCIdx     = 0;
     entAutoAvance     = false;
+    document.getElementById('ent-btn-toggle-lista').style.display = '';
+    document.getElementById('ent-btn-toggle-lista').classList.add('activo');
     const item = entSesionActual.canciones[0];
     const song = canciones.find(c => c.id === item.cancion_id);
     if (!song) { toast('Canción no encontrada'); return; }
@@ -4322,6 +4387,138 @@ entBorrarLoop = function(id) {
 
 let entSyncMode = false;
 let entSyncDirty = false;
+
+let entFontSizeGlobal   = null;
+let entWrapperWidthGlobal = null;
+
+function entCalcularFontGlobal() {
+    const zona = document.getElementById('ent-zona');
+    if (!zona || !entrenadorLines.length) return;
+    const disponible = zona.clientWidth - 80;
+    if (disponible <= 0) return;
+    const BASE = 2.2 * 16;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = `700 italic ${BASE}px ${getComputedStyle(zona).fontFamily}`;
+    let maxW = 0;
+    entrenadorLines.forEach(l => {
+        if (l.text.trim()) maxW = Math.max(maxW, ctx.measureText(l.text).width);
+    });
+    if (maxW <= 0) { entFontSizeGlobal = BASE; entWrapperWidthGlobal = disponible; return; }
+    const fs = maxW <= disponible ? BASE : Math.max(BASE * disponible / maxW, 10);
+    entFontSizeGlobal   = fs;
+    entWrapperWidthGlobal = Math.min(maxW * (fs / BASE), disponible);
+}
+
+function entAjustarFontSize() {
+    const zona = document.getElementById('ent-zona');
+    if (!zona) return;
+    const lineas = zona.querySelectorAll('.ent-lyric-line');
+    if (!lineas.length) return;
+    if (entFontSizeGlobal === null) entCalcularFontGlobal();
+    if (entFontSizeGlobal !== null) {
+        lineas.forEach(el => el.style.fontSize = entFontSizeGlobal + 'px');
+        const wrapper = zona.querySelector('.ent-stanzas-wrapper');
+        if (wrapper && entWrapperWidthGlobal) wrapper.style.width = entWrapperWidthGlobal + 'px';
+        // Sep igual a la altura de una línea vacía en el textarea
+        const sepH = entFontSizeGlobal * 1.35 + 4;
+        zona.querySelectorAll('.ent-stanza-sep').forEach(el => el.style.height = sepH + 'px');
+    }
+}
+
+function entToggleEdicion() {
+    if (entModoEdicion) entSalirEdicion(); else entEntrarEdicion();
+}
+
+function entEntrarEdicion() {
+    if (!entrenadorLines.length) { toast('Sin letra cargada'); return; }
+    entModoEdicion = true;
+    document.getElementById('ent-btn-editar').classList.add('activo');
+
+    const textoCompleto = entrenadorLines.map(l => l.text).join('\n');
+
+    let offset = 0;
+    if (entrenadorLineIdx >= 0) {
+        for (let i = 0; i < entrenadorLineIdx && i < entrenadorLines.length; i++) {
+            offset += entrenadorLines[i].text.length + 1;
+        }
+    }
+
+    const zona = document.getElementById('ent-zona');
+    const zonaWidth    = zona.clientWidth;   // medir antes de modificar
+    const zonaScrollTop = zona.scrollTop;    // capturar scroll actual
+    if (entFontSizeGlobal === null) entCalcularFontGlobal();
+    zona.innerHTML = '';
+    zona.style.padding = '0';
+    zona.style.overflow = 'hidden';
+
+    const fs = entFontSizeGlobal || (2.2 * 16);
+    const padH = entWrapperWidthGlobal
+        ? Math.max(0, (zonaWidth - entWrapperWidthGlobal) / 2)
+        : 40;
+
+    // line-height equivalente: los spans tienen padding:2px 0, eso suma 4px por línea
+    const lineHeightRatio = (fs * 1.35 + 4) / fs;
+
+    const ta = document.createElement('textarea');
+    ta.id = 'ent-editor-textarea';
+    ta.value = textoCompleto;
+    ta.spellcheck = false;
+    ta.setAttribute('wrap', 'off');
+    ta.style.cssText = 'width:100%;height:100%;border:none;outline:none;resize:none;' +
+        `background:transparent;color:#94a3b8;font-family:inherit;font-size:${fs}px;` +
+        `font-weight:700;font-style:italic;line-height:${lineHeightRatio};` +
+        `padding:28px ${padH}px 16px ${padH}px;` +
+        'box-sizing:border-box;caret-color:#ea580c;' +
+        'scrollbar-width:thin;scrollbar-color:#334155 transparent;' +
+        'overflow-x:hidden;overflow-y:auto;';
+    zona.appendChild(ta);
+
+    // Cursor al primer verso visible en pantalla (basado en scrollTop del zona)
+    const lineHeightPx = fs * lineHeightRatio;
+    const primeraLineaVisible = Math.floor(Math.max(0, zonaScrollTop - 28) / lineHeightPx);
+    let cursorOffset = 0;
+    for (let i = 0; i < Math.min(primeraLineaVisible, entrenadorLines.length); i++) {
+        cursorOffset += entrenadorLines[i].text.length + 1;
+    }
+    ta.focus();
+    ta.setSelectionRange(cursorOffset, cursorOffset);
+    ta.scrollTop = zonaScrollTop;
+    ta.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); entSalirEdicion(); } });
+}
+
+function entSalirEdicion() {
+    entModoEdicion = false;
+    document.getElementById('ent-btn-editar').classList.remove('activo');
+    const zona = document.getElementById('ent-zona');
+    zona.style.padding = '';
+    zona.style.overflow = '';
+    const ta = document.getElementById('ent-editor-textarea');
+    if (!ta) { entRenderZona(); return; }
+
+    const teniaSync = !!(entrenadorAssetActivo?.synced);
+    const viejasLines = [...entrenadorLines];
+    entrenadorLines = ta.value.split('\n').map((text, i) => {
+        const vieja = viejasLines[i];
+        const time  = vieja ? vieja.time : (viejasLines[viejasLines.length - 1]?.time ?? 0) + (i * 3000);
+        return { time, text };
+    });
+    entrenadorStanzas = entParseStanzas();
+
+    const asset = entrenadorAssetActivo;
+    if (asset) {
+        asset.contenido = entrenadorLines.map(l => l.text).join('\n');
+        if (teniaSync) asset.synced = entrenadorLines.map(l => `[${msToLrcTs(l.time)}]${l.text}`).join('\n');
+        sbUpsertAsset(asset).catch(() => {});
+        const songAsset = (entrenadorSong?.assets || []).find(a => a.id === asset.id);
+        if (songAsset) { songAsset.contenido = asset.contenido; if (teniaSync) songAsset.synced = asset.synced; }
+    }
+    const scrollGuardado = ta.scrollTop;
+    entRenderZona();
+    requestAnimationFrame(() => {
+        document.getElementById('ent-zona').scrollTop = scrollGuardado;
+    });
+}
 
 function entToggleSync() {
     if (!entrenadorAssetActivo?.synced) { toast('Esta letra no tiene sync — importá desde LRCLIB primero'); return; }
