@@ -915,21 +915,21 @@
 
         /* Modo edición sync */
         .lyric-edit-row {
-            display: flex; align-items: center; gap: 6px; margin: 2px 0;
+            display: flex; align-items: center; gap: 0; margin: 2px 0;
         }
-        .lyric-edit-row .lyric-line { flex: 1; cursor: pointer; }
+        .lyric-edit-row .lyric-line { flex: 1; cursor: pointer; margin-right: 8px; }
         .sync-adj-btn {
-            flex-shrink: 0; padding: 4px 10px; border-radius: 16px;
+            flex-shrink: 0; padding: 3px 8px; border-radius: 12px;
             border: 1.5px solid #e2e8f0; background: #f8fafc;
-            font-size: 0.72rem; font-weight: 700; color: #475569;
+            font-size: 0.68rem; font-weight: 700; color: #475569;
             cursor: pointer; transition: background 0.1s, border-color 0.1s;
-            white-space: nowrap;
+            white-space: nowrap; margin-left: 3px;
         }
         .sync-adj-btn:hover { background: #e2e8f0; border-color: #94a3b8; }
         .sync-ts {
-            display: block; font-size: 0.6rem; color: #94a3b8;
-            text-align: center; font-style: normal;
-            font-variant-numeric: tabular-nums; margin-top: 1px;
+            display: inline-block; font-size: 0.58rem; color: #94a3b8;
+            font-variant-numeric: tabular-nums; margin-left: 6px;
+            vertical-align: middle;
         }
 
         /* Audio en visor */
@@ -1394,6 +1394,32 @@
         .ent-lyric-line:hover { color: #64748b; }
         .ent-lyric-line.activa { color: #ea580c; font-size: 2.5rem; }
         .ent-lyric-line.oculta { color: #1e293b; background: #334155; border-radius: 6px; padding: 2px 8px; }
+
+        /* Modo sync del entrenador */
+        #ent-zona.sync-mode { overflow-y: auto; }
+        .ent-sync-row {
+            display: flex; align-items: center; gap: 0;
+            border-bottom: 1px solid #1e293b; padding: 4px 0;
+        }
+        .ent-sync-row .ent-lyric-line {
+            flex: 1; font-size: 1.3rem; font-weight: 600;
+            padding: 2px 6px; margin-right: 6px;
+        }
+        .ent-sync-row .ent-lyric-line.activa { font-size: 1.45rem; }
+        .ent-sync-ts {
+            font-size: 0.58rem; color: #64748b;
+            font-variant-numeric: tabular-nums; white-space: nowrap; margin-right: 4px;
+        }
+        .ent-sync-btn {
+            flex-shrink: 0; padding: 3px 8px; border-radius: 12px;
+            border: 1.5px solid #334155; background: #1e293b;
+            font-size: 0.68rem; font-weight: 700; color: #94a3b8;
+            cursor: pointer; white-space: nowrap; margin-left: 3px;
+        }
+        .ent-sync-btn:hover { background: #334155; border-color: #64748b; color: #f1f5f9; }
+        #ent-btn-sync { display: none; }
+        #ent-btn-sync.visible { display: inline-flex; }
+        #ent-btn-sync.on { background: #ea580c; border-color: #ea580c; color: #fff; }
 
         #ent-progress-wrap {
             flex-shrink: 0;
@@ -1913,6 +1939,7 @@
                 </div>
                 <div id="ent-ocultar-row">
                     <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()">👁 Letra visible</button>
+                    <button id="ent-btn-sync" onclick="entToggleSync()">⏱ Sync</button>
                 </div>
             </div>
         </div>
@@ -3033,11 +3060,9 @@ function renderLineas() {
             const cls = l.text ? '' : 'vacia';
             const ts  = msToLrcTs(l.time);
             return `<div class="lyric-edit-row">
+                <span class="lyric-line ${cls}" data-i="${i}" onclick="clickLinea(${i})">${l.text || '·'}</span>
+                <span class="sync-ts">[${ts}]</span>
                 <button class="sync-adj-btn" onclick="ajustarLinea(${i},-1)">−1s</button>
-                <div style="flex:1;overflow:hidden">
-                    <span class="lyric-line ${cls}" data-i="${i}" onclick="clickLinea(${i})">${l.text || '·'}</span>
-                    <span class="sync-ts">[${ts}]</span>
-                </div>
                 <button class="sync-adj-btn" onclick="ajustarLinea(${i},1)">+1s</button>
             </div>`;
         }).join('');
@@ -3294,7 +3319,7 @@ async function guardarEdicionEstrofas() {
     saveBtn.disabled = true;
     saveBtn.textContent = 'Guardando…';
 
-    letra.contenido = lrcLines.filter(l => l.text.trim()).map(l => l.text).join('\n');
+    letra.contenido = lrcLines.map(l => l.text).join('\n');
     if (letra.synced) letra.synced = lrcLinesToString();
 
     try {
@@ -3446,11 +3471,15 @@ function entCargarAsset(asset) {
     if (asset.tipo === 'letra' || asset.tipo === 'cifrado') {
         entrenadorLines = asset.synced
             ? parseLRC(asset.synced)
-            : (asset.contenido || '').split('\n').map(t => t.trim()).filter(Boolean)
-                .map((text, i) => ({ time: i * 3000, text }));
+            : (asset.contenido || '').split('\n').map((t, i) => ({ time: i * 3000, text: t.trim() }));
         entrenadorStanzas = entParseStanzas();
         entrenadorLineIdx = -1;
+        entSyncMode = false;
         ocultarRow.style.display = '';
+        const syncBtn = document.getElementById('ent-btn-sync');
+        syncBtn.classList.toggle('visible', !!asset.synced);
+        syncBtn.classList.remove('on');
+        syncBtn.textContent = '⏱ Sync';
         entRenderZona();
     } else if (asset.storage_path) {
         const url = storageUrl(asset.storage_path);
@@ -3475,12 +3504,13 @@ function entParseStanzas() {
     return result;
 }
 
-function entRenderZona() {
+function entRenderZona(forzarOrigIdx = null) {
     const zona = document.getElementById('ent-zona');
     if (!entrenadorStanzas.length) {
         zona.innerHTML = '<div style="color:#475569">Sin letra</div>'; return;
     }
-    let stanzaIdx = entrenadorStanzas.findIndex(s => s.some(l => l.origIdx === entrenadorLineIdx));
+    const refIdx = forzarOrigIdx !== null ? forzarOrigIdx : entrenadorLineIdx;
+    let stanzaIdx = entrenadorStanzas.findIndex(s => s.some(l => l.origIdx === refIdx));
     if (stanzaIdx < 0) stanzaIdx = 0;
 
     zona.innerHTML = `<div class="ent-stanza">` +
@@ -3488,15 +3518,94 @@ function entRenderZona() {
             const oculta = entrenadorOcultar || entrenadorLineasOcultas.has(l.origIdx);
             const texto  = oculta ? '█ █ █ █ █ █' : l.text;
             const cls    = `ent-lyric-line${l.origIdx === entrenadorLineIdx ? ' activa' : ''}${oculta ? ' oculta' : ''}`;
-            return `<span class="${cls}" data-orig="${l.origIdx}" onclick="entClickLinea(${l.origIdx})">${texto}</span>`;
+            return `<span class="${cls}" data-orig="${l.origIdx}"
+                onclick="entClickLinea(event,${l.origIdx})"
+                ondblclick="entDblClickLinea(event,${l.origIdx})"
+                oncontextmenu="entEditLineaContextMenu(event,${l.origIdx})"
+                title="Click: ir al punto · Doble click: ocultar · Ctrl+click: crear loop · Click derecho: editar"
+                ><span class="ent-lyric-text">${texto}</span></span>`;
         }).join('') +
     `</div>`;
 }
 
-function entClickLinea(i) {
+function entClickLinea(e, i) {
+    if (e.ctrlKey || e.metaKey) {
+        // Ctrl+click: crear loop desde este verso (corrección 6)
+        e.preventDefault();
+        const linea = entrenadorLines[i];
+        if (!linea) return;
+        const audioEl = entAudio();
+        if (!audioEl.duration) { toast('Carga el audio primero'); return; }
+        const inicio = Math.max(0, linea.time - 1000);
+        const fin    = Math.min(audioEl.duration * 1000, linea.time + 10000);
+        const nombre = linea.text.trim() || entNombreAutoLoop();
+        const loop = { id: 'loop_' + Date.now(), nombre, inicio, fin, velocidad: entrenadorVelocidad };
+        entrenadorLoops.push(loop);
+        localStorage.setItem(`entrenador_loops_${entrenadorSong.id}`, JSON.stringify(entrenadorLoops));
+        if (entModoEditSesion) {
+            entSesionActual.canciones[entSesionCIdx].loops = [...entrenadorLoops];
+            guardarSesion(entSesionActual).catch(() => {});
+        }
+        entRenderLoops();
+        toast(`Loop "${nombre}" creado`);
+        return;
+    }
+    // Click normal: seek al verso (corrección 5)
+    const linea = entrenadorLines[i];
+    if (!linea) return;
+    const audioEl = entAudio();
+    if (!audioEl.duration) return;
+    audioEl.currentTime = linea.time / 1000;
+    entActualizarLinea(i);
+}
+
+function entDblClickLinea(e, i) {
+    // Doble click: toggle ocultar verso (comportamiento anterior de single click)
     if (entrenadorLineasOcultas.has(i)) entrenadorLineasOcultas.delete(i);
     else entrenadorLineasOcultas.add(i);
     entRenderZona();
+}
+
+function entEditLineaContextMenu(e, i) {
+    // Click derecho: editar texto del verso inline (corrección 5)
+    e.preventDefault();
+    const linea = entrenadorLines[i];
+    if (!linea) return;
+    const el = e.currentTarget.querySelector('.ent-lyric-text') || e.currentTarget;
+    const textoActual = linea.text;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = textoActual;
+    input.className = 'ent-inline-input';
+    input.style.cssText = 'width:100%;font-size:inherit;background:#1e293b;color:#f1f5f9;border:none;border-bottom:2px solid #ea580c;outline:none;padding:2px 4px';
+    el.replaceWith(input);
+    input.focus(); input.select();
+
+    let done = false;
+    const save = async () => {
+        if (done) return; done = true;
+        const nuevoTexto = input.value.trim();
+        linea.text = nuevoTexto;
+        // Persistir en Supabase
+        const asset = entrenadorAssetActivo;
+        if (asset) {
+            asset.contenido = entrenadorLines.map(l => l.text).join('\n');
+            if (asset.synced) asset.synced = entrenadorLines.map(l => `[${msToLrcTs(l.time)}]${l.text}`).join('\n');
+            sbUpsertAsset(asset).catch(() => {});
+            // Actualizar en la canción en memoria
+            const songAsset = (entrenadorSong?.assets || []).find(a => a.id === asset.id);
+            if (songAsset) { songAsset.contenido = asset.contenido; if (asset.synced) songAsset.synced = asset.synced; }
+        }
+        entRenderZona(i);
+    };
+    const cancel = () => { if (done) return; done = true; entRenderZona(); };
+
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter')  { e.preventDefault(); save(); }
+        if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+    input.addEventListener('blur', save);
 }
 
 function entActualizarLinea(idx) {
@@ -3536,7 +3645,18 @@ function entOnTimeUpdate() {
         for (let i = 0; i < entrenadorLines.length; i++) {
             if (entrenadorLines[i].time <= ms) newIdx = i; else break;
         }
-        if (newIdx !== entrenadorLineIdx) entActualizarLinea(newIdx);
+        if (newIdx !== entrenadorLineIdx) {
+            entrenadorLineIdx = newIdx;
+            if (entSyncMode) {
+                // En modo sync: actualizar clase activa y hacer scroll
+                const zona = document.getElementById('ent-zona');
+                zona.querySelectorAll('.ent-lyric-line').forEach((el, i) => el.classList.toggle('activa', i === newIdx));
+                const rows = zona.querySelectorAll('.ent-sync-row');
+                rows[newIdx]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            } else {
+                entActualizarLinea(newIdx);
+            }
+        }
     }
 }
 
@@ -3605,7 +3725,6 @@ function entActivarLoop(loop, seekToStart = true) {
     entrenadorLoopActivo = loop;
     entrenadorLoopCount  = 0;
     if (seekToStart) entAudio().currentTime = loop.inicio / 1000;
-    // Aplicar velocidad propia del loop
     if (loop.velocidad) {
         entrenadorVelocidad = loop.velocidad;
         entAudio().playbackRate = loop.velocidad;
@@ -3614,6 +3733,15 @@ function entActivarLoop(loop, seekToStart = true) {
     }
     entRenderLoops();
     entActualizarMarcadores();
+    // Forzar scroll de letra al punto del loop
+    if (entrenadorLines.length) {
+        const ms = loop.inicio;
+        let idx = -1;
+        for (let i = 0; i < entrenadorLines.length; i++) {
+            if (entrenadorLines[i].time <= ms) idx = i; else break;
+        }
+        entActualizarLinea(idx);
+    }
 }
 
 function entDesactivarLoop() {
@@ -3623,16 +3751,19 @@ function entDesactivarLoop() {
     entActualizarMarcadores();
 }
 
+function entNombreAutoLoop() {
+    return 'Loop ' + (entrenadorLoops.length + 1);
+}
+
 function entrenadorNuevoLoop() {
     const audioEl = entAudio();
     if (!audioEl.duration) { toast('Carga el audio primero'); return; }
-    const cur   = audioEl.currentTime * 1000;
-    const dur   = audioEl.duration    * 1000;
-    const inicio = Math.round(Math.max(0, cur - 10000));
+    const cur    = audioEl.currentTime * 1000;
+    const dur    = audioEl.duration    * 1000;
+    const inicio = Math.round(Math.max(0, cur));
     const fin    = Math.round(Math.min(dur, cur + 10000));
-    const nombre = prompt('Nombre del loop (ej: Estrofa 1, Coro):', 'Loop ' + (entrenadorLoops.length + 1));
-    if (nombre === null) return;
-    const loop = { id: 'loop_' + Date.now(), nombre: nombre || ('Loop ' + (entrenadorLoops.length + 1)), inicio, fin, velocidad: entrenadorVelocidad };
+    const nombre = entNombreAutoLoop();
+    const loop = { id: 'loop_' + Date.now(), nombre, inicio, fin, velocidad: entrenadorVelocidad };
     entrenadorLoops.push(loop);
     localStorage.setItem(`entrenador_loops_${entrenadorSong.id}`, JSON.stringify(entrenadorLoops));
     entActivarLoop(loop);
@@ -3736,8 +3867,24 @@ function entMsToMmSs(ms) {
 }
 
 function entMmSsToMs(str) {
-    const m = str.match(/^(\d+):(\d{2})$/);
-    return m ? (parseInt(m[1]) * 60 + parseInt(m[2])) * 1000 : null;
+    str = str.trim();
+    // Formato mm:ss estándar
+    const m = str.match(/^(\d+):(\d{1,2})$/);
+    if (m) {
+        const mins = parseInt(m[1]), secs = parseInt(m[2]);
+        if (secs > 59) return null;
+        return (mins * 60 + secs) * 1000;
+    }
+    // Formato compacto: ej "345" → 3:45
+    if (/^\d+$/.test(str) && str.length >= 2) {
+        const secs = parseInt(str.slice(-2));
+        const mins = parseInt(str.slice(0, -2) || '0');
+        if (secs <= 59) return (mins * 60 + secs) * 1000;
+        // Fallback: tratar como segundos totales
+        const total = parseInt(str);
+        if (!isNaN(total)) return total * 1000;
+    }
+    return null;
 }
 
 // ── SESIONES DE ENTRENAMIENTO ─────────────────────────────────────────────────
@@ -4133,23 +4280,26 @@ function entOnAudioEnded() {
 const _entNuevoLoopOrig   = entrenadorNuevoLoop;
 const _entBorrarLoopOrig  = entBorrarLoop;
 
+function entPersistirLoopsSesion() {
+    entSesionActual.canciones[entSesionCIdx].loops = [...entrenadorLoops];
+    // Sincronizar también el array sesiones en memoria para que el próximo practicarSesion lo lea
+    const sIdx = sesiones.findIndex(s => s.id === entSesionActual.id);
+    if (sIdx >= 0) sesiones[sIdx] = JSON.parse(JSON.stringify(entSesionActual));
+    guardarSesion(entSesionActual).catch(e => console.error('Error guardando loops sesión:', e));
+}
+
 entrenadorNuevoLoop = function() {
     if (entModoEditSesion || entModoSesion) {
-        // Mismo código pero guarda en sesión
         const audioEl = entAudio();
         if (!audioEl.duration) { toast('Carga el audio primero'); return; }
-        const cur   = audioEl.currentTime * 1000;
-        const dur   = audioEl.duration    * 1000;
-        const inicio = Math.round(Math.max(0, cur - 10000));
+        const cur    = audioEl.currentTime * 1000;
+        const dur    = audioEl.duration    * 1000;
+        const inicio = Math.round(Math.max(0, cur));
         const fin    = Math.round(Math.min(dur, cur + 10000));
-        const nombre = prompt('Nombre del loop:', 'Loop ' + (entrenadorLoops.length + 1));
-        if (nombre === null) return;
-        const loop = { id: 'loop_' + Date.now(), nombre: nombre || ('Loop ' + (entrenadorLoops.length + 1)), inicio, fin, velocidad: entrenadorVelocidad };
+        const nombre = entNombreAutoLoop();
+        const loop = { id: 'loop_' + Date.now(), nombre, inicio, fin, velocidad: entrenadorVelocidad };
         entrenadorLoops.push(loop);
-        if (entModoEditSesion) {
-            entSesionActual.canciones[entSesionCIdx].loops = [...entrenadorLoops];
-            guardarSesion(entSesionActual).catch(() => {});
-        }
+        entPersistirLoopsSesion();
         entActivarLoop(loop);
         return;
     }
@@ -4161,15 +4311,64 @@ entBorrarLoop = function(id) {
         if (!confirm('¿Eliminar este loop?')) return;
         entrenadorLoops = entrenadorLoops.filter(l => l.id !== id);
         if (entrenadorLoopActivo?.id === id) entDesactivarLoop();
-        if (entModoEditSesion) {
-            entSesionActual.canciones[entSesionCIdx].loops = [...entrenadorLoops];
-            guardarSesion(entSesionActual).catch(() => {});
-        }
+        entPersistirLoopsSesion();
         entRenderLoops();
         return;
     }
     _entBorrarLoopOrig(id);
 };
+
+// ── SYNC EDITOR DEL ENTRENADOR ───────────────────────────────────────────────
+
+let entSyncMode = false;
+let entSyncDirty = false;
+
+function entToggleSync() {
+    if (!entrenadorAssetActivo?.synced) { toast('Esta letra no tiene sync — importá desde LRCLIB primero'); return; }
+    entSyncMode = !entSyncMode;
+    const btn = document.getElementById('ent-btn-sync');
+    btn.classList.toggle('on', entSyncMode);
+    btn.textContent = entSyncMode ? '✕ Sync' : '⏱ Sync';
+    document.getElementById('ent-zona').classList.toggle('sync-mode', entSyncMode);
+    if (entSyncMode) entRenderSync();
+    else entRenderZona();
+}
+
+function entRenderSync() {
+    const zona = document.getElementById('ent-zona');
+    zona.innerHTML = entrenadorLines.map((l, i) => {
+        const ts  = msToLrcTs(l.time);
+        const cls = `ent-lyric-line${i === entrenadorLineIdx ? ' activa' : ''}`;
+        const texto = l.text || '·';
+        return `<div class="ent-sync-row">
+            <span class="${cls}" data-orig="${i}">${texto}</span>
+            <span class="ent-sync-ts">[${ts}]</span>
+            <button class="ent-sync-btn" onclick="entAjustarSync(${i},-1)">−1s</button>
+            <button class="ent-sync-btn" onclick="entAjustarSync(${i},1)">+1s</button>
+        </div>`;
+    }).join('');
+    // Scroll al verso activo
+    if (entrenadorLineIdx >= 0) {
+        const rows = zona.querySelectorAll('.ent-sync-row');
+        rows[entrenadorLineIdx]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+}
+
+function entAjustarSync(i, delta) {
+    entrenadorLines[i].time = Math.max(0, entrenadorLines[i].time + delta * 1000);
+    entSyncDirty = true;
+    entRenderSync();
+    entGuardarSyncAsset();
+}
+
+async function entGuardarSyncAsset() {
+    const asset = entrenadorAssetActivo;
+    if (!asset) return;
+    asset.synced = entrenadorLines.map(l => `[${msToLrcTs(l.time)}]${l.text}`).join('\n');
+    const songAsset = (entrenadorSong?.assets || []).find(a => a.id === asset.id);
+    if (songAsset) songAsset.synced = asset.synced;
+    sbUpsertAsset(asset).catch(e => console.error('Error guardando sync:', e));
+}
 
 // ── BÚSQUEDA EN TIEMPO REAL ───────────────────────────────────────────────────
 document.getElementById('search').addEventListener('input', render);
