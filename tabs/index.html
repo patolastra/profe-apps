@@ -565,11 +565,13 @@ const FINGER_COLOR    = { 1:'#E8A800', 2:'#9B30CC', 3:'#1A9FCA', 4:'#D94030' };
 
 const TUNING = {
     guitarra: [64, 59, 55, 50, 45, 40],  // E4 B3 G3 D3 A2 E2 (cuerdas 1-6)
-    ukelele:  [69, 64, 60, 67]           // A4 E4 C4 G4 (cuerdas 1-4, re-entrante)
+    ukelele:  [69, 64, 60, 67],           // A4 E4 C4 G4 (cuerdas 1-4, re-entrante)
+    bajo:     [43, 38, 33, 28]            // G2 D2 A1 E1 (cuerdas 1-4, estándar)
 };
 const TIMBRE = {
     guitarra: { sf: 'acoustic_guitar_nylon', ks: { feedback: 0.998, smooth: 12, gain: 0.85 }, filter: 2200, reverb: 0.35 },
-    ukelele:  { sf: 'acoustic_guitar_steel', ks: { feedback: 0.990, smooth: 6,  gain: 0.90 }, filter: 3500, reverb: 0.18 }
+    ukelele:  { sf: 'acoustic_guitar_steel', ks: { feedback: 0.990, smooth: 6,  gain: 0.90 }, filter: 3500, reverb: 0.18 },
+    bajo:     { sf: 'electric_bass_finger',  ks: { feedback: 0.995, smooth: 8,  gain: 0.90 }, filter:  800, reverb: 0.12 }
 };
 let currentInstrument = 'guitarra';
 let numStrings        = 6;
@@ -1211,17 +1213,22 @@ function detectarInstrumento(doc) {
     const txt = el => (el?.textContent || '').toLowerCase();
     const partList = doc.getElementsByTagName('part-list')[0];
 
-    if (txt(partList?.getElementsByTagName('instrument-sound')[0]).includes('ukulele'))
-        return 'ukelele';
+    const sound = txt(partList?.getElementsByTagName('instrument-sound')[0]);
+    if (sound.includes('bass') || sound.includes('bajo')) return 'bajo';
+    if (sound.includes('ukulele')) return 'ukelele';
 
     const names = txt(partList?.getElementsByTagName('instrument-name')[0])
                 + ' ' + txt(partList?.getElementsByTagName('part-name')[0]);
-    if (names.includes('ukulele') || names.includes('ukelele'))
-        return 'ukelele';
+    if (names.includes('bass') || names.includes('bajo')) return 'bajo';
+    if (names.includes('ukulele') || names.includes('ukelele')) return 'ukelele';
 
     for (const p of doc.getElementsByTagName('part')) {
         const lines = p.getElementsByTagName('staff-lines')[0];
-        if (lines && +lines.textContent === 4) return 'ukelele';
+        if (lines && +lines.textContent === 4) {
+            // 4 líneas + notas MIDI bajas → bajo; si no, ukelele
+            const firstMidi = +p.querySelector('pitch')?.parentElement?.querySelector('midi-program')?.textContent || 0;
+            return firstMidi === 33 || firstMidi === 34 ? 'bajo' : 'ukelele';
+        }
     }
 
     return 'guitarra';
@@ -1251,8 +1258,11 @@ function actualizarBadgeInstrumento() {
     if (!badge) return;
     badge.style.display = (currentFileName || currentStoragePath) ? '' : 'none';
     if (currentInstrument === 'ukelele') {
-        badge.textContent = '🎵 Ukelele';
+        badge.textContent = '🪕 Ukelele';
         badge.style.background = '#7c4a1e';
+    } else if (currentInstrument === 'bajo') {
+        badge.textContent = '🎸 Bajo';
+        badge.style.background = '#2c1a6b';
     } else {
         badge.textContent = '🎸 Guitarra';
         badge.style.background = '#1a6b4a';
@@ -1846,13 +1856,17 @@ function drawGrid() {
 
 function drawStrings() {
     const W = canvas.width;
-    const woundFrom = currentInstrument === 'ukelele' ? numStrings : 3;
+    const woundFrom = currentInstrument === 'ukelele' ? numStrings
+                    : currentInstrument === 'bajo'    ? 0
+                    : 3;
     for (let i = 0; i < numStrings; i++) {
         const y     = START_Y + i * STR_SPACING;
         const pL    = project(-W, y), pR = project(2 * W, y);
-        // ukelele: cuerdas 2 y 3 engrosadas +20%/+30%; cuerda 4 (G re-entrante) fina como cuerda 1
-        const ukThick = [1.0, 2.04, 3.12, 1.0];
-        const thick = currentInstrument === 'ukelele' ? ukThick[i] : 1 + i * 0.7;
+        const ukThick   = [1.0, 2.04, 3.12, 1.0];
+        const bajoThick = [2.2, 3.6, 5.2, 7.2];  // G D A E — todas entorchadas, grosor creciente
+        const thick = currentInstrument === 'ukelele' ? ukThick[i]
+                    : currentInstrument === 'bajo'    ? bajoThick[i]
+                    : 1 + i * 0.7;
         const wound = i >= woundFrom;
         const PLAIN_COLORS = ['#f2f2f4', '#c4c4c8', '#b0b0b4'];
         const WOUND_COLORS = ['#9a6025', '#a66828', '#b0702c'];
@@ -3486,6 +3500,7 @@ function acUniquesFromChordEvents() {
 
 function actualizarBadgeAcordes() {
     const btn  = document.getElementById('btnAcordes');
+    if (currentInstrument === 'bajo') { btn.style.display = 'none'; return; }
     const uniq = acUniquesFromChordEvents();
     if (uniq.length) {
         btn.style.display = '';
