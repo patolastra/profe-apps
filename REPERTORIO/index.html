@@ -1442,13 +1442,21 @@
         #ent-btn-editar.activo { color: #ea580c; }
         .ent-lyric-line.tap-cursor { background: #1e3a5f; border-radius: 4px; outline: 2px solid #ea580c; }
         .ent-lyric-line.tap-cursor .ent-lyric-text { color: #f1f5f9 !important; }
+        /* Timestamps en modo sync: flotan en el margen, no mueven la letra */
+        #ent-zona.sync-mode .ent-lyric-line { position: relative; }
         .ent-ts-in, .ent-ts-out {
-            font-size: 0.65em; font-weight: 400; font-style: normal;
-            color: #475569; vertical-align: middle; white-space: nowrap;
+            position: absolute;
+            top: 50%; transform: translateY(-50%);
+            font-size: 11px; font-weight: 400; font-style: normal;
+            color: #475569; white-space: nowrap;
             font-family: 'Courier New', monospace;
+            pointer-events: none;
         }
-        .ent-ts-in  { margin-right: 0.5em; }
-        .ent-ts-out { margin-left:  0.5em; }
+        .ent-ts-in  { right: calc(100% + 6px); }
+        .ent-ts-out { left:  calc(100% + 6px); }
+        /* Fallback: margen insuficiente — timestamps encima del texto, muy pequeños */
+        .ent-stanzas-wrapper.sync-narrow .ent-ts-in  { right: auto; left: 0; top: 0; transform: none; font-size: 9px; color: #334155; }
+        .ent-stanzas-wrapper.sync-narrow .ent-ts-out { left: auto; right: 0; top: 0; transform: none; font-size: 9px; color: #334155; }
         .ent-lyric-line.tap-done .ent-ts-in  { color: #4ade80; }
         .ent-lyric-line.tap-done .ent-ts-out { color: #4ade80; }
         #ent-editor-textarea::selection { background: #334155; }
@@ -4581,6 +4589,13 @@ function entRenderSync() {
 
     requestAnimationFrame(() => {
         entAjustarFontSize();
+        // Detectar margen usando entWrapperWidthGlobal (ya calculado por entAjustarFontSize)
+        const wrapper = zona.querySelector('.ent-stanzas-wrapper');
+        if (wrapper) {
+            const wrapperW = entWrapperWidthGlobal || wrapper.offsetWidth;
+            const margin = (zona.clientWidth - wrapperW) / 2;
+            wrapper.classList.toggle('sync-narrow', margin < 46);
+        }
         const cursor = zona.querySelector('.ent-lyric-line.tap-cursor');
         if (cursor) cursor.scrollIntoView({ block: 'center', behavior: 'smooth' });
     });
