@@ -3523,9 +3523,27 @@ function entCargarAsset(asset) {
     const ocultarRow = document.getElementById('ent-ocultar-row');
 
     if (asset.tipo === 'letra' || asset.tipo === 'cifrado') {
-        entrenadorLines = asset.synced
-            ? parseLRC(asset.synced)
-            : (asset.contenido || '').split('\n').map((t, i) => ({ time: i * 3000, text: t.trim() }));
+        if (asset.synced) {
+            // Reconstruir desde el ORDEN de asset.contenido (preserva líneas vacías de estrofa)
+            // usando timestamps de parseLRC. Sin esto, parseLRC ordena por tiempo y las líneas
+            // vacías (con timestamps ficticios) quedan en posiciones incorrectas.
+            const lrcMap = new Map();
+            parseLRC(asset.synced).forEach(l => {
+                if (!lrcMap.has(l.text)) lrcMap.set(l.text, []);
+                lrcMap.get(l.text).push({ time: l.time, timeOut: l.timeOut });
+            });
+            const base = asset.contenido
+                ? asset.contenido.split('\n')
+                : parseLRC(asset.synced).map(l => l.text);
+            entrenadorLines = base.map((raw, i) => {
+                const text = raw.trim();
+                const cola = lrcMap.get(text);
+                const ts   = cola?.shift();
+                return { time: ts?.time ?? i * 3000, timeOut: ts?.timeOut, text };
+            });
+        } else {
+            entrenadorLines = (asset.contenido || '').split('\n').map((t, i) => ({ time: i * 3000, text: t.trim() }));
+        }
         entrenadorStanzas = entParseStanzas();
         entrenadorLineIdx = -1;
         entFontSizeGlobal = null;
@@ -4542,8 +4560,31 @@ function entSalirEdicion() {
         const cola = tsMap.get(text);
         const ts   = cola?.shift();
         if (!ts) lineasNuevas.push(text || '(vacío)');
-        return { time: ts?.time ?? 0, timeOut: ts?.timeOut, text };
+        return { time: ts?.time ?? 0, timeOut: ts?.timeOut, text, _hasTs: !!ts };
     });
+
+    // Interpolar tiempos para líneas nuevas (sin match en tsMap)
+    // Sin esto, reciben time:0 y al reabrir con parseLRC() suben al principio por el sort
+    if (teniaSync) {
+        const anchors = entrenadorLines
+            .map((l, i) => l._hasTs ? { i, time: l.time } : null)
+            .filter(Boolean);
+        for (let i = 0; i < entrenadorLines.length; i++) {
+            if (entrenadorLines[i]._hasTs) continue;
+            const prev = anchors.filter(a => a.i < i).at(-1);
+            const next = anchors.find(a => a.i > i);
+            if (prev && next) {
+                const ratio = (i - prev.i) / (next.i - prev.i);
+                entrenadorLines[i].time = Math.round(prev.time + ratio * (next.time - prev.time));
+            } else if (prev) {
+                entrenadorLines[i].time = prev.time + (i - prev.i) * 3000;
+            } else if (next) {
+                entrenadorLines[i].time = Math.max(0, next.time - (next.i - i) * 3000);
+            }
+        }
+    }
+    entrenadorLines.forEach(l => delete l._hasTs);
+
     if (lineasNuevas.length) toast(`${lineasNuevas.length} verso${lineasNuevas.length > 1 ? 's' : ''} nuevo${lineasNuevas.length > 1 ? 's' : ''} sin sync — revisá los timestamps`);
     entrenadorStanzas = entParseStanzas();
 
@@ -4551,7 +4592,7 @@ function entSalirEdicion() {
     if (asset) {
         asset.contenido = entrenadorLines.map(l => l.text).join('\n');
         if (teniaSync) {
-            asset.synced = entrenadorLines.map(l => {
+            asset.synced = entrenadorLines.filter(l => l.text.trim()).map(l => {
                 const ts = `[${msToLrcTs(l.time)}${l.timeOut !== undefined ? '-' + msToLrcTs(l.timeOut) : ''}]`;
                 return `${ts}${l.text}`;
             }).join('\n');
@@ -4625,7 +4666,7 @@ function entAjustarSync(i, delta) {
 async function entGuardarSyncAsset() {
     const asset = entrenadorAssetActivo;
     if (!asset) return;
-    asset.synced = entrenadorLines.map(l => {
+    asset.synced = entrenadorLines.filter(l => l.text.trim()).map(l => {
         const ts = `[${msToLrcTs(l.time)}${l.timeOut !== undefined ? '-' + msToLrcTs(l.timeOut) : ''}]`;
         return `${ts}${l.text}`;
     }).join('\n');
