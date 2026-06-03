@@ -475,6 +475,7 @@
             <span>← →</span> navegar ·
             <span>↓</span> rasgueo abajo ·
             <span>↑</span> rasgueo arriba ·
+            <span>G</span> golpe ·
             <span>0</span> borrar ·
             <span>Ctrl+S</span> guardar ·
             <span>Esc</span> salir
@@ -576,7 +577,7 @@ const TIMBRE = {
 let currentInstrument = 'guitarra';
 let numStrings        = 6;
 let openStrings       = TUNING.guitarra.slice();
-const STRUM_NONE = 0, STRUM_DOWN = 1, STRUM_UP = 2;
+const STRUM_NONE = 0, STRUM_DOWN = 1, STRUM_UP = 2, STRUM_GOLPE = 3;
 const NOTE_TO_LATINO  = { C:'Do', D:'Re', E:'Mi', F:'Fa', G:'Sol', A:'La', B:'Si' };
 const CHORD_PALETTE   = ['#7B3FC4','#2A7FDB','#C4883F','#C43F4A','#3FC4A0','#8BC43F','#C43FAA'];
 
@@ -743,6 +744,30 @@ function playNote(midi, dur) {
     atk.connect(bodyFilter);
     src.start();
     if (dur > 0) src.stop(now + Math.max(0.1, dur / speed));
+}
+
+function playGolpe() {
+    if (!partituraOn || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    const sr  = audioCtx.sampleRate;
+    const len = Math.floor(sr * 0.08);
+    const buf = audioCtx.createBuffer(1, len, sr);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const bpf = audioCtx.createBiquadFilter();
+    bpf.type            = 'bandpass';
+    bpf.frequency.value = 320;
+    bpf.Q.value         = 0.8;
+    const env = audioCtx.createGain();
+    env.gain.setValueAtTime(1.4, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+    src.connect(bpf);
+    bpf.connect(env);
+    env.connect(masterBus);
+    src.start(now);
+    src.stop(now + 0.08);
 }
 
 // ─── ESTADO ───────────────────────────────────────────────────────────────
@@ -985,6 +1010,13 @@ document.addEventListener('keydown', e => {
             lastEditTime     = Date.now();
             strumDirty       = true;
             actualizarArco(chordNotes[strumEditorIdx], STRUM_NONE);
+        }
+        if (e.code === 'KeyG') {
+            lastEditedTStart = chordNotes[strumEditorIdx].time;
+            lastEditTime     = Date.now();
+            strumDirty       = true;
+            actualizarArco(chordNotes[strumEditorIdx], STRUM_GOLPE);
+            if (strumEditorIdx < maxIdx) strumEditorIdx++;
         }
         if (e.ctrlKey && e.code === 'KeyS') { guardarDigitacion(); strumDirty = false; }
         if (e.code === 'Escape') {
@@ -1389,8 +1421,9 @@ function parseXML(doc, fromToggle = false) {
                         }
                     }
                 } else {
-                    const strum = tech?.getElementsByTagName('down-bow').length ? STRUM_DOWN
-                                : tech?.getElementsByTagName('up-bow').length   ? STRUM_UP
+                    const strum = tech?.getElementsByTagName('down-bow').length      ? STRUM_DOWN
+                                : tech?.getElementsByTagName('up-bow').length        ? STRUM_UP
+                                : tech?.getElementsByTagName('snap-pizzicato').length ? STRUM_GOLPE
                                 : STRUM_NONE;
                     out.push({ time: figStart, string: str, fret: fret,
                         finger: +(tech?.getElementsByTagName('fingering')[0]?.textContent) || 0,
@@ -1632,6 +1665,7 @@ function animLoop(ts) {
             }
             for (const grupo of grupos.values()) {
                 const strumDir = grupo.find(n => n.strum)?.strum || STRUM_NONE;
+                if (strumDir === STRUM_GOLPE) { playGolpe(); continue; }
                 if (strumDir && grupo.length > 1) {
                     const ordenadas = grupo.slice().sort((a, b) =>
                         strumDir === STRUM_DOWN ? a.string - b.string : b.string - a.string);
@@ -2084,8 +2118,46 @@ function drawChordBlocks() {
             ctx.fill();
 
 
+            // Golpe: X en perspectiva — vértices en borde superior e inferior del fret
+            if (ev.strum === STRUM_GOLPE) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(tl.x, tl.y);
+                ctx.lineTo(tr.x, tr.y);
+                ctx.lineTo(br.x, br.y);
+                ctx.lineTo(bl.x, bl.y);
+                ctx.closePath();
+                ctx.clip();
+                const xmid  = (x1 + x2) / 2;
+                const half_h = (yBot - yTop) / 2;
+                const half_w = Math.min(half_h, (x2 - x1) / 2);
+                const xNO = project(xmid - half_w, yTop);
+                const xNE = project(xmid + half_w, yTop);
+                const xSO = project(xmid - half_w, yBot);
+                const xSE = project(xmid + half_w, yBot);
+                const bw  = tr.x - tl.x;
+                const w   = Math.max(8, bw * 0.15 + 400 / Math.max(bw, 1));
+                ctx.lineWidth   = w;
+                ctx.lineCap     = 'square';
+                ctx.globalAlpha = 1;
+                const gcx = (xNO.x + xNE.x + xSO.x + xSE.x) / 4;
+                const gcy = (xNO.y + xNE.y + xSO.y + xSE.y) / 4;
+                const gr  = Math.hypot(xSE.x - xNO.x, xSE.y - xNO.y) * 0.38;
+                const rg  = ctx.createRadialGradient(gcx, gcy, 0, gcx, gcy, gr);
+                rg.addColorStop(0,    'rgba(255,255,255,0.92)');
+                rg.addColorStop(0.55, 'rgba(255,255,255,0.4)');
+                rg.addColorStop(1,    'rgba(255,255,255,0)');
+                ctx.strokeStyle = rg;
+                ctx.beginPath();
+                ctx.moveTo(xNO.x, xNO.y); ctx.lineTo(xSE.x, xSE.y);
+                ctx.moveTo(xNE.x, xNE.y); ctx.lineTo(xSO.x, xSO.y);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
+
             // Chevrones como triángulos rellenos sin gaps
-            if (ev.strum !== STRUM_NONE) {
+            if (ev.strum !== STRUM_NONE && ev.strum !== STRUM_GOLPE) {
                 ctx.save();
                 ctx.beginPath();
                 ctx.moveTo(tl.x, tl.y);
@@ -2132,33 +2204,6 @@ function drawChordBlocks() {
                 ctx.restore();
             }
 
-            // Etiqueta — solo en el subbloque más grande, alineada a la izquierda
-            if (sb === ev.largestSub && ev.showLabel) {
-                const yCtr = (yTop + yBot) / 2;
-                const midL = project(x1, yCtr);
-                const midR = project(x2, yCtr);
-                const bw   = midR.x - midL.x;
-                if (bw >= 20) {
-                    const label = procesarLabel(latinoMode ? convertirALatino(ev.label) : ev.label);
-                    const { y: labelY, s: sc } = project(x1, yCtr);
-                    const screenCx = midL.x + 8;
-                    const shear    = ((screenCx - canvas.width / 2) / canvas.width) * 0.35 * sc;
-                    ctx.save();
-                    ctx.translate(screenCx, labelY);
-                    ctx.transform(sc, 0, shear, sc * 0.62, 0, 0);
-                    ctx.font          = '88px Impact, Arial Black, sans-serif';
-                    ctx.textAlign     = 'left';
-                    ctx.textBaseline  = 'middle';
-                    ctx.shadowColor   = '#000';
-                    ctx.shadowBlur    = 2;
-                    ctx.shadowOffsetX = 2 / sc;
-                    ctx.shadowOffsetY = 2 / sc;
-                    ctx.fillStyle     = '#fff';
-                    ctx.fillText(label, 0, 0);
-                    ctx.restore();
-                }
-            }
-
             ctx.restore();
         }
 
@@ -2188,6 +2233,45 @@ function drawChordBlocks() {
             ctx.stroke();
             ctx.restore();
         }
+    }
+    // Segunda pasada: labels encima de todos los bloques
+    for (const ev of chordEvents) {
+        if (!ev.showLabel) continue;
+        if (loopActive && isPlaying && (ev.tStart < loopIn - 0.001 || ev.tStart >= loopOut)) continue;
+        const x1raw = getX(ev.tStart);
+        const x2raw = getX(ev.tEnd);
+        if (x2raw < -100 || x1raw > canvas.width + 100) continue;
+        const x1 = x1raw + 3;
+        const x2 = x2raw - 3;
+        const sb = ev.largestSub;
+        const yTopRaw = START_Y + (sb.minStr - 1) * STR_SPACING - NOTE_R + 2;
+        const yBotRaw = START_Y + (sb.maxStr - 1) * STR_SPACING + NOTE_R - 2;
+        const yCtr = (yTopRaw + yBotRaw) / 2;
+        const midL = project(x1, yCtr);
+        const midR = project(x2, yCtr);
+        const bw   = midR.x - midL.x;
+        if (bw < 20) continue;
+        const label = procesarLabel(latinoMode ? convertirALatino(ev.label) : ev.label);
+        const { y: labelY, s: sc } = project(x1, yCtr);
+        const screenCx = midL.x + 8;
+        const shear    = ((screenCx - canvas.width / 2) / canvas.width) * 0.35 * sc;
+        ctx.save();
+        ctx.font = '88px Impact, Arial Black, sans-serif';
+        const textW  = ctx.measureText(label).width;
+        const availW = (bw - 16) / sc;
+        const fontSize = textW > availW ? Math.max(10, Math.floor(88 * availW / textW)) : 88;
+        ctx.translate(screenCx, labelY);
+        ctx.transform(sc, 0, shear, sc * 0.62, 0, 0);
+        ctx.font          = `${fontSize}px Impact, Arial Black, sans-serif`;
+        ctx.textAlign     = 'left';
+        ctx.textBaseline  = 'middle';
+        ctx.shadowColor   = '#000';
+        ctx.shadowBlur    = 2;
+        ctx.shadowOffsetX = 2 / sc;
+        ctx.shadowOffsetY = 2 / sc;
+        ctx.fillStyle     = '#fff';
+        ctx.fillText(label, 0, 0);
+        ctx.restore();
     }
 }
 
@@ -2235,7 +2319,7 @@ function buildChordEvents() {
             tStart: ref.time, tEnd: ref.time + ref.durSec,
             label: ref.harmonyLabel, color: ref.chordColor, strum: ref.strum,
             subBlocks, largestSub,
-            hit: false, hitAt: 0, showLabel: ref.harmonyLabel !== prevLabel
+            hit: false, hitAt: 0, showLabel: ref.strum !== STRUM_GOLPE && ref.harmonyLabel !== prevLabel
         });
         prevLabel = ref.harmonyLabel;
     }
@@ -2844,10 +2928,13 @@ function actualizarArco(note, strum) {
     if (!tech) { tech = doc.createElement('technical'); notations.appendChild(tech); }
     const d = tech.getElementsByTagName('down-bow')[0];
     const u = tech.getElementsByTagName('up-bow')[0];
+    const g = tech.getElementsByTagName('snap-pizzicato')[0];
     if (d) d.parentNode.removeChild(d);
     if (u) u.parentNode.removeChild(u);
-    if (strum === STRUM_DOWN) tech.appendChild(doc.createElement('down-bow'));
-    if (strum === STRUM_UP)   tech.appendChild(doc.createElement('up-bow'));
+    if (g) g.parentNode.removeChild(g);
+    if (strum === STRUM_DOWN)  tech.appendChild(doc.createElement('down-bow'));
+    if (strum === STRUM_UP)    tech.appendChild(doc.createElement('up-bow'));
+    if (strum === STRUM_GOLPE) tech.appendChild(doc.createElement('snap-pizzicato'));
     buildChordEvents();
     actualizarBadgeAcordes();
     chordOverlayCurLabel = null; chordOverlaySigLabel = null;
@@ -2860,12 +2947,12 @@ function actualizarHUDRasgueo() {
     const chordNotes = notes.filter(n => n.harmonyLabel && !n.isChord);
     const note = chordNotes[strumEditorIdx];
     if (!note) return;
-    const dir = note.strum === STRUM_DOWN ? '↓ Abajo' : note.strum === STRUM_UP ? '↑ Arriba' : '—';
+    const dir = note.strum === STRUM_DOWN ? '↓ Abajo' : note.strum === STRUM_UP ? '↑ Arriba' : note.strum === STRUM_GOLPE ? '✕ Golpe' : '—';
     document.getElementById('strum-nota').textContent   = `Tiempo ${strumEditorIdx + 1} / ${chordNotes.length}`;
     document.getElementById('strum-acorde').textContent = note.harmonyLabel ? `Acorde: ${note.harmonyLabel}` : '';
     const dirEl = document.getElementById('strum-dir');
     dirEl.textContent = `Dirección: ${dir}`;
-    dirEl.style.color = note.strum === STRUM_DOWN ? '#E8A800' : note.strum === STRUM_UP ? '#4A9EE8' : '#888';
+    dirEl.style.color = note.strum === STRUM_DOWN ? '#E8A800' : note.strum === STRUM_UP ? '#4A9EE8' : note.strum === STRUM_GOLPE ? '#E85050' : '#888';
 }
 
 function actualizarDedo(note, finger) {
