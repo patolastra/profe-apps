@@ -3501,8 +3501,12 @@ async function entActivarPitch() {
 
     toast('Cargando modo pitch…');
 
+    // Helper: cancela silenciosamente si el usuario cerró el entrenador o volvió a 0
+    const entPitchAbortado = () => !entrenadorSong || entPitchSemitones === 0;
+
     // 1. Cargar SoundTouch (lazy, solo la primera vez)
     const lib = await entCargarSoundTouch();
+    if (entPitchAbortado()) return;
     if (!lib || !lib.SoundTouch) {
         toast('No se pudo cargar SoundTouch — verificar conexión');
         entPitchSemitones = 0;
@@ -3524,9 +3528,12 @@ async function entActivarPitch() {
             const url = storageUrl(audioAsset.storage_path);
             const resp = await fetch(url);
             const arrayBuf = await resp.arrayBuffer();
-            entPitchBuffer = await entPitchCtx.decodeAudioData(arrayBuf);
+            const decoded = await entPitchCtx.decodeAudioData(arrayBuf);
+            if (entPitchAbortado()) return;  // cerró o volvió a 0 mientras descargaba
+            entPitchBuffer = decoded;
             entPitchBuffer._songId = entrenadorSong.id;
         } catch(e) {
+            if (entPitchAbortado()) return;
             toast('Error al descargar audio para modo pitch');
             entPitchSemitones = 0;
             document.getElementById('ent-pitch-slider').value = 0;
