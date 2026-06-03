@@ -1529,6 +1529,25 @@
             min-width: 36px; text-align: right;
             font-variant-numeric: tabular-nums;
         }
+        #ent-pitch-row {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 1rem;
+        }
+        #ent-pitch-slider {
+            flex: 1; accent-color: #7c3aed; cursor: pointer;
+        }
+        #ent-pitch-label {
+            font-size: 0.75rem; font-weight: 700; color: #94a3b8;
+            min-width: 40px; text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        #ent-pitch-label.activo { color: #a78bfa; }
+        #ent-pitch-reset {
+            background: none; border: none; cursor: pointer;
+            color: #64748b; font-size: 0.8rem; padding: 2px 4px;
+            line-height: 1;
+        }
+        #ent-pitch-reset:hover { color: #a78bfa; }
         #ent-ocultar-row { display: flex; justify-content: center; }
         #ent-btn-ocultar {
             background: #334155; border: 1.5px solid #475569;
@@ -1980,6 +1999,13 @@
                     <input type="range" id="ent-vel-slider" min="0.5" max="1.5" step="0.05" value="1" oninput="entrenadorSetVelocidad(this.value)">
                     <span>🐇</span>
                     <span id="ent-vel-label">1.0x</span>
+                </div>
+                <div id="ent-pitch-row">
+                    <span title="Bajar tono">♭</span>
+                    <input type="range" id="ent-pitch-slider" min="-6" max="6" step="1" value="0" oninput="entrenadorSetPitch(this.value)">
+                    <span title="Subir tono">♯</span>
+                    <span id="ent-pitch-label">0 st</span>
+                    <button id="ent-pitch-reset" onclick="entrenadorResetPitch()" title="Restablecer tono" style="display:none">✕</button>
                 </div>
                 <div id="ent-ocultar-row">
                     <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()">👁 Letra visible</button>
@@ -3424,6 +3450,147 @@ let entrenadorLoopCount    = 0;
 let entrenadorLoopOn       = false;
 let entrenadorVelocidad    = 1.0;
 let entrenadorOcultar      = false;
+
+// ── PITCH SHIFT ──────────────────────────────────────────────────────────────
+let entPitchSemitones  = 0;
+let entPitchCtx        = null;   // AudioContext (se crea una vez)
+let entPitchBuffer     = null;   // AudioBuffer del song actual (caché por song)
+let entPitchFilter     = null;   // SimpleFilter de SoundTouch
+let entPitchNode       = null;   // ScriptProcessorNode
+let entPitchST         = null;   // SoundTouch instance
+let entPitchLib        = null;   // módulo SoundTouch cargado dinámicamente
+
+async function entCargarSoundTouch() {
+    if (entPitchLib) return entPitchLib;
+    try {
+        entPitchLib = await import('https://cdn.jsdelivr.net/npm/soundtouch-js@0.1.2/dist/soundtouch.esm.js');
+        return entPitchLib;
+    } catch(e) {
+        return null;
+    }
+}
+
+async function entrenadorSetPitch(val) {
+    const semitones = parseInt(val);
+    const prev = entPitchSemitones;
+    entPitchSemitones = semitones;
+
+    const label = document.getElementById('ent-pitch-label');
+    label.textContent = semitones === 0 ? '0 st' : (semitones > 0 ? `+${semitones}` : `${semitones}`) + ' st';
+    label.classList.toggle('activo', semitones !== 0);
+    document.getElementById('ent-pitch-reset').style.display = semitones !== 0 ? '' : 'none';
+
+    if (semitones === 0 && prev !== 0) {
+        entDesactivarPitch();
+    } else if (semitones !== 0 && prev === 0) {
+        await entActivarPitch();
+    } else if (semitones !== 0 && entPitchST) {
+        entPitchST.pitchSemitones = semitones; // ya en pitch mode — solo actualizar
+    }
+}
+
+async function entrenadorResetPitch() {
+    document.getElementById('ent-pitch-slider').value = 0;
+    await entrenadorSetPitch(0);
+}
+
+async function entActivarPitch() {
+    const audioEl = entAudio();
+    const audioAsset = (entrenadorSong?.assets || []).find(a => a.tipo === 'audio');
+    if (!audioAsset) return;
+
+    toast('Cargando modo pitch…');
+
+    // 1. Cargar SoundTouch (lazy, solo la primera vez)
+    const lib = await entCargarSoundTouch();
+    if (!lib || !lib.SoundTouch) {
+        toast('No se pudo cargar SoundTouch — verificar conexión');
+        entPitchSemitones = 0;
+        document.getElementById('ent-pitch-slider').value = 0;
+        document.getElementById('ent-pitch-label').textContent = '0 st';
+        document.getElementById('ent-pitch-label').classList.remove('activo');
+        document.getElementById('ent-pitch-reset').style.display = 'none';
+        return;
+    }
+
+    // 2. Crear AudioContext (requiere gesto de usuario — ya lo tenemos por el slider)
+    if (!entPitchCtx || entPitchCtx.state === 'closed') {
+        entPitchCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    // 3. Descargar y decodificar audio (caché por song id)
+    if (!entPitchBuffer || entPitchBuffer._songId !== entrenadorSong.id) {
+        try {
+            const url = storageUrl(audioAsset.storage_path);
+            const resp = await fetch(url);
+            const arrayBuf = await resp.arrayBuffer();
+            entPitchBuffer = await entPitchCtx.decodeAudioData(arrayBuf);
+            entPitchBuffer._songId = entrenadorSong.id;
+        } catch(e) {
+            toast('Error al descargar audio para modo pitch');
+            entPitchSemitones = 0;
+            document.getElementById('ent-pitch-slider').value = 0;
+            document.getElementById('ent-pitch-label').textContent = '0 st';
+            document.getElementById('ent-pitch-label').classList.remove('activo');
+            document.getElementById('ent-pitch-reset').style.display = 'none';
+            return;
+        }
+    }
+
+    // 4. Construir grafo SoundTouch
+    // Limpiar nodo anterior si existía
+    if (entPitchNode) { try { entPitchNode.disconnect(); } catch(_) {} }
+
+    entPitchST = new lib.SoundTouch();
+    entPitchST.pitchSemitones = entPitchSemitones;
+    entPitchST.tempo = entrenadorVelocidad;
+
+    const ch0 = entPitchBuffer.getChannelData(0);
+    const ch1 = entPitchBuffer.numberOfChannels > 1 ? entPitchBuffer.getChannelData(1) : ch0;
+    const bufSrc = {
+        extract(target, numFrames, position) {
+            const avail = Math.min(numFrames, entPitchBuffer.length - position);
+            if (avail <= 0) return 0;
+            for (let i = 0; i < avail; i++) {
+                target[i * 2]     = ch0[position + i];
+                target[i * 2 + 1] = ch1[position + i];
+            }
+            return avail;
+        }
+    };
+    entPitchFilter = new lib.SimpleFilter(bufSrc, entPitchST);
+    entPitchFilter.sourcePosition = Math.floor(audioEl.currentTime * entPitchBuffer.sampleRate);
+
+    entPitchNode = lib.getWebAudioNode(entPitchCtx, entPitchFilter);
+    entPitchNode.connect(entPitchCtx.destination);
+
+    // 5. Silenciar <audio> (sigue controlando tiempo/seek)
+    audioEl.muted = true;
+    if (audioEl.paused) {
+        entPitchCtx.suspend();
+    } else {
+        entPitchCtx.resume();
+    }
+
+    toast('♭♯ Modo pitch activo');
+}
+
+function entDesactivarPitch() {
+    if (entPitchNode) {
+        try { entPitchNode.disconnect(); } catch(_) {}
+        entPitchNode = null;
+    }
+    entPitchFilter = null;
+    entPitchST     = null;
+    entAudio().muted = false;
+    if (entPitchCtx) entPitchCtx.resume();
+}
+
+function entPitchSyncPos() {
+    if (!entPitchFilter || !entPitchBuffer || !entPitchCtx) return;
+    entPitchFilter.sourcePosition = Math.floor(entAudio().currentTime * entPitchBuffer.sampleRate);
+}
+// ─────────────────────────────────────────────────────────────────────────────
 let entrenadorLineasOcultas = new Set();
 let entrenadorAssetActivo  = null;
 let entModoEdicion         = false;
@@ -3456,11 +3623,19 @@ function abrirEntrenador(songId) {
     const audioEl = entAudio();
     audioEl.src          = storageUrl(audioAsset.storage_path);
     audioEl.playbackRate = entrenadorVelocidad;
-    audioEl.ontimeupdate      = entOnTimeUpdate;
-    audioEl.onloadedmetadata  = entActualizarMarcadores;
+    audioEl.muted        = false;
+    audioEl.ontimeupdate     = entOnTimeUpdate;
+    audioEl.onloadedmetadata = entActualizarMarcadores;
+    audioEl.onseeked     = entPitchSyncPos;
+    audioEl.onplay       = () => { if (entPitchCtx && entPitchSemitones !== 0) { entPitchSyncPos(); entPitchCtx.resume(); } };
+    audioEl.onpause      = () => { if (entPitchCtx && entPitchSemitones !== 0) entPitchCtx.suspend(); };
 
     document.getElementById('ent-vel-slider').value = entrenadorVelocidad;
     document.getElementById('ent-vel-label').textContent = entFmtVel(entrenadorVelocidad);
+    document.getElementById('ent-pitch-slider').value = 0;
+    document.getElementById('ent-pitch-label').textContent = '0 st';
+    document.getElementById('ent-pitch-label').classList.remove('activo');
+    document.getElementById('ent-pitch-reset').style.display = 'none';
     document.getElementById('ent-btn-ocultar').classList.remove('oculto');
     document.getElementById('ent-btn-play').textContent = '▶';
 
@@ -3479,6 +3654,10 @@ function cerrarEntrenador() {
     const audioEl = entAudio();
     audioEl.pause(); audioEl.src = '';
     audioEl.ontimeupdate = null; audioEl.onloadedmetadata = null;
+    audioEl.onseeked = null; audioEl.onplay = null; audioEl.onpause = null;
+    entDesactivarPitch();
+    entPitchSemitones = 0;
+    entPitchBuffer = null;
 
     if (entrenadorSong) {
         const cfg = {
@@ -3770,6 +3949,7 @@ function entrenadorSetVelocidad(val) {
     entrenadorVelocidad = parseFloat(val);
     entAudio().playbackRate = entrenadorVelocidad;
     document.getElementById('ent-vel-label').textContent = entFmtVel(entrenadorVelocidad);
+    if (entPitchST) entPitchST.tempo = entrenadorVelocidad;
 }
 
 function entFmtVel(v) {
@@ -4247,12 +4427,20 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     const audioEl = entAudio();
     audioEl.src          = audioAsset ? storageUrl(audioAsset.storage_path) : '';
     audioEl.playbackRate = 1.0;
+    audioEl.muted        = false;
     audioEl.ontimeupdate     = entOnTimeUpdate;
     audioEl.onloadedmetadata = entActualizarMarcadores;
     audioEl.onended          = entOnAudioEnded;
+    audioEl.onseeked     = entPitchSyncPos;
+    audioEl.onplay       = () => { if (entPitchCtx && entPitchSemitones !== 0) { entPitchSyncPos(); entPitchCtx.resume(); } };
+    audioEl.onpause      = () => { if (entPitchCtx && entPitchSemitones !== 0) entPitchCtx.suspend(); };
 
     document.getElementById('ent-vel-slider').value = 1.0;
     document.getElementById('ent-vel-label').textContent = '1x';
+    document.getElementById('ent-pitch-slider').value = 0;
+    document.getElementById('ent-pitch-label').textContent = '0 st';
+    document.getElementById('ent-pitch-label').classList.remove('activo');
+    document.getElementById('ent-pitch-reset').style.display = 'none';
     document.getElementById('ent-btn-ocultar').classList.remove('oculto');
     document.getElementById('ent-btn-play').textContent = '▶';
     document.getElementById('ent-loop-toggle').classList.remove('on');
