@@ -2513,7 +2513,7 @@ async function abrirModalRep() {
         }
 
         let url = `${SB_URL}/rest/v1/repertorio_assets` +
-            `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,repertorio_canciones(nombre,artista)` +
+            `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,repertorio_canciones(nombre,artista)` +
             `&tipo=eq.tab`;
         if (assetIds) url += `&id=in.(${assetIds.join(',')})`;
 
@@ -2526,24 +2526,58 @@ async function abrirModalRep() {
             return nom.endsWith('.mxl') || nom.endsWith('.musicxml') || nom.endsWith('.xml');
         });
 
-        mxl.sort((a, b) => (a.repertorio_canciones?.nombre || '').localeCompare(b.repertorio_canciones?.nombre || '', 'es'));
-
         if (!mxl.length) {
             lista.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">No hay tablaturas MXL en el Repertorio todavía.</p>';
             return;
         }
 
-        lista.innerHTML = mxl.map(a => {
-            const c       = a.repertorio_canciones;
-            const nombre  = c?.nombre  || '(sin nombre)';
-            const artista = c?.artista || '';
-            const label   = a.etiqueta || a.nombre_archivo;
-            const sp = (a.storage_path  || '').replace(/'/g, "\\'");
-            const nf = (a.nombre_archivo || '').replace(/'/g, "\\'");
-            return `<div class="rep-item" onclick="cargarDesdeStorage('${sp}','${nf}')">
-                <div class="rep-nombre">${nombre}</div>
-                <div class="rep-meta">${[artista, label].filter(Boolean).join(' · ')}</div>
-            </div>`;
+        // Agrupar por cancion_id manteniendo orden alfabético por nombre de canción
+        const INST_ORD  = { guitarra:0, ukelele:1, bajo:2, metalofono:3, flauta:4 };
+        const DIFIC_ORD = { inicial:0, media:1, dificil:2, experto:3 };
+        const grupos = {};
+        for (const a of mxl) {
+            if (!grupos[a.cancion_id]) grupos[a.cancion_id] = { c: a.repertorio_canciones, tabs: [] };
+            grupos[a.cancion_id].tabs.push(a);
+        }
+        // Ordenar tabs dentro de cada canción por instrumento → dificultad
+        for (const g of Object.values(grupos)) {
+            g.tabs.sort((a, b) => {
+                const ia = INST_ORD[a.instrumento?.toLowerCase()] ?? 9;
+                const ib = INST_ORD[b.instrumento?.toLowerCase()] ?? 9;
+                if (ia !== ib) return ia - ib;
+                return (DIFIC_ORD[a.dificultad?.toLowerCase()] ?? 9) - (DIFIC_ORD[b.dificultad?.toLowerCase()] ?? 9);
+            });
+        }
+        // Ordenar canciones alfabéticamente
+        const gruposOrdenados = Object.entries(grupos).sort(([,a],[,b]) =>
+            (a.c?.nombre || '').localeCompare(b.c?.nombre || '', 'es')
+        );
+
+        lista.innerHTML = gruposOrdenados.map(([cid, { c, tabs }]) => {
+            const nombre = c?.nombre || '(sin nombre)';
+            const tabsHTML = tabs.map(a => {
+                const inst   = a.instrumento ? a.instrumento.charAt(0).toUpperCase() + a.instrumento.slice(1) : '';
+                const dific  = a.dificultad  ? a.dificultad.charAt(0).toUpperCase()  + a.dificultad.slice(1)  : '';
+                const label  = a.etiqueta || a.nombre_archivo || '';
+                const meta   = [inst, dific].filter(Boolean).join(' · ');
+                const sp = (a.storage_path  || '').replace(/'/g, "\\'");
+                const nf = (a.nombre_archivo || '').replace(/'/g, "\\'");
+                return `<div class="rep-item" style="padding-left:20px;border-left:3px solid #2a2a2a;margin-left:8px;border-radius:0" onclick="cargarDesdeStorage('${sp}','${nf}')">
+                    <div class="rep-nombre" style="font-size:.88rem;font-weight:600">${label || nombre}</div>
+                    ${meta ? `<div class="rep-meta">${meta}</div>` : ''}
+                </div>`;
+            }).join('');
+            const escapedNombre = nombre.replace(/'/g, "\\'");
+            return `
+                <div class="rep-item rep-song-header" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px"
+                     onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.rep-arrow').style.transform=this.nextElementSibling.style.display==='none'?'rotate(0deg)':'rotate(90deg)'">
+                    <div>
+                        <div class="rep-nombre">${nombre}</div>
+                        <div class="rep-meta">${tabs.length} tab${tabs.length !== 1 ? 's' : ''}</div>
+                    </div>
+                    <span class="rep-arrow" style="color:#555;font-size:.8rem;transition:transform .15s;flex-shrink:0">▶</span>
+                </div>
+                <div style="display:none">${tabsHTML}</div>`;
         }).join('');
 
     } catch (err) {
