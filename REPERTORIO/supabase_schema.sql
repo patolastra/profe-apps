@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS repertorio_canciones (
     año          TEXT DEFAULT '',
     estilo       TEXT DEFAULT '',
     artwork_url  TEXT DEFAULT '',
+    categoria    TEXT DEFAULT 'cancion',  -- 'cancion' | 'material'
     creado       BIGINT,
     created_at   TIMESTAMPTZ DEFAULT NOW()
 );
@@ -25,8 +26,17 @@ CREATE TABLE IF NOT EXISTS repertorio_assets (
     nombre_archivo TEXT DEFAULT '',
     storage_path   TEXT DEFAULT '',
     orden          INTEGER DEFAULT 0,
+    instrumento    TEXT DEFAULT '',  -- guitarra, ukelele, bajo, metalofono, flauta
+    dificultad     TEXT DEFAULT '',  -- inicial, media, dificil, experto
+    tonalidad      TEXT DEFAULT '',  -- Do mayor, Re menor, etc.
     created_at     TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migración (ejecutar si la tabla ya existe):
+-- ALTER TABLE repertorio_canciones ADD COLUMN IF NOT EXISTS categoria TEXT DEFAULT 'cancion';
+-- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS instrumento TEXT DEFAULT '';
+-- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS dificultad TEXT DEFAULT '';
+-- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS tonalidad TEXT DEFAULT '';
 
 -- Asignaciones canción ↔ contexto (muchos a muchos)
 CREATE TABLE IF NOT EXISTS repertorio_cancion_contextos (

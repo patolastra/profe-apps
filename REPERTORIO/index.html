@@ -105,15 +105,65 @@
         #filtros-bar {
             background: #fff;
             border-bottom: 1px solid var(--border);
-            padding: 10px 20px;
+            padding: 8px 20px;
             display: flex;
-            align-items: center;
+            flex-direction: column;
             gap: 8px;
             flex-shrink: 0;
-            overflow-x: auto;
-            scrollbar-width: none;
         }
-        #filtros-bar::-webkit-scrollbar { display: none; }
+        #cat-toggle, #sort-ctrl, #filtros-chips {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .cat-btn {
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1.5px solid var(--border);
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: #fff;
+            color: var(--muted);
+            transition: all 0.12s;
+        }
+        .cat-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .cat-btn.activo { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .sort-btn {
+            padding: 3px 10px;
+            border-radius: 20px;
+            border: 1.5px solid var(--border);
+            font-size: 0.74rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: #fff;
+            color: var(--muted);
+            transition: all 0.12s;
+        }
+        .sort-btn:hover { border-color: #64748b; color: #334155; }
+        .sort-btn.activo { background: #334155; border-color: #334155; color: #fff; }
+        #filtros-chips { overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
+        #filtros-chips::-webkit-scrollbar { display: none; }
+        /* ── SEGMENT CONTROL (modal categoria + asset meta) ── */
+        .seg-ctrl {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .seg-btn {
+            padding: 5px 12px;
+            border-radius: 6px;
+            border: 1.5px solid var(--border);
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: #f8fafc;
+            color: var(--muted);
+            transition: all 0.12s;
+        }
+        .seg-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .seg-btn.activo { background: var(--accent); border-color: var(--accent); color: #fff; }
         .filtro-label {
             font-size: 0.72rem;
             font-weight: 600;
@@ -1680,14 +1730,27 @@
 
 <!-- FILTROS -->
 <div id="filtros-bar">
-    <span class="filtro-label">Filtrar:</span>
-    <button class="chip activo" data-filtro="todos" onclick="setFiltro(this)">Todos</button>
-    <div class="sep"></div>
-    <span class="filtro-label">Curso</span>
-    <div id="chips-cursos"></div>
-    <div class="sep"></div>
-    <span class="filtro-label">Estilo</span>
-    <div id="chips-estilos"></div>
+    <div id="cat-toggle">
+        <button class="cat-btn activo" data-cat="todos" onclick="setCategoria(this)">Todos</button>
+        <button class="cat-btn" data-cat="cancion" onclick="setCategoria(this)">🎵 Canciones</button>
+        <button class="cat-btn" data-cat="material" onclick="setCategoria(this)">📚 Materiales</button>
+    </div>
+    <div id="sort-ctrl">
+        <span class="filtro-label">Orden:</span>
+        <button class="sort-btn activo" data-sort="reciente" onclick="setSort(this)">Reciente</button>
+        <button class="sort-btn" data-sort="nombre" onclick="setSort(this)">A–Z nombre</button>
+        <button class="sort-btn" data-sort="artista" onclick="setSort(this)">A–Z artista</button>
+    </div>
+    <div id="filtros-chips">
+        <span class="filtro-label">Filtrar:</span>
+        <button class="chip activo" data-filtro="todos" onclick="setFiltro(this)">Todos</button>
+        <div class="sep"></div>
+        <span class="filtro-label">Curso</span>
+        <div id="chips-cursos"></div>
+        <div class="sep"></div>
+        <span class="filtro-label">Estilo</span>
+        <div id="chips-estilos"></div>
+    </div>
 </div>
 
 <!-- VISTA SESIONES -->
@@ -1736,12 +1799,20 @@
                 <div id="import-error"></div>
                 <div id="import-resultados"></div>
             </div>
+            <div class="form-group" style="margin-bottom:12px">
+                <label class="form-label">Tipo</label>
+                <div class="seg-ctrl" id="f-categoria-ctrl">
+                    <button class="seg-btn activo" data-val="cancion" onclick="setCategoriaModal(this)">🎵 Canción</button>
+                    <button class="seg-btn" data-val="material" onclick="setCategoriaModal(this)">📚 Material pedagógico</button>
+                </div>
+                <input type="hidden" id="f-categoria" value="cancion">
+            </div>
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Nombre *</label>
                     <input id="f-nombre" type="text" class="form-input" placeholder="La Bamba">
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="f-artista-group">
                     <label class="form-label">Artista</label>
                     <input id="f-artista" type="text" class="form-input" placeholder="Ritchie Valens">
                 </div>
@@ -1809,6 +1880,33 @@
                 </div>
             </div>
             <div id="asset-campos" class="oculto">
+                <div id="asset-meta-fields" style="display:none">
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label class="form-label">Instrumento</label>
+                        <div class="seg-ctrl" id="asset-inst-ctrl">
+                            <button class="seg-btn" data-val="guitarra" onclick="setAssetMeta('inst',this)">Guitarra</button>
+                            <button class="seg-btn" data-val="ukelele" onclick="setAssetMeta('inst',this)">Ukelele</button>
+                            <button class="seg-btn" data-val="bajo" onclick="setAssetMeta('inst',this)">Bajo</button>
+                            <button class="seg-btn" data-val="metalofono" onclick="setAssetMeta('inst',this)">Metalófono</button>
+                            <button class="seg-btn" data-val="flauta" onclick="setAssetMeta('inst',this)">Flauta</button>
+                        </div>
+                        <input type="hidden" id="asset-instrumento" value="">
+                    </div>
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label class="form-label">Dificultad</label>
+                        <div class="seg-ctrl" id="asset-dific-ctrl">
+                            <button class="seg-btn" data-val="inicial" onclick="setAssetMeta('dific',this)">Inicial</button>
+                            <button class="seg-btn" data-val="media" onclick="setAssetMeta('dific',this)">Media</button>
+                            <button class="seg-btn" data-val="dificil" onclick="setAssetMeta('dific',this)">Difícil</button>
+                            <button class="seg-btn" data-val="experto" onclick="setAssetMeta('dific',this)">Experto</button>
+                        </div>
+                        <input type="hidden" id="asset-dificultad" value="">
+                    </div>
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label class="form-label">Tonalidad (opcional)</label>
+                        <input id="asset-tonalidad" type="text" class="form-input" placeholder="Ej: Do mayor, Re menor…">
+                    </div>
+                </div>
                 <div class="form-group">
                     <label class="form-label">Etiqueta (opcional)</label>
                     <input id="asset-etiqueta" type="text" class="form-input" placeholder="Ej: guitarra fácil, versión original…">
@@ -2025,11 +2123,24 @@ const TIPOS_ASSET = {
     cifrado:   { ico: '🎹', label: 'Cifrado',    clase: 'cifrado' },
 };
 
+const TIPO_ORD  = { letra:0, audio:1, tab:2, cifrado:3, metalofono:4, flauta:5 };
+const INST_ORD  = { guitarra:0, ukelele:1, bajo:2, metalofono:3, flauta:4 };
+const DIFIC_ORD = { inicial:0, media:1, dificil:2, experto:3 };
+
+function assetSortKey(a) {
+    return (TIPO_ORD[a.tipo]          ?? 9) * 10000
+         + (INST_ORD[a.instrumento]   ?? 9) * 1000
+         + (DIFIC_ORD[a.dificultad]   ?? 9) * 10
+         + (a.tonalidad || '').localeCompare('zzz');
+}
+
 // ── ESTADO ──────────────────────────────────────────────────────────────────
 let canciones        = [];
 let songActiva       = null;
 let filtroActivo     = 'todos';
 let filtroExtra      = null;
+let filtroCategoria  = 'todos';
+let sortMode         = 'reciente';
 let editandoId       = null;
 let assetSongId      = null;
 let tipoSeleccionado = null;
@@ -2130,10 +2241,28 @@ async function sbEliminarCancion(c) {
 }
 
 // ── RENDER PRINCIPAL ─────────────────────────────────────────────────────────
+function setCategoria(btn) {
+    document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    filtroCategoria = btn.dataset.cat;
+    render();
+}
+
+function setSort(btn) {
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    sortMode = btn.dataset.sort;
+    render();
+}
+
 function render() {
     const q = document.getElementById('search').value.trim().toLowerCase();
-    let lista = canciones;
+    let lista = [...canciones];
 
+    // filtro categoría
+    if (filtroCategoria !== 'todos') {
+        lista = lista.filter(c => (c.categoria || 'cancion') === filtroCategoria);
+    }
     // filtro búsqueda
     if (q) {
         lista = lista.filter(c =>
@@ -2149,6 +2278,9 @@ function render() {
             lista = lista.filter(c => (c.estilo||'').toLowerCase() === filtroExtra.valor.toLowerCase());
         }
     }
+    // ordenación
+    if (sortMode === 'nombre')  lista.sort((a,b) => a.nombre.localeCompare(b.nombre));
+    if (sortMode === 'artista') lista.sort((a,b) => (a.artista||'').localeCompare(b.artista||''));
 
     const el = document.getElementById('lista');
     const empty = document.getElementById('empty');
@@ -2249,7 +2381,7 @@ function cerrarPanel() {
 function renderPanel() {
     if (!songActiva) return;
     const c = songActiva;
-    const assets = c.assets || [];
+    const assets = [...(c.assets || [])].sort((a,b) => assetSortKey(a) - assetSortKey(b));
 
     const artworkHTML = c.artwork_url
         ? `<div class="panel-artwork"><img src="${c.artwork_url}" alt=""></div>`
@@ -2300,7 +2432,10 @@ function renderPanel() {
 
 function assetItemHTML(a, i) {
     const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo, clase: '' };
-    const etiq = a.etiqueta ? `<div class="asset-item-etiqueta">${a.etiqueta}</div>` : '';
+    const sublabel = a.etiqueta
+        || [a.instrumento, a.dificultad, a.tonalidad].filter(Boolean).join(' · ')
+        || '';
+    const etiq = sublabel ? `<div class="asset-item-etiqueta">${sublabel}</div>` : '';
 
     // Audio y binarios con archivo en Storage
     if (a.storage_path) {
@@ -2358,12 +2493,22 @@ async function toggleCurso(ctx, btn) {
 // ── MODAL NUEVA / EDITAR ─────────────────────────────────────────────────────
 let importDatos = null;
 
+function setCategoriaModal(btn) {
+    document.querySelectorAll('#f-categoria-ctrl .seg-btn').forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    document.getElementById('f-categoria').value = btn.dataset.val;
+    document.getElementById('f-artista-group').style.display = btn.dataset.val === 'material' ? 'none' : '';
+}
+
 function abrirModalNueva() {
     editandoId = null;
     importDatos = null;
     document.getElementById('modal-titulo-h').textContent = 'Nueva canción';
     ['f-nombre','f-artista','f-año','f-estilo'].forEach(id =>
         document.getElementById(id).value = '');
+    document.getElementById('f-categoria').value = 'cancion';
+    document.querySelectorAll('#f-categoria-ctrl .seg-btn').forEach((b,i) => b.classList.toggle('activo', i===0));
+    document.getElementById('f-artista-group').style.display = '';
     document.getElementById('artwork-group').style.display = 'none';
     document.getElementById('import-resultados').classList.remove('visible');
     document.getElementById('import-q').value = '';
@@ -2384,6 +2529,10 @@ function editarCancion(id) {
     document.getElementById('f-artista').value = c.artista || '';
     document.getElementById('f-año').value     = c.año     || '';
     document.getElementById('f-estilo').value  = c.estilo  || '';
+    const cat = c.categoria || 'cancion';
+    document.getElementById('f-categoria').value = cat;
+    document.querySelectorAll('#f-categoria-ctrl .seg-btn').forEach(b => b.classList.toggle('activo', b.dataset.val === cat));
+    document.getElementById('f-artista-group').style.display = cat === 'material' ? 'none' : '';
     if (c.artwork_url) {
         document.getElementById('f-artwork-preview').src = c.artwork_url;
         document.getElementById('artwork-group').style.display = '';
@@ -2409,10 +2558,11 @@ async function guardarCancion() {
 
     if (editandoId) {
         const c = canciones.find(x => x.id === editandoId);
-        c.nombre  = nombre;
-        c.artista = artista;
-        c.año     = document.getElementById('f-año').value.trim();
-        c.estilo  = document.getElementById('f-estilo').value.trim();
+        c.nombre     = nombre;
+        c.artista    = artista;
+        c.año        = document.getElementById('f-año').value.trim();
+        c.estilo     = document.getElementById('f-estilo').value.trim();
+        c.categoria  = document.getElementById('f-categoria').value || 'cancion';
         if (importDatos?.artwork_url) c.artwork_url = importDatos.artwork_url;
         await sbUpsertCancion(c);
         songActiva = c;
@@ -2434,6 +2584,7 @@ async function guardarCancion() {
         año:         document.getElementById('f-año').value.trim(),
         estilo:      document.getElementById('f-estilo').value.trim(),
         artwork_url: importDatos?.artwork_url || '',
+        categoria:   document.getElementById('f-categoria').value || 'cancion',
         contextos:   [],
         assets:      [],
         creado:      Date.now(),
@@ -2605,6 +2756,22 @@ function cerrarModalAsset() {
     tipoSeleccionado = null;
     audioFile = null;
     archivoFile = null;
+    document.getElementById('asset-instrumento').value = '';
+    document.getElementById('asset-dificultad').value = '';
+    document.getElementById('asset-tonalidad').value = '';
+    document.getElementById('asset-etiqueta').value = '';
+    document.getElementById('asset-meta-fields').style.display = 'none';
+    document.querySelectorAll('#asset-inst-ctrl .seg-btn, #asset-dific-ctrl .seg-btn').forEach(b => b.classList.remove('activo'));
+    document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('seleccionado'));
+    document.getElementById('asset-campos').classList.add('oculto');
+}
+
+function setAssetMeta(campo, btn) {
+    const ctrlId = campo === 'inst' ? 'asset-inst-ctrl' : 'asset-dific-ctrl';
+    const inputId = campo === 'inst' ? 'asset-instrumento' : 'asset-dificultad';
+    document.querySelectorAll(`#${ctrlId} .seg-btn`).forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    document.getElementById(inputId).value = btn.dataset.val;
 }
 
 function selTipo(btn) {
@@ -2614,6 +2781,15 @@ function selTipo(btn) {
     archivoFile = null;
     document.getElementById('asset-archivo-nombre').textContent = '';
     document.getElementById('asset-campos').classList.remove('oculto');
+    // mostrar campos de instrumento/dificultad/tonalidad solo para tabs
+    const showMeta = tipoSeleccionado === 'tab';
+    document.getElementById('asset-meta-fields').style.display = showMeta ? '' : 'none';
+    if (!showMeta) {
+        document.getElementById('asset-instrumento').value = '';
+        document.getElementById('asset-dificultad').value = '';
+        document.getElementById('asset-tonalidad').value = '';
+        document.querySelectorAll('#asset-inst-ctrl .seg-btn, #asset-dific-ctrl .seg-btn').forEach(b => b.classList.remove('activo'));
+    }
 
     const isAudio   = tipoSeleccionado === 'audio';
     const isLetra   = tipoSeleccionado === 'letra';
@@ -2715,8 +2891,18 @@ async function guardarAsset() {
     const c = canciones.find(x => x.id === assetSongId);
     if (!c) return;
 
-    const etiqueta  = document.getElementById('asset-etiqueta').value.trim();
-    const contenido = document.getElementById('asset-contenido').value.trim();
+    const instrumento = document.getElementById('asset-instrumento').value.trim();
+    const dificultad  = document.getElementById('asset-dificultad').value.trim();
+    const tonalidad   = document.getElementById('asset-tonalidad').value.trim();
+    const contenido   = document.getElementById('asset-contenido').value.trim();
+
+    // Auto-generar etiqueta si no se escribió
+    let etiqueta = document.getElementById('asset-etiqueta').value.trim();
+    if (!etiqueta && tipoSeleccionado === 'tab') {
+        etiqueta = [instrumento, dificultad, tonalidad].filter(Boolean).join(' ');
+    }
+
+    const metaFields = { instrumento, dificultad, tonalidad };
 
     if (tipoSeleccionado === 'audio') {
         if (!audioFile) { toast('Selecciona un archivo de audio'); return; }
@@ -2742,7 +2928,7 @@ async function guardarAsset() {
         const asset = {
             id: assetId, cancion_id: c.id, tipo: 'audio', etiqueta,
             contenido: '', synced: '', nombre_archivo: audioFile.name,
-            storage_path: storagePath, orden: 0,
+            storage_path: storagePath, orden: 0, ...metaFields,
         };
         await sbUpsertAsset(asset);
         if (!c.assets) c.assets = [];
@@ -2768,7 +2954,7 @@ async function guardarAsset() {
             id: assetId, cancion_id: c.id, tipo: tipoSeleccionado, etiqueta,
             contenido: archivoFile ? '' : contenido,
             synced: '', nombre_archivo: nombreArchivo,
-            storage_path: storagePath, orden: 0,
+            storage_path: storagePath, orden: 0, ...metaFields,
         };
         await sbUpsertAsset(asset);
         if (!c.assets) c.assets = [];
@@ -2787,7 +2973,7 @@ async function guardarAsset() {
         : '';
     const asset = {
         id: genId(), cancion_id: c.id, tipo: tipoSeleccionado, etiqueta,
-        contenido, synced: synced || '', nombre_archivo: '', storage_path: '', orden: 0,
+        contenido, synced: synced || '', nombre_archivo: '', storage_path: '', orden: 0, ...metaFields,
     };
     await sbUpsertAsset(asset);
     c.assets.push(asset);
@@ -3695,7 +3881,9 @@ function cerrarEntrenador() {
 }
 
 function entRenderChips(preselId) {
-    const assets = (entrenadorSong?.assets || []).filter(a => a.tipo !== 'audio');
+    const assets = (entrenadorSong?.assets || [])
+        .filter(a => a.tipo !== 'audio')
+        .sort((a,b) => assetSortKey(a) - assetSortKey(b));
     const wrap = document.getElementById('ent-asset-chips');
     let activo = assets.find(a => a.id === preselId)
               || assets.find(a => a.tipo === 'letra')
@@ -3703,8 +3891,9 @@ function entRenderChips(preselId) {
     wrap.style.display = assets.length > 1 ? '' : 'none';
     wrap.innerHTML = assets.map(a => {
         const ico = { letra:'🎵', cifrado:'🎸', tab:'📄', metalofono:'🎹', flauta:'🎶' }[a.tipo] || '📄';
+        const label = a.etiqueta || [a.instrumento, a.dificultad, a.tonalidad].filter(Boolean).join(' ') || a.tipo;
         return `<button class="ent-chip${a.id === activo?.id ? ' active' : ''}"
-                    onclick="entSelAsset('${a.id}')">${ico} ${a.etiqueta || a.tipo}</button>`;
+                    onclick="entSelAsset('${a.id}')">${ico} ${label}</button>`;
     }).join('');
     if (activo) entCargarAsset(activo);
 }
