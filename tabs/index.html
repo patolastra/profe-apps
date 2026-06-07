@@ -2498,24 +2498,24 @@ async function abrirModalRep() {
     }
 
     try {
-        let cancionIds = null;
+        let assetIds = null;
 
         if (alumnoActual) {
-            // Modo alumno: cargar solo canciones asignadas
+            // Modo alumno: cargar solo tabs asignadas individualmente
             const asig = await sbGet(
-                `/rest/v1/alumno_repertorio?alumno_id=eq.${alumnoActual.id}&activo=eq.true&select=cancion_id,orden&order=orden.asc`
+                `/rest/v1/alumno_tabs?alumno_id=eq.${alumnoActual.id}&select=asset_id`
             );
             if (!asig.length) {
-                lista.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">Todavía no tenés canciones asignadas.</p>';
+                lista.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">Todavía no tenés ejercicios asignados.</p>';
                 return;
             }
-            cancionIds = asig.map(r => r.cancion_id);
+            assetIds = asig.map(r => r.asset_id);
         }
 
         let url = `${SB_URL}/rest/v1/repertorio_assets` +
             `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,repertorio_canciones(nombre,artista)` +
             `&tipo=eq.tab`;
-        if (cancionIds) url += `&cancion_id=in.(${cancionIds.join(',')})`;
+        if (assetIds) url += `&id=in.(${assetIds.join(',')})`;
 
         const resp = await fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -2526,13 +2526,7 @@ async function abrirModalRep() {
             return nom.endsWith('.mxl') || nom.endsWith('.musicxml') || nom.endsWith('.xml');
         });
 
-        if (cancionIds) {
-            // Respetar el orden asignado por el profe
-            const orden = Object.fromEntries(cancionIds.map((id, i) => [id, i]));
-            mxl.sort((a, b) => (orden[a.cancion_id] ?? 99) - (orden[b.cancion_id] ?? 99));
-        } else {
-            mxl.sort((a, b) => (a.repertorio_canciones?.nombre || '').localeCompare(b.repertorio_canciones?.nombre || '', 'es'));
-        }
+        mxl.sort((a, b) => (a.repertorio_canciones?.nombre || '').localeCompare(b.repertorio_canciones?.nombre || '', 'es'));
 
         if (!mxl.length) {
             lista.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">No hay tablaturas MXL en el Repertorio todavía.</p>';
@@ -3096,6 +3090,7 @@ let practicaStartTime = null;
 let palRepAbierto     = null;   // id alumno con acordeón de repertorio abierto
 let palEditandoId     = null;   // id alumno en edición inline
 let palNotaAbierto    = null;   // id alumno con acordeón de nota abierto
+const palRepSongsOpen = new Set(); // keys "alumnoId:cancionId" con canción desplegada
 
 mostrarWelcome();
 
@@ -3287,6 +3282,7 @@ function cerrarPanelAlumnos() {
     palRepAbierto = null;
     palEditandoId = null;
     palNotaAbierto = null;
+    palRepSongsOpen.clear();
 }
 document.getElementById('panelAlumnos').addEventListener('click', e => {
     if (e.target === document.getElementById('panelAlumnos')) cerrarPanelAlumnos();
@@ -3303,14 +3299,14 @@ async function renderPanelAlumnos() {
             sbGet(`/rest/v1/practica_log?fecha=eq.${hoy()}&select=alumno_id,duracion_seg`)
         ]);
 
-        // Asignaciones de todos los alumnos de una vez
+        // Asignaciones de todos los alumnos de una vez (por asset individual)
         let asig = {};
         if (alumnos.length) {
             const ids = alumnos.map(a => `alumno_id.eq.${a.id}`).join(',');
-            const rows = await sbGet(`/rest/v1/alumno_repertorio?or=(${ids})&activo=eq.true&select=alumno_id,cancion_id`);
+            const rows = await sbGet(`/rest/v1/alumno_tabs?or=(${ids})&select=alumno_id,asset_id`);
             for (const r of rows) {
                 if (!asig[r.alumno_id]) asig[r.alumno_id] = new Set();
-                asig[r.alumno_id].add(r.cancion_id);
+                asig[r.alumno_id].add(r.asset_id);
             }
         }
 
@@ -3413,11 +3409,10 @@ async function renderPanelAlumnos() {
             }
 
             if (repOpen) {
-                const asigAlumno = asig[a.id] || new Set();
+                const asigAlumno = asig[a.id] || new Set(); // Set de asset_ids
                 if (!assets.length) {
                     html += `<div class="pal-rep-accordion" style="color:#555;font-size:.82rem">Sin tablaturas en el Repertorio todavía.</div>`;
                 } else {
-                    // Agrupar tabs por canción
                     const byCancion = {};
                     for (const t of assets) {
                         const cid = t.cancion_id || t.id;
@@ -3433,36 +3428,47 @@ async function renderPanelAlumnos() {
                     const INST_EMOJI  = { guitarra:'🎸', ukelele:'🪕', bajo:'🎵', metalofono:'🎹', flauta:'🪈' };
                     const DIFIC_COLOR = { inicial:'#27ae60', media:'#f39c12', dificil:'#e74c3c', experto:'#8e44ad' };
 
-                    html += `<div class="pal-rep-accordion" style="padding:6px 0">`;
+                    html += `<div class="pal-rep-accordion" style="padding:4px 0">`;
                     for (const cid of sortedCids) {
                         const { nombre, tabs } = byCancion[cid];
-                        const checked = asigAlumno.has(cid) ? 'checked' : '';
-                        const tabsHTML = tabs.map(t => {
+                        const key    = `${a.id}:${cid}`;
+                        const isOpen = palRepSongsOpen.has(key);
+                        const asigCount = tabs.filter(t => asigAlumno.has(t.id)).length;
+                        const badge = asigCount > 0
+                            ? `<span style="background:#27ae60;color:#fff;border-radius:10px;padding:1px 7px;font-size:.68rem;font-weight:700">${asigCount}/${tabs.length}</span>`
+                            : `<span style="color:#444;font-size:.7rem">${tabs.length}</span>`;
+                        const arrow = `<span style="color:#555;font-size:.7rem;display:inline-block;transform:rotate(${isOpen ? 90 : 0}deg);transition:transform .15s">▶</span>`;
+
+                        const tabsHTML = !isOpen ? '' : tabs.map(t => {
                             const inst  = (t.instrumento || '').toLowerCase();
                             const dif   = (t.dificultad  || '').toLowerCase();
                             const ton   = t.tonalidad || '';
                             const etq   = t.etiqueta  || t.nombre_archivo || '';
-                            const emoji = INST_EMOJI[inst]  || '🎸';
+                            const emoji = INST_EMOJI[inst] || '🎸';
                             const color = DIFIC_COLOR[dif] || '#666';
+                            const checked = asigAlumno.has(t.id) ? 'checked' : '';
                             const partes = [
                                 inst ? `<span style="color:#ccc;text-transform:capitalize">${inst}</span>` : '',
                                 dif  ? `<span style="color:${color};font-weight:700;text-transform:capitalize">${dif}</span>` : '',
                                 ton  ? `<span style="color:#666">${esc(ton)}</span>` : '',
                                 (!inst && !dif && etq) ? `<span style="color:#999">${esc(etq)}</span>` : '',
-                            ].filter(Boolean).join('<span style="color:#333;margin:0 3px">·</span>');
-                            return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0 3px 4px;font-size:.75rem;color:#aaa">
-                                <span style="flex-shrink:0">${emoji}</span>
-                                <span style="display:flex;align-items:center;flex-wrap:wrap;gap:3px">${partes || esc(etq)}</span>
-                            </div>`;
-                        }).join('');
-                        html += `<div style="margin-bottom:5px;border:1px solid #2a2a2a;border-radius:6px;overflow:hidden">
-                            <label style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#1a1a1a;cursor:pointer">
+                            ].filter(Boolean).join('<span style="color:#2a2a2a;margin:0 2px">·</span>');
+                            return `<label style="display:flex;align-items:center;gap:7px;padding:6px 10px 6px 14px;cursor:pointer;border-top:1px solid #1e1e1e;background:#121212">
                                 <input type="checkbox" ${checked} style="accent-color:#27ae60;width:14px;height:14px;cursor:pointer;flex-shrink:0"
-                                    onchange="toggleAsignacion('${a.id}','${cid}',this.checked)">
+                                    onchange="toggleTabAsignacion('${a.id}','${t.id}',this.checked)">
+                                <span style="flex-shrink:0">${emoji}</span>
+                                <span style="display:flex;align-items:center;flex-wrap:wrap;gap:3px;font-size:.76rem">${partes || esc(etq)}</span>
+                            </label>`;
+                        }).join('');
+
+                        html += `<div style="margin-bottom:4px;border:1px solid #2a2a2a;border-radius:6px;overflow:hidden">
+                            <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#1a1a1a;cursor:pointer;user-select:none"
+                                onclick="toggleRepSong('${a.id}','${cid}')">
+                                ${arrow}
                                 <span style="font-size:.86rem;font-weight:700;color:#eee;flex:1">${esc(nombre)}</span>
-                                <span style="font-size:.7rem;color:#444">${tabs.length} tab${tabs.length > 1 ? 's' : ''}</span>
-                            </label>
-                            <div style="background:#141414;padding:2px 8px 5px">${tabsHTML}</div>
+                                ${badge}
+                            </div>
+                            ${isOpen ? `<div>${tabsHTML}</div>` : ''}
                         </div>`;
                     }
                     html += `</div>`;
@@ -3582,14 +3588,21 @@ async function guardarEdicion(alumnoId) {
     } catch (e) { mostrarToast('Error al guardar', true); }
 }
 
-async function toggleAsignacion(alumnoId, cancionId, asignar) {
+async function toggleTabAsignacion(alumnoId, assetId, asignar) {
     try {
         if (asignar) {
-            await sbPost('/rest/v1/alumno_repertorio', { alumno_id: alumnoId, cancion_id: cancionId, orden: 0 });
+            await sbPost('/rest/v1/alumno_tabs', { alumno_id: alumnoId, asset_id: assetId });
         } else {
-            await sbDelete(`/rest/v1/alumno_repertorio?alumno_id=eq.${alumnoId}&cancion_id=eq.${cancionId}`);
+            await sbDelete(`/rest/v1/alumno_tabs?alumno_id=eq.${alumnoId}&asset_id=eq.${assetId}`);
         }
-    } catch (e) { mostrarToast('Error al actualizar repertorio', true); }
+    } catch (e) { mostrarToast('Error al actualizar', true); }
+}
+
+function toggleRepSong(alumnoId, cancionId) {
+    const key = `${alumnoId}:${cancionId}`;
+    if (palRepSongsOpen.has(key)) palRepSongsOpen.delete(key);
+    else palRepSongsOpen.add(key);
+    renderPanelAlumnos();
 }
 
 // ── Práctica logging ───────────────────────────────────────────────────────

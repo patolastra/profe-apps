@@ -39,6 +39,15 @@ CREATE TABLE IF NOT EXISTS repertorio_assets (
 -- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS tonalidad TEXT DEFAULT '';
 -- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS mensaje TEXT;
 
+-- Asignación de tabs individuales a alumnos (reemplaza alumno_repertorio por cancion)
+CREATE TABLE IF NOT EXISTS alumno_tabs (
+    alumno_id  TEXT NOT NULL,   -- ID del alumno (alumnos_taller)
+    asset_id   TEXT NOT NULL,   -- ID del asset (repertorio_assets)
+    PRIMARY KEY (alumno_id, asset_id)
+);
+ALTER TABLE alumno_tabs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_all" ON alumno_tabs FOR ALL TO anon USING (true) WITH CHECK (true);
+
 -- Mensajes de recordatorio por alumno en ejercicio específico
 CREATE TABLE IF NOT EXISTS tab_mensajes_alumno (
     storage_path  TEXT NOT NULL,   -- identifica el archivo tab en Supabase Storage
