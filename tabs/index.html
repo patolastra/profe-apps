@@ -202,6 +202,22 @@
         .pal-btn-login:hover { background: #229954; }
         .pal-btn-rep { background: #2d2d2d; color: #aaa; border: 1px solid #3a3a3a; border-radius: 4px; padding: 5px 8px; cursor: pointer; font-size: .8rem; }
         .pal-btn-rep.activo { background: #2471a3; color: #fff; border-color: #2471a3; }
+        .pal-btn-nota { background: #2d2d2d; color: #aaa; border: 1px solid #3a3a3a; border-radius: 4px; padding: 5px 8px; cursor: pointer; font-size: .8rem; }
+        .pal-btn-nota.activo { background: #6d4c00; color: #ffd54f; border-color: #b8860b; }
+        /* ── MODAL MENSAJE EJERCICIO ── */
+        #modalMensaje {
+            display: none; position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,.8); align-items: center; justify-content: center;
+        }
+        #modalMensaje.visible { display: flex; }
+        .msg-box {
+            background: #1a1a1a; border: 1px solid #444; border-radius: 14px;
+            padding: 28px 32px; max-width: 480px; width: 90%; text-align: center;
+        }
+        .msg-box-icon { font-size: 1.8rem; margin-bottom: 10px; }
+        .msg-box-texto { color: #ddd; line-height: 1.65; margin-bottom: 22px; white-space: pre-wrap; font-size: .97rem; }
+        .msg-box-btn { background: #2e7d32; color: #fff; border: none; padding: 10px 32px; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 700; }
+        .msg-box-btn:hover { background: #388e3c; }
         .pal-rep-accordion { padding: 6px 4px 8px; }
         .pal-rep-item { display: flex; align-items: center; gap: 9px; padding: 5px 0; font-size: .84rem; color: #ccc; }
         .pal-rep-item input[type=checkbox] { accent-color: #27ae60; width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
@@ -438,6 +454,15 @@
             <button onclick="cerrarPanelAlumnos()">✕</button>
         </div>
         <div class="pal-scroll" id="palScroll"></div>
+    </div>
+</div>
+
+<!-- MODAL MENSAJE EJERCICIO -->
+<div id="modalMensaje">
+    <div class="msg-box">
+        <div class="msg-box-icon">📌</div>
+        <p id="textoMensaje" class="msg-box-texto"></p>
+        <button class="msg-box-btn" onclick="cerrarMensaje()">Entendido ✓</button>
     </div>
 </div>
 
@@ -2561,6 +2586,7 @@ async function cargarDesdeStorage(storagePath, nombreArchivo) {
             xml = await resp.text();
         }
         parseXML(new DOMParser().parseFromString(xml, 'text/xml'));
+        cargarMensaje(storagePath);
     } catch (err) {
         alert('Error cargando la tablatura: ' + err.message);
     }
@@ -3069,10 +3095,71 @@ let practicaLogId     = null;
 let practicaStartTime = null;
 let palRepAbierto     = null;   // id alumno con acordeón de repertorio abierto
 let palEditandoId     = null;   // id alumno en edición inline
+let palNotaAbierto    = null;   // id alumno con acordeón de nota abierto
 
 mostrarWelcome();
 
 // ── Helpers Supabase ───────────────────────────────────────────────────────
+// ── MENSAJES DE EJERCICIO ────────────────────────────────────────────────────
+function mostrarMensaje(texto) {
+    document.getElementById('textoMensaje').textContent = texto;
+    document.getElementById('modalMensaje').classList.add('visible');
+}
+function cerrarMensaje() {
+    document.getElementById('modalMensaje').classList.remove('visible');
+}
+
+async function cargarMensaje(storagePath) {
+    try {
+        const d1 = await sbGet(`/rest/v1/repertorio_assets?select=mensaje&storage_path=eq.${encodeURIComponent(storagePath)}&limit=1`);
+        const mensajeBase = d1[0]?.mensaje || null;
+
+        let mensajeAlumno = null;
+        if (alumnoActual) {
+            const d2 = await sbGet(`/rest/v1/tab_mensajes_alumno?select=mensaje&storage_path=eq.${encodeURIComponent(storagePath)}&alumno_id=eq.${encodeURIComponent(alumnoActual.id)}&limit=1`);
+            mensajeAlumno = d2[0]?.mensaje || null;
+        }
+
+        const texto = mensajeAlumno || mensajeBase;
+        if (texto) mostrarMensaje(texto);
+    } catch (e) { /* silencioso */ }
+}
+
+async function guardarMensajeAlumno(alumnoId) {
+    if (!currentStoragePath) return;
+    const ta = document.getElementById('nota-ta-' + alumnoId);
+    if (!ta) return;
+    const mensaje = ta.value.trim();
+    try {
+        await sbDelete(`/rest/v1/tab_mensajes_alumno?storage_path=eq.${encodeURIComponent(currentStoragePath)}&alumno_id=eq.${encodeURIComponent(alumnoId)}`);
+        if (mensaje) {
+            await sbPost('/rest/v1/tab_mensajes_alumno', {
+                storage_path: currentStoragePath,
+                alumno_id: alumnoId,
+                mensaje,
+                updated_at: new Date().toISOString()
+            });
+        }
+        mostrarToast(mensaje ? 'Nota guardada ✓' : 'Nota eliminada');
+        palNotaAbierto = null;
+        renderPanelAlumnos();
+    } catch (e) {
+        mostrarToast('Error al guardar nota', true);
+    }
+}
+
+async function toggleNotaAcordeon(alumnoId) {
+    palNotaAbierto = palNotaAbierto === alumnoId ? null : alumnoId;
+    await renderPanelAlumnos();
+    if (palNotaAbierto && currentStoragePath) {
+        try {
+            const data = await sbGet(`/rest/v1/tab_mensajes_alumno?select=mensaje&storage_path=eq.${encodeURIComponent(currentStoragePath)}&alumno_id=eq.${encodeURIComponent(alumnoId)}&limit=1`);
+            const ta = document.getElementById('nota-ta-' + alumnoId);
+            if (ta && data[0]?.mensaje) ta.value = data[0].mensaje;
+        } catch (e) {}
+    }
+}
+
 function sbGet(path) {
     return fetch(`${SB_URL}${path}`, {
         headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
@@ -3199,6 +3286,7 @@ function cerrarPanelAlumnos() {
     panelAlumnosOpen = false;
     palRepAbierto = null;
     palEditandoId = null;
+    palNotaAbierto = null;
 }
 document.getElementById('panelAlumnos').addEventListener('click', e => {
     if (e.target === document.getElementById('panelAlumnos')) cerrarPanelAlumnos();
@@ -3275,6 +3363,8 @@ async function renderPanelAlumnos() {
                 }
                 <button class="pal-btn-rep${repOpen ? ' activo' : ''}"
                         onclick="toggleRepAcordeon('${a.id}')">📋</button>
+                <button class="pal-btn-nota${palNotaAbierto === a.id ? ' activo' : ''}"
+                        onclick="toggleNotaAcordeon('${a.id}')" title="Nota recordatorio">📌</button>
                 <button class="pal-btn-rep${editOpen ? ' activo' : ''}"
                         onclick="toggleEdicion('${a.id}')" title="Editar">✏️</button>
             </div>`;
@@ -3302,6 +3392,23 @@ async function renderPanelAlumnos() {
                         <button class="pal-btn-login" onclick="guardarEdicion('${a.id}')">✓ Guardar</button>
                         <button class="pal-btn-rep" onclick="cancelarEdicion()">✕</button>
                     </div>
+                </div>`;
+            }
+
+            if (palNotaAbierto === a.id) {
+                const sinEjercicio = !currentStoragePath;
+                html += `<div class="pal-rep-accordion" style="display:flex;flex-direction:column;gap:8px;padding:8px 4px">
+                    ${sinEjercicio
+                        ? `<p style="color:#666;font-size:.83rem;margin:0">Abre primero un ejercicio en el Lector para asignar una nota.</p>`
+                        : `<label style="font-size:.76rem;color:#888;margin-bottom:2px">Nota para ${esc(nombreCompleto(a))} en este ejercicio:</label>
+                           <textarea id="nota-ta-${a.id}" rows="3"
+                               style="background:#1a1a1a;border:1px solid #404040;color:#eee;border-radius:6px;padding:8px;font-size:.85rem;font-family:inherit;resize:vertical"
+                               placeholder="Ej: Recuerda mantener el pulgar relajado…"></textarea>
+                           <div style="display:flex;gap:8px">
+                               <button class="pal-btn-login" onclick="guardarMensajeAlumno('${a.id}')">✓ Guardar</button>
+                               <button class="pal-btn-rep" onclick="toggleNotaAcordeon('${a.id}')">✕</button>
+                           </div>`
+                    }
                 </div>`;
             }
 

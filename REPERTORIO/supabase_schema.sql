@@ -37,6 +37,21 @@ CREATE TABLE IF NOT EXISTS repertorio_assets (
 -- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS instrumento TEXT DEFAULT '';
 -- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS dificultad TEXT DEFAULT '';
 -- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS tonalidad TEXT DEFAULT '';
+-- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS mensaje TEXT;
+
+-- Mensajes de recordatorio por alumno en ejercicio específico
+CREATE TABLE IF NOT EXISTS tab_mensajes_alumno (
+    storage_path  TEXT NOT NULL,   -- identifica el archivo tab en Supabase Storage
+    alumno_id     TEXT NOT NULL,   -- ID del alumno (UUID de la tabla alumnos del Lector)
+    mensaje       TEXT NOT NULL,
+    updated_at    TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (storage_path, alumno_id)
+);
+
+-- RLS
+ALTER TABLE tab_mensajes_alumno ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_all" ON tab_mensajes_alumno
+    FOR ALL TO anon USING (true) WITH CHECK (true);
 
 -- Asignaciones canción ↔ contexto (muchos a muchos)
 CREATE TABLE IF NOT EXISTS repertorio_cancion_contextos (

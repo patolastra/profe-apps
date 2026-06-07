@@ -546,6 +546,7 @@
         }
         .tab-item:hover .tab-item-actions { opacity: 1; }
         .tab-item:hover .tab-item-info { padding-right: 82px; }
+        .msg-badge { font-size: 0.75rem; flex-shrink: 0; cursor: default; }
         .tab-dific {
             font-size: 0.68rem;
             font-weight: 700;
@@ -2061,6 +2062,10 @@
                     <label class="form-label">Etiqueta (opcional)</label>
                     <input id="asset-etiqueta" type="text" class="form-input" placeholder="Ej: guitarra fácil, versión original…">
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Mensaje para el alumno <span style="opacity:.5;font-weight:400">(aparece al abrir en el Lector)</span></label>
+                    <textarea id="asset-mensaje" class="form-input" rows="3" style="resize:vertical;font-family:inherit;font-size:0.875rem" placeholder="Ej: Recuerda mantener el pulgar relajado. Sigue el tempo."></textarea>
+                </div>
                 <div id="asset-contenido-wrap">
                     <div class="form-label" style="margin-bottom:6px">Contenido</div>
                     <button id="asset-lrclib-btn" style="display:none" onclick="importarLRCLIB()">
@@ -2610,6 +2615,7 @@ function tabGroupHTML(tabs, songId) {
                 <div class="tab-item-info">
                     ${dif}
                     ${desc ? `<span class="tab-item-desc">${desc}</span>` : ''}
+                    ${a.mensaje ? `<span class="msg-badge" title="${a.mensaje.replace(/"/g,'&quot;')}">📌</span>` : ''}
                 </div>
                 <div class="tab-item-actions">
                     ${url ? `<a class="btn-icon" href="${url}" download title="Descargar">⬇</a>` : ''}
@@ -3013,6 +3019,7 @@ function abrirModalAsset(songId) {
     document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('seleccionado'));
     document.getElementById('asset-campos').classList.add('oculto');
     document.getElementById('asset-etiqueta').value = '';
+    document.getElementById('asset-mensaje').value = '';
     document.getElementById('asset-contenido').value = '';
     document.getElementById('asset-audio-nombre').textContent = '';
     document.getElementById('asset-archivo-nombre').textContent = '';
@@ -3107,6 +3114,7 @@ function cerrarModalAsset() {
     document.getElementById('asset-dificultad').value = '';
     document.getElementById('asset-tonalidad').value = '';
     document.getElementById('asset-etiqueta').value = '';
+    document.getElementById('asset-mensaje').value = '';
     document.getElementById('asset-meta-fields').style.display = 'none';
     document.querySelectorAll('#asset-inst-ctrl .seg-btn, #asset-dific-ctrl .seg-btn').forEach(b => b.classList.remove('activo'));
     document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('seleccionado'));
@@ -3244,6 +3252,7 @@ async function guardarAsset() {
     const dificultad  = document.getElementById('asset-dificultad').value.trim();
     const tonalidad   = document.getElementById('asset-tonalidad').value.trim();
     const contenido   = document.getElementById('asset-contenido').value.trim();
+    const mensaje     = document.getElementById('asset-mensaje').value.trim() || null;
 
     // Auto-generar etiqueta si no se escribió
     let etiqueta = document.getElementById('asset-etiqueta').value.trim();
@@ -3275,7 +3284,7 @@ async function guardarAsset() {
         wrapProg.style.display = 'none';
         document.getElementById('asset-guardar').disabled = false;
         const asset = {
-            id: assetId, cancion_id: c.id, tipo: 'audio', etiqueta,
+            id: assetId, cancion_id: c.id, tipo: 'audio', etiqueta, mensaje,
             contenido: '', synced: '', nombre_archivo: audioFile.name,
             storage_path: storagePath, orden: 0, ...metaFields,
         };
@@ -3300,7 +3309,7 @@ async function guardarAsset() {
             } catch (e) { toast('Error al subir archivo: ' + e.message); return; }
         }
         const asset = {
-            id: assetId, cancion_id: c.id, tipo: tipoSeleccionado, etiqueta,
+            id: assetId, cancion_id: c.id, tipo: tipoSeleccionado, etiqueta, mensaje,
             contenido: archivoFile ? '' : contenido,
             synced: '', nombre_archivo: nombreArchivo,
             storage_path: storagePath, orden: 0, ...metaFields,
@@ -3321,7 +3330,7 @@ async function guardarAsset() {
         ? (document.getElementById('asset-contenido').dataset.synced || '')
         : '';
     const asset = {
-        id: genId(), cancion_id: c.id, tipo: tipoSeleccionado, etiqueta,
+        id: genId(), cancion_id: c.id, tipo: tipoSeleccionado, etiqueta, mensaje,
         contenido, synced: synced || '', nombre_archivo: '', storage_path: '', orden: 0, ...metaFields,
     };
     await sbUpsertAsset(asset);
