@@ -558,6 +558,19 @@
         .tab-dific.media    { background: #fef9c3; color: #a16207; }
         .tab-dific.dificil  { background: #fee2e2; color: #b91c1c; }
         .tab-dific.experto  { background: #ede9fe; color: #7c3aed; }
+        /* ── PICKER CATÁLOGO ── */
+        .picker-tab-item {
+            padding: 8px 10px;
+            border-radius: 7px;
+            cursor: pointer;
+            border: 1.5px solid var(--border);
+            margin-bottom: 6px;
+            transition: background 0.1s;
+        }
+        .picker-tab-item:hover { background: #f1f5f9; border-color: var(--accent); }
+        .picker-tab-cancion { font-size: 0.78rem; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+        .picker-tab-info { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .picker-tab-desc { font-size: 0.72rem; color: var(--muted); }
         .asset-item-ico {
             font-size: 1rem;
             width: 28px;
@@ -1975,6 +1988,18 @@
             <button id="modal-asset-close" onclick="cerrarModalAsset()">✕</button>
         </div>
         <div id="modal-asset-body">
+            <div id="asset-modo-toggle" style="display:flex;gap:6px;margin-bottom:14px">
+                <button class="seg-btn activo" id="asset-modo-nuevo" onclick="setAssetModo('nuevo')">+ Nuevo</button>
+                <button class="seg-btn" id="asset-modo-catalogo" onclick="setAssetModo('catalogo')">📚 Del catálogo</button>
+            </div>
+
+            <!-- PICKER del catálogo -->
+            <div id="asset-catalogo-panel" style="display:none">
+                <input id="asset-catalogo-q" type="search" class="form-input" placeholder="Buscar por nombre de canción o descripción…" oninput="renderPickerTabs()" style="margin-bottom:10px">
+                <div id="asset-catalogo-lista" style="max-height:300px;overflow-y:auto"></div>
+            </div>
+
+            <div id="asset-nuevo-panel">
             <div>
                 <div class="form-label" style="margin-bottom:10px">Tipo de asset</div>
                 <div class="tipo-grid" id="tipo-grid">
@@ -2071,6 +2096,8 @@
                     </div>
                 </div>
             </div>
+        </div>
+            </div><!-- /asset-nuevo-panel -->
         </div>
         <div id="modal-asset-footer">
             <button class="btn-secondary" onclick="cerrarModalAsset()">Cancelar</button>
@@ -3000,6 +3027,77 @@ function abrirModalAsset(songId) {
     document.getElementById('modal-asset-overlay').classList.add('visible');
 }
 
+function setAssetModo(modo) {
+    const esNuevo = modo === 'nuevo';
+    document.getElementById('asset-modo-nuevo').classList.toggle('activo', esNuevo);
+    document.getElementById('asset-modo-catalogo').classList.toggle('activo', !esNuevo);
+    document.getElementById('asset-nuevo-panel').style.display = esNuevo ? '' : 'none';
+    document.getElementById('asset-catalogo-panel').style.display = esNuevo ? 'none' : '';
+    document.getElementById('asset-guardar').style.display = esNuevo ? '' : 'none';
+    if (!esNuevo) renderPickerTabs();
+}
+
+function renderPickerTabs() {
+    const q = (document.getElementById('asset-catalogo-q').value || '').toLowerCase();
+    const lista = document.getElementById('asset-catalogo-lista');
+
+    // Recoger todos los tabs de otras canciones
+    const items = canciones.flatMap(c => {
+        if (c.id === assetSongId) return [];
+        return (c.assets || [])
+            .filter(a => a.tipo === 'tab')
+            .map(a => ({ asset: a, cancion: c }));
+    });
+
+    const filtrados = q
+        ? items.filter(({ asset: a, cancion: c }) =>
+            c.nombre.toLowerCase().includes(q) ||
+            (a.etiqueta || '').toLowerCase().includes(q) ||
+            (a.instrumento || '').toLowerCase().includes(q) ||
+            (a.dificultad || '').toLowerCase().includes(q))
+        : items;
+
+    if (!filtrados.length) {
+        lista.innerHTML = `<div style="color:var(--muted);font-size:0.82rem;padding:12px 4px">No hay tablaturas en otras canciones.</div>`;
+        return;
+    }
+
+    lista.innerHTML = filtrados.map(({ asset: a, cancion: c }) => {
+        const dif    = a.dificultad ? `<span class="tab-dific ${a.dificultad}" style="font-size:0.65rem;padding:1px 6px">${DIFIC_LABEL[a.dificultad] || CAP(a.dificultad)}</span>` : '';
+        const desc   = a.etiqueta || [a.instrumento, a.tonalidad].filter(Boolean).join(' · ') || a.nombre_archivo || '';
+        const inst   = a.instrumento ? `<span style="font-size:0.72rem;color:var(--muted)">${CAP(a.instrumento)}</span>` : '';
+        return `
+        <div class="picker-tab-item" onclick="tomarDelCatalogo('${c.id}','${a.id}')">
+            <div class="picker-tab-cancion">${c.nombre}</div>
+            <div class="picker-tab-info">${dif}${inst}${desc ? `<span class="picker-tab-desc">${desc}</span>` : ''}</div>
+        </div>`;
+    }).join('');
+}
+
+async function tomarDelCatalogo(origenSongId, assetId) {
+    const origen = canciones.find(x => x.id === origenSongId);
+    const destino = canciones.find(x => x.id === assetSongId);
+    if (!origen || !destino) return;
+
+    const idx = origen.assets.findIndex(x => x.id === assetId);
+    if (idx === -1) return;
+
+    const asset = origen.assets[idx];
+    asset.cancion_id = destino.id;
+
+    await sbUpsertAsset(asset);
+
+    // Mover en memoria
+    origen.assets.splice(idx, 1);
+    if (!destino.assets) destino.assets = [];
+    destino.assets.push(asset);
+
+    cerrarModalAsset();
+    songActiva = destino;
+    renderPanel();
+    toast(`Tab movida a "${destino.nombre}" ✓`);
+}
+
 function cerrarModalAsset() {
     document.getElementById('modal-asset-overlay').classList.remove('visible');
     assetSongId = null;
@@ -3014,6 +3112,8 @@ function cerrarModalAsset() {
     document.querySelectorAll('#asset-inst-ctrl .seg-btn, #asset-dific-ctrl .seg-btn').forEach(b => b.classList.remove('activo'));
     document.querySelectorAll('.tipo-btn').forEach(b => b.classList.remove('seleccionado'));
     document.getElementById('asset-campos').classList.add('oculto');
+    setAssetModo('nuevo');
+    document.getElementById('asset-catalogo-q').value = '';
 }
 
 function setAssetMeta(campo, btn) {
