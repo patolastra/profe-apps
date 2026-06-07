@@ -3409,7 +3409,7 @@ async function renderPanelAlumnos() {
             }
 
             if (repOpen) {
-                const asigAlumno = asig[a.id] || new Set(); // Set de asset_ids
+                const asigAlumno = asig[a.id] || new Set();
                 if (!assets.length) {
                     html += `<div class="pal-rep-accordion" style="color:#555;font-size:.82rem">Sin tablaturas en el Repertorio todavía.</div>`;
                 } else {
@@ -3428,50 +3428,88 @@ async function renderPanelAlumnos() {
                     const INST_EMOJI  = { guitarra:'🎸', ukelele:'🪕', bajo:'🎵', metalofono:'🎹', flauta:'🪈' };
                     const DIFIC_COLOR = { inicial:'#27ae60', media:'#f39c12', dificil:'#e74c3c', experto:'#8e44ad' };
 
-                    html += `<div class="pal-rep-accordion" style="padding:4px 0">`;
-                    for (const cid of sortedCids) {
+                    // ── Catálogo (columna izq) ──────────────────────────
+                    const catalogHTML = sortedCids.map(cid => {
                         const { nombre, tabs } = byCancion[cid];
-                        const key    = `${a.id}:${cid}`;
-                        const isOpen = palRepSongsOpen.has(key);
-                        const asigCount = tabs.filter(t => asigAlumno.has(t.id)).length;
-                        const badge = asigCount > 0
-                            ? `<span style="background:#27ae60;color:#fff;border-radius:10px;padding:1px 7px;font-size:.68rem;font-weight:700">${asigCount}/${tabs.length}</span>`
-                            : `<span style="color:#444;font-size:.7rem">${tabs.length}</span>`;
-                        const arrow = `<span style="color:#555;font-size:.7rem;display:inline-block;transform:rotate(${isOpen ? 90 : 0}deg);transition:transform .15s">▶</span>`;
+                        const key      = `${a.id}:${cid}`;
+                        const isOpen   = palRepSongsOpen.has(key);
+                        const asigCnt  = tabs.filter(t => asigAlumno.has(t.id)).length;
+                        const badge    = asigCnt > 0
+                            ? `<span style="background:#27ae60;color:#fff;border-radius:10px;padding:1px 6px;font-size:.66rem;font-weight:700">${asigCnt}/${tabs.length}</span>`
+                            : `<span style="color:#333;font-size:.68rem">${tabs.length}</span>`;
 
-                        const tabsHTML = !isOpen ? '' : tabs.map(t => {
+                        const tabsHTML = tabs.map(t => {
                             const inst  = (t.instrumento || '').toLowerCase();
                             const dif   = (t.dificultad  || '').toLowerCase();
                             const ton   = t.tonalidad || '';
                             const etq   = t.etiqueta  || t.nombre_archivo || '';
                             const emoji = INST_EMOJI[inst] || '🎸';
                             const color = DIFIC_COLOR[dif] || '#666';
-                            const checked = asigAlumno.has(t.id) ? 'checked' : '';
+                            const chk   = asigAlumno.has(t.id) ? 'checked' : '';
                             const partes = [
-                                inst ? `<span style="color:#ccc;text-transform:capitalize">${inst}</span>` : '',
+                                inst ? `<span style="text-transform:capitalize;color:#ccc">${inst}</span>` : '',
                                 dif  ? `<span style="color:${color};font-weight:700;text-transform:capitalize">${dif}</span>` : '',
-                                ton  ? `<span style="color:#666">${esc(ton)}</span>` : '',
-                                (!inst && !dif && etq) ? `<span style="color:#999">${esc(etq)}</span>` : '',
+                                ton  ? `<span style="color:#555">${esc(ton)}</span>` : '',
+                                (!inst && !dif && etq) ? `<span style="color:#888">${esc(etq)}</span>` : '',
                             ].filter(Boolean).join('<span style="color:#2a2a2a;margin:0 2px">·</span>');
-                            return `<label style="display:flex;align-items:center;gap:7px;padding:6px 10px 6px 14px;cursor:pointer;border-top:1px solid #1e1e1e;background:#121212">
-                                <input type="checkbox" ${checked} style="accent-color:#27ae60;width:14px;height:14px;cursor:pointer;flex-shrink:0"
+                            return `<label style="display:flex;align-items:center;gap:6px;padding:5px 8px 5px 10px;cursor:pointer;border-top:1px solid #1c1c1c;background:#0f0f0f">
+                                <input type="checkbox" ${chk} style="accent-color:#27ae60;width:13px;height:13px;cursor:pointer;flex-shrink:0"
                                     onchange="toggleTabAsignacion('${a.id}','${t.id}',this.checked)">
-                                <span style="flex-shrink:0">${emoji}</span>
-                                <span style="display:flex;align-items:center;flex-wrap:wrap;gap:3px;font-size:.76rem">${partes || esc(etq)}</span>
+                                <span style="flex-shrink:0;font-size:.82rem">${emoji}</span>
+                                <span style="font-size:.73rem;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${partes || esc(etq)}</span>
                             </label>`;
                         }).join('');
 
-                        html += `<div style="margin-bottom:4px;border:1px solid #2a2a2a;border-radius:6px;overflow:hidden">
-                            <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#1a1a1a;cursor:pointer;user-select:none"
-                                onclick="toggleRepSong('${a.id}','${cid}')">
-                                ${arrow}
-                                <span style="font-size:.86rem;font-weight:700;color:#eee;flex:1">${esc(nombre)}</span>
+                        return `<div style="margin-bottom:3px;border:1px solid #252525;border-radius:5px;overflow:hidden">
+                            <div class="rsong-hdr" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1a1a1a;cursor:pointer;user-select:none"
+                                onclick="toggleRepSong(this,'${key}')">
+                                <span class="rarrow" style="color:#555;font-size:.6rem;flex-shrink:0;display:inline-block;transform:rotate(${isOpen?90:0}deg);transition:transform .15s">▶</span>
+                                <span style="font-size:.83rem;font-weight:700;color:#eee;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nombre)}</span>
                                 ${badge}
                             </div>
-                            ${isOpen ? `<div>${tabsHTML}</div>` : ''}
+                            <div style="display:${isOpen ? 'block' : 'none'}">${tabsHTML}</div>
                         </div>`;
+                    }).join('');
+
+                    // ── Resumen asignado (columna der) ──────────────────
+                    const asigSummary = {};
+                    for (const t of assets) {
+                        if (!asigAlumno.has(t.id)) continue;
+                        const cid = t.cancion_id;
+                        if (!asigSummary[cid]) asigSummary[cid] = { nombre: byCancion[cid]?.nombre || '', tabs: [] };
+                        asigSummary[cid].tabs.push(t);
                     }
-                    html += `</div>`;
+                    const asigCids = Object.keys(asigSummary).sort((x, y) =>
+                        asigSummary[x].nombre.localeCompare(asigSummary[y].nombre, 'es'));
+                    const summaryHTML = asigCids.length === 0
+                        ? `<p style="color:#333;font-size:.72rem;text-align:center;margin:14px 0">Ninguna<br>asignada</p>`
+                        : asigCids.map(cid => {
+                            const { nombre, tabs } = asigSummary[cid];
+                            return `<div style="margin-bottom:7px">
+                                <div style="font-size:.71rem;font-weight:700;color:#999;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(nombre)}">${esc(nombre)}</div>
+                                ${tabs.map(t => {
+                                    const inst  = (t.instrumento || '').toLowerCase();
+                                    const dif   = (t.dificultad  || '').toLowerCase();
+                                    const emoji = INST_EMOJI[inst] || '🎸';
+                                    const color = DIFIC_COLOR[dif] || '#888';
+                                    return `<div style="font-size:.69rem;display:flex;align-items:center;gap:3px;padding:1px 0 1px 4px;color:#666">
+                                        <span>${emoji}</span>
+                                        ${inst ? `<span style="color:#aaa;text-transform:capitalize">${inst}</span>` : ''}
+                                        ${dif  ? `<span style="color:${color}">· ${dif}</span>` : ''}
+                                    </div>`;
+                                }).join('')}
+                            </div>`;
+                        }).join('');
+
+                    html += `<div class="pal-rep-accordion" style="padding:4px 0">
+                        <div style="display:flex;gap:8px;align-items:flex-start">
+                            <div style="flex:1;min-width:0;max-height:300px;overflow-y:auto">${catalogHTML}</div>
+                            <div style="flex:0 0 130px;background:#141414;border:1px solid #222;border-radius:6px;padding:8px;max-height:300px;overflow-y:auto">
+                                <div style="font-size:.63rem;font-weight:700;color:#444;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px">✓ Asignado</div>
+                                ${summaryHTML}
+                            </div>
+                        </div>
+                    </div>`;
                 }
             }
         }
@@ -3598,11 +3636,18 @@ async function toggleTabAsignacion(alumnoId, assetId, asignar) {
     } catch (e) { mostrarToast('Error al actualizar', true); }
 }
 
-function toggleRepSong(alumnoId, cancionId) {
-    const key = `${alumnoId}:${cancionId}`;
-    if (palRepSongsOpen.has(key)) palRepSongsOpen.delete(key);
-    else palRepSongsOpen.add(key);
-    renderPanelAlumnos();
+function toggleRepSong(headerEl, key) {
+    const body  = headerEl.nextElementSibling;
+    const arrow = headerEl.querySelector('.rarrow');
+    if (palRepSongsOpen.has(key)) {
+        palRepSongsOpen.delete(key);
+        if (body)  body.style.display    = 'none';
+        if (arrow) arrow.style.transform = 'rotate(0deg)';
+    } else {
+        palRepSongsOpen.add(key);
+        if (body)  body.style.display    = 'block';
+        if (arrow) arrow.style.transform = 'rotate(90deg)';
+    }
 }
 
 // ── Práctica logging ───────────────────────────────────────────────────────
