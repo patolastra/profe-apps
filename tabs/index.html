@@ -3299,7 +3299,7 @@ async function renderPanelAlumnos() {
         // Cargar todo en paralelo
         const [alumnos, todosLosAssets, asistHoyRaw] = await Promise.all([
             sbGet(`/rest/v1/alumnos_taller?contexto=eq.CUERDAS&activo=eq.true&order=orden.asc,apellido.asc,nombre.asc`),
-            sbGet(`/rest/v1/repertorio_assets?tipo=eq.tab&select=id,nombre_archivo,storage_path,cancion_id,repertorio_canciones(id,nombre,artista)`),
+            sbGet(`/rest/v1/repertorio_assets?tipo=eq.tab&select=id,nombre_archivo,storage_path,cancion_id,instrumento,dificultad,tonalidad,etiqueta,repertorio_canciones(id,nombre,artista)`),
             sbGet(`/rest/v1/practica_log?fecha=eq.${hoy()}&select=alumno_id,duracion_seg`)
         ]);
 
@@ -3417,15 +3417,52 @@ async function renderPanelAlumnos() {
                 if (!assets.length) {
                     html += `<div class="pal-rep-accordion" style="color:#555;font-size:.82rem">Sin tablaturas en el Repertorio todavía.</div>`;
                 } else {
-                    html += `<div class="pal-rep-accordion">`;
+                    // Agrupar tabs por canción
+                    const byCancion = {};
                     for (const t of assets) {
-                        const cid     = t.cancion_id || '';
-                        const nombre  = t.repertorio_canciones?.nombre || t.nombre_archivo;
+                        const cid = t.cancion_id || t.id;
+                        if (!byCancion[cid]) byCancion[cid] = {
+                            nombre: t.repertorio_canciones?.nombre || t.nombre_archivo || 'Sin nombre',
+                            tabs: []
+                        };
+                        byCancion[cid].tabs.push(t);
+                    }
+                    const sortedCids = Object.keys(byCancion).sort((x, y) =>
+                        byCancion[x].nombre.localeCompare(byCancion[y].nombre, 'es'));
+
+                    const INST_EMOJI  = { guitarra:'🎸', ukelele:'🪕', bajo:'🎵', metalofono:'🎹', flauta:'🪈' };
+                    const DIFIC_COLOR = { inicial:'#27ae60', media:'#f39c12', dificil:'#e74c3c', experto:'#8e44ad' };
+
+                    html += `<div class="pal-rep-accordion" style="padding:6px 0">`;
+                    for (const cid of sortedCids) {
+                        const { nombre, tabs } = byCancion[cid];
                         const checked = asigAlumno.has(cid) ? 'checked' : '';
-                        html += `<div class="pal-rep-item">
-                            <input type="checkbox" ${checked}
-                                onchange="toggleAsignacion('${a.id}','${cid}',this.checked)">
-                            <span>${esc(nombre)}</span>
+                        const tabsHTML = tabs.map(t => {
+                            const inst  = (t.instrumento || '').toLowerCase();
+                            const dif   = (t.dificultad  || '').toLowerCase();
+                            const ton   = t.tonalidad || '';
+                            const etq   = t.etiqueta  || t.nombre_archivo || '';
+                            const emoji = INST_EMOJI[inst]  || '🎸';
+                            const color = DIFIC_COLOR[dif] || '#666';
+                            const partes = [
+                                inst ? `<span style="color:#ccc;text-transform:capitalize">${inst}</span>` : '',
+                                dif  ? `<span style="color:${color};font-weight:700;text-transform:capitalize">${dif}</span>` : '',
+                                ton  ? `<span style="color:#666">${esc(ton)}</span>` : '',
+                                (!inst && !dif && etq) ? `<span style="color:#999">${esc(etq)}</span>` : '',
+                            ].filter(Boolean).join('<span style="color:#333;margin:0 3px">·</span>');
+                            return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0 3px 4px;font-size:.75rem;color:#aaa">
+                                <span style="flex-shrink:0">${emoji}</span>
+                                <span style="display:flex;align-items:center;flex-wrap:wrap;gap:3px">${partes || esc(etq)}</span>
+                            </div>`;
+                        }).join('');
+                        html += `<div style="margin-bottom:5px;border:1px solid #2a2a2a;border-radius:6px;overflow:hidden">
+                            <label style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#1a1a1a;cursor:pointer">
+                                <input type="checkbox" ${checked} style="accent-color:#27ae60;width:14px;height:14px;cursor:pointer;flex-shrink:0"
+                                    onchange="toggleAsignacion('${a.id}','${cid}',this.checked)">
+                                <span style="font-size:.86rem;font-weight:700;color:#eee;flex:1">${esc(nombre)}</span>
+                                <span style="font-size:.7rem;color:#444">${tabs.length} tab${tabs.length > 1 ? 's' : ''}</span>
+                            </label>
+                            <div style="background:#141414;padding:2px 8px 5px">${tabsHTML}</div>
                         </div>`;
                     }
                     html += `</div>`;
