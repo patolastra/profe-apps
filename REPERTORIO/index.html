@@ -819,6 +819,47 @@
         }
 
         /* ── MODAL VER ASSET ── */
+        #modal-edit-asset-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        #modal-edit-asset-overlay.visible { display: flex; }
+        #modal-edit-asset {
+            background: #fff;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        #modal-edit-asset-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+        #modal-edit-asset-header button {
+            background: none; border: none; font-size: 1.1rem;
+            cursor: pointer; color: var(--muted); padding: 4px;
+        }
+        #modal-edit-asset-body { padding: 16px 20px; }
+        #modal-edit-asset-footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
         #modal-ver-overlay {
             display: none;
             position: fixed;
@@ -1954,6 +1995,53 @@
     </div>
 </div>
 
+<!-- MODAL EDITAR METADATA ASSET -->
+<div id="modal-edit-asset-overlay" onclick="if(event.target===this)cerrarEditarAsset()">
+    <div id="modal-edit-asset">
+        <div id="modal-edit-asset-header">
+            <span id="modal-edit-asset-titulo"></span>
+            <button onclick="cerrarEditarAsset()">✕</button>
+        </div>
+        <div id="modal-edit-asset-body">
+            <div id="modal-edit-asset-meta" style="display:none">
+                <div class="form-group" style="margin-bottom:10px">
+                    <label class="form-label">Instrumento</label>
+                    <div class="seg-ctrl" id="edit-inst-ctrl">
+                        <button class="seg-btn" data-val="guitarra" onclick="setEditMeta('inst',this)">Guitarra</button>
+                        <button class="seg-btn" data-val="ukelele" onclick="setEditMeta('inst',this)">Ukelele</button>
+                        <button class="seg-btn" data-val="bajo" onclick="setEditMeta('inst',this)">Bajo</button>
+                        <button class="seg-btn" data-val="metalofono" onclick="setEditMeta('inst',this)">Metalófono</button>
+                        <button class="seg-btn" data-val="flauta" onclick="setEditMeta('inst',this)">Flauta</button>
+                    </div>
+                    <input type="hidden" id="edit-instrumento">
+                </div>
+                <div class="form-group" style="margin-bottom:10px">
+                    <label class="form-label">Dificultad</label>
+                    <div class="seg-ctrl" id="edit-dific-ctrl">
+                        <button class="seg-btn" data-val="inicial" onclick="setEditMeta('dific',this)">Inicial</button>
+                        <button class="seg-btn" data-val="media" onclick="setEditMeta('dific',this)">Media</button>
+                        <button class="seg-btn" data-val="dificil" onclick="setEditMeta('dific',this)">Difícil</button>
+                        <button class="seg-btn" data-val="experto" onclick="setEditMeta('dific',this)">Experto</button>
+                    </div>
+                    <input type="hidden" id="edit-dificultad">
+                </div>
+                <div class="form-group" style="margin-bottom:10px">
+                    <label class="form-label">Tonalidad (opcional)</label>
+                    <input id="edit-tonalidad" type="text" class="form-input" placeholder="Ej: Do mayor, Re menor…">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Etiqueta</label>
+                <input id="edit-etiqueta" type="text" class="form-input" placeholder="Nombre descriptivo del asset…">
+            </div>
+        </div>
+        <div id="modal-edit-asset-footer">
+            <button class="btn-secondary" onclick="cerrarEditarAsset()">Cancelar</button>
+            <button class="btn-primary" onclick="guardarEditarAsset()">Guardar</button>
+        </div>
+    </div>
+</div>
+
 <!-- MODAL VER ASSET -->
 <div id="modal-ver-overlay" onclick="if(event.target===this)cerrarModalVer()">
     <div id="modal-ver">
@@ -2453,6 +2541,7 @@ function assetItemHTML(a, i) {
             <div class="asset-item-actions">
                 ${isMetal ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${(desc || songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">🎹</button>` : ''}
                 ${isAudio ? '' : `<a class="btn-icon" href="${url}" download="${desc || 'archivo'}" title="Descargar">⬇</a>`}
+                <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>
                 <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}', ${i})" title="Eliminar">🗑</button>
             </div>
         </div>`;
@@ -2468,6 +2557,7 @@ function assetItemHTML(a, i) {
         </div>
         <div class="asset-item-actions">
             <button class="btn-icon" onclick="verAsset('${songActiva.id}', ${i})" title="Ver">👁</button>
+            <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>
             <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}', ${i})" title="Eliminar">🗑</button>
         </div>
     </div>`;
@@ -2980,6 +3070,68 @@ async function guardarAsset() {
     cerrarModalAsset();
     songActiva = c; renderPanel();
     toast('Asset guardado');
+}
+
+let editAssetId = null;
+let editAssetSongId = null;
+
+function setEditMeta(campo, btn) {
+    const ctrlId  = campo === 'inst' ? 'edit-inst-ctrl' : 'edit-dific-ctrl';
+    const inputId = campo === 'inst' ? 'edit-instrumento' : 'edit-dificultad';
+    document.querySelectorAll(`#${ctrlId} .seg-btn`).forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    document.getElementById(inputId).value = btn.dataset.val;
+}
+
+function abrirEditarAsset(songId, assetId) {
+    const c = canciones.find(x => x.id === songId);
+    if (!c) return;
+    const a = c.assets.find(x => x.id === assetId);
+    if (!a) return;
+    editAssetId = assetId;
+    editAssetSongId = songId;
+
+    const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo };
+    document.getElementById('modal-edit-asset-titulo').textContent = `${info.ico} ${info.label}`;
+
+    const showMeta = a.tipo === 'tab';
+    document.getElementById('modal-edit-asset-meta').style.display = showMeta ? '' : 'none';
+
+    if (showMeta) {
+        document.getElementById('edit-instrumento').value = a.instrumento || '';
+        document.getElementById('edit-dificultad').value  = a.dificultad  || '';
+        document.getElementById('edit-tonalidad').value   = a.tonalidad   || '';
+        document.querySelectorAll('#edit-inst-ctrl .seg-btn').forEach(b =>
+            b.classList.toggle('activo', b.dataset.val === (a.instrumento || '')));
+        document.querySelectorAll('#edit-dific-ctrl .seg-btn').forEach(b =>
+            b.classList.toggle('activo', b.dataset.val === (a.dificultad || '')));
+    }
+    document.getElementById('edit-etiqueta').value = a.etiqueta || '';
+    document.getElementById('modal-edit-asset-overlay').classList.add('visible');
+}
+
+function cerrarEditarAsset() {
+    document.getElementById('modal-edit-asset-overlay').classList.remove('visible');
+    editAssetId = null;
+    editAssetSongId = null;
+}
+
+async function guardarEditarAsset() {
+    const c = canciones.find(x => x.id === editAssetSongId);
+    if (!c) return;
+    const a = c.assets.find(x => x.id === editAssetId);
+    if (!a) return;
+
+    a.instrumento = document.getElementById('edit-instrumento').value.trim();
+    a.dificultad  = document.getElementById('edit-dificultad').value.trim();
+    a.tonalidad   = document.getElementById('edit-tonalidad').value.trim();
+    a.etiqueta    = document.getElementById('edit-etiqueta').value.trim();
+
+    await sbUpsertAsset(a);
+    cerrarEditarAsset();
+    songActiva = c;
+    renderPanel();
+    toast('Asset actualizado ✓');
 }
 
 async function eliminarAsset(songId, idx) {
