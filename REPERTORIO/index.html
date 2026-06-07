@@ -470,10 +470,82 @@
             padding: 9px 12px;
             border-radius: 8px;
             background: var(--bg);
-            cursor: pointer;
+            cursor: default;
             transition: background 0.12s;
         }
         .asset-item:hover { background: #dde6f0; }
+        /* ── GRUPO TABLATURAS ── */
+        .asset-group {
+            border-radius: 8px;
+            border: 1.5px solid var(--border);
+            overflow: hidden;
+            margin-bottom: 2px;
+        }
+        .asset-group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 9px 12px;
+            background: var(--bg);
+            cursor: pointer;
+            user-select: none;
+        }
+        .asset-group-header:hover { background: #dde6f0; }
+        .asset-group-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .asset-group-titulo {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .asset-group-count {
+            font-size: 0.7rem;
+            background: #cbd5e1;
+            color: #475569;
+            border-radius: 10px;
+            padding: 1px 7px;
+            font-weight: 700;
+        }
+        .asset-group-chevron { font-size: 0.7rem; color: var(--muted); }
+        .asset-group-body { border-top: 1px solid var(--border); }
+        .tab-subgrupo { }
+        .tab-subgrupo-header {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+            padding: 6px 12px 2px;
+        }
+        .tab-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 7px 12px;
+            border-bottom: 1px solid var(--border);
+            gap: 8px;
+        }
+        .tab-item:last-child { border-bottom: none; }
+        .tab-item:hover { background: #f1f5f9; }
+        .tab-item-info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+        .tab-item-desc { font-size: 0.78rem; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tab-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .tab-dific {
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .tab-dific.inicial  { background: #dcfce7; color: #15803d; }
+        .tab-dific.media    { background: #fef9c3; color: #a16207; }
+        .tab-dific.dificil  { background: #fee2e2; color: #b91c1c; }
+        .tab-dific.experto  { background: #ede9fe; color: #7c3aed; }
         .asset-item-ico {
             font-size: 1rem;
             width: 28px;
@@ -2466,6 +2538,69 @@ function cerrarPanel() {
     render();
 }
 
+const CAP = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+const DIFIC_LABEL = { inicial:'Inicial', media:'Media', dificil:'Difícil', experto:'Experto' };
+
+function tabGroupHTML(tabs, songId) {
+    // Agrupar por instrumento
+    const porInst = {};
+    tabs.forEach(a => {
+        const inst = a.instrumento || '';
+        if (!porInst[inst]) porInst[inst] = [];
+        porInst[inst].push(a);
+    });
+
+    const instOrder = Object.keys(porInst).sort((a,b) => (INST_ORD[a] ?? 9) - (INST_ORD[b] ?? 9));
+
+    const subgruposHTML = instOrder.map(inst => {
+        const label = inst ? CAP(inst) : 'Sin instrumento';
+        const items = porInst[inst].sort((a,b) => (DIFIC_ORD[a.dificultad] ?? 9) - (DIFIC_ORD[b.dificultad] ?? 9));
+        const itemsHTML = items.map(a => {
+            const dif  = a.dificultad ? `<span class="tab-dific ${a.dificultad}">${DIFIC_LABEL[a.dificultad] || CAP(a.dificultad)}</span>` : '';
+            const desc = a.etiqueta || a.tonalidad || '';
+            const url  = a.storage_path ? storageUrl(a.storage_path) : null;
+            return `
+            <div class="tab-item">
+                <div class="tab-item-info">
+                    ${dif}
+                    ${desc ? `<span class="tab-item-desc">${desc}</span>` : ''}
+                </div>
+                <div class="tab-item-actions">
+                    ${url ? `<a class="btn-icon" href="${url}" download title="Descargar">⬇</a>` : ''}
+                    <button class="btn-icon" onclick="abrirEditarAsset('${songId}','${a.id}')" title="Editar">✏️</button>
+                    <button class="btn-icon danger" onclick="eliminarAsset('${songId}','${a.id}')" title="Eliminar">🗑</button>
+                </div>
+            </div>`;
+        }).join('');
+        return `
+        <div class="tab-subgrupo">
+            ${instOrder.length > 1 ? `<div class="tab-subgrupo-header">${label}</div>` : ''}
+            ${itemsHTML}
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="asset-group" id="asset-group-tabs">
+        <div class="asset-group-header" onclick="toggleTabGroup()">
+            <div class="asset-group-left">
+                <span class="asset-item-ico">🎸</span>
+                <span class="asset-group-titulo">Tablaturas</span>
+                <span class="asset-group-count">${tabs.length}</span>
+            </div>
+            <span class="asset-group-chevron" id="tab-group-chevron">▲</span>
+        </div>
+        <div class="asset-group-body" id="tab-group-body">${subgruposHTML}</div>
+    </div>`;
+}
+
+function toggleTabGroup() {
+    const body    = document.getElementById('tab-group-body');
+    const chevron = document.getElementById('tab-group-chevron');
+    const open    = body.style.display !== 'none';
+    body.style.display    = open ? 'none' : '';
+    chevron.textContent   = open ? '▼' : '▲';
+}
+
 function renderPanel() {
     if (!songActiva) return;
     const c = songActiva;
@@ -2485,10 +2620,15 @@ function renderPanel() {
         return `<button class="curso-toggle ${asignado}" onclick="toggleCurso('${ctx}', this)">${label}</button>`;
     }).join('');
 
-    // assets
-    const assetsHTML = assets.length > 0
-        ? assets.map((a, i) => assetItemHTML(a, i)).join('')
-        : `<div style="font-size:0.8rem;color:var(--muted);padding:4px 0">Sin assets todavía.</div>`;
+    // assets — tabs agrupados, resto individual
+    const tabAssets   = assets.filter(a => a.tipo === 'tab');
+    const otrosAssets = assets.filter(a => a.tipo !== 'tab');
+
+    const assetsHTML = assets.length > 0 ? (() => {
+        let html = otrosAssets.map(a => assetItemHTML(a)).join('');
+        if (tabAssets.length > 0) html += tabGroupHTML(tabAssets, c.id);
+        return html;
+    })() : `<div style="font-size:0.8rem;color:var(--muted);padding:4px 0">Sin assets todavía.</div>`;
 
     document.getElementById('panel-body').innerHTML = `
         ${artworkHTML}
@@ -2542,7 +2682,7 @@ function assetItemHTML(a, i) {
                 ${isMetal ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${(sublabel || descFile || songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">🎹</button>` : ''}
                 ${isAudio ? '' : `<a class="btn-icon" href="${url}" download="${descFile}" title="Descargar">⬇</a>`}
                 <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>
-                <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}', ${i})" title="Eliminar">🗑</button>
+                <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}','${a.id}')" title="Eliminar">🗑</button>
             </div>
         </div>`;
     }
@@ -2556,9 +2696,9 @@ function assetItemHTML(a, i) {
             ${etiq}
         </div>
         <div class="asset-item-actions">
-            <button class="btn-icon" onclick="verAsset('${songActiva.id}', ${i})" title="Ver">👁</button>
+            <button class="btn-icon" onclick="verAsset('${songActiva.id}','${a.id}')" title="Ver">👁</button>
             <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>
-            <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}', ${i})" title="Eliminar">🗑</button>
+            <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}','${a.id}')" title="Eliminar">🗑</button>
         </div>
     </div>`;
 }
@@ -3134,11 +3274,12 @@ async function guardarEditarAsset() {
     toast('Asset actualizado ✓');
 }
 
-async function eliminarAsset(songId, idx) {
+async function eliminarAsset(songId, assetId) {
     const c = canciones.find(x => x.id === songId);
     if (!c || !confirm('¿Eliminar este asset?')) return;
-    const a = c.assets[idx];
-    await sbEliminarAsset(a);
+    const idx = c.assets.findIndex(x => x.id === assetId);
+    if (idx === -1) return;
+    await sbEliminarAsset(c.assets[idx]);
     c.assets.splice(idx, 1);
     songActiva = c;
     renderPanel();
@@ -3146,10 +3287,10 @@ async function eliminarAsset(songId, idx) {
 }
 
 // ── VER ASSET ────────────────────────────────────────────────────────────────
-function verAsset(songId, idx) {
+function verAsset(songId, assetId) {
     const c = canciones.find(x => x.id === songId);
     if (!c) return;
-    const a = c.assets[idx];
+    const a = c.assets.find(x => x.id === assetId);
     if (!a) return;
 
     const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo };
