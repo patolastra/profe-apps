@@ -1065,6 +1065,7 @@ function setSpeed(v) {
     speed = v / 100;
     document.getElementById('speedSlider').value = v;
     document.getElementById('speedDisplay').textContent = v + '%';
+    if (audioSyncMode && tabAudioEl.src) tabAudioEl.playbackRate = speed;
 }
 document.getElementById('speedSlider').oninput = e => setSpeed(+e.target.value);
 document.getElementById('btnSpeedDown').onclick = () => setSpeed(Math.round(speed * 100) - 5);
@@ -1096,22 +1097,25 @@ function enModoEdicion() { return editorMode || strumEditorMode; }
 
 function doRestart() {
     if (enModoEdicion()) return;
-    ensureAudio();
-    currentTime = 0; prevTime = 0;
-    tabEnded = false; if (loopActive) loopPhase = 'active';
-    lastClickBeat = -1; fallVY = 0;
+    if (loopActive) initLoopCycle();
+    currentTime = loopActive ? loopPassiveInStart : 0;
+    prevTime = currentTime - 0.001;
+    tabEnded = false; lastClickBeat = -1; fallVY = 0;
     resetHits();
-    isPlaying = true;
-    iniciarPractica();
+    if (audioSyncMode && tabAudioEl.src) {
+        startSyncedPlayback(); // busca el segundo correcto en el audio
+    } else {
+        ensureAudio();
+        isPlaying = true;
+        iniciarPractica();
+    }
 }
 document.getElementById('btnPlay').onclick = () => {
     if (enModoEdicion()) return;
     if (audioSyncMode && tabAudioEl.src) {
-        // Modo sync: el PLAY principal controla el audio (el cursor sigue automáticamente)
-        isPlaying = false;
-        tabAudioEl.play();
-        document.getElementById('btn-tab-play-pause').textContent = '⏸ Pausa';
-        document.getElementById('btn-tab-play-pause').classList.add('pausado');
+        if (isPlaying) return; // ya reproduciendo
+        if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = currentTime - 0.001; resetHits(); }
+        startSyncedPlayback();
         return;
     }
     ensureAudio();
@@ -1122,12 +1126,7 @@ document.getElementById('btnPlay').onclick = () => {
     iniciarPractica();
 };
 document.getElementById('btnPause').onclick = () => {
-    if (audioSyncMode && tabAudioEl.src) {
-        tabAudioEl.pause();
-        document.getElementById('btn-tab-play-pause').textContent = '▶ Escuchar';
-        document.getElementById('btn-tab-play-pause').classList.remove('pausado');
-        return;
-    }
+    if (audioSyncMode && tabAudioEl.src) { stopSyncedPlayback(); return; }
     isPlaying = false;
     detenerPractica();
 };
@@ -1789,8 +1788,13 @@ function animLoop(ts) {
     lastTS = ts;
 
     if (isPlaying) {
-        prevTime     = currentTime;
-        currentTime += dt * speed;
+        prevTime = currentTime;
+        if (audioSyncMode && tabSyncData && !tabAudioEl.paused && notes.length) {
+            // Tiempo manejado por el audio externo
+            currentTime = audioToPartituraTime(tabAudioEl.currentTime);
+        } else {
+            currentTime += dt * speed;
+        }
         document.getElementById('timeDisplay').textContent = currentTime.toFixed(2) + 's';
 
         const beatDur = 60 / bpm;
@@ -1908,15 +1912,6 @@ function animLoop(ts) {
                 }
             }
         }
-    }
-
-    // Sincronización con audio externo (override del tiempo de partitura)
-    if (audioSyncMode && tabSyncData && !tabAudioEl.paused && notes.length) {
-        const partTime = audioToPartituraTime(tabAudioEl.currentTime);
-        prevTime    = currentTime;
-        currentTime = partTime;
-        for (const n of notes) n.hit = n.time <= currentTime;
-        document.getElementById('timeDisplay').textContent = currentTime.toFixed(2) + 's';
     }
 
     updateBall();
@@ -2667,6 +2662,47 @@ function drawBall(x, y) {
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
 }
 
+// Convierte tiempo de partitura → segundo en el audio (inversa de audioToPartituraTime)
+function partituraTimeToAudioSec(partTime) {
+    if (!tabSyncData || !notes.length) return 0;
+    const relQN = (partTime - notes[0].time) * bpm / 60;
+    if (tabSyncData.mode === 'grid') {
+        return (tabSyncData.offset_ms + relQN * (60000 / tabSyncData.bpm)) / 1000;
+    } else {
+        if (!tabSyncBuilt) return 0;
+        const targetQN = relQN + (tabSyncData.start_qn || 0);
+        for (let i = 0; i < tabSyncBuilt.length; i++) {
+            const seg = tabSyncBuilt[i];
+            const next = tabSyncBuilt[i + 1];
+            if (!next || targetQN < next.qn)
+                return (seg.startMs + (targetQN - seg.qn) * (60000 / seg.bpm)) / 1000;
+        }
+        return tabSyncData.offset_ms / 1000;
+    }
+}
+
+// Inicia audio + MIDI juntos desde la posición actual de la partitura
+function startSyncedPlayback() {
+    ensureAudio();
+    tabAudioEl.playbackRate = speed;
+    const audioSec = partituraTimeToAudioSec(currentTime);
+    tabAudioEl.currentTime = Math.max(0, audioSec);
+    tabAudioEl.play();
+    isPlaying = true;
+    tabEnded  = false;
+    iniciarPractica();
+    document.getElementById('btn-tab-play-pause').textContent = '⏸ Pausa';
+    document.getElementById('btn-tab-play-pause').classList.add('pausado');
+}
+
+function stopSyncedPlayback() {
+    isPlaying = false;
+    tabAudioEl.pause();
+    detenerPractica();
+    document.getElementById('btn-tab-play-pause').textContent = '▶ Escuchar';
+    document.getElementById('btn-tab-play-pause').classList.remove('pausado');
+}
+
 // ─── AUDIO SYNC — CARGA ──────────────────────────────────────────────────
 
 async function cargarAudioDeCancion(cancionId) {
@@ -2768,15 +2804,10 @@ function actualizarSyncStatus() {
 
 function toggleTabAudio() {
     if (!tabAudioEl.src) return;
-    const btn = document.getElementById('btn-tab-play-pause');
     if (tabAudioEl.paused) {
-        tabAudioEl.play();
-        btn.textContent = '⏸ Pausa';
-        btn.classList.add('pausado');
+        startSyncedPlayback();
     } else {
-        tabAudioEl.pause();
-        btn.textContent = '▶ Escuchar';
-        btn.classList.remove('pausado');
+        stopSyncedPlayback();
     }
 }
 
