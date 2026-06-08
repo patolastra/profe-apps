@@ -1118,7 +1118,7 @@ function doRestart() {
     prevTime = currentTime - 0.001;
     tabEnded = false; lastClickBeat = -1; fallVY = 0;
     resetHits();
-    if (audioSyncMode && tabAudioEl.src) {
+    if (audioSyncMode) {
         startSyncedPlayback(); // busca el segundo correcto en el audio
     } else {
         ensureAudio();
@@ -1128,7 +1128,7 @@ function doRestart() {
 }
 document.getElementById('btnPlay').onclick = () => {
     if (enModoEdicion()) return;
-    if (audioSyncMode && tabAudioEl.src) {
+    if (audioSyncMode) {
         if (isPlaying) return; // ya reproduciendo
         if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = currentTime - 0.001; resetHits(); }
         startSyncedPlayback();
@@ -1142,7 +1142,7 @@ document.getElementById('btnPlay').onclick = () => {
     iniciarPractica();
 };
 document.getElementById('btnPause').onclick = () => {
-    if (audioSyncMode && tabAudioEl.src) { stopSyncedPlayback(); return; }
+    if (audioSyncMode) { stopSyncedPlayback(); return; }
     isPlaying = false;
     detenerPractica();
 };
@@ -2700,13 +2700,21 @@ function partituraTimeToAudioSec(partTime) {
 // Inicia audio + MIDI juntos desde la posición actual de la partitura
 function startSyncedPlayback() {
     ensureAudio();
-    tabAudioEl.playbackRate = speed;
-    const audioSec = partituraTimeToAudioSec(currentTime);
-    tabAudioEl.currentTime = Math.max(0, audioSec);
-    tabAudioEl.play();
     isPlaying = true;
     tabEnded  = false;
     iniciarPractica();
+    // Si el audio ya está listo, arrancar inmediatamente; si no, esperar canplay
+    const doPlayAudio = () => {
+        if (!tabAudioEl.src) return;
+        tabAudioEl.playbackRate = speed;
+        tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(currentTime));
+        tabAudioEl.play().catch(() => {});
+    };
+    if (tabAudioEl.readyState >= 2) {
+        doPlayAudio();
+    } else {
+        tabAudioEl.addEventListener('canplay', doPlayAudio, { once: true });
+    }
 }
 
 function stopSyncedPlayback() {
