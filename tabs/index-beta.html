@@ -1113,17 +1113,20 @@ function enModoEdicion() { return editorMode || strumEditorMode; }
 
 function doRestart() {
     if (enModoEdicion()) return;
+    // Detener todo primero
+    isPlaying = false;
+    if (audioSyncMode) tabAudioEl.pause();
+    detenerPractica();
+    // Misma lógica para tab pura y TabSync: precuenta siempre
     if (loopActive) initLoopCycle();
     currentTime = loopActive ? loopPassiveInStart : 0;
     prevTime = currentTime - 0.001;
     tabEnded = false; lastClickBeat = -1; fallVY = 0;
     resetHits();
-    if (audioSyncMode) {
-        startSyncedPlayback(); // busca el segundo correcto en el audio
-    } else {
-        ensureAudio();
-        isPlaying = true;
-        iniciarPractica();
+    // TabSync: preposicionar el audio en el mismo punto de inicio
+    if (audioSyncMode && tabSyncData && tabAudioEl.src) {
+        const audioStart = partituraTimeToAudioSec(currentTime);
+        tabAudioEl.currentTime = Math.max(0, audioStart);
     }
 }
 document.getElementById('btnPlay').onclick = () => {
@@ -1827,8 +1830,20 @@ function animLoop(ts) {
                 lastClickBeat = Math.floor((loopOut - loopPassiveOutStart) / loopCyclePulseDur);
             } else if (loopPhase === 'passiveOut' && currentTime >= loopPassiveOutEnd) {
                 loopPhase = 'passiveIn'; currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); lastClickBeat = -1;
+                if (audioSyncMode && tabSyncData) tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(loopPassiveInStart));
             } else if (loopPhase === 'passiveIn' && currentTime >= loopIn) {
                 loopPhase = 'active'; currentTime = loopIn; prevTime = loopIn - 0.001; resetHits(); lastClickBeat = -1;
+                if (audioSyncMode && tabSyncData) tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(loopIn));
+            }
+        }
+
+        // TabSync: arrancar audio cuando termina la precuenta
+        if (audioSyncMode && isPlaying && tabSyncData && tabAudioEl.paused && notes.length) {
+            const pastPrecuenta = loopActive ? (loopPhase === 'active') : (currentTime >= notes[0].time);
+            if (pastPrecuenta) {
+                tabAudioEl.playbackRate = speed;
+                tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(currentTime));
+                tabAudioEl.play().catch(() => {});
             }
         }
 
@@ -2703,17 +2718,18 @@ function startSyncedPlayback() {
     isPlaying = true;
     tabEnded  = false;
     iniciarPractica();
-    // Si el audio ya está listo, arrancar inmediatamente; si no, esperar canplay
-    const doPlayAudio = () => {
-        if (!tabAudioEl.src) return;
-        tabAudioEl.playbackRate = speed;
-        tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(currentTime));
-        tabAudioEl.play().catch(() => {});
-    };
-    if (tabAudioEl.readyState >= 2) {
-        doPlayAudio();
-    } else {
-        tabAudioEl.addEventListener('canplay', doPlayAudio, { once: true });
+    // Si estamos en precuenta, el animLoop arrancará el audio cuando termine
+    const firstNoteT  = notes.length ? notes[0].time : 0;
+    const inPrecuenta = loopActive ? (loopPhase !== 'active') : (currentTime < firstNoteT);
+    if (!inPrecuenta) {
+        const doPlayAudio = () => {
+            if (!tabAudioEl.src) return;
+            tabAudioEl.playbackRate = speed;
+            tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(currentTime));
+            tabAudioEl.play().catch(() => {});
+        };
+        if (tabAudioEl.readyState >= 2) doPlayAudio();
+        else tabAudioEl.addEventListener('canplay', doPlayAudio, { once: true });
     }
 }
 
