@@ -114,6 +114,9 @@
         #btn-config-sync { background: #555; }
         #btn-config-sync.sincronizado { background: #2980b9; }
         .sync-status-label { font-size: .78rem; color: #aaa; white-space: nowrap; }
+        .nudge-btn { background:#2a2a2a; color:#ccc; border:1px solid #444; border-radius:4px;
+                     padding:4px 8px; font-size:.9rem; cursor:pointer; min-width:28px; }
+        .nudge-btn:hover { background:#3a3a3a; color:#fff; }
 
         /* ── MODAL CONFIG SYNC ────────────────────────────────────── */
         #modal-sync { display:none; position:fixed; inset:0; z-index:500;
@@ -555,7 +558,21 @@
     <input type="range" id="tab-seek" value="0" step="0.1" oninput="tabAudioEl.currentTime=+this.value" onchange="tabAudioEl.currentTime=+this.value">
     <span id="tab-time-display">0:00 / 0:00</span>
     <span class="sync-status-label" id="sync-status-label">Sin sincronización</span>
-    <button id="btn-config-sync" onclick="abrirConfigSync()">⚙ Configurar sync</button>
+
+    <!-- Ajuste fino de offset (visible solo cuando hay sync) -->
+    <div id="nudge-group" style="display:none;align-items:center;gap:4px;border-left:1px solid #333;padding-left:10px;margin-left:4px">
+        <span style="font-size:.75rem;color:#666;white-space:nowrap">offset</span>
+        <button class="nudge-btn" onclick="nudgeOffset(-1000)" title="-1s">◀◀</button>
+        <button class="nudge-btn" onclick="nudgeOffset(-100)" title="-100ms">◀</button>
+        <button class="nudge-btn" onclick="nudgeOffset(-10)"  title="-10ms">‹</button>
+        <span id="nudge-display" style="font-family:monospace;font-size:.82rem;color:#e67e22;min-width:68px;text-align:center">0.000 s</span>
+        <button class="nudge-btn" onclick="nudgeOffset(+10)"  title="+10ms">›</button>
+        <button class="nudge-btn" onclick="nudgeOffset(+100)" title="+100ms">▶</button>
+        <button class="nudge-btn" onclick="nudgeOffset(+1000)" title="+1s">▶▶</button>
+        <button id="btn-nudge-save" style="display:none;background:#27ae60;color:#fff;padding:4px 10px;font-size:.78rem;border:none;border-radius:4px;cursor:pointer" onclick="guardarNudge()">💾</button>
+    </div>
+
+    <button id="btn-config-sync" onclick="abrirConfigSync()">⚙ Sync</button>
 </div>
 
 <!-- MODAL CONFIG SYNC -->
@@ -974,6 +991,8 @@ let syncCurrentTab      = 'grid'; // tab activa en modal de config
 let syncCapturingOffset = null;   // null | 'grid' | 'tm'
 let syncOffsetGrid      = 0;      // ms
 let syncOffsetTm        = 0;      // ms
+let syncNudgeDirty      = false;
+let syncNudgeTimer      = null;
 
 // ─── EDITOR DE DIGITACIÓN ─────────────────────────────────────────────────
 let currentFileSource      = null;  // 'local' | 'supabase'
@@ -2779,6 +2798,33 @@ function audioToPartituraTime(audioSec) {
     return notes[0].time + relQN * (60 / bpm);
 }
 
+function nudgeOffset(deltaMs) {
+    if (!tabSyncData) return;
+    tabSyncData.offset_ms = (tabSyncData.offset_ms || 0) + deltaMs;
+    if (tabSyncData.mode === 'tempomap' && tabSyncData.map) {
+        tabSyncBuilt = buildTempoMapMs(tabSyncData.map, tabSyncData.offset_ms);
+    }
+    // Actualizar display
+    const sec = (tabSyncData.offset_ms / 1000).toFixed(3);
+    document.getElementById('nudge-display').textContent = sec + ' s';
+    // Mostrar botón guardar
+    syncNudgeDirty = true;
+    document.getElementById('btn-nudge-save').style.display = '';
+    // Autoguardar con debounce de 2s
+    clearTimeout(syncNudgeTimer);
+    syncNudgeTimer = setTimeout(guardarNudge, 2000);
+}
+
+async function guardarNudge() {
+    if (!syncNudgeDirty || !tabSyncData || !currentTabAssetId) return;
+    clearTimeout(syncNudgeTimer);
+    try {
+        await sbPatch(`/rest/v1/repertorio_assets?id=eq.${currentTabAssetId}`, { tab_sync: tabSyncData });
+        syncNudgeDirty = false;
+        document.getElementById('btn-nudge-save').style.display = 'none';
+    } catch(e) { console.warn('Error guardando nudge:', e); }
+}
+
 // ─── AUDIO SYNC — UI ─────────────────────────────────────────────────────
 
 function mostrarBarraAudio(visible) {
@@ -2788,6 +2834,7 @@ function mostrarBarraAudio(visible) {
 function actualizarSyncStatus() {
     const lbl = document.getElementById('sync-status-label');
     const btn = document.getElementById('btn-config-sync');
+    const nudgeGroup = document.getElementById('nudge-group');
     if (tabSyncData) {
         const modo = tabSyncData.mode === 'grid'
             ? `Grilla ${tabSyncData.bpm} BPM`
@@ -2795,10 +2842,14 @@ function actualizarSyncStatus() {
         lbl.textContent = '✓ ' + modo;
         btn.classList.add('sincronizado');
         audioSyncMode = true;
+        nudgeGroup.style.display = 'flex';
+        document.getElementById('nudge-display').textContent =
+            ((tabSyncData.offset_ms || 0) / 1000).toFixed(3) + ' s';
     } else {
         lbl.textContent = 'Sin sincronización';
         btn.classList.remove('sincronizado');
         audioSyncMode = false;
+        nudgeGroup.style.display = 'none';
     }
 }
 
