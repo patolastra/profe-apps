@@ -574,23 +574,30 @@
                 <input type="number" id="sync-bpm" min="20" max="300" value="120" step="1">
             </div>
             <div class="sync-field">
-                <label>Offset — momento en el audio donde suena el beat 1 (compás 1)</label>
+                <label>Offset — momento en el audio donde suena el primer tiempo de <strong>esta tab</strong></label>
                 <div class="sync-row">
                     <span class="sync-offset-display" id="sync-offset-display">0.000 s</span>
-                    <button class="btn-capturar" id="btn-capturar-offset" onclick="iniciarCapturaOffset()">🎯 Capturar mientras escucho</button>
+                    <button class="btn-capturar" onclick="tabAudioEl.currentTime=0;tabAudioEl.play()" title="Rebobinar al inicio del audio">⏮</button>
+                    <button class="btn-capturar" id="btn-capturar-offset" onclick="iniciarCapturaOffset()">🎯 Capturar con Espacio</button>
                 </div>
-                <small style="color:#666;font-size:.78rem">Reproducí el audio y presioná Espacio justo cuando suena el primer tiempo</small>
+                <small style="color:#666;font-size:.78rem">Si la tab empieza desde el compás 1 de la canción y el audio también, el offset es 0 → presioná Espacio inmediatamente al iniciar la captura</small>
             </div>
         </div>
 
         <!-- Panel tempo map -->
         <div class="sync-panel" id="sync-panel-tempomap">
             <div class="sync-field">
-                <label>Offset — momento en el audio donde suena QN 0 (beat 1 del compás 1)</label>
+                <label>Offset — momento en el audio donde suena QN 0 del proyecto Reaper</label>
                 <div class="sync-row">
                     <span class="sync-offset-display" id="sync-offset-display-tm">0.000 s</span>
-                    <button class="btn-capturar" id="btn-capturar-offset-tm" onclick="iniciarCapturaOffset('tm')">🎯 Capturar mientras escucho</button>
+                    <button class="btn-capturar" onclick="tabAudioEl.currentTime=0;tabAudioEl.play()" title="Rebobinar">⏮</button>
+                    <button class="btn-capturar" id="btn-capturar-offset-tm" onclick="iniciarCapturaOffset('tm')">🎯 Capturar con Espacio</button>
                 </div>
+            </div>
+            <div class="sync-field">
+                <label>QN de inicio de esta tab en el proyecto Reaper <span style="color:#888;font-weight:400">(si la tab empieza desde el comienzo, dejar en 0)</span></label>
+                <input type="number" id="sync-start-qn" min="0" value="0" step="1" style="width:120px">
+                <small style="color:#666;font-size:.78rem">Ej: si la tab cubre del compás 5 en adelante en un proyecto 4/4 → start QN = 16</small>
             </div>
             <div class="sync-field">
                 <label>Tempo map — pegá el contenido del .rpp (sección TEMPOENVEX) o líneas PT directamente</label>
@@ -1099,6 +1106,14 @@ function doRestart() {
 }
 document.getElementById('btnPlay').onclick = () => {
     if (enModoEdicion()) return;
+    if (audioSyncMode && tabAudioEl.src) {
+        // Modo sync: el PLAY principal controla el audio (el cursor sigue automáticamente)
+        isPlaying = false;
+        tabAudioEl.play();
+        document.getElementById('btn-tab-play-pause').textContent = '⏸ Pausa';
+        document.getElementById('btn-tab-play-pause').classList.add('pausado');
+        return;
+    }
     ensureAudio();
     tabEnded = false;
     if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); }
@@ -1106,7 +1121,16 @@ document.getElementById('btnPlay').onclick = () => {
     isPlaying = true;
     iniciarPractica();
 };
-document.getElementById('btnPause').onclick = () => { isPlaying = false; detenerPractica(); };
+document.getElementById('btnPause').onclick = () => {
+    if (audioSyncMode && tabAudioEl.src) {
+        tabAudioEl.pause();
+        document.getElementById('btn-tab-play-pause').textContent = '▶ Escuchar';
+        document.getElementById('btn-tab-play-pause').classList.remove('pausado');
+        return;
+    }
+    isPlaying = false;
+    detenerPractica();
+};
 document.getElementById('btnRestart').onclick = doRestart;
 
 function navigateMeasures(delta) {
@@ -2707,13 +2731,16 @@ function parseReaperTempoMap(text) {
 function audioToPartituraTime(audioSec) {
     if (!tabSyncData || !notes.length) return 0;
     const ms = audioSec * 1000;
-    let qn;
+    let relQN; // quarter notes relativos al inicio de ESTA tab
     if (tabSyncData.mode === 'grid') {
-        qn = msToBeatGrid(ms, tabSyncData.bpm, tabSyncData.offset_ms);
+        // offset_ms = cuando suena note[0] en el audio → relQN=0 ahí
+        relQN = msToBeatGrid(ms, tabSyncData.bpm, tabSyncData.offset_ms);
     } else {
-        qn = msToQN(ms, tabSyncBuilt);
+        // QN absoluto en el proyecto Reaper, luego restar el start_qn de esta tab
+        const absQN = msToQN(ms, tabSyncBuilt);
+        relQN = absQN - (tabSyncData.start_qn || 0);
     }
-    return notes[0].time + qn * (60 / bpm);
+    return notes[0].time + relQN * (60 / bpm);
 }
 
 // ─── AUDIO SYNC — UI ─────────────────────────────────────────────────────
@@ -2785,6 +2812,7 @@ function abrirConfigSync() {
         } else {
             syncOffsetTm = tabSyncData.offset_ms || 0;
             document.getElementById('sync-offset-display-tm').textContent = (syncOffsetTm / 1000).toFixed(3) + ' s';
+            document.getElementById('sync-start-qn').value = tabSyncData.start_qn || 0;
             const pts = (tabSyncData.map || []).map(p => `PT ${p.qn} ${p.bpm} 0`).join('\n');
             document.getElementById('sync-tempomap-text').value = pts;
             cambiarSyncTab('tempomap', document.querySelectorAll('.sync-tab-btn')[1]);
@@ -2848,7 +2876,8 @@ async function guardarConfigSync() {
         if (!txt) { alert('Pegá el tempo map de Reaper'); return; }
         const map = parseReaperTempoMap(txt);
         if (!map.length) { alert('No se encontraron puntos PT en el texto. Verificá el formato.'); return; }
-        syncData = { mode: 'tempomap', offset_ms: Math.round(syncOffsetTm), map };
+        const startQN = parseFloat(document.getElementById('sync-start-qn').value) || 0;
+        syncData = { mode: 'tempomap', offset_ms: Math.round(syncOffsetTm), start_qn: startQN, map };
     }
 
     // Guardar en Supabase
