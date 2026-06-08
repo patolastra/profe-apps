@@ -99,20 +99,25 @@
         .rep-modal { display:none; position:fixed; inset:0; z-index:200;
                      background:rgba(0,0,0,.75); align-items:center; justify-content:center; }
         .rep-modal.open { display:flex; }
-        .rep-box { background:#1e1e1e; border-radius:10px; padding:20px;
-                   min-width:320px; max-width:92vw; max-height:80vh;
-                   display:flex; flex-direction:column; gap:12px;
-                   box-shadow:0 8px 32px rgba(0,0,0,.6); }
+        .rep-box { background:#1e1e1e; border-radius:12px; padding:22px;
+                   width:min(700px,92vw); height:82vh;
+                   display:flex; flex-direction:column; gap:14px;
+                   box-shadow:0 8px 40px rgba(0,0,0,.75); }
         .rep-header { display:flex; justify-content:space-between; align-items:center; }
         .rep-header span { font-weight:bold; font-size:1rem; }
         .rep-header button { background:#444; color:#fff; border:none; border-radius:4px;
                              padding:4px 10px; cursor:pointer; font-size:1rem; }
-        .rep-list { overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
-        .rep-item { padding:10px 14px; cursor:pointer; border-radius:6px;
-                    color:#fff; transition:background .12s; border:1px solid transparent; }
-        .rep-item:hover { background:#2a2a2a; border-color:#444; }
-        .rep-item .rep-nombre { font-weight:bold; }
-        .rep-item .rep-meta { font-size:.8rem; color:#aaa; margin-top:2px; }
+        .rep-list { overflow-y:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:10px; }
+        .rep-list.dos-col { flex-direction:row; flex-wrap:wrap; align-content:start; }
+        .rep-list.dos-col .rep-cancion { flex:0 0 calc(50% - 5px); }
+        .rep-cancion { border-radius:8px; overflow:visible; }
+        .rep-cancion .rep-item:last-child { border-radius:0 0 8px 8px; }
+        .rep-cancion-titulo { padding:9px 14px; font-weight:700; font-size:.9rem; color:#fff; }
+        .rep-item { padding:8px 14px 8px 20px; cursor:pointer; color:#fff;
+                    transition:background .12s; border-left:3px solid #333; }
+        .rep-item:hover { background:#2e2e2e; border-left-color:#27ae60; }
+        .rep-item .rep-nombre { font-weight:600; font-size:.87rem; }
+        .rep-item .rep-meta { font-size:.78rem; color:#888; margin-top:2px; }
 
         /* ── PISTAS DE ACOMPAÑAMIENTO ─────────────────────────────── */
         .btn-pistas { background: #1a5276; color: #fff; }
@@ -411,7 +416,10 @@
 
 <!-- CONTROLES -->
 <div class="controls">
-    <span id="instrumentoBadge" style="display:none;position:absolute;left:16px;top:50%;transform:translateY(-50%);color:#fff;padding:8px 22px;border-radius:7px;font-size:1.5rem;font-weight:900;letter-spacing:.03em;z-index:1">🎸 Guitarra</span>
+    <div id="instrumentoBadge" style="display:none;position:absolute;left:16px;top:50%;transform:translateY(-50%);z-index:1;display:flex;align-items:center;gap:22px">
+        <span id="instBadgeLabel" style="color:#fff;padding:8px 22px;border-radius:7px;font-size:1.5rem;font-weight:900;letter-spacing:.03em;flex-shrink:0">🎸 Guitarra</span>
+        <span id="instBadgeMeta" style="color:#ccc;font-size:.75rem;line-height:1.3;display:none;max-width:220px;overflow:hidden"></span>
+    </div>
     <div class="ctrl-row">
         <button id="btnAbrirCtrl" onclick="toggleAbrirMenu(this)">Abrir Tablatura ▼</button>
         <span class="sep">|</span>
@@ -841,6 +849,9 @@ let chordEvents  = []; // [{ tStart, tEnd, label, color, strum, subBlocks, large
 let currentFileSource      = null;  // 'local' | 'supabase'
 let currentStoragePath     = null;
 let currentFileName        = null;
+let currentCancionNombre   = null;
+let currentEtiqueta        = null;
+let currentDificultad      = null;
 let currentInternalXmlName = null;
 let currentFileHandle      = null;  // FileSystemFileHandle (local con showOpenFilePicker)
 let editorMode             = false;
@@ -1191,9 +1202,12 @@ function resetHits() {
 async function procesarArchivoLocal(file, handle = null) {
     if (!await confirmarSiEditorAbierto()) return;
     cerrarEditorSilencioso();
-    currentFileHandle = handle;
-    currentFileSource = 'local';
-    currentFileName   = file.name;
+    currentFileHandle    = handle;
+    currentFileSource    = 'local';
+    currentFileName      = file.name;
+    currentCancionNombre = null;
+    currentEtiqueta      = null;
+    currentDificultad    = null;
     let xml = '';
     if (file.name.toLowerCase().endsWith('.mxl')) {
         const zip  = await JSZip.loadAsync(file);
@@ -1312,17 +1326,39 @@ function aplicarTimbreInstrumento() {
 
 function actualizarBadgeInstrumento() {
     const badge = document.getElementById('instrumentoBadge');
-    if (!badge) return;
-    badge.style.display = (currentFileName || currentStoragePath) ? '' : 'none';
+    const label = document.getElementById('instBadgeLabel');
+    const meta  = document.getElementById('instBadgeMeta');
+    if (!badge || !label) return;
+    const visible = !!(currentFileName || currentStoragePath);
+    badge.style.display = visible ? 'flex' : 'none';
+    if (!visible) return;
     if (currentInstrument === 'ukelele') {
-        badge.textContent = '🪕 Ukelele';
-        badge.style.background = '#7c4a1e';
+        label.textContent       = '🪕 Ukelele';
+        label.style.background  = '#7c4a1e';
     } else if (currentInstrument === 'bajo') {
-        badge.textContent = '🎸 Bajo';
-        badge.style.background = '#2c1a6b';
+        label.textContent       = '🎸 Bajo';
+        label.style.background  = '#2c1a6b';
     } else {
-        badge.textContent = '🎸 Guitarra';
-        badge.style.background = '#1a6b4a';
+        label.textContent       = '🎸 Guitarra';
+        label.style.background  = '#1a6b4a';
+    }
+    if (meta) {
+        const DIFIC_COLOR = { inicial:'#27ae60', media:'#f39c12', dificil:'#e74c3c', experto:'#8e44ad' };
+        const partes = [];
+        const blk = 'display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px';
+        if (currentCancionNombre) partes.push(`<span style="${blk};font-size:1rem;font-weight:700;font-style:italic;color:#fff">${currentCancionNombre}</span>`);
+        if (currentEtiqueta)      partes.push(`<span style="${blk}">${currentEtiqueta}</span>`);
+        if (currentDificultad) {
+            const dif = currentDificultad.toLowerCase();
+            const col = DIFIC_COLOR[dif] || '#888';
+            partes.push(`<span style="${blk};color:${col}">${dif.charAt(0).toUpperCase()+dif.slice(1)}</span>`);
+        }
+        if (partes.length) {
+            meta.innerHTML = partes.join('');
+            meta.style.display = '';
+        } else {
+            meta.style.display = 'none';
+        }
     }
 }
 
@@ -2513,7 +2549,7 @@ async function abrirModalRep() {
         }
 
         let url = `${SB_URL}/rest/v1/repertorio_assets` +
-            `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,repertorio_canciones(nombre,artista)` +
+            `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,repertorio_canciones(nombre,artista,categoria)` +
             `&tipo=eq.tab`;
         if (assetIds) url += `&id=in.(${assetIds.join(',')})`;
 
@@ -2548,36 +2584,42 @@ async function abrirModalRep() {
                 return (DIFIC_ORD[a.dificultad?.toLowerCase()] ?? 9) - (DIFIC_ORD[b.dificultad?.toLowerCase()] ?? 9);
             });
         }
-        // Ordenar canciones alfabéticamente
+        // Ordenar: ejercicios primero (alfabético), luego canciones (alfabético)
+        const sortKeyRep = nom => (/ejercicio/i.test(nom) || nom === 'material' ? '0' : '1') + nom;
         const gruposOrdenados = Object.entries(grupos).sort(([,a],[,b]) =>
-            (a.c?.nombre || '').localeCompare(b.c?.nombre || '', 'es')
+            sortKeyRep(a.c?.nombre || '').localeCompare(sortKeyRep(b.c?.nombre || ''), 'es')
         );
 
-        lista.innerHTML = gruposOrdenados.map(([cid, { c, tabs }]) => {
+        if (gruposOrdenados.length >= 5) lista.classList.add('dos-col');
+        else lista.classList.remove('dos-col');
+
+        const INST_EMOJI  = { guitarra:'🎸', ukelele:'🪕', bajo:'🎵', metalofono:'🎹', flauta:'🪈' };
+        const DIFIC_COLOR = { inicial:'#27ae60', media:'#f39c12', dificil:'#e74c3c', experto:'#8e44ad' };
+        const CANCION_COLORS = ['#c0392b', '#27ae60', '#2471a3', '#d35400'];
+
+        lista.innerHTML = gruposOrdenados.map(([cid, { c, tabs }], idx) => {
             const nombre = c?.nombre || '(sin nombre)';
+            const color  = CANCION_COLORS[idx % CANCION_COLORS.length];
             const tabsHTML = tabs.map(a => {
-                const inst   = a.instrumento ? a.instrumento.charAt(0).toUpperCase() + a.instrumento.slice(1) : '';
-                const dific  = a.dificultad  ? a.dificultad.charAt(0).toUpperCase()  + a.dificultad.slice(1)  : '';
-                const label  = a.etiqueta || a.nombre_archivo || '';
-                const meta   = [inst, dific].filter(Boolean).join(' · ');
+                const inst  = (a.instrumento || '').toLowerCase();
+                const dific = (a.dificultad  || '').toLowerCase();
+                const label = a.etiqueta || a.nombre_archivo || '';
                 const sp = (a.storage_path  || '').replace(/'/g, "\\'");
                 const nf = (a.nombre_archivo || '').replace(/'/g, "\\'");
-                return `<div class="rep-item" style="padding-left:20px;border-left:3px solid #2a2a2a;margin-left:8px;border-radius:0" onclick="cargarDesdeStorage('${sp}','${nf}')">
-                    <div class="rep-nombre" style="font-size:.88rem;font-weight:600">${label || nombre}</div>
-                    ${meta ? `<div class="rep-meta">${meta}</div>` : ''}
+                const metaObj = JSON.stringify({ cancion: nombre, etiqueta: label, dificultad: dific }).replace(/'/g,"&#39;");
+                return `<div class="rep-item" onclick="cargarDesdeStorage('${sp}','${nf}',JSON.parse(this.dataset.meta))" data-meta='${metaObj}'>
+                    <div style="display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden">
+                        <span style="font-weight:400;font-size:.84rem;color:#bbb;overflow:hidden;text-overflow:ellipsis">${label}</span>
+                        <span style="flex-shrink:0">${INST_EMOJI[inst] || '🎸'}</span>
+                        ${inst  ? `<span style="color:#aaa;font-size:.8rem;flex-shrink:0;text-transform:capitalize">${inst}</span>` : ''}
+                        ${dific ? `<span style="color:${DIFIC_COLOR[dific]||'#888'};font-size:.8rem;flex-shrink:0">· ${dific}</span>` : ''}
+                    </div>
                 </div>`;
             }).join('');
-            const escapedNombre = nombre.replace(/'/g, "\\'");
-            return `
-                <div class="rep-item rep-song-header" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px"
-                     onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.rep-arrow').style.transform=this.nextElementSibling.style.display==='none'?'rotate(0deg)':'rotate(90deg)'">
-                    <div>
-                        <div class="rep-nombre">${nombre}</div>
-                        <div class="rep-meta">${tabs.length} tab${tabs.length !== 1 ? 's' : ''}</div>
-                    </div>
-                    <span class="rep-arrow" style="color:#555;font-size:.8rem;transition:transform .15s;flex-shrink:0">▶</span>
-                </div>
-                <div style="display:none">${tabsHTML}</div>`;
+            return `<div class="rep-cancion" style="background:${color}18">
+                <div class="rep-cancion-titulo" style="background:${color}">${nombre}</div>
+                ${tabsHTML}
+            </div>`;
         }).join('');
 
     } catch (err) {
@@ -2585,7 +2627,7 @@ async function abrirModalRep() {
     }
 }
 
-async function cargarDesdeStorage(storagePath, nombreArchivo) {
+async function cargarDesdeStorage(storagePath, nombreArchivo, meta = {}) {
     detenerPractica();
     cerrarModalRep();
     ocultarWelcome();
@@ -2596,10 +2638,13 @@ async function cargarDesdeStorage(storagePath, nombreArchivo) {
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('No se pudo descargar el archivo (HTTP ' + resp.status + ')');
 
-        currentFileSource  = 'supabase';
-        currentStoragePath = storagePath;
-        currentFileName    = nombreArchivo;
-        currentFileHandle  = null;
+        currentFileSource     = 'supabase';
+        currentStoragePath    = storagePath;
+        currentFileName       = nombreArchivo;
+        currentFileHandle     = null;
+        currentCancionNombre  = meta.cancion  || null;
+        currentEtiqueta       = meta.etiqueta || null;
+        currentDificultad     = meta.dificultad || null;
 
         let xml = '';
         if (nombreArchivo.toLowerCase().endsWith('.mxl')) {
