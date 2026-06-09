@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS repertorio_assets (
 -- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS dificultad TEXT DEFAULT '';
 -- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS tonalidad TEXT DEFAULT '';
 -- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS mensaje TEXT;
+-- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS tab_sync JSONB DEFAULT NULL;
 
 -- Asignación de tabs individuales a alumnos (reemplaza alumno_repertorio por cancion)
 CREATE TABLE IF NOT EXISTS alumno_tabs (

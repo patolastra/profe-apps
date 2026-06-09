@@ -1146,6 +1146,7 @@ function doRestart() {
 }
 document.getElementById('btnPlay').onclick = () => {
     if (enModoEdicion()) return;
+    console.log('[play] audioSyncMode:', audioSyncMode, '| tabSyncData:', tabSyncData?.mode, '| src:', tabAudioEl.src?.slice(0,50));
     if (audioSyncMode) {
         if (isPlaying) return; // ya reproduciendo
         if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = currentTime - 0.001; resetHits(); }
@@ -1913,10 +1914,8 @@ function animLoop(ts) {
         // TabSync: arrancar audio cuando termina la precuenta
         if (audioSyncMode && isPlaying && tabSyncData && tabAudioEl.paused && notes.length) {
             const pastPrecuenta = loopActive ? (loopPhase === 'active') : (currentTime >= notes[0].time);
-            if (pastPrecuenta) {
-                tabAudioEl.playbackRate = speed;
-                tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(currentTime));
-                tabAudioEl.play().catch(err => console.error('Audio play failed:', err));
+            if (pastPrecuenta && tabAudioEl.src.startsWith('http')) {
+                iniciarAudioSync();
             }
         }
 
@@ -2796,15 +2795,22 @@ function startSyncedPlayback() {
     const firstNoteT  = notes.length ? notes[0].time : 0;
     const inPrecuenta = loopActive ? (loopPhase !== 'active') : (currentTime < firstNoteT);
     if (!inPrecuenta) {
-        const doPlayAudio = () => {
-            if (!tabAudioEl.src) return;
-            tabAudioEl.playbackRate = speed;
-            tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(currentTime));
-            tabAudioEl.play().catch(err => console.error('Audio play failed:', err));
-        };
-        if (tabAudioEl.readyState >= 2) doPlayAudio();
-        else tabAudioEl.addEventListener('canplay', doPlayAudio, { once: true });
+        iniciarAudioSync();
     }
+}
+
+function iniciarAudioSync() {
+    const srcOk = tabAudioEl.src.startsWith('http');
+    console.log('[audio] iniciarAudioSync — src ok:', srcOk, '| readyState:', tabAudioEl.readyState, '| src:', tabAudioEl.src?.slice(0,50));
+    if (!srcOk) {
+        tabAudioEl.addEventListener('canplay', iniciarAudioSync, { once: true });
+        return;
+    }
+    const seekTo = Math.max(0, partituraTimeToAudioSec(currentTime));
+    console.log('[audio] iniciarAudioSync — seekTo:', seekTo.toFixed(3), 's');
+    tabAudioEl.playbackRate = speed;
+    tabAudioEl.currentTime = seekTo;
+    tabAudioEl.play().catch(err => console.error('[audio] play() falló:', err));
 }
 
 function stopSyncedPlayback() {
@@ -2820,9 +2826,10 @@ async function cargarAudioDeCancion(cancionId) {
         const assets = await sbGet(
             `/rest/v1/repertorio_assets?cancion_id=eq.${cancionId}&tipo=eq.audio&select=id,storage_path&limit=1`
         );
-        if (!assets.length) { mostrarBarraAudio(false); return; }
+        if (!assets.length) { console.warn('[audio] No se encontró asset de audio para cancionId:', cancionId); mostrarBarraAudio(false); return; }
         const sp = assets[0].storage_path;
         tabAudioEl.src = `${SB_URL}/storage/v1/object/public/repertorio-assets/${sp}`;
+        console.log('[audio] src seteado:', tabAudioEl.src);
         mostrarBarraAudio(true);
         actualizarSyncStatus();
     } catch(e) {
@@ -2851,7 +2858,7 @@ function buildTempoMapMs(map, offsetMs) {
 }
 
 function msToQN(ms, builtMap) {
-    if (!builtMap.length) return 0;
+    if (!builtMap?.length) return 0;
     if (ms <= builtMap[0].startMs) return builtMap[0].qn;
     for (let i = 1; i < builtMap.length; i++) {
         const a = builtMap[i - 1], b = builtMap[i];
@@ -2960,8 +2967,6 @@ function cargarMidiTempoMap(file) {
                 tabSyncData  = syncData;
                 tabSyncBuilt = buildTempoMapMs(syncData.map, syncData.offset_ms);
                 audioSyncMode = true;
-                // BPM del primer tempo del mapa (para precuenta y animación)
-                if (deduped.length) bpm = deduped[0].bpm;
                 actualizarSyncStatus();
 
                 // Actualizar campos del panel para que el usuario vea qué se aplicó
