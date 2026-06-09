@@ -552,9 +552,9 @@
 
 <!-- BARRA AUDIO SYNC -->
 <div id="tab-audio-bar">
-    <input type="range" id="tab-seek" value="0" step="0.1" oninput="tabAudioEl.currentTime=+this.value" onchange="tabAudioEl.currentTime=+this.value">
+    <input type="range" id="tab-seek" value="0" step="0.1" oninput="seekTab(+this.value)" onchange="seekTab(+this.value)">
     <span id="tab-time-display">0:00 / 0:00</span>
-    <span class="sync-status-label" id="sync-status-label">Sin sincronización</span>
+    <span class="sync-status-label" id="sync-status-label" style="display:none">Sin sincronización</span>
 
     <!-- Ajuste fino de offset (visible solo cuando hay sync) -->
     <div id="nudge-group" style="display:none;align-items:center;gap:4px;border-left:1px solid #333;padding-left:10px;margin-left:4px">
@@ -569,7 +569,7 @@
         <button id="btn-nudge-save" style="display:none;background:#27ae60;color:#fff;padding:4px 10px;font-size:.78rem;border:none;border-radius:4px;cursor:pointer" onclick="guardarNudge()">💾</button>
     </div>
 
-    <button id="btn-config-sync" onclick="abrirConfigSync()">⚙ Sync</button>
+    <button id="btn-config-sync" onclick="abrirConfigSync()" style="display:none">⚙ Sync</button>
 </div>
 
 <!-- MODAL CONFIG SYNC -->
@@ -717,6 +717,8 @@ const canvas = document.getElementById('tabCanvas');
 const ctx    = canvas.getContext('2d');
 
 // ─── CONSTANTES ───────────────────────────────────────────────────────────
+const SB_URL = 'https://bfinpxcwcsteintikrtt.supabase.co';
+const SB_KEY = 'sb_publishable_nKng6T9w2MA0fLrJ778Jog_2ZV_BrsB';
 const SCALE           = 100;
 const ZOOM_X          = 1.4;
 const DEFAULT_ZOOM    = SCALE * ZOOM_X;
@@ -742,6 +744,7 @@ const TIMBRE = {
 let currentInstrument = 'guitarra';
 let numStrings        = 6;
 let openStrings       = TUNING.guitarra.slice();
+let capoFret          = 0;
 const STRUM_NONE = 0, STRUM_DOWN = 1, STRUM_UP = 2, STRUM_GOLPE = 3;
 const NOTE_TO_LATINO  = { C:'Do', D:'Re', E:'Mi', F:'Fa', G:'Sol', A:'La', B:'Si' };
 const CHORD_PALETTE   = ['#7B3FC4','#2A7FDB','#C4883F','#C43F4A','#3FC4A0','#8BC43F','#C43FAA'];
@@ -753,9 +756,10 @@ let fretBottom = START_Y + (numStrings - 1) * STR_SPACING + FRET_PAD;
 function applyResize() {
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
-    START_Y    = Math.round(canvas.height * 0.34);
-    fretTop    = START_Y - FRET_PAD;
-    fretBottom = START_Y + (numStrings - 1) * STR_SPACING + FRET_PAD;
+    START_Y        = Math.round(canvas.height * 0.34);
+    fretTop        = START_Y - FRET_PAD;
+    fretBottom     = START_Y + (numStrings - 1) * STR_SPACING + FRET_PAD;
+    BALL_STRING_Y  = START_Y + 2 * STR_SPACING;
 }
 applyResize();
 window.addEventListener('resize', applyResize);
@@ -1151,20 +1155,39 @@ document.getElementById('btnPause').onclick = () => {
 };
 document.getElementById('btnRestart').onclick = doRestart;
 
+function syncHitsToTime(t) {
+    notes.forEach(n => { n.hit = n.time < t; n.hitAt = n.hit ? n.time : 0; });
+    accompTracks.forEach(tr => tr.notes.forEach(n => { n.hit = n.time < t; }));
+    chordEvents.forEach(e => { e.hit = e.tStart < t; });
+    lastClickBeat = -1; tabEnded = false;
+}
+
+function seekTab(audioSec) {
+    tabAudioEl.currentTime = Math.max(0, audioSec);
+    if (audioSyncMode && tabSyncData) {
+        currentTime = audioToPartituraTime(audioSec);
+        prevTime    = currentTime - 0.001;
+        syncHitsToTime(currentTime);
+    }
+}
+
 function navigateMeasures(delta) {
     if (!notes.length) return;
     const measureDur = beatsPerBar * (4 / beatType) * (60 / bpm);
     currentTime = Math.max(0, currentTime + delta * measureDur);
     prevTime    = currentTime - 0.001;
-    lastClickBeat = -1; tabEnded = false; if (loopActive) loopPhase = 'active';
-    notes.forEach(n => { n.hit = n.time < currentTime; n.hitAt = n.hit ? n.time : 0; });
-    accompTracks.forEach(t => t.notes.forEach(n => { n.hit = n.time < currentTime; }));
-    chordEvents.forEach(e => { e.hit = e.tStart < currentTime; });
+    if (loopActive) loopPhase = 'active';
+    syncHitsToTime(currentTime);
+    if (audioSyncMode && tabSyncData) {
+        const audioTarget = partituraTimeToAudioSec(currentTime);
+        tabAudioEl.currentTime = Math.max(0, audioTarget);
+        if (!isPlaying) tabAudioEl.pause();
+    }
 }
 
 document.addEventListener('keydown', e => {
     // Shortcut oculto: panel de alumnos
-    if (e.ctrlKey && e.shiftKey && e.code === 'KeyA') {
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyF') {
         e.preventDefault();
         if (panelAlumnosOpen) { cerrarPanelAlumnos(); } else { ocultarWelcome(); abrirPanelAlumnos(); }
         return;
@@ -1179,6 +1202,23 @@ document.addEventListener('keydown', e => {
     if (e.ctrlKey && e.shiftKey && e.code === 'KeyR') {
         e.preventDefault();
         activarEditorRasgueo();
+        return;
+    }
+    // Shortcut oculto: config sync
+    if (e.ctrlKey && e.shiftKey && e.code === 'KeyS') {
+        e.preventDefault();
+        abrirConfigSync();
+        return;
+    }
+    // Shortcut oculto: capo (Ctrl+Shift+↑/↓)
+    if (e.ctrlKey && e.shiftKey && e.code === 'ArrowUp') {
+        e.preventDefault();
+        ajustarCapo(+1);
+        return;
+    }
+    if (e.ctrlKey && e.shiftKey && e.code === 'ArrowDown') {
+        e.preventDefault();
+        ajustarCapo(-1);
         return;
     }
     // Modo editor de rasgueo: interceptar todas las teclas
@@ -1274,7 +1314,7 @@ document.addEventListener('keydown', e => {
     if (!notes.length || enModoEdicion()) return;
     ensureAudio();
     if (tabEnded) { doRestart(); return; }
-    if (isPlaying) { isPlaying = false; }
+    if (isPlaying) { isPlaying = false; if (audioSyncMode) tabAudioEl.pause(); }
     else {
         tabEnded = false;
         if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); }
@@ -1370,6 +1410,7 @@ async function procesarArchivoLocal(file, handle = null) {
     currentFileHandle    = handle;
     currentFileSource    = 'local';
     currentFileName      = file.name;
+    cargarCapo();
     currentCancionNombre = null;
     currentEtiqueta      = null;
     currentDificultad    = null;
@@ -1489,6 +1530,18 @@ function aplicarTimbreInstrumento() {
     }
 }
 
+function ajustarCapo(delta) {
+    capoFret = Math.max(0, Math.min(12, capoFret + delta));
+    const key = currentStoragePath || currentFileName;
+    if (key) localStorage.setItem('profe_capo_' + key, capoFret);
+    actualizarBadgeInstrumento();
+}
+
+function cargarCapo() {
+    const key = currentStoragePath || currentFileName;
+    capoFret = key ? (parseInt(localStorage.getItem('profe_capo_' + key)) || 0) : 0;
+}
+
 function actualizarBadgeInstrumento() {
     const badge = document.getElementById('instrumentoBadge');
     const label = document.getElementById('instBadgeLabel');
@@ -1497,16 +1550,25 @@ function actualizarBadgeInstrumento() {
     const visible = !!(currentFileName || currentStoragePath);
     badge.style.display = visible ? 'flex' : 'none';
     if (!visible) return;
+    const tieneCapo = currentInstrument === 'guitarra' || currentInstrument === 'ukelele';
+    const capoLinea = tieneCapo && capoFret > 0
+        ? `<span style="display:block;font-size:.75rem;font-weight:700;letter-spacing:.08em;color:#f9c74f;margin-top:2px">CAPO ${capoFret}</span>`
+        : '';
+    const usaCapo = currentInstrument === 'guitarra' || currentInstrument === 'ukelele';
+    label.style.display        = usaCapo && capoFret > 0 ? 'flex' : '';
+    label.style.flexDirection  = 'column';
+    label.style.alignItems     = 'center';
     if (currentInstrument === 'ukelele') {
-        label.textContent       = '🪕 Ukelele';
-        label.style.background  = '#7c4a1e';
+        label.innerHTML        = `🪕 Ukelele${capoLinea}`;
+        label.style.background = '#7c4a1e';
     } else if (currentInstrument === 'bajo') {
-        label.textContent       = '🎸 Bajo';
-        label.style.background  = '#2c1a6b';
+        label.innerHTML        = '🎸 Bajo';
+        label.style.background = '#2c1a6b';
     } else {
-        label.textContent       = '🎸 Guitarra';
-        label.style.background  = '#1a6b4a';
+        label.innerHTML        = `🎸 Guitarra${capoLinea}`;
+        label.style.background = '#1a6b4a';
     }
+
     if (meta) {
         const DIFIC_COLOR = { inicial:'#27ae60', media:'#f39c12', dificil:'#e74c3c', experto:'#8e44ad' };
         const partes = [];
@@ -1918,7 +1980,7 @@ function animLoop(ts) {
                     const durBeats = noteDur * safeBpm / 60;
                     const STRUM_MS = Math.max(0.010, Math.min(0.035, 0.035 * durBeats / 4));
                     ordenadas.forEach((n, i) => {
-                        const midi = openStrings[n.string - 1] + n.fret;
+                        const midi = openStrings[n.string - 1] + n.fret + capoFret;
                         if (guitarSF && partituraOn) {
                             const when = audioCtx.currentTime + i * STRUM_MS / speed;
                             guitarSF.play(midi, when, {
@@ -1930,7 +1992,7 @@ function animLoop(ts) {
                         }
                     });
                 } else {
-                    for (const n of grupo) playNote(openStrings[n.string - 1] + n.fret, n.durSec);
+                    for (const n of grupo) playNote(openStrings[n.string - 1] + n.fret + capoFret, n.durSec);
                 }
             }
             for (let ti = 0; ti < accompTracks.length; ti++) {
@@ -1951,7 +2013,7 @@ function animLoop(ts) {
     requestAnimationFrame(animLoop);
 }
 
-const BALL_STRING_Y = START_Y + 2 * STR_SPACING; // cuerda 3 (para modo acordes)
+let BALL_STRING_Y = START_Y + 2 * STR_SPACING; // cuerda 3 (para modo acordes)
 
 // Calcula el sin(phase*π) de un rebote con timing de swing si está activo.
 // cycleDur: duración de un pulso (por defecto negra = 60/bpm).
@@ -2636,14 +2698,15 @@ function drawPill(x, y, w, note, noteIdx = -1) {
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'alphabetic';
     const tx = x + Math.min(NOTE_R, w / 2);
-    const m  = ctx.measureText(String(note.fret));
+    const displayFret = note.fret + capoFret;
+    const m  = ctx.measureText(String(displayFret));
     const drawY = y + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
     ctx.strokeStyle = 'rgba(0,0,0,0.6)';
     ctx.lineWidth   = 2.0;
     ctx.lineJoin    = 'round';
-    ctx.strokeText(note.fret, tx, drawY);
+    ctx.strokeText(displayFret, tx, drawY);
     ctx.fillStyle = txtColor;
-    ctx.fillText(note.fret, tx, drawY);
+    ctx.fillText(displayFret, tx, drawY);
 
     ctx.restore();
 
@@ -2859,7 +2922,7 @@ function actualizarSyncStatus() {
         lbl.textContent = '✓ ' + modo;
         btn.classList.add('sincronizado');
         audioSyncMode = true;
-        nudgeGroup.style.display = 'flex';
+        // nudgeGroup oculto — acceso solo via Ctrl+Shift+S
         document.getElementById('nudge-display').textContent =
             ((tabSyncData.offset_ms || 0) / 1000).toFixed(3) + ' s';
     } else {
@@ -2995,9 +3058,6 @@ async function guardarConfigSync() {
 }
 
 // ─── REPERTORIO ───────────────────────────────────────────────────────────
-const SB_URL = 'https://bfinpxcwcsteintikrtt.supabase.co';
-const SB_KEY = 'sb_publishable_nKng6T9w2MA0fLrJ778Jog_2ZV_BrsB';
-
 function cerrarModalRep() {
     document.getElementById('modalRepertorio').classList.remove('open');
 }
@@ -3124,6 +3184,7 @@ async function cargarDesdeStorage(storagePath, nombreArchivo, meta = {}) {
         currentFileSource     = 'supabase';
         currentStoragePath    = storagePath;
         currentFileName       = nombreArchivo;
+        cargarCapo();
         currentFileHandle     = null;
         currentCancionNombre  = meta.cancion  || null;
         currentEtiqueta       = meta.etiqueta || null;
@@ -3402,41 +3463,44 @@ function togglePistasPanel(btn) {
     pistasOpen = true;
 }
 
+function categoriaPista(label) {
+    const l = (label || '').toLowerCase();
+    if (/bater|drum|percus|perc\b|caja|bombo|timbale/.test(l)) return 'Ritmo';
+    if (/bajo|bass/.test(l)) return 'Bajo';
+    if (/piano|organ|teclado|keyboard|chord|acorde|armoni|guitar|ukelele|ukulele|guitar|violín|violin|viola|cello|cello|string/.test(l)) return 'Armonía';
+    return 'Melodía';
+}
+
 function renderListaPistas() {
     const lista = document.getElementById('listaPistas');
-    let html = '';
-
-    html += `<div class="pistas-seccion">Partitura</div>
-        <div class="pista-row">
-            <span class="pista-dot" style="background:#3498db"></span>
-            <span class="pista-nombre">Partitura</span>
-            <button class="btn-pista-mute${partituraOn ? '' : ' muted'}" onclick="togglePartitura()">
-                ${partituraOn ? '🔊' : '🔇'}
+    const fila = (color, nombre, titulo, muted, onclick, last = false) =>
+        `<div class="pista-row"${last ? ' style="border-bottom:none"' : ''}>
+            <span class="pista-dot" style="background:${color}"></span>
+            <span class="pista-nombre" title="${titulo}">${nombre}</span>
+            <button class="btn-pista-mute${muted ? ' muted' : ''}" onclick="${onclick}">
+                ${muted ? '🔇' : '🔊'}
             </button>
         </div>`;
 
-    if (accompTracks.length) {
-        html += `<div class="pistas-seccion">Acompañamiento</div>`;
-        html += accompTracks.map((t, i) => `
-            <div class="pista-row">
-                <span class="pista-dot" style="background:${t.color}"></span>
-                <span class="pista-nombre" title="${t.label}">${t.label}</span>
-                <button class="btn-pista-mute${t.muted ? ' muted' : ''}" onclick="toggleMutePista(${i})">
-                    ${t.muted ? '🔇' : '🔊'}
-                </button>
-            </div>`).join('');
-    }
+    let filas = [];
 
-    html += `<div class="pistas-seccion">Metrónomo</div>
-        <div class="pista-row" style="border-bottom:none">
-            <span class="pista-dot" style="background:#666"></span>
-            <span class="pista-nombre">Metrónomo</span>
-            <button class="btn-pista-mute${clickOn ? '' : ' muted'}" onclick="toggleMetronomo()">
-                ${clickOn ? '🔊' : '🔇'}
-            </button>
-        </div>`;
+    if (tabAudioEl.src)
+        filas.push(fila('#e67e22', 'Audio', currentCancionNombre || 'Audio', tabAudioEl.muted, 'toggleMuteAudio()'));
 
-    lista.innerHTML = html;
+    filas.push(fila('#3498db', 'Partitura', 'Partitura', !partituraOn, 'togglePartitura()'));
+
+    accompTracks.forEach((t, i) =>
+        filas.push(fila(t.color, categoriaPista(t.label), t.label, t.muted, `toggleMutePista(${i})`))
+    );
+
+    filas.push(fila('#666', 'Metrónomo', 'Metrónomo', !clickOn, 'toggleMetronomo()', true));
+
+    lista.innerHTML = filas.join('');
+}
+
+function toggleMuteAudio() {
+    tabAudioEl.muted = !tabAudioEl.muted;
+    renderListaPistas();
 }
 
 function toggleMutePista(idx) {
@@ -3456,6 +3520,7 @@ function toggleMetronomo() {
 
 document.addEventListener('click', e => {
     if (!pistasOpen) return;
+    if (!document.contains(e.target)) return;
     if (!e.target.closest('#panelPistas') && e.target.id !== 'btnPistas' && !e.target.closest('#btnPistas')) {
         document.getElementById('panelPistas').classList.remove('open');
         document.getElementById('btnPistas').classList.remove('activo');
@@ -3835,7 +3900,7 @@ async function abrirSelectorAlumnos() {
         }
         lista.innerHTML = html || '<p style="color:#555;text-align:center;padding:8px">Sin alumnos registrados.</p>';
     } catch (e) {
-        lista.innerHTML = '<p style="color:#e74c3c;text-align:center;padding:8px">Error al cargar.</p>';
+        lista.innerHTML = `<p style="color:#e74c3c;text-align:center;padding:8px">Error al cargar: ${e.message}</p>`;
     }
 }
 function loginDesdeSelector(id, nombre, apellido) {
