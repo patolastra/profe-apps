@@ -554,6 +554,7 @@
 <div id="tab-audio-bar">
     <input type="range" id="tab-seek" value="0" step="0.1" oninput="seekTab(+this.value)" onchange="seekTab(+this.value)">
     <span id="tab-time-display">0:00 / 0:00</span>
+    <span id="sync-beat-badge" style="display:none;font-family:monospace;font-size:.82rem;background:#1a2a3a;border:1px solid #2980b9;border-radius:4px;padding:2px 8px;color:#7fc8f8;white-space:nowrap"></span>
     <span class="sync-status-label" id="sync-status-label" style="display:none">Sin sincronización</span>
 
     <!-- Ajuste fino de offset (visible solo cuando hay sync) -->
@@ -866,18 +867,18 @@ function ensureAudio() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
-function playClick(accent) {
+function playClick(accent, when) {
     if (!audioCtx) return;
-    const now  = audioCtx.currentTime;
+    const t    = (when != null) ? Math.max(audioCtx.currentTime, when) : audioCtx.currentTime;
     const freq = accent ? 1800 : 1100;
     const vol  = accent ? 0.50 : 0.30;
     const osc  = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = 'triangle'; osc.frequency.value = freq;
     osc.connect(gain); gain.connect(audioCtx.destination);
-    gain.gain.setValueAtTime(vol, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
-    osc.start(now); osc.stop(now + 0.045);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.045);
+    osc.start(t); osc.stop(t + 0.045);
 }
 
 function buildKSBuffer(midi) {
@@ -983,7 +984,8 @@ let clickOn     = true;
 let audioCtx = null;
 let ksCache  = new Map();
 let guitarSF = null;
-let lastClickBeat = -1;
+let lastClickBeat    = -1;
+let lastScheduledBeat = -1; // lookahead: mayor beat ya agendado en AudioContext
 
 let swingOn    = false;
 let swingRatio = 0.62;   // 62% largo / 38% corto ≈ swing jazz estándar
@@ -996,6 +998,7 @@ let chordEvents  = []; // [{ tStart, tEnd, label, color, strum, subBlocks, large
 let audioSyncMode       = false;
 let tabSyncData         = null;   // { mode, bpm?, offset_ms?, map? } guardado en BD
 let tabSyncBuilt        = null;   // mapa precalculado [{ qn, bpm, startMs }]
+let audioCtxSyncRef     = null;   // { ctxTime, mediaTime } — referencia para agendar beats precisos
 let tabAudioEl          = document.getElementById('tab-audio');
 let currentTabAssetId   = null;   // id del asset tab activo (para guardar sync)
 let currentTabCancionId = null;   // cancion_id del asset tab activo
@@ -1136,7 +1139,7 @@ function doRestart() {
     if (loopActive) initLoopCycle();
     currentTime = loopActive ? loopPassiveInStart : 0;
     prevTime = currentTime - 0.001;
-    tabEnded = false; lastClickBeat = -1; fallVY = 0;
+    tabEnded = false; lastClickBeat = -1; lastScheduledBeat = -1; fallVY = 0;
     resetHits();
     // TabSync: preposicionar el audio en el mismo punto de inicio
     if (audioSyncMode && tabSyncData && tabAudioEl.src) {
@@ -1156,7 +1159,7 @@ document.getElementById('btnPlay').onclick = () => {
     ensureAudio();
     tabEnded = false;
     if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); }
-    lastClickBeat = -1;
+    lastClickBeat = -1; lastScheduledBeat = -1;
     isPlaying = true;
     iniciarPractica();
 };
@@ -1171,15 +1174,21 @@ function syncHitsToTime(t) {
     notes.forEach(n => { n.hit = n.time < t; n.hitAt = n.hit ? n.time : 0; });
     accompTracks.forEach(tr => tr.notes.forEach(n => { n.hit = n.time < t; }));
     chordEvents.forEach(e => { e.hit = e.tStart < t; });
-    lastClickBeat = -1; tabEnded = false;
+    lastClickBeat = -1; lastScheduledBeat = -1; tabEnded = false;
 }
 
 function seekTab(audioSec) {
-    tabAudioEl.currentTime = Math.max(0, audioSec);
+    const clamp = Math.max(0, audioSec);
+    tabAudioEl.currentTime = clamp;
     if (audioSyncMode && tabSyncData) {
-        currentTime = audioToPartituraTime(audioSec);
+        currentTime = audioToPartituraTime(clamp);
         prevTime    = currentTime - 0.001;
         syncHitsToTime(currentTime);
+    }
+    // Invalidar beats pre-agendados y referencia de sync al hacer seek
+    lastScheduledBeat = -1;
+    if (audioCtx && audioCtxSyncRef) {
+        audioCtxSyncRef = { ctxTime: audioCtx.currentTime, mediaTime: clamp };
     }
 }
 
@@ -1330,7 +1339,7 @@ document.addEventListener('keydown', e => {
     else {
         tabEnded = false;
         if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); }
-        lastClickBeat = -1; isPlaying = true;
+        lastClickBeat = -1; lastScheduledBeat = -1; isPlaying = true;
     }
 });
 
@@ -1804,7 +1813,7 @@ function parseXML(doc, fromToggle = false) {
     actualizarBadgeAcordes();
     chordOverlayCurLabel = null; chordOverlaySigLabel = null;
     currentTime = 0; isPlaying = false;
-    tabEnded = false; lastClickBeat = -1;
+    tabEnded = false; lastClickBeat = -1; lastScheduledBeat = -1;
     ksCache = new Map();
     clearLoopState();
     if (notes.length) ballY = START_Y + (notes[0].string - 1) * STR_SPACING;
@@ -1907,10 +1916,10 @@ function animLoop(ts) {
                 loopPhase = 'passiveOut';
                 lastClickBeat = Math.floor((loopOut - loopPassiveOutStart) / loopCyclePulseDur);
             } else if (loopPhase === 'passiveOut' && currentTime >= loopPassiveOutEnd) {
-                loopPhase = 'passiveIn'; currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); lastClickBeat = -1;
+                loopPhase = 'passiveIn'; currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); lastClickBeat = -1; lastScheduledBeat = -1;
                 if (audioSyncMode && tabSyncData) tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(loopPassiveInStart));
             } else if (loopPhase === 'passiveIn' && currentTime >= loopIn) {
-                loopPhase = 'active'; currentTime = loopIn; prevTime = loopIn - 0.001; resetHits(); lastClickBeat = -1;
+                loopPhase = 'active'; currentTime = loopIn; prevTime = loopIn - 0.001; resetHits(); lastClickBeat = -1; lastScheduledBeat = -1;
                 if (audioSyncMode && tabSyncData) tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(loopIn));
             }
         }
@@ -1952,13 +1961,29 @@ function animLoop(ts) {
             if (clickAnchor >= 0) {
                 const elapsed     = currentTime - clickAnchor;
                 const currentBeat = Math.floor(elapsed / pDur);
-                if (elapsed >= 0 && currentBeat !== lastClickBeat) {
-                    lastClickBeat = currentBeat;
-                    playClick(currentBeat % pulsesPerBar === 0);
+                if (elapsed >= 0) {
+                    if (audioSyncMode && tabSyncBuilt && audioCtx && !tabAudioEl.paused) {
+                        // Lookahead scheduling: agenda el beat actual + el siguiente.
+                        // Cuando se detecta beat N, tabAudioEl.currentTime ya pasó N por δ ms
+                        // (latencia de chunk). Calculamos dt = (beatSiguienteSec - audioActual)/speed
+                        // que compensa δ exactamente: el siguiente beat se agenda con precisión.
+                        const maxBeat = currentBeat + 1;
+                        for (let b = Math.max(lastScheduledBeat + 1, currentBeat); b <= maxBeat; b++) {
+                            const isAcc   = b % pulsesPerBar === 0;
+                            const bSec    = partituraTimeToAudioSec(clickAnchor + b * pDur);
+                            const dt      = (bSec - tabAudioEl.currentTime) / speed;
+                            playClick(isAcc, audioCtx.currentTime + Math.max(0.003, dt));
+                            lastScheduledBeat = b;
+                        }
+                        lastClickBeat = currentBeat;
+                    } else if (currentBeat !== lastClickBeat) {
+                        lastClickBeat = currentBeat;
+                        playClick(currentBeat % pulsesPerBar === 0);
+                    }
                 }
             }
         }
-        if (!loopActive && currentTime < approachEnd) lastClickBeat = -1;
+        if (!loopActive && currentTime < approachEnd) { lastClickBeat = -1; lastScheduledBeat = -1; }
         actualizarOverlayAcordes();
 
         if (!loopActive || loopPhase === 'active') {
@@ -2843,6 +2868,8 @@ function iniciarAudioSync() {
     tabAudioEl.playbackRate = speed;
     tabAudioEl.currentTime = seekTo;
     tabAudioEl.play().catch(err => console.error('[audio] play() falló:', err));
+    // Referencia para agendar metronomo: capturar relación audioCtx↔mediaTime al arrancar
+    audioCtxSyncRef = { ctxTime: audioCtx.currentTime, mediaTime: seekTo };
 }
 
 function stopSyncedPlayback() {
@@ -2986,8 +3013,8 @@ function cargarMidiTempoMap(file) {
                 const syncData = {
                     mode: 'tempomap',
                     map: deduped,
-                    start_qn: markerQN,             // posición real del marker en el MIDI
-                    offset_ms: Math.round(-timeAtMarkerMs)  // negativo: audio empieza después del origen
+                    start_qn: beatsPerBar,          // QN del downbeat de compás 2 = donde vive notes[0]
+                    offset_ms: Math.round(-timeAtMarkerMs)  // negativo: audio empieza en el marker
                 };
 
                 // Guardar en BD y activar en memoria
@@ -3002,14 +3029,14 @@ function cargarMidiTempoMap(file) {
                 actualizarSyncStatus();
 
                 // Actualizar campos del panel para que el usuario vea qué se aplicó
-                document.getElementById('sync-start-qn').value = markerQN;
+                document.getElementById('sync-start-qn').value = beatsPerBar;
                 syncOffsetTm = syncData.offset_ms;
                 document.getElementById('sync-offset-display-tm').textContent =
                     (syncData.offset_ms / 1000).toFixed(3) + ' s';
 
                 statusEl.style.color = '#4CAF50';
                 statusEl.textContent =
-                    `✓ ${deduped.length} pts · compás al aire ${beatsPerBar}/4 · audio en ${markerQN.toFixed(3)} QN · offset ${(syncData.offset_ms/1000).toFixed(3)}s`;
+                    `✓ ${deduped.length} pts · start_qn=${beatsPerBar} (compás 2) · marker en ${markerQN.toFixed(3)} QN · offset ${(syncData.offset_ms/1000).toFixed(3)}s`;
             } else {
                 statusEl.style.color = '#f39c12';
                 statusEl.textContent = `✓ ${deduped.length} puntos cargados · sin marker (configurá offset manualmente)`;
@@ -3170,6 +3197,22 @@ tabAudioEl.addEventListener('timeupdate', () => {
     seek.value = tabAudioEl.currentTime;
     const fmt = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
     lbl.textContent = `${fmt(tabAudioEl.currentTime)} / ${fmt(tabAudioEl.duration || 0)}`;
+
+    // Badge diagnóstico: compás partitura | compás MIDI | BPM actual
+    const badge = document.getElementById('sync-beat-badge');
+    if (audioSyncMode && tabSyncBuilt) {
+        const ms    = tabAudioEl.currentTime * 1000;
+        const absQN = msToQN(ms, tabSyncBuilt);
+        let curBpm  = tabSyncBuilt[0].bpm;
+        for (const seg of tabSyncBuilt) { if (seg.startMs <= ms) curBpm = seg.bpm; }
+        const midiMeasure = Math.floor(absQN / 4) + 1;
+        const mIdx        = measureData.findIndex(m => currentTime >= m.tStart && currentTime < m.tEnd);
+        const partMeasure = mIdx >= 0 ? mIdx + 1 : '—';
+        badge.textContent = `C${partMeasure} | M${midiMeasure} | ${curBpm.toFixed(1)} BPM`;
+        badge.style.display = '';
+    } else {
+        badge.style.display = 'none';
+    }
 });
 
 tabAudioEl.addEventListener('loadedmetadata', () => {
