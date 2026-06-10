@@ -1886,7 +1886,11 @@ function animLoop(ts) {
             // Tiempo manejado por el audio externo
             currentTime = audioToPartituraTime(tabAudioEl.currentTime);
         } else {
-            currentTime += dt * speed;
+            // Durante precuenta con MIDI sync: avanzar al BPM del compás al aire del MIDI
+            const factorBPM = (audioSyncMode && tabSyncBuilt?.length && tabAudioEl.paused)
+                ? tabSyncBuilt[0].bpm / bpm
+                : 1;
+            currentTime += dt * speed * factorBPM;
         }
         document.getElementById('timeDisplay').textContent = currentTime.toFixed(2) + 's';
 
@@ -2785,6 +2789,28 @@ function partituraTimeToAudioSec(partTime) {
     }
 }
 
+// ─── DIAGNÓSTICO SYNC ────────────────────────────────────────────────────────
+let _syncLogInterval = null;
+function iniciarLogSync() {
+    if (_syncLogInterval) clearInterval(_syncLogInterval);
+    _syncLogInterval = setInterval(() => {
+        if (!audioSyncMode || !tabSyncBuilt || tabAudioEl.paused) return;
+        const audioSec  = tabAudioEl.currentTime;
+        const ms        = audioSec * 1000;
+        const absQN     = msToQN(ms, tabSyncBuilt);
+        const relQN     = absQN - (tabSyncData.start_qn || 0);
+        const partTime  = audioToPartituraTime(audioSec);
+        const noteIdx   = notes.findIndex((n, i) =>
+            n.time <= partTime && (i === notes.length - 1 || notes[i+1].time > partTime));
+        const notaInfo  = noteIdx >= 0 ? `nota[${noteIdx}] t=${notes[noteIdx].time.toFixed(3)}s` : '—';
+        console.log(
+            `[sync] audio=${audioSec.toFixed(3)}s | start_qn=${(tabSyncData.start_qn||0).toFixed(3)} | absQN=${absQN.toFixed(3)} | relQN=${relQN.toFixed(3)} | partTime=${partTime.toFixed(3)}s | ${notaInfo}`
+        );
+    }, 1000);
+}
+function detenerLogSync() { clearInterval(_syncLogInterval); _syncLogInterval = null; }
+// Llamar iniciarLogSync() en consola para activar; detenerLogSync() para parar
+
 // Inicia audio + MIDI juntos desde la posición actual de la partitura
 function startSyncedPlayback() {
     ensureAudio();
@@ -2796,6 +2822,12 @@ function startSyncedPlayback() {
     const inPrecuenta = loopActive ? (loopPhase !== 'active') : (currentTime < firstNoteT);
     if (!inPrecuenta) {
         iniciarAudioSync();
+    } else if (audioSyncMode && tabAudioEl.src.startsWith('http')) {
+        // Pre-buffering: seek al inicio y play+pause inmediato para que el browser
+        // cargue el audio en memoria antes de que termine la precuenta.
+        // Así el play() final arranca sin latencia de buffering.
+        tabAudioEl.currentTime = 0;
+        tabAudioEl.play().then(() => tabAudioEl.pause()).catch(() => {});
     }
 }
 
@@ -2954,7 +2986,7 @@ function cargarMidiTempoMap(file) {
                 const syncData = {
                     mode: 'tempomap',
                     map: deduped,
-                    start_qn: beatsPerBar,          // compás 2 = inicio de la canción
+                    start_qn: markerQN,             // posición real del marker en el MIDI
                     offset_ms: Math.round(-timeAtMarkerMs)  // negativo: audio empieza después del origen
                 };
 
@@ -2970,7 +3002,7 @@ function cargarMidiTempoMap(file) {
                 actualizarSyncStatus();
 
                 // Actualizar campos del panel para que el usuario vea qué se aplicó
-                document.getElementById('sync-start-qn').value = beatsPerBar;
+                document.getElementById('sync-start-qn').value = markerQN;
                 syncOffsetTm = syncData.offset_ms;
                 document.getElementById('sync-offset-display-tm').textContent =
                     (syncData.offset_ms / 1000).toFixed(3) + ' s';
