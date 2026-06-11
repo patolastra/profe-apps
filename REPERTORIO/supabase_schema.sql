@@ -49,6 +49,16 @@ CREATE TABLE IF NOT EXISTS alumno_tabs (
 ALTER TABLE alumno_tabs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "anon_all" ON alumno_tabs FOR ALL TO anon USING (true) WITH CHECK (true);
 
+-- Asignación de secciones individuales a alumnos (para tabs con rehearsal marks)
+CREATE TABLE IF NOT EXISTS alumno_tab_secciones (
+    alumno_id  TEXT NOT NULL,   -- ID del alumno (alumnos_taller)
+    asset_id   TEXT NOT NULL,   -- ID del asset (repertorio_assets)
+    seccion    TEXT NOT NULL,   -- nombre de la sección (ej: 'Intro', 'Estrofa')
+    PRIMARY KEY (alumno_id, asset_id, seccion)
+);
+ALTER TABLE alumno_tab_secciones ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_all" ON alumno_tab_secciones FOR ALL TO anon USING (true) WITH CHECK (true);
+
 -- Mensajes de recordatorio por alumno en ejercicio específico
 CREATE TABLE IF NOT EXISTS tab_mensajes_alumno (
     storage_path  TEXT NOT NULL,   -- identifica el archivo tab en Supabase Storage

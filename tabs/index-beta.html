@@ -467,7 +467,7 @@
     </button>
 </div>
 <input type="file" id="fileInput" accept=".xml,.musicxml,.mxl">
-<audio id="tab-audio"></audio>
+<audio id="tab-audio" crossorigin="anonymous"></audio>
 
 <!-- CONTROLES -->
 <div class="controls">
@@ -568,6 +568,12 @@
         <button class="nudge-btn" onclick="nudgeOffset(+100)" title="+100ms">▶</button>
         <button class="nudge-btn" onclick="nudgeOffset(+1000)" title="+1s">▶▶</button>
         <button id="btn-nudge-save" style="display:none;background:#27ae60;color:#fff;padding:4px 10px;font-size:.78rem;border:none;border-radius:4px;cursor:pointer" onclick="guardarNudge()">💾</button>
+        <span style="border-left:1px solid #333;padding-left:10px;margin-left:4px;font-size:.75rem;color:#666;white-space:nowrap">click latencia</span>
+        <button class="nudge-btn" onclick="ajustarClickLatency(-100)" title="-100ms">◀</button>
+        <button class="nudge-btn" onclick="ajustarClickLatency(-10)"  title="-10ms">‹</button>
+        <span id="click-latency-display" style="font-family:monospace;font-size:.82rem;color:#e67e22;min-width:52px;text-align:center">0 ms</span>
+        <button class="nudge-btn" onclick="ajustarClickLatency(+10)"  title="+10ms">›</button>
+        <button class="nudge-btn" onclick="ajustarClickLatency(+100)" title="+100ms">▶</button>
     </div>
 
     <button id="btn-config-sync" onclick="abrirConfigSync()" style="display:none">⚙ Sync</button>
@@ -999,6 +1005,10 @@ let audioSyncMode       = false;
 let tabSyncData         = null;   // { mode, bpm?, offset_ms?, map? } guardado en BD
 let tabSyncBuilt        = null;   // mapa precalculado [{ qn, bpm, startMs }]
 let audioCtxSyncRef     = null;   // { ctxTime, mediaTime } — referencia para agendar beats precisos
+let audioMediaSource    = null;   // MediaElementSourceNode — enruta tabAudioEl por Web Audio API
+let clickLatencyMs      = 0;      // compensación latencia HTMLAudioEl vs AudioCtx (pipeline separados)
+let _lastAudioTime      = 0;      // tabAudioEl.currentTime en el último timeupdate
+let _lastAudioPerf      = 0;      // performance.now() en el último timeupdate (para interpolación)
 let tabAudioEl          = document.getElementById('tab-audio');
 let currentTabAssetId   = null;   // id del asset tab activo (para guardar sync)
 let currentTabCancionId = null;   // cancion_id del asset tab activo
@@ -1962,17 +1972,18 @@ function animLoop(ts) {
                 const elapsed     = currentTime - clickAnchor;
                 const currentBeat = Math.floor(elapsed / pDur);
                 if (elapsed >= 0) {
-                    if (audioSyncMode && tabSyncBuilt && audioCtx && !tabAudioEl.paused) {
+                    if (audioSyncMode && tabSyncBuilt && audioCtx && !tabAudioEl.paused && audioCtxSyncRef) {
                         // Lookahead scheduling: agenda el beat actual + el siguiente.
                         // Cuando se detecta beat N, tabAudioEl.currentTime ya pasó N por δ ms
                         // (latencia de chunk). Calculamos dt = (beatSiguienteSec - audioActual)/speed
                         // que compensa δ exactamente: el siguiente beat se agenda con precisión.
                         const maxBeat = currentBeat + 1;
                         for (let b = Math.max(lastScheduledBeat + 1, currentBeat); b <= maxBeat; b++) {
-                            const isAcc   = b % pulsesPerBar === 0;
-                            const bSec    = partituraTimeToAudioSec(clickAnchor + b * pDur);
-                            const dt      = (bSec - tabAudioEl.currentTime) / speed;
-                            playClick(isAcc, audioCtx.currentTime + Math.max(0.003, dt));
+                            const isAcc = b % pulsesPerBar === 0;
+                            const bSec  = partituraTimeToAudioSec(clickAnchor + b * pDur);
+                            const dt    = (bSec - tabAudioEl.currentTime) / speed;
+                            const scheduleAt = audioCtx.currentTime + Math.max(0.003, Math.min(2.0, dt + clickLatencyMs / 1000));
+                            playClick(isAcc, scheduleAt);
                             lastScheduledBeat = b;
                         }
                         lastClickBeat = currentBeat;
@@ -2863,6 +2874,12 @@ function iniciarAudioSync() {
         tabAudioEl.addEventListener('canplay', iniciarAudioSync, { once: true });
         return;
     }
+    // Conectar el audio al Web Audio API (una sola vez) para compartir pipeline de salida con el click
+    ensureAudio();
+    if (!audioMediaSource) {
+        audioMediaSource = audioCtx.createMediaElementSource(tabAudioEl);
+        audioMediaSource.connect(audioCtx.destination);
+    }
     const seekTo = Math.max(0, partituraTimeToAudioSec(currentTime));
     console.log('[audio] iniciarAudioSync — seekTo:', seekTo.toFixed(3), 's');
     tabAudioEl.playbackRate = speed;
@@ -3127,6 +3144,22 @@ function audioToPartituraTime(audioSec) {
     return notes[0].time + relQN * (60 / bpm);
 }
 
+// Posición interpolada del audio — elimina jitter de polling de tabAudioEl.currentTime (~50ms chunks)
+function getAudioPos() {
+    if (tabAudioEl.paused || !_lastAudioPerf) return tabAudioEl.currentTime;
+    const elapsed = (performance.now() - _lastAudioPerf) / 1000;
+    if (elapsed > 0.2) return tabAudioEl.currentTime;
+    const interp = _lastAudioTime + elapsed * (tabAudioEl.playbackRate || 1);
+    // Si la interpolación se aleja >500ms del valor reportado, hubo un seek — usar el valor real
+    if (Math.abs(interp - tabAudioEl.currentTime) > 0.5) return tabAudioEl.currentTime;
+    return interp;
+}
+
+function ajustarClickLatency(deltaMs) {
+    clickLatencyMs += deltaMs;
+    document.getElementById('click-latency-display').textContent = clickLatencyMs + ' ms';
+}
+
 function nudgeOffset(deltaMs) {
     if (!tabSyncData) return;
     tabSyncData.offset_ms = (tabSyncData.offset_ms || 0) + deltaMs;
@@ -3191,7 +3224,13 @@ function toggleTabAudio() {
     }
 }
 
+tabAudioEl.addEventListener('seeking',   () => { _lastAudioPerf = 0; });
+tabAudioEl.addEventListener('seeked',    () => { _lastAudioTime = tabAudioEl.currentTime; _lastAudioPerf = performance.now(); });
+tabAudioEl.addEventListener('playing',   () => { _lastAudioTime = tabAudioEl.currentTime; _lastAudioPerf = performance.now(); });
+
 tabAudioEl.addEventListener('timeupdate', () => {
+    _lastAudioTime = tabAudioEl.currentTime;
+    _lastAudioPerf = performance.now();
     const seek = document.getElementById('tab-seek');
     const lbl  = document.getElementById('tab-time-display');
     seek.value = tabAudioEl.currentTime;
@@ -3208,7 +3247,8 @@ tabAudioEl.addEventListener('timeupdate', () => {
         const midiMeasure = Math.floor(absQN / 4) + 1;
         const mIdx        = measureData.findIndex(m => currentTime >= m.tStart && currentTime < m.tEnd);
         const partMeasure = mIdx >= 0 ? mIdx + 1 : '—';
-        badge.textContent = `C${partMeasure} | M${midiMeasure} | ${curBpm.toFixed(1)} BPM`;
+        const outLat = audioCtx ? Math.round((audioCtx.outputLatency || 0) * 1000) : '?';
+        badge.textContent = `C${partMeasure} | M${midiMeasure} | ${curBpm.toFixed(1)} BPM | ctx ${outLat}ms | click ${clickLatencyMs}ms`;
         badge.style.display = '';
     } else {
         badge.style.display = 'none';
@@ -3344,16 +3384,23 @@ async function abrirModalRep() {
     try {
         let assetIds = null;
 
+        let alumnoSecMap = null; // { assetId: [seccion, ...] } — solo modo alumno
         if (alumnoActual) {
-            // Modo alumno: cargar solo tabs asignadas individualmente
-            const asig = await sbGet(
-                `/rest/v1/alumno_tabs?alumno_id=eq.${alumnoActual.id}&select=asset_id`
-            );
-            if (!asig.length) {
+            const [asigTabs, asigSecs] = await Promise.all([
+                sbGet(`/rest/v1/alumno_tabs?alumno_id=eq.${alumnoActual.id}&select=asset_id`),
+                sbGet(`/rest/v1/alumno_tab_secciones?alumno_id=eq.${alumnoActual.id}&select=asset_id,seccion`).catch(() => [])
+            ]);
+            alumnoSecMap = {};
+            for (const r of asigSecs) {
+                if (!alumnoSecMap[r.asset_id]) alumnoSecMap[r.asset_id] = [];
+                alumnoSecMap[r.asset_id].push(r.seccion);
+            }
+            const allIds = new Set([...asigTabs.map(r => r.asset_id), ...asigSecs.map(r => r.asset_id)]);
+            if (!allIds.size) {
                 lista.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">Todavía no tenés ejercicios asignados.</p>';
                 return;
             }
-            assetIds = asig.map(r => r.asset_id);
+            assetIds = [...allIds];
         }
 
         let url = `${SB_URL}/rest/v1/repertorio_assets` +
@@ -3414,13 +3461,42 @@ async function abrirModalRep() {
                 const label = a.etiqueta || a.nombre_archivo || '';
                 const sp = (a.storage_path  || '').replace(/'/g, "\\'");
                 const nf = (a.nombre_archivo || '').replace(/'/g, "\\'");
-                const metaObj = JSON.stringify({ cancion: nombre, etiqueta: label, dificultad: dific, assetId: a.id, cancionId: a.cancion_id, tabSync: a.tab_sync || null }).replace(/'/g,"&#39;");
-                return `<div class="rep-item" onclick="cargarDesdeStorage('${sp}','${nf}',JSON.parse(this.dataset.meta))" data-meta='${metaObj}'>
-                    <div style="display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden">
-                        <span style="font-weight:400;font-size:.84rem;color:#bbb;overflow:hidden;text-overflow:ellipsis">${label}</span>
+                const baseMeta = { cancion: nombre, etiqueta: label, dificultad: dific, assetId: a.id, cancionId: a.cancion_id, tabSync: a.tab_sync || null };
+
+                // Modo alumno con secciones asignadas — mostrar secciones como ítems individuales
+                const seccionesAsignadas = alumnoSecMap?.[a.id];
+                if (seccionesAsignadas?.length) {
+                    const encabezado = `<div style="display:flex;align-items:center;gap:5px;padding:5px 10px 2px;opacity:.7;pointer-events:none">
                         <span style="flex-shrink:0">${INST_EMOJI[inst] || '🎸'}</span>
-                        ${inst  ? `<span style="color:#aaa;font-size:.8rem;flex-shrink:0;text-transform:capitalize">${inst}</span>` : ''}
-                        ${dific ? `<span style="color:${DIFIC_COLOR[dific]||'#888'};font-size:.8rem;flex-shrink:0">· ${dific}</span>` : ''}
+                        ${inst  ? `<span style="color:#aaa;font-size:.78rem;text-transform:capitalize">${inst}</span>` : ''}
+                        ${dific ? `<span style="color:${DIFIC_COLOR[dific]||'#888'};font-size:.78rem">· ${dific}</span>` : ''}
+                    </div>`;
+                    const secsHTML = seccionesAsignadas.map(sec => {
+                        const metaObj = JSON.stringify({ ...baseMeta, seccionAsignada: sec }).replace(/'/g,"&#39;");
+                        return `<div class="rep-item" style="padding-left:22px" onclick="cargarDesdeStorage('${sp}','${nf}',JSON.parse(this.dataset.meta))" data-meta='${metaObj}'>
+                            <span style="font-size:.82rem;color:#ddd">▸ ${sec}</span>
+                        </div>`;
+                    }).join('');
+                    return encabezado + secsHTML;
+                }
+
+                // Tab completa (sin secciones asignadas o modo profe)
+                const metaObj = JSON.stringify(baseMeta).replace(/'/g,"&#39;");
+                let secInfo = '';
+                if (!alumnoSecMap) {
+                    // Modo profe: mostrar secciones disponibles como info
+                    const secs = a.tab_sync?.secciones;
+                    if (secs?.length) secInfo = `<span style="color:#555;font-size:.75rem;flex-shrink:0">↳ ${secs.map(s=>s.nombre).join(' · ')}</span>`;
+                }
+                return `<div class="rep-item" onclick="cargarDesdeStorage('${sp}','${nf}',JSON.parse(this.dataset.meta))" data-meta='${metaObj}'>
+                    <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                        <div style="display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden">
+                            <span style="font-weight:400;font-size:.84rem;color:#bbb;overflow:hidden;text-overflow:ellipsis">${label}</span>
+                            <span style="flex-shrink:0">${INST_EMOJI[inst] || '🎸'}</span>
+                            ${inst  ? `<span style="color:#aaa;font-size:.8rem;flex-shrink:0;text-transform:capitalize">${inst}</span>` : ''}
+                            ${dific ? `<span style="color:${DIFIC_COLOR[dific]||'#888'};font-size:.8rem;flex-shrink:0">· ${dific}</span>` : ''}
+                        </div>
+                        ${secInfo}
                     </div>
                 </div>`;
             }).join('');
@@ -3454,8 +3530,9 @@ async function cargarDesdeStorage(storagePath, nombreArchivo, meta = {}) {
         currentCancionNombre  = meta.cancion  || null;
         currentEtiqueta       = meta.etiqueta || null;
         currentDificultad     = meta.dificultad || null;
-        currentTabAssetId     = meta.assetId   || null;
-        currentTabCancionId   = meta.cancionId || null;
+        currentTabAssetId      = meta.assetId        || null;
+        currentTabCancionId    = meta.cancionId      || null;
+        currentSeccionAsignada = meta.seccionAsignada || null;
 
         // Cargar audio y sync si hay canción vinculada
         tabSyncData  = meta.tabSync || null;
@@ -3484,6 +3561,8 @@ async function cargarDesdeStorage(storagePath, nombreArchivo, meta = {}) {
             xml = await resp.text();
         }
         parseXML(new DOMParser().parseFromString(xml, 'text/xml'));
+        if (currentTabAssetId && !alumnoActual) guardarSecciones(currentTabAssetId);
+        if (currentSeccionAsignada) seekToSeccion(currentSeccionAsignada);
         cargarMensaje(storagePath);
     } catch (err) {
         alert('Error cargando la tablatura: ' + err.message);
@@ -4002,6 +4081,8 @@ const palRepSongsOpen = new Set(); // keys "alumnoId:cancionId" con canción des
 let palModoAsignacion = null;   // alumnoId en sub-vista de asignación, null = lista
 let _palAssetsCache   = [];     // assets cacheados para updates in-place
 let _palAsigCache     = {};     // { alumnoId: Set<assetId> } cacheado
+let _palSecAsigCache  = {};     // { alumnoId: { assetId: Set<seccion> } }
+let currentSeccionAsignada = null; // sección a la que hacer seek al cargar (modo alumno)
 
 mostrarWelcome();
 
@@ -4093,6 +4174,44 @@ function sbDelete(path) {
         method: 'DELETE',
         headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
     }).catch(() => {});
+}
+
+// ── Secciones de tabs ─────────────────────────────────────────────────────
+function extractSecciones() {
+    return measureData
+        .filter(m => m.rehearsalText)
+        .map(m => ({ nombre: m.rehearsalText, tStart: m.tStart }));
+}
+async function guardarSecciones(assetId) {
+    const secciones = extractSecciones();
+    if (!secciones.length) return;
+    try {
+        const rows = await sbGet(`/rest/v1/repertorio_assets?id=eq.${assetId}&select=tab_sync&limit=1`);
+        const tabSync = rows[0]?.tab_sync || {};
+        await sbPatch(`/rest/v1/repertorio_assets?id=eq.${assetId}`, { tab_sync: { ...tabSync, secciones } });
+        if (tabSyncData) tabSyncData = { ...tabSyncData, secciones };
+        else             tabSyncData = { secciones };
+    } catch(e) { console.warn('[tabs] guardarSecciones:', e.message); }
+}
+function seekToSeccion(nombre) {
+    const m = measureData.find(m => m.rehearsalText === nombre);
+    if (!m) return;
+    currentTime = m.tStart;
+    requestAnimationFrame(() => { /* el animLoop dibuja desde currentTime */ });
+}
+async function toggleSeccionAsignacion(alumnoId, assetId, seccion, asignar) {
+    try {
+        if (asignar) {
+            await sbPost('/rest/v1/alumno_tab_secciones', { alumno_id: alumnoId, asset_id: assetId, seccion });
+        } else {
+            await sbDelete(`/rest/v1/alumno_tab_secciones?alumno_id=eq.${alumnoId}&asset_id=eq.${assetId}&seccion=eq.${encodeURIComponent(seccion)}`);
+        }
+        if (!_palSecAsigCache[alumnoId]) _palSecAsigCache[alumnoId] = {};
+        if (!_palSecAsigCache[alumnoId][assetId]) _palSecAsigCache[alumnoId][assetId] = new Set();
+        if (asignar) _palSecAsigCache[alumnoId][assetId].add(seccion);
+        else         _palSecAsigCache[alumnoId][assetId].delete(seccion);
+        actualizarAsigPanel(alumnoId);
+    } catch (e) { mostrarToast('Error al actualizar', true); }
 }
 
 // ── Helpers generales ──────────────────────────────────────────────────────
@@ -4207,7 +4326,7 @@ async function renderPanelAlumnos() {
         // Cargar todo en paralelo
         const [alumnos, todosLosAssets, asistHoyRaw] = await Promise.all([
             sbGet(`/rest/v1/alumnos_taller?contexto=eq.CUERDAS&activo=eq.true&order=curso.asc,apellido.asc,nombre.asc`),
-            sbGet(`/rest/v1/repertorio_assets?tipo=eq.tab&select=id,nombre_archivo,storage_path,cancion_id,instrumento,dificultad,tonalidad,etiqueta,repertorio_canciones(id,nombre,artista)`),
+            sbGet(`/rest/v1/repertorio_assets?tipo=eq.tab&select=id,nombre_archivo,storage_path,cancion_id,instrumento,dificultad,tonalidad,etiqueta,tab_sync,repertorio_canciones(id,nombre,artista)`),
             sbGet(`/rest/v1/practica_log?fecha=eq.${hoy()}&select=alumno_id,duracion_seg`)
         ]);
 
@@ -4215,11 +4334,21 @@ async function renderPanelAlumnos() {
         let asig = {};
         if (alumnos.length) {
             const ids = alumnos.map(a => `alumno_id.eq.${a.id}`).join(',');
-            const rows = await sbGet(`/rest/v1/alumno_tabs?or=(${ids})&select=alumno_id,asset_id`);
+            const [rows, secRows] = await Promise.all([
+                sbGet(`/rest/v1/alumno_tabs?or=(${ids})&select=alumno_id,asset_id`),
+                sbGet(`/rest/v1/alumno_tab_secciones?or=(${ids})&select=alumno_id,asset_id,seccion`).catch(() => [])
+            ]);
             for (const r of rows) {
                 if (!asig[r.alumno_id]) asig[r.alumno_id] = new Set();
                 asig[r.alumno_id].add(r.asset_id);
             }
+            const secAsig = {};
+            for (const r of secRows) {
+                if (!secAsig[r.alumno_id]) secAsig[r.alumno_id] = {};
+                if (!secAsig[r.alumno_id][r.asset_id]) secAsig[r.alumno_id][r.asset_id] = new Set();
+                secAsig[r.alumno_id][r.asset_id].add(r.seccion);
+            }
+            _palSecAsigCache = secAsig;
         }
 
         // Asistencia hoy (suma duración por alumno)
@@ -4551,28 +4680,39 @@ function cerrarModoAsignacion() {
 
 function construirAsigPanelHTML(alumnoId) {
     const asigAlumno = _palAsigCache[alumnoId] || new Set();
+    const secAsigMap = _palSecAsigCache[alumnoId] || {};
     const INST_EMOJI  = { guitarra:'🎸', ukelele:'🪕', bajo:'🎵', metalofono:'🎹', flauta:'🪈' };
     const DIFIC_COLOR = { inicial:'#27ae60', media:'#f39c12', dificil:'#e74c3c', experto:'#8e44ad' };
     const byCancion = {};
     for (const t of _palAssetsCache) {
-        if (!asigAlumno.has(t.id)) continue;
+        const hasTab = asigAlumno.has(t.id);
+        const secSet = secAsigMap[t.id];
+        const hasSec = secSet && secSet.size > 0;
+        if (!hasTab && !hasSec) continue;
         const cid = t.cancion_id;
-        if (!byCancion[cid]) byCancion[cid] = { nombre: t.repertorio_canciones?.nombre || t.nombre_archivo || '', tabs: [] };
-        byCancion[cid].tabs.push(t);
+        if (!byCancion[cid]) byCancion[cid] = { nombre: t.repertorio_canciones?.nombre || t.nombre_archivo || '', items: [] };
+        if (hasSec) {
+            for (const sec of secSet) {
+                byCancion[cid].items.push({ inst: t.instrumento || '', dif: t.dificultad || '', sec });
+            }
+        } else {
+            byCancion[cid].items.push({ inst: t.instrumento || '', dif: t.dificultad || '', sec: null });
+        }
     }
     const cids = Object.keys(byCancion).sort((x, y) => byCancion[x].nombre.localeCompare(byCancion[y].nombre, 'es'));
     if (!cids.length) return `<p style="color:#333;font-size:.72rem;text-align:center;margin:16px 0">Ninguna<br>asignada</p>`;
     return cids.map(cid => {
-        const { nombre, tabs } = byCancion[cid];
+        const { nombre, items } = byCancion[cid];
         return `<div style="margin-bottom:8px">
             <div style="font-size:.71rem;font-weight:700;color:#999;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(nombre)}">${esc(nombre)}</div>
-            ${tabs.map(t => {
-                const inst  = (t.instrumento || '').toLowerCase();
-                const dif   = (t.dificultad  || '').toLowerCase();
+            ${items.map(({ inst, dif, sec }) => {
+                const i = inst.toLowerCase();
+                const d = dif.toLowerCase();
                 return `<div style="font-size:.69rem;display:flex;align-items:center;gap:3px;padding:1px 0 1px 4px;color:#666">
-                    <span>${INST_EMOJI[inst] || '🎸'}</span>
-                    ${inst ? `<span style="color:#aaa;text-transform:capitalize">${inst}</span>` : ''}
-                    ${dif  ? `<span style="color:${DIFIC_COLOR[dif] || '#888'}">· ${dif}</span>` : ''}
+                    <span>${INST_EMOJI[i] || '🎸'}</span>
+                    ${i ? `<span style="color:#aaa;text-transform:capitalize">${i}</span>` : ''}
+                    ${sec ? `<span style="color:#555">· ${esc(sec)}</span>`
+                          : (d ? `<span style="color:${DIFIC_COLOR[d] || '#888'}">· ${d}</span>` : '')}
                 </div>`;
             }).join('')}
         </div>`;
@@ -4584,11 +4724,12 @@ function actualizarAsigPanel(alumnoId) {
     if (panel) panel.innerHTML = construirAsigPanelHTML(alumnoId);
     // Actualizar badges de canciones en el catálogo
     const asigAlumno = _palAsigCache[alumnoId] || new Set();
+    const secAsigMap = _palSecAsigCache[alumnoId] || {};
     document.querySelectorAll('[data-song-badge]').forEach(el => {
         const key  = el.dataset.songBadge;          // "cancionId:total"
         const [cid, total] = key.split(':');
         const tabsEnCancion = _palAssetsCache.filter(t => t.cancion_id === cid);
-        const cnt = tabsEnCancion.filter(t => asigAlumno.has(t.id)).length;
+        const cnt = tabsEnCancion.filter(t => asigAlumno.has(t.id) || (secAsigMap[t.id]?.size || 0) > 0).length;
         el.textContent  = cnt > 0 ? `${cnt}/${total}` : total;
         el.style.background = cnt > 0 ? '#27ae60' : 'transparent';
         el.style.color      = cnt > 0 ? '#fff' : '#333';
@@ -4625,7 +4766,16 @@ function construirSubVistaAsignacion(al, assets, asig) {
         const { nombre, tabs } = byCancion[cid];
         const key     = `${alumnoId}:${cid}`;
         const isOpen  = palRepSongsOpen.has(key);
-        const asigCnt = tabs.filter(t => asigAlumno.has(t.id)).length;
+        const secAsigMap = _palSecAsigCache[alumnoId] || {};
+        let asigCnt = 0;
+        for (const t of tabs) {
+            const secciones = t.tab_sync?.secciones || [];
+            if (secciones.length > 0) {
+                if ((secAsigMap[t.id]?.size || 0) > 0) asigCnt++;
+            } else {
+                if (asigAlumno.has(t.id)) asigCnt++;
+            }
+        }
 
         const tabsHTML = tabs.map(t => {
             const inst  = (t.instrumento || '').toLowerCase();
@@ -4634,6 +4784,34 @@ function construirSubVistaAsignacion(al, assets, asig) {
             const etq   = t.etiqueta  || t.nombre_archivo || '';
             const emoji = INST_EMOJI[inst] || '🎸';
             const color = DIFIC_COLOR[dif] || '#666';
+            const secciones = t.tab_sync?.secciones || [];
+            const asigSecs  = secAsigMap[t.id] || new Set();
+
+            if (secciones.length > 0) {
+                // Tab con secciones — sub-checkboxes por sección
+                const partes = [
+                    inst ? `<span style="text-transform:capitalize;color:#888">${inst}</span>` : '',
+                    dif  ? `<span style="color:${color};text-transform:capitalize">${dif}</span>` : '',
+                ].filter(Boolean).join('<span style="color:#333;margin:0 2px">·</span>');
+                const secsHTML = secciones.map(s => {
+                    const chk = asigSecs.has(s.nombre) ? 'checked' : '';
+                    const sNom = s.nombre.replace(/'/g,"\\'");
+                    return `<label style="display:flex;align-items:center;gap:6px;padding:4px 8px 4px 24px;cursor:pointer;border-top:1px solid #111;background:#080808">
+                        <input type="checkbox" ${chk} style="accent-color:#27ae60;width:13px;height:13px;cursor:pointer;flex-shrink:0"
+                            onchange="toggleSeccionAsignacion('${alumnoId}','${t.id}','${sNom}',this.checked)">
+                        <span style="font-size:.72rem;color:#bbb">${esc(s.nombre)}</span>
+                    </label>`;
+                }).join('');
+                return `<div style="border-top:1px solid #1c1c1c;background:#0f0f0f">
+                    <div style="display:flex;align-items:center;gap:5px;padding:5px 8px 3px 10px">
+                        <span style="flex-shrink:0">${emoji}</span>
+                        <span style="font-size:.72rem;display:flex;gap:3px;align-items:center;color:#777">${partes || esc(etq)}</span>
+                    </div>
+                    ${secsHTML}
+                </div>`;
+            }
+
+            // Tab sin secciones — comportamiento actual
             const chk   = asigAlumno.has(t.id) ? 'checked' : '';
             const partes = [
                 inst ? `<span style="text-transform:capitalize;color:#ccc">${inst}</span>` : '',
