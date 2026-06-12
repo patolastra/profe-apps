@@ -460,6 +460,14 @@
             border-color: var(--accent);
             color: var(--accent);
         }
+        /* PERSONAL — identidad propia (ámbar), no es un curso */
+        .curso-toggle.personal { border-color: #d97706; color: #b45309; }
+        .curso-toggle.personal.asignado { background: #d97706; border-color: #d97706; color: #fff; }
+        .curso-toggle.personal:hover:not(.asignado) { border-color: #b45309; color: #b45309; background: #fffbeb; }
+        .chip.personal { border-color: #d97706; color: #b45309; }
+        .chip.personal.activo { background: #d97706; border-color: #d97706; color: #fff; }
+        .chip.personal:hover:not(.activo) { border-color: #b45309; color: #b45309; }
+        .curso-badge.personal { background: #fef3c7; color: #b45309; }
 
         /* Assets */
         .asset-list { display: flex; flex-direction: column; gap: 8px; }
@@ -521,16 +529,36 @@
             color: var(--muted);
             padding: 6px 12px 2px;
         }
+        .tab-entry { border-bottom: 1px solid var(--border); }
+        .tab-entry:last-child { border-bottom: none; }
         .tab-item {
             position: relative;
             display: flex;
             align-items: center;
             padding: 7px 12px;
-            border-bottom: 1px solid var(--border);
             gap: 8px;
         }
-        .tab-item:last-child { border-bottom: none; }
         .tab-item:hover { background: #f1f5f9; }
+        .tab-secs-toggle {
+            background: none; border: none; color: var(--muted); cursor: pointer;
+            font-size: 0.8rem; padding: 0 2px; flex-shrink: 0;
+            transition: transform 0.15s; display: inline-block;
+        }
+        .tab-secs-toggle:hover { color: var(--text); }
+        .tab-secs-count {
+            font-size: 0.66rem; color: var(--muted); background: #eef2f7;
+            border-radius: 8px; padding: 1px 7px; flex-shrink: 0;
+        }
+        .tab-secciones {
+            display: flex; flex-wrap: wrap; gap: 5px;
+            padding: 2px 12px 10px 30px;
+        }
+        .tab-seccion {
+            font-size: 0.74rem; background: #eff6ff; color: #1d4ed8;
+            border: 1px solid #bfdbfe; border-radius: 6px; padding: 4px 10px;
+            cursor: pointer; font-family: inherit; transition: background 0.12s, color 0.12s;
+        }
+        .tab-seccion:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
         .tab-item-info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
         .tab-item-desc { font-size: 0.78rem; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .tab-item-actions {
@@ -2312,10 +2340,13 @@
 <script>
 // ── CONSTANTES ──────────────────────────────────────────────────────────────
 const CONTEXTOS = [
+    'PERSONAL',
     'ORIENTACIÓN','TERCERO','CUARTO','CUERDAS','ENLACE','SEXTO',
     'RECREO','QUINTO','PRIMERO','SEGUNDO','SEPTIMO',
     'KIDS CASTIGADAS','OCTAVO','CASTIGADAS','GENERAL'
 ];
+// Nombre de display por contexto (igual que el alias KIDS). PERSONAL = trabajo del músico, no una clase.
+const ctxLabel = ctx => ctx === 'PERSONAL' ? '⭐ Personal' : ctx === 'KIDS CASTIGADAS' ? 'KIDS' : ctx;
 
 const TIPOS_ASSET = {
     letra:     { ico: '📝', label: 'Letra',      clase: 'letra'   },
@@ -2517,9 +2548,11 @@ function cardHTML(c) {
         return `<span class="asset-ico ${info.clase}">${info.label}</span>`;
     }).join('');
 
-    const cursoBadges = (c.contextos||[]).map(ctx =>
-        `<span class="curso-badge">${ctx === 'KIDS CASTIGADAS' ? 'KIDS' : ctx}</span>`
-    ).join('');
+    const cursoBadges = (c.contextos||[]).slice()
+        .sort((a,b) => (a==='PERSONAL'?-1:b==='PERSONAL'?1:0))
+        .map(ctx =>
+            `<span class="curso-badge${ctx === 'PERSONAL' ? ' personal' : ''}">${ctxLabel(ctx)}</span>`
+        ).join('');
 
     return `
     <div class="song-card ${activa}" onclick="abrirPanel('${c.id}')">
@@ -2534,14 +2567,20 @@ function cardHTML(c) {
 }
 
 function renderChips() {
-    // cursos que tienen canciones asignadas
-    const cursosUsados = [...new Set(canciones.flatMap(c => c.contextos||[]))].sort();
+    // cursos que tienen canciones asignadas; PERSONAL siempre primero (no entra al sort alfabético)
+    const usados = [...new Set(canciones.flatMap(c => c.contextos||[]))];
+    const tienePersonal = usados.includes('PERSONAL');
+    const cursosUsados = [
+        ...(tienePersonal ? ['PERSONAL'] : []),
+        ...usados.filter(c => c !== 'PERSONAL').sort()
+    ];
     const estilosUsados = [...new Set(canciones.map(c => c.estilo).filter(Boolean))].sort();
 
     const wrap = document.getElementById('chips-cursos');
     wrap.innerHTML = cursosUsados.map(c => {
         const activo = filtroExtra?.tipo === 'curso' && filtroExtra.valor === c ? 'activo' : '';
-        return `<button class="chip curso ${activo}" data-filtro="curso:${c}" onclick="setFiltro(this)">${c === 'KIDS CASTIGADAS' ? 'KIDS' : c}</button>`;
+        const cls = c === 'PERSONAL' ? 'personal' : 'curso';
+        return `<button class="chip ${cls} ${activo}" data-filtro="curso:${c}" onclick="setFiltro(this)">${ctxLabel(c)}</button>`;
     }).join('');
 
     const wrapE = document.getElementById('chips-estilos');
@@ -2581,9 +2620,33 @@ function cerrarPanel() {
     render();
 }
 
+// NOTA: durante la fase beta apuntamos a index-beta.html (panel + secciones).
+// Cuando se fusione beta→index, cambiar a index.html.
+const LECTOR_HTML = 'index-beta.html';
+
 function abrirEnLector(storagePath, nombre) {
     const params = new URLSearchParams({ storage: storagePath, nombre });
-    window.open(`../tabs/index.html?${params}`, '_blank');
+    window.open(`../tabs/${LECTOR_HTML}?${params}`, '_blank');
+}
+
+// Abre una sección puntual de la tab en el Lector (modo solo-sección + audio sync)
+function abrirSeccionEnLector(storagePath, nombre, seccion) {
+    const params = new URLSearchParams({ storage: storagePath, nombre, seccion });
+    window.open(`../tabs/${LECTOR_HTML}?${params}`, '_blank');
+}
+
+// Abre el Lector en modo cifrado (Cuaderno MIDI) con la canción precargada
+function crearCifrado(cancionId) {
+    window.open(`../tabs/${LECTOR_HTML}?cifrado=1&cancion=${cancionId}`, '_blank');
+}
+
+// Despliega/colapsa la lista de partes (secciones) de una tab
+function toggleSecciones(assetId, btn) {
+    const el = document.getElementById('secs-' + assetId);
+    if (!el) return;
+    const abierto = el.style.display !== 'none';
+    el.style.display = abierto ? 'none' : '';
+    if (btn) btn.style.transform = abierto ? '' : 'rotate(90deg)';
 }
 
 const CAP = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
@@ -2607,22 +2670,41 @@ function tabGroupHTML(tabs, songId) {
             const dif  = a.dificultad ? `<span class="tab-dific ${a.dificultad}">${DIFIC_LABEL[a.dificultad] || CAP(a.dificultad)}</span>` : '';
             const desc = a.etiqueta || a.tonalidad || a.nombre_archivo || 'Sin descripción';
             const url  = a.storage_path ? storageUrl(a.storage_path) : null;
+            const spJS = (a.storage_path || '').replace(/'/g, "\\'");
+            const nfJS = (a.nombre_archivo || a.etiqueta || 'tab').replace(/'/g, "\\'");
             const dblclick = a.storage_path
-            ? `ondblclick="abrirEnLector('${a.storage_path}','${(a.nombre_archivo||a.etiqueta||'tab').replace(/'/g,'\\\'')}')" title="Doble clic para abrir en Lector"`
+            ? `ondblclick="abrirEnLector('${spJS}','${nfJS}')" title="Doble clic para abrir en Lector"`
             : '';
+            const secciones = a.tab_sync?.secciones || [];
+            const tieneSecs = secciones.length > 0 && a.storage_path;
+            const toggle = tieneSecs
+                ? `<button class="tab-secs-toggle" onclick="event.stopPropagation();toggleSecciones('${a.id}',this)" title="Ver partes">▸</button>`
+                : '';
+            const secsHTML = tieneSecs
+                ? `<div class="tab-secciones" id="secs-${a.id}" style="display:none">
+                     ${secciones.map(s => {
+                         const sJS = (s.nombre || '').replace(/'/g, "\\'");
+                         return `<button class="tab-seccion" onclick="abrirSeccionEnLector('${spJS}','${nfJS}','${sJS}')" title="Abrir solo esta parte en el Lector">${s.nombre}</button>`;
+                     }).join('')}
+                   </div>`
+                : '';
         return `
-            <div class="tab-item" ${dblclick} style="${a.storage_path ? 'cursor:pointer' : ''}">
-                <div class="tab-item-info">
-                    ${dif}
-                    ${desc ? `<span class="tab-item-desc">${desc}</span>` : ''}
-                    ${a.mensaje ? `<span class="msg-badge" title="${a.mensaje.replace(/"/g,'&quot;')}">📌</span>` : ''}
-                    ${(a.tab_sync?.secciones?.length) ? `<span style="display:block;font-size:.69rem;color:#666;margin-top:2px">↳ ${a.tab_sync.secciones.map(s=>s.nombre).join(' · ')}</span>` : ''}
+            <div class="tab-entry">
+                <div class="tab-item" ${dblclick} style="${a.storage_path ? 'cursor:pointer' : ''}">
+                    ${toggle}
+                    <div class="tab-item-info">
+                        ${dif}
+                        ${desc ? `<span class="tab-item-desc">${desc}</span>` : ''}
+                        ${a.mensaje ? `<span class="msg-badge" title="${a.mensaje.replace(/"/g,'&quot;')}">📌</span>` : ''}
+                        ${tieneSecs ? `<span class="tab-secs-count">${secciones.length} partes</span>` : ''}
+                    </div>
+                    <div class="tab-item-actions">
+                        ${url ? `<a class="btn-icon" href="${url}" download title="Descargar">⬇</a>` : ''}
+                        <button class="btn-icon" onclick="abrirEditarAsset('${songId}','${a.id}')" title="Editar">✏️</button>
+                        <button class="btn-icon danger" onclick="eliminarAsset('${songId}','${a.id}')" title="Eliminar">🗑</button>
+                    </div>
                 </div>
-                <div class="tab-item-actions">
-                    ${url ? `<a class="btn-icon" href="${url}" download title="Descargar">⬇</a>` : ''}
-                    <button class="btn-icon" onclick="abrirEditarAsset('${songId}','${a.id}')" title="Editar">✏️</button>
-                    <button class="btn-icon danger" onclick="eliminarAsset('${songId}','${a.id}')" title="Eliminar">🗑</button>
-                </div>
+                ${secsHTML}
             </div>`;
         }).join('');
         return `
@@ -2666,11 +2748,11 @@ function renderPanel() {
     const tags = [c.año, c.estilo].filter(Boolean).map(t =>
         `<span class="panel-tag">${t}</span>`).join('');
 
-    // cursos toggles
+    // cursos toggles (PERSONAL primero, con identidad propia)
     const cursosHTML = CONTEXTOS.map(ctx => {
         const asignado = (c.contextos||[]).includes(ctx) ? 'asignado' : '';
-        const label = ctx === 'KIDS CASTIGADAS' ? 'KIDS' : ctx;
-        return `<button class="curso-toggle ${asignado}" onclick="toggleCurso('${ctx}', this)">${label}</button>`;
+        const cls = ctx === 'PERSONAL' ? 'curso-toggle personal' : 'curso-toggle';
+        return `<button class="${cls} ${asignado}" onclick="toggleCurso('${ctx}', this)">${ctxLabel(ctx)}</button>`;
     }).join('');
 
     // assets — tabs agrupados, resto individual
@@ -2705,6 +2787,7 @@ function renderPanel() {
         <div class="panel-actions">
             <button class="btn-primary" style="flex:1" onclick="abrirVisor('${c.id}')">▶ Ver letra</button>
             ${assets.find(a => a.tipo === 'audio') ? `<button class="btn-secondary" style="background:#1e293b;color:#f1f5f9;border-color:#334155" onclick="abrirEntrenador('${c.id}')">🎯</button>` : ''}
+            ${assets.find(a => a.tipo === 'audio') ? `<button class="btn-secondary" title="Crear cifrado (Cuaderno MIDI)" onclick="crearCifrado('${c.id}')">🎼</button>` : ''}
             <button class="btn-secondary" onclick="editarCancion('${c.id}')">✏️</button>
             <button class="btn-danger" onclick="eliminarCancion('${c.id}')">🗑</button>
         </div>
@@ -5551,6 +5634,9 @@ document.getElementById('search').addEventListener('input', render);
         console.error(e);
     }
     try { await cargarSesiones(); } catch (e) { /* tabla puede no existir aún */ }
+    // Deep-link de contexto: ?ctx=PERSONAL (u otro) pre-aplica el filtro
+    const ctxParam = new URLSearchParams(location.search).get('ctx');
+    if (ctxParam) filtroExtra = { tipo: 'curso', valor: ctxParam.toUpperCase() };
     render();
 })();
 </script>
