@@ -439,6 +439,45 @@
         .lw-toggle-switch.on { background: var(--accent); }
         .lw-toggle-switch.on::after { left: 21px; }
         .lw-plan-course-title { font-size: 1.05rem; font-weight: 900; color: var(--warning); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px; padding-bottom: 5px; border-bottom: 1px solid rgba(201,151,26,.25); }
+        /* ── Memoria de clase (aditivo — Iteración 1) ─────────── */
+        #mem-ov {
+            display: none; position: fixed; inset: 0; z-index: 900;
+            background: rgba(0,0,0,0.6); align-items: flex-end; justify-content: center;
+        }
+        #mem-ov.active { display: flex; }
+        #mem-box {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 16px 16px 0 0; width: 100%; max-width: 560px;
+            max-height: 88vh; display: flex; flex-direction: column;
+            padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); gap: 10px;
+        }
+        #mem-box-hdr { display: flex; justify-content: space-between; align-items: center; }
+        #mem-box-titulo { font-weight: 700; font-size: 1.05rem; color: var(--text); }
+        #mem-box-hdr button { background: none; border: none; color: var(--text-dim); font-size: 1.1rem; padding: 4px 8px; }
+        #mem-box-fecha { font-size: 0.78rem; color: var(--text-dim); margin-top: -6px; }
+        #mem-audio-list { display: flex; flex-direction: column; gap: 6px; max-height: 26vh; overflow-y: auto; }
+        #mem-audio-list audio { width: 100%; height: 34px; }
+        #mem-audio-list .mem-a-lbl { font-size: 0.7rem; color: var(--text-dim); }
+        #mem-rec-btn {
+            background: var(--gray); border: 1px solid var(--border); color: var(--text);
+            border-radius: 12px; padding: 12px; font-size: 1rem; font-weight: 600;
+        }
+        #mem-rec-btn.grabando { background: var(--bg-recording); border-color: var(--danger); color: #ffb3b0; }
+        #mem-rec-status { font-size: 0.75rem; color: var(--text-dim); min-height: 16px; }
+        #mem-rec-status button {
+            background: none; border: 1px solid var(--warning); color: var(--warning);
+            border-radius: 8px; padding: 3px 10px; font-size: 0.75rem; margin-left: 6px;
+        }
+        #mem-texto {
+            background: var(--bg); border: 1px solid var(--border); color: var(--text);
+            border-radius: 10px; padding: 10px; min-height: 110px; resize: none;
+            font: inherit; font-size: 0.9rem; outline: none;
+        }
+        #mem-txt-status { font-size: 0.72rem; color: var(--text-dim); min-height: 14px; }
+        .lw-mem-btn {
+            background: none; border: 1px solid var(--border); color: var(--text-dim);
+            border-radius: 10px; padding: 8px 14px; font-size: 0.9rem;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
@@ -485,6 +524,7 @@
         <div id="lw-course-content"></div>
         <div id="lw-course-bottom-bar">
             <button class="lw-back-btn" onclick="lwBackToDay()">← Volver</button>
+            <button class="lw-mem-btn" onclick="memAbrir()">📓 Memoria</button>
         </div>
     </div>
 
@@ -709,6 +749,22 @@
     <span id="sel-count">0 seleccionados</span>
     <button id="sel-process-btn" onclick="processSelectedWithGemini()" disabled>⚡ Procesar</button>
     <button id="sel-cancel-btn" onclick="exitSelectionMode()">Cancelar</button>
+</div>
+
+<!-- Overlay Memoria de clase (aditivo — Iteración 1). No pasa por el parser. -->
+<div id="mem-ov" onclick="if(event.target===this)memCerrar()">
+    <div id="mem-box">
+        <div id="mem-box-hdr">
+            <span id="mem-box-titulo">📓 Memoria</span>
+            <button onclick="memCerrar()">✕</button>
+        </div>
+        <div id="mem-box-fecha"></div>
+        <div id="mem-audio-list"></div>
+        <button id="mem-rec-btn" onclick="memToggleRec()">🎙 Grabar memoria</button>
+        <div id="mem-rec-status"></div>
+        <textarea id="mem-texto" placeholder="¿Qué ocurrió en esta clase? Se guarda como memoria permanente — no genera pendientes."></textarea>
+        <div id="mem-txt-status"></div>
+    </div>
 </div>
 
 <script>
@@ -4455,6 +4511,192 @@ Categorías vacías: array vacío [].`;
         document.body.appendChild(t);
         setTimeout(() => t.remove(), 2000);
     }
+
+    // ============================================================
+    // MEMORIA DE CLASE (aditivo — Iteración 1)
+    // Documento narrativo permanente por sesión (audio y/o texto).
+    // NO pasa por Gemini, NO genera pendientes, NO toca la Bandeja.
+    // Grabador propio, aislado de mediaRecorder/currentStream de la Bitácora.
+    // ============================================================
+    let memCtx = null, memFecha = null, memSesionId = null;
+    let memRec = null, memStream = null, memChunks = [], memGrabando = false;
+    let memPendingBlob = null, memTick = null, memT0 = 0, memTxtTimer = null;
+
+    function memFechaVista() {
+        // fecha de la clase que se está viendo en el Panel
+        const dates = lwGetWeekDates(lwWeekOffset);
+        const d = dates[lwSelectedDay];
+        return d ? localDateStr(d) : localDateStr(new Date());
+    }
+
+    async function memGetOrCreateSesion() {
+        if (memSesionId) return memSesionId;
+        let { data: s } = await sbClient.from('sesiones').select('id')
+            .eq('contexto_id', memCtx.id).eq('fecha', memFecha).maybeSingle();
+        if (!s) {
+            const { data: nueva, error } = await sbClient.from('sesiones')
+                .insert({ contexto_id: memCtx.id, fecha: memFecha }).select('id').single();
+            if (error) throw error;
+            s = nueva;
+        }
+        memSesionId = s.id;
+        return memSesionId;
+    }
+
+    function memAudioUrl(path) {
+        return sbClient.storage.from('memorias-audio').getPublicUrl(path).data.publicUrl;
+    }
+
+    function memRenderAudios(audios) {
+        const list = document.getElementById('mem-audio-list');
+        list.innerHTML = (audios || []).map((a, i) => {
+            const lbl = a.ts ? new Date(a.ts).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : `Audio ${i + 1}`;
+            return `<div><div class="mem-a-lbl">🎙 ${lbl}</div>
+                <audio controls preload="none" src="${memAudioUrl(a.path)}"></audio></div>`;
+        }).join('');
+    }
+
+    async function memAbrir() {
+        if (isRecording) { showToast('Termina la grabación de la Bitácora primero'); return; }
+        if (!sbClient) { showToast('Sin conexión a Supabase'); return; }
+        const ctx = contextosPorNombre[(lwCurrentCourse || '').toUpperCase()];
+        if (!ctx) { showToast('Contexto no encontrado'); return; }
+        memCtx = ctx; memFecha = memFechaVista(); memSesionId = null; memPendingBlob = null;
+        logEvento('memoria_abrir', { contexto_id: ctx.id });
+
+        document.getElementById('mem-box-titulo').textContent = `📓 Memoria — ${lwTitleCase(lwCurrentCourse)}`;
+        document.getElementById('mem-box-fecha').textContent = new Date(memFecha + 'T12:00:00')
+            .toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+        document.getElementById('mem-audio-list').innerHTML = '';
+        document.getElementById('mem-texto').value = '';
+        document.getElementById('mem-rec-status').textContent = '';
+        document.getElementById('mem-txt-status').textContent = 'Cargando...';
+        document.getElementById('mem-ov').classList.add('active');
+
+        try {
+            const { data: s } = await sbClient.from('sesiones').select('id')
+                .eq('contexto_id', memCtx.id).eq('fecha', memFecha).maybeSingle();
+            if (s) {
+                memSesionId = s.id;
+                const { data: row, error } = await sbClient.from('memorias')
+                    .select('contenido, audios').eq('sesion_id', s.id).maybeSingle();
+                if (error) throw error;
+                document.getElementById('mem-texto').value = row?.contenido || '';
+                memRenderAudios(Array.isArray(row?.audios) ? row.audios : []);
+            }
+            document.getElementById('mem-txt-status').textContent = '';
+        } catch (e) {
+            document.getElementById('mem-txt-status').textContent = 'No se pudo cargar (¿tabla "memorias" creada?)';
+        }
+
+        document.getElementById('mem-texto').oninput = () => {
+            document.getElementById('mem-txt-status').textContent = 'Sin guardar...';
+            clearTimeout(memTxtTimer);
+            memTxtTimer = setTimeout(memGuardarTexto, 1200);
+        };
+    }
+
+    function memCerrar() {
+        if (memGrabando) { showToast('Detén la grabación primero'); return; }
+        if (memTxtTimer) { clearTimeout(memTxtTimer); memTxtTimer = null; memGuardarTexto(); }
+        document.getElementById('mem-ov').classList.remove('active');
+    }
+
+    async function memGuardarTexto() {
+        if (!memCtx) return;
+        const contenido = document.getElementById('mem-texto').value;
+        try {
+            const sid = await memGetOrCreateSesion();
+            const { error } = await sbClient.from('memorias').upsert(
+                { sesion_id: sid, contenido, updated_at: new Date().toISOString() },
+                { onConflict: 'sesion_id' }
+            );
+            if (error) throw error;
+            document.getElementById('mem-txt-status').textContent = 'Guardado ✓';
+            setTimeout(() => { const el = document.getElementById('mem-txt-status'); if (el.textContent === 'Guardado ✓') el.textContent = ''; }, 2500);
+        } catch (e) {
+            document.getElementById('mem-txt-status').textContent = 'Error al guardar texto — revisa conexión';
+        }
+    }
+
+    async function memToggleRec() {
+        if (memGrabando) { memRec.stop(); return; }
+        if (isRecording) { showToast('Termina la grabación de la Bitácora primero'); return; }
+        try {
+            memStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const tipos = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/mp4'];
+            const mime = tipos.find(t => MediaRecorder.isTypeSupported(t)) || '';
+            memRec = new MediaRecorder(memStream, mime ? { mimeType: mime } : {});
+            memChunks = [];
+            memRec.ondataavailable = e => memChunks.push(e.data);
+            memRec.onstop = () => {
+                memStream?.getTracks().forEach(t => t.stop());
+                memStream = null;
+                memGrabando = false;
+                clearInterval(memTick);
+                const btn = document.getElementById('mem-rec-btn');
+                btn.classList.remove('grabando');
+                btn.textContent = '🎙 Grabar memoria';
+                const blob = new Blob(memChunks, { type: memRec.mimeType || mime || 'audio/webm' });
+                memChunks = [];
+                if (blob.size > 0) memSubirAudio(blob);
+            };
+            memRec.start();
+            memGrabando = true;
+            memT0 = Date.now();
+            const btn = document.getElementById('mem-rec-btn');
+            btn.classList.add('grabando');
+            memTick = setInterval(() => {
+                const s = Math.floor((Date.now() - memT0) / 1000);
+                btn.textContent = `⏹ Detener — ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+            }, 500);
+            btn.textContent = '⏹ Detener — 0:00';
+        } catch (e) {
+            showToast('Micro no disponible');
+        }
+    }
+
+    async function memSubirAudio(blob) {
+        memPendingBlob = blob;
+        const st = document.getElementById('mem-rec-status');
+        st.textContent = 'Subiendo audio...';
+        try {
+            const sid = await memGetOrCreateSesion();
+            const t = blob.type || '';
+            const ext = t.includes('mp4') ? 'm4a' : t.includes('ogg') ? 'ogg' : 'webm';
+            const path = `${memCtx.id}/${memFecha}_${Date.now()}.${ext}`;
+            const { error: upErr } = await sbClient.storage.from('memorias-audio')
+                .upload(path, blob, { contentType: t || 'audio/webm', upsert: false });
+            if (upErr) throw upErr;
+
+            const { data: row } = await sbClient.from('memorias')
+                .select('audios').eq('sesion_id', sid).maybeSingle();
+            const audios = Array.isArray(row?.audios) ? row.audios : [];
+            audios.push({ path, ts: Date.now() });
+            const { error } = await sbClient.from('memorias').upsert(
+                { sesion_id: sid, audios, updated_at: new Date().toISOString() },
+                { onConflict: 'sesion_id' }
+            );
+            if (error) throw error;
+
+            memPendingBlob = null;
+            st.textContent = '';
+            memRenderAudios(audios);
+            showConfirm('Memoria de clase guardada');
+            logEvento('memoria_audio', { contexto_id: memCtx.id, sesion_id: sid });
+        } catch (e) {
+            st.innerHTML = 'No se pudo subir el audio. <button onclick="memReintentar()">↻ Reintentar</button>';
+        }
+    }
+
+    function memReintentar() {
+        if (memPendingBlob) memSubirAudio(memPendingBlob);
+    }
+
+    // Si la app pasa a segundo plano grabando memoria, detener y subir lo capturado
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden && memGrabando && memRec?.state !== 'inactive') memRec.stop();
+    });
 </script>
 </body>
 </html>

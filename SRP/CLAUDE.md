@@ -40,6 +40,7 @@ Los otros módulos planificados (no iniciados): **Portal** (hub de planificació
 |---------|--------|
 | **Bitácora** | Todo el mundo derecho: captura de voz/texto/foto/video, bandeja, procesamiento con Gemini, historial. Es el flujo de registro y parseo. |
 | **Panel** | El Mundo Izquierdo: vista de lectura que muestra cursos del día, pendientes por categoría, materiales, nota de sesión. Acceso con swipe desde Captura. |
+| **Memoria** | Documento narrativo permanente de una clase (texto y/o audios), asociado 1:1 a una sesión (tabla `memorias`). Se captura desde el Panel (vista de curso → botón "📓 Memoria", overlay con grabador propio). **NO pasa por Gemini, NO genera pendientes** — es la excepción a la regla de descartar audios: los audios de Memoria se conservan en el bucket `memorias-audio`. Concepto oficial del ecosistema — ver CLAUDE.md raíz, concepto central 4. |
 
 ### Rol dual de SRP
 
@@ -89,6 +90,7 @@ Tablas relevantes para SRP:
 - `sesiones` — instancias concretas (contexto + fecha)
 - `sesiones_srp` — registros procesados (reemplaza IndexedDB `historial`)
 - `pendientes` — items parseados con `sesion_id`
+- `memorias` — Memoria de clase: documento permanente por sesión (`sesion_id` UNIQUE, `contenido` texto, `audios` JSONB con rutas al bucket `memorias-audio`). NO pasa por el parser
 
 **Antes de cualquier integración: leer `../supabase/schema.sql`** — contiene los campos exactos, tipos, constraints e índices de todas las tablas. No asumir estructura sin leerlo.
 
@@ -96,7 +98,7 @@ Tablas relevantes para SRP:
 
 **RLS habilitado pero permisivo** — todas las tablas tienen `USING (true) WITH CHECK (true)`. Cualquiera con la anon key puede leer y escribir. Esto es intencional mientras no haya auth. **No endurecer las políticas RLS hasta que exista un sistema de auth real** — hacerlo antes rompe el acceso de la app.
 
-**Decisión de diseño — audio blobs:** se descartan después de transcribir. El audio cumple su función al generar el texto; no se guarda en Supabase Storage ni en el historial. Solo el texto transcrito y el JSON parseado van a Supabase. Las fotos y videos sí se conservan (ya se guardan como blob en `historial`).
+**Decisión de diseño — audio blobs (solo Bitácora):** se descartan después de transcribir. El audio cumple su función al generar el texto; no se guarda en Supabase Storage ni en el historial. Solo el texto transcrito y el JSON parseado van a Supabase. Las fotos y videos sí se conservan (ya se guardan como blob en `historial`). **Excepción (2026-07-07):** los audios de **Memoria de clase** SÍ se conservan — se suben al bucket `memorias-audio` y se registran en `memorias.audios`. La Memoria es un documento permanente, no un insumo del parser.
 
 **Próximo paso de integración:** reemplazar IndexedDB en `mobile_ui/index.html` por Supabase. Las grabaciones en bandeja se mantienen local (offline-first), se sincronizan al guardar.
 
@@ -129,7 +131,7 @@ Estas funciones viven dentro de SRP. No son apps separadas:
 
 **Panel (Mundo Izquierdo) — 3 vistas:**
 - Vista de día: cursos del día seleccionado (navegación semanal ‹ ›)
-- Vista de curso: pendientes por categoría + materiales (pull-down) + nota de sesión editable
+- Vista de curso: pendientes por categoría + materiales (pull-down) + nota de sesión editable + botón "📓 Memoria" (overlay de Memoria de clase: grabador aislado + texto, funciones `mem*` al final del script)
 - Vista lista genérica: categorías globales o historial de curso
 
 **Drawer (menú ···):** accesos directos a Cursos, Planificaciones, Repertorio, Mensajes, Jefatura, Administrativos, Casa, Apps.

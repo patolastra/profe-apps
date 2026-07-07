@@ -185,3 +185,27 @@ CREATE TABLE IF NOT EXISTS repertorio_sesiones_entrenamiento (
 );
 ALTER TABLE repertorio_sesiones_entrenamiento ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "acceso_total" ON repertorio_sesiones_entrenamiento FOR ALL USING (true) WITH CHECK (true);
+
+-- ── 11. MEMORIAS ─────────────────────────────────────────────
+-- Memoria permanente de cada clase: documento narrativo (texto y/o audios)
+-- asociado 1:1 a una sesión. Es el acta de lo que ocurrió — NO genera
+-- pendientes ni pasa por el parser. (Iteración 1 — 2026-07-07)
+-- audios: lista JSON [{ "path": "<ruta en bucket memorias-audio>", "ts": <epoch ms> }]
+CREATE TABLE IF NOT EXISTS memorias (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sesion_id   UUID NOT NULL REFERENCES sesiones(id) ON DELETE CASCADE,
+    contenido   TEXT DEFAULT '',
+    audios      JSONB DEFAULT '[]',
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    updated_at  TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (sesion_id)
+);
+ALTER TABLE memorias ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "acceso_total" ON memorias FOR ALL USING (true) WITH CHECK (true);
+
+-- Storage para los audios de memorias:
+-- 1. Crear bucket manualmente: Dashboard → Storage → New bucket
+--    Nombre: memorias-audio | Public: YES | File size limit: 50 MB
+-- 2. Ejecutar estas políticas:
+CREATE POLICY "mem_select" ON storage.objects FOR SELECT TO anon USING (bucket_id = 'memorias-audio');
+CREATE POLICY "mem_insert" ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'memorias-audio');

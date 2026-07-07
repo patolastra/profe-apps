@@ -871,6 +871,37 @@
             border: none; border-radius: 8px; font-size: 0.83rem; cursor: pointer;
         }
         /* auth gate eliminado — vive en PC/index.html */
+        /* ── Memoria de clase (aditivo — Iteración 1) ─────────── */
+        #mem-modal {
+            display: none; position: fixed; inset: 0; z-index: 300;
+            background: rgba(15,23,42,0.45);
+            align-items: center; justify-content: center;
+        }
+        #mem-modal.show { display: flex; }
+        #mem-inner {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: 10px; width: min(560px, 92vw); max-height: 82vh;
+            display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+        }
+        #mem-hdr {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; background: #f8fafc; border-bottom: 1px solid var(--border);
+            font-weight: 600; font-size: 0.85rem; color: var(--text);
+        }
+        #mem-hdr button { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+        #mem-audios { padding: 8px 12px 0; display: flex; flex-direction: column; gap: 6px; }
+        #mem-audios audio { width: 100%; height: 34px; }
+        #mem-audios .mem-audio-lbl { font-size: 0.7rem; color: var(--muted); }
+        #mem-area {
+            flex: 1; min-height: 220px; margin: 10px 12px; padding: 10px;
+            border: 1px solid var(--border); border-radius: 8px; resize: none;
+            font: inherit; font-size: 0.85rem; color: var(--text); outline: none;
+        }
+        #mem-footer { padding: 0 12px 10px; font-size: 0.72rem; color: var(--muted); min-height: 18px; }
+        .rev-mem-audio { padding: 4px 0; }
+        .rev-mem-audio audio { width: 100%; height: 32px; }
+        .rev-mem-texto { white-space: pre-wrap; font-size: 0.8rem; padding: 4px 0; }
     </style>
 </head>
 <body>
@@ -891,6 +922,7 @@
             <span id="sync-label"></span>
         </div>
         <div class="hdr-ses-right">
+            <button class="hdr-btn" onclick="abrirMemoria()" title="Memoria de esta clase (texto y audios)">📓 Memoria</button>
             <button class="hdr-btn" onclick="mostrarQRRemoto()" title="Abrir control remoto en celular">📱 Remoto</button>
             <button class="hdr-btn" onclick="abrirPizarra()">PRESENTAR ↗</button>
         </div>
@@ -973,6 +1005,19 @@
 
             <div id="modo-toggle" onclick="toggleModo()" title="Cambiar modo (Tab)">⇄</div>
         </div>
+    </div>
+</div>
+
+<!-- Modal Memoria de clase (aditivo — Iteración 1) -->
+<div id="mem-modal" onclick="if(event.target===this)cerrarMemoria()">
+    <div id="mem-inner">
+        <div id="mem-hdr">
+            <span id="mem-titulo">📓 Memoria de la clase</span>
+            <button onclick="cerrarMemoria()">✕</button>
+        </div>
+        <div id="mem-audios"></div>
+        <textarea id="mem-area" placeholder="¿Qué ocurrió en esta clase? Observaciones, reflexiones, contexto...&#10;&#10;Este texto se conserva como memoria permanente de la sesión. No genera pendientes."></textarea>
+        <div id="mem-footer"><span id="mem-status"></span></div>
     </div>
 </div>
 
@@ -1636,6 +1681,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
     document.getElementById('pres-status').textContent = '';
     document.getElementById('prev-body').innerHTML     = '';
     cerrarRevision();
+    cerrarMemoria();
     resetHistorial();
     resetModoEdicion();
 
@@ -1669,6 +1715,7 @@ function volverDashboard() {
     if (sesionActual) guardarPres(sesionActual.id); // guardar cambios pendientes antes de salir
     const fechaEditada = sesionActual?.fecha;
     cerrarRevision();
+    cerrarMemoria();
     document.querySelector('.s-col-plan').style.width = '';
     document.getElementById('vista-sesion').classList.remove('show');
     document.body.classList.remove('sesion-activa');
@@ -2425,15 +2472,17 @@ async function cargarRevisionInline(cid, fechaStr) {
     const mes  = dAnt.toLocaleDateString('es-CL', { month: 'long' });
     const fechaLbl = `${dia} ${num} de ${mes}`;
 
-    const [{ data: rev }, { data: rep }, { data: planAnt }, { data: mat }] = await Promise.all([
+    const [{ data: rev }, { data: rep }, { data: planAnt }, { data: mat }, { data: memAnt }] = await Promise.all([
         sb.from('pendientes').select('texto').eq('sesion_id', ant.id).eq('categoria', 'revision').eq('estado', 'activo'),
         sb.from('pendientes').select('texto').eq('sesion_id', ant.id).eq('categoria', 'posible_repertorio').eq('estado', 'activo'),
         sb.from('plan_sesion_items').select('texto').eq('sesion_id', ant.id).eq('incluido', true).order('orden'),
         sb.from('pendientes').select('texto').eq('sesion_id', ant.id).eq('categoria', 'pendientes_materiales').eq('estado', 'activo'),
+        sb.from('memorias').select('contenido, audios').eq('sesion_id', ant.id).maybeSingle(),
     ]);
 
     panel.innerHTML = `
         <div id="rev-fecha-lbl">CLASE ANTERIOR — ${fechaLbl}</div>
+        ${buildMemSeccion(memAnt)}
         ${buildRevSeccion('REVISIÓN', rev, true)}
         ${buildRevSeccion('REPERTORIO', rep, false)}
         ${buildRevSeccion('PLAN', planAnt, false)}
@@ -3297,6 +3346,99 @@ function insertarRep(nombre, cancionId) {
     ta.dispatchEvent(new Event('input'));
     cerrarPickerRep();
     ta.focus();
+}
+
+// ═══════════════════════════════════════════════════════════
+// MEMORIA DE CLASE (aditivo — Iteración 1)
+// Documento narrativo permanente por sesión. No genera pendientes.
+// ═══════════════════════════════════════════════════════════
+let memTimer = null;
+
+function memAudioUrl(path) {
+    return sb.storage.from('memorias-audio').getPublicUrl(path).data.publicUrl;
+}
+
+function memAudioHtml(a, i) {
+    const lbl = a.ts ? new Date(a.ts).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : `Audio ${i + 1}`;
+    return `<div class="rev-mem-audio">
+        <div class="mem-audio-lbl">🎙 ${lbl}</div>
+        <audio controls preload="none" src="${memAudioUrl(a.path)}"></audio>
+    </div>`;
+}
+
+// Sección MEMORIA dentro del panel "Revisión" (clase anterior)
+function buildMemSeccion(mem) {
+    const texto  = (mem?.contenido || '').trim();
+    const audios = Array.isArray(mem?.audios) ? mem.audios : [];
+    const hay    = texto || audios.length;
+    const cuerpo = hay
+        ? `${audios.map(memAudioHtml).join('')}${texto ? `<div class="rev-mem-texto">${escapeHtmlMem(texto)}</div>` : ''}`
+        : `<div class="vacio">Sin memoria registrada.</div>`;
+    return `
+        <div class="rev-seccion">
+            <div class="rev-sec-hdr${hay ? '' : ' collapsed'}" onclick="toggleRevSec(this)">
+                <span>📓 MEMORIA</span>
+                <span class="rev-chevron">${hay ? '▾' : '▸'}</span>
+            </div>
+            <div class="rev-sec-body${hay ? '' : ' hidden'}">${cuerpo}</div>
+        </div>`;
+}
+
+function escapeHtmlMem(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Modal: memoria de la sesión ACTUAL (leer / escribir texto, escuchar audios)
+async function abrirMemoria() {
+    if (!sesionActual) return;
+    logEvento('abrir_memoria');
+    document.getElementById('mem-modal').classList.add('show');
+    document.getElementById('mem-titulo').textContent =
+        `📓 Memoria — ${fmtTituloSesion(sesionActual.nombre, sesionActual.fecha)}`;
+    const area = document.getElementById('mem-area');
+    area.value = '';
+    document.getElementById('mem-audios').innerHTML = '';
+    document.getElementById('mem-status').textContent = 'Cargando...';
+    area.oninput = () => {
+        document.getElementById('mem-status').textContent = 'Sin guardar...';
+        clearTimeout(memTimer);
+        memTimer = setTimeout(() => guardarMemoria(sesionActual.id), 1200);
+    };
+
+    const { data, error } = await sb.from('memorias')
+        .select('contenido, audios').eq('sesion_id', sesionActual.id).maybeSingle();
+    if (error) {
+        document.getElementById('mem-status').textContent =
+            'No se pudo cargar (¿tabla "memorias" creada en Supabase?)';
+        return;
+    }
+    area.value = data?.contenido || '';
+    const audios = Array.isArray(data?.audios) ? data.audios : [];
+    document.getElementById('mem-audios').innerHTML = audios.map(memAudioHtml).join('');
+    document.getElementById('mem-status').textContent = '';
+}
+
+async function guardarMemoria(sid) {
+    if (!sid) return;
+    const contenido = document.getElementById('mem-area').value;
+    try {
+        const { error } = await sb.from('memorias').upsert(
+            { sesion_id: sid, contenido, updated_at: new Date().toISOString() },
+            { onConflict: 'sesion_id' }
+        );
+        if (error) throw error;
+        document.getElementById('mem-status').textContent = 'Guardado ✓';
+        setTimeout(() => { if (document.getElementById('mem-status').textContent === 'Guardado ✓') document.getElementById('mem-status').textContent = ''; }, 2500);
+    } catch (e) {
+        document.getElementById('mem-status').textContent = 'Error al guardar — revisa conexión / tabla "memorias"';
+    }
+}
+
+function cerrarMemoria() {
+    const modal = document.getElementById('mem-modal');
+    if (!modal || !modal.classList.contains('show')) return;
+    if (memTimer) { clearTimeout(memTimer); memTimer = null; if (sesionActual) guardarMemoria(sesionActual.id); }
+    modal.classList.remove('show');
 }
 </script>
 

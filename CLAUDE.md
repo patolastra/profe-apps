@@ -102,6 +102,7 @@ La anon key es pública (va en el frontend). La secret key nunca va en el navega
 | `sesiones` | Instancias concretas (contexto + fecha) |
 | `sesiones_srp` | Registros SRP procesados |
 | `pendientes` | Items parseados con `sesion_id` |
+| `memorias` | Memoria permanente por sesión: texto + audios (bucket `memorias-audio`) — NO pasa por el parser, no genera pendientes |
 
 ---
 
@@ -183,7 +184,7 @@ PC Shell y MOVIL Shell son los launchers con auth gate. Portal y SRP son módulo
 
 ---
 
-## Los 3 conceptos arquitecturales centrales
+## Los 4 conceptos arquitecturales centrales
 
 ### 1. Eje temporal
 
@@ -199,6 +200,28 @@ Pendiente sin sesión asignada → va a la próxima clase futura del curso por d
 ### 3. Biblioteca de assets + deep linking
 
 Assets en Supabase Storage con UUID. Las apps aceptan `?asset=uuid` como parámetro. Una diapositiva del Presentador puede abrir el Metalófono cargando un ejercicio específico directamente.
+
+### 4. Memoria de clase
+
+**Concepto oficial del ecosistema desde 2026-07-07 (Iteración 1).**
+
+Una **Memoria** es el **documento narrativo permanente de una clase**: texto y/o notas de voz que preservan el contexto completo de lo que ocurrió (observaciones, reflexiones, matices). Es el acta de la sesión — la planificación es la sesión vista desde antes; la Memoria es la sesión vista desde después.
+
+**Responsabilidad única:** preservar. Nada más.
+
+| Regla | Detalle |
+|-------|---------|
+| Relación con la sesión | 1:1 — tabla `memorias`, `sesion_id UNIQUE` con FK a `sesiones`. Sin sesión no hay Memoria; se usa get-or-create de la sesión al guardar |
+| Permanencia | Es un documento persistente. Los audios se conservan en el bucket `memorias-audio` (excepción deliberada a la regla de la Bitácora de descartar audios tras transcribir) |
+| NO genera pendientes | Nunca escribe en `pendientes` ni en ninguna otra tabla derivada |
+| NO ejecuta IA | Ninguna llamada a Gemini automática ni manual en esta iteración. La transcripción/derivación futura será siempre opcional y explícita |
+| Derivable, no reemplazable | Futuras iteraciones podrán **derivar** información desde una Memoria (pendientes, materiales, resúmenes), pero las derivaciones referencian al documento original — la Memoria nunca se consume, se recorta ni se reemplaza |
+
+**Dónde vive en la UI:**
+- **SRP (celular):** Panel → vista de curso → botón "📓 Memoria" → overlay con grabador propio (aislado de la Bitácora) + texto.
+- **Portal (PC):** header de sesión → botón "📓 Memoria" (modal de lectura/edición) + sección "📓 MEMORIA" al tope del panel "Revisión" (muestra la Memoria de la clase anterior del mismo contexto al abrir una sesión).
+
+**No confundir con:** `revision` (categoría del parser SRP — ítems derivados por IA), el panel "Revisión" del Portal (resumen de ítems derivados de la clase anterior), ni la "Bitácora" (mundo de captura de SRP que sí pasa por Gemini).
 
 ---
 
@@ -223,7 +246,7 @@ Assets en Supabase Storage con UUID. Las apps aceptan `?asset=uuid` como paráme
 
 ## Sobre este repositorio raíz
 
-El git en `APPS BY ME/` es un **repositorio de backup y control de cambios del ecosistema completo**. No es el repo de deployment de ninguna app individual. SRP tiene su propio repo git interno en `SRP/`.
+El git en `APPS BY ME/` es un **repositorio de backup y control de cambios del ecosistema completo**, y también el source de GitHub Pages. SRP ya no tiene repo git propio (verificado 2026-07-07): todo el ecosistema se versiona en este único repo raíz.
 
 Las carpetas de apps sin `CLAUDE.md` propio (Metalófono, Tablaturas, etc.) no tienen contexto documentado aún — crearlo cuando se empiece a trabajar en ellas activamente.
 
