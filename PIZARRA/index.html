@@ -339,6 +339,33 @@
         #rep-mode-btn.playing {
             background: #1e293b; color: #f8fafc; border-color: #1e293b;
         }
+        /* Resaltado por estrofa (alternativa a resaltado por verso) */
+        .rep-stanza.activa .rep-linea { color: #ea580c; opacity: 1; }
+        /* Toggle de resaltado */
+        .rep-hl-btn { margin-left: 8px; }
+        /* Modo scroll: toda la letra con scroll manual + auto-scroll suave */
+        .rep-lineas.modo-scroll {
+            overflow-y: auto; max-height: 100%;
+            font-size: clamp(20px, 3.4vh, 46px);
+        }
+        .rep-lineas.modo-scroll .rep-linea,
+        .rep-lineas.versos-wrap .rep-linea { white-space: normal; }
+        /* Modo pantalla: toda la letra en columnas (motor CSS multicolumna) */
+        .rep-lineas.modo-pantalla {
+            display: block;
+            column-fill: auto;
+            text-align: left;
+        }
+        /* Botón Resincronizar (estilo Spotify) */
+        #rep-resync-btn {
+            position: absolute; bottom: 54px; left: 50%; transform: translateX(-50%);
+            font-size: 0.8rem; padding: 7px 16px;
+            border: none; border-radius: 20px;
+            background: #1e293b; color: #f8fafc; cursor: pointer;
+            font-family: system-ui, sans-serif; font-weight: 600;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25); z-index: 20;
+        }
+        #rep-resync-btn:hover { background: #0f172a; }
 
         /* ── SLIDE: VACÍO ────────────────────────────────── */
         .slide-vacio {
@@ -695,8 +722,15 @@ let sb, sesionId, canal;
 let slides = [], slideIdx = 0;
 let repLines = [], repIdx = 0, repActivo = false, repGen = 0;
 let repLrcLines = [], repHasSync = false, repHasAudio = false;
-let repBrowsing = false, repBrowsingTimer = null;
-let repStanzas = [], repStanzaCount = 1, repActiveStanzaIdx = 0;
+let repStanzas = [], repActiveStanzaIdx = 0;
+// ── Viewport (capa de visualización; NO forma parte del modelo) ──
+const REP_MODOS = ['estrofa1', 'estrofa2', 'estrofa3', 'scroll', 'pantalla'];
+let repViewMode = 'estrofa1';    // modo de visualización activo
+let repHighlightMode = 'verso';  // 'verso' | 'estrofa'
+let repFollow = true;            // el audio gobierna el resaltado (modelo único de sync)
+let repCancionId = null;         // id de la canción activa (para persistir prefs)
+let repProgScroll = false;       // hay un scroll programático en curso (distinguir de manual)
+let repProgScrollTimer = null;
 
 // ── UTILS ────────────────────────────────────────────────
 
@@ -807,16 +841,59 @@ function repAnteriorNoVacio(fromIdx) {
     return null;
 }
 
-function setRepDensidad(n) {
-    repStanzaCount = n;
-    document.querySelectorAll('.rep-dens-btn').forEach((b, i) => {
-        b.classList.toggle('active', i + 1 === n);
+// Cuántas estrofas muestra la ventana en los modos de estrofa (derivado del modo)
+function repWindowCount() {
+    return repViewMode === 'estrofa3' ? 3 : repViewMode === 'estrofa2' ? 2 : 1;
+}
+
+// Refleja el estado del Viewport en el control de la UI (botones sincronizados con teclado)
+function repActualizarControl() {
+    document.querySelectorAll('.rep-dens-btn[data-modo]').forEach(b => {
+        b.classList.toggle('active', b.dataset.modo === repViewMode);
     });
-    if (repIdx >= 0) {
-        const si = repStanzas.findIndex(s => s.some(l => l.origIdx === repIdx));
-        if (si >= 0) repActiveStanzaIdx = Math.min(si, Math.max(0, repStanzas.length - n));
+    const hb = document.getElementById('rep-hl-btn');
+    if (hb) {
+        hb.textContent = repHighlightMode === 'verso' ? 'Verso' : 'Estrofa';
+        hb.classList.add('active');
     }
+}
+
+function setRepViewMode(modo, persistir = true) {
+    if (!REP_MODOS.includes(modo)) return;
+    repViewMode = modo;
+    // Reencuadrar la ventana al verso activo en los modos de estrofa
+    if (repIdx >= 0 && (modo === 'estrofa1' || modo === 'estrofa2' || modo === 'estrofa3')) {
+        const si = repStanzas.findIndex(s => s.some(l => l.origIdx === repIdx));
+        if (si >= 0) repActiveStanzaIdx = Math.min(si, Math.max(0, repStanzas.length - repWindowCount()));
+    }
+    repActualizarControl();
     renderRepLineas();
+    if (persistir) repGuardarPrefs();
+}
+
+function repCiclarModo() {
+    const i = REP_MODOS.indexOf(repViewMode);
+    setRepViewMode(REP_MODOS[(i + 1) % REP_MODOS.length]);
+}
+
+function setRepHighlight(modo, persistir = true) {
+    repHighlightMode = (modo === 'estrofa') ? 'estrofa' : 'verso';
+    repActualizarControl();
+    renderRepLineas();
+    if (persistir) repGuardarPrefs();
+}
+
+function repToggleHighlight() {
+    setRepHighlight(repHighlightMode === 'verso' ? 'estrofa' : 'verso');
+}
+
+// Persiste SOLO preferencias permanentes en Supabase (repertorio_canciones.prefs)
+async function repGuardarPrefs() {
+    if (!repCancionId) return;
+    const prefs = { vista_letra: { modo: repViewMode, resaltado: repHighlightMode } };
+    try {
+        await sb.from('repertorio_canciones').update({ prefs }).eq('id', repCancionId);
+    } catch (e) { console.error('No se pudieron guardar prefs de letra:', e); }
 }
 
 function tituloSlide(raw) {
@@ -969,79 +1046,296 @@ function autoFitPendiente() {
     rafFit = requestAnimationFrame(() => {
         const c = document.querySelector('#slide-area .slide-texto, #slide-area .slide-mensaje');
         if (c) autoFit(c);
-        if (repActivo) autoFitRep();
+        if (!repActivo) return;
+        // El escalado depende del modo del Viewport
+        if (repViewMode === 'estrofa1' || repViewMode === 'estrofa2' || repViewMode === 'estrofa3') {
+            autoFitRep();
+        } else if (repViewMode === 'pantalla') {
+            const w = document.getElementById('rep-lineas');
+            if (w) autoFitPantalla(w);
+        } else if (repViewMode === 'scroll') {
+            repScrollActivoAlCentro(false); // reencuadrar sin animación al redimensionar
+        }
     });
 }
 
 // Re-ajustar al cambiar tamaño de ventana
 window.addEventListener('resize', () => { autoFitPendiente(); autoFitPanelMsg(); });
 
-// ── REP: LETRAS ──────────────────────────────────────
+// ── REP: LETRAS — VIEWPORT ────────────────────────────
+// Modelo (repLrcLines/repStanzas/repIdx) intacto. El Viewport solo decide CÓMO se presenta.
 
+// HTML de una estrofa, con el resaltado según repHighlightMode (verso XOR estrofa)
+function repStanzaHTML(stanza, cls) {
+    const estrofaActiva = repHighlightMode === 'estrofa' && stanza.some(l => l.origIdx === repIdx);
+    return `<div class="rep-stanza ${cls}${estrofaActiva ? ' activa' : ''}">` +
+        stanza.map(l => {
+            const versoActivo = repHighlightMode === 'verso' && l.origIdx === repIdx;
+            return `<div class="rep-linea${versoActivo ? ' activa' : ''}" data-idx="${l.origIdx}">${esc(l.text)}</div>`;
+        }).join('') +
+    `</div>`;
+}
+
+// Limpia estilos inline de layout que pudo dejar otro modo
+function repResetWrapEstilos(wrap) {
+    wrap.style.columnCount = '';
+    wrap.style.columnGap = '';
+    wrap.style.height = '';
+    wrap.style.overflow = '';
+    wrap.classList.remove('versos-wrap');
+}
+
+// Dispatcher de render completo
 function renderRepLineas() {
     const wrap = document.getElementById('rep-lineas');
     const ctr  = document.getElementById('rep-counter');
     if (!wrap || !repStanzas.length) { if (wrap) wrap.innerHTML = ''; return; }
 
+    wrap.classList.toggle('modo-scroll',   repViewMode === 'scroll');
+    wrap.classList.toggle('modo-pantalla', repViewMode === 'pantalla');
+
+    if (repViewMode === 'scroll')        renderRepScroll(wrap);
+    else if (repViewMode === 'pantalla') renderRepPantalla(wrap);
+    else                                 renderRepVentana(wrap);
+
+    if (ctr) {
+        if (repIdx < 0) ctr.textContent = `– / ${repLines.length}`;
+        else {
+            const pos = repLrcLines.slice(0, repIdx + 1).filter(l => l.text.trim()).length;
+            ctr.textContent = `${pos} / ${repLines.length}`;
+        }
+    }
+}
+
+// Modos 1/2/3: ventana deslizante de estrofas (comportamiento clásico)
+function renderRepVentana(wrap) {
+    repResetWrapEstilos(wrap);
+    const N = repWindowCount();
+
     if (repIdx < 0) {
-        // Esperando que el audio llegue al primer verso — mostrar primera estrofa
         repActiveStanzaIdx = 0;
-        wrap.innerHTML = `<div class="rep-stanza rep-stanza-principal">` +
-            repStanzas[0].map(l => `<div class="rep-linea" data-idx="${l.origIdx}">${esc(l.text)}</div>`).join('') +
-        `</div>`;
-        if (ctr) ctr.textContent = `– / ${repLines.length}`;
+        wrap.innerHTML = repStanzas.slice(0, N)
+            .map((s, i) => repStanzaHTML(s, i === 0 ? 'rep-stanza-principal' : 'rep-stanza-siguiente'))
+            .join('<div class="rep-stanza-sep"></div>');
         autoFitPendiente();
         return;
     }
 
-    // Encontrar estrofa de la línea activa
     const stanzaIdx = repStanzas.findIndex(s => s.some(l => l.origIdx === repIdx));
     if (stanzaIdx >= 0) {
-        const fueraDeVentana = stanzaIdx < repActiveStanzaIdx ||
-                               stanzaIdx >= repActiveStanzaIdx + repStanzaCount;
-        if (fueraDeVentana) {
-            repActiveStanzaIdx = Math.min(
-                stanzaIdx,
-                Math.max(0, repStanzas.length - repStanzaCount)
-            );
+        const fueraDeVentana = stanzaIdx < repActiveStanzaIdx || stanzaIdx >= repActiveStanzaIdx + N;
+        if (fueraDeVentana) repActiveStanzaIdx = Math.min(stanzaIdx, Math.max(0, repStanzas.length - N));
+    }
+    const slice = repStanzas.slice(repActiveStanzaIdx, repActiveStanzaIdx + N);
+    wrap.innerHTML = slice
+        .map((s, i) => repStanzaHTML(s, i === 0 ? 'rep-stanza-principal' : 'rep-stanza-siguiente'))
+        .join('<div class="rep-stanza-sep"></div>');
+    autoFitPendiente();
+}
+
+// Modo 4: toda la letra con scroll manual + auto-scroll suave mientras gobierna el audio
+function renderRepScroll(wrap) {
+    repResetWrapEstilos(wrap);
+    wrap.style.fontSize = '';  // el tamaño lo fija el CSS (.modo-scroll)
+    wrap.innerHTML = repStanzas.map(s => repStanzaHTML(s, 'rep-stanza-principal')).join('');
+    repScrollActivoAlCentro(repFollow);
+}
+
+// Modo 5: toda la letra en una pantalla (columnas automáticas)
+function renderRepPantalla(wrap) {
+    repResetWrapEstilos(wrap);
+    wrap.style.fontSize = '';
+    wrap.innerHTML = repStanzas.map(s => repStanzaHTML(s, 'rep-stanza-principal')).join('');
+    autoFitPantalla(wrap);
+}
+
+// Escala + reparte la letra en 1..4 columnas eligiendo la MAYOR legibilidad (mayor fuente).
+// Excepción de romper verso solo si el tamaño intacto cae por debajo del modo 3 estrofas.
+function autoFitPantalla(wrap) {
+    const slide = document.querySelector('#slide-area .slide-rep');
+    if (!slide || !repStanzas.length) return;
+    const H = slide.clientHeight - 80;
+    wrap.style.height = H + 'px';
+    wrap.style.overflow = 'hidden';
+    wrap.style.columnGap = '3vw';
+
+    const cabe = () => wrap.scrollWidth <= wrap.clientWidth + 1 && wrap.scrollHeight <= wrap.clientHeight + 1;
+    const mejorFontPara = (cols) => {
+        wrap.style.columnCount = String(cols);
+        let lo = 12, hi = 200;
+        while (hi - lo > 1) {
+            const mid = (lo + hi) >> 1;
+            wrap.style.fontSize = mid + 'px';
+            if (cabe()) lo = mid; else hi = mid;
+        }
+        return lo;
+    };
+    const buscarMejor = () => {
+        let best = { cols: 1, font: 0 };
+        for (let c = 1; c <= 4; c++) {
+            const f = mejorFontPara(c);
+            if (f > best.font) best = { cols: c, font: f }; // empate → menos columnas (estricto >)
+        }
+        return best;
+    };
+
+    // Fase intacta: versos en una línea (nunca partir un verso)
+    wrap.classList.remove('versos-wrap');
+    let best = buscarMejor();
+    let usarWrap = false;
+
+    // Umbral aprobado: si el tamaño intacto cae por debajo del que daría el modo de 3
+    // estrofas, se permite la excepción (romper versos largos). Pero solo se conserva
+    // si REALMENTE mejora la legibilidad: si la restricción es de alto (muchas líneas),
+    // envolver versos añade líneas y empeora — en ese caso se mantiene la letra intacta.
+    const f3 = medirFontModo3(wrap);
+    if (best.font < f3) {
+        wrap.classList.add('versos-wrap');
+        const bestExc = buscarMejor();
+        if (bestExc.font > best.font) { best = bestExc; usarWrap = true; }
+    }
+    wrap.classList.toggle('versos-wrap', usarWrap);
+
+    wrap.style.columnCount = String(best.cols);
+    wrap.style.fontSize = best.font + 'px';
+}
+
+// Mide el font-size que produciría el modo de 3 estrofas (para el umbral de la excepción)
+function medirFontModo3(refWrap) {
+    const slide = document.querySelector('#slide-area .slide-rep');
+    if (!slide) return 0;
+    const maxH = slide.clientHeight - 80;
+    const N = 3;
+    let start = 0;
+    if (repIdx >= 0) {
+        const si = repStanzas.findIndex(s => s.some(l => l.origIdx === repIdx));
+        if (si >= 0) start = Math.min(si, Math.max(0, repStanzas.length - N));
+    }
+    const slice = repStanzas.slice(start, start + N);
+    const probe = document.createElement('div');
+    probe.className = 'rep-lineas';
+    probe.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${refWrap.clientWidth}px;`;
+    probe.innerHTML = slice
+        .map((s, i) => repStanzaHTML(s, i === 0 ? 'rep-stanza-principal' : 'rep-stanza-siguiente'))
+        .join('<div class="rep-stanza-sep"></div>');
+    slide.appendChild(probe);
+    let lo = 12, hi = 220;
+    while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        probe.style.fontSize = mid + 'px';
+        if (probe.scrollHeight > maxH || probe.scrollWidth > probe.clientWidth) hi = mid; else lo = mid;
+    }
+    slide.removeChild(probe);
+    return lo;
+}
+
+// Actualiza SOLO las clases de resaltado (sin re-layout) — para el tick de audio
+function repSyncHighlightClases() {
+    const wrap = document.getElementById('rep-lineas');
+    if (!wrap) return;
+    wrap.querySelectorAll('.rep-linea.activa, .rep-stanza.activa').forEach(el => el.classList.remove('activa'));
+    if (repIdx < 0) return;
+    const linea = wrap.querySelector(`.rep-linea[data-idx="${repIdx}"]`);
+    if (!linea) return;
+    if (repHighlightMode === 'verso') linea.classList.add('activa');
+    else linea.closest('.rep-stanza')?.classList.add('activa');
+}
+
+// Lleva el verso/estrofa activo al centro del contenedor scrolleable (modo scroll)
+function repScrollActivoAlCentro(smooth) {
+    const wrap = document.getElementById('rep-lineas');
+    if (!wrap || repViewMode !== 'scroll') return;
+    const activo = wrap.querySelector('.rep-linea.activa') || wrap.querySelector('.rep-stanza.activa');
+    if (!activo) return;
+    const wr = wrap.getBoundingClientRect();
+    const ar = activo.getBoundingClientRect();
+    const delta = (ar.top - wr.top) - (wrap.clientHeight - ar.height) / 2;
+    const top = Math.max(0, wrap.scrollTop + delta);
+    repProgScroll = true;                       // marca: el próximo scroll es nuestro, no del usuario
+    if (repProgScrollTimer) clearTimeout(repProgScrollTimer);
+    wrap.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+    repProgScrollTimer = setTimeout(() => { repProgScroll = false; }, smooth ? 600 : 60);
+}
+
+// Refresco tras avance del audio (tick): resaltado + auto-scroll, sin re-layout costoso
+function repRefrescarPorAudio() {
+    if (repViewMode === 'scroll') {
+        repSyncHighlightClases();
+        repScrollActivoAlCentro(true);
+    } else if (repViewMode === 'pantalla') {
+        repSyncHighlightClases();
+    } else {
+        renderRepLineas(); // la ventana puede necesitar reposicionarse
+    }
+    const ctr = document.getElementById('rep-counter');
+    if (ctr && repIdx >= 0) {
+        const pos = repLrcLines.slice(0, repIdx + 1).filter(l => l.text.trim()).length;
+        ctr.textContent = `${pos} / ${repLines.length}`;
+    }
+}
+
+// Marca interacción manual: rompe el seguimiento y muestra 🎯 Resincronizar
+function repMarcarManual() {
+    if (!repFollow) return;
+    repFollow = false;
+    repMostrarResync(repHasSync && repHasAudio);
+}
+
+// Crea/muestra/oculta el botón Resincronizar
+function repMostrarResync(mostrar) {
+    let btn = document.getElementById('rep-resync-btn');
+    if (mostrar) {
+        if (!btn) {
+            const slide = document.querySelector('#slide-area .slide-rep');
+            if (!slide) return;
+            btn = document.createElement('button');
+            btn.id = 'rep-resync-btn';
+            btn.textContent = '🎯 Resincronizar';
+            btn.onclick = (e) => { e.stopPropagation(); repResync(); };
+            slide.appendChild(btn);
+        }
+        btn.style.display = '';
+    } else if (btn) {
+        btn.style.display = 'none';
+    }
+}
+
+// Vuelve al verso/estrofa correspondiente al tiempo actual del audio y restaura el seguimiento
+function repResync() {
+    const audio = document.getElementById('rep-audio');
+    let idx = -1;
+    if (audio) {
+        const ms = audio.currentTime * 1000;
+        for (let i = 0; i < repLrcLines.length; i++) {
+            if (repLrcLines[i].time <= ms) { if (repLrcLines[i].text.trim()) idx = i; }
+            else break;
         }
     }
-
-    const slice = repStanzas.slice(repActiveStanzaIdx, repActiveStanzaIdx + repStanzaCount);
-    wrap.innerHTML = slice.map((stanza, sIdx) => {
-        const cls = sIdx === 0 ? 'rep-stanza-principal' : 'rep-stanza-siguiente';
-        return `<div class="rep-stanza ${cls}">` +
-            stanza.map(l =>
-                `<div class="rep-linea${l.origIdx === repIdx ? ' activa' : ''}" data-idx="${l.origIdx}">${esc(l.text)}</div>`
-            ).join('') +
-        `</div>`;
-    }).join('<div class="rep-stanza-sep"></div>');
-
-    // Contador: posición en líneas no vacías
-    const posicion = repLrcLines.slice(0, repIdx + 1).filter(l => l.text.trim()).length;
-    if (ctr) ctr.textContent = `${posicion} / ${repLines.length}`;
-    autoFitPendiente();
+    if (idx < 0) idx = repLrcLines.findIndex(l => l.text.trim());
+    repIdx = idx;
+    repFollow = true;
+    repMostrarResync(false);
+    renderRepLineas(); // en scroll, renderRepScroll reencuadra suave; en ventana reposiciona
 }
 
 function repIrA(idx) {
     if (idx < 0 || idx >= repLrcLines.length) return;
     if (!repLrcLines[idx].text.trim()) return; // saltar líneas vacías (separadores)
     repIdx = idx;
-    repBrowsing = true;
-    if (repBrowsingTimer) clearTimeout(repBrowsingTimer);
-    repBrowsingTimer = setTimeout(() => { repBrowsing = false; }, 2000);
+    repMarcarManual();                          // navegación manual rompe el seguimiento
     renderRepLineas();
 }
 
+// Click en un verso: salta el audio a ese punto y RESINCRONIZA (sigue gobernando el audio)
 function repSaltarAudio(idx) {
     if (idx < 0 || idx >= repLrcLines.length) return;
     if (!repLrcLines[idx].text.trim()) return;
     repIdx = idx;
-    repBrowsing = false;
-    if (repBrowsingTimer) { clearTimeout(repBrowsingTimer); repBrowsingTimer = null; }
-    if (repHasSync && repLrcLines[idx]) {
+    if (repHasSync && repHasAudio) {
         const audio = document.getElementById('rep-audio');
         if (audio) audio.currentTime = Math.max(0, repLrcLines[idx].time / 1000 - 1);
+        repFollow = true;
+        repMostrarResync(false);
     }
     renderRepLineas();
 }
@@ -1086,7 +1380,7 @@ function renderSlide() {
     if (!repActivo) {
         repLines = []; repIdx = 0; repLrcLines = []; repHasSync = false; repHasAudio = false;
         repStanzas = []; repActiveStanzaIdx = 0;
-        repBrowsing = false; if (repBrowsingTimer) { clearTimeout(repBrowsingTimer); repBrowsingTimer = null; }
+        repFollow = true; repCancionId = null;
     }
     document.body.classList.toggle('slide-metal-active', tipo === 'metal');
     document.body.classList.toggle('slide-rep-active',   tipo === 'rep');
@@ -1114,9 +1408,12 @@ function renderSlide() {
         area.innerHTML = `<div class="slide-rep">
             <div class="rep-nombre">${esc(nombre)}</div>
             <div class="rep-dens-control">
-                <button class="rep-dens-btn active" onclick="setRepDensidad(1)">1</button>
-                <button class="rep-dens-btn" onclick="setRepDensidad(2)">2</button>
-                <button class="rep-dens-btn" onclick="setRepDensidad(3)">3</button>
+                <button class="rep-dens-btn" data-modo="estrofa1" onclick="setRepViewMode('estrofa1')">1</button>
+                <button class="rep-dens-btn" data-modo="estrofa2" onclick="setRepViewMode('estrofa2')">2</button>
+                <button class="rep-dens-btn" data-modo="estrofa3" onclick="setRepViewMode('estrofa3')">3</button>
+                <button class="rep-dens-btn" data-modo="scroll" onclick="setRepViewMode('scroll')">Scroll</button>
+                <button class="rep-dens-btn" data-modo="pantalla" onclick="setRepViewMode('pantalla')">Pantalla</button>
+                <button class="rep-dens-btn rep-hl-btn" id="rep-hl-btn" onclick="repToggleHighlight()">Verso</button>
             </div>
             <div class="rep-lineas" id="rep-lineas" style="color:rgba(0,0,0,0.25);font-size:1rem">Cargando letra…</div>
             <div class="rep-counter" id="rep-counter"></div>
@@ -1151,10 +1448,21 @@ function renderSlide() {
                 repLines = repLrcLines.filter(l => l.text.trim()).map(l => l.text);
                 repStanzas = parseRepStanzas();
                 repActiveStanzaIdx = 0;
-                // Sincronizar botones densidad (se mantiene preferencia entre canciones)
-                document.querySelectorAll('.rep-dens-btn').forEach((b, i) => {
-                    b.classList.toggle('active', i + 1 === repStanzaCount);
-                });
+                // Cargar preferencias de visualización de la canción (Supabase — Opción A)
+                repCancionId = cancionId;
+                let songPrefs = null;
+                try {
+                    const { data: songRow } = await sb.from('repertorio_canciones')
+                        .select('prefs').eq('id', cancionId).maybeSingle();
+                    if (repGen !== miGen) return;
+                    songPrefs = songRow?.prefs || null;
+                } catch (_) { songPrefs = null; } // la columna prefs puede no existir aún (migración pendiente)
+                const vp = songPrefs?.vista_letra || {};
+                repViewMode = REP_MODOS.includes(vp.modo) ? vp.modo : 'estrofa1';
+                repHighlightMode = vp.resaltado === 'estrofa' ? 'estrofa' : 'verso';
+                repFollow = true;
+                repMostrarResync(false);
+                repActualizarControl();
                 repIdx = repHasSync ? -1 : Math.max(0, repLrcLines.findIndex(l => l.text.trim()));
                 // Botón de modo sync (solo si hay LRC + audio)
                 if (repHasSync && repHasAudio) {
@@ -1171,7 +1479,7 @@ function renderSlide() {
                 const repAudio = document.getElementById('rep-audio');
                 repAudio.pause(); repAudio.src = '';
                 repAudio.ontimeupdate = function () {
-                    if (!repActivo || !repLrcLines.length || repBrowsing) return;
+                    if (!repActivo || !repLrcLines.length || !repFollow) return;
                     const ms = this.currentTime * 1000;
                     let newIdx = -1;
                     for (let i = 0; i < repLrcLines.length; i++) {
@@ -1179,7 +1487,7 @@ function renderSlide() {
                             if (repLrcLines[i].text.trim()) newIdx = i; // solo líneas con texto
                         } else break;
                     }
-                    if (newIdx >= 0 && newIdx !== repIdx) { repIdx = newIdx; renderRepLineas(); }
+                    if (newIdx >= 0 && newIdx !== repIdx) { repIdx = newIdx; repRefrescarPorAudio(); }
                 };
                 repAudio.onplay  = () => actualizarBtnRepMode();
                 repAudio.onpause = () => actualizarBtnRepMode();
@@ -1199,6 +1507,12 @@ function renderSlide() {
                         const linea = e.target.closest('[data-idx]');
                         if (!linea) return;
                         repSaltarAudio(parseInt(linea.dataset.idx));
+                    });
+                    // Scroll del usuario (barra/arrastre) en modo scroll → rompe el seguimiento.
+                    // El scroll programático (auto-scroll) se ignora vía repProgScroll.
+                    wrapEl.addEventListener('scroll', () => {
+                        if (repViewMode !== 'scroll' || repProgScroll) return;
+                        repMarcarManual();
                     });
                 }
             } catch (e) {
@@ -1280,11 +1594,7 @@ function actualizarBtnRepMode() {
 }
 
 function handleClickArea() {
-    if (repActivo && repStanzas.length) {
-        const ra = document.getElementById('rep-audio');
-        if (ra && !ra.paused) { ra.pause(); actualizarBtnRepMode(); }
-        repAvancar(); return;
-    }
+    if (repActivo && repStanzas.length) { repAvancar(); return; }
     avanzar();
 }
 
@@ -1517,18 +1827,12 @@ function enviarTimerCustom() {
 
 document.addEventListener('keydown', e => {
     if (repActivo && repStanzas.length) {
-        if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) {
-            e.preventDefault();
-            const ra = document.getElementById('rep-audio');
-            if (ra && !ra.paused) { ra.pause(); actualizarBtnRepMode(); }
-            repAvancar();
-        } else if (['ArrowLeft', 'ArrowUp'].includes(e.key)) {
-            e.preventDefault();
-            const ra = document.getElementById('rep-audio');
-            if (ra && !ra.paused) { ra.pause(); actualizarBtnRepMode(); }
-            repRetroceder();
-        } else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
-        else if (e.key === 'r' || e.key === 'R')   recargarSlides();
+        if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); repAvancar(); }
+        else if (['ArrowLeft', 'ArrowUp'].includes(e.key))    { e.preventDefault(); repRetroceder(); }
+        else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); repCiclarModo(); }
+        else if (e.key === 'h' || e.key === 'H') { e.preventDefault(); repToggleHighlight(); }
+        else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+        else if (e.key === 'r' || e.key === 'R') recargarSlides();
         return;
     }
     if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); avanzar(); }
@@ -1541,6 +1845,7 @@ document.addEventListener('keydown', e => {
 
 document.addEventListener('wheel', (e) => {
     if (!repActivo || !repStanzas.length) return;
+    if (repViewMode === 'scroll') { repMarcarManual(); return; } // scroll nativo del contenedor
     e.preventDefault();
     if (e.deltaY > 0) repAvancar(); else repRetroceder();
 }, { passive: false });
@@ -1553,8 +1858,6 @@ document.addEventListener('touchend',   e => {
     const dx = e.changedTouches[0].clientX - tX0;
     if (Math.abs(dx) > 55) {
         if (repActivo && repStanzas.length) {
-            const ra = document.getElementById('rep-audio');
-            if (ra && !ra.paused) { ra.pause(); actualizarBtnRepMode(); }
             dx < 0 ? repAvancar() : repRetroceder();
         } else {
             dx < 0 ? avanzar() : retroceder();

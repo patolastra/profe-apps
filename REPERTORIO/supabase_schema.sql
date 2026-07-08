@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS repertorio_canciones (
     estilo       TEXT DEFAULT '',
     artwork_url  TEXT DEFAULT '',
     categoria    TEXT DEFAULT 'cancion',  -- 'cancion' | 'material'
+    prefs        JSONB DEFAULT NULL,      -- preferencias por canción, ej: { "vista_letra": { "modo": "...", "resaltado": "..." } }
     creado       BIGINT,
     created_at   TIMESTAMPTZ DEFAULT NOW()
 );
@@ -34,6 +35,7 @@ CREATE TABLE IF NOT EXISTS repertorio_assets (
 
 -- Migración (ejecutar si la tabla ya existe):
 -- ALTER TABLE repertorio_canciones ADD COLUMN IF NOT EXISTS categoria TEXT DEFAULT 'cancion';
+-- ALTER TABLE repertorio_canciones ADD COLUMN IF NOT EXISTS prefs JSONB DEFAULT NULL;  -- prefs de visualización de letra (Pizarra)
 -- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS instrumento TEXT DEFAULT '';
 -- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS dificultad TEXT DEFAULT '';
 -- ALTER TABLE repertorio_assets ADD COLUMN IF NOT EXISTS tonalidad TEXT DEFAULT '';
