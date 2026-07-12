@@ -3047,7 +3047,7 @@ function describirAcorde(label) {
 }
 
 function procesarLabel(label) {
-    return label
+    return parseChordLabel(label).nombre   // quita variante registrada (precejilla…); preserva (b5)
         .replace('m7(b5)', 'ø')
         .replace('m7b5',   'ø')
         .replace('dim7', '°7')
@@ -5561,6 +5561,59 @@ const CHORD_ALIAS = {
     'Gbø':'F#ø','Ebø':'D#ø','Bbø':'A#ø','Abø':'G#ø','Dbø':'C#ø','Cbø':'Bø',
 };
 
+// ─── VARIANTES DE DIGITACIÓN ──────────────────────────────────────────────
+// Una "variante" (texto entre paréntesis en el cifrado, ej: F(precejilla)) NO es
+// una calidad armónica: es una forma alternativa de tomar el MISMO acorde.
+// Este registro es la fuente única — agregar una variante nueva = una entrada aquí.
+// Cada resolver devuelve el MISMO formato que CHORD_DB ({strings,fingers,barre?,baseFret?})
+// o null si la variante no aplica al acorde/instrumento → se cae a la digitación por defecto.
+const NOTE_SEMITONE = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+
+// Traste de la fundamental sobre la 6ª cuerda (Mi grave; al aire = E).
+// E=0, F=1, F#=2, G=3, Ab=4, A=5, Bb=6, B=7, C=8…
+function frasteFundamental6a(nombre) {
+    const m = nombre.match(/^([A-G])(#|b)?/);
+    if (!m) return null;
+    let st = NOTE_SEMITONE[m[1]];
+    if (m[2] === '#') st++;
+    if (m[2] === 'b') st--;
+    return ((st - NOTE_SEMITONE.E) % 12 + 12) % 12;
+}
+
+const CHORD_VARIANTS = {
+    // Digitación previa a la cejilla completa (forma de Mi mayor, fundamental en 6ª cuerda).
+    // Familia MÓVIL: un único patrón que se desplaza según la fundamental, igual que la cejilla.
+    precejilla: {
+        resolver(nombre, instrumento) {
+            if (instrumento !== 'guitarra') return null;
+            // Solo triada mayor: la fundamental consume todo el nombre (F, F#, Ab, Bb, C…)
+            if (!/^[A-G](#|b)?$/.test(nombre)) return null;
+            const b = frasteFundamental6a(nombre);
+            if (b == null || b < 1) return null; // E(precejilla) = al aire → sin sentido
+            // strings[]: [Mi agudo, Si, Sol, Re, La, Mi grave] — -1=apagada
+            // Mitad grave de la cejilla de Mi: fundamental en 6ª cuerda, se mutean las
+            // dos cuerdas agudas (Mi agudo y Si). Sin cejilla: cada dedo pisa una cuerda.
+            //   Mi grave = b (índice) · La = b+2 (anular) · Re = b+2 (meñique) · Sol = b+1 (medio)
+            return {
+                strings: [-1, -1, b + 1, b + 2, b + 2, b],
+                fingers: [ 0,  0, 2,     4,     3,     1],
+                baseFret: b
+            };
+        }
+    }
+};
+
+// Separa "F(precejilla)" → { nombre:'F', variante:'precejilla' }.
+// SOLO reconoce el paréntesis como variante si está registrada en CHORD_VARIANTS;
+// así "Cm7(b5)" (alteración armónica) queda intacto como nombre y resuelve como hoy.
+function parseChordLabel(label) {
+    const m = label.match(/\(\s*([^)]+?)\s*\)/);
+    if (m && CHORD_VARIANTS[m[1]]) {
+        return { nombre: label.replace(m[0], '').trim(), variante: m[1] };
+    }
+    return { nombre: label, variante: null };
+}
+
 // ─── DIAGRAMAS ─────────────────────────────────────────────────────────────
 let acDetalleUniqueChords = [];
 let acDetalleIdx          = 0;
@@ -5568,8 +5621,14 @@ let chordOverlayCurLabel  = null;
 let chordOverlaySigLabel  = null;
 
 function resolverChord(label) {
-    const clean = procesarLabel(label).replace(/\s/g, '');
-    const db    = CHORD_DB[currentInstrument] || CHORD_DB.guitarra;
+    const { nombre, variante } = parseChordLabel(label);
+    const clean = procesarLabel(nombre).replace(/\s/g, '');
+    if (variante) {
+        const data = CHORD_VARIANTS[variante].resolver(clean, currentInstrument);
+        if (data) return data;
+        // Variante no aplicable (acorde/instrumento) → digitación por defecto, nunca "?"
+    }
+    const db = CHORD_DB[currentInstrument] || CHORD_DB.guitarra;
     return db[clean] || db[CHORD_ALIAS[clean]] || null;
 }
 
@@ -5671,7 +5730,8 @@ function drawChordDiagram(cvs, label, opts = {}) {
 function acUniquesFromChordEvents() {
     const seen = new Set(), result = [];
     for (const ev of chordEvents) {
-        const key = procesarLabel(ev.label).replace(/\s/g, '');
+        const p   = parseChordLabel(ev.label);
+        const key = procesarLabel(ev.label).replace(/\s/g, '') + (p.variante ? '(' + p.variante + ')' : '');
         if (!seen.has(key)) { seen.add(key); result.push(ev.label); }
     }
     return result;
