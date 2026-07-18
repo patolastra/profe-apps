@@ -60,6 +60,34 @@
       background: white;
     }
 
+    /* ── Bloques de paso (flujo en 2 fases) ── */
+    .fase {
+      background: #fff; border: 1.5px solid #ececec; border-radius: 14px;
+      padding: 20px 22px; margin: 0 0 22px;
+    }
+    .fase-badge {
+      display: inline-block; background: #2c3e50; color: #fff;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: .05em;
+      padding: 3px 11px; border-radius: 20px; margin-bottom: 9px;
+    }
+    .fase-titulo { font-size: 1.15rem; font-weight: 700; color: #2c3e50; margin: 0; }
+    .fase-sub { font-size: 0.85rem; color: #888; margin: 3px 0 16px; }
+
+    /* ── Multiselección de meses (chips) ── */
+    .mes-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .mes-grid label {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.82rem; font-weight: 600; color: #444;
+      background: #f3f3f3; border: 1.5px solid #ddd; border-radius: 8px;
+      padding: 5px 10px; cursor: pointer; user-select: none;
+      transition: background .12s, color .12s, border-color .12s;
+    }
+    .mes-grid label:hover { border-color: #bbb; }
+    .mes-grid label:has(input:checked) {
+      background: #2c3e50; color: #fff; border-color: #2c3e50;
+    }
+    .mes-grid input { margin: 0; accent-color: #2c3e50; }
+
     /* ── Relato ── */
     .relato-zone {
       max-width: 860px;
@@ -110,7 +138,8 @@
     #relato {
       width: 100%;
       padding: 14px 18px;
-      border: none;
+      border: 1.5px solid #ddd;
+      border-radius: 10px;
       font-size: 0.875rem;
       font-family: inherit;
       color: #1a1a1a;
@@ -119,8 +148,11 @@
       line-height: 1.5;
       background: white;
     }
+    #relato:focus { border-color: #2c3e50; }
 
     #relato::placeholder { color: #ccc; }
+
+    .btn-copiar-prompt { display: inline-block; margin-top: 14px; }
 
     /* ── Zona de pegado ── */
     .paste-zone {
@@ -172,7 +204,8 @@
       width: 100%;
       min-height: 100px;
       padding: 14px 18px;
-      border: none;
+      border: 2px solid #e67e22;
+      border-radius: 10px;
       font-size: 0.875rem;
       font-family: inherit;
       color: #1a1a1a;
@@ -366,53 +399,77 @@
 
     .gen-status.ok { color: #27ae60; }
     .gen-status.err { color: #e74c3c; }
+
+    .header-sub {
+      text-align: center; color: #888; font-size: 0.9rem;
+      max-width: 640px; margin: 6px auto 0;
+    }
   </style>
 </head>
 <body>
 
 <header>
   <h1>Planificación <em>Música</em></h1>
-  <div class="preset-bar">
-    <span class="preset-label">Presets:</span>
-    <select class="preset-select" id="presetCurso">
-      <option value="">— curso —</option>
-      <option value="Primero básico">1° Básico</option>
-      <option value="Segundo básico">2° Básico</option>
-      <option value="Tercero básico">3° Básico</option>
-      <option value="Cuarto básico">4° Básico</option>
-      <option value="Quinto básico">5° Básico</option>
-      <option value="Sexto básico">6° Básico</option>
-      <option value="Séptimo básico">7° Básico</option>
-      <option value="Octavo básico">8° Básico</option>
-    </select>
-    <button type="button" class="btn-sm btn-cargar" onclick="cargarPreset()">Cargar</button>
-    <button type="button" class="btn-sm btn-guardar" onclick="guardarPreset()">Guardar</button>
-  </div>
+  <p class="header-sub">Formatea tu relato para NotebookLM y convierte su respuesta en un .docx.</p>
 </header>
 
-<!-- ══ RELATO ══ -->
-<div class="relato-zone">
-  <div class="relato-header">
+<!-- ══ PASO 1 — ENTRADA PARA NOTEBOOKLM ══ -->
+<div class="fase">
+  <div class="fase-badge">PASO 1</div>
+  <div class="fase-titulo">Arma el prompt para NotebookLM</div>
+  <div class="fase-sub">Elige el curso y el/los mes(es), narra la clase y copia el prompt.</div>
+
+  <div class="row col3">
     <div>
-      <div class="relato-title">Relato de la clase</div>
-      <div class="relato-sub">Describe qué hicieron, qué funcionó, qué fue difícil — en lenguaje natural</div>
+      <label>Curso</label>
+      <select id="curso">
+        <option value="Primero básico">Primero básico</option>
+        <option value="Segundo básico">Segundo básico</option>
+        <option value="Tercero básico">Tercero básico</option>
+        <option value="Cuarto básico" selected>Cuarto básico</option>
+        <option value="Quinto básico">Quinto básico</option>
+        <option value="Sexto básico">Sexto básico</option>
+        <option value="Séptimo básico">Séptimo básico</option>
+        <option value="Octavo básico">Octavo básico</option>
+      </select>
     </div>
-    <button type="button" class="btn-copiar-prompt" onclick="copiarPromptCompleto()">
-      Copiar prompt para NotebookLM
-    </button>
+    <div>
+      <label>Mes(es) — marca uno o varios</label>
+      <div class="mes-grid" id="mesGrid">
+        <label><input type="checkbox" value="Enero">Ene</label>
+        <label><input type="checkbox" value="Febrero">Feb</label>
+        <label><input type="checkbox" value="Marzo">Mar</label>
+        <label><input type="checkbox" value="Abril" checked>Abr</label>
+        <label><input type="checkbox" value="Mayo">May</label>
+        <label><input type="checkbox" value="Junio">Jun</label>
+        <label><input type="checkbox" value="Julio">Jul</label>
+        <label><input type="checkbox" value="Agosto">Ago</label>
+        <label><input type="checkbox" value="Septiembre">Sep</label>
+        <label><input type="checkbox" value="Octubre">Oct</label>
+        <label><input type="checkbox" value="Noviembre">Nov</label>
+        <label><input type="checkbox" value="Diciembre">Dic</label>
+      </div>
+    </div>
+    <div>
+      <label>Año</label>
+      <input type="number" id="anio" value="2026">
+    </div>
   </div>
+
+  <label>Relato de la clase</label>
+  <div class="relato-sub">Describe qué hicieron, qué funcionó, qué fue difícil — en lenguaje natural</div>
   <textarea id="relato" rows="5" placeholder="Ej: Este mes trabajamos con 4° básico el metalófono. Los niños lograron tocar IA IA OH y Dos por diez. Hubo dificultad con el ritmo de Zapatero. Hicimos un juego auditivo al final donde…"></textarea>
+
+  <button type="button" class="btn-copiar-prompt" onclick="copiarPromptCompleto()">
+    Copiar prompt para NotebookLM
+  </button>
 </div>
 
-<!-- ══ ZONA DE PEGADO ══ -->
-<div class="paste-zone">
-  <div class="paste-header">
-    <div>
-      <div class="paste-header-title">Pega aquí el texto de NotebookLM</div>
-      <div class="paste-header-sub">Los campos se llenan solos</div>
-    </div>
-    <button type="button" class="btn-ver-formato" onclick="toggleFormato()">Ver formato ↕</button>
-  </div>
+<!-- ══ PASO 2 — RESPUESTA DE NOTEBOOKLM → DOCX ══ -->
+<div class="fase">
+  <div class="fase-badge">PASO 2</div>
+  <div class="fase-titulo">Pega la respuesta y descarga el .docx</div>
+  <div class="fase-sub">Pega el texto que devolvió NotebookLM. Los campos de abajo se llenan solos — revísalos y genera el documento.</div>
 
   <textarea id="pasteArea" rows="5" placeholder="Pega aquí la planificación generada por NotebookLM…"></textarea>
 
@@ -420,80 +477,12 @@
     Pegá el texto y los campos de abajo se llenarán automáticamente
   </div>
 
-  <!-- Panel de formato -->
-  <div class="formato-panel" id="formatoPanel" style="display:none">
-    <h3>Formato para NotebookLM</h3>
-    <p class="formato-instruccion">
-      Agrega esto al final de tu prompt en NotebookLM:<br>
-      <strong>"Responde usando exactamente este formato, sin cambiar las etiquetas en MAYÚSCULAS:"</strong>
-    </p>
-    <pre id="formatoTexto">CURSO: [nombre del curso, ej: Cuarto básico]
-MES: [mes, ej: Mayo]
-EJE: [eje temático]
-OAT_FISICA: [texto completo del OAT dimensión física]
-OAT_SOCIO: [texto completo del OAT dimensión sociocultural]
-OA_BASAL_1_N: [número, ej: 1]
-OA_BASAL_1: [texto completo del primer OA basal]
-OA_BASAL_2_N: [número, ej: 4]
-OA_BASAL_2: [texto completo del segundo OA basal]
-OA_COMP_1_N: [número, ej: 2]
-OA_COMP_1: [texto completo del primer OA complementario]
-OA_COMP_2_N: [número, ej: 5]
-OA_COMP_2: [texto completo del segundo OA complementario]
-ACTITUD: [actitud a trabajar]
-META: [meta de comprensión / núcleo, en una sola línea]
-DESEMPENOS:
-[actividad o desempeño 1]
-[actividad o desempeño 2]
-[actividad o desempeño 3]
-EVIDENCIAS:
-[evidencia de comprensión 1]
-[evidencia de comprensión 2]
-[evidencia de comprensión 3]
-TIEMPO: [tiempo por sesión, ej: 90 minutos por sesión.]
-RECURSOS: [recursos necesarios separados por comas]
-EVALUACION:
-[instrumento de evaluación 1 con descripción]
-[instrumento de evaluación 2 con descripción]
-[instrumento de evaluación 3 con descripción]</pre>
-    <button class="btn-copiar" onclick="copiarFormato()">Copiar formato</button>
-  </div>
-</div>
-
-<!-- ══ FORMULARIO ══ -->
+<!-- ══ CAMPOS QUE SE AUTOCOMPLETAN (revisión antes de generar) ══ -->
 <form id="planForm" onsubmit="generarDoc(event)">
 
-  <!-- Datos generales -->
+  <!-- Eje (se autocompleta al pegar) -->
   <div class="card">
-    <div class="card-title">Datos generales</div>
-    <div class="row col3">
-      <div>
-        <label>Curso</label>
-        <select id="curso">
-          <option value="Primero básico">Primero básico</option>
-          <option value="Segundo básico">Segundo básico</option>
-          <option value="Tercero básico">Tercero básico</option>
-          <option value="Cuarto básico" selected>Cuarto básico</option>
-          <option value="Quinto básico">Quinto básico</option>
-          <option value="Sexto básico">Sexto básico</option>
-          <option value="Séptimo básico">Séptimo básico</option>
-          <option value="Octavo básico">Octavo básico</option>
-        </select>
-      </div>
-      <div>
-        <label>Mes</label>
-        <select id="mes">
-          <option>Enero</option><option>Febrero</option><option>Marzo</option>
-          <option selected>Abril</option><option>Mayo</option><option>Junio</option>
-          <option>Julio</option><option>Agosto</option><option>Septiembre</option>
-          <option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
-        </select>
-      </div>
-      <div>
-        <label>Año</label>
-        <input type="number" id="anio" value="2026">
-      </div>
-    </div>
+    <div class="card-title">Eje</div>
     <div>
       <label>Eje</label>
       <input type="text" id="eje" value="Escuchar y Apreciar; Interpretar y Crear">
@@ -594,11 +583,26 @@ EVALUACION:
   <p class="gen-status" id="genStatus"></p>
 
 </form>
+</div><!-- /fase Paso 2 -->
 
 <script>
 // ══════════════════════════════════════════════
 // COPIAR PROMPT PARA NOTEBOOKLM
 // ══════════════════════════════════════════════
+
+// Devuelve los meses marcados, en orden de calendario
+function mesesSeleccionados() {
+  return Array.from(document.querySelectorAll('#mesGrid input:checked'))
+              .map(el => el.value);
+}
+
+// Los formatea como texto legible: "Abril" / "Abril y Mayo" / "Abril, Mayo y Junio"
+function mesTexto() {
+  const m = mesesSeleccionados();
+  if (m.length === 0) return '';
+  if (m.length === 1) return m[0];
+  return m.slice(0, -1).join(', ') + ' y ' + m[m.length - 1];
+}
 
 const FORMATO_FIJO = `CURSO: [nombre del curso]
 MES: [mes de la planificación]
@@ -633,8 +637,10 @@ EVALUACION:
 function copiarPromptCompleto() {
   const relato = (document.getElementById('relato').value || '').trim();
   const curso  = document.getElementById('curso').value;
-  const mes    = document.getElementById('mes').value;
+  const mes    = mesTexto();
   const anio   = document.getElementById('anio').value;
+
+  if (!mes) { alert('Marca al menos un mes.'); return; }
 
   const parteRelato = relato
     ? `Narración de la clase:\n${relato}\n\n`
@@ -679,8 +685,7 @@ function normKey(k) {
 
 // Mapa de claves normalizadas → id del campo en el formulario
 const KEY_MAP = {
-  'CURSO':                          'curso',
-  'MES':                            'mes',
+  // CURSO y MES no se parsean: los define el usuario en el Paso 1 (fuente de verdad)
   'EJE':                            'eje',
   'OAT_FISICA':                     'oat_fisica',
   'OAT_DIMENSION_FISICA':           'oat_fisica',
@@ -925,66 +930,6 @@ document.getElementById('pasteArea').addEventListener('paste', function() {
 });
 
 // ══════════════════════════════════════════════
-// PANEL DE FORMATO
-// ══════════════════════════════════════════════
-
-function toggleFormato() {
-  const panel = document.getElementById('formatoPanel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-}
-
-function copiarFormato() {
-  const texto = document.getElementById('formatoTexto').textContent;
-  navigator.clipboard.writeText(texto).then(() => {
-    const btn = event.target;
-    btn.textContent = '✓ Copiado';
-    setTimeout(() => btn.textContent = 'Copiar formato', 1800);
-  });
-}
-
-// ══════════════════════════════════════════════
-// PRESETS
-// ══════════════════════════════════════════════
-
-const PRESET_FIELDS = [
-  'eje', 'oat_fisica', 'oat_socio',
-  'oa_b1_num', 'oa_b1_txt', 'oa_b2_num', 'oa_b2_txt',
-  'oa_c1_num', 'oa_c1_txt', 'oa_c2_num', 'oa_c2_txt',
-  'actitud',
-];
-
-function guardarPreset() {
-  const curso = document.getElementById('presetCurso').value;
-  if (!curso) { alert('Selecciona un curso en el selector de presets'); return; }
-  const data = {};
-  PRESET_FIELDS.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) data[id] = el.value;
-  });
-  localStorage.setItem('plan_preset_' + curso, JSON.stringify(data));
-  const btn = event.target;
-  const orig = btn.textContent;
-  btn.textContent = '✓ Guardado';
-  setTimeout(() => btn.textContent = orig, 1800);
-}
-
-function cargarPreset() {
-  const curso = document.getElementById('presetCurso').value;
-  if (!curso) { alert('Selecciona un curso'); return; }
-  const raw = localStorage.getItem('plan_preset_' + curso);
-  if (!raw) {
-    alert('No hay preset guardado para ' + curso + '.\n\nCompleta el formulario y haz clic en "Guardar".');
-    return;
-  }
-  const data = JSON.parse(raw);
-  PRESET_FIELDS.forEach(id => {
-    const el = document.getElementById(id);
-    if (el && data[id] !== undefined) el.value = data[id];
-  });
-  document.getElementById('curso').value = curso;
-}
-
-// ══════════════════════════════════════════════
 // IMÁGENES INSTITUCIONALES (base64)
 // ══════════════════════════════════════════════
 const IMG_LOS_PARQUES = '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';
@@ -1003,6 +948,13 @@ function b64toArr(b64) {
 async function generarDoc(e) {
   e.preventDefault();
   const statusEl = document.getElementById('genStatus');
+
+  if (mesesSeleccionados().length === 0) {
+    statusEl.textContent = 'Marca al menos un mes antes de generar.';
+    statusEl.className = 'gen-status err';
+    return;
+  }
+
   statusEl.textContent = 'Generando documento…';
   statusEl.className = 'gen-status';
 
@@ -1021,7 +973,7 @@ async function generarDoc(e) {
 
     const v = {
       curso:      g('curso'),
-      mes:        g('mes'),
+      mes:        mesTexto(),
       anio:       g('anio'),
       eje:        g('eje'),
       oatFisica:  g('oat_fisica'),
