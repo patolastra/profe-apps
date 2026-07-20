@@ -26,7 +26,7 @@ Ecosistema de aplicaciones pedagógicas para un profesor de música en escuela p
 | `PRESENTADOR PEDAGÓGICO/` | *(carpeta vacía — el módulo vive en `PIZARRA/`)* | — |
 | `CUADERNO MIDI/` | Captura rápida de melodías, exporta MIDI | Planificado |
 | `METALÓFONO APP/` | Herramienta pedagógica visual basada en MIDI | En desarrollo |
-| `LECTOR TABLATURAS/` | Lector de partituras MXL/MSCZ | En desarrollo |
+| `tabs/` | **Lector de Tablaturas** — lector MXL/MusicXML, audio sync, secciones, modo cifrado | En desarrollo |
 | `FLAUTA APP/` | Digitaciones y ejercicios interactivos | Planificado |
 | `HUIRO APP/` | Práctica rítmica y patrones | Planificado |
 | `CIFRADO AMERICANO/` | Cifrado de acordes | Planificado |
@@ -43,12 +43,12 @@ Cada módulo en producción o desarrollo activo tiene su propio `CLAUDE.md` inte
 
 **Versión activa por módulo:**
 - Metalófono: `METAL21 (ALPHA).HTML` es la última estable conocida
-- Lector Tablaturas: `T25–T34.html` son las últimas 10 iteraciones (la activa es la de número más alto)
+- Lector Tablaturas: `tabs/index.html` es el **único** archivo oficial. No volver a crear ramas paralelas (`index-beta`, `index-dev`, `index2`): toda funcionalidad nueva se desarrolla sobre ese archivo
 - SRP: `mobile_ui/index.html` es la única UI activa
 
 **Assets pedagógicos reales — no modificar sin confirmar:**
 - `METALÓFONO APP/MIDI/` — archivos MIDI creados por el profesor para sus clases
-- `LECTOR TABLATURAS/TABS/` — partituras MuseScore reales (ESCALA DE DO, etc.)
+- `tabs/TABS/` — partituras MuseScore reales (ESCALA DE DO, etc.)
 
 ---
 
