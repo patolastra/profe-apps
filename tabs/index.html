@@ -571,6 +571,20 @@
 
 <!-- CONTROLES -->
 <div class="controls">
+    <!-- NAV DE LECCIÓN (primera fila; visible solo cuando se abre una lección) -->
+    <div id="leccionNav" style="display:none;position:relative;align-items:center;justify-content:center;gap:12px;background:#2a1a4a;border:1.5px solid #7c3aed;border-radius:8px;padding:6px 14px;color:#fff;font-size:.9rem;z-index:2">
+        <button id="leccionBtnPrev" onclick="leccionAnterior()" title="Tablatura anterior"
+                style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:1rem;cursor:pointer;font-weight:700">◀</button>
+        <span style="display:flex;flex-direction:column;align-items:center;line-height:1.2;min-width:0">
+            <span id="leccionNavTitulo" style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px"></span>
+            <span id="leccionNavPos" style="font-size:.72rem;color:#c4b5fd"></span>
+        </span>
+        <button id="leccionBtnNext" onclick="leccionSiguiente()" title="Tablatura siguiente"
+                style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:1rem;cursor:pointer;font-weight:700">▶</button>
+        <button onclick="toggleLeccionIndice()" title="Índice de la lección"
+                style="background:transparent;color:#c4b5fd;border:1.5px solid #7c3aed;border-radius:6px;padding:4px 10px;font-size:.8rem;cursor:pointer">☰ Índice</button>
+        <div id="leccionIndice" style="display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;background:#1e1233;border:1.5px solid #7c3aed;border-radius:8px;padding:6px;max-height:60vh;overflow-y:auto;z-index:50;min-width:280px;box-shadow:0 8px 32px rgba(0,0,0,.6)"></div>
+    </div>
     <div id="instrumentoBadge" style="display:none;position:absolute;left:16px;top:50%;transform:translateY(-50%);z-index:1;display:flex;align-items:center;gap:22px">
         <span id="instBadgeLabel" style="color:#fff;padding:8px 22px;border-radius:7px;font-size:1.5rem;font-weight:900;letter-spacing:.03em;flex-shrink:0">🎸 Guitarra</span>
         <span id="instBadgeMeta" style="color:#ccc;font-size:.75rem;line-height:1.3;display:none;max-width:220px;overflow:hidden"></span>
@@ -640,9 +654,9 @@
                             <button class="pal-rep-fil"        data-fil="material" onclick="setFiltroRep('material')">📚 Materiales</button>
                         </div>
                         <button id="palRepPersonalBtn" class="pal-rep-personal" onclick="togglePersonalRep()" title="Solo mi material Personal">⭐ Personal</button>
+                        <div class="pal-rep-filtros" id="palRepEstadoFiltros"></div>
                     </div>
                     <div class="rep-list" id="palRepLista"></div>
-                    <div class="pal-rep-nota">Por ahora la biblioteca muestra solo las canciones con <b>TabSync</b> activo.</div>
                 </div>
             </div>
         </div>
@@ -810,6 +824,7 @@
             <span>🎸 Elegir tablatura del Repertorio</span>
             <button onclick="cerrarModalRep()">✕</button>
         </div>
+        <div class="pal-rep-filtros" id="bibEstadoFiltros" style="display:none;margin:6px 0 2px"></div>
         <div id="listaRepertorio" class="rep-list"></div>
     </div>
 </div>
@@ -3727,28 +3742,33 @@ async function abrirModalRep() {
 
     try {
         let assetIds = null;
+        let misLeccionesHTML = '';   // bloque de lecciones asignadas (solo modo alumno)
 
         let alumnoSecMap = null; // { assetId: [seccion, ...] } — solo modo alumno
         if (alumnoActual) {
-            const [asigTabs, asigSecs] = await Promise.all([
+            const [asigTabs, asigSecs, asigLecs] = await Promise.all([
                 sbGet(`/rest/v1/alumno_tabs?alumno_id=eq.${alumnoActual.id}&select=asset_id`),
-                sbGet(`/rest/v1/alumno_tab_secciones?alumno_id=eq.${alumnoActual.id}&select=asset_id,seccion`).catch(() => [])
+                sbGet(`/rest/v1/alumno_tab_secciones?alumno_id=eq.${alumnoActual.id}&select=asset_id,seccion`).catch(() => []),
+                sbGet(`/rest/v1/alumno_lecciones?alumno_id=eq.${alumnoActual.id}&select=leccion_id,lecciones(id,nombre,descripcion)`).catch(() => [])
             ]);
             alumnoSecMap = {};
             for (const r of asigSecs) {
                 if (!alumnoSecMap[r.asset_id]) alumnoSecMap[r.asset_id] = [];
                 alumnoSecMap[r.asset_id].push(r.seccion);
             }
+            misLeccionesHTML = construirBloqueLeccionesAlumno(asigLecs);
             const allIds = new Set([...asigTabs.map(r => r.asset_id), ...asigSecs.map(r => r.asset_id)]);
             if (!allIds.size) {
-                lista.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">Todavía no tenés ejercicios asignados.</p>';
+                // Sin tabs sueltas: mostrar solo lecciones (o el aviso de "nada asignado")
+                lista.innerHTML = misLeccionesHTML ||
+                    '<p style="color:#aaa;text-align:center;padding:20px">Todavía no tenés ejercicios asignados.</p>';
                 return;
             }
             assetIds = [...allIds];
         }
 
         let url = `${SB_URL}/rest/v1/repertorio_assets` +
-            `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,tab_sync,repertorio_canciones(nombre,artista,categoria)` +
+            `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,tab_sync,estado,repertorio_canciones(nombre,artista,categoria)` +
             `&tipo=in.(tab,cifrado)`;
         if (assetIds) url += `&id=in.(${assetIds.join(',')})`;
 
@@ -3761,8 +3781,26 @@ async function abrirModalRep() {
             return nom.endsWith('.mxl') || nom.endsWith('.musicxml') || nom.endsWith('.xml');
         });
 
+        // Estado editorial: solo filtra en modo trabajo (profesor).
+        // Al alumno se le muestra TODO lo asignado, sin filtrar por estado:
+        // archivar o despublicar nunca retracta lo ya entregado.
+        if (esModoTrabajo()) {
+            mxl = filtrarPorEstado(mxl, bibEstado);
+            const barra = document.getElementById('bibEstadoFiltros');
+            if (barra) {
+                barra.style.display = '';
+                barra.innerHTML = chipsEstadoHTML(bibEstado, 'setEstadoFiltroBib');
+            }
+        } else {
+            const barra = document.getElementById('bibEstadoFiltros');
+            if (barra) barra.style.display = 'none';
+        }
+
         if (!mxl.length) {
-            lista.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px">No hay tablaturas MXL en el Repertorio todavía.</p>';
+            const porFiltro = esModoTrabajo() && bibEstado !== 'todos';
+            lista.innerHTML = `<p style="color:#aaa;text-align:center;padding:20px">${
+                porFiltro ? `Sin tablaturas en estado <b>${ESTADOS_ASSET[bibEstado].label}</b>.`
+                          : 'No hay tablaturas MXL en el Repertorio todavía.'}</p>`;
             return;
         }
 
@@ -3850,9 +3888,33 @@ async function abrirModalRep() {
             </div>`;
         }).join('');
 
+        // Prepend las lecciones asignadas (modo alumno)
+        if (misLeccionesHTML) lista.innerHTML = misLeccionesHTML + lista.innerHTML;
+
     } catch (err) {
         lista.innerHTML = `<p style="color:#e74c3c;text-align:center;padding:20px">Error: ${err.message}</p>`;
     }
+}
+
+// Bloque de lecciones asignadas para el modal del alumno. Cada una abre la lección.
+function construirBloqueLeccionesAlumno(asigLecs) {
+    const lecs = (asigLecs || []).map(r => r.lecciones).filter(Boolean);
+    if (!lecs.length) return '';
+    lecs.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+    const items = lecs.map(l => `
+        <div class="rep-item" onclick="cerrarModalRep();abrirLeccion('${l.id}')" style="cursor:pointer">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                <span style="flex-shrink:0">📚</span>
+                <div style="display:flex;flex-direction:column;min-width:0">
+                    <span style="font-weight:700;font-size:.9rem;color:#eee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.nombre)}</span>
+                    ${l.descripcion ? `<span style="font-size:.74rem;color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.descripcion)}</span>` : ''}
+                </div>
+            </div>
+        </div>`).join('');
+    return `<div class="rep-cancion" style="background:#7c3aed18">
+        <div class="rep-cancion-titulo" style="background:#7c3aed">📚 Lecciones</div>
+        ${items}
+    </div>`;
 }
 
 async function cargarDesdeStorage(storagePath, nombreArchivo, meta = {}) {
@@ -4418,9 +4480,13 @@ async function guardarDigitacion() {
 let alumnoActual      = null;   // { id, nombre, contexto }
 let panelAlumnosOpen  = false;
 let palRepFiltro      = 'todos';   // filtro biblioteca: 'todos' | 'cancion' | 'material'
+let palRepEstado      = 'todos';   // filtro de estado editorial (ortogonal)
+let bibEstado         = 'todos';   // idem para la Biblioteca (modal Abrir)
 let palRepPersonal    = false;     // filtro ⭐ Personal (ortogonal a la categoría)
 let _palRepAssets     = null;      // cache de assets con TabSync (null = no cargado)
 let _palPersonalSet   = new Set(); // cancion_id marcadas como PERSONAL en Repertorio
+let _leccionesCache   = null;      // [{id,nombre,items:[{asset_id}]}] (null = no cargado)
+let _assetCancionMap  = {};        // { assetId: cancionId } de TODOS los assets
 let practicaLogId     = null;
 let practicaStartTime = null;
 let palRepAbierto     = null;   // id alumno con acordeón de repertorio abierto
@@ -4431,6 +4497,7 @@ let palModoAsignacion = null;   // alumnoId en sub-vista de asignación, null = 
 let _palAssetsCache   = [];     // assets cacheados para updates in-place
 let _palAsigCache     = {};     // { alumnoId: Set<assetId> } cacheado
 let _palSecAsigCache  = {};     // { alumnoId: { assetId: Set<seccion> } }
+let _palLeccionAsigCache = {};  // { alumnoId: Set<leccionId> } asignaciones de lecciones
 let currentSeccionAsignada = null; // sección a la que hacer seek al cargar (modo alumno)
 let seccionActiva = null;          // modo solo-sección: { nombre, start, end } — recorta render y limita reproducción
 
@@ -4718,9 +4785,22 @@ function cerrarShortcuts() { document.getElementById('modalShortcuts').classList
 
 function setFiltroRep(fil) {
     palRepFiltro = fil;
-    document.querySelectorAll('#panelAlumnos .pal-rep-fil').forEach(b =>
+    // [data-fil] acota a los chips de categoría; los de estado se repintan aparte
+    document.querySelectorAll('#panelAlumnos .pal-rep-fil[data-fil]').forEach(b =>
         b.classList.toggle('activo', b.dataset.fil === fil));
     renderPanelRepertorio();
+}
+
+// Filtro de estado editorial en #palRepPane
+function setEstadoFiltroRep(est) {
+    palRepEstado = est;
+    renderPanelRepertorio();
+}
+
+// Filtro de estado editorial en la Biblioteca (modal Abrir) — misma lógica
+function setEstadoFiltroBib(est) {
+    bibEstado = est;
+    abrirModalRep();
 }
 
 // Toggle del filtro ⭐ Personal (ortogonal a Todos/Canciones/Materiales)
@@ -4730,11 +4810,55 @@ function togglePersonalRep() {
     renderPanelRepertorio();
 }
 
-// Carga assets con TabSync activo (cacheado en _palRepAssets) + set de canciones Personal
+// ══ ESTADO EDITORIAL — visibilidad compartida ════════════════════════════════
+// El estado solo decide qué se OFRECE PARA ELEGIR. El runtime nunca filtra.
+// Esta lógica la comparten la Biblioteca y #palRepPane (futura unificación).
+const ESTADOS_ASSET = {
+    publicado:    { letra: 'P', label: 'Publicado',    color: '#27ae60' },
+    borrador:     { letra: 'B', label: 'Borrador',     color: '#7a7a7a' },
+    experimental: { letra: 'E', label: 'Experimental', color: '#7c3aed' },
+    archivado:    { letra: 'A', label: 'Archivado',    color: '#555' },
+};
+function estadoDeAsset(a) { return ESTADOS_ASSET[a?.estado] ? a.estado : 'borrador'; }
+
+// Orden canónico de instrumento y dificultad (compartido)
+const INST_ORD_G  = { guitarra:0, ukelele:1, bajo:2, metalofono:3, flauta:4 };
+const DIFIC_ORD_G = { inicial:0, media:1, dificil:2, experto:3 };
+function cmpInstDific(a, b) {
+    const ia = INST_ORD_G[(a.inst || '').toLowerCase()] ?? 9;
+    const ib = INST_ORD_G[(b.inst || '').toLowerCase()] ?? 9;
+    if (ia !== ib) return ia - ib;
+    return (DIFIC_ORD_G[(a.dif || '').toLowerCase()] ?? 9) - (DIFIC_ORD_G[(b.dif || '').toLowerCase()] ?? 9);
+}
+
+// Modo trabajo = no hay alumno logueado. Único punto donde vive esta distinción:
+// cuando exista auth de profesor o modo público, se cambia SOLO acá.
+function esModoTrabajo() { return !alumnoActual; }
+
+// Filtro de estado compartido. 'todos' = publicado + borrador + experimental
+// (los archivados solo aparecen si se elige explícitamente ese filtro).
+function filtrarPorEstado(assets, filtro) {
+    if (filtro && filtro !== 'todos') return assets.filter(a => estadoDeAsset(a) === filtro);
+    return assets.filter(a => estadoDeAsset(a) !== 'archivado');
+}
+
+// Constructor de la barra de chips (misma UI en ambas superficies)
+function chipsEstadoHTML(filtroActual, onclickFn) {
+    const chips = [['todos', 'Todos'], ...Object.entries(ESTADOS_ASSET).map(([v, i]) => [v, i.label])];
+    return chips.map(([val, label]) => {
+        const on = (filtroActual || 'todos') === val;
+        const col = val === 'todos' ? '#888' : ESTADOS_ASSET[val].color;
+        return `<button class="pal-rep-fil${on ? ' activo' : ''}" data-est="${val}"
+            style="${on ? `background:${col};border-color:${col};color:#fff` : ''}"
+            onclick="${onclickFn}('${val}')">${label}</button>`;
+    }).join('');
+}
+
+// Carga assets para el panel (cacheado en _palRepAssets) + set de canciones Personal
 async function cargarRepAssetsPanel() {
     const url = `${SB_URL}/rest/v1/repertorio_assets` +
-        `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,tonalidad,tab_sync,repertorio_canciones(nombre,artista,categoria)` +
-        `&tipo=in.(tab,cifrado)&tab_sync=not.is.null`;
+        `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,tonalidad,tab_sync,estado,repertorio_canciones(nombre,artista,categoria)` +
+        `&tipo=in.(tab,cifrado)`;
     const [resp, personalRows] = await Promise.all([
         fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } }),
         sbGet(`/rest/v1/repertorio_cancion_contextos?contexto=eq.PERSONAL&select=cancion_id`).catch(() => [])
@@ -4748,6 +4872,66 @@ async function cargarRepAssetsPanel() {
     _palPersonalSet = new Set(personalRows.map(r => r.cancion_id));
 }
 
+// ══ LECCIONES — carga + clasificación DERIVADA (compartida por las vistas del panel) ══
+// Regla global de dominio: una Lección se clasifica por la composición de sus tabs.
+//   · todas de la misma canción → pertenece a esa canción
+//   · de varias canciones       → transversal
+//   · sin tabs                  → en construcción
+async function cargarLeccionesLector() {
+    const [lecs, items, assetCids] = await Promise.all([
+        sbGet(`/rest/v1/lecciones?select=id,nombre&order=nombre.asc`),
+        sbGet(`/rest/v1/leccion_items?select=leccion_id,asset_id,orden&order=orden`),
+        sbGet(`/rest/v1/repertorio_assets?select=id,cancion_id`)
+    ]);
+    const byLec = {};
+    for (const l of (lecs || [])) byLec[l.id] = { ...l, items: [] };
+    for (const it of (items || [])) if (byLec[it.leccion_id]) byLec[it.leccion_id].items.push({ asset_id: it.asset_id });
+    _leccionesCache = Object.values(byLec);
+    _assetCancionMap = {};
+    for (const a of (assetCids || [])) _assetCancionMap[a.id] = a.cancion_id;
+}
+
+// Devuelve { porCancion:{cid:[lec]}, transversales:[lec], enConstruccion:[lec] }
+function clasificarLeccionesLector() {
+    const porCancion = {}, transversales = [], enConstruccion = [];
+    for (const l of (_leccionesCache || [])) {
+        const cids = new Set((l.items || []).map(it => _assetCancionMap[it.asset_id]).filter(Boolean));
+        if (cids.size === 0) enConstruccion.push(l);
+        else if (cids.size === 1) { const cid = [...cids][0]; (porCancion[cid] = porCancion[cid] || []).push(l); }
+        else transversales.push(l);
+    }
+    return { porCancion, transversales, enConstruccion };
+}
+
+// Fila de lección — modo 'catalogo' (abre la lección) o 'asignar' (checkbox)
+function renderLeccionRow(l, opts = {}) {
+    const n = (l.items || []).length;
+    const meta = `<span style="color:#8a7bb8;font-size:.72rem;flex-shrink:0">${n} tab${n === 1 ? '' : 's'}</span>`;
+    if (opts.modo === 'asignar') {
+        const chk = opts.asignadas?.has(l.id) ? 'checked' : '';
+        return `<label style="display:flex;align-items:center;gap:6px;padding:6px 8px 6px 10px;cursor:pointer;border-top:1px solid #1c1c1c;background:#150e28">
+            <input type="checkbox" ${chk} style="accent-color:#7c3aed;width:14px;height:14px;cursor:pointer;flex-shrink:0"
+                onchange="toggleLeccionAsignacion('${opts.alumnoId}','${l.id}',this.checked)">
+            <span style="flex-shrink:0">📚</span>
+            <span style="flex:1;min-width:0;font-size:.8rem;color:#c4b5fd;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.nombre)}</span>
+            ${meta}
+        </label>`;
+    }
+    return `<div class="rep-item" onclick="cerrarPanelAlumnos();abrirLeccion('${l.id}')" style="cursor:pointer">
+        <div style="display:flex;align-items:center;gap:6px;min-width:0;width:100%">
+            <span style="flex-shrink:0">📚</span>
+            <span style="flex:1;min-width:0;font-size:.84rem;color:#c4b5fd;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.nombre)}</span>
+            ${meta}
+        </div>
+    </div>`;
+}
+// Sub-bloque "Lecciones" que cuelga de una canción (o encabezado de sección suelta)
+function renderLeccionesSub(lecs, opts = {}) {
+    if (!lecs || !lecs.length) return '';
+    const filas = lecs.map(l => renderLeccionRow(l, opts)).join('');
+    return `<div style="padding:4px 10px 2px;font-size:.64rem;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.06em;background:#150e28cc">📚 Lecciones</div>${filas}`;
+}
+
 async function renderPanelRepertorio() {
     const lista = document.getElementById('palRepLista');
     if (_palRepAssets === null) {
@@ -4756,8 +4940,19 @@ async function renderPanelRepertorio() {
         catch (err) { lista.innerHTML = `<p style="color:#e74c3c;text-align:center;padding:24px">Error: ${err.message}</p>`; return; }
     }
 
+    if (_leccionesCache === null) {
+        try { await cargarLeccionesLector(); } catch (_) { _leccionesCache = []; }
+    }
+
     const q = (document.getElementById('palRepBuscar')?.value || '').trim().toLowerCase();
     let assets = _palRepAssets;
+
+    // Chips de estado editorial (misma lógica y UI que la Biblioteca)
+    const chipsBar = document.getElementById('palRepEstadoFiltros');
+    if (chipsBar) chipsBar.innerHTML = chipsEstadoHTML(palRepEstado, 'setEstadoFiltroRep');
+
+    // Filtro por estado editorial: 'todos' excluye archivados
+    assets = filtrarPorEstado(assets, palRepEstado);
 
     // Filtro por categoría (Canciones / Materiales)
     if (palRepFiltro !== 'todos') {
@@ -4807,7 +5002,9 @@ async function renderPanelRepertorio() {
 
     lista.classList.toggle('dos-col', gruposOrdenados.length >= 5);
 
-    lista.innerHTML = gruposOrdenados.map(([cid, { c, tabs }], idx) => {
+    const { porCancion, transversales, enConstruccion } = clasificarLeccionesLector();
+
+    let html = gruposOrdenados.map(([cid, { c, tabs }], idx) => {
         const nombre = c?.nombre || '(sin nombre)';
         const color  = CANCION_COLORS[idx % CANCION_COLORS.length];
         const tabsHTML = tabs.map(a => {
@@ -4834,11 +5031,28 @@ async function renderPanelRepertorio() {
                 </div>
             </div>`;
         }).join('');
+        // Lecciones asociadas a esta canción (derivado) — cuelgan del nodo de la canción
+        const lecsSub = renderLeccionesSub(porCancion[cid], { modo: 'catalogo' });
         return `<div class="rep-cancion" style="background:${color}18">
             <div class="rep-cancion-titulo" style="background:${color}">${nombre}</div>
             ${tabsHTML}
+            ${lecsSub}
         </div>`;
     }).join('');
+
+    // Secciones sueltas: Lecciones transversales + En construcción
+    const seccionSuelta = (titulo, lecs, bg) => {
+        if (!lecs.length) return '';
+        const filas = lecs.map(l => renderLeccionRow(l, { modo: 'catalogo' })).join('');
+        return `<div class="rep-cancion" style="background:${bg}18">
+            <div class="rep-cancion-titulo" style="background:${bg}">${titulo}</div>
+            ${filas}
+        </div>`;
+    };
+    html += seccionSuelta('📚 Lecciones transversales', transversales, '#7c3aed');
+    html += seccionSuelta('🚧 En construcción',        enConstruccion, '#6b7280');
+
+    lista.innerHTML = html;
 }
 
 // Carga una tab desde el panel (cierra el panel y abre el lector)
@@ -4857,7 +5071,7 @@ async function renderPanelAlumnos() {
         // Cargar todo en paralelo
         const [alumnos, todosLosAssets, asistHoyRaw] = await Promise.all([
             sbGet(`/rest/v1/alumnos_taller?contexto=eq.CUERDAS&activo=eq.true&order=curso.asc,apellido.asc,nombre.asc`),
-            sbGet(`/rest/v1/repertorio_assets?tipo=eq.tab&select=id,nombre_archivo,storage_path,cancion_id,instrumento,dificultad,tonalidad,etiqueta,tab_sync,repertorio_canciones(id,nombre,artista)`),
+            sbGet(`/rest/v1/repertorio_assets?tipo=eq.tab&select=id,nombre_archivo,storage_path,cancion_id,instrumento,dificultad,tonalidad,etiqueta,tab_sync,estado,repertorio_canciones(id,nombre,artista)`),
             sbGet(`/rest/v1/practica_log?fecha=eq.${hoy()}&select=alumno_id,duracion_seg`)
         ]);
 
@@ -4897,6 +5111,21 @@ async function renderPanelAlumnos() {
         // Cachear para updates in-place
         _palAssetsCache = assets;
         _palAsigCache   = asig;
+
+        // ── Lecciones (clasificador compartido) + asignaciones por alumno ─
+        try {
+            await cargarLeccionesLector();   // pobla _leccionesCache (con items) + _assetCancionMap
+            const lecAsig = {};
+            if (alumnos.length) {
+                const ids = alumnos.map(a => `alumno_id.eq.${a.id}`).join(',');
+                const rows = await sbGet(`/rest/v1/alumno_lecciones?or=(${ids})&select=alumno_id,leccion_id`);
+                for (const r of rows) {
+                    if (!lecAsig[r.alumno_id]) lecAsig[r.alumno_id] = new Set();
+                    lecAsig[r.alumno_id].add(r.leccion_id);
+                }
+            }
+            _palLeccionAsigCache = lecAsig;
+        } catch (_) { _leccionesCache = _leccionesCache || []; _palLeccionAsigCache = {}; }
 
         // ── Sub-vista de asignación ─────────────────────────────────────
         if (palModoAsignacion) {
@@ -5231,6 +5460,8 @@ function construirAsigPanelHTML(alumnoId) {
         }
     }
     const cids = Object.keys(byCancion).sort((x, y) => byCancion[x].nombre.localeCompare(byCancion[y].nombre, 'es'));
+    // Dentro de cada canción: ordenar por instrumento y luego por dificultad
+    for (const cid of cids) byCancion[cid].items.sort(cmpInstDific);
     if (!cids.length) return `<p style="color:#333;font-size:.72rem;text-align:center;margin:16px 0">Ninguna<br>asignada</p>`;
     return cids.map(cid => {
         const { nombre, items } = byCancion[cid];
@@ -5272,13 +5503,26 @@ function actualizarAsigPanel(alumnoId) {
 function construirSubVistaAsignacion(al, assets, asig) {
     const alumnoId  = al.id;
     const asigAlumno = asig[alumnoId] || new Set();
+    const lecAsig   = _palLeccionAsigCache[alumnoId] || new Set();
+    const { porCancion: lecPorCancion, transversales: lecTransv, enConstruccion: lecConstr } = clasificarLeccionesLector();
     const INST_EMOJI  = { guitarra:'🎸', ukelele:'🪕', bajo:'🎵', metalofono:'🎹', flauta:'🪈', cifrado:'🎼' };
     const DIFIC_COLOR = { inicial:'#27ae60', media:'#f39c12', dificil:'#e74c3c', experto:'#8e44ad' };
     const INST_ORD    = { guitarra:0, ukelele:1, bajo:2, metalofono:3, flauta:4 };
     const DIFIC_ORD   = { inicial:0, media:1, dificil:2, experto:3 };
 
+    // Catálogo de asignación: solo Assets PUBLICADOS, más los que este alumno YA
+    // tiene asignados (aunque estén en borrador/experimental/archivado). Así no se
+    // pueden asignar borradores nuevos, pero las asignaciones vigentes siguen
+    // siendo administrables durante la curación editorial.
+    const secAsigDelAlumno = _palSecAsigCache[alumnoId] || {};
+    const asignables = assets.filter(t =>
+        estadoDeAsset(t) === 'publicado' ||
+        asigAlumno.has(t.id) ||
+        (secAsigDelAlumno[t.id]?.size > 0)
+    );
+
     const byCancion = {};
-    for (const t of assets) {
+    for (const t of asignables) {
         const cid = t.cancion_id || t.id;
         if (!byCancion[cid]) byCancion[cid] = { nombre: t.repertorio_canciones?.nombre || t.nombre_archivo || 'Sin nombre', tabs: [] };
         byCancion[cid].tabs.push(t);
@@ -5370,9 +5614,26 @@ function construirSubVistaAsignacion(al, assets, asig) {
                     ${asigCnt > 0 ? `${asigCnt}/${tabs.length}` : tabs.length}
                 </span>
             </div>
-            <div style="display:${isOpen?'block':'none'}">${tabsHTML}</div>
+            <div style="display:${isOpen?'block':'none'}">${tabsHTML}${renderLeccionesSub(lecPorCancion[cid], { modo:'asignar', alumnoId, asignadas: lecAsig })}</div>
         </div>`;
     }).join('');
+
+    // ── Secciones sueltas: Lecciones transversales + En construcción ──
+    const seccionSueltaAsig = (titulo, lecs, bg) => {
+        if (!lecs.length) return '';
+        const nAsig = lecs.filter(l => lecAsig.has(l.id)).length;
+        const filas = lecs.map(l => renderLeccionRow(l, { modo:'asignar', alumnoId, asignadas: lecAsig })).join('');
+        return `<div style="margin-bottom:6px;border:1px solid ${bg}55;border-radius:5px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:${bg}33">
+                <span style="font-size:.83rem;font-weight:700;color:#c4b5fd;flex:1">${titulo}</span>
+                ${nAsig>0 ? `<span style="border-radius:10px;font-size:.66rem;font-weight:700;background:${bg};color:#fff;padding:1px 6px">${nAsig}</span>` : ''}
+            </div>
+            ${filas}
+        </div>`;
+    };
+    const leccionesSueltas =
+        seccionSueltaAsig('📚 Lecciones transversales', lecTransv, '#7c3aed') +
+        seccionSueltaAsig('🚧 En construcción',        lecConstr, '#6b7280');
 
     return `<div style="display:flex;flex-direction:column;height:100%">
         <div style="flex:0;display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #262626;background:#1a1a1a">
@@ -5381,7 +5642,7 @@ function construirSubVistaAsignacion(al, assets, asig) {
             <button onclick="cerrarModoAsignacion()" style="background:#27ae60;color:#fff;border:none;border-radius:5px;padding:5px 14px;cursor:pointer;font-size:.82rem;font-weight:700;flex-shrink:0">Listo ✓</button>
         </div>
         <div style="flex:1;display:flex;gap:8px;padding:8px 10px;min-height:0;overflow:hidden">
-            <div style="flex:1;min-width:0;overflow-y:auto">${catalogHTML}</div>
+            <div style="flex:1;min-width:0;overflow-y:auto">${catalogHTML}${leccionesSueltas}</div>
             <div id="pal-asig-panel" style="flex:0 0 128px;background:#141414;border:1px solid #1e1e1e;border-radius:6px;padding:8px;overflow-y:auto">
                 <div style="font-size:.63rem;font-weight:700;color:#444;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px">✓ Asignado</div>
                 ${construirAsigPanelHTML(alumnoId)}
@@ -5434,6 +5695,20 @@ async function toggleTabAsignacion(alumnoId, assetId, asignar) {
         if (asignar) _palAsigCache[alumnoId].add(assetId);
         else         _palAsigCache[alumnoId].delete(assetId);
         actualizarAsigPanel(alumnoId);
+    } catch (e) { mostrarToast('Error al actualizar', true); }
+}
+
+// Asignar/quitar una Lección a un alumno — espejo de toggleTabAsignacion.
+async function toggleLeccionAsignacion(alumnoId, leccionId, asignar) {
+    try {
+        if (asignar) {
+            await sbPost('/rest/v1/alumno_lecciones', { alumno_id: alumnoId, leccion_id: leccionId });
+        } else {
+            await sbDelete(`/rest/v1/alumno_lecciones?alumno_id=eq.${alumnoId}&leccion_id=eq.${leccionId}`);
+        }
+        if (!_palLeccionAsigCache[alumnoId]) _palLeccionAsigCache[alumnoId] = new Set();
+        if (asignar) _palLeccionAsigCache[alumnoId].add(leccionId);
+        else         _palLeccionAsigCache[alumnoId].delete(leccionId);
     } catch (e) { mostrarToast('Error al actualizar', true); }
 }
 
@@ -6421,10 +6696,107 @@ async function guardarCifrado() {
 
 requestAnimationFrame(animLoop);
 
+// ══ CONTROLADOR DE LECCIÓN ═══════════════════════════════════════════════════
+// Una Lección es una lista ordenada de referencias a tablaturas. Este controlador
+// solo itera cargarDesdeStorage() por la lista; NO duplica parser/render/audio.
+let leccionActual = null;   // { id, nombre, items:[{asset_id,tipo}], idx }
+
+async function abrirLeccion(leccionId) {
+    try {
+        const [lecs, items] = await Promise.all([
+            sbGet(`/rest/v1/lecciones?id=eq.${leccionId}&select=nombre,descripcion&limit=1`),
+            sbGet(`/rest/v1/leccion_items?leccion_id=eq.${leccionId}&order=orden&select=asset_id,tipo,orden`)
+        ]);
+        const lec = lecs[0];
+        if (!lec) { alert('Lección no encontrada.'); return; }
+        const tabs = (items || []).filter(it => (it.tipo || 'tab') === 'tab' && it.asset_id);
+        if (!tabs.length) { alert('La lección no tiene tablaturas.'); return; }
+        // Enriquecer con nombre legible (una sola consulta batch para el índice)
+        try {
+            const ids = tabs.map(it => it.asset_id).join(',');
+            const metas = await sbGet(`/rest/v1/repertorio_assets?id=in.(${ids})` +
+                `&select=id,etiqueta,repertorio_canciones(nombre)`);
+            const porId = {};
+            for (const m of (metas || [])) porId[m.id] = m.repertorio_canciones?.nombre || m.etiqueta || '?';
+            for (const it of tabs) it._nombre = porId[it.asset_id] || '(tablatura)';
+        } catch (_) { for (const it of tabs) it._nombre = '(tablatura)'; }
+        leccionActual = { id: leccionId, nombre: lec.nombre || 'Lección', items: tabs, idx: 0 };
+        ocultarWelcome();
+        document.getElementById('leccionNav').style.display = 'flex';
+        await cargarItemLeccion(0);
+    } catch (e) {
+        alert('Error al abrir la lección: ' + e.message);
+    }
+}
+
+// Carga la tablatura del ítem i resolviendo asset_id → storage_path + metadata,
+// y delega en cargarDesdeStorage (el motor no se toca).
+async function cargarItemLeccion(i) {
+    if (!leccionActual) return;
+    i = Math.max(0, Math.min(i, leccionActual.items.length - 1));
+    const item = leccionActual.items[i];
+    try {
+        const rows = await sbGet(`/rest/v1/repertorio_assets?id=eq.${item.asset_id}` +
+            `&select=id,storage_path,nombre_archivo,cancion_id,tab_sync,etiqueta,dificultad,repertorio_canciones(nombre)&limit=1`);
+        const a = rows[0];
+        if (!a || !a.storage_path) { alert('La tablatura de este paso no está disponible.'); return; }
+        const meta = {
+            assetId: a.id, cancionId: a.cancion_id, tabSync: a.tab_sync || null,
+            etiqueta: a.etiqueta || null, dificultad: a.dificultad || null,
+            cancion: a.repertorio_canciones?.nombre || null, seccionAsignada: null
+        };
+        await cargarDesdeStorage(a.storage_path, a.nombre_archivo || 'tab', meta);
+        leccionActual.idx = i;
+        actualizarLeccionNav();
+    } catch (e) {
+        alert('Error al cargar la tablatura: ' + e.message);
+    }
+}
+
+function leccionAnterior()  { if (leccionActual && leccionActual.idx > 0) cargarItemLeccion(leccionActual.idx - 1); }
+function leccionSiguiente() { if (leccionActual && leccionActual.idx < leccionActual.items.length - 1) cargarItemLeccion(leccionActual.idx + 1); }
+
+function actualizarLeccionNav() {
+    if (!leccionActual) return;
+    const { nombre, idx, items } = leccionActual;
+    const total = items.length;
+    document.getElementById('leccionNavTitulo').textContent = nombre;
+    document.getElementById('leccionNavPos').textContent = `${idx + 1} / ${total}` +
+        (currentCancionNombre ? ` · ${currentCancionNombre}` : '');
+    document.getElementById('leccionBtnPrev').style.opacity = idx > 0 ? '1' : '.35';
+    document.getElementById('leccionBtnNext').style.opacity = idx < total - 1 ? '1' : '.35';
+    // refrescar índice si está abierto
+    const ind = document.getElementById('leccionIndice');
+    if (ind.style.display === 'block') renderLeccionIndice();
+}
+
+function toggleLeccionIndice() {
+    const ind = document.getElementById('leccionIndice');
+    if (ind.style.display === 'block') { ind.style.display = 'none'; return; }
+    renderLeccionIndice();
+    ind.style.display = 'block';
+}
+
+function renderLeccionIndice() {
+    const ind = document.getElementById('leccionIndice');
+    ind.innerHTML = leccionActual.items.map((it, i) => {
+        const activo = i === leccionActual.idx;
+        return `<div onclick="cargarItemLeccion(${i});toggleLeccionIndice()"
+             style="padding:7px 12px;border-radius:6px;cursor:pointer;font-size:.85rem;display:flex;gap:8px;align-items:center;${activo ? 'background:#7c3aed;color:#fff;font-weight:700' : 'color:#ddd'}">
+            <span style="min-width:20px;height:20px;border-radius:50%;background:${activo ? '#fff' : '#7c3aed'};color:${activo ? '#7c3aed' : '#fff'};display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0">${i + 1}</span>
+            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(it._nombre || '(tablatura)')}</span>
+        </div>`;
+    }).join('');
+}
+
 // Deep link desde Repertorio: ?storage=<storagePath>&nombre=<fileName>&seccion=<nombre>
-// o modo cifrado: ?cifrado=1&cancion=<id>
+// o lección: ?leccion=<id>  ·  o modo cifrado: ?cifrado=1&cancion=<id>
 (async () => {
     const p = new URLSearchParams(location.search);
+    if (p.get('leccion')) {
+        await abrirLeccion(p.get('leccion'));
+        return;
+    }
     if (p.get('cifrado') === '1') {
         ocultarWelcome();
         abrirSetupCifrado(p.get('cancion') || null);
