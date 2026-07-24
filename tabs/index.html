@@ -4810,6 +4810,44 @@ function togglePersonalRep() {
     renderPanelRepertorio();
 }
 
+// ══ CAPA DE CONFIGURACIÓN DEL LECTOR ═════════════════════════════════════════
+// Fuente única de verdad sobre QUÉ SE OFRECE Y SE VE en esta instancia.
+// La diferencia Docente/Público depende de la INSTANCIA, nunca del asset.
+// NO es una frontera de seguridad (eso será RLS): solo organiza la experiencia.
+
+// Perfil de la instancia. El mecanismo de resolución por despliegue se definirá
+// más adelante; hoy este es el ÚNICO punto que cambiará entonces.
+function resolverPerfilLector() {
+    return 'docente';
+}
+
+// Derivación pura perfil → capacidades (cap) + features (feat).
+//   cap:  acopladas al actor; en público son forzosamente false.
+//   feat: switches globales por instancia (hoy solo audioSync confirmado).
+function construirConfigLector(perfil) {
+    const esDocente = perfil === 'docente';
+    return {
+        perfil,
+        cap: {
+            admin:           esDocente,   // paneles, editores, atajos, config sync, cifrado
+            escritura:       esDocente,   // cualquier POST/PATCH/DELETE
+            alumnos:         esDocente,   // selector de alumnos, vista-alumno, practica_log
+            verNoPublicados: esDocente,   // biblioteca con borradores/experimentales + chips
+        },
+        feat: {
+            audioSync: true,              // única feature confirmada; default encendido
+        },
+    };
+}
+
+// Resuelta una vez al arranque y congelada. Único punto de lectura.
+const LectorConfig = (() => {
+    const c = construirConfigLector(resolverPerfilLector());
+    Object.freeze(c.cap);
+    Object.freeze(c.feat);
+    return Object.freeze(c);
+})();
+
 // ══ ESTADO EDITORIAL — visibilidad compartida ════════════════════════════════
 // El estado solo decide qué se OFRECE PARA ELEGIR. El runtime nunca filtra.
 // Esta lógica la comparten la Biblioteca y #palRepPane (futura unificación).
@@ -4831,9 +4869,9 @@ function cmpInstDific(a, b) {
     return (DIFIC_ORD_G[(a.dif || '').toLowerCase()] ?? 9) - (DIFIC_ORD_G[(b.dif || '').toLowerCase()] ?? 9);
 }
 
-// Modo trabajo = no hay alumno logueado. Único punto donde vive esta distinción:
-// cuando exista auth de profesor o modo público, se cambia SOLO acá.
-function esModoTrabajo() { return !alumnoActual; }
+// Modo trabajo = instancia docente y sin alumno logueado. Deriva de la Capa de
+// Configuración del Lector (LectorConfig): la distinción de instancia vive ahí.
+function esModoTrabajo() { return LectorConfig.perfil === 'docente' && !alumnoActual; }
 
 // Filtro de estado compartido. 'todos' = publicado + borrador + experimental
 // (los archivados solo aparecen si se elige explícitamente ese filtro).
