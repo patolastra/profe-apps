@@ -4423,6 +4423,7 @@ function mostrarToast(msg, esError = false) {
 }
 
 async function guardarDigitacion() {
+    if (!puedeEscribir()) return;   // solo lectura: subida a Storage no pasa por los helpers
     if (!currentFileSource) { mostrarToast('Sin archivo cargado', true); return; }
     mostrarToast('Guardando…');
     try {
@@ -4574,7 +4575,13 @@ function sbGet(path) {
         headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
     }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
 }
+// Guard de solo lectura: única regla de escritura, centralizada. Cuando la
+// instancia no permite escribir (cap.escritura === false), ninguna escritura
+// llega a Supabase. Los tres helpers de escritura cortocircuitan a un no-op.
+function puedeEscribir() { return LectorConfig.cap.escritura; }
+
 function sbPost(path, body) {
+    if (!puedeEscribir()) return Promise.resolve(null);
     return fetch(`${SB_URL}${path}`, {
         method: 'POST',
         headers: {
@@ -4585,6 +4592,7 @@ function sbPost(path, body) {
     }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
 }
 function sbPatch(path, body) {
+    if (!puedeEscribir()) return Promise.resolve();
     return fetch(`${SB_URL}${path}`, {
         method: 'PATCH',
         headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
@@ -4592,6 +4600,7 @@ function sbPatch(path, body) {
     }).catch(() => {});
 }
 function sbDelete(path) {
+    if (!puedeEscribir()) return Promise.resolve();
     return fetch(`${SB_URL}${path}`, {
         method: 'DELETE',
         headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
@@ -4605,6 +4614,9 @@ function extractSecciones() {
         .map(m => ({ nombre: m.rehearsalText, tStart: m.tStart }));
 }
 async function guardarSecciones(assetId) {
+    // En solo lectura esta rutina automática (corre al abrir una tab) no tiene
+    // motivo de existir: ni siquiera se inicia (evita también la lectura previa).
+    if (!puedeEscribir()) return;
     const secciones = extractSecciones();
     if (!secciones.length) return;
     try {
@@ -6694,6 +6706,7 @@ function salirModoCifrado() {
 
 // ── Guardar (Etapa 3): empaquetar .mxl + subir + asset ──────────────────────
 async function guardarCifrado() {
+    if (!puedeEscribir()) return;   // solo lectura: subida a Storage no pasa por los helpers
     if (!cifradoData) return;
     const xml = generarCifradoMXL(cifradoData);
     const zip = new JSZip();
