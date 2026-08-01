@@ -1848,7 +1848,7 @@
             display: flex; align-items: center; gap: 6px; flex-shrink: 0;
         }
         /* Controles header — mismo estilo que .ent-chip */
-        #ent-btn-pitch, #ent-vel-label,
+        #ent-btn-atajos, #ent-btn-pitch, #ent-vel-label,
         #ent-btn-ocultar, #ent-btn-sync, #ent-btn-sync-save, #ent-btn-editar {
             background: #334155; border: 1.5px solid #475569;
             color: #94a3b8; border-radius: 20px; padding: 4px 12px;
@@ -1856,7 +1856,7 @@
             white-space: nowrap; transition: all 0.15s; flex-shrink: 0; line-height: 1;
         }
         #ent-vel-label { cursor: default; font-variant-numeric: tabular-nums; }
-        #ent-btn-pitch:hover, #ent-btn-ocultar:hover,
+        #ent-btn-atajos:hover, #ent-btn-pitch:hover, #ent-btn-ocultar:hover,
         #ent-btn-sync:hover, #ent-btn-editar:hover { border-color: #64748b; color: #cbd5e1; }
         #ent-btn-pitch.activo, #ent-btn-ocultar.oculto,
         #ent-btn-sync.on, #ent-btn-editar.activo {
@@ -1869,6 +1869,40 @@
             padding: 4px 8px; text-align: center;
         }
         #ent-mode-btns { display: flex; align-items: center; gap: 6px; }
+
+        /* Popup de atajos de teclado del Entrenador */
+        #ent-atajos-overlay {
+            display: none; position: fixed; inset: 0; z-index: 400;
+            background: rgba(0,0,0,0.55);
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        #ent-atajos-box {
+            background: #1e293b; border: 1.5px solid #475569; border-radius: 14px;
+            width: 100%; max-width: 420px; max-height: 85vh; overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        #ent-atajos-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 18px; border-bottom: 1px solid #334155;
+            color: #f1f5f9; font-weight: 700; font-size: 0.9rem;
+        }
+        #ent-atajos-head button {
+            background: none; border: none; color: #94a3b8;
+            font-size: 1.1rem; cursor: pointer; line-height: 1;
+        }
+        #ent-atajos-body { padding: 12px 18px 18px; }
+        .ent-atajos-grupo {
+            color: #ea580c; font-size: 0.7rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: .05em; margin: 14px 0 6px;
+        }
+        .ent-atajos-grupo:first-child { margin-top: 0; }
+        .ent-atajos-row { display: flex; align-items: center; gap: 12px; padding: 5px 0; }
+        .ent-atajos-row kbd {
+            background: #0f172a; border: 1px solid #475569; border-radius: 6px;
+            padding: 3px 8px; font-family: monospace; font-size: 0.72rem;
+            color: #f1f5f9; min-width: 74px; text-align: center; flex-shrink: 0;
+        }
+        .ent-atajos-row span { color: #cbd5e1; font-size: 0.82rem; }
 
         /* Panel izquierdo — lista de canciones de la sesión */
         #ent-sesion-lista {
@@ -2428,6 +2462,7 @@
         </div>
         <div id="ent-asset-chips"></div>
         <div id="ent-header-tools">
+            <button id="ent-btn-atajos" onclick="entAbrirAtajos()" title="Atajos de teclado">⌨</button>
             <button id="ent-btn-pitch" onclick="entTogglePitchInput()" title="Cambiar tono (−6 a +6 semitonos)">Pitch</button>
             <input id="ent-pitch-input" type="number" min="-6" max="6" step="1" value="0"
                    style="display:none" onkeydown="entPitchInputKey(event)" onblur="entPitchInputBlur()">
@@ -2479,6 +2514,15 @@
         </div>
     </div>
     <audio id="entrenador-audio"></audio>
+    <div id="ent-atajos-overlay" onclick="if(event.target===this)entCerrarAtajos()">
+        <div id="ent-atajos-box">
+            <div id="ent-atajos-head">
+                <span>⌨ Atajos del Entrenador</span>
+                <button onclick="entCerrarAtajos()" title="Cerrar">✕</button>
+            </div>
+            <div id="ent-atajos-body"></div>
+        </div>
+    </div>
 </div>
 
 <!-- TOAST -->
@@ -4360,7 +4404,11 @@ document.addEventListener('keydown', e => {
             if (e.key === 'L') { e.preventDefault(); entrenadorSkip(5);  return; }
         }
         if (e.key === ' ' && !editando) { e.preventDefault(); entrenadorTogglePlay(); return; }
-        if (e.key === 'Escape' && !editando) { cerrarEntrenador(); return; }
+        if (e.key === 'Escape' && !editando) {
+            const _pop = document.getElementById('ent-atajos-overlay');
+            if (_pop && _pop.style.display === 'flex') { entCerrarAtajos(); return; }
+            cerrarEntrenador(); return;
+        }
         return;
     }
     if (!document.getElementById('visor-overlay').classList.contains('visible')) return;
@@ -4820,7 +4868,7 @@ function entEditLineaContextMenu(e, i) {
         if (asset) {
             asset.contenido = entrenadorLines.map(l => l.text).join('\n');
             if (asset.synced) asset.synced = entrenadorLines.filter(l => l.text.trim()).map(l => `[${msToLrcTs(l.time)}${l.timeOut !== undefined ? '-' + msToLrcTs(l.timeOut) : ''}]${l.text}`).join('\n');
-            sbUpsertAsset(asset).catch(() => {});
+            entGuardarAssetActivo(asset);
             // Actualizar en la canción en memoria
             const songAsset = (entrenadorSong?.assets || []).find(a => a.id === asset.id);
             if (songAsset) { songAsset.contenido = asset.contenido; if (asset.synced) songAsset.synced = asset.synced; }
@@ -4925,6 +4973,45 @@ function entrenadorSetVelocidad(val) {
 
 function entFmtVel(v) {
     return parseFloat(v).toFixed(2).replace(/0+$/, '').replace(/\.$/, '') + 'x';
+}
+
+// ── ATAJOS DE TECLADO (ayuda) ─────────────────────────────────────────────────
+// Fuente única de la lista del popup. Refleja el handler de teclado del Entrenador
+// (document 'keydown' de más arriba) — mantener en sync con él si cambian los atajos.
+const ENT_ATAJOS = [
+    { grupo: 'Reproducción', items: [
+        { k: 'Espacio · K', d: 'Reproducir / pausar' },
+        { k: 'J', d: 'Retroceder 5 s' },
+        { k: 'L', d: 'Adelantar 5 s' },
+    ]},
+    { grupo: 'Velocidad', items: [
+        { k: '{', d: 'Bajar velocidad 5 %' },
+        { k: '}', d: 'Subir velocidad 5 %' },
+        { k: '+', d: 'Velocidad normal (100 %)' },
+    ]},
+    { grupo: 'Sincronización (modo Sync)', items: [
+        { k: 'I', d: 'Marcar inicio del verso' },
+        { k: 'O', d: 'Marcar fin del verso' },
+        { k: 'Backspace', d: 'Deshacer el último marcado' },
+    ]},
+    { grupo: 'Edición de letra', items: [
+        { k: 'Shift + J / L', d: 'Retroceder / adelantar 5 s mientras editás' },
+        { k: 'Esc', d: 'Salir del modo edición' },
+    ]},
+    { grupo: 'General', items: [
+        { k: 'Esc', d: 'Cerrar el Entrenador' },
+        { k: 'Ctrl / ⌘ + clic en un verso', d: 'Crear un loop desde ese verso' },
+    ]},
+];
+function entAbrirAtajos() {
+    document.getElementById('ent-atajos-body').innerHTML = ENT_ATAJOS.map(g =>
+        `<div class="ent-atajos-grupo">${g.grupo}</div>` +
+        g.items.map(it => `<div class="ent-atajos-row"><kbd>${it.k}</kbd><span>${it.d}</span></div>`).join('')
+    ).join('');
+    document.getElementById('ent-atajos-overlay').style.display = 'flex';
+}
+function entCerrarAtajos() {
+    document.getElementById('ent-atajos-overlay').style.display = 'none';
 }
 
 function entrenadorSeek(e) {
@@ -6031,7 +6118,7 @@ function entSalirEdicion() {
                 return `${ts}${l.text}`;
             }).join('\n');
         }
-        sbUpsertAsset(asset).catch(() => {});
+        entGuardarAssetActivo(asset);
         const songAsset = (entrenadorSong?.assets || []).find(a => a.id === asset.id);
         if (songAsset) { songAsset.contenido = asset.contenido; if (teniaSync) songAsset.synced = asset.synced; }
     }
@@ -6097,6 +6184,27 @@ function entAjustarSync(i, delta) {
     entGuardarSyncAsset();
 }
 
+// ── ÚNICO PUNTO OFICIAL DE PERSISTENCIA DEL ENTRENADOR ────────────────────────
+// Regla del sistema: TODO guardado del asset del Entrenador pasa por acá.
+// Ningún otro código del Entrenador debe llamar a sbUpsertAsset() directamente.
+//  · Serializa las escrituras (una a la vez → orden de persistencia determinista).
+//  · Espera (await) el resultado; nunca traga el error: lo registra y avisa por toast.
+//  · Un fallo NO bloquea los guardados siguientes (la cadena continúa igual).
+let entSaveChain = Promise.resolve();
+function entGuardarAssetActivo(asset) {
+    if (!asset) return entSaveChain;
+    const run = async () => {
+        try {
+            await sbUpsertAsset(asset);
+        } catch (e) {
+            console.error('Error guardando asset del Entrenador:', e);
+            toast('⚠ No se pudo guardar — revisá la conexión');
+        }
+    };
+    entSaveChain = entSaveChain.then(run, run);
+    return entSaveChain;
+}
+
 async function entGuardarSyncAsset() {
     const asset = entrenadorAssetActivo;
     if (!asset) return;
@@ -6106,7 +6214,7 @@ async function entGuardarSyncAsset() {
     }).join('\n');
     const songAsset = (entrenadorSong?.assets || []).find(a => a.id === asset.id);
     if (songAsset) songAsset.synced = asset.synced;
-    sbUpsertAsset(asset).catch(e => console.error('Error guardando sync:', e));
+    return entGuardarAssetActivo(asset);
 }
 
 function entTapMoveCursor(i) {
