@@ -4398,6 +4398,9 @@ document.addEventListener('keydown', e => {
             if (e.key === '{') { e.preventDefault(); entrenadorAjustarVelocidad(-0.05); return; }
             if (e.key === '}') { e.preventDefault(); entrenadorAjustarVelocidad(+0.05); return; }
             if (e.key === '+') { e.preventDefault(); entrenadorSetVelocidad(1.0); return; }
+            // Pasapáginas manual de la letra (unidad = estrofa). Scroll puro, no toca estado/sync/resaltado.
+            if (e.key === 'Enter') { e.preventDefault(); entPasarPagina(); return; }
+            if (e.key === 'Home')  { e.preventDefault(); const z = document.getElementById('ent-zona'); if (z) z.scrollTop = 0; return; }
         }
         if (editando && e.shiftKey) {
             if (e.key === 'J') { e.preventDefault(); entrenadorSkip(-5); return; }
@@ -4891,6 +4894,25 @@ function entActualizarLinea(idx) {
     });
     const activa = document.querySelector('.ent-lyric-line.activa');
     if (activa) activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+// Pasapáginas manual de la letra. Unidad = estrofa. Lleva arriba la primera estrofa que
+// aún no está completamente visible (leída). NO toca estado, modos, reproducción, sync ni
+// resaltado: solo hace scroll de #ent-zona reutilizando las .ent-stanza ya renderizadas.
+function entPasarPagina() {
+    const zona = document.getElementById('ent-zona');
+    if (!zona) return;
+    const zRect = zona.getBoundingClientRect();
+    for (const est of zona.querySelectorAll('.ent-stanza')) {
+        const r = est.getBoundingClientRect();
+        // primera estrofa cuyo final queda por debajo del área visible (no leída completa),
+        // y que no esté ya fijada arriba (evita quedar trabada en una estrofa más alta que el área)
+        if (r.bottom > zRect.bottom + 2 && r.top > zRect.top + 2) {
+            est.scrollIntoView({ block: 'start', behavior: 'smooth' });
+            return;
+        }
+    }
+    // ninguna estrofa cortada abajo → ya estás al final → no hacer nada
 }
 
 function entOnTimeUpdate() {
