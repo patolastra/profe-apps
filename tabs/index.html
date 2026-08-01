@@ -1281,7 +1281,7 @@ let lastXmlDoc = null;
 let accompTracks = []; // [{ label, notes:[{time,midi,durSec,hit}], muted, color }]
 let chordEvents  = []; // [{ tStart, tEnd, label, color, strum, subBlocks, largestSub, hit, showLabel }]
 let cifradoEvents = []; // [{ tStart, label }] — cambios de armonía cuando NO hay notas con traste (cifrado puro)
-let syncAnchorTime = 0; // tiempo de partitura que mapea a tab_sync.offset_ms (= notes[0].time, o 1er compás si no hay notas)
+let syncAnchorTime = 0; // ancla de partitura del sync = notes[0].time (o 1er compás si no hay notas). En tempomap el audio de este punto es I(start_qn); en grid es offset_ms
 
 // ─── AUDIO SYNC ───────────────────────────────────────────────────────────
 let audioSyncMode       = false;
@@ -2248,7 +2248,11 @@ function animLoop(ts) {
             const lastContentT = notes.length ? (notes[notes.length - 1].time + beatDur)
                                               : (chordEvents[chordEvents.length - 1]?.tEnd ?? Infinity);
             const endTime = seccionActiva ? seccionActiva.end : lastContentT;
-            if (currentTime > endTime) { isPlaying = false; tabEnded = true; fallVY = -520; detenerPractica(); if (audioSyncMode) tabAudioEl.pause(); }
+            // Reproducción COMPLETA con audio: el audio es el maestro y debe sonar hasta el
+            // final del archivo (evento 'ended'). No cortar en la última nota. En modo sección
+            // o en tab sin audio, sí se corta al terminar el contenido.
+            const reproCompletaConAudio = audioSyncMode && !seccionActiva && !tabAudioEl.paused;
+            if (currentTime > endTime && !reproCompletaConAudio) { isPlaying = false; tabEnded = true; fallVY = -520; detenerPractica(); if (audioSyncMode) tabAudioEl.pause(); }
         }
 
         // --- Transiciones de fase (PRIMERO: el click lee el estado ya actualizado) ---
@@ -3185,7 +3189,7 @@ function partituraTimeToAudioSec(partTime) {
             if (!next || targetQN < next.qn)
                 return (seg.startMs + (targetQN - seg.qn) * (60000 / seg.bpm)) / 1000;
         }
-        return tabSyncData.offset_ms / 1000;
+        return (tabSyncBuilt.at(-1)?.startMs ?? 0) / 1000;
     }
 }
 
@@ -3218,16 +3222,22 @@ function startSyncedPlayback() {
     isPlaying = true;
     tabEnded  = false;
     iniciarPractica();
-    // Si estamos en precuenta, el animLoop arrancará el audio cuando termine
+    // Reproducción completa: el audio arranca aquí desde el segundo 0. En loop/sección, el
+    // audio queda pre-buffereado y el animLoop lo arranca al terminar la precuenta.
     const firstNoteT  = notes.length ? notes[0].time : syncAnchorTime;
     const startRef    = seccionActiva ? seccionActiva.start : firstNoteT;
     const inPrecuenta = loopActive ? (loopPhase !== 'active') : (currentTime < startRef);
     if (!inPrecuenta) {
         iniciarAudioSync();
+    } else if (audioSyncMode && !loopActive && !seccionActiva && tabAudioEl.src.startsWith('http')) {
+        // Reproducción COMPLETA: el audio es el maestro y suena desde el segundo 0 del
+        // archivo (precuenta y alzar incluidos). Sin seek al Compás 1: iniciarAudioSync con
+        // currentTime=0 hace seek a 0 (partituraTimeToAudioSec(0) cae antes del archivo →
+        // clamp a 0). El cursor sigue al audio en animLoop.
+        iniciarAudioSync();
     } else if (audioSyncMode && tabAudioEl.src.startsWith('http')) {
-        // Pre-buffering: seek al inicio y play+pause inmediato para que el browser
-        // cargue el audio en memoria antes de que termine la precuenta.
-        // Así el play() final arranca sin latencia de buffering.
+        // Loop/sección: pre-buffer (seek al inicio + play/pause inmediato para cargar en
+        // memoria). El audio arranca cuando termina la precuenta.
         tabAudioEl.currentTime = 0;
         tabAudioEl.play().then(() => tabAudioEl.pause()).catch(() => {});
     }
@@ -3286,9 +3296,14 @@ function msToBeatGrid(ms, bpm, offsetMs) {
     return Math.max(0, (ms - offsetMs) / (60000 / bpm));
 }
 
-function buildTempoMapMs(map, offsetMs) {
+function buildTempoMapMs(map) {
+    // REFERENCIA ÚNICA DE SINCRONÍA: el Tempo Map.
+    // project-QN 0 = inicio del audio (t=0). El Compás 1 de la partitura (notes[0],
+    // en project-QN = start_qn) queda en I(start_qn), calculado integrando ÚNICAMENTE
+    // el Tempo Map. Ya no se usa offset_ms/marker como origen temporal.
+    // (Los call sites que aún pasan un 2º argumento quedan sin efecto: es intencional.)
     const result = [];
-    let accMs = offsetMs;
+    let accMs = 0;
     for (let i = 0; i < map.length; i++) {
         result.push({ qn: map[i].qn, bpm: map[i].bpm, startMs: accMs });
         if (i + 1 < map.length) {
@@ -3378,52 +3393,35 @@ function cargarMidiTempoMap(file) {
             if (det) det.open = true;
             document.getElementById('sync-tempomap-text').value = lines;
 
-            // Estándar compás al aire: si hay marker, calcular sync automático
-            if (parsed.markerTick !== null) {
-                const beatsPerBar  = parsed.beatsPerBar;
-                const markerTick   = parsed.markerTick;
-                const markerQN     = markerTick / ppq;
+            // Referencia única: el Tempo Map. project-QN 0 = inicio del audio (t=0),
+            // notes[0] queda en I(start_qn). NO se usa el marker como origen de sync.
+            const beatsPerBar = parsed.beatsPerBar;
+            const syncData = {
+                mode: 'tempomap',
+                map: deduped,
+                start_qn: beatsPerBar,   // QN del downbeat de compás 2 = donde vive notes[0]
+                offset_ms: 0             // sin marker: el origen lo da el Tempo Map (QN 0 = audio 0)
+            };
 
-                // Tiempo en ms desde tick 0 hasta el marker (integrando el tempo map)
-                let timeAtMarkerMs = 0;
-                for (let i = 0; i < deduped.length; i++) {
-                    const segStartQN = deduped[i].qn;
-                    const segEndQN   = i + 1 < deduped.length ? Math.min(deduped[i + 1].qn, markerQN) : markerQN;
-                    if (segEndQN <= segStartQN) break;
-                    timeAtMarkerMs += (segEndQN - segStartQN) * (60000 / deduped[i].bpm);
-                }
-
-                const syncData = {
-                    mode: 'tempomap',
-                    map: deduped,
-                    start_qn: beatsPerBar,          // QN del downbeat de compás 2 = donde vive notes[0]
-                    offset_ms: Math.round(-timeAtMarkerMs)  // negativo: audio empieza en el marker
-                };
-
-                // Guardar en BD y activar en memoria
-                if (currentTabAssetId) {
-                    try {
-                        await sbPatch(`/rest/v1/repertorio_assets?id=eq.${currentTabAssetId}`, { tab_sync: syncData });
-                    } catch(err) { console.warn('No se pudo guardar sync en BD:', err); }
-                }
-                tabSyncData  = syncData;
-                tabSyncBuilt = buildTempoMapMs(syncData.map, syncData.offset_ms);
-                audioSyncMode = true;
-                actualizarSyncStatus();
-
-                // Actualizar campos del panel para que el usuario vea qué se aplicó
-                document.getElementById('sync-start-qn').value = beatsPerBar;
-                syncOffsetTm = syncData.offset_ms;
-                document.getElementById('sync-offset-display-tm').textContent =
-                    (syncData.offset_ms / 1000).toFixed(3) + ' s';
-
-                statusEl.style.color = '#4CAF50';
-                statusEl.textContent =
-                    `✓ ${deduped.length} pts · start_qn=${beatsPerBar} (compás 2) · marker en ${markerQN.toFixed(3)} QN · offset ${(syncData.offset_ms/1000).toFixed(3)}s`;
-            } else {
-                statusEl.style.color = '#f39c12';
-                statusEl.textContent = `✓ ${deduped.length} puntos cargados · sin marker (configurá offset manualmente)`;
+            // Guardar en BD y activar en memoria
+            if (currentTabAssetId) {
+                try {
+                    await sbPatch(`/rest/v1/repertorio_assets?id=eq.${currentTabAssetId}`, { tab_sync: syncData });
+                } catch(err) { console.warn('No se pudo guardar sync en BD:', err); }
             }
+            tabSyncData  = syncData;
+            tabSyncBuilt = buildTempoMapMs(syncData.map);
+            audioSyncMode = true;
+            actualizarSyncStatus();
+
+            // Actualizar campos del panel para que el usuario vea qué se aplicó
+            document.getElementById('sync-start-qn').value = beatsPerBar;
+            syncOffsetTm = 0;
+            document.getElementById('sync-offset-display-tm').textContent = '0.000 s';
+
+            statusEl.style.color = '#4CAF50';
+            statusEl.textContent =
+                `✓ ${deduped.length} pts · start_qn=${beatsPerBar} (compás 2) · referencia = Tempo Map (sin marker)`;
 
         } catch(err) {
             statusEl.style.color = '#e74c3c';
@@ -3709,7 +3707,8 @@ async function guardarConfigSync() {
         const map = parseReaperTempoMap(txt);
         if (!map.length) { alert('No se encontraron puntos PT en el texto. Verificá el formato.'); return; }
         const startQN = parseFloat(document.getElementById('sync-start-qn').value) || 0;
-        syncData = { mode: 'tempomap', offset_ms: Math.round(syncOffsetTm), start_qn: startQN, map };
+        // Referencia única = Tempo Map: no se usa offset como origen (QN 0 = audio 0).
+        syncData = { mode: 'tempomap', offset_ms: 0, start_qn: startQN, map };
     }
 
     // Guardar en Supabase
