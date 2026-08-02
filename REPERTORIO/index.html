@@ -1741,6 +1741,13 @@
         .ent-lyric-line:hover { color: #64748b; }
         .ent-lyric-line.activa { color: #ea580c; }
         .ent-lyric-line.oculta { color: #1e293b; background: #334155; border-radius: 6px; padding: 2px 8px; }
+        /* Verso coloreado: marcador personal para referirse a versos durante la clase.
+           :not(.activa) → el resaltado del verso activo siempre tiene prioridad visual.
+           :not(.oculta) → no interfiere con los versos ocultos. Solo color de texto:
+           sin fondo ni cambio de tamaño → no dispara reflow del autosize. */
+        .ent-lyric-line.coloreado:not(.activa):not(.oculta) {
+            color: #38bdf8;
+        }
 
         /* Modo sync del entrenador */
         #ent-zona.sync-mode { overflow-y: auto; }
@@ -2449,7 +2456,7 @@
 </div>
 
 <!-- ENTRENADOR -->
-<div id="entrenador-overlay">
+<div id="entrenador-overlay" ondblclick="entDblClickEntrenador(event)">
     <div id="ent-header">
         <button id="ent-btn-cerrar" onclick="cerrarEntrenador()">←</button>
         <div id="ent-song-info">
@@ -4621,6 +4628,7 @@ function entPitchSyncPos() {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 let entrenadorLineasOcultas = new Set();
+let entrenadorLineasColoreadas = new Set();  // origIdx de versos marcados (referencia visual de clase)
 let entrenadorAssetActivo  = null;
 let entModoEdicion         = false;
 
@@ -4644,6 +4652,7 @@ function abrirEntrenador(songId) {
     entrenadorVelocidad     = cfg.velocidad || 1.0;
     entrenadorOcultar       = false;
     entrenadorLineasOcultas = new Set(cfg.lineasOcultas || []);
+    entrenadorLineasColoreadas = new Set(cfg.lineasColoreadas || []);
     entrenadorLoopOn        = false;
 
     document.getElementById('ent-song-nombre').textContent  = c.nombre;
@@ -4690,6 +4699,7 @@ function cerrarEntrenador() {
             velocidad:     entrenadorVelocidad,
             assetActivoId: entrenadorAssetActivo?.id,
             lineasOcultas: [...entrenadorLineasOcultas],
+            lineasColoreadas: [...entrenadorLineasColoreadas],
             loopActivoId:  entrenadorLoopActivo?.id
         };
         localStorage.setItem(`entrenador_config_${entrenadorSong.id}`, JSON.stringify(cfg));
@@ -4796,12 +4806,13 @@ function entRenderZona(forzarOrigIdx = null) {
         const lines = stanza.map(l => {
             const oculta = entrenadorOcultar || entrenadorLineasOcultas.has(l.origIdx);
             const texto  = oculta ? '█ █ █ █ █ █' : l.text;
-            const cls    = `ent-lyric-line${l.origIdx === entrenadorLineIdx ? ' activa' : ''}${oculta ? ' oculta' : ''}`;
+            const coloreada = entrenadorLineasColoreadas.has(l.origIdx);
+            const cls    = `ent-lyric-line${l.origIdx === entrenadorLineIdx ? ' activa' : ''}${oculta ? ' oculta' : ''}${coloreada ? ' coloreado' : ''}`;
             return `<span class="${cls}" data-orig="${l.origIdx}"
                 onclick="entClickLinea(event,${l.origIdx})"
                 ondblclick="entDblClickLinea(event,${l.origIdx})"
                 oncontextmenu="entEditLineaContextMenu(event,${l.origIdx})"
-                title="Click: ir al punto · Doble click: ocultar · Ctrl+click: crear loop · Click derecho: editar"
+                title="Click: ir al punto · Doble click: ocultar · Shift+click: colorear · Ctrl+Shift+click: colorear estrofa · Ctrl+click: crear loop · Click derecho: editar"
                 ><span class="ent-lyric-text">${texto}</span></span>`;
         }).join('');
         const sep = pos > 0 ? `<div class="ent-stanza-sep"></div>` : '';
@@ -4816,6 +4827,16 @@ function entRenderZona(forzarOrigIdx = null) {
 }
 
 function entClickLinea(e, i) {
+    if (e.shiftKey) {
+        // Shift+click: marcar/desmarcar verso coloreado (referencia visual para clase).
+        // Ctrl/⌘+Shift+click: colorear/descolorear la estrofa completa del verso.
+        // Solo modo normal: no en Sync (usa entTapMoveCursor) ni edición (no hay versos).
+        e.preventDefault();
+        if (entSyncMode || entModoEdicion) return;
+        if (e.ctrlKey || e.metaKey) entToggleColoreadoEstrofa(i);
+        else entToggleColoreado(i);
+        return;
+    }
     if (e.ctrlKey || e.metaKey) {
         // Ctrl+click: crear loop desde este verso (corrección 6)
         e.preventDefault();
@@ -4847,10 +4868,57 @@ function entClickLinea(e, i) {
 }
 
 function entDblClickLinea(e, i) {
+    // Shift+doble click se maneja a nivel del Entrenador (entDblClickEntrenador),
+    // no acá — así funciona en cualquier zona, no solo sobre un verso.
+    if (e.shiftKey) return;
     // Doble click: toggle ocultar verso (comportamiento anterior de single click)
     if (entrenadorLineasOcultas.has(i)) entrenadorLineasOcultas.delete(i);
     else entrenadorLineasOcultas.add(i);
     entRenderZona();
+}
+
+// Shift+doble click en cualquier parte del Entrenador → quitar todos los coloreados.
+function entDblClickEntrenador(e) {
+    if (!e.shiftKey) return;
+    if (entSyncMode || entModoEdicion) return;
+    e.preventDefault();
+    entLimpiarColoreados();
+}
+
+// ── Versos coloreados ─────────────────────────────────────────────────────────
+// Marcador visual personal para referirse a versos durante la clase. Estado por
+// canción (mismo patrón que entrenadorLineasOcultas): se persiste en el config
+// de localStorage al cerrar el Entrenador. No toca el asset, sync ni reproducción.
+// Se togglea la clase sobre el span puntual — sin re-render ni scroll — para no
+// duplicar la lógica del resaltado activo ni afectar el rendimiento.
+function entToggleColoreado(i) {
+    if (entrenadorLineasColoreadas.has(i)) entrenadorLineasColoreadas.delete(i);
+    else entrenadorLineasColoreadas.add(i);
+    const el = document.querySelector(`.ent-lyric-line[data-orig="${i}"]`);
+    if (el) el.classList.toggle('coloreado', entrenadorLineasColoreadas.has(i));
+}
+
+function entLimpiarColoreados() {
+    if (!entrenadorLineasColoreadas.size) return;
+    entrenadorLineasColoreadas.clear();
+    document.querySelectorAll('.ent-lyric-line.coloreado')
+        .forEach(el => el.classList.remove('coloreado'));
+}
+
+// Colorea/descolorea la estrofa completa del verso i. Reutiliza entrenadorStanzas
+// (no recalcula). Sin estado mixto: si toda la estrofa está coloreada la descolorea,
+// si no, la colorea entera.
+function entToggleColoreadoEstrofa(i) {
+    const estrofa = entrenadorStanzas.find(st => st.some(l => l.origIdx === i));
+    if (!estrofa) return;
+    const idxs = estrofa.map(l => l.origIdx);
+    const colorear = !idxs.every(x => entrenadorLineasColoreadas.has(x));
+    idxs.forEach(x => {
+        if (colorear) entrenadorLineasColoreadas.add(x);
+        else entrenadorLineasColoreadas.delete(x);
+        const el = document.querySelector(`.ent-lyric-line[data-orig="${x}"]`);
+        if (el) el.classList.toggle('coloreado', colorear);
+    });
 }
 
 function entEditLineaContextMenu(e, i) {
@@ -5041,6 +5109,9 @@ const ENT_ATAJOS = [
     { grupo: 'General', items: [
         { k: 'Esc', d: 'Cerrar el Entrenador' },
         { k: 'Ctrl / ⌘ + clic en un verso', d: 'Crear un loop desde ese verso' },
+        { k: 'Shift + clic en un verso', d: 'Marcar / desmarcar verso coloreado (referencia de clase)' },
+        { k: 'Ctrl / ⌘ + Shift + clic', d: 'Colorear / descolorear la estrofa completa' },
+        { k: 'Shift + doble clic', d: 'Quitar todos los versos coloreados (en cualquier parte)' },
     ]},
 ];
 function entAbrirAtajos() {
@@ -5795,6 +5866,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     entrenadorVelocidad     = 1.0;
     entrenadorOcultar       = false;
     entrenadorLineasOcultas = new Set();
+    entrenadorLineasColoreadas = new Set();
 
     document.getElementById('ent-song-nombre').textContent  = song.nombre;
     document.getElementById('ent-song-artista').textContent = song.artista || '';
