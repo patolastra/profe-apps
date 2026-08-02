@@ -6253,9 +6253,23 @@ function entSalirEdicion() {
                 }
             }
         }
-        // Marcar los versos reales que NO conservaron su timestamp original (interpolados
-        // o sin match). origIdx = índice en entrenadorLines (ver entParseStanzas).
-        entrenadorLines.forEach((l, i) => { if (!l._hasTs && l.text) entrenadorLineasRevisar.add(i); });
+        // Un match por texto NO es confiable si el verso pudo venir de otra posición:
+        // pasa con versos REPETIDOS cuya cantidad de ocurrencias cambió (p. ej. una fusión
+        // elimina una repetición y la FIFO por texto le asigna a la superviviente el
+        // timestamp de la ocurrencia equivocada). Se reutiliza viejasLines + entrenadorLines.
+        const cuentaVieja = new Map(), cuentaNueva = new Map();
+        viejasLines.forEach(l => { if (l.text) cuentaVieja.set(l.text, (cuentaVieja.get(l.text) || 0) + 1); });
+        entrenadorLines.forEach(l => { if (l.text) cuentaNueva.set(l.text, (cuentaNueva.get(l.text) || 0) + 1); });
+
+        // Marcar los versos reales que: (a) NO matchearon (interpolados/sin timestamp), o
+        // (b) matchearon por texto pero su alineación posicional no está garantizada
+        // (texto repetido cuya cantidad de ocurrencias cambió). origIdx = índice en
+        // entrenadorLines (ver entParseStanzas).
+        entrenadorLines.forEach((l, i) => {
+            if (!l.text) return;
+            const ambiguo = cuentaVieja.get(l.text) > 1 && cuentaVieja.get(l.text) !== (cuentaNueva.get(l.text) || 0);
+            if (!l._hasTs || ambiguo) entrenadorLineasRevisar.add(i);
+        });
         entrenadorLines.forEach(l => delete l._hasTs);
 
         if (lineasNuevas.length) toast(`${lineasNuevas.length} verso${lineasNuevas.length > 1 ? 's' : ''} sin sync — revisá los timestamps`);
