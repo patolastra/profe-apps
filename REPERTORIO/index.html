@@ -1748,6 +1748,14 @@
         .ent-lyric-line.coloreado:not(.activa):not(.oculta) {
             color: #38bdf8;
         }
+        /* Verso a resincronizar tras reconstruir la sync (interpolado o sin timestamp).
+           Marca temporal y solo visual — no se persiste. Subrayado ondulado: convive con
+           el color del verso activo y del coloreado sin competir. */
+        .ent-lyric-line.revisar {
+            text-decoration: underline wavy #ef4444;
+            text-underline-offset: 5px;
+            text-decoration-thickness: 2px;
+        }
 
         /* Modo sync del entrenador */
         #ent-zona.sync-mode { overflow-y: auto; }
@@ -4425,6 +4433,9 @@ document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && !editando) {
             const _pop = document.getElementById('ent-atajos-overlay');
             if (_pop && _pop.style.display === 'flex') { entCerrarAtajos(); return; }
+            // En ENT Sync, ESC sale de Sync (con flush de entToggleSync), nunca cierra el
+            // Entrenador → no puede dejar cambios de sincronización sin persistir.
+            if (entSyncMode) { entToggleSync(); return; }
             cerrarEntrenador(); return;
         }
         return;
@@ -4629,6 +4640,7 @@ function entPitchSyncPos() {
 // ─────────────────────────────────────────────────────────────────────────────
 let entrenadorLineasOcultas = new Set();
 let entrenadorLineasColoreadas = new Set();  // origIdx de versos marcados (referencia visual de clase)
+let entrenadorLineasRevisar = new Set();     // origIdx de versos a resincronizar tras reconstruir (temporal, no se persiste)
 let entrenadorAssetActivo  = null;
 let entModoEdicion         = false;
 
@@ -4738,6 +4750,7 @@ function entSelAsset(id) {
 
 function entCargarAsset(asset) {
     entrenadorAssetActivo = asset;
+    entrenadorLineasRevisar = new Set();   // marca temporal: no sobrevive al cambio de asset
     const zona = document.getElementById('ent-zona');
     const ocultarRow = document.getElementById('ent-mode-btns');
 
@@ -4807,7 +4820,8 @@ function entRenderZona(forzarOrigIdx = null) {
             const oculta = entrenadorOcultar || entrenadorLineasOcultas.has(l.origIdx);
             const texto  = oculta ? '█ █ █ █ █ █' : l.text;
             const coloreada = entrenadorLineasColoreadas.has(l.origIdx);
-            const cls    = `ent-lyric-line${l.origIdx === entrenadorLineIdx ? ' activa' : ''}${oculta ? ' oculta' : ''}${coloreada ? ' coloreado' : ''}`;
+            const revisar   = entrenadorLineasRevisar.has(l.origIdx);
+            const cls    = `ent-lyric-line${l.origIdx === entrenadorLineIdx ? ' activa' : ''}${oculta ? ' oculta' : ''}${coloreada ? ' coloreado' : ''}${revisar ? ' revisar' : ''}`;
             return `<span class="${cls}" data-orig="${l.origIdx}"
                 onclick="entClickLinea(event,${l.origIdx})"
                 ondblclick="entDblClickLinea(event,${l.origIdx})"
@@ -6185,46 +6199,67 @@ function entSalirEdicion() {
     const teniaSync = !!(entrenadorAssetActivo?.synced);
     const viejasLines = [...entrenadorLines];
 
-    // Matchear timestamps por texto (no por índice) para que líneas reubicadas conserven su sync
-    const tsMap = new Map();
-    viejasLines.forEach(l => {
-        const key = l.text.trim();
-        if (!tsMap.has(key)) tsMap.set(key, []);
-        tsMap.get(key).push({ time: l.time, timeOut: l.timeOut });
-    });
     const nuevasLines = ta.value.split('\n');
-    const lineasNuevas = [];
-    entrenadorLines = nuevasLines.map(raw => {
-        const text = raw.trim();
-        const cola = tsMap.get(text);
-        const ts   = cola?.shift();
-        if (!ts) lineasNuevas.push(text || '(vacío)');
-        return { time: ts?.time ?? 0, timeOut: ts?.timeOut, text, _hasTs: !!ts };
-    });
+    entrenadorLineasRevisar = new Set();   // solo el respaldo (Caso 2) marca versos a revisar
 
-    // Interpolar tiempos para líneas nuevas (sin match en tsMap)
-    // Sin esto, reciben time:0 y al reabrir con parseLRC() suben al principio por el sort
-    if (teniaSync) {
-        const anchors = entrenadorLines
-            .map((l, i) => l._hasTs ? { i, time: l.time } : null)
-            .filter(Boolean);
-        for (let i = 0; i < entrenadorLines.length; i++) {
-            if (entrenadorLines[i]._hasTs) continue;
-            const prev = anchors.filter(a => a.i < i).at(-1);
-            const next = anchors.find(a => a.i > i);
-            if (prev && next) {
-                const ratio = (i - prev.i) / (next.i - prev.i);
-                entrenadorLines[i].time = Math.round(prev.time + ratio * (next.time - prev.time));
-            } else if (prev) {
-                entrenadorLines[i].time = prev.time + (i - prev.i) * 3000;
-            } else if (next) {
-                entrenadorLines[i].time = Math.max(0, next.time - (next.i - i) * 3000);
+    // Criterio principal = posición del verso, no el texto.
+    // Caso 1: misma cantidad de líneas → cada verso es "el mismo" por índice y conserva
+    // exactamente su time/timeOut, sin importar cómo cambió su contenido (mayúsculas,
+    // puntuación, typo, reescritura). No hay versos "nuevos", así que no hay toast.
+    if (teniaSync && nuevasLines.length === viejasLines.length) {
+        entrenadorLines = nuevasLines.map((raw, i) => ({
+            time:    viejasLines[i].time,
+            timeOut: viejasLines[i].timeOut,
+            text:    raw.trim()
+        }));
+    } else {
+        // Caso 2 (respaldo): cambió la estructura (se agregó/quitó/dividió/unió un verso,
+        // o el asset no tenía sync). Se usa el algoritmo original: match por texto exacto
+        // + interpolación de los versos sin match.
+        const tsMap = new Map();
+        viejasLines.forEach(l => {
+            const key = l.text.trim();
+            if (!tsMap.has(key)) tsMap.set(key, []);
+            tsMap.get(key).push({ time: l.time, timeOut: l.timeOut });
+        });
+        const lineasNuevas = [];
+        entrenadorLines = nuevasLines.map(raw => {
+            const text = raw.trim();
+            const cola = tsMap.get(text);
+            const ts   = cola?.shift();
+            // Solo versos reales (con texto) cuentan como "sin sync": las líneas vacías
+            // son separadores de estrofa, no versos.
+            if (!ts && text) lineasNuevas.push(text);
+            return { time: ts?.time ?? 0, timeOut: ts?.timeOut, text, _hasTs: !!ts };
+        });
+
+        // Interpolar tiempos para líneas nuevas (sin match en tsMap)
+        // Sin esto, reciben time:0 y al reabrir con parseLRC() suben al principio por el sort
+        if (teniaSync) {
+            const anchors = entrenadorLines
+                .map((l, i) => l._hasTs ? { i, time: l.time } : null)
+                .filter(Boolean);
+            for (let i = 0; i < entrenadorLines.length; i++) {
+                if (entrenadorLines[i]._hasTs) continue;
+                const prev = anchors.filter(a => a.i < i).at(-1);
+                const next = anchors.find(a => a.i > i);
+                if (prev && next) {
+                    const ratio = (i - prev.i) / (next.i - prev.i);
+                    entrenadorLines[i].time = Math.round(prev.time + ratio * (next.time - prev.time));
+                } else if (prev) {
+                    entrenadorLines[i].time = prev.time + (i - prev.i) * 3000;
+                } else if (next) {
+                    entrenadorLines[i].time = Math.max(0, next.time - (next.i - i) * 3000);
+                }
             }
         }
-    }
-    entrenadorLines.forEach(l => delete l._hasTs);
+        // Marcar los versos reales que NO conservaron su timestamp original (interpolados
+        // o sin match). origIdx = índice en entrenadorLines (ver entParseStanzas).
+        entrenadorLines.forEach((l, i) => { if (!l._hasTs && l.text) entrenadorLineasRevisar.add(i); });
+        entrenadorLines.forEach(l => delete l._hasTs);
 
-    if (lineasNuevas.length) toast(`${lineasNuevas.length} verso${lineasNuevas.length > 1 ? 's' : ''} nuevo${lineasNuevas.length > 1 ? 's' : ''} sin sync — revisá los timestamps`);
+        if (lineasNuevas.length) toast(`${lineasNuevas.length} verso${lineasNuevas.length > 1 ? 's' : ''} sin sync — revisá los timestamps`);
+    }
     entrenadorStanzas = entParseStanzas();
 
     const asset = entrenadorAssetActivo;
@@ -6248,6 +6283,12 @@ function entSalirEdicion() {
 }
 
 function entToggleSync() {
+    // Al SALIR de Sync: si hubo cambios de sincronización sin guardar, flush único.
+    // (No guardamos en cada tap; el guardado ocurre al terminar la sesión de sync.)
+    if (entSyncMode && entSyncDirty) {
+        entGuardarSyncAsset();
+        entSyncDirty = false;
+    }
     entSyncMode = !entSyncMode;
     entFontSizeGlobal = null;
     entTapCursor = entSyncMode ? entTapNextIdx(Math.max(0, entrenadorLineIdx)) : 0;
@@ -6297,9 +6338,9 @@ function entRenderSync() {
 
 function entAjustarSync(i, delta) {
     entrenadorLines[i].time = Math.max(0, entrenadorLines[i].time + delta * 1000);
-    entSyncDirty = true;
     entRenderSync();
     entGuardarSyncAsset();
+    entSyncDirty = false;   // ya persistido
 }
 
 // ── ÚNICO PUNTO OFICIAL DE PERSISTENCIA DEL ENTRENADOR ────────────────────────
@@ -6358,11 +6399,13 @@ function entTapPrevIdx(desde) {
 function entTapIn() {
     if (!entSyncMode || entTapCursor >= entrenadorLines.length) return;
     entrenadorLines[entTapCursor].time = Math.round((entAudio()?.currentTime || 0) * 1000);
+    entrenadorLineasRevisar.delete(entTapCursor);   // verso resincronizado → quitar marca de revisión
     entSyncDirty = true;
     entTapCursor = entTapNextIdx(entTapCursor + 1);
     entRenderSync();
     if (entTapCursor >= entrenadorLines.length) {
         entGuardarSyncAsset();
+        entSyncDirty = false;   // ya persistido
         toast('Sync guardado');
     }
 }
