@@ -4516,6 +4516,7 @@ const palRepSongsOpen = new Set(); // keys "alumnoId:cancionId" con canción des
 let palModoAsignacion = null;   // alumnoId en sub-vista de asignación, null = lista
 let palAsigBusqueda   = '';     // filtro visual: texto del buscador de canciones
 let palAsigInstrVisibles = new Set(['guitarra','ukelele','bajo']); // instrumentos visibles (toggles)
+let palAsigSoloAsignados = false; // filtro visual: mostrar solo TABs ya asignadas al alumno
 let _palAssetsCache   = [];     // assets cacheados para updates in-place
 let _palAsigCache     = {};     // { alumnoId: Set<assetId> } cacheado
 let _palSecAsigCache  = {};     // { alumnoId: { assetId: Set<seccion> } }
@@ -5517,6 +5518,7 @@ function abrirModoAsignacion(alumnoId) {
     // Filtros de visualización arrancan limpios (todos los instrumentos visibles)
     palAsigBusqueda = '';
     palAsigInstrVisibles = new Set(['guitarra','ukelele','bajo']);
+    palAsigSoloAsignados = false;
     renderPanelAlumnos();
 }
 function cerrarModoAsignacion() {
@@ -5615,8 +5617,10 @@ function construirCatalogoAsignacionHTML(alumnoId) {
     const q = palAsigBusqueda.trim().toLowerCase();
     const INSTR_FILTRABLES = ['guitarra','ukelele','bajo'];
     const asignables = _palAssetsCache.filter(t => {
-        const visibleEstado = estadoDeAsset(t) === 'publicado' || asigAlumno.has(t.id) || (secAsigDelAlumno[t.id]?.size > 0);
+        const estaAsignada = asigAlumno.has(t.id) || (secAsigDelAlumno[t.id]?.size > 0);
+        const visibleEstado = estadoDeAsset(t) === 'publicado' || estaAsignada;
         if (!visibleEstado) return false;
+        if (palAsigSoloAsignados && !estaAsignada) return false;
         const inst = (t.instrumento || '').toLowerCase();
         if (INSTR_FILTRABLES.includes(inst) && !palAsigInstrVisibles.has(inst)) return false;
         if (q && !(t.repertorio_canciones?.nombre || '').toLowerCase().includes(q)) return false;
@@ -5776,10 +5780,15 @@ function barraFiltrosAsigHTML() {
         return `<button type="button" onclick="toggleInstrAsig('${inst}',this)"
             style="border:1px solid ${on?'#27ae60':'#333'};background:${on?'#12331f':'#141414'};color:${on?'#eee':'#666'};border-radius:6px;padding:4px 9px;cursor:pointer;font-size:.74rem;font-weight:600;opacity:${on?'1':'.55'}">${emoji} ${label}</button>`;
     };
+    const onAsig = palAsigSoloAsignados;
     return `<div style="flex:0;display:flex;flex-direction:column;gap:6px;padding:7px 12px;border-bottom:1px solid #202020;background:#161616">
         <input id="palAsigBuscar" type="text" placeholder="🔍 Buscar canción..." value="${esc(palAsigBusqueda)}"
             oninput="palAsigBusqueda=this.value;refiltrarCatalogoAsignacion()"
             style="width:100%;box-sizing:border-box;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;color:#eee;font-size:.8rem;outline:none">
+        <div style="display:flex;gap:6px">
+            <button type="button" onclick="toggleSoloAsignadosAsig(this)"
+                style="border:1px solid ${onAsig?'#27ae60':'#333'};background:${onAsig?'#12331f':'#141414'};color:${onAsig?'#eee':'#666'};border-radius:6px;padding:4px 9px;cursor:pointer;font-size:.74rem;font-weight:600;opacity:${onAsig?'1':'.55'}">✓ Asignados</button>
+        </div>
         <div style="display:flex;gap:6px">
             ${chip('guitarra','🎸','Guitarra')}
             ${chip('ukelele','🪕','Ukelele')}
@@ -5799,6 +5808,20 @@ function toggleInstrAsig(inst, btn) {
         btn.style.background  = nowOn ? '#12331f' : '#141414';
         btn.style.color       = nowOn ? '#eee' : '#666';
         btn.style.opacity     = nowOn ? '1' : '.55';
+    }
+    refiltrarCatalogoAsignacion();
+}
+
+// Toggle "solo asignados": actualiza el chip in-place (sin tocar el buscador) y
+// re-filtra el listado. Reutiliza la noción de asignada del filtro único.
+function toggleSoloAsignadosAsig(btn) {
+    palAsigSoloAsignados = !palAsigSoloAsignados;
+    const on = palAsigSoloAsignados;
+    if (btn) {
+        btn.style.borderColor = on ? '#27ae60' : '#333';
+        btn.style.background  = on ? '#12331f' : '#141414';
+        btn.style.color       = on ? '#eee' : '#666';
+        btn.style.opacity     = on ? '1' : '.55';
     }
     refiltrarCatalogoAsignacion();
 }
