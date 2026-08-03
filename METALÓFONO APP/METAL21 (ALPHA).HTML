@@ -233,6 +233,39 @@
             text-shadow: 0 0 8px white !important;
         }
 
+        /* --- PRECUENTA (count-in) --- */
+        /* Toggle en el toolbar: estado "on" reutiliza el naranja de acento de la app */
+        #btn-precuenta.on { background: var(--orange); color: #fff; }
+
+        /* Overlay: oscurece suavemente el metalófono y bloquea la interacción.
+           Reutiliza --dark-bg, --gold y --orange para mantener la identidad visual. */
+        #countin-overlay {
+            position: absolute; inset: 0; z-index: 2500;
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center; gap: 4vh;
+            background: rgba(17, 17, 22, 0.86); /* --dark-bg con alpha (+20%) */
+        }
+        #countin-overlay.visible { display: flex; }
+        #countin-num {
+            font-size: 42vh; font-weight: 800; line-height: 1;
+            color: var(--gold); text-shadow: 0 0 30px rgba(241, 196, 15, 0.5);
+        }
+        #countin-dots { display: flex; gap: 4vh; }
+        .countin-dot {
+            width: 6vh; height: 6vh; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.18);
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            transition: 0.1s;
+        }
+        .countin-dot.active {
+            background: var(--gold); border-color: var(--gold);
+            box-shadow: 0 0 18px var(--gold); transform: scale(1.25);
+        }
+        .countin-dot.accent.active {
+            background: var(--orange); border-color: var(--orange);
+            box-shadow: 0 0 22px var(--orange);
+        }
+
     </style>
 </head>
 <body>
@@ -287,6 +320,7 @@
                 <button class="btn-step" id="btn-tempo-plus">+</button>
                 <input type="text" class="bpm-display" id="bpm-input" maxlength="3" value="120">
             </div>
+            <button id="btn-precuenta" title="Precuenta: 1 compás antes de reproducir">🥁 Precuenta</button>
             <button id="btn-play" class="btn-play" disabled>▶ REPRODUCIR</button>
         </div>
         <div class="ctrl-group">
@@ -332,6 +366,10 @@
                 <div class="key natural G" data-midi="103"><span>G<br>Sol</span></div>
                 <div class="key natural A" data-midi="105"><span>A<br>La</span></div>
             </div>
+            <div id="countin-overlay">
+                <div id="countin-num"></div>
+                <div id="countin-dots"></div>
+            </div>
         </div>
     </div>
 
@@ -355,6 +393,10 @@
         let isPlaying = false;
         let globalBPM = 120;
 
+        // Precuenta: preferencia persistida (ON por defecto) + flag de bloqueo durante la cuenta
+        let precuentaOn = localStorage.getItem('metal_precuenta') !== 'false';
+        let countingIn = false;
+
         // Estado modo práctica
         let practiceMode = null; 
         let practiceIndex = 0;
@@ -363,6 +405,7 @@
         const btnNuevoMidi = document.getElementById('btn-nuevo-midi');
         const realMidiPicker = document.getElementById('real-midi-picker');
         const btnPlay = document.getElementById('btn-play');
+        const btnPrecuenta = document.getElementById('btn-precuenta');
         const btnNotation = document.getElementById('btn-cambiar-cifrado');
         const btnColores = document.getElementById('btn-cambiar-colores');
         const btnPracticeMenu = document.getElementById('btn-practice');
@@ -441,14 +484,89 @@
             res.ok = true; return res;
         }
 
+        // --- PRECUENTA ---
+        function renderPrecuentaBtn() { btnPrecuenta.classList.toggle('on', precuentaOn); }
+        btnPrecuenta.onclick = () => {
+            precuentaOn = !precuentaOn;
+            localStorage.setItem('metal_precuenta', precuentaOn ? 'true' : 'false');
+            renderPrecuentaBtn();
+        };
+        renderPrecuentaBtn();
+
+        // Cifra de compás desde el propio MIDI (fuente de verdad). Sin fallback: si el MIDI
+        // no la trae, devuelve null y no se inventa un compás. Deja listo el soporte de
+        // compuestos (6/8) vía den, y de anacrusa vía los ticks de las notas (aún no usados).
+        function getCompas() {
+            const ts = currentMidi?.header?.timeSignatures?.[0]?.timeSignature;
+            if (!ts) return null;
+            const [num, den] = ts;
+            const beatTicks = currentMidi.header.ppq * (4 / den);
+            return { num, den, beatTicks, barTicks: beatTicks * num };
+        }
+
+        // Agenda la precuenta en la MISMA línea de tiempo del Transport (mismo BPM activo).
+        // Claqueta reutilizando el synth existente: acento (TAK) en el 1, pulsos (tik) en el resto.
+        function agendarPrecuenta(compas) {
+            countingIn = true;
+            mostrarOverlayPrecuenta(compas.num);
+            for (let b = 0; b < compas.num; b++) {
+                const acento = (b === 0);
+                Tone.Transport.schedule((time) => {
+                    synth.triggerAttackRelease(acento ? "C7" : "C6", "32n", time, acento ? 1.0 : 0.5);
+                    Tone.Draw.schedule(() => pintarPulso(b), time);
+                }, (b * compas.beatTicks) + "i");
+            }
+            // Al entrar la melodía (fin del compás): desbloquear y ocultar overlay.
+            Tone.Transport.schedule((time) => {
+                Tone.Draw.schedule(() => { countingIn = false; ocultarOverlayPrecuenta(); }, time);
+            }, compas.barTicks + "i");
+        }
+
+        function mostrarOverlayPrecuenta(num) {
+            const dots = document.getElementById('countin-dots');
+            dots.innerHTML = '';
+            for (let i = 0; i < num; i++) {
+                const d = document.createElement('div');
+                d.className = 'countin-dot' + (i === 0 ? ' accent' : '');
+                dots.appendChild(d);
+            }
+            document.getElementById('countin-num').textContent = '';
+            document.getElementById('countin-overlay').classList.add('visible');
+        }
+        function pintarPulso(b) {
+            document.getElementById('countin-num').textContent = (b + 1);
+            document.querySelectorAll('.countin-dot').forEach((d, i) => d.classList.toggle('active', i === b));
+        }
+        function ocultarOverlayPrecuenta() {
+            document.getElementById('countin-overlay').classList.remove('visible');
+            document.querySelectorAll('.countin-dot').forEach(d => d.classList.remove('active'));
+        }
+
         btnPlay.onclick = () => isPlaying ? stopAudio() : startAudio();
 
         async function startAudio() {
             if(practiceMode) return;
+
+            // Precuenta = 1 compás de preroll en la misma línea de tiempo del Transport.
+            // La cifra de compás viene del MIDI; sin ella no se inventa un compás.
+            let preroll = 0, compas = null;
+            if (precuentaOn) {
+                compas = getCompas();
+                if (!compas) {
+                    statusDiv.innerText = "Este MIDI no tiene cifra de compás — no se puede hacer la precuenta";
+                    statusDiv.className = "st-error";
+                    return;
+                }
+                preroll = compas.barTicks;
+            }
+
             await Tone.start();
             isPlaying = true;
             btnPlay.innerText = "⏹ DETENER";
             Tone.Transport.stop(); Tone.Transport.cancel();
+
+            if (preroll > 0) agendarPrecuenta(compas);
+
             currentMidi.tracks.forEach(track => {
                 track.notes.forEach(note => {
                     Tone.Transport.schedule((time) => {
@@ -456,18 +574,20 @@
                         Tone.Draw.schedule(() => noteOn(note.midi), time);
                         Tone.Transport.scheduleOnce((tOff) => {
                             Tone.Draw.schedule(() => noteOff(note.midi), tOff);
-                        }, (note.ticks + note.durationTicks) + "i");
-                    }, note.ticks + "i");
+                        }, (note.ticks + note.durationTicks + preroll) + "i");
+                    }, (note.ticks + preroll) + "i");
                 });
             });
-            Tone.Transport.scheduleOnce(() => Tone.Draw.schedule(stopAudio, Tone.now()), currentMidi.durationTicks + "i");
+            Tone.Transport.scheduleOnce(() => Tone.Draw.schedule(stopAudio, Tone.now()), (currentMidi.durationTicks + preroll) + "i");
             Tone.Transport.start();
         }
 
         function stopAudio() {
             isPlaying = false;
+            countingIn = false;
             Tone.Transport.stop(); Tone.Transport.cancel();
             btnPlay.innerText = "▶ REPRODUCIR";
+            ocultarOverlayPrecuenta();
             resetVisuals();
         }
 
@@ -572,8 +692,8 @@
 
         document.querySelectorAll('.key').forEach(el => {
             el.addEventListener('pointerdown', async (e) => {
-                if (practiceMode) return; 
-                e.preventDefault(); 
+                if (practiceMode || countingIn) return;
+                e.preventDefault();
                 if (Tone.context.state !== 'running') await Tone.start();
                 const midiValue = parseInt(el.dataset.midi);
                 if (isNaN(midiValue)) return;
