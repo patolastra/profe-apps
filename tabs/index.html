@@ -4696,6 +4696,11 @@ async function toggleSeccionAsignacion(alumnoId, assetId, seccion, asignar) {
     try {
         if (asignar) {
             await sbPost('/rest/v1/alumno_tab_secciones', { alumno_id: alumnoId, asset_id: assetId, seccion });
+            // Exclusividad: asignar una sección elimina la Partitura completa de ese asset
+            if (_palAsigCache[alumnoId]?.has(assetId)) {
+                await sbDelete(`/rest/v1/alumno_tabs?alumno_id=eq.${alumnoId}&asset_id=eq.${assetId}`);
+                _palAsigCache[alumnoId].delete(assetId);
+            }
         } else {
             await sbDelete(`/rest/v1/alumno_tab_secciones?alumno_id=eq.${alumnoId}&asset_id=eq.${assetId}&seccion=eq.${encodeURIComponent(seccion)}`);
         }
@@ -5563,6 +5568,13 @@ function actualizarAsigPanel(alumnoId) {
     // Actualizar badges de canciones en el catálogo
     const asigAlumno = _palAsigCache[alumnoId] || new Set();
     const secAsigMap = _palSecAsigCache[alumnoId] || {};
+    // Reflejar la exclusividad Partitura completa ↔ secciones en los checkboxes del catálogo
+    document.querySelectorAll('input[data-full]').forEach(el => {
+        el.checked = asigAlumno.has(el.dataset.full);
+    });
+    document.querySelectorAll('input[data-sec-asset]').forEach(el => {
+        el.checked = (secAsigMap[el.dataset.secAsset]?.has(el.dataset.sec)) || false;
+    });
     document.querySelectorAll('[data-song-badge]').forEach(el => {
         const key  = el.dataset.songBadge;          // "cancionId:total"
         const [cid, total] = key.split(':');
@@ -5639,16 +5651,24 @@ function construirSubVistaAsignacion(al, assets, asig) {
             const asigSecs  = secAsigMap[t.id] || new Set();
 
             if (secciones.length > 0) {
-                // Tab con secciones — sub-checkboxes por sección
+                // Tab con secciones — opción "Partitura completa" + sub-checkboxes por sección
                 const partes = [
                     inst ? `<span style="text-transform:capitalize;color:#888">${inst}</span>` : '',
                     dif  ? `<span style="color:${color};text-transform:capitalize">${dif}</span>` : '',
                 ].filter(Boolean).join('<span style="color:#333;margin:0 2px">·</span>');
+                // Partitura completa: reutiliza alumno_tabs vía toggleTabAsignacion.
+                // Es opción del mismo grupo, excluyente con las secciones (regla en los toggles).
+                const chkFull = asigAlumno.has(t.id) ? 'checked' : '';
+                const fullHTML = `<label style="display:flex;align-items:center;gap:6px;padding:4px 8px 4px 24px;cursor:pointer;border-top:1px solid #111;background:#080808">
+                        <input type="checkbox" ${chkFull} data-full="${t.id}" style="accent-color:#2471a3;width:13px;height:13px;cursor:pointer;flex-shrink:0"
+                            onchange="toggleTabAsignacion('${alumnoId}','${t.id}',this.checked)">
+                        <span style="font-size:.72rem;color:#cdd">🎼 Partitura completa</span>
+                    </label>`;
                 const secsHTML = secciones.map(s => {
                     const chk = asigSecs.has(s.nombre) ? 'checked' : '';
                     const sNom = s.nombre.replace(/'/g,"\\'");
                     return `<label style="display:flex;align-items:center;gap:6px;padding:4px 8px 4px 24px;cursor:pointer;border-top:1px solid #111;background:#080808">
-                        <input type="checkbox" ${chk} style="accent-color:#27ae60;width:13px;height:13px;cursor:pointer;flex-shrink:0"
+                        <input type="checkbox" ${chk} data-sec-asset="${t.id}" data-sec="${esc(s.nombre)}" style="accent-color:#27ae60;width:13px;height:13px;cursor:pointer;flex-shrink:0"
                             onchange="toggleSeccionAsignacion('${alumnoId}','${t.id}','${sNom}',this.checked)">
                         <span style="font-size:.72rem;color:#bbb">${esc(s.nombre)}</span>
                     </label>`;
@@ -5658,6 +5678,7 @@ function construirSubVistaAsignacion(al, assets, asig) {
                         <span style="flex-shrink:0">${emoji}</span>
                         <span style="font-size:.72rem;display:flex;gap:3px;align-items:center;color:#777">${partes || esc(etq)}</span>
                     </div>
+                    ${fullHTML}
                     ${secsHTML}
                 </div>`;
             }
@@ -5763,6 +5784,12 @@ async function toggleTabAsignacion(alumnoId, assetId, asignar) {
     try {
         if (asignar) {
             await sbPost('/rest/v1/alumno_tabs', { alumno_id: alumnoId, asset_id: assetId });
+            // Exclusividad: Partitura completa elimina cualquier sección asignada de ese asset
+            const secSet = _palSecAsigCache[alumnoId]?.[assetId];
+            if (secSet?.size) {
+                await sbDelete(`/rest/v1/alumno_tab_secciones?alumno_id=eq.${alumnoId}&asset_id=eq.${assetId}`);
+                secSet.clear();
+            }
         } else {
             await sbDelete(`/rest/v1/alumno_tabs?alumno_id=eq.${alumnoId}&asset_id=eq.${assetId}`);
         }
