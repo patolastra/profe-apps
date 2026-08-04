@@ -181,6 +181,34 @@
         .rep-item .rep-nombre { font-weight:600; font-size:.87rem; }
         .rep-item .rep-meta { font-size:.78rem; color:#888; margin-top:2px; }
 
+        /* ── BADGE + POPOVER DE ESTADO EDITORIAL (panel lateral, solo profe) ── */
+        .est-badge {
+            display:inline-flex; align-items:center; justify-content:center;
+            width:18px; height:18px; border-radius:50%; padding:0;
+            font-size:.62rem; font-weight:800; color:#fff; cursor:pointer;
+            border:none; flex-shrink:0; line-height:1;
+            transition:transform .1s, box-shadow .1s;
+        }
+        .est-badge:hover { transform:scale(1.18); box-shadow:0 0 0 2px rgba(255,255,255,0.12); }
+        #estadoMenuLec {
+            display:none; position:fixed; z-index:1200;
+            background:#1c1c1c; border:1.5px solid #333; border-radius:10px;
+            padding:5px; min-width:168px; box-shadow:0 10px 34px rgba(0,0,0,0.5);
+        }
+        #estadoMenuLec.abierto { display:block; }
+        .est-opt {
+            display:flex; align-items:center; gap:9px; width:100%;
+            padding:7px 10px; border:none; background:none; cursor:pointer;
+            border-radius:6px; font-size:.83rem; color:#eee;
+            font-family:inherit; text-align:left;
+        }
+        .est-opt:hover { background:#2a2a2a; }
+        .est-opt .est-dot {
+            width:15px; height:15px; border-radius:50%; flex-shrink:0;
+            display:inline-flex; align-items:center; justify-content:center;
+            font-size:.58rem; font-weight:800; color:#fff;
+        }
+
         /* ── PISTAS DE ACOMPAÑAMIENTO ─────────────────────────────── */
         .btn-pistas { background: #1a5276; color: #fff; }
         .btn-pistas.activo { background: #2980b9; box-shadow: 0 0 8px #2980b988; }
@@ -973,6 +1001,7 @@
     </div>
 </div>
 <div id="toast"></div>
+<div id="estadoMenuLec"></div>
 
 <!-- MODAL ACORDES -->
 <div id="modalAcordes">
@@ -4938,6 +4967,50 @@ function chipsEstadoHTML(filtroActual, onclickFn) {
     }).join('');
 }
 
+// ── Cambio de estado editorial desde el panel lateral (port del patrón de Repertorio) ──
+// Reutiliza ESTADOS_ASSET/estadoDeAsset y la ruta de persistencia existente (sbPatch).
+function estadoBadgeLectorHTML(a) {
+    const e = estadoDeAsset(a);
+    const info = ESTADOS_ASSET[e];
+    return `<button class="est-badge" title="Estado: ${info.label} — clic para cambiar"
+        style="background:${info.color};margin-left:auto"
+        onclick="event.stopPropagation();abrirMenuEstadoLec(event,'${a.id}')">${info.letra}</button>`;
+}
+let _estadoAssetIdLec = null;
+function abrirMenuEstadoLec(ev, assetId) {
+    ev.stopPropagation();
+    _estadoAssetIdLec = assetId;
+    const menu = document.getElementById('estadoMenuLec');
+    menu.innerHTML = Object.entries(ESTADOS_ASSET).map(([val, info]) =>
+        `<button class="est-opt" onclick="setEstadoAssetLec('${val}')">
+            <span class="est-dot" style="background:${info.color}">${info.letra}</span>${info.label}
+        </button>`).join('');
+    menu.classList.add('abierto');
+    // Posicionar junto al badge sin salir de la ventana
+    const r = ev.currentTarget.getBoundingClientRect();
+    const w = 176, h = menu.offsetHeight || 160;
+    menu.style.left = Math.min(r.left, window.innerWidth  - w - 8) + 'px';
+    menu.style.top  = (r.bottom + h > window.innerHeight ? r.top - h - 4 : r.bottom + 4) + 'px';
+}
+function cerrarMenuEstadoLec() {
+    document.getElementById('estadoMenuLec')?.classList.remove('abierto');
+    _estadoAssetIdLec = null;
+}
+document.addEventListener('click', e => {
+    if (!e.target.closest('#estadoMenuLec') && !e.target.closest('.est-badge')) cerrarMenuEstadoLec();
+});
+async function setEstadoAssetLec(nuevoEstado) {
+    const assetId = _estadoAssetIdLec;
+    cerrarMenuEstadoLec();
+    if (!assetId) return;
+    const asset = (_palRepAssets || []).find(x => x.id === assetId);
+    if (!asset || asset.estado === nuevoEstado) return;
+    asset.estado = nuevoEstado;          // optimista: refrescar UI ya (re-aplica el filtro activo)
+    renderPanelRepertorio();
+    await sbPatch(`/rest/v1/repertorio_assets?id=eq.${assetId}`, { estado: nuevoEstado });
+    mostrarToast(`Estado: ${ESTADOS_ASSET[nuevoEstado].label}`);
+}
+
 // Carga assets para el panel (cacheado en _palRepAssets) + set de canciones Personal
 async function cargarRepAssetsPanel() {
     const url = `${SB_URL}/rest/v1/repertorio_assets` +
@@ -5103,8 +5176,8 @@ async function renderPanelRepertorio() {
             const secInfo = secs?.length
                 ? `<span style="color:#555;font-size:.75rem;flex-shrink:0">↳ ${secs.map(s=>s.nombre).join(' · ')}</span>`
                 : '';
-            return `<div class="rep-item" onclick="cargarTabDesdePanel('${sp}','${nf}',JSON.parse(this.dataset.meta))" data-meta='${metaObj}'>
-                <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+            return `<div class="rep-item" style="display:flex;align-items:center;gap:8px" onclick="cargarTabDesdePanel('${sp}','${nf}',JSON.parse(this.dataset.meta))" data-meta='${metaObj}'>
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1">
                     <div style="display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden">
                         <span style="font-weight:400;font-size:.84rem;color:#bbb;overflow:hidden;text-overflow:ellipsis">${label}</span>
                         <span style="flex-shrink:0">${INST_EMOJI[inst] || '🎸'}</span>
@@ -5113,6 +5186,7 @@ async function renderPanelRepertorio() {
                     </div>
                     ${secInfo}
                 </div>
+                ${esModoTrabajo() ? estadoBadgeLectorHTML(a) : ''}
             </div>`;
         }).join('');
         // Lecciones asociadas a esta canción (derivado) — cuelgan del nodo de la canción
