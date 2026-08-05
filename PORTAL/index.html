@@ -708,6 +708,13 @@
             font-size: 1rem; line-height: 1; padding: 2px 4px;
         }
         #rep-picker-hdr button:hover { color: #e2e8f0; }
+        #rep-picker-search {
+            flex-shrink: 0; margin: 8px 8px 0; padding: 8px 10px;
+            background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+            color: #f1f5f9; font-size: 0.85rem; font-family: inherit; outline: none;
+        }
+        #rep-picker-search::placeholder { color: #64748b; }
+        #rep-picker-search:focus { border-color: #475569; }
         #rep-picker-list { overflow-y: auto; padding: 8px; }
         #rep-picker-empty { padding: 24px; text-align: center; color: #64748b; font-size: 0.82rem; }
 
@@ -3327,16 +3334,27 @@ function insertarYoutube() {
 }
 
 // ── PICKER CANCIÓN ────────────────────────────────────────────
+let repPickerData = [];   // catálogo en memoria (ya sin PERSONALES); el buscador filtra sobre esto
+
 async function abrirPickerRep() {
-    const list = document.getElementById('rep-picker-list');
+    const list   = document.getElementById('rep-picker-list');
+    const search = document.getElementById('rep-picker-search');
+    repPickerData = [];
+    search.value = '';
     list.innerHTML = '<div id="rep-picker-empty">Cargando…</div>';
     document.getElementById('rep-picker').classList.add('show');
 
-    const { data, error } = await sb
-        .from('repertorio_assets')
-        .select('id, etiqueta, cancion_id, repertorio_canciones(nombre, artista)')
-        .eq('tipo', 'letra')
-        .order('cancion_id');
+    // Set de canciones marcadas PERSONAL en el Repertorio (para excluirlas del catálogo).
+    // Sólo lectura; si falla, se degrada a no filtrar (patrón del Lector).
+    const [{ data, error }, personal] = await Promise.all([
+        sb.from('repertorio_assets')
+          .select('id, etiqueta, cancion_id, repertorio_canciones(nombre, artista)')
+          .eq('tipo', 'letra')
+          .order('cancion_id'),
+        sb.from('repertorio_cancion_contextos')
+          .select('cancion_id').eq('contexto', 'PERSONAL')
+          .then(r => r.data || [], () => [])
+    ]);
 
     if (error) {
         list.innerHTML = '<div id="rep-picker-empty">Error al conectar. Verificá la conexión.</div>';
@@ -3347,7 +3365,31 @@ async function abrirPickerRep() {
         return;
     }
 
-    list.innerHTML = data.map(a => {
+    const setPersonal = new Set((personal || []).map(p => p.cancion_id));
+    repPickerData = data.filter(a => !setPersonal.has(a.cancion_id));
+
+    renderRepPickerList();
+    search.focus();   // permite empezar a escribir de inmediato
+}
+
+// Re-render del listado filtrando el catálogo en memoria por nombre/artista (sin tocar Supabase).
+function renderRepPickerList() {
+    const list = document.getElementById('rep-picker-list');
+    const q = (document.getElementById('rep-picker-search').value || '').trim().toLowerCase();
+    const items = q
+        ? repPickerData.filter(a => {
+            const nombre  = (a.repertorio_canciones?.nombre  || '').toLowerCase();
+            const artista = (a.repertorio_canciones?.artista || '').toLowerCase();
+            return nombre.includes(q) || artista.includes(q);
+        })
+        : repPickerData;
+
+    if (!items.length) {
+        list.innerHTML = '<div id="rep-picker-empty">Sin resultados.</div>';
+        return;
+    }
+
+    list.innerHTML = items.map(a => {
         const nombre  = a.repertorio_canciones?.nombre  || 'Canción';
         const artista = a.repertorio_canciones?.artista || '';
         return `<div class="metal-item"
@@ -3499,6 +3541,8 @@ function cerrarMemoria() {
             🎵 Insertar canción
             <button onclick="cerrarPickerRep()">✕</button>
         </div>
+        <input id="rep-picker-search" type="text" placeholder="Buscar canción…"
+               oninput="renderRepPickerList()" autocomplete="off">
         <div id="rep-picker-list"></div>
     </div>
 </div>
