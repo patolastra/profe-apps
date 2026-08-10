@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <!-- AUTH: módulo verifica la sesión y rebota al Mobile Shell (que tiene el PIN) -->
+    <script>if(sessionStorage.getItem('profe_auth')!=='1'){window.location.replace('../MOVIL/index.html');}</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>📓 Memoria</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase/config.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        :root {
+            --bg:      #0b1120;
+            --surface: #131c2e;
+            --card:    #1a2540;
+            --border:  #253455;
+            --text:    #f1f5f9;
+            --muted:   #7a8ba8;
+            --accent:  #3b82f6;
+            --green:   #22c55e;
+            --red:     #ef4444;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg); color: var(--text);
+            min-height: 100vh;
+            padding: 0 0 calc(24px + env(safe-area-inset-bottom, 0px));
+        }
+
+        /* ── Header ── */
+        header {
+            display: flex; align-items: center; gap: 10px;
+            padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 14px;
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 10;
+        }
+        header .back {
+            font-size: 22px; color: var(--muted); text-decoration: none;
+            line-height: 1; padding: 4px 6px; margin-left: -6px;
+        }
+        header h1 { font-size: 19px; font-weight: 700; }
+
+        /* ── Formulario ── */
+        main { padding: 20px 18px; display: flex; flex-direction: column; gap: 20px; max-width: 640px; margin: 0 auto; }
+        .campo { display: flex; flex-direction: column; gap: 8px; }
+        .campo label {
+            font-size: 13px; font-weight: 600; letter-spacing: .04em;
+            text-transform: uppercase; color: var(--muted);
+        }
+        select, input[type="date"], textarea {
+            width: 100%; font-family: inherit; font-size: 16px; color: var(--text);
+            background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+            padding: 14px; outline: none; -webkit-appearance: none; appearance: none;
+        }
+        select:focus, input[type="date"]:focus, textarea:focus { border-color: var(--accent); }
+        select { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a8ba8' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 40px; }
+        input[type="date"] { min-height: 50px; }
+        textarea { min-height: 42vh; resize: vertical; line-height: 1.5; }
+
+        /* ── Botón guardar ── */
+        #guardar {
+            width: 100%; font-family: inherit; font-size: 17px; font-weight: 700;
+            color: #fff; background: var(--accent); border: none; border-radius: 12px;
+            padding: 16px; cursor: pointer; transition: opacity .15s, background .15s;
+        }
+        #guardar:disabled { opacity: .45; cursor: default; }
+        #guardar:active:not(:disabled) { opacity: .85; }
+
+        /* ── Estado / confirmación ── */
+        #estado {
+            font-size: 14px; text-align: center; min-height: 20px;
+            transition: opacity .2s;
+        }
+        #estado.ok  { color: var(--green); }
+        #estado.err { color: var(--red); }
+        #estado.info { color: var(--muted); }
+    </style>
+</head>
+<body>
+    <header>
+        <a class="back" href="../MOVIL/index.html" title="Volver">‹</a>
+        <h1>📓 Memoria de clase</h1>
+    </header>
+
+    <main>
+        <div class="campo">
+            <label for="fecha">Fecha</label>
+            <select id="fecha"></select>
+        </div>
+
+        <div class="campo">
+            <label for="curso">Clase</label>
+            <select id="curso">
+                <option value="" disabled selected>Elige una clase…</option>
+            </select>
+        </div>
+
+        <div class="campo">
+            <label for="memoria">Memoria</label>
+            <textarea id="memoria" placeholder="¿Qué ocurrió en esta clase? Observaciones, reflexiones, contexto…&#10;&#10;Se guarda como memoria permanente de la sesión. No genera pendientes."></textarea>
+        </div>
+
+        <button id="guardar" disabled>GUARDAR MEMORIA</button>
+        <div id="estado"></div>
+    </main>
+
+    <script>
+    // ═══════════════════════════════════════════════════════════════════════
+    // MEMORIA MÓVIL — MVP
+    // Registro rápido de la memoria de una clase desde el celular.
+    // Relación: curso/contexto + fecha → sesión → memoria (tabla `memorias`).
+    // Reutiliza EXACTAMENTE el formato de guardado del Portal (mismo upsert,
+    // mismo campo `contenido`, misma tabla). No crea almacenamiento nuevo.
+    // ═══════════════════════════════════════════════════════════════════════
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+    const elCurso   = document.getElementById('curso');
+    const elFecha   = document.getElementById('fecha');
+    const elMemoria = document.getElementById('memoria');
+    const elGuardar = document.getElementById('guardar');
+    const elEstado  = document.getElementById('estado');
+
+    function setEstado(txt, tipo) {
+        elEstado.textContent = txt;
+        elEstado.className = tipo || '';
+    }
+
+    // ── Selector de fecha: últimas 4 semanas, solo lun–jue ──────────────────────
+    // JS getDay(): 0=dom … 6=sáb. horario.dia_semana: 0=lun … 3=jue (patrón del ecosistema).
+    const JS_A_SB = { 1:0, 2:1, 3:2, 4:3 };
+    const DIAS  = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+    function fechaISOLocal(d) {
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${d.getFullYear()}-${m}-${dd}`;
+    }
+    function fechaLabel(d) {
+        const s = `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`;
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    // Genera las fechas de clase (lun–jue) de las últimas 4 semanas, más reciente primero.
+    // El primer option queda seleccionado por defecto: hoy si es lun–jue; si se abre
+    // viernes/fin de semana, el último día de clase anterior.
+    function poblarFechas() {
+        const hoy = new Date();
+        hoy.setHours(12, 0, 0, 0); // mediodía local: evita saltos por zona horaria
+        for (let i = 0; i < 28; i++) {
+            const d = new Date(hoy);
+            d.setDate(hoy.getDate() - i);
+            if (JS_A_SB[d.getDay()] === undefined) continue; // descarta vie/sáb/dom
+            const o = document.createElement('option');
+            o.value = fechaISOLocal(d);
+            o.textContent = fechaLabel(d);
+            elFecha.appendChild(o);
+        }
+        elFecha.selectedIndex = 0;
+    }
+
+    // ── Cursos de la fecha: consulta a `horario` (patrón del ecosistema) ─────────
+    // Muestra TODO lo del horario de ese día (incluye RECREO/ENLACE/ORIENTACIÓN);
+    // NO filtra por tipo. Limpia curso + memoria y deja Guardar deshabilitado.
+    async function cargarCursosDeFecha(fecha) {
+        elCurso.innerHTML = '<option value="" disabled selected>Elige una clase…</option>';
+        elMemoria.value = '';
+        elGuardar.disabled = true;
+
+        const diaSB = JS_A_SB[new Date(fecha + 'T12:00:00').getDay()];
+        if (diaSB === undefined) { setEstado('No hay clases ese día', 'info'); return; }
+
+        setEstado('Cargando clases…', 'info');
+        try {
+            const { data, error } = await sb.from('horario')
+                .select('orden, contextos(id, nombre)')
+                .eq('dia_semana', diaSB).eq('activo', true).order('orden');
+            if (error) throw error;
+            const clases = (data || []).filter(h => h.contextos);
+            if (!clases.length) { setEstado('No hay clases ese día', 'info'); return; }
+            clases.forEach(h => {
+                const o = document.createElement('option');
+                o.value = h.contextos.id;
+                o.textContent = h.contextos.nombre;
+                elCurso.appendChild(o);
+            });
+            setEstado('', '');
+        } catch (e) {
+            setEstado('No se pudieron cargar las clases — revisa conexión.', 'err');
+        }
+    }
+
+    // ── Carga inicial: fechas + clases de la fecha por defecto ──────────────────
+    async function init() {
+        poblarFechas();
+        await cargarCursosDeFecha(elFecha.value);
+    }
+
+    // ── get-or-create de la sesión (curso + fecha) — copiado de SRP móvil ───────
+    // Si la sesión de esa fecha no existe todavía, la crea automáticamente.
+    async function getOrCreateSesion(contextoId, fecha) {
+        let { data: s, error } = await sb.from('sesiones').select('id')
+            .eq('contexto_id', contextoId).eq('fecha', fecha).maybeSingle();
+        if (error) throw error;
+        if (!s) {
+            const { data: nueva, error: e2 } = await sb.from('sesiones')
+                .insert({ contexto_id: contextoId, fecha }).select('id').single();
+            if (e2) throw e2;
+            s = nueva;
+        }
+        return s.id;
+    }
+
+    // ── Al elegir curso/fecha: cargar memoria existente para editarla ───────────
+    // Solo lee; NO crea sesión aún (la sesión se crea recién al guardar).
+    async function cargarMemoriaExistente() {
+        const contextoId = elCurso.value;
+        const fecha = elFecha.value;
+        elGuardar.disabled = !(contextoId && fecha);
+        if (!contextoId || !fecha) return;
+
+        setEstado('Cargando…', 'info');
+        try {
+            const { data: s, error } = await sb.from('sesiones').select('id')
+                .eq('contexto_id', contextoId).eq('fecha', fecha).maybeSingle();
+            if (error) throw error;
+            if (s) {
+                const { data: row, error: e2 } = await sb.from('memorias')
+                    .select('contenido').eq('sesion_id', s.id).maybeSingle();
+                if (e2) throw e2;
+                elMemoria.value = row?.contenido || '';
+                setEstado(row?.contenido ? 'Memoria existente cargada — puedes continuar editándola.' : '', 'info');
+            } else {
+                elMemoria.value = '';
+                setEstado('', '');
+            }
+        } catch (e) {
+            setEstado('No se pudo cargar la memoria — revisa conexión.', 'err');
+        }
+    }
+
+    // ── Guardar: upsert en `memorias` (mismo formato que Portal) ────────────────
+    async function guardar() {
+        const contextoId = elCurso.value;
+        const fecha = elFecha.value;
+        if (!contextoId || !fecha) return;
+
+        elGuardar.disabled = true;
+        setEstado('Guardando…', 'info');
+        try {
+            const sid = await getOrCreateSesion(contextoId, fecha);
+            const { error } = await sb.from('memorias').upsert(
+                { sesion_id: sid, contenido: elMemoria.value, updated_at: new Date().toISOString() },
+                { onConflict: 'sesion_id' }
+            );
+            if (error) throw error;
+            setEstado('✓ Memoria guardada. Ya está disponible en el Portal.', 'ok');
+        } catch (e) {
+            setEstado('Error al guardar — revisa conexión e inténtalo de nuevo.', 'err');
+        } finally {
+            elGuardar.disabled = false;
+        }
+    }
+
+    elCurso.addEventListener('change', cargarMemoriaExistente);
+    elFecha.addEventListener('change', () => cargarCursosDeFecha(elFecha.value));
+    elMemoria.addEventListener('input', () => { if (elEstado.className === 'ok') setEstado('', ''); });
+    elGuardar.addEventListener('click', guardar);
+
+    init();
+    </script>
+</body>
+</html>
