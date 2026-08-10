@@ -222,8 +222,11 @@
         /* MODO PRÁCTICA ESTILO VISUAL */
         .practice-highlight {
             background: #4cc9f0 !important;
-            box-shadow: 0 0 35px #4cc9f0, 0 0 70px rgba(76, 201, 240, 0.5), inset 0 0 10px #fff !important;
-            transform: scale(1.12) translateY(-3px) !important;
+            /* box-shadow y transform SIN !important: así la animación de "respiración"
+               del modo Melodía sin ritmo puede tomarlos. Pool de notas usa estos valores
+               estáticos (nada compite a mayor especificidad → look idéntico). */
+            box-shadow: 0 0 35px #4cc9f0, 0 0 70px rgba(76, 201, 240, 0.5), inset 0 0 10px #fff;
+            transform: scale(1.12) translateY(-3px);
             z-index: 25 !important;
             filter: none !important;
         }
@@ -231,6 +234,31 @@
             color: #000 !important;
             transform: scale(1.35) !important;
             text-shadow: 0 0 8px white !important;
+        }
+
+        /* --- Melodía sin ritmo: latido permanente de la nota activa ---
+           Solo bajo body.practice-melody → Pool de notas y demás modos quedan intactos.
+           Pulso simple tipo latido (~1/seg): crece FUERTE desde su tamaño (1.12 → 1.28),
+           vuelve, y descansa un instante antes del siguiente. Nunca se encoge bajo su base.
+           Al apagar la nota se quita .practice-highlight y el latido cesa al instante. */
+        @keyframes melodyBeat {
+            0% {
+                transform: scale(1.12) translateY(-3px);
+                box-shadow: 0 0 35px #4cc9f0, 0 0 70px rgba(76, 201, 240, 0.5), inset 0 0 10px #fff;
+                animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); /* subida rápida y snappy */
+            }
+            16% {
+                transform: scale(1.28) translateY(-4px);
+                box-shadow: 0 0 58px #4cc9f0, 0 0 115px rgba(76, 201, 240, 0.78), inset 0 0 15px #fff;
+                animation-timing-function: ease-in-out; /* regreso suave */
+            }
+            42%, 100% {
+                transform: scale(1.12) translateY(-3px);
+                box-shadow: 0 0 35px #4cc9f0, 0 0 70px rgba(76, 201, 240, 0.5), inset 0 0 10px #fff;
+            }
+        }
+        body.practice-melody .key.practice-highlight {
+            animation: melodyBeat 1s infinite;
         }
 
         /* --- PRECUENTA (count-in) --- */
@@ -398,9 +426,10 @@
         let countingIn = false;
 
         // Estado modo práctica
-        let practiceMode = null; 
+        let practiceMode = null;
         let practiceIndex = 0;
         let practiceSequence = [];
+        let melodyNoteVisible = false; // Melodía sin ritmo: ¿la nota actual está mostrada?
 
         const btnNuevoMidi = document.getElementById('btn-nuevo-midi');
         const realMidiPicker = document.getElementById('real-midi-picker');
@@ -716,7 +745,10 @@
             btnPlay.disabled = true;
             practiceMode = type;
             practiceIndex = 0;
-            
+            melodyNoteVisible = false;
+            // Solo Melodía sin ritmo activa la animación de "respiración" (scope CSS).
+            document.body.classList.toggle('practice-melody', type === 'melody');
+
             // Extraer todas las notas
             const allNotes = [];
             currentMidi.tracks.forEach(track => {
@@ -762,6 +794,17 @@
 
         function advanceManualMelody() {
             if(practiceMode !== 'melody') return;
+            // Ciclo de estudio: cada pulsación alterna mostrar → apagar la MISMA nota.
+            // Solo tras apagarla se avanza a la siguiente. Sin temporizadores.
+            if(melodyNoteVisible) {
+                // Apagar la nota actual (sin sonido) y avanzar el índice.
+                document.querySelectorAll('.key.practice-highlight')
+                        .forEach(k => k.classList.remove('practice-highlight'));
+                melodyNoteVisible = false;
+                practiceIndex++;
+                return;
+            }
+            // Mostrar la nota actual (con sonido); si ya no quedan, finalizar.
             if(practiceIndex >= practiceSequence.length) {
                 finishPractice();
                 return;
@@ -770,18 +813,10 @@
             const el = document.querySelector(`[data-midi="${midi}"]`);
             if(el) {
                 synth.triggerAttackRelease(Tone.Frequency(midi, "midi").toNote(), "4n");
-                if (el._timeoutId) clearTimeout(el._timeoutId);
-                el.classList.add('practice-highlight');
-                el._timeoutId = setTimeout(() => {
-                    el.classList.remove('practice-highlight');
-                    el._timeoutId = null;
-                }, 300);
+                el.classList.add('practice-highlight'); // permanece hasta que el alumno la apague
             }
-            practiceIndex++;
-            statusDiv.innerText = "Modo Práctica: " + practiceIndex + "/" + practiceSequence.length;
-            if(practiceIndex === practiceSequence.length) {
-                setTimeout(finishPractice, 500);
-            }
+            melodyNoteVisible = true;
+            statusDiv.innerText = "Modo Práctica: " + (practiceIndex + 1) + "/" + practiceSequence.length;
         }
 
         function finishPractice() {
@@ -794,6 +829,8 @@
             practiceMode = null;
             practiceIndex = 0;
             practiceSequence = [];
+            melodyNoteVisible = false;
+            document.body.classList.remove('practice-melody');
             btnPlay.disabled = false;
             statusDiv.innerText = currentMidi ? "¡Listo para tocar! (" + currentMidi.name + ")" : "Carga un archivo MIDI para comenzar";
             statusDiv.className = currentMidi ? "st-ready" : "st-none";
