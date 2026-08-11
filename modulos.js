@@ -33,6 +33,12 @@ const MODULOS_CONFIG = [
         pc:true, mobile:true, dock:true
     },
     {
+        ico:'📓', nombre:'Memoria',
+        desc:'Registrar memoria de clase',
+        badge:'activo', href:'MEMORIA/index.html',
+        pc:false, mobile:true, dock:false
+    },
+    {
         ico:'🎵', nombre:'Repertorio',
         desc:'Biblioteca de canciones y letras',
         badge:'activo', href:'REPERTORIO/index.html',
