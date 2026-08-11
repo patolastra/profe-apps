@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workspace (demo) — PROFE</title>
+<!--
+  DEMO TÉCNICA — Etapa 0 del Shell con pestañas.
+  NO es el Shell definitivo. NO migra ni modifica ninguna app.
+  Objetivo: comprobar que iframes vivos conservan el estado al cambiar de pestaña.
+  Solo dos apps: Repertorio y Metalófono. Sin postMessage, sin integración profunda.
+-->
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+        --bg:      #0b1120;
+        --surface: #131c2e;
+        --card:    #1a2540;
+        --border:  #253455;
+        --text:    #f1f5f9;
+        --muted:   #7a8ba8;
+        --accent:  #3b82f6;
+        --red:     #ef4444;
+    }
+    html, body { height: 100%; }
+    body {
+        font-family: system-ui, -apple-system, sans-serif;
+        background: var(--bg); color: var(--text);
+        display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    }
+
+    /* ── BARRA DE PESTAÑAS ── */
+    #tabbar {
+        display: flex; align-items: stretch; gap: 4px;
+        padding: 6px 8px; background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0; min-height: 46px;
+    }
+    .demo-badge {
+        align-self: center; margin-right: 6px; padding: 3px 8px;
+        font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em;
+        text-transform: uppercase; color: var(--muted);
+        border: 1px dashed var(--border); border-radius: 6px; flex-shrink: 0;
+    }
+    .tab {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 10px 8px 14px; border-radius: 10px;
+        background: var(--card); border: 1px solid var(--border);
+        color: var(--muted); cursor: pointer; user-select: none;
+        font-size: 0.85rem; font-weight: 600; white-space: nowrap;
+        transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .tab:hover { background: #223052; }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .tab-ico { font-size: 1rem; }
+    .tab-close {
+        display: flex; align-items: center; justify-content: center;
+        width: 18px; height: 18px; border-radius: 50%;
+        font-size: 0.8rem; color: inherit; opacity: 0.6;
+    }
+    .tab-close:hover { opacity: 1; background: rgba(255,255,255,0.18); }
+
+    /* ── LANZADOR (+) ── */
+    #launcher-wrap { position: relative; }
+    #btn-add {
+        display: flex; align-items: center; justify-content: center;
+        width: 38px; padding: 0; height: 100%;
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: 10px; color: var(--text);
+        font-size: 1.3rem; cursor: pointer; user-select: none;
+    }
+    #btn-add:hover { background: #223052; }
+    #launcher {
+        display: none; position: absolute; top: calc(100% + 6px); left: 0;
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 12px; padding: 6px; min-width: 190px; z-index: 50;
+        box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+    }
+    #launcher.open { display: block; }
+    .launch-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 12px; border-radius: 8px;
+        cursor: pointer; user-select: none; font-size: 0.9rem;
+    }
+    .launch-item:hover { background: var(--card); }
+    .launch-ico { font-size: 1.2rem; width: 24px; text-align: center; }
+
+    /* ── ÁREA DE IFRAMES ── */
+    #stage { position: relative; flex: 1; background: var(--bg); }
+    #stage iframe {
+        position: absolute; inset: 0;
+        width: 100%; height: 100%; border: none; background: #fff;
+    }
+    #stage iframe.hidden { display: none; }
+    #empty {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 10px; color: var(--muted); text-align: center; padding: 24px;
+    }
+    #empty.hidden { display: none; }
+    #empty .big { font-size: 2rem; }
+</style>
+</head>
+<body>
+
+<div id="tabbar">
+    <span class="demo-badge">Demo</span>
+    <!-- pestañas se insertan aquí -->
+    <div id="launcher-wrap">
+        <button id="btn-add" title="Abrir aplicación">+</button>
+        <div id="launcher"></div>
+    </div>
+</div>
+
+<div id="stage">
+    <div id="empty">
+        <div class="big">🗂️</div>
+        <div>Abre una aplicación con <b>+</b> para empezar.</div>
+        <div style="font-size:0.75rem;opacity:0.7">Cambiar de pestaña no recarga la app: conserva su estado.</div>
+    </div>
+    <!-- iframes se insertan aquí -->
+</div>
+
+<script>
+// ── CATÁLOGO DE LA DEMO (solo dos apps; rutas relativas a PC/) ──────────────
+// No se lee modulos.js a propósito: es una demo autocontenida y aislada.
+const APPS = {
+    planner:    { id:'planner',    ico:'📋', titulo:'Planner',     src:'../PORTAL/index.html' },
+    repertorio: { id:'repertorio', ico:'🎵', titulo:'Repertorio',  src:'../REPERTORIO/index.html' },
+    metalofono: { id:'metalofono', ico:'🎹', titulo:'Metalófono',  src:'../METALÓFONO APP/METAL21 (ALPHA).HTML' },
+};
+
+// ── ESTADO EN MEMORIA ───────────────────────────────────────────────────────
+const tabs = [];          // [{ appId, titulo, ico, tabEl, iframeEl }]
+let activeAppId = null;
+
+const tabbar   = document.getElementById('tabbar');
+const stage    = document.getElementById('stage');
+const launcher = document.getElementById('launcher');
+const btnAdd   = document.getElementById('btn-add');
+const empty    = document.getElementById('empty');
+
+// ── LANZADOR ────────────────────────────────────────────────────────────────
+function renderLauncher() {
+    launcher.innerHTML = '';
+    Object.values(APPS).forEach(app => {
+        const item = document.createElement('div');
+        item.className = 'launch-item';
+        item.innerHTML = `<span class="launch-ico">${app.ico}</span><span>${app.titulo}</span>`;
+        item.onclick = () => { cerrarLauncher(); abrirApp(app.id); };
+        launcher.appendChild(item);
+    });
+}
+btnAdd.onclick = (e) => { e.stopPropagation(); launcher.classList.toggle('open'); };
+function cerrarLauncher() { launcher.classList.remove('open'); }
+document.addEventListener('click', (e) => {
+    if (!launcher.contains(e.target) && e.target !== btnAdd) cerrarLauncher();
+});
+
+// ── ABRIR APP (dedupe: si ya está abierta, solo la enfoca) ──────────────────
+function abrirApp(appId) {
+    const app = APPS[appId];
+    if (!app) return;
+
+    const existente = tabs.find(t => t.appId === appId);
+    if (existente) { activar(appId); return; }
+
+    // iframe persistente: se crea UNA vez y se mantiene vivo en el DOM
+    const iframe = document.createElement('iframe');
+    iframe.src = encodeURI(app.src);           // codifica espacios/acentos del path
+    iframe.className = 'hidden';
+    // Permisos inofensivos por si la app usa audio/fullscreen. No modifica la app.
+    iframe.setAttribute('allow', 'autoplay; fullscreen; microphone');
+    stage.appendChild(iframe);
+
+    // pestaña
+    const tabEl = document.createElement('div');
+    tabEl.className = 'tab';
+    tabEl.innerHTML =
+        `<span class="tab-ico">${app.ico}</span>` +
+        `<span class="tab-title">${app.titulo}</span>` +
+        `<span class="tab-close" title="Cerrar pestaña">✕</span>`;
+    tabEl.onclick = () => activar(appId);
+    tabEl.querySelector('.tab-close').onclick = (e) => { e.stopPropagation(); cerrarTab(appId); };
+    tabbar.insertBefore(tabEl, document.getElementById('launcher-wrap'));
+
+    tabs.push({ appId, titulo: app.titulo, ico: app.ico, tabEl, iframeEl: iframe });
+    activar(appId);
+}
+
+// ── ACTIVAR (mostrar solo el iframe activo; el resto oculto pero VIVO) ──────
+function activar(appId) {
+    activeAppId = appId;
+    tabs.forEach(t => {
+        const on = t.appId === appId;
+        t.tabEl.classList.toggle('active', on);
+        t.iframeEl.classList.toggle('hidden', !on);   // display:none NO recarga el iframe
+    });
+    empty.classList.toggle('hidden', tabs.length > 0);
+}
+
+// ── CERRAR (destruye el iframe → pierde su estado, como se espera) ──────────
+function cerrarTab(appId) {
+    const i = tabs.findIndex(t => t.appId === appId);
+    if (i === -1) return;
+    const t = tabs[i];
+    t.iframeEl.remove();   // destrucción real del iframe
+    t.tabEl.remove();
+    tabs.splice(i, 1);
+
+    if (activeAppId === appId) {
+        const siguiente = tabs[i] || tabs[i - 1] || null;
+        if (siguiente) activar(siguiente.appId);
+        else { activeAppId = null; empty.classList.remove('hidden'); }
+    }
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+renderLauncher();
+</script>
+</body>
+</html>
