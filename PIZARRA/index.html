@@ -280,6 +280,8 @@
         .rep-lineas {
             display: flex; flex-direction: column;
             align-items: flex-start; gap: 0.3em; text-align: left;
+            /* Protección: el pop-up es solo visual; nunca debe generar scroll horizontal. */
+            overflow-x: hidden;
             width: 100%; font-family: var(--slide-font);
             color: #1e293b;
         }
@@ -294,6 +296,62 @@
         .rep-stanza-principal .rep-linea.activa,
         .rep-stanza-siguiente .rep-linea.activa { color: #ea580c; opacity: 1; }
         .rep-stanza-sep { display: none; }
+
+        /* ── Resaltado manual: 4 estados ──
+           A normal · B activo (#ea580c) · C resaltado (#0284c7) · D activo+resaltado (#bd0003).
+           C y D comparten glow sutil + salto; el color sale del gradiente vía --rep-hl.
+           Los estados los deciden las clases .activa (activo) y .coloreado (resaltado). */
+
+        /* Selección de texto bloqueada en TODA la superficie de la letra
+           (Shift+clic, Ctrl/⌘+Shift+clic, doble clic y arrastre). */
+        .rep-linea { -webkit-user-select: none; user-select: none; }
+
+        /* Estados C y D: glow tenue (banda leve integrada, sin blanco) + salto */
+        .rep-linea.coloreado {
+            --rep-hl: #0284c7;          /* C por defecto */
+            --rep-hl-lite: #5eb9e6;     /* banda intermedia: más visible que antes, sin blanco */
+            color: var(--rep-hl);
+            background-image: linear-gradient(100deg,
+                var(--rep-hl) 0%, var(--rep-hl) 44%, var(--rep-hl-lite) 50%, var(--rep-hl) 56%, var(--rep-hl) 100%);
+            background-size: 260% 100%;
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+            /* La caja abraza el texto (fit-content) → su centro coincide con el centro del
+               texto para cualquier font-size/longitud. Escalando desde ese centro el
+               crecimiento es simétrico = puramente vertical: sube + crece, sin deslizar
+               a izquierda/derecha ni depender del ancho. Sigue siendo bloque (no cambia el
+               layout: el texto ya estaba alineado a la izquierda y no se mueve). */
+            width: fit-content; max-width: 100%;
+            transform-origin: center;
+            animation: rep-glow 3.6s linear infinite, rep-jump 0.9s ease-in-out infinite;
+        }
+        /* Estado D: verso activo + resaltado → rojo EXACTO #bd0003 (mismo glow y salto).
+           Se fija también color para que el rojo prevalezca sobre el naranja del activo
+           aun sin soporte de background-clip. */
+        .rep-linea.coloreado.activa,
+        .rep-stanza.activa .rep-linea.coloreado {
+            --rep-hl: #bd0003;
+            --rep-hl-lite: #de6d64;
+            color: var(--rep-hl);
+        }
+        @keyframes rep-glow {
+            from { background-position: 150% 0; }
+            to   { background-position: -50% 0; }
+        }
+        /* Salto hacia arriba con leve crecimiento: hop de velocidad media y luego descanso.
+           Frecuencia sin cambios (0.9s ≈ 1,1 Hz); cada salto un poco más lento que antes. */
+        @keyframes rep-jump {
+            0%   { transform: translateY(0) scale(1); }
+            22%  { transform: translateY(-0.16em) scale(1.05); }
+            48%  { transform: translateY(0) scale(1); }
+            100% { transform: translateY(0) scale(1); }
+        }
+        /* Menos animación: color sólido correcto por estado, sin glow ni salto. */
+        @media (prefers-reduced-motion: reduce) {
+            .rep-linea.coloreado {
+                background: none; -webkit-text-fill-color: var(--rep-hl); animation: none;
+            }
+        }
         /* Toggle densidad */
         .rep-dens-control {
             position: absolute; top: 10px; left: 12px;
@@ -1065,13 +1123,92 @@ window.addEventListener('resize', () => { autoFitPendiente(); autoFitPanelMsg();
 // ── REP: LETRAS — VIEWPORT ────────────────────────────
 // Modelo (repLrcLines/repStanzas/repIdx) intacto. El Viewport solo decide CÓMO se presenta.
 
+// ── Resaltado manual de versos/estrofas (efímero, en memoria) ──────────────────
+// Puntero visual de clase, independiente del resaltado activo (repHighlightMode).
+// Estado en un Set de origIdx que sobrevive los re-renders (repStanzaHTML lo lee).
+// NO se persiste (Supabase/localStorage/prefs): se reinicia al cambiar de canción.
+let repLineasColoreadas = new Set();
+
+// Reinicia el glow y el salto de TODOS los versos resaltados en el mismo frame, para que
+// avancen en fase (mismo ciclo). El glow y el salto son animaciones CSS continuas; como
+// empiezan al aplicarse la clase, un verso marcado más tarde quedaría desfasado — este
+// reinicio conjunto (tras un único reflow) los vuelve a sincronizar.
+function repResyncGlow() {
+    const els = document.querySelectorAll('#rep-lineas .rep-linea.coloreado');
+    if (!els.length) return;
+    els.forEach(el => { el.style.animation = 'none'; });
+    void document.getElementById('rep-lineas')?.offsetWidth;   // un solo reflow
+    els.forEach(el => { el.style.animation = ''; });           // reanuda desde fase 0, todos juntos
+}
+
+function repToggleColoreado(i) {
+    const marcar = !repLineasColoreadas.has(i);
+    marcar ? repLineasColoreadas.add(i) : repLineasColoreadas.delete(i);
+    document.querySelectorAll(`#rep-lineas .rep-linea[data-idx="${i}"]`).forEach(el => {
+        el.classList.toggle('coloreado', marcar);
+    });
+    repResyncGlow();
+}
+
+// Colorea/descolorea la estrofa completa del verso i (sin estado mixto).
+function repToggleColoreadoEstrofa(i) {
+    const estrofa = repStanzas.find(st => st.some(l => l.origIdx === i));
+    if (!estrofa) return;
+    const idxs = estrofa.map(l => l.origIdx);
+    const marcar = !idxs.every(x => repLineasColoreadas.has(x));
+    idxs.forEach(x => {
+        marcar ? repLineasColoreadas.add(x) : repLineasColoreadas.delete(x);
+        document.querySelectorAll(`#rep-lineas .rep-linea[data-idx="${x}"]`).forEach(el => {
+            el.classList.toggle('coloreado', marcar);
+        });
+    });
+    repResyncGlow();
+}
+
+function repLimpiarColoreados() {
+    if (!repLineasColoreadas.size) return;
+    repLineasColoreadas.clear();
+    document.querySelectorAll('#rep-lineas .rep-linea.coloreado')
+        .forEach(el => el.classList.remove('coloreado'));
+}
+
+// Gestos (mouse) sobre el área de letra. Captura para interceptar antes de handleClickArea.
+document.addEventListener('DOMContentLoaded', () => {
+    const area = document.getElementById('slide-area');
+    if (!area) return;
+    // Shift+mousedown sobre un verso: evitar que el navegador inicie/extienda la selección
+    // de texto (la selección azul ocurre en mousedown, no en click).
+    area.addEventListener('mousedown', (e) => {
+        if (e.shiftKey && e.target.closest('.rep-linea')) e.preventDefault();
+    }, true);
+    area.addEventListener('click', (e) => {
+        if (!e.shiftKey) return;                       // solo Shift+clic nos interesa
+        const linea = e.target.closest('.rep-linea');
+        if (!linea) return;
+        e.preventDefault();
+        e.stopPropagation();                            // evita que handleClickArea() avance
+        const i = parseInt(linea.dataset.idx, 10);
+        if (Number.isNaN(i)) return;
+        (e.ctrlKey || e.metaKey) ? repToggleColoreadoEstrofa(i) : repToggleColoreado(i);
+        const sel = window.getSelection && window.getSelection();
+        if (sel) sel.removeAllRanges();                 // por si quedó algún rango
+    }, true);
+    area.addEventListener('dblclick', (e) => {
+        if (!e.shiftKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        repLimpiarColoreados();
+    }, true);
+});
+
 // HTML de una estrofa, con el resaltado según repHighlightMode (verso XOR estrofa)
 function repStanzaHTML(stanza, cls) {
     const estrofaActiva = repHighlightMode === 'estrofa' && stanza.some(l => l.origIdx === repIdx);
     return `<div class="rep-stanza ${cls}${estrofaActiva ? ' activa' : ''}">` +
         stanza.map(l => {
             const versoActivo = repHighlightMode === 'verso' && l.origIdx === repIdx;
-            return `<div class="rep-linea${versoActivo ? ' activa' : ''}" data-idx="${l.origIdx}">${esc(l.text)}</div>`;
+            const coloreado   = repLineasColoreadas.has(l.origIdx);
+            return `<div class="rep-linea${versoActivo ? ' activa' : ''}${coloreado ? ' coloreado' : ''}" data-idx="${l.origIdx}">${esc(l.text)}</div>`;
         }).join('') +
     `</div>`;
 }
@@ -1465,6 +1602,8 @@ function renderSlide() {
                 repLines = repLrcLines.filter(l => l.text.trim()).map(l => l.text);
                 repStanzas = parseRepStanzas();
                 repActiveStanzaIdx = 0;
+                // Resaltado manual es efímero por canción: al cambiar de canción se reinicia
+                if (repCancionId !== cancionId) repLineasColoreadas.clear();
                 // Cargar preferencias de visualización de la canción (Supabase — Opción A)
                 repCancionId = cancionId;
                 let songPrefs = null;
