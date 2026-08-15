@@ -920,6 +920,60 @@
         .rev-mem-audio { padding: 4px 0; }
         .rev-mem-audio audio { width: 100%; height: 32px; }
         .rev-mem-texto { white-space: pre-wrap; font-size: 0.8rem; padding: 4px 0; }
+
+        /* ── Pendientes para la próxima clase (Fase 1 — manual) ── */
+        #mem-tareas { margin: 0 12px 4px; padding-top: 8px; border-top: 1px solid var(--border); }
+        #mem-tareas-hdr {
+            display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em;
+            text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+        }
+        #mem-tareas-dest { font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 0.68rem; color: var(--muted); }
+        #mem-tareas-lista { display: flex; flex-direction: column; gap: 4px; max-height: 30vh; overflow-y: auto; }
+        .mem-tarea { display: flex; align-items: center; gap: 8px; }
+        .mem-tarea-chk { width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; }
+        .mem-tarea-txt {
+            flex: 1; border: 1px solid transparent; border-radius: 6px;
+            padding: 5px 7px; font: inherit; font-size: 0.82rem; color: var(--text);
+            background: transparent; outline: none;
+        }
+        .mem-tarea-txt:hover  { border-color: var(--border); }
+        .mem-tarea-txt:focus  { border-color: var(--accent, #2563eb); background: #fff; }
+        .mem-tarea.done .mem-tarea-txt { text-decoration: line-through; color: var(--muted); }
+        .mem-tarea-del {
+            flex-shrink: 0; background: none; border: none; cursor: pointer;
+            color: var(--muted); font-size: 0.85rem; line-height: 1; padding: 4px 6px; border-radius: 6px;
+        }
+        .mem-tarea-del:hover { background: #fee2e2; color: #b91c1c; }
+        #mem-tareas-add {
+            margin-top: 6px; background: none; border: 1px dashed var(--border);
+            border-radius: 6px; padding: 6px 10px; cursor: pointer;
+            font: inherit; font-size: 0.78rem; color: var(--muted); width: 100%; text-align: left;
+        }
+        #mem-tareas-add:hover { border-color: var(--accent, #2563eb); color: var(--accent, #2563eb); }
+        #mem-tareas-vacio { font-size: 0.75rem; color: var(--muted); font-style: italic; padding: 2px 0; }
+
+        /* ── Fase 2: Pendientes de la sesión actual (columna izquierda) ── */
+        /* Solo Revisión/Repertorio/Plan/Materiales ocultos (conservados en el DOM).
+           La Memoria de la clase anterior y su navegación ← / → quedan visibles.
+           La sección reutiliza .rev-seccion y las filas reutilizan .mem-tarea. */
+        .reg-hist-bloques { display: none; }
+        #ses-pend-panel { display: flex; flex-direction: column; }
+        #ses-pend-lista { display: flex; flex-direction: column; gap: 4px; }
+        #ses-pend-add {
+            margin-top: 6px; background: none; border: 1px dashed var(--border);
+            border-radius: 6px; padding: 6px 10px; cursor: pointer;
+            font: inherit; font-size: 0.78rem; color: var(--muted); width: 100%; text-align: left;
+        }
+        #ses-pend-add:hover { border-color: var(--accent, #2563eb); color: var(--accent, #2563eb); }
+        /* Pendientes del panel: texto multilínea que crece verticalmente (sin recorte) */
+        .mem-tarea.multilinea { align-items: flex-start; }
+        .mem-tarea.multilinea .mem-tarea-chk { margin-top: 6px; }
+        .mem-tarea.multilinea .mem-tarea-del { margin-top: 2px; }
+        .mem-tarea-txt.multilinea {
+            white-space: normal; overflow-wrap: anywhere; word-break: break-word;
+            line-height: 1.35; resize: none; min-height: 0; overflow-y: hidden;
+        }
     </style>
 </head>
 <body>
@@ -965,7 +1019,8 @@
     <div id="vista-sesion">
         <div class="s-split modo-plan">
             <div class="s-col s-col-plan" style="position:relative">
-                <div class="s-col-hdr" style="gap:6px">
+                <!-- Header de navegación del registro histórico (Memoria de clase anterior) -->
+                <div class="s-col-hdr" id="reg-nav-hdr" style="gap:6px">
                     <button id="nav-atras" class="reg-nav-btn" onclick="navAtras()" title="Clase más antigua" disabled>←</button>
                     <button id="nav-base" class="reg-nav-btn reg-nav-base" onclick="navClaseAnterior()" title="Volver a la clase inmediatamente anterior">Clase anterior</button>
                     <button id="nav-adelante" class="reg-nav-btn" onclick="navAdelante()" title="Hacia la clase anterior" disabled>→</button>
@@ -980,7 +1035,10 @@
                     </div>
                 </div>
                 <div class="s-col-body" id="col-plan-body">
+                    <!-- Registro histórico: Memoria de la clase anterior VISIBLE; R/R/P/M ocultos (conservados) -->
                     <div id="plan-lista"></div>
+                    <!-- Fase 2: pendientes de la sesión ACTUAL, debajo de la Memoria; no depende del historial -->
+                    <div id="ses-pend-panel"></div>
                 </div>
             </div>
 
@@ -1021,6 +1079,14 @@
         </div>
         <div id="mem-audios"></div>
         <textarea id="mem-area" placeholder="¿Qué ocurrió en esta clase? Observaciones, reflexiones, contexto...&#10;&#10;Este texto se conserva como memoria permanente de la sesión. No genera pendientes."></textarea>
+        <div id="mem-tareas">
+            <div id="mem-tareas-hdr">
+                <span>Pendientes para la próxima clase</span>
+                <span id="mem-tareas-dest"></span>
+            </div>
+            <div id="mem-tareas-lista"></div>
+            <button id="mem-tareas-add" onclick="agregarTarea()">＋ Agregar pendiente</button>
+        </div>
         <div id="mem-footer"><span id="mem-status"></span></div>
     </div>
 </div>
@@ -1681,6 +1747,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
     document.body.classList.add('sesion-activa');
     document.getElementById('hdr-ses-titulo').textContent = fmtTituloSesion(nombre, fechaStr);
     document.getElementById('plan-lista').innerHTML    = '<div class="cargando">Cargando...</div>';
+    document.getElementById('ses-pend-panel').innerHTML = '';   // Fase 2: limpiar pendientes de la sesión previa
     document.getElementById('pres-area').value         = '';
     document.getElementById('pres-status').textContent = '';
     document.getElementById('prev-body').innerHTML     = '';
@@ -1699,8 +1766,9 @@ async function abrirSesion(cid, fechaStr, nombre) {
     await Promise.all([
         cargarPresentacion(sesion.id),
         cargarHistorial(cid, fechaStr),
+        cargarPendientesSesion(),   // Fase 2: pendientes de ESTA sesión (columna izquierda)
     ]);
-    mostrarRegistroIzq();   // panel izquierdo = registro de la clase anterior (histIdx=0)
+    mostrarRegistroIzq();   // registro histórico (oculto en Fase 2, conservado)
 }
 
 async function getOrCreate(cid, fechaStr) {
@@ -2496,12 +2564,13 @@ async function pintarRegistro(panel, ant) {
     if (myToken !== _regToken) return;           // otra navegación más nueva ganó → descartar
 
     panel.innerHTML = `
-        <div id="rev-fecha-lbl">CLASE ANTERIOR — ${fechaLbl}</div>
-        ${buildMemSeccion(memAnt)}
-        ${buildRevSeccion('REVISIÓN', rev, true)}
-        ${buildRevSeccion('REPERTORIO', rep, false)}
-        ${buildRevSeccion('PLAN', planAnt, false)}
-        ${buildRevSeccion('MATERIALES', mat, false)}
+        ${buildMemSeccion(memAnt, `CLASE ANTERIOR — ${fechaLbl}`)}
+        <div class="reg-hist-bloques">
+            ${buildRevSeccion('REVISIÓN', rev, true)}
+            ${buildRevSeccion('REPERTORIO', rep, false)}
+            ${buildRevSeccion('PLAN', planAnt, false)}
+            ${buildRevSeccion('MATERIALES', mat, false)}
+        </div>
     `;
 }
 
@@ -3445,7 +3514,7 @@ function memAudioHtml(a, i) {
 }
 
 // Sección MEMORIA dentro del panel "Revisión" (clase anterior)
-function buildMemSeccion(mem) {
+function buildMemSeccion(mem, titulo = '📓 MEMORIA') {
     const texto  = (mem?.contenido || '').trim();
     const audios = Array.isArray(mem?.audios) ? mem.audios : [];
     const hay    = texto || audios.length;
@@ -3455,7 +3524,7 @@ function buildMemSeccion(mem) {
     return `
         <div class="rev-seccion">
             <div class="rev-sec-hdr${hay ? '' : ' collapsed'}" onclick="toggleRevSec(this)">
-                <span>📓 MEMORIA</span>
+                <span>${titulo}</span>
                 <span class="rev-chevron">${hay ? '▾' : '▸'}</span>
             </div>
             <div class="rev-sec-body${hay ? '' : ' hidden'}">${cuerpo}</div>
@@ -3494,6 +3563,8 @@ async function abrirMemoria() {
     const audios = Array.isArray(data?.audios) ? data.audios : [];
     document.getElementById('mem-audios').innerHTML = audios.map(memAudioHtml).join('');
     document.getElementById('mem-status').textContent = '';
+
+    cargarTareas();   // Fase 1: pendientes para la próxima clase
 }
 
 async function guardarMemoria(sid) {
@@ -3516,7 +3587,316 @@ function cerrarMemoria() {
     const modal = document.getElementById('mem-modal');
     if (!modal || !modal.classList.contains('show')) return;
     if (memTimer) { clearTimeout(memTimer); memTimer = null; if (sesionActual) guardarMemoria(sesionActual.id); }
+    flushTareas();   // Fase 1: forzar guardado de cualquier edición pendiente
     modal.classList.remove('show');
+}
+
+// ═══════════════════════════════════════════════════════════
+// PENDIENTES PARA LA PRÓXIMA CLASE (Fase 1 — manual, sin IA)
+// Se guardan en la tabla `pendientes` con categoria='tarea_proxima',
+// sesion_id = SIGUIENTE SESIÓN REAL existente del mismo contexto.
+// Si aún no existe ninguna sesión futura, fallback = próxima fecha
+// que coincide con una franja real del horario del contexto (nunca
+// una fecha arbitraria +7). Estado: 'activo' (☐) / 'completado' (☑).
+// Eliminar = borrado real. La visualización en la sesión siguiente
+// queda para la Fase 2.
+// ═══════════════════════════════════════════════════════════
+const TAREA_CAT = 'tarea_proxima';
+let memNextSid    = null;   // id de la sesión destino (lazy: solo se crea al primer alta)
+let memNextFecha  = null;   // fecha de la sesión destino (para la etiqueta)
+const tareaTimers = {};     // debounce de guardado por fila (keyed por id)
+
+// Espejo de sesionAnterior: primera sesión futura EXISTENTE del mismo contexto.
+async function sesionSiguiente(cid, fechaStr) {
+    const { data } = await sb.from('sesiones')
+        .select('id, fecha').eq('contexto_id', cid)
+        .gt('fecha', fechaStr).order('fecha', { ascending: true }).limit(1);
+    return data?.[0] || null;
+}
+
+// Fallback: próxima fecha que coincide con una franja real del horario del
+// contexto (dia_semana 0-3 = L-J). Devuelve null si el contexto no tiene
+// horario (p. ej. GENERAL virtual) → no se inventa ninguna fecha.
+const SB_A_JS = { 0: 1, 1: 2, 2: 3, 3: 4 };   // dia_semana → getDay() (Lun=1 … Jue=4)
+function proximaFechaHorario() {
+    const cid = sesionActual.contexto_id;
+    const targetJs = new Set();
+    Object.entries(horarioDia).forEach(([ds, arr]) => {
+        if (arr.some(h => h.contexto_id === cid)) targetJs.add(SB_A_JS[Number(ds)]);
+    });
+    if (!targetJs.size) return null;
+    const d = new Date(sesionActual.fecha + 'T12:00:00');
+    for (let i = 1; i <= 21; i++) {   // hasta 3 semanas adelante
+        d.setDate(d.getDate() + 1);
+        if (targetJs.has(d.getDay())) return isoDate(d);
+    }
+    return null;
+}
+
+// Resuelve el destino SIN crear nada (para cargar y para la etiqueta).
+// Prioriza la sesión real siguiente; si no existe, calcula la fecha del
+// fallback por horario (pero no crea la sesión hasta el primer alta).
+async function memResolverDestino() {
+    const sig = await sesionSiguiente(sesionActual.contexto_id, sesionActual.fecha);
+    if (sig) { memNextSid = sig.id; memNextFecha = sig.fecha; }
+    else     { memNextSid = null;   memNextFecha = proximaFechaHorario(); }
+}
+
+// Get-or-create del destino (solo al agregar el primer pendiente).
+async function memNextSidEnsure() {
+    if (memNextSid) return memNextSid;
+    // reintento por si se creó una sesión futura entre la carga y el alta
+    const sig = await sesionSiguiente(sesionActual.contexto_id, sesionActual.fecha);
+    if (sig) { memNextSid = sig.id; memNextFecha = sig.fecha; actualizarDestino(); return memNextSid; }
+    // sin sesión futura real → crear en la próxima fecha real del horario
+    const f = proximaFechaHorario();
+    if (!f) return null;   // contexto sin horario → no inventar sesión
+    const s = await getOrCreate(sesionActual.contexto_id, f);
+    memNextSid   = s?.id || null;
+    memNextFecha = f;
+    actualizarDestino();
+    return memNextSid;
+}
+
+function actualizarDestino() {
+    const dest = document.getElementById('mem-tareas-dest');
+    if (!dest) return;
+    dest.textContent = memNextFecha ? `→ ${fmtFechaCorta(memNextFecha)}` : '→ sin sesión futura';
+}
+
+async function cargarTareas() {
+    if (!sesionActual) return;
+    memNextSid = null; memNextFecha = null;
+    const lista = document.getElementById('mem-tareas-lista');
+    lista.innerHTML = '<div id="mem-tareas-vacio">Cargando…</div>';
+
+    await memResolverDestino();
+    actualizarDestino();
+
+    if (!memNextSid) { renderTareas([]); return; }   // aún no hay sesión → no puede haber pendientes
+
+    const { data, error } = await sb.from('pendientes')
+        .select('id, texto, estado')
+        .eq('sesion_id', memNextSid).eq('categoria', TAREA_CAT)
+        .in('estado', ['activo', 'completado'])
+        .order('created_at');
+    if (error) { lista.innerHTML = '<div id="mem-tareas-vacio">No se pudieron cargar los pendientes.</div>'; return; }
+    renderTareas(data || []);
+}
+
+function fmtFechaCorta(iso) {
+    const d = new Date(iso + 'T12:00:00');
+    const DIAS_C = ['dom','lun','mar','mié','jue','vie','sáb'];
+    return `${DIAS_C[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+function renderTareas(items) {
+    const lista = document.getElementById('mem-tareas-lista');
+    lista.innerHTML = '';
+    if (!items.length) {
+        lista.innerHTML = '<div id="mem-tareas-vacio">Sin pendientes aún.</div>';
+        return;
+    }
+    items.forEach(it => lista.appendChild(filaTarea(it)));
+}
+
+// Ajusta la altura de un textarea a su contenido (multilínea sin scroll ni recorte).
+// Suma el borde (offsetHeight - clientHeight) para que funcione con box-sizing:border-box.
+function autoGrowTarea(el) {
+    el.style.height = 'auto';
+    const borde = el.offsetHeight - el.clientHeight;
+    el.style.height = (el.scrollHeight + borde) + 'px';
+}
+
+// Reajusta todas las filas multilínea del panel (tras render o al cambiar el ancho de la columna).
+function ajustarAlturasPendientes() {
+    document.querySelectorAll('#ses-pend-lista .mem-tarea-txt.multilinea').forEach(autoGrowTarea);
+}
+
+// Recalcula la altura cuando la columna izquierda cambia de ancho (cambio de modo, arrastre, ventana).
+(function() {
+    const col = document.querySelector('.s-col-plan');
+    if (col && 'ResizeObserver' in window) {
+        new ResizeObserver(() => ajustarAlturasPendientes()).observe(col);
+    }
+})();
+
+// multilinea=true → campo <textarea> que envuelve y crece (panel de sesión).
+// multilinea=false (por defecto) → <input> de una línea (modal de Memoria, sin cambios).
+function filaTarea(it, multilinea = false) {
+    const fila = document.createElement('div');
+    fila.className = 'mem-tarea' + (it.estado === 'completado' ? ' done' : '') + (multilinea ? ' multilinea' : '');
+    fila.dataset.id = it.id;
+
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.className = 'mem-tarea-chk';
+    chk.checked = it.estado === 'completado';
+    chk.title = 'Marcar como realizado';
+    chk.onchange = () => toggleTarea(fila, chk.checked);
+
+    const txt = document.createElement(multilinea ? 'textarea' : 'input');
+    if (!multilinea) txt.type = 'text';
+    txt.className = 'mem-tarea-txt' + (multilinea ? ' multilinea' : '');
+    txt.value = it.texto || '';
+    txt.placeholder = 'Escribe el pendiente…';
+    txt.oninput  = () => { if (multilinea) autoGrowTarea(txt); programarGuardadoTarea(fila); };
+    txt.onblur   = () => guardarTarea(fila, true);   // guarda; borra si quedó vacío
+    txt.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); txt.blur(); } };
+    if (multilinea) { txt.rows = 1; setTimeout(() => autoGrowTarea(txt), 0); }
+
+    const del = document.createElement('button');
+    del.className = 'mem-tarea-del';
+    del.textContent = '✕';
+    del.title = 'Eliminar';
+    del.onclick = () => eliminarTarea(fila);
+
+    fila.append(chk, txt, del);
+    return fila;
+}
+
+async function agregarTarea() {
+    if (!sesionActual) return;
+    const sid = await memNextSidEnsure();
+    if (!sid) {
+        const lista = document.getElementById('mem-tareas-lista');
+        if (lista && !lista.querySelector('.mem-tarea'))
+            lista.innerHTML = '<div id="mem-tareas-vacio">Este contexto no tiene próxima clase en el horario.</div>';
+        return;
+    }
+    const { data, error } = await sb.from('pendientes').insert({
+        contexto_id: sesionActual.contexto_id,
+        sesion_id:   sid,
+        categoria:   TAREA_CAT,
+        texto:       '',
+        estado:      'activo',
+    }).select('id, texto, estado').single();
+    if (error) return;
+
+    const lista = document.getElementById('mem-tareas-lista');
+    const vacio = document.getElementById('mem-tareas-vacio');
+    if (vacio) vacio.remove();
+    const fila = filaTarea(data);
+    lista.appendChild(fila);
+    fila.querySelector('.mem-tarea-txt').focus();
+}
+
+function programarGuardadoTarea(fila) {
+    const id = fila.dataset.id;
+    clearTimeout(tareaTimers[id]);
+    tareaTimers[id] = setTimeout(() => guardarTarea(fila, false), 600);
+}
+
+async function guardarTarea(fila, borrarSiVacio) {
+    const id  = fila.dataset.id;
+    if (!id) return;
+    clearTimeout(tareaTimers[id]); delete tareaTimers[id];
+    const txt = fila.querySelector('.mem-tarea-txt').value.trim();
+    if (borrarSiVacio && txt === '') { eliminarTarea(fila); return; }
+    await setTareaTexto(id, txt);
+}
+
+// Helpers compartidos de datos (única fuente de escritura; usados por el modal de Memoria y el panel de sesión).
+async function setTareaEstado(id, hecho) {
+    if (!id) return;
+    await sb.from('pendientes')
+        .update({ estado: hecho ? 'completado' : 'activo' })
+        .eq('id', id);
+}
+async function setTareaTexto(id, texto) {
+    if (!id) return;
+    await sb.from('pendientes').update({ texto }).eq('id', id);
+}
+async function borrarTarea(id) {
+    if (!id) return;
+    await sb.from('pendientes').delete().eq('id', id);
+}
+
+async function toggleTarea(fila, hecho) {
+    fila.classList.toggle('done', hecho);
+    await setTareaEstado(fila.dataset.id, hecho);
+}
+
+async function eliminarTarea(fila) {
+    const id = fila.dataset.id;
+    if (id) {
+        clearTimeout(tareaTimers[id]); delete tareaTimers[id];
+        await borrarTarea(id);
+    }
+    const lista = fila.parentElement;   // funciona en el modal y en el panel de sesión
+    fila.remove();
+    // Estado vacío solo aplica al modal; el panel conserva su botón ＋ Agregar.
+    if (lista && lista.id === 'mem-tareas-lista' && !lista.querySelector('.mem-tarea'))
+        lista.innerHTML = '<div id="mem-tareas-vacio">Sin pendientes aún.</div>';
+}
+
+// Fuerza el guardado de ediciones con debounce pendiente (al cerrar el modal).
+function flushTareas() {
+    document.querySelectorAll('#mem-tareas-lista .mem-tarea').forEach(fila => {
+        const id = fila.dataset.id;
+        if (tareaTimers[id]) guardarTarea(fila, false);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════
+// FASE 2 — Pendientes de la SESIÓN ACTUAL (columna izquierda)
+// Sección colapsable equivalente a Memoria. Ancla: sesionActual.id
+// (NO histIdx). Vive fuera de pintarRegistro → no cambia al navegar ← / →.
+// Reutiliza filaTarea (marcar/editar/eliminar) y los helpers de datos.
+// El botón ＋ crea el pendiente DIRECTO en la sesión actual (no la siguiente).
+// ═══════════════════════════════════════════════════════════
+async function cargarPendientesSesion() {
+    const panel = document.getElementById('ses-pend-panel');
+    if (!panel) return;
+    if (!sesionActual) { panel.innerHTML = ''; return; }
+    const sid = sesionActual.id;
+
+    panel.innerHTML = `
+        <div class="rev-seccion">
+            <div class="rev-sec-hdr" onclick="toggleRevSec(this)">
+                <span>PENDIENTES DE ESTA CLASE</span>
+                <span class="rev-chevron">▾</span>
+            </div>
+            <div class="rev-sec-body">
+                <div id="ses-pend-lista"><div class="vacio">Cargando…</div></div>
+                <button id="ses-pend-add" onclick="agregarPendienteSesion()">＋ Agregar pendiente</button>
+            </div>
+        </div>`;
+    const lista = document.getElementById('ses-pend-lista');
+
+    const { data, error } = await sb.from('pendientes')
+        .select('id, texto, estado')
+        .eq('sesion_id', sid).eq('categoria', TAREA_CAT)
+        .in('estado', ['activo', 'completado'])
+        .order('created_at');
+
+    if (sesionActual?.id !== sid) return;   // cambió de sesión mientras cargaba → descartar
+    if (error) { lista.innerHTML = '<div class="vacio">No se pudieron cargar los pendientes.</div>'; return; }
+
+    lista.innerHTML = '';   // vacío = sin filas; el botón ＋ Agregar permanece
+    (data || []).forEach(it => lista.appendChild(filaTarea(it, true)));
+    setTimeout(ajustarAlturasPendientes, 0);   // ajustar al ancho final (tras el layout)
+}
+
+// Flujo B: crear pendiente DIRECTAMENTE en la sesión actual (no usa memNextSid ni sesionSiguiente).
+async function agregarPendienteSesion() {
+    if (!sesionActual) return;
+    const { data, error } = await sb.from('pendientes').insert({
+        contexto_id: sesionActual.contexto_id,
+        sesion_id:   sesionActual.id,      // ← sesión ACTUAL
+        categoria:   TAREA_CAT,
+        texto:       '',
+        estado:      'activo',
+    }).select('id, texto, estado').single();
+    if (error) return;
+
+    const lista = document.getElementById('ses-pend-lista');
+    if (!lista) return;
+    const vacio = lista.querySelector('.vacio');
+    if (vacio) vacio.remove();
+    const fila = filaTarea(data, true);
+    lista.appendChild(fila);
+    fila.querySelector('.mem-tarea-txt').focus();
 }
 </script>
 
