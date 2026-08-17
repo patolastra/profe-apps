@@ -1344,6 +1344,36 @@ function fmtTituloSesion(nombre, fechaStr) {
     return `${nombre}, ${dia} ${num} de ${mes}`;
 }
 
+// ── DIAPOSITIVA INICIAL AUTOMÁTICA ──────────────────────────
+// Título/saludo visibles por contexto. Lo NO listado usa el default
+// (MÚSICA + BUENOS DÍAS CHIC@S!). Se compara por nombre interno del
+// contexto en mayúsculas; los nombres internos NO se modifican.
+const SLIDE_DEFS = {
+    'CUARTO':          { titulo: 'MÚSICA',           saludo: 'BUENAS TARDES CHIC@S!' },
+    'CUERDAS':         { titulo: 'TALLER DE CUERDAS', saludo: 'BUENAS TARDES CHIC@S!' },
+    'QUINTO':          { titulo: 'MÚSICA',           saludo: 'BUENAS TARDES CHIC@S!' },
+    'CASTIGADAS':      { titulo: 'TALLER DE MÚSICA',  saludo: 'BUENAS TARDES CHIC@S!' },
+    'OCTAVO':          { titulo: 'MÚSICA',           saludo: 'BUENAS TARDES CHIC@S!' },
+    'KIDS CASTIGADAS': { titulo: 'OJOS DE SOL',       saludo: 'BUENOS DÍAS CHIC@S!' },
+    'ORIENTACIÓN':     { titulo: 'ORIENTACIÓN',       saludo: 'BUENOS DÍAS CHIC@S!' },
+    'ENLACE':          { titulo: 'ENLACE',            saludo: 'BUENOS DÍAS CHIC@S!' },
+};
+
+function fmtFechaSlide(fechaStr) {
+    const d   = new Date(fechaStr + 'T12:00:00');
+    const dia = d.toLocaleDateString('es-CL', { weekday: 'long' });
+    const mes = d.toLocaleDateString('es-CL', { month: 'long' });
+    return `${dia}, ${d.getDate()} DE ${mes}`.toUpperCase();   // "VIERNES, 16 DE AGOSTO"
+}
+
+function slideInicial(nombre, fechaStr) {
+    const def = SLIDE_DEFS[(nombre || '').toUpperCase()]
+             || { titulo: 'MÚSICA', saludo: 'BUENOS DÍAS CHIC@S!' };
+    // Saludo coloreado con la sintaxis Markdown existente ($...$ → color c1).
+    // Cierre con separador "---" y salto de línea final.
+    return `# ${def.titulo}\n${fmtFechaSlide(fechaStr)}\n$${def.saludo}$\n---\n`;
+}
+
 // ═══════════════════════════════════════════════════════════
 // CARGA BASE
 // ═══════════════════════════════════════════════════════════
@@ -1808,7 +1838,29 @@ async function cargarPresentacion(sid) {
     const { data } = await sb.from('presentaciones')
         .select('contenido').eq('sesion_id', sid).maybeSingle();
     const area = document.getElementById('pres-area');
-    area.value = data?.contenido || '';
+    let contenido = data?.contenido || '';
+
+    // RECREO / RECREO ENTRETENIDO no reciben diapositiva automática (excepción).
+    // Solo excluye la creación: el contenido existente se carga y protege igual.
+    const tipoCtx  = contextos[sesionActual?.contexto_id]?.tipo;
+    const nombreUC = (sesionActual?.nombre || '').toUpperCase().trim();
+    const esRecreo = tipoCtx === 'recreo'
+                  || nombreUC === 'RECREO'
+                  || nombreUC === 'RECREO ENTRETENIDO';
+
+    // Sesión SIN contenido (presentación inexistente o vacía) → crear diapositiva
+    // inicial UNA vez y persistirla. Si ya hay cualquier contenido, no se toca.
+    if (!contenido.trim() && sesionActual && !esRecreo) {
+        contenido = slideInicial(sesionActual.nombre, sesionActual.fecha);
+        try {
+            await sb.from('presentaciones').upsert(
+                { sesion_id: sid, contenido, updated_at: new Date().toISOString() },
+                { onConflict: 'sesion_id' }
+            );
+        } catch (e) { console.error('slide inicial', e); }
+    }
+
+    area.value = contenido;
     presAreaTextoGuardado = area.value;
     actualizarPreview();
     area.oninput = () => {
