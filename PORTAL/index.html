@@ -959,6 +959,83 @@
            La sección reutiliza .rev-seccion y las filas reutilizan .mem-tarea. */
         .reg-hist-bloques { display: none; }
         #ses-pend-panel { display: flex; flex-direction: column; }
+
+        /* ── MATERIALES por contexto — anclado al fondo, expansión hacia arriba ── */
+        /* #materiales-panel es hermano posterior de #col-plan-body (flex:1) dentro
+           de .s-col-plan (flex column). flex-shrink:0 → queda pegado al fondo.
+           Orden DOM: contenido primero, header último → header al fondo, el
+           contenido crece hacia arriba encogiendo el body. Sin position:absolute. */
+        #materiales-panel { flex-shrink: 0; display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+        #mat-content {
+            padding: 8px 12px; font-size: 0.82rem; overflow-y: auto; max-height: 40vh;
+            border-bottom: 1px solid var(--border);
+        }
+        #mat-content.hidden { display: none; }
+        #mat-content .mat-it { padding: 3px 0; color: var(--text); }
+        #mat-content .mat-it::before { content: "• "; color: var(--muted); }
+        #mat-content .vacio { color: var(--muted); font-style: italic; }
+        #mat-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 7px 12px; cursor: pointer; user-select: none;
+            font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.07em; color: var(--muted); background: #f8fafc;
+        }
+        #mat-header:hover { background: var(--bg); }
+        #mat-editar-btn {
+            font-size: 0.7rem; text-transform: none; letter-spacing: normal;
+            color: var(--accent); background: none; border: 1px solid var(--border);
+            padding: 2px 9px; border-radius: 5px; cursor: pointer; font-weight: 700;
+        }
+        #mat-editar-btn:hover { background: #eff6ff; border-color: var(--accent); }
+
+        /* Modal Materiales — clona el patrón de #mem-modal */
+        #mat-modal {
+            display: none; position: fixed; inset: 0; z-index: 300;
+            background: rgba(15,23,42,0.45); align-items: center; justify-content: center;
+        }
+        #mat-modal.show { display: flex; }
+        #mat-inner {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: 10px; width: min(480px, 92vw); max-height: 82vh;
+            display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+        }
+        #mat-modal-hdr {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; background: #f8fafc; border-bottom: 1px solid var(--border);
+            font-weight: 600; font-size: 0.85rem; color: var(--text);
+        }
+        #mat-modal-hdr button { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+        #mat-modal-lista { padding: 10px 12px 0; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+        .mat-fila { display: flex; align-items: center; gap: 8px; }
+        .mat-fila-txt {
+            flex: 1; border: 1px solid var(--border); border-radius: 6px;
+            padding: 6px 8px; font: inherit; font-size: 0.85rem; color: var(--text);
+            background: transparent; outline: none;
+        }
+        .mat-fila-txt:focus { border-color: var(--accent, #2563eb); background: #fff; }
+        .mat-fila-del {
+            flex-shrink: 0; background: none; border: none; cursor: pointer;
+            color: var(--muted); font-size: 0.95rem; line-height: 1; padding: 4px 7px; border-radius: 6px;
+        }
+        .mat-fila-del:hover { background: #fee2e2; color: #b91c1c; }
+        #mat-modal-add {
+            margin: 8px 12px; background: none; border: 1px dashed var(--border);
+            border-radius: 6px; padding: 7px 10px; cursor: pointer;
+            font: inherit; font-size: 0.8rem; color: var(--muted); text-align: left;
+        }
+        #mat-modal-add:hover { border-color: var(--accent, #2563eb); color: var(--accent, #2563eb); }
+        #mat-modal-footer {
+            display: flex; justify-content: flex-end; gap: 8px;
+            padding: 10px 12px; border-top: 1px solid var(--border);
+        }
+        #mat-modal-footer button {
+            font: inherit; font-size: 0.82rem; padding: 6px 16px; border-radius: 6px; cursor: pointer;
+        }
+        #mat-btn-cancelar { background: none; border: 1px solid var(--border); color: var(--muted); }
+        #mat-btn-cancelar:hover { background: var(--bg); }
+        #mat-btn-guardar { background: var(--accent, #2563eb); border: 1px solid var(--accent, #2563eb); color: #fff; font-weight: 700; }
+        #mat-btn-guardar:hover { filter: brightness(1.08); }
         #ses-pend-lista { display: flex; flex-direction: column; gap: 4px; }
         #ses-pend-add {
             margin-top: 6px; background: none; border: 1px dashed var(--border);
@@ -1040,6 +1117,15 @@
                     <!-- Fase 2: pendientes de la sesión ACTUAL, debajo de la Memoria; no depende del historial -->
                     <div id="ses-pend-panel"></div>
                 </div>
+                <!-- MATERIALES por contexto: hermano posterior del body → anclado al fondo.
+                     Contenido ANTES del header (último hijo) → expansión hacia arriba. -->
+                <div id="materiales-panel">
+                    <div id="mat-content" class="hidden"></div>
+                    <div id="mat-header" onclick="toggleMateriales(event)">
+                        <span>MATERIALES</span>
+                        <button id="mat-editar-btn" onclick="abrirMatModal(event)">Editar</button>
+                    </div>
+                </div>
             </div>
 
             <div id="rev-resize"></div>
@@ -1088,6 +1174,22 @@
             <button id="mem-tareas-add" onclick="agregarTarea()">＋ Agregar pendiente</button>
         </div>
         <div id="mem-footer"><span id="mem-status"></span></div>
+    </div>
+</div>
+
+<!-- Modal Materiales por contexto (aditivo) -->
+<div id="mat-modal" onclick="if(event.target===this)cerrarMatModal()">
+    <div id="mat-inner">
+        <div id="mat-modal-hdr">
+            <span id="mat-modal-titulo">Materiales</span>
+            <button onclick="cerrarMatModal()">✕</button>
+        </div>
+        <div id="mat-modal-lista"></div>
+        <button id="mat-modal-add" onclick="matModalAgregarFila('')">＋ Agregar material</button>
+        <div id="mat-modal-footer">
+            <button id="mat-btn-cancelar" onclick="cerrarMatModal()">Cancelar</button>
+            <button id="mat-btn-guardar" onclick="guardarMateriales()">Guardar</button>
+        </div>
     </div>
 </div>
 
@@ -1778,6 +1880,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
     document.getElementById('hdr-ses-titulo').textContent = fmtTituloSesion(nombre, fechaStr);
     document.getElementById('plan-lista').innerHTML    = '<div class="cargando">Cargando...</div>';
     document.getElementById('ses-pend-panel').innerHTML = '';   // Fase 2: limpiar pendientes de la sesión previa
+    resetMateriales();   // MATERIALES: limpiar panel de la sesión/contexto previo (colapsado, vacío)
     document.getElementById('pres-area').value         = '';
     document.getElementById('pres-status').textContent = '';
     document.getElementById('prev-body').innerHTML     = '';
@@ -1797,6 +1900,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
         cargarPresentacion(sesion.id),
         cargarHistorial(cid, fechaStr),
         cargarPendientesSesion(),   // Fase 2: pendientes de ESTA sesión (columna izquierda)
+        cargarMateriales(),         // MATERIALES: lista persistente por contexto (columna izquierda, fondo)
     ]);
     mostrarRegistroIzq();   // registro histórico (oculto en Fase 2, conservado)
 }
@@ -3949,6 +4053,119 @@ async function agregarPendienteSesion() {
     const fila = filaTarea(data, true);
     lista.appendChild(fila);
     fila.querySelector('.mem-tarea-txt').focus();
+}
+
+// ═══════════════════════════════════════════════════════════
+// MATERIALES persistentes POR CONTEXTO (columna izquierda, anclado al fondo)
+// Clave = sesionActual.contexto_id (NUNCA sesionActual.id). Tabla materiales_contexto.
+// Lista simple de strings; sin checks, estados ni historial. Reemplazo total al guardar.
+// Independiente del bloque histórico buildRevSeccion('MATERIALES', ...) (pendientes, oculto).
+// ═══════════════════════════════════════════════════════════
+let materialesActuales = [];   // estado vigente en memoria del contexto abierto
+
+// Estado visual limpio (colapsado, vacío) al cambiar de sesión.
+function resetMateriales() {
+    materialesActuales = [];
+    const cont = document.getElementById('mat-content');
+    if (cont) { cont.innerHTML = ''; cont.classList.add('hidden'); }
+}
+
+async function cargarMateriales() {
+    if (!sesionActual) { resetMateriales(); return; }
+    const cid = sesionActual.contexto_id;
+    let items = [];
+    try {
+        const { data, error } = await sb.from('materiales_contexto')
+            .select('items').eq('contexto_id', cid).maybeSingle();
+        if (error) throw error;
+        if (Array.isArray(data?.items)) items = data.items;
+    } catch (e) {
+        // Tabla ausente (migración no ejecutada) u otro error → lista vacía, sin romper el Portal.
+        console.warn('materiales_contexto no disponible (¿migración pendiente?):', e?.message || e);
+        items = [];
+    }
+    if (sesionActual?.contexto_id !== cid) return;   // cambió de contexto mientras cargaba → descartar
+    materialesActuales = items;
+    renderMateriales();   // siempre colapsado tras cargar
+}
+
+// Render del cuerpo (solo lectura). El header es estático en el HTML; siempre visible.
+function renderMateriales() {
+    const cont = document.getElementById('mat-content');
+    if (!cont) return;
+    const abierto = !cont.classList.contains('hidden');
+    if (!materialesActuales.length) {
+        cont.innerHTML = '<div class="vacio">Sin materiales.</div>';
+    } else {
+        cont.innerHTML = materialesActuales
+            .map(m => `<div class="mat-it">${esc(m)}</div>`).join('');
+    }
+    cont.classList.toggle('hidden', !abierto);   // conserva el estado colapsado/expandido
+}
+
+// Clic en el header alterna; el botón Editar NO debe togglear (stopPropagation abajo).
+function toggleMateriales(ev) {
+    if (ev && ev.target.closest('#mat-editar-btn')) return;
+    const cont = document.getElementById('mat-content');
+    if (cont) cont.classList.toggle('hidden');
+}
+
+// ── Modal de edición ────────────────────────────────────────
+function abrirMatModal(ev) {
+    if (ev) ev.stopPropagation();          // no togglear el panel al abrir el diálogo
+    if (!sesionActual) return;
+    const lista = document.getElementById('mat-modal-lista');
+    lista.innerHTML = '';
+    materialesActuales.forEach(m => matModalAgregarFila(m));
+    document.getElementById('mat-modal').classList.add('show');
+}
+
+function cerrarMatModal() {
+    document.getElementById('mat-modal').classList.remove('show');
+}
+
+// Agrega una fila editable (input + ×). Sin argumento de evento: la usa el botón ＋.
+function matModalAgregarFila(valor) {
+    const lista = document.getElementById('mat-modal-lista');
+    if (!lista) return;
+    const fila = document.createElement('div');
+    fila.className = 'mat-fila';
+    const inp = document.createElement('input');
+    inp.className = 'mat-fila-txt';
+    inp.type = 'text';
+    inp.value = typeof valor === 'string' ? valor : '';
+    inp.placeholder = 'Material';
+    const del = document.createElement('button');
+    del.className = 'mat-fila-del';
+    del.textContent = '×';
+    del.title = 'Eliminar';
+    del.onclick = () => fila.remove();
+    fila.appendChild(inp);
+    fila.appendChild(del);
+    lista.appendChild(fila);
+    inp.focus();
+}
+
+async function guardarMateriales() {
+    if (!sesionActual) return;
+    const cid = sesionActual.contexto_id;
+    const items = [...document.querySelectorAll('#mat-modal-lista .mat-fila-txt')]
+        .map(i => i.value.trim())
+        .filter(Boolean);   // descarta vacíos
+    try {
+        const { error } = await sb.from('materiales_contexto').upsert(
+            { contexto_id: cid, items, updated_at: new Date().toISOString() },
+            { onConflict: 'contexto_id' }
+        );
+        if (error) throw error;
+    } catch (e) {
+        console.error('Guardar materiales:', e?.message || e);
+        alert('No se pudieron guardar los materiales. ¿Ejecutaste la migración de materiales_contexto en Supabase?');
+        return;
+    }
+    materialesActuales = items;
+    renderMateriales();     // refleja el nuevo estado vigente de inmediato
+    cerrarMatModal();
 }
 </script>
 

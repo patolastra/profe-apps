@@ -209,3 +209,19 @@ CREATE POLICY "acceso_total" ON memorias FOR ALL USING (true) WITH CHECK (true);
 -- 2. Ejecutar estas políticas:
 CREATE POLICY "mem_select" ON storage.objects FOR SELECT TO anon USING (bucket_id = 'memorias-audio');
 CREATE POLICY "mem_insert" ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'memorias-audio');
+
+-- ── 12. MATERIALES_CONTEXTO ──────────────────────────────────
+-- Lista persistente de materiales POR CONTEXTO (no por sesión).
+-- Clave = contexto_id (UNIQUE). items = array JSON de strings, p.ej.
+-- ["Baquetas","Metalófonos","Parlante"]. Reemplazo total al guardar
+-- (upsert onConflict:'contexto_id'); sin checks, estados ni historial.
+-- NO confundir con pendientes.categoria='pendientes_materiales' (por sesión, SRP).
+CREATE TABLE IF NOT EXISTS materiales_contexto (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    contexto_id UUID NOT NULL REFERENCES contextos(id) ON DELETE CASCADE,
+    items       JSONB DEFAULT '[]',
+    updated_at  TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (contexto_id)
+);
+ALTER TABLE materiales_contexto ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "acceso_total" ON materiales_contexto FOR ALL USING (true) WITH CHECK (true);
