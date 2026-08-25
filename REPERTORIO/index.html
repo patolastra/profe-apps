@@ -1771,7 +1771,7 @@
             font-weight: 700;
             font-style: italic;
             line-height: 1.35;
-            color: #94a3b8;
+            color: #64748b;
             padding: 2px 0;
             cursor: pointer;
             user-select: none;
@@ -1779,8 +1779,12 @@
             transition: color 0.18s;
             border-radius: 6px;
         }
-        .ent-lyric-line:hover { color: #64748b; }
+        .ent-lyric-line:hover { color: #94a3b8; }
         .ent-lyric-line.activa { color: #ea580c; }
+        /* Quinto estado: verso ACTIVO + SELECCIONADO → rojo exacto de Pizarra (#bd0003).
+           Va después de .activa y con mayor especificidad → prevalece sobre activo,
+           seleccionado y hover. */
+        .ent-lyric-line.activa.coloreado:not(.oculta) { color: #bd0003; }
         .ent-lyric-line.oculta { color: #1e293b; background: #334155; border-radius: 6px; padding: 2px 8px; }
         /* Verso coloreado: marcador personal para referirse a versos durante la clase.
            :not(.activa) → el resaltado del verso activo siempre tiene prioridad visual.
@@ -1925,6 +1929,15 @@
             padding: 4px 8px; text-align: center;
         }
         #ent-mode-btns { display: flex; align-items: center; gap: 6px; }
+        #ent-view-modes { align-items: center; }
+        .ent-vm-btn {
+            background: #334155; border: 1.5px solid #475569;
+            color: #94a3b8; border-radius: 20px; padding: 4px 10px;
+            font-size: 0.72rem; font-weight: 600; cursor: pointer;
+            white-space: nowrap; transition: all 0.15s; flex-shrink: 0; line-height: 1;
+        }
+        .ent-vm-btn:hover { border-color: #64748b; color: #cbd5e1; }
+        .ent-vm-btn.activo { background: #0284c7; border-color: #0284c7; color: #fff; }
 
         /* Popup de atajos de teclado del Entrenador */
         #ent-atajos-overlay {
@@ -2116,9 +2129,10 @@
         #entrenador-overlay.ent-light #ent-btn-editar:hover { border-color: #94a3b8; color: #1e293b; }
         #entrenador-overlay.ent-light #ent-pitch-input { background: #ffffff; color: #0f172a; }
         /* Zona de letra */
-        #entrenador-overlay.ent-light .ent-lyric-line { color: #64748b; }
-        #entrenador-overlay.ent-light .ent-lyric-line:hover { color: #334155; }
+        #entrenador-overlay.ent-light .ent-lyric-line { color: #334155; }
+        #entrenador-overlay.ent-light .ent-lyric-line:hover { color: #64748b; }
         #entrenador-overlay.ent-light .ent-lyric-line.coloreado:not(.activa):not(.oculta) { color: #0284c7; }
+        #entrenador-overlay.ent-light .ent-lyric-line.activa.coloreado:not(.oculta) { color: #bd0003; }
         /* Sync */
         #entrenador-overlay.ent-light .ent-sync-row { border-bottom-color: #e2e8f0; }
         #entrenador-overlay.ent-light .ent-sync-ts { color: #94a3b8; }
@@ -2595,6 +2609,8 @@
     <div id="se-header">
         <button id="se-btn-cerrar" onclick="cerrarEditorSesion()">←</button>
         <input id="se-nombre-input" class="se-nombre-input" placeholder="Nombre de la sesión…" oninput="sesionEditarNombre(this.value)">
+        <select id="se-contexto" title="Curso por defecto de esta sesión" onchange="sesionAsignarContexto(this.value)"
+                style="flex-shrink:0;background:#0f172a;color:#cbd5e1;border:1px solid #334155;border-radius:8px;padding:5px 8px;font-size:0.8rem"></select>
         <span id="se-guardando" style="font-size:0.72rem;color:#64748b;flex-shrink:0"></span>
     </div>
     <div id="se-main">
@@ -2634,10 +2650,12 @@
                    style="display:none" onkeydown="entPitchInputKey(event)" onblur="entPitchInputBlur()">
             <span id="ent-vel-label">1.0x</span>
             <div id="ent-mode-btns">
-                <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()">Letra</button>
+                <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()" style="display:none">Letra</button>
                 <button id="ent-btn-sync" onclick="entToggleSync()">Sync</button>
                 <button id="ent-btn-sync-save" onclick="entGuardarSyncAsset()" style="display:none">Guardar</button>
                 <button id="ent-btn-editar" onclick="entToggleEdicion()" title="Modo edición de letra (Esc para salir)">Editar</button>
+                <!-- Toggle único de vista de la letra: alterna Scroll ↔ Pizarra (renderizado) -->
+                <button id="ent-btn-vista" class="ent-vm-btn activo" onclick="entToggleVista()" title="Alternar vista de la letra: Scroll / Pizarra">Scroll</button>
             </div>
         </div>
         <div id="ent-sesion-nav" style="display:none">
@@ -4569,6 +4587,17 @@ document.addEventListener('keydown', e => {
             // Pasapáginas manual de la letra (unidad = estrofa). Scroll puro, no toca estado/sync/resaltado.
             if (e.key === 'Enter') { e.preventDefault(); entPasarPagina(); return; }
             if (e.key === 'Home')  { e.preventDefault(); const z = document.getElementById('ent-zona'); if (z) z.scrollTop = 0; return; }
+            // Modo Pizarra: mostrar/ocultar el header con H. Fuera de proyección no hace nada.
+            if ((e.key === 'h' || e.key === 'H') && entProyeccion) {
+                e.preventDefault(); entToggleHeaderProyeccion(); return;
+            }
+            // Navegación de verso ↑/↓ (proyección): verso anterior/siguiente con seek exacto.
+            if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !entSyncMode &&
+                !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '')) {
+                e.preventDefault();
+                entNavVerso(e.key === 'ArrowUp' ? -1 : 1);
+                return;
+            }
             // Navegación por canciones de la sesión: mismas funciones que los botones ‹ ›.
             // Guard: no navegar en ENT Sync ni con el foco en un campo de texto (edición de loop, etc.).
             if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !entSyncMode &&
@@ -4657,6 +4686,8 @@ async function entrenadorSetPitch(val) {
     } else if (semitones !== 0 && entPitchST) {
         entPitchST.pitchSemitones = semitones;
     }
+
+    if (entModoSesion || entModoEditSesion) entPersistirConfigSesion();
 }
 
 async function entrenadorResetPitch() {
@@ -4798,6 +4829,79 @@ let entrenadorModoClaro = false;             // tema claro del Entrenador (persi
 let entrenadorAssetActivo  = null;
 let entModoEdicion         = false;
 
+// ── MODO PROYECCIÓN (abierto desde Pizarra) ──────────────────────────────────
+// entProyeccion = true cuando el Entrenador se abre para proyectar en sala.
+// Sólo entonces se activan: letra más grande, selector de modos de vista y ↑/↓.
+// El uso normal (cercano) del Entrenador queda intacto.
+let entProyeccion   = false;
+let entViewMode     = 'scroll';   // 'estrofa1' | 'estrofa2' | 'estrofa3' | 'scroll' | 'pantalla'
+let entActiveStanzaIdx = 0;       // ventana deslizante en modos 1/2/3
+
+function entWindowN() {
+    return entViewMode === 'estrofa1' ? 1
+         : entViewMode === 'estrofa2' ? 2
+         : entViewMode === 'estrofa3' ? 3
+         : Infinity;               // scroll y pantalla = todas las estrofas
+}
+
+function entActiveStanzaPos() {
+    if (entrenadorLineIdx < 0) return -1;
+    return entrenadorStanzas.findIndex(s => s.some(l => l.origIdx === entrenadorLineIdx));
+}
+
+function entSetViewMode(m) {
+    entViewMode = m;
+    // El toggle único refleja el modo de renderizado actual (Scroll o Pizarra).
+    const btn = document.getElementById('ent-btn-vista');
+    if (btn) btn.textContent = (m === 'pantalla') ? 'Pizarra' : 'Scroll';
+    entFontSizeGlobal = null;      // recalcular tamaño para el nuevo encuadre
+    entRenderZona();
+}
+
+// Toggle único de vista de la letra: alterna entre Scroll y Pizarra (renderizado).
+// Funciona igual en Entrenador normal y dentro del Modo Pizarra del Entrenador.
+// (Los modos 1/2/3 siguen existiendo internamente vía entSetViewMode, sin botón.)
+function entToggleVista() {
+    entSetViewMode(entViewMode === 'pantalla' ? 'scroll' : 'pantalla');
+}
+
+// Oculta el panel de loops (sin desactivar la funcionalidad: el usuario puede
+// volver a mostrarlo con el botón ⟳). Usado por el Modo Pizarra.
+function entOcultarLoopsPanel() {
+    const panel = document.getElementById('ent-loops-panel');
+    const btn   = document.getElementById('ent-btn-toggle-loops');
+    if (panel) panel.style.display = 'none';
+    if (btn)   btn.classList.remove('activo');
+}
+
+// Header del Entrenador oculto/visible (usado por el Modo Pizarra vía la tecla H).
+let entHeaderOculto = false;
+function entOcultarHeader(ocultar) {
+    entHeaderOculto = ocultar;
+    document.getElementById('ent-header').style.display = ocultar ? 'none' : '';
+    entFontSizeGlobal = null;      // cambió el alto disponible → recalcular la letra
+    entRenderZona();
+}
+// Toggle del header en Modo Pizarra (fuera de proyección no hace nada).
+function entToggleHeaderProyeccion() {
+    if (!entProyeccion) return;
+    entOcultarHeader(!entHeaderOculto);
+}
+
+// Activa las adaptaciones de proyección (letra grande + header oculto + tema claro).
+function entActivarProyeccion() {
+    entProyeccion = true;
+    // Modo Pizarra: panel de loops oculto + tema claro forzado.
+    entOcultarLoopsPanel();
+    entAplicarTema();              // fuerza claro vía entProyeccion (no toca la preferencia)
+    // Chips de asset ocultos en Modo Pizarra (aunque luego se muestre el header con H).
+    const chips = document.getElementById('ent-asset-chips');
+    if (chips) chips.style.display = 'none';
+    // Header completo oculto por defecto (se muestra/oculta con H).
+    entOcultarHeader(true);
+    entSetViewMode(entViewMode);   // re-render con fuente de proyección
+}
+
 function entAudio() { return document.getElementById('entrenador-audio'); }
 
 function abrirEntrenador(songId) {
@@ -4854,6 +4958,12 @@ function abrirEntrenador(songId) {
 }
 
 function cerrarEntrenador() {
+    // El botón ← y Escape usan esta función también al practicar una sesión: guardar
+    // cualquier config pendiente y salir de modo sesión para no contaminar el modo
+    // individual (los triggers de pitch/velocidad se guían por estos flags).
+    entFlushConfigSesion();
+    entModoSesion = false;
+    entModoEditSesion = false;
     const audioEl = entAudio();
     audioEl.pause(); audioEl.src = '';
     audioEl.ontimeupdate = null; audioEl.onloadedmetadata = null;
@@ -4877,6 +4987,15 @@ function cerrarEntrenador() {
     document.getElementById('entrenador-overlay').classList.remove('visible');
     document.getElementById('ent-btn-toggle-lista').style.display = 'none';
     document.getElementById('ent-btn-toggle-lista').classList.remove('activo');
+    // Salir de proyección: el uso normal (cercano) no debe heredar letra grande ni modos.
+    if (entProyeccion) {
+        entProyeccion = false;
+        entViewMode = 'scroll';
+        entActiveStanzaIdx = 0;
+        // Restaurar el header para el uso normal (los chips se recalculan al reabrir).
+        entHeaderOculto = false;
+        document.getElementById('ent-header').style.display = '';
+    }
     entrenadorSong = null;
 }
 
@@ -4888,7 +5007,8 @@ function entRenderChips(preselId) {
     let activo = assets.find(a => a.id === preselId)
               || assets.find(a => a.tipo === 'letra')
               || assets[0];
-    wrap.style.display = assets.length > 1 ? '' : 'none';
+    // En Modo Pizarra los chips van ocultos; fuera, solo si hay 2+ assets no-audio.
+    wrap.style.display = (!entProyeccion && assets.length > 1) ? '' : 'none';
     wrap.innerHTML = assets.map(a => {
         const ico = { letra:'🎵', cifrado:'🎸', tab:'📄', metalofono:'🎹', flauta:'🎶' }[a.tipo] || '📄';
         const label = a.etiqueta || [a.instrumento, a.dificultad, a.tonalidad].filter(Boolean).join(' ') || a.tipo;
@@ -4935,6 +5055,7 @@ function entCargarAsset(asset) {
         }
         entrenadorStanzas = entParseStanzas();
         entrenadorLineIdx = -1;
+        entActiveStanzaIdx = 0;
         entFontSizeGlobal = null;
         entSyncMode = false;
         ocultarRow.style.display = '';
@@ -4972,7 +5093,24 @@ function entRenderZona(forzarOrigIdx = null) {
         zona.innerHTML = '<div style="color:#94a3b8">Sin letra</div>'; return;
     }
 
-    zona.innerHTML = `<div class="ent-stanzas-wrapper">${entrenadorStanzas.map((stanza, pos) => {
+    // Modos de vista (sólo relevantes en proyección; en uso normal entViewMode='scroll'
+    // → se renderizan todas las estrofas, comportamiento idéntico al de siempre).
+    const N = entWindowN();
+    const esPantalla = entViewMode === 'pantalla';
+    let stanzasVisibles = entrenadorStanzas;
+    if (N !== Infinity) {
+        const ap = entActiveStanzaPos();
+        if (ap >= 0) {
+            const fuera = ap < entActiveStanzaIdx || ap >= entActiveStanzaIdx + N;
+            if (fuera) entActiveStanzaIdx = Math.min(ap, Math.max(0, entrenadorStanzas.length - N));
+        } else if (entActiveStanzaIdx > Math.max(0, entrenadorStanzas.length - N)) {
+            entActiveStanzaIdx = 0;
+        }
+        stanzasVisibles = entrenadorStanzas.slice(entActiveStanzaIdx, entActiveStanzaIdx + N);
+    }
+    zona.style.overflowY = esPantalla ? 'hidden' : '';
+
+    zona.innerHTML = `<div class="ent-stanzas-wrapper">${stanzasVisibles.map((stanza, pos) => {
         const lines = stanza.map(l => {
             const oculta = entrenadorOcultar || entrenadorLineasOcultas.has(l.origIdx);
             const texto  = oculta ? '█ █ █ █ █ █' : l.text;
@@ -4992,9 +5130,30 @@ function entRenderZona(forzarOrigIdx = null) {
 
     requestAnimationFrame(() => {
         entAjustarFontSize();
+        if (esPantalla) entFitAltura();
         const activa = zona.querySelector('.ent-lyric-line.activa');
-        if (activa) activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (activa && !esPantalla) activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
     });
+}
+
+// Modo Pizarra: encoge la fuente hasta que TODA la letra visible entre en el alto
+// del área, sin scroll. Parte del tamaño de ancho ya calculado por entAjustarFontSize.
+function entFitAltura() {
+    const zona = document.getElementById('ent-zona');
+    const wrapper = zona?.querySelector('.ent-stanzas-wrapper');
+    if (!wrapper) return;
+    const dispH = zona.clientHeight - 24;
+    let guard = 0;
+    while (wrapper.scrollHeight > dispH && guard < 60) {
+        const lineas = wrapper.querySelectorAll('.ent-lyric-line');
+        if (!lineas.length) break;
+        const cur = parseFloat(getComputedStyle(lineas[0]).fontSize);
+        const next = cur * 0.94;
+        if (next < 10) break;
+        lineas.forEach(el => el.style.fontSize = next + 'px');
+        zona.querySelectorAll('.ent-stanza-sep').forEach(el => el.style.height = (next * 1.35 + 4) + 'px');
+        guard++;
+    }
 }
 
 function entClickLinea(e, i) {
@@ -5029,12 +5188,12 @@ function entClickLinea(e, i) {
         toast(`Loop "${nombre}" creado`);
         return;
     }
-    // Click normal: seek al verso (corrección 5)
+    // Click normal: activa el verso. Con audio hace seek exacto; sin audio solo
+    // cambia el verso activo y reencuadra (mismo patrón que entNavVerso con ↑/↓).
     const linea = entrenadorLines[i];
     if (!linea) return;
     const audioEl = entAudio();
-    if (!audioEl.duration) return;
-    audioEl.currentTime = linea.time / 1000;
+    if (audioEl.duration) audioEl.currentTime = linea.time / 1000;
     entActualizarLinea(i);
 }
 
@@ -5136,11 +5295,36 @@ function entEditLineaContextMenu(e, i) {
 
 function entActualizarLinea(idx) {
     entrenadorLineIdx = idx;
+    // En modos 1/2/3: si la línea activa cae fuera de la ventana visible, re-encuadrar.
+    if (entWindowN() !== Infinity) {
+        const N = entWindowN();
+        const ap = entrenadorStanzas.findIndex(s => s.some(l => l.origIdx === idx));
+        if (ap >= 0 && (ap < entActiveStanzaIdx || ap >= entActiveStanzaIdx + N)) {
+            entRenderZona();   // la marca .activa la aplica el propio render
+            return;
+        }
+    }
     document.querySelectorAll('.ent-lyric-line').forEach(el => {
         el.classList.toggle('activa', parseInt(el.dataset.orig) === idx);
     });
     const activa = document.querySelector('.ent-lyric-line.activa');
-    if (activa) activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (activa && entViewMode !== 'pantalla') activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+// Navegación de verso con ↑/↓ (proyección). Salta al verso anterior/siguiente y
+// posiciona el audio en su TIMESTAMP EXACTO — mismo comportamiento que el click del
+// Entrenador (nunca el offset −1s de Pizarra).
+function entNavVerso(dir) {
+    if (!entrenadorLines.length) return;
+    let i = entrenadorLineIdx;
+    if (i < 0) i = entrenadorLines.findIndex(l => l.text.trim());
+    let j = (i < 0 ? 0 : i) + dir;
+    while (j >= 0 && j < entrenadorLines.length && !entrenadorLines[j].text.trim()) j += dir;
+    if (j < 0 || j >= entrenadorLines.length) return;
+    const linea = entrenadorLines[j];
+    const audioEl = entAudio();
+    if (audioEl.duration) { audioEl.currentTime = linea.time / 1000; entPitchSyncPos(); }
+    entActualizarLinea(j);
 }
 
 // Pasapáginas manual de la letra. Unidad = estrofa. Lleva arriba la primera estrofa que
@@ -5242,6 +5426,7 @@ function entrenadorSetVelocidad(val) {
     entAudio().playbackRate = entrenadorVelocidad;
     document.getElementById('ent-vel-label').textContent = entFmtVel(entrenadorVelocidad);
     if (entPitchST) entPitchST.tempo = entrenadorVelocidad;
+    if (entModoSesion || entModoEditSesion) entPersistirConfigSesion();
 }
 
 function entFmtVel(v) {
@@ -5274,8 +5459,10 @@ const ENT_ATAJOS = [
     { grupo: 'Lectura y navegación', items: [
         { k: 'Enter', d: 'Pasar a la siguiente página (por estrofas)' },
         { k: 'Inicio', d: 'Volver al comienzo de la letra' },
+        { k: '↑ / ↓', d: 'Verso anterior / siguiente' },
         { k: '←', d: 'Canción anterior' },
         { k: '→', d: 'Canción siguiente' },
+        { k: 'H', d: 'Mostrar / ocultar header (Modo Pizarra)' },
     ]},
     { grupo: 'General', items: [
         { k: 'Esc', d: 'Cerrar el Entrenador' },
@@ -5315,11 +5502,14 @@ function entrenadorToggleOcultar() {
 // Tema claro/oscuro del Entrenador. Solo alterna la clase .ent-light en el contenedor
 // (el CSS scoped hace el resto). Persiste en el config por canción (cerrarEntrenador).
 function entAplicarTema() {
-    document.getElementById('entrenador-overlay').classList.toggle('ent-light', entrenadorModoClaro);
+    // En Modo Pizarra (proyección) se fuerza SIEMPRE tema claro para la vista actual,
+    // sin alterar la preferencia persistente (entrenadorModoClaro se conserva intacto).
+    const claro = entProyeccion ? true : entrenadorModoClaro;
+    document.getElementById('entrenador-overlay').classList.toggle('ent-light', claro);
     const btn = document.getElementById('ent-btn-tema');
     if (btn) {
-        btn.textContent = entrenadorModoClaro ? '🌙' : '☀️';
-        btn.title = entrenadorModoClaro ? 'Modo oscuro' : 'Modo claro';
+        btn.textContent = claro ? '🌙' : '☀️';
+        btn.title = claro ? 'Modo oscuro' : 'Modo claro';
     }
 }
 function entToggleTema() {
@@ -5539,10 +5729,28 @@ async function cargarSesiones() {
 }
 
 async function guardarSesion(s) {
+    // contexto_id: vínculo opcional con el contexto (sesión por defecto del curso).
+    // Se envía siempre para preservarlo en los upsert de loops/pitch/velocidad.
+    const payload = { id: s.id, nombre: s.nombre, canciones: s.canciones, creada_en: s.creada_en };
+    if ('contexto_id' in s) payload.contexto_id = s.contexto_id ?? null;
     const { error } = await sb
         .from('repertorio_sesiones_entrenamiento')
-        .upsert({ id: s.id, nombre: s.nombre, canciones: s.canciones, creada_en: s.creada_en });
+        .upsert(payload);
     if (error) throw error;
+}
+
+// Contextos reales (id + nombre) para vincular sesiones de entrenamiento a un curso.
+// Se identifica por contexto_id (UUID), nunca por comparación de nombres.
+let contextosDB = [];
+async function cargarContextosDB() {
+    try {
+        const { data, error } = await sb.from('contextos').select('id, nombre').order('nombre');
+        if (error) throw error;
+        contextosDB = data || [];
+    } catch (e) {
+        console.warn('No se pudieron cargar contextos:', e.message);
+        contextosDB = [];
+    }
 }
 
 async function borrarSesionDB(id) {
@@ -5902,9 +6110,51 @@ function abrirEditorSesion(id) {
     if (!sesionEditando) return;
     document.getElementById('se-nombre-input').value = sesionEditando.nombre;
     document.getElementById('se-guardando').textContent = '';
+    seRenderContextoSelect();
     seRenderPool();
     seRenderBuscador('');
     document.getElementById('sesion-editor-overlay').classList.add('visible');
+}
+
+// Puebla el <select> de contexto con los contextos reales (id + nombre).
+function seRenderContextoSelect() {
+    const sel = document.getElementById('se-contexto');
+    if (!sel) return;
+    const actual = sesionEditando.contexto_id || '';
+    sel.innerHTML = `<option value="">— Sin curso —</option>` +
+        contextosDB.map(c => `<option value="${c.id}"${c.id === actual ? ' selected' : ''}>${c.nombre}</option>`).join('');
+    sel.disabled = contextosDB.length === 0;
+}
+
+// Asigna/quita el contexto por defecto. Garantiza como máximo una sesión por
+// contexto: si otro registro ya lo usa, se avisa y se revierte (además del
+// índice único en BD). Seleccionar NO altera nada más de la sesión.
+async function sesionAsignarContexto(val) {
+    const nuevo = val || null;
+    if (nuevo) {
+        const otra = sesiones.find(s => s.id !== sesionEditando.id && s.contexto_id === nuevo);
+        if (otra) {
+            const nom = contextosDB.find(c => c.id === nuevo)?.nombre || 'ese curso';
+            toast(`"${otra.nombre}" ya es la sesión por defecto de ${nom}`);
+            document.getElementById('se-contexto').value = sesionEditando.contexto_id || '';
+            return;
+        }
+    }
+    const previo = sesionEditando.contexto_id ?? null;
+    sesionEditando.contexto_id = nuevo;
+    try {
+        await guardarSesion(sesionEditando);
+        document.getElementById('se-guardando').textContent = '✓';
+        setTimeout(() => { document.getElementById('se-guardando').textContent = ''; }, 1500);
+        // reflejar en el array en memoria para validaciones posteriores
+        const idx = sesiones.findIndex(s => s.id === sesionEditando.id);
+        if (idx >= 0) sesiones[idx].contexto_id = nuevo;
+    } catch (e) {
+        // Choque con el índice único u otro error: revertir el select.
+        sesionEditando.contexto_id = previo;
+        document.getElementById('se-contexto').value = previo || '';
+        toast('No se pudo asignar el curso: ' + (e.message || 'error'));
+    }
 }
 
 function cerrarEditorSesion() {
@@ -6051,7 +6301,8 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     // Loops vienen del item de sesión, no de localStorage
     entrenadorLoops = sesionItem.loops ? [...sesionItem.loops] : [];
 
-    entrenadorVelocidad     = 1.0;
+    // Config persistida por sesión+ítem (pitch/velocidad). Defaults intactos: 1.0 / 0.
+    entrenadorVelocidad     = sesionItem.velocidad ?? 1.0;
     entrenadorOcultar       = false;
     entrenadorLineasOcultas = new Set();
     entrenadorLineasColoreadas = new Set();
@@ -6061,7 +6312,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
 
     const audioEl = entAudio();
     audioEl.src          = audioAsset ? storageUrl(audioAsset.storage_path) : '';
-    audioEl.playbackRate = 1.0;
+    audioEl.playbackRate = entrenadorVelocidad;
     audioEl.muted        = false;
     audioEl.ontimeupdate     = entOnTimeUpdate;
     audioEl.onloadedmetadata = entActualizarMarcadores;
@@ -6075,9 +6326,12 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     document.getElementById('ent-progress-fill').style.width = '0%';
     document.getElementById('ent-time').textContent = '0:00 / 0:00';
 
-    document.getElementById('ent-vel-label').textContent = '1x';
+    document.getElementById('ent-vel-label').textContent = entFmtVel(entrenadorVelocidad);
     entPitchSemitones = 0;
     entCerrarPitchInput();
+    // Restaurar pitch persistido del ítem. Si es 0 no se toca el motor pesado (SoundTouch).
+    const pitchGuardado = sesionItem.pitch ?? 0;
+    if (pitchGuardado !== 0) entrenadorSetPitch(pitchGuardado);
     document.getElementById('ent-btn-ocultar').classList.remove('oculto');
     document.getElementById('ent-btn-play').textContent = '▶';
     document.getElementById('ent-loop-toggle').classList.remove('on');
@@ -6087,7 +6341,9 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     const listaSesion = document.getElementById('ent-sesion-lista');
     const yaAbierto = document.getElementById('entrenador-overlay').classList.contains('visible');
     if (entModoSesion) {
-        nav.style.display = '';
+        // Barra ‹ X/Y › ⏭Auto retirada del header. La navegación de sesión sigue
+        // disponible por teclado (←/→) y por el panel de lista (☰).
+        nav.style.display = 'none';
         if (!yaAbierto) {
             listaSesion.style.display = '';
             document.getElementById('ent-btn-toggle-lista').classList.add('activo');
@@ -6111,6 +6367,8 @@ function abrirEntrenadorConConfig(song, sesionItem) {
         document.getElementById('ent-loops-panel').style.display = '';
         document.getElementById('ent-btn-toggle-loops').classList.add('activo');
     }
+    // Modo Pizarra: el panel de loops permanece oculto al abrir y al navegar canciones.
+    if (entProyeccion) entOcultarLoopsPanel();
     document.getElementById('entrenador-overlay').classList.add('visible');
 
     if (!window._entResizeObs) {
@@ -6175,6 +6433,7 @@ function entRenderListaSesion() {
 
 function entIrACancionSesion(idx) {
     if (!entModoSesion || idx === entSesionCIdx) return;
+    entFlushConfigSesion();
     entSesionCIdx = idx;
     const item = entSesionActual.canciones[idx];
     const song = canciones.find(c => c.id === item.cancion_id);
@@ -6188,6 +6447,7 @@ function entSesionSiguiente() {
         toast('🎉 Fin de la sesión');
         return;
     }
+    entFlushConfigSesion();
     entSesionCIdx++;
     const item = entSesionActual.canciones[entSesionCIdx];
     const song = canciones.find(c => c.id === item.cancion_id);
@@ -6197,6 +6457,7 @@ function entSesionSiguiente() {
 
 function entSesionAnterior() {
     if (!entModoSesion || entSesionCIdx <= 0) return;
+    entFlushConfigSesion();
     entSesionCIdx--;
     const item = entSesionActual.canciones[entSesionCIdx];
     const song = canciones.find(c => c.id === item.cancion_id);
@@ -6225,6 +6486,35 @@ function entPersistirLoopsSesion() {
     const sIdx = sesiones.findIndex(s => s.id === entSesionActual.id);
     if (sIdx >= 0) sesiones[sIdx] = JSON.parse(JSON.stringify(entSesionActual));
     guardarSesion(entSesionActual).catch(e => console.error('Error guardando loops sesión:', e));
+}
+
+// ── Persistencia de pitch/velocidad por sesión+ítem (mismo patrón que los loops) ──
+// Escribe el ítem en memoria de inmediato; el guardado a Supabase va con debounce
+// (~600 ms) para no escribir por cada pulsación de { / }. entFlushConfigSesion()
+// fuerza el guardado pendiente antes de navegar de canción.
+let _entConfigSaveTimer = null;
+
+function entPersistirConfigSesion() {
+    if (!entSesionActual) return;
+    const item = entSesionActual.canciones[entSesionCIdx];
+    if (!item) return;
+    item.pitch     = entPitchSemitones;
+    item.velocidad = entrenadorVelocidad;
+    // Sincronizar el array sesiones en memoria para que el próximo practicarSesion lo lea
+    const sIdx = sesiones.findIndex(s => s.id === entSesionActual.id);
+    if (sIdx >= 0) sesiones[sIdx] = JSON.parse(JSON.stringify(entSesionActual));
+    clearTimeout(_entConfigSaveTimer);
+    _entConfigSaveTimer = setTimeout(() => {
+        _entConfigSaveTimer = null;
+        guardarSesion(entSesionActual).catch(e => console.error('Error guardando config sesión:', e));
+    }, 600);
+}
+
+function entFlushConfigSesion() {
+    if (!_entConfigSaveTimer) return;
+    clearTimeout(_entConfigSaveTimer);
+    _entConfigSaveTimer = null;
+    if (entSesionActual) guardarSesion(entSesionActual).catch(e => console.error('Error guardando config sesión:', e));
 }
 
 entrenadorNuevoLoop = function() {
@@ -6271,7 +6561,8 @@ function entCalcularFontGlobal() {
     if (!zona || !entrenadorLines.length) return;
     const disponible = zona.clientWidth - 80 - (entSyncMode ? 100 : 0);
     if (disponible <= 0) return;
-    const BASE = 2.2 * 16;
+    // Proyección: letra moderadamente más grande para lectura desde la sala.
+    const BASE = (entProyeccion ? 3.1 : 2.2) * 16;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     ctx.font = `700 italic ${BASE}px ${getComputedStyle(zona).fontFamily}`;
@@ -6280,7 +6571,12 @@ function entCalcularFontGlobal() {
         if (l.text.trim()) maxW = Math.max(maxW, ctx.measureText(l.text).width);
     });
     if (maxW <= 0) { entFontSizeGlobal = BASE; entWrapperWidthGlobal = disponible; return; }
-    const fs = maxW <= disponible ? BASE : Math.max(BASE * disponible / maxW, 10);
+    // Modo Pizarra (entProyeccion): la letra puede CRECER hasta 120% del BASE cuando el
+    // ancho lo permite (aprovecha el espacio). Entrenador normal: tope en BASE (sin cambio).
+    const MAXBASE = BASE * (entProyeccion ? 1.2 : 1.0);
+    const fs = maxW <= disponible
+        ? Math.min(BASE * disponible / maxW, MAXBASE)   // hay ancho libre → crecer, tope MAXBASE
+        : Math.max(BASE * disponible / maxW, 10);        // no cabe → encoger (igual que hoy)
     entFontSizeGlobal   = fs;
     entWrapperWidthGlobal = Math.min(maxW * (fs / BASE), disponible);
 }
@@ -6485,8 +6781,10 @@ function entToggleSync() {
     btn.classList.toggle('on', entSyncMode);
     btn.textContent = entSyncMode ? '✕ Sync' : 'Sync';
     document.getElementById('ent-zona').classList.toggle('sync-mode', entSyncMode);
+    // El botón separado "Guardar" queda deprecado: el propio botón "✕ Sync" guarda
+    // (flush de entGuardarSyncAsset arriba, si hubo cambios) y sale del modo Sync.
     const saveBtn = document.getElementById('ent-btn-sync-save');
-    if (saveBtn) saveBtn.style.display = entSyncMode ? '' : 'none';
+    if (saveBtn) saveBtn.style.display = 'none';
     if (entSyncMode) entRenderSync();
     else entRenderZona();
 }
@@ -6629,6 +6927,7 @@ document.getElementById('search').addEventListener('input', render);
     }
     try { await cargarSesiones(); } catch (e) { /* tabla puede no existir aún */ }
     try { await cargarLecciones(); } catch (e) { /* tabla puede no existir aún */ }
+    await cargarContextosDB();
     // Deep-link de contexto: ?ctx=PERSONAL (u otro) pre-aplica el filtro
     const params  = new URLSearchParams(location.search);
     const ctxParam = params.get('ctx');
@@ -6636,6 +6935,23 @@ document.getElementById('search').addEventListener('input', render);
     render();
     // Deep-link Entrenador: ?vista=sesiones abre directo la vista de sesiones
     if (params.get('vista') === 'sesiones' && vistaActual !== 'sesiones') toggleVistaSesiones();
+
+    // ── Deep-links de proyección (desde Pizarra) ──
+    // ?proyeccion=1 → letra grande + modos de vista + ↑/↓.
+    // ?practicar=<id> → abre esa sesión de entrenamiento (reusa practicarSesion).
+    // ?cancion=<id>   → abre esa canción individual (reusa abrirEntrenador).
+    const proyeccion = params.get('proyeccion') === '1';
+    const practicarId = params.get('practicar');
+    const cancionId   = params.get('cancion');
+    if (practicarId || cancionId) {
+        // Asegura la vista de sesiones detrás del overlay (identidad "Entrenador").
+        if (vistaActual !== 'sesiones') toggleVistaSesiones();
+        if (practicarId) practicarSesion(practicarId);
+        else if (cancionId) abrirEntrenador(cancionId);
+        // Llamada directa (no rAF): el overlay ya se renderizó de forma síncrona y
+        // rAF no dispara en pestañas en segundo plano.
+        if (proyeccion) entActivarProyeccion();
+    }
 })();
 </script>
 </body>
