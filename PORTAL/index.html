@@ -1210,6 +1210,10 @@ let pendientesMap  = {};
 let presMap        = {};
 let sesionActual   = null;
 let presTimer      = null;
+// Id de la sesión de entrenamiento por defecto del contexto de la sesión abierta
+// (repertorio_sesiones_entrenamiento.contexto_id). Pre-resuelto en abrirSesion para
+// que PRESENTAR pueda abrir el Entrenador sin await (evita popup blockers). null = sin default.
+let entrenamientoDefaultId = null;
 let calMes         = new Date();
 let vistaOrigen    = 'dashboard';
 let diaNavegado    = null;
@@ -1898,13 +1902,27 @@ async function abrirSesion(cid, fechaStr, nombre) {
     modoTriptico = 'pres';   // vista única: el Portal siempre entra en modo pres
     aplicarModo();
 
+    entrenamientoDefaultId = null;   // se re-resuelve para el contexto de esta sesión
     await Promise.all([
         cargarPresentacion(sesion.id),
         cargarHistorial(cid, fechaStr),
         cargarPendientesSesion(),   // Fase 2: pendientes de ESTA sesión (columna izquierda)
         cargarMateriales(),         // MATERIALES: lista persistente por contexto (columna izquierda, fondo)
+        cargarEntrenamientoDefault(cid),   // sesión de entrenamiento por defecto del curso (para PRESENTAR)
     ]);
     mostrarRegistroIzq();   // registro histórico (oculto en Fase 2, conservado)
+}
+
+// Pre-resuelve la sesión de entrenamiento por defecto del contexto (o null). No crea
+// nada; solo lee. El resultado lo usa abrirPizarra() para abrir el Entrenador sin await.
+async function cargarEntrenamientoDefault(cid) {
+    try {
+        const { data } = await sb.from('repertorio_sesiones_entrenamiento')
+            .select('id').eq('contexto_id', cid).maybeSingle();
+        entrenamientoDefaultId = data?.id || null;
+    } catch (_) {
+        entrenamientoDefaultId = null;   // silencioso (tabla/columna ausente, etc.)
+    }
 }
 
 async function getOrCreate(cid, fechaStr) {
@@ -2004,7 +2022,16 @@ function abrirPizarra() {
     logEvento('abrir_pizarra');
     const activa = document.querySelector('#prev-body .slide-prev.activa');
     const slide = activa ? parseInt(activa.dataset.idx) : 0;
-    window.open(`../PIZARRA/index.html?sesion=${sesionActual.id}&slide=${slide}`, '_blank');
+    // 1) Pizarra de la sesión puntual del Portal (comportamiento existente).
+    const winPizarra = window.open(`../PIZARRA/index.html?sesion=${sesionActual.id}&slide=${slide}`, '_blank');
+    // 2) Entrenador de la sesión de entrenamiento por defecto del curso, en Modo Pizarra.
+    //    SIN await entre ambas aperturas (mismo gesto de clic → minimiza el popup blocker).
+    //    Si el curso no tiene sesión por defecto, no se abre nada (silencioso).
+    if (entrenamientoDefaultId) {
+        window.open(`../REPERTORIO/index.html?practicar=${entrenamientoDefaultId}&proyeccion=1`, '_blank');
+    }
+    // Foco: la Pizarra debe quedar al frente (si el navegador lo permite).
+    if (winPizarra) { try { winPizarra.focus(); } catch (_) {} }
 }
 
 function mostrarQRRemoto() {

@@ -194,3 +194,25 @@ ALTER TABLE alumno_lecciones ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "anon_all" ON lecciones        FOR ALL TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "anon_all" ON leccion_items    FOR ALL TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "anon_all" ON alumno_lecciones FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- ══ SESIONES DE ENTRENAMIENTO — VÍNCULO CON CONTEXTO ═════════════════════════
+-- La tabla repertorio_sesiones_entrenamiento ya existe en producción
+-- (id TEXT PK, nombre TEXT, canciones JSONB, creada_en BIGINT). Aquí se agrega
+-- SOLO el vínculo opcional con un contexto: la "sesión de entrenamiento por
+-- defecto" de un curso. La sesión de entrenamiento sigue siendo la fuente de
+-- repertorio — NO se copian canciones a las sesiones del Portal.
+--
+--   contexto_id = NULL  → sesión independiente (sigue siendo válida)
+--   contexto_id = <id>  → sesión por defecto de ese contexto
+--
+-- MIGRACIÓN (ejecutar una vez en Supabase → SQL Editor):
+
+ALTER TABLE repertorio_sesiones_entrenamiento
+    ADD COLUMN IF NOT EXISTS contexto_id UUID REFERENCES contextos(id);
+
+-- Como máximo UNA sesión por defecto por contexto. El índice parcial permite
+-- múltiples filas con contexto_id NULL, pero impide dos filas con el mismo
+-- contexto_id (garantía a nivel de BD, además de la validación en la app).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sesion_entrenamiento_contexto
+    ON repertorio_sesiones_entrenamiento(contexto_id)
+    WHERE contexto_id IS NOT NULL;

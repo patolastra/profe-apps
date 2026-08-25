@@ -715,6 +715,73 @@
     <p class="error-hint">Abre esta app desde el Portal → PRESENTAR ↗</p>
 </div>
 
+<!-- SELECTOR DE REPERTORIO (Entrenador) — tecla T -->
+<div id="ent-selector">
+    <div id="entsel-box">
+        <div id="entsel-head">
+            <span>🎵 Entrenador</span>
+            <button id="entsel-cerrar" onclick="cerrarSelectorEntrenador()" title="Cerrar (Esc)">✕</button>
+        </div>
+        <input id="entsel-search" type="search" placeholder="Buscar canción del repertorio…" oninput="entselRenderCanciones(this.value)" autocomplete="off">
+        <div id="entsel-body"></div>
+    </div>
+</div>
+<style>
+    #ent-selector {
+        position: fixed; inset: 0; z-index: 500;
+        background: rgba(0,0,0,0.55);
+        display: none; align-items: center; justify-content: center; padding: 24px;
+    }
+    #ent-selector.visible { display: flex; }
+    #entsel-box {
+        background: #1e293b; color: #e2e8f0;
+        border: 1.5px solid #475569; border-radius: 16px;
+        width: 100%; max-width: 460px; max-height: 82vh;
+        display: flex; flex-direction: column; overflow: hidden;
+        box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+        font-family: system-ui, -apple-system, sans-serif;
+    }
+    #entsel-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 18px; border-bottom: 1px solid #334155;
+        font-size: 1.02rem; font-weight: 700;
+    }
+    #entsel-cerrar {
+        background: none; border: none; color: #94a3b8;
+        font-size: 1.1rem; cursor: pointer; line-height: 1;
+    }
+    #entsel-search {
+        margin: 12px 16px 6px; padding: 9px 12px;
+        background: #0f172a; color: #f1f5f9;
+        border: 1.5px solid #334155; border-radius: 10px;
+        font-size: 0.9rem; outline: none;
+    }
+    #entsel-search:focus { border-color: #0284c7; }
+    #entsel-body { overflow-y: auto; padding: 6px 10px 14px; }
+    .entsel-grouptitle {
+        font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em;
+        text-transform: uppercase; color: #64748b;
+        padding: 12px 8px 6px;
+    }
+    .entsel-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 12px; border-radius: 10px; cursor: pointer;
+        transition: background 0.12s;
+    }
+    .entsel-item:hover { background: #334155; }
+    .entsel-item.default { background: #0c4a6e33; border: 1px solid #0284c766; }
+    .entsel-ico { font-size: 1.05rem; flex-shrink: 0; }
+    .entsel-info { min-width: 0; flex: 1; }
+    .entsel-nombre { font-size: 0.92rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .entsel-sub { font-size: 0.74rem; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .entsel-badge {
+        font-size: 0.64rem; font-weight: 700; color: #7dd3fc;
+        background: #0284c733; border: 1px solid #0284c766;
+        border-radius: 20px; padding: 2px 8px; flex-shrink: 0;
+    }
+    .entsel-vacio { color: #94a3b8; font-size: 0.82rem; padding: 14px 10px; }
+</style>
+
 <script>
 // ── TEMAS ────────────────────────────────────────────────
 // Todos fondos claros. Cambia: font, paleta de colores.
@@ -787,6 +854,7 @@ let repViewMode = 'estrofa1';    // modo de visualización activo
 let repHighlightMode = 'verso';  // 'verso' | 'estrofa'
 let repFollow = true;            // el audio gobierna el resaltado (modelo único de sync)
 let repCancionId = null;         // id de la canción activa (para persistir prefs)
+let pizCtx = null;               // { id, nombre } del contexto de la sesión del Portal actual
 let repProgScroll = false;       // hay un scroll programático en curso (distinguir de manual)
 let repProgScrollTimer = null;
 
@@ -1797,9 +1865,11 @@ async function iniciarModoPres(sid) {
 
     try {
         const { data: ses } = await sb.from('sesiones')
-            .select('fecha, contextos(nombre)').eq('id', sid).single();
+            .select('fecha, contextos(id, nombre)').eq('id', sid).single();
         if (ses) {
             const nombre = ses.contextos?.nombre || '';
+            // Contexto actual de la Pizarra → resuelve la sesión de entrenamiento por defecto.
+            pizCtx = { id: ses.contextos?.id || null, nombre };
             const fecha  = formatearFecha(ses.fecha);
             document.getElementById('pres-titulo').textContent = `${nombre} · ${fecha}`;
             document.title = `Pizarra — ${nombre}`;
@@ -1981,7 +2051,128 @@ function enviarTimerCustom() {
 
 // ── TECLADO ──────────────────────────────────────────────
 
+// ── SELECTOR DE REPERTORIO (Entrenador) ──────────────────
+// Acceso rápido desde Pizarra: sesión por defecto del curso + otras sesiones +
+// búsqueda de canción individual. NO modifica ninguna asociación ni sesión:
+// sólo abre el Entrenador (que reutiliza practicarSesion / abrirEntrenador) en
+// modo proyección. La sesión de entrenamiento sigue siendo la fuente de repertorio.
+let entselCargado   = false;
+let entselSesiones  = [];
+let entselCanciones = [];
+
+async function entselCargarDatos() {
+    // Sesiones de entrenamiento (con vínculo de contexto). Guard: si la columna
+    // contexto_id aún no existe, reintenta sin ella (todas quedan como independientes).
+    try {
+        const { data, error } = await sb.from('repertorio_sesiones_entrenamiento')
+            .select('id,nombre,contexto_id,canciones').order('creada_en', { ascending: false });
+        if (error) throw error;
+        entselSesiones = data || [];
+    } catch (_) {
+        try {
+            const { data } = await sb.from('repertorio_sesiones_entrenamiento')
+                .select('id,nombre,canciones').order('creada_en', { ascending: false });
+            entselSesiones = (data || []).map(s => ({ ...s, contexto_id: null }));
+        } catch { entselSesiones = []; }
+    }
+    try {
+        const { data } = await sb.from('repertorio_canciones')
+            .select('id,nombre,artista,categoria').order('nombre');
+        entselCanciones = (data || []).filter(c => c.categoria !== 'material');
+    } catch { entselCanciones = []; }
+    entselCargado = true;
+}
+
+async function abrirSelectorEntrenador() {
+    const ov = document.getElementById('ent-selector');
+    ov.classList.add('visible');
+    document.getElementById('entsel-body').innerHTML = `<div class="entsel-vacio">Cargando repertorio…</div>`;
+    if (!entselCargado) await entselCargarDatos();
+    entselRenderBody();
+    const inp = document.getElementById('entsel-search');
+    inp.value = ''; setTimeout(() => inp.focus(), 30);
+}
+
+function cerrarSelectorEntrenador() {
+    document.getElementById('ent-selector').classList.remove('visible');
+}
+
+function entselRenderBody() {
+    document.getElementById('entsel-body').innerHTML =
+        `<div id="entsel-sesiones"></div>
+         <div class="entsel-grouptitle">Buscar canción</div>
+         <div id="entsel-canciones"></div>`;
+    entselRenderSesiones();
+    entselRenderCanciones('');
+}
+
+function entselRenderSesiones() {
+    const wrap = document.getElementById('entsel-sesiones');
+    const ctxId = pizCtx?.id || null;
+    const def = ctxId ? entselSesiones.find(s => s.contexto_id === ctxId) : null;
+    const otras = entselSesiones.filter(s => s !== def);
+    let html = `<div class="entsel-grouptitle">Sesión del curso${pizCtx?.nombre ? ' · ' + esc(pizCtx.nombre) : ''}</div>`;
+    html += def
+        ? entselSesionHTML(def, true)
+        : `<div class="entsel-vacio">Este curso no tiene sesión de entrenamiento por defecto. Elegí otra sesión o buscá una canción.</div>`;
+    if (otras.length) {
+        html += `<div class="entsel-grouptitle">Otras sesiones</div>`;
+        html += otras.map(s => entselSesionHTML(s, false)).join('');
+    }
+    wrap.innerHTML = html;
+}
+
+function entselSesionHTML(s, isDefault) {
+    const n = (s.canciones || []).length;
+    return `<div class="entsel-item${isDefault ? ' default' : ''}" onclick="entselAbrirSesion('${s.id}')">
+        <span class="entsel-ico">🗂️</span>
+        <div class="entsel-info">
+            <div class="entsel-nombre">${esc(s.nombre)}</div>
+            <div class="entsel-sub">${n} canci${n === 1 ? 'ón' : 'ones'}</div>
+        </div>
+        ${isDefault ? '<span class="entsel-badge">Curso</span>' : ''}
+    </div>`;
+}
+
+function entselRenderCanciones(q) {
+    const wrap = document.getElementById('entsel-canciones');
+    if (!wrap) return;
+    const term = (q || '').toLowerCase().trim();
+    let lista = entselCanciones;
+    if (term) lista = lista.filter(c =>
+        c.nombre.toLowerCase().includes(term) || (c.artista || '').toLowerCase().includes(term));
+    lista = lista.slice(0, 40);
+    if (!lista.length) { wrap.innerHTML = `<div class="entsel-vacio">Sin resultados</div>`; return; }
+    wrap.innerHTML = lista.map(c => `<div class="entsel-item" onclick="entselAbrirCancion('${c.id}')">
+        <span class="entsel-ico">🎵</span>
+        <div class="entsel-info">
+            <div class="entsel-nombre">${esc(c.nombre)}</div>
+            ${c.artista ? `<div class="entsel-sub">${esc(c.artista)}</div>` : ''}
+        </div>
+    </div>`).join('');
+}
+
+function entselAbrirSesion(id)  { entselAbrir(`?practicar=${encodeURIComponent(id)}&proyeccion=1`); }
+function entselAbrirCancion(id) { entselAbrir(`?cancion=${encodeURIComponent(id)}&proyeccion=1`); }
+function entselAbrir(qs) {
+    const url = new URL('../REPERTORIO/index.html' + qs, location.href).href;
+    cerrarSelectorEntrenador();
+    const w = window.open(url, '_blank');
+    if (!w) location.href = url;   // pop-up bloqueado → misma pestaña
+}
+
 document.addEventListener('keydown', e => {
+    // Selector de repertorio abierto: sólo Esc lo cierra; el resto pasa al input.
+    if (document.getElementById('ent-selector').classList.contains('visible')) {
+        if (e.key === 'Escape') { e.preventDefault(); cerrarSelectorEntrenador(); }
+        return;
+    }
+    // T = abrir el selector del Entrenador (sólo en modo presentación, no escribiendo).
+    if ((e.key === 't' || e.key === 'T') &&
+        document.getElementById('app-pres').style.display !== 'none' &&
+        !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '')) {
+        e.preventDefault(); abrirSelectorEntrenador(); return;
+    }
     if (repActivo && repStanzas.length) {
         if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); repAvancar(); }
         else if (['ArrowLeft', 'ArrowUp'].includes(e.key))    { e.preventDefault(); repRetroceder(); }
