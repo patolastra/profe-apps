@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ritmo — Demo aislada (Etapa 1.1)</title>
+<style>
+    :root { --bg:#f1f5f9; --panel:#fff; --ink:#0f172a; --mut:#64748b; --line:#e2e8f0;
+            --accent:#2563eb; --ok:#16a34a; --err:#dc2626; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+    header { padding: 14px 20px; background:#0f172a; color:#fff; }
+    header h1 { margin:0; font-size:1.05rem; font-weight:700; }
+    header p { margin:4px 0 0; font-size:.78rem; color:#94a3b8; }
+    .layout { display:grid; grid-template-columns: 240px 1fr; gap:16px; padding:16px; align-items:start; }
+    @media (max-width:860px){ .layout { grid-template-columns:1fr; } }
+
+    .card { background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; }
+    .card h2 { margin:0 0 10px; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); }
+
+    .ejemplos button { display:block; width:100%; text-align:left; margin-bottom:6px; padding:8px 10px;
+        border:1px solid var(--line); background:#f8fafc; border-radius:8px; cursor:pointer; font-size:.82rem; }
+    .ejemplos button:hover { background:#eef2f7; border-color:#cbd5e1; }
+
+    textarea { width:100%; height:120px; font-family: ui-monospace, monospace; font-size:.82rem;
+        border:1px solid var(--line); border-radius:8px; padding:8px; resize:vertical; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+
+    .btn { padding:9px 16px; border:none; border-radius:9px; cursor:pointer; font-size:.9rem; font-weight:600; }
+    .btn-play { background: var(--ok); color:#fff; }
+    .btn-stop { background:#334155; color:#fff; }
+    .btn-apply{ background: var(--accent); color:#fff; }
+
+    .toggle { display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+    .toggle button { padding:9px 16px; border:none; background:#f8fafc; cursor:pointer; font-size:.85rem; font-weight:600; color:var(--mut); }
+    .toggle button.on { background: var(--accent); color:#fff; }
+
+    .chk { display:inline-flex; align-items:center; gap:6px; font-size:.82rem; color:var(--ink); user-select:none; }
+    .chk input { width:16px; height:16px; }
+    #chkTresilloWrap { opacity:1; transition:opacity .2s; }
+    #chkTresilloWrap.dim { opacity:.35; }
+
+    .meta { display:flex; gap:18px; flex-wrap:wrap; margin-top:10px; font-size:.82rem; color:var(--mut); }
+    .meta b { color:var(--ink); }
+
+    #stage { margin-top:12px; width:100%; aspect-ratio:16/9; background:#fff; border:1px solid var(--line);
+        border-radius:12px; overflow:hidden; }
+
+    #status { margin-top:10px; font-size:.8rem; min-height:1.2em; }
+    #status.ok  { color: var(--ok); }
+    #status.err { color: var(--err); }
+    .hint { font-size:.72rem; color:var(--mut); margin-top:8px; line-height:1.5; }
+    code { background:#f1f5f9; padding:1px 4px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+    <h1>Ritmo — Demo aislada · Etapa 1.1</h1>
+    <p>PARTITURA = VexFlow local (una línea, plicas arriba). INFANTIL = SVG propio con espaciado por duración. Todo deriva de <code>ritmo.js</code>. Sin integración con apps.</p>
+</header>
+
+<div class="layout">
+    <div>
+        <div class="card ejemplos">
+            <h2>Ejemplos</h2>
+            <button data-ej="1">4/4 · nnnn</button>
+            <button data-ej="2">4/4 · cccccccc</button>
+            <button data-ej="3">4/4 · semicorcheas</button>
+            <button data-ej="4">4/4 · mezcla nnssssssss</button>
+            <button data-ej="5">6/8 · cccccc</button>
+            <button data-ej="6">4/4 · puntillos</button>
+            <button data-ej="7">redonda / blancas</button>
+            <button data-ej="8">tresillo (n,nnn)</button>
+            <button data-ej="9">tresillo (c,ccc)</button>
+            <button data-ej="10">tresillo subdiv. (n,nccn)</button>
+            <button data-ej="11">dos compases</button>
+        </div>
+        <div class="card" style="margin-top:14px">
+            <h2>Repeticiones</h2>
+            <div class="row">
+                <button class="btn btn-apply" data-reps="1">reps 1</button>
+                <button class="btn btn-apply" data-reps="2">reps 2</button>
+                <button class="btn btn-apply" data-reps="4">reps 4</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Definición (pura, sin @ritmo ni ---)</h2>
+        <textarea id="def"></textarea>
+        <div class="row">
+            <button class="btn btn-apply" id="apply">Aplicar</button>
+            <div class="toggle" id="modo">
+                <button data-modo="partitura" class="on">Partitura</button>
+                <button data-modo="infantil">Infantil</button>
+            </div>
+            <span class="chk" id="chkTresilloWrap">
+                <input type="checkbox" id="chkTresillo" checked>
+                <label for="chkTresillo">Indicador de tresillo</label>
+            </span>
+            <button class="btn btn-play" id="play">▶ Play</button>
+            <button class="btn btn-stop" id="stop">■ Stop</button>
+        </div>
+        <div class="meta" id="meta"></div>
+        <div id="stage"></div>
+        <div id="status"></div>
+        <div class="hint">Probá: tresillos con el indicador ON/OFF (mismas figuras y mismo audio); semicorcheas sin desborde; infantil sin 👏 solapados; Play con reps 2/4 para cursor + FX.</div>
+    </div>
+</div>
+
+<script src="vendor/vexflow.js"></script>
+<script src="ritmo.js"></script>
+<script src="ritmo-render.js"></script>
+<script>
+const EJEMPLOS = {
+  1:  `compas: 4/4\nbpm: 90\nrep: 2\nmodo: partitura\nnnnn`,
+  2:  `compas: 4/4\nbpm: 100\nrep: 2\nmodo: partitura\ncccccccc`,
+  3:  `compas: 4/4\nbpm: 76\nrep: 2\nmodo: partitura\nssssssssssssssss`,
+  4:  `compas: 4/4\nbpm: 84\nrep: 2\nmodo: partitura\nnnssssssss`,
+  5:  `compas: 6/8\nbpm: 80\nrep: 2\nmodo: partitura\ncccccc`,
+  6:  `compas: 4/4\nbpm: 72\nrep: 2\nmodo: partitura\nn.n.n`,
+  7:  `compas: 4/4\nbpm: 80\nrep: 1\nmodo: partitura\nr\nbb`,
+  8:  `compas: 4/4\nbpm: 90\nrep: 2\nmodo: partitura\n(n,nnn)nn`,
+  9:  `compas: 4/4\nbpm: 90\nrep: 2\nmodo: partitura\n(c,ccc)nnn`,
+  10: `compas: 4/4\nbpm: 84\nrep: 2\nmodo: partitura\n(n,nccn)nn`,
+  11: `compas: 4/4\nbpm: 96\nrep: 1\nmodo: partitura\nnnnn\ncccccccc`,
+};
+
+let obj = null, layout = null, player = null, modo = 'partitura';
+
+const $ = s => document.querySelector(s);
+const stage = $('#stage'), status = $('#status'), meta = $('#meta'), defEl = $('#def');
+const chkTresillo = $('#chkTresillo');
+
+function setStatus(msg, cls){ status.textContent = msg; status.className = cls || ''; }
+function opciones(){ return { mostrarIndicadorTresillo: chkTresillo.checked }; }
+
+function aplicar() {
+  if (player) player.stop();
+  try { obj = RITMO.parse(defEl.value); }
+  catch (e) {
+    obj = null; player = null; stage.innerHTML=''; meta.innerHTML='';
+    setStatus('✕ ' + e.code + ': ' + e.message, 'err'); return;
+  }
+  renderActual();
+  meta.innerHTML =
+    `<span>Compás <b>${obj.meter.num}/${obj.meter.den}</b> (${obj.meter.group})</span>` +
+    `<span>BPM <b>${obj.bpm}</b></span>` +
+    `<span>Reps <b>${obj.reps}</b></span>` +
+    `<span>Compases <b>${obj.measures.length}</b></span>` +
+    `<span>eventos <b>${obj.measures.reduce((s,m)=>s+m.events.length,0)}</b></span>`;
+  setStatus('✓ Ritmo válido.', 'ok');
+}
+
+function renderActual() {
+  if (!obj) return;
+  layout = RITMO_UI.render(obj, stage, modo, opciones());
+  player = RITMO_UI.crearPlayer(obj, layout, {
+    onState: st => {
+      if (st === 'playing') setStatus('▶ Reproduciendo…', 'ok');
+      else if (st === 'ended') setStatus('✓ Fin. Cursor al inicio.', 'ok');
+      else if (st === 'stopped') setStatus('■ Detenido.', '');
+    }
+  });
+}
+
+document.querySelectorAll('.ejemplos button').forEach(b =>
+  b.addEventListener('click', () => { defEl.value = EJEMPLOS[b.dataset.ej]; aplicar(); }));
+
+document.querySelectorAll('[data-reps]').forEach(b =>
+  b.addEventListener('click', () => {
+    defEl.value = defEl.value.replace(/^rep:.*$/m, 'rep: ' + b.dataset.reps);
+    aplicar();
+  }));
+
+document.querySelectorAll('#modo button').forEach(b =>
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#modo button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    modo = b.dataset.modo;
+    // El indicador de tresillo solo aplica a Partitura
+    $('#chkTresilloWrap').classList.toggle('dim', modo !== 'partitura');
+    if (obj) renderActual();
+  }));
+
+chkTresillo.addEventListener('change', () => { if (obj) renderActual(); });
+
+$('#apply').addEventListener('click', aplicar);
+$('#play').addEventListener('click', () => player && player.play());
+$('#stop').addEventListener('click', () => player && player.stop());
+
+defEl.value = EJEMPLOS[1];
+aplicar();
+</script>
+</body>
+</html>

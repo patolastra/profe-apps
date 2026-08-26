@@ -6,6 +6,10 @@
     <title>Repertorio</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="../supabase/config.js"></script>
+    <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
+    <script src="../vendor/vexflow.js"></script>
+    <script src="../ritmo.js"></script>
+    <script src="../ritmo-render.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1715,7 +1719,10 @@
         #ent-song-artista { font-size: 0.7rem; color: #64748b; }
         #ent-asset-chips {
             display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto;
-            scrollbar-width: none; flex-shrink: 0; max-width: 25%;
+            scrollbar-width: none;
+            /* Los chips ceden (encogen/scrollean) antes que las herramientas de la
+               derecha: así nunca cubren a #ent-header-tools ni desbordan el header. */
+            flex-shrink: 1; min-width: 0;
         }
         #ent-asset-chips::-webkit-scrollbar { display: none; }
         .ent-chip {
@@ -1726,6 +1733,17 @@
         }
         .ent-chip:hover { border-color: #64748b; color: #cbd5e1; }
         .ent-chip.active { background: #ea580c; border-color: #ea580c; color: #fff; }
+
+        /* Zona de ritmo dentro del Entrenador (motor ritmo-render.js) */
+        .ent-ritmo-box { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+        .ent-ritmo-canvas { flex: 1; min-height: 0; width: 100%; }
+        .ent-ritmo-controls { display: flex; align-items: center; justify-content: center; gap: 12px; flex-shrink: 0; }
+        .ent-ritmo-meta { font-size: 0.8rem; color: #94a3b8; }
+        .ent-ritmo-error { color: #f87171; padding: 24px; max-width: 560px; }
+        .ent-ritmo-error .err-title { font-weight: 700; margin-bottom: 6px; }
+        .ent-ritmo-error .err-detail { font-size: 0.85rem; color: #fca5a5; }
+        .ent-metal-cta { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+        .ent-metal-ico { font-size: 3.4rem; }
 
         #ent-main {
             flex: 1;
@@ -2730,9 +2748,10 @@ const TIPOS_ASSET = {
     metalofono:{ ico: '🎼', label: 'Metalófono', clase: 'metal'   },
     flauta:    { ico: '🎶', label: 'Flauta',     clase: 'flauta'  },
     cifrado:   { ico: '🎹', label: 'Cifrado',    clase: 'cifrado' },
+    ritmo:     { ico: '🥁', label: 'Ritmo',      clase: 'ritmo'   },
 };
 
-const TIPO_ORD  = { letra:0, audio:1, tab:2, cifrado:3, metalofono:4, flauta:5 };
+const TIPO_ORD  = { letra:0, audio:1, tab:2, cifrado:3, metalofono:4, flauta:5, ritmo:6 };
 const INST_ORD  = { guitarra:0, ukelele:1, bajo:2, metalofono:3, flauta:4 };
 const DIFIC_ORD = { inicial:0, media:1, dificil:2, experto:3 };
 
@@ -4964,6 +4983,7 @@ function cerrarEntrenador() {
     entFlushConfigSesion();
     entModoSesion = false;
     entModoEditSesion = false;
+    if (entRitmoPlayer) { try { entRitmoPlayer.stop(); } catch (_) {} entRitmoPlayer = null; }
     const audioEl = entAudio();
     audioEl.pause(); audioEl.src = '';
     audioEl.ontimeupdate = null; audioEl.onloadedmetadata = null;
@@ -5010,7 +5030,7 @@ function entRenderChips(preselId) {
     // En Modo Pizarra los chips van ocultos; fuera, solo si hay 2+ assets no-audio.
     wrap.style.display = (!entProyeccion && assets.length > 1) ? '' : 'none';
     wrap.innerHTML = assets.map(a => {
-        const ico = { letra:'🎵', cifrado:'🎸', tab:'📄', metalofono:'🎹', flauta:'🎶' }[a.tipo] || '📄';
+        const ico = { letra:'🎵', cifrado:'🎸', tab:'📄', metalofono:'🎹', flauta:'🎶', ritmo:'🥁' }[a.tipo] || '📄';
         const label = a.etiqueta || [a.instrumento, a.dificultad, a.tonalidad].filter(Boolean).join(' ') || a.tipo;
         return `<button class="ent-chip${a.id === activo?.id ? ' active' : ''}"
                     onclick="entSelAsset('${a.id}')">${ico} ${label}</button>`;
@@ -5022,12 +5042,17 @@ function entSelAsset(id) {
     const asset = (entrenadorSong?.assets || []).find(a => a.id === id);
     if (!asset) return;
     document.querySelectorAll('.ent-chip').forEach(c => c.classList.toggle('active', c.onclick?.toString().includes(id)));
-    entCargarAsset(asset);
+    entCargarAsset(asset, true);   // clic del usuario (para abrir Metalófono al seleccionar el chip)
 }
 
-function entCargarAsset(asset) {
+// Player del ritmo activo en la zona del Entrenador (motor ritmo-render.js).
+let entRitmoPlayer = null;
+
+function entCargarAsset(asset, userInitiated = false) {
     entrenadorAssetActivo = asset;
     entrenadorLineasRevisar = new Set();   // marca temporal: no sobrevive al cambio de asset
+    // Detener cualquier ritmo en reproducción al cambiar de asset (evita audio/cursor colgados).
+    if (entRitmoPlayer) { try { entRitmoPlayer.stop(); } catch (_) {} entRitmoPlayer = null; }
     const zona = document.getElementById('ent-zona');
     const ocultarRow = document.getElementById('ent-mode-btns');
 
@@ -5064,6 +5089,12 @@ function entCargarAsset(asset) {
         syncBtn.classList.remove('on');
         syncBtn.textContent = 'Sync';
         entRenderZona();
+    } else if (asset.tipo === 'ritmo') {
+        ocultarRow.style.display = 'none';
+        entRenderRitmo(asset);
+    } else if (asset.tipo === 'metalofono') {
+        ocultarRow.style.display = 'none';
+        entRenderMetalofono(asset, userInitiated);
     } else if (asset.storage_path) {
         const url = storageUrl(asset.storage_path);
         zona.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:none;"></iframe>`;
@@ -5075,6 +5106,56 @@ function entCargarAsset(asset) {
         zona.innerHTML = `<div style="color:#475569">Sin contenido</div>`;
         ocultarRow.style.display = 'none';
     }
+}
+
+// Renderiza un asset de ritmo en la zona del Entrenador reutilizando el motor
+// aprobado (ritmo.js + ritmo-render.js). El asset manda: modo/BPM/reps/compás
+// vienen en la definición serializada; el Entrenador no los reinterpreta.
+function entRenderRitmo(asset) {
+    const zona = document.getElementById('ent-zona');
+    let obj;
+    try {
+        obj = RITMO.parse(asset.contenido || '');
+    } catch (e) {
+        zona.innerHTML = `<div class="ent-ritmo-error">
+            <div class="err-title">Ritmo inválido</div>
+            <div class="err-detail">${(e.code ? e.code + ': ' : '') + (e.message || '')}</div>
+        </div>`;
+        return;
+    }
+    zona.innerHTML = `<div class="ent-ritmo-box">
+        <div id="ent-ritmo-canvas" class="ent-ritmo-canvas"></div>
+        <div class="ent-ritmo-controls">
+            <button id="ent-ritmo-play" class="ent-play-btn" title="Reproducir">▶</button>
+            <button id="ent-ritmo-stop" class="ent-play-btn" title="Detener">■</button>
+            <span class="ent-ritmo-meta">${obj.meter.num}/${obj.meter.den} · ${obj.bpm} BPM · ×${obj.reps} · ${obj.modo}</span>
+        </div>
+    </div>`;
+    const layout = RITMO_UI.render(obj, document.getElementById('ent-ritmo-canvas'), obj.modo);
+    entRitmoPlayer = RITMO_UI.crearPlayer(obj, layout, {});
+    document.getElementById('ent-ritmo-play').onclick = () => entRitmoPlayer && entRitmoPlayer.play();
+    document.getElementById('ent-ritmo-stop').onclick = () => entRitmoPlayer && entRitmoPlayer.stop();
+}
+
+// Metalófono desde los chips del Entrenador: usa el MISMO mecanismo que la tarjeta
+// (abrirMetalofono → overlay METAL21), no un iframe genérico del archivo.
+function entRenderMetalofono(asset, userInitiated) {
+    const zona = document.getElementById('ent-zona');
+    const label = asset.etiqueta
+        || [asset.instrumento, asset.dificultad, asset.tonalidad].filter(Boolean).join(' ')
+        || entrenadorSong?.nombre || 'Metalófono';
+    if (!asset.storage_path) {
+        // Metalófono en texto (notas), sin archivo MIDI: mostrar el contenido.
+        zona.innerHTML = `<div style="width:100%;max-width:640px"><pre style="white-space:pre-wrap;font-size:1rem;line-height:1.6;color:#cbd5e1">${(asset.contenido || 'Sin contenido')}</pre></div>`;
+        return;
+    }
+    const url = storageUrl(asset.storage_path);
+    zona.innerHTML = `<div class="ent-metal-cta">
+        <div class="ent-metal-ico">🎹</div>
+        <button id="ent-metal-open" class="btn-secondary">Abrir en Metalófono</button>
+    </div>`;
+    document.getElementById('ent-metal-open').onclick = () => abrirMetalofono(url, label);
+    if (userInitiated) abrirMetalofono(url, label);   // clic en el chip → abre directo
 }
 
 function entParseStanzas() {
