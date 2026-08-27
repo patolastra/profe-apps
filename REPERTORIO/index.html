@@ -1905,6 +1905,27 @@
             width: fit-content;
             max-width: 100%;
         }
+        /* Diapositiva: fila de columnas auto-dimensionadas (width:max-content → cada
+           columna se ajusta a su verso más ancho, sin overflow horizontal por verso). */
+        .ent-dia-cols {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            justify-content: center;
+            max-width: 100%;
+        }
+        .ent-dia-col {
+            display: flex;
+            flex-direction: column;
+        }
+        /* En Diapositiva los versos SÍ se envuelven dentro del ancho de columna
+           (a diferencia de Scroll, que usa nowrap). Sin esto, un verso largo desbordaría. */
+        .ent-dia-cols .ent-lyric-line {
+            white-space: normal;
+            overflow-wrap: break-word;
+            width: 100%;
+            max-width: 100%;
+        }
         .ent-stanza {
             width: 100%;
         }
@@ -5331,6 +5352,17 @@ function entSetViewMode(m) {
     const btn = document.getElementById('ent-btn-vista');
     if (btn) btn.textContent = (m === 'pantalla') ? 'Diapositiva' : 'Scroll';
     entFontSizeGlobal = null;      // recalcular tamaño para el nuevo encuadre
+    if (m === 'pantalla') {
+        // Presentación limpia: ocultar listado y panel de loops. Es cambio de
+        // presentación, no de funcionalidad: C reabre la lista, ⟳ el panel de loops.
+        entOcultarLista();
+        entOcultarLoopsPanel();
+    } else if (entModoSesion) {
+        // Volver a Scroll restaura el listado de la sesión (su estado normal).
+        const lista = document.getElementById('ent-sesion-lista');
+        const lb = document.getElementById('ent-btn-toggle-lista');
+        if (lista && lb && lb.style.display !== 'none') { lista.style.display = ''; lb.classList.add('activo'); }
+    }
     entRenderZona();
 }
 
@@ -5461,6 +5493,7 @@ function abrirEntrenador(songId) {
     entOcultarLoopsPanel();
 
     document.getElementById('entrenador-overlay').classList.add('visible');
+    entAsegurarResizeObs();
 }
 
 function cerrarEntrenador() {
@@ -5788,62 +5821,199 @@ function entParseStanzas() {
     return result;
 }
 
+// HTML de un verso (span con handlers y estado visual). Compartido por las vistas
+// Scroll y Diapositiva → un único lugar para el markup del verso, así el resaltado,
+// glow, cursivas, edición rápida y navegación se comportan igual en ambas.
+function entLineSpanHTML(l) {
+    const oculta = entrenadorOcultar || entrenadorLineasOcultas.has(l.origIdx);
+    const texto  = oculta ? '█ █ █ █ █ █' : l.text;
+    const coloreada = entrenadorLineasColoreadas.has(l.origIdx);
+    const revisar   = entrenadorLineasRevisar.has(l.origIdx);
+    const cls = `ent-lyric-line${l.origIdx === entrenadorLineIdx ? ' activa' : ''}${oculta ? ' oculta' : ''}${coloreada ? ' coloreado' : ''}${revisar ? ' revisar' : ''}`;
+    return `<span class="${cls}" data-orig="${l.origIdx}"
+        onclick="entClickLinea(event,${l.origIdx})"
+        ondblclick="entDblClickLinea(event,${l.origIdx})"
+        oncontextmenu="entEditLineaContextMenu(event,${l.origIdx})"
+        title="Click: ir al punto · Doble click: ocultar · Shift+click: colorear · Ctrl+Shift+click: colorear estrofa · Ctrl+click: crear loop · Click derecho: editar"
+        ><span class="ent-lyric-text">${texto}</span></span>`;
+}
+function entStanzaHTML(stanza) {
+    return `<div class="ent-stanza">${stanza.map(entLineSpanHTML).join('')}</div>`;
+}
+
 function entRenderZona(forzarOrigIdx = null) {
     const zona = document.getElementById('ent-zona');
     if (!entrenadorStanzas.length) {
         zona.innerHTML = '<div style="color:#94a3b8">Sin letra</div>'; return;
     }
 
-    // Vista: 'scroll' (continua, con scroll) o 'pantalla' (Diapositiva, encaja al alto).
-    // Siempre se renderizan todas las estrofas; el encuadre lo resuelve el tamaño de fuente.
-    const esPantalla = entViewMode === 'pantalla';
-    const stanzasVisibles = entrenadorStanzas;
-    zona.style.overflowY = esPantalla ? 'hidden' : '';
+    // Diapositiva compone TODA la letra en el área visible (multi-columna, sin scroll).
+    // Sync y Edición tienen su propio render → no entran al compositor.
+    const esPantalla = entViewMode === 'pantalla' && !entSyncMode && !entModoEdicion;
+    if (esPantalla) { zona.style.overflowY = 'hidden'; requestAnimationFrame(entRenderDiapositiva); return; }
 
-    zona.innerHTML = `<div class="ent-stanzas-wrapper">${stanzasVisibles.map((stanza, pos) => {
-        const lines = stanza.map(l => {
-            const oculta = entrenadorOcultar || entrenadorLineasOcultas.has(l.origIdx);
-            const texto  = oculta ? '█ █ █ █ █ █' : l.text;
-            const coloreada = entrenadorLineasColoreadas.has(l.origIdx);
-            const revisar   = entrenadorLineasRevisar.has(l.origIdx);
-            const cls    = `ent-lyric-line${l.origIdx === entrenadorLineIdx ? ' activa' : ''}${oculta ? ' oculta' : ''}${coloreada ? ' coloreado' : ''}${revisar ? ' revisar' : ''}`;
-            return `<span class="${cls}" data-orig="${l.origIdx}"
-                onclick="entClickLinea(event,${l.origIdx})"
-                ondblclick="entDblClickLinea(event,${l.origIdx})"
-                oncontextmenu="entEditLineaContextMenu(event,${l.origIdx})"
-                title="Click: ir al punto · Doble click: ocultar · Shift+click: colorear · Ctrl+Shift+click: colorear estrofa · Ctrl+click: crear loop · Click derecho: editar"
-                ><span class="ent-lyric-text">${texto}</span></span>`;
-        }).join('');
+    // Scroll: pila vertical continua de estrofas; el encuadre lo da el tamaño de fuente (ancho).
+    zona.style.overflowY = '';
+    zona.innerHTML = `<div class="ent-stanzas-wrapper">${entrenadorStanzas.map((stanza, pos) => {
         const sep = pos > 0 ? `<div class="ent-stanza-sep"></div>` : '';
-        return `${sep}<div class="ent-stanza">${lines}</div>`;
+        return `${sep}${entStanzaHTML(stanza)}`;
     }).join('')}</div>`;
 
     requestAnimationFrame(() => {
         entAjustarFontSize();
-        if (esPantalla) entFitAltura();
         const activa = zona.querySelector('.ent-lyric-line.activa');
-        if (activa && !esPantalla) activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (activa) activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
     });
 }
 
-// Vista Diapositiva: encoge la fuente hasta que TODA la letra visible entre en el alto
-// del área, sin scroll. Parte del tamaño de ancho ya calculado por entAjustarFontSize.
-function entFitAltura() {
+// ── DIAPOSITIVA ──────────────────────────────────────────────────────────────
+// Compone TODA la letra dentro del área visible del Entrenador: reparte las estrofas
+// en N columnas y busca la mejor pareja (tamaño de fuente, nº de columnas) con la que
+// todo cabe sin scroll ni solapamientos. Prioridad: (1) todo visible, (2) sin overflow,
+// (3) fuente lo más grande posible, (4) aprovechar el ancho con columnas, (5) estrofas
+// juntas. Las columnas tienen ANCHO ACOTADO y los versos que no caben SE ENVUELVEN
+// (así un verso largo no obliga a columnas gigantes ni a letra ilegible).
+// Reutiliza EXACTAMENTE el markup de verso de Scroll (entLineSpanHTML/entStanzaHTML).
+function entRenderDiapositiva() {
     const zona = document.getElementById('ent-zona');
-    const wrapper = zona?.querySelector('.ent-stanzas-wrapper');
-    if (!wrapper) return;
-    const dispH = zona.clientHeight - 24;
-    let guard = 0;
-    while (wrapper.scrollHeight > dispH && guard < 60) {
-        const lineas = wrapper.querySelectorAll('.ent-lyric-line');
-        if (!lineas.length) break;
-        const cur = parseFloat(getComputedStyle(lineas[0]).fontSize);
-        const next = cur * 0.94;
-        if (next < 10) break;
-        lineas.forEach(el => el.style.fontSize = next + 'px');
-        zona.querySelectorAll('.ent-stanza-sep').forEach(el => el.style.height = (next * 1.35 + 4) + 'px');
-        guard++;
+    if (!zona || !entrenadorStanzas.length) return;
+    if (entViewMode !== 'pantalla' || entSyncMode || entModoEdicion) return;
+    if (entVersoEnEdicion) return;   // no destruir una edición rápida en curso
+    zona.style.overflowY = 'hidden';
+
+    const cs = getComputedStyle(zona);
+    const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const padY = parseFloat(cs.paddingTop)  + parseFloat(cs.paddingBottom);
+    const W = zona.clientWidth  - padX;
+    const H = zona.clientHeight - padY;
+    if (W <= 0 || H <= 0) return;
+
+    // Ancho de cada verso a un tamaño BASE (el ancho escala lineal con el font-size).
+    const BASE = 3.1 * 16;
+    const canvas = entRenderDiapositiva._c || (entRenderDiapositiva._c = document.createElement('canvas'));
+    const ctx = canvas.getContext('2d');
+    ctx.font = `700 italic ${BASE}px ${cs.fontFamily}`;
+    // Estrofas con el ancho base de cada uno de sus versos (para estimar el envolvimiento).
+    const stanzasM = entrenadorStanzas.map(st => ({
+        lines: st,
+        wBase: st.map(l => Math.max(1, ctx.measureText(l.text || ' ').width))
+    }));
+
+    const LH = 1.35, LPAD = 4;                  // line-height y padding vertical del verso (CSS)
+    const lineH  = fs => fs * LH + LPAD;
+    const sepH   = fs => Math.round(fs * 0.75);  // separador entre estrofas de una misma columna
+    const colGap = fs => Math.max(28, Math.round(fs * 0.7));
+    const NMAX = 8;
+    // Nº de líneas visuales que ocupa un verso de ancho base `wb` a font `fs` en columna `cw`.
+    const wraps = (wb, fs, cw) => Math.max(1, Math.ceil((wb * fs / BASE) / cw - 1e-6));
+    const stanzaH = (st, fs, cw) => {
+        let h = 0; for (const wb of st.wBase) h += wraps(wb, fs, cw) * lineH(fs); return h;
+    };
+
+    // Intenta componer a un `fs` dado probando N=1..NMAX columnas. Devuelve la primera
+    // distribución factible (la de MENOS columnas → más anchas, menos envolvimiento).
+    // `split`=false empaqueta estrofas enteras; =true permite cortar dentro de estrofa.
+    function composeAt(fs, split) {
+        for (let N = 1; N <= NMAX; N++) {
+            const gap = colGap(fs);
+            const cw = (W - (N - 1) * gap) / N;
+            if (cw < fs * 4) break;                 // columna demasiado estrecha → descartar N mayores
+            const cols = []; let cur = [], curH = 0;
+            let ok = true;
+            if (!split) {
+                for (const st of stanzasM) {
+                    const sh = stanzaH(st, fs, cw);
+                    if (sh > H) { ok = false; break; }      // estrofa entera más alta que la columna
+                    const need = (cur.length ? sepH(fs) : 0) + sh;
+                    if (cur.length && curH + need > H) {
+                        cols.push(cur); cur = [st]; curH = sh;
+                        if (cols.length >= N) { ok = false; break; }
+                    } else { cur.push(st); curH += need; }
+                }
+                if (ok && cur.length) cols.push(cur);
+                if (ok && cols.length <= N) return { fs, N, cw, gap, cols, split };
+            } else {
+                let lastSi = -1;
+                const units = [];
+                stanzasM.forEach((st, si) => st.lines.forEach((l, k) => units.push({ l, si, wb: st.wBase[k] })));
+                for (const u of units) {
+                    const uh = wraps(u.wb, fs, cw) * lineH(fs);
+                    const need = (cur.length && u.si !== lastSi ? sepH(fs) : 0) + uh;
+                    if (cur.length && curH + need > H) {
+                        cols.push(cur); cur = [u]; curH = uh;
+                        if (cols.length >= N) { ok = false; break; }
+                    } else { cur.push(u); curH += need; }
+                    lastSi = u.si;
+                }
+                if (ok && cur.length) cols.push(cur);
+                if (ok && cols.length <= N) return { fs, N, cw, gap, cols, split };
+            }
+        }
+        return null;
     }
+
+    // Mayor fs factible con estrofas enteras; si ninguno, fallback permitiendo cortes.
+    const FS_MAX = Math.min(96, Math.floor(H * 0.9));
+    let plan = null;
+    for (let f = FS_MAX; f >= 14 && !plan; f--) plan = composeAt(f, false);
+    if (!plan) for (let f = FS_MAX; f >= 8 && !plan; f--) plan = composeAt(f, true);
+    if (!plan) plan = composeAt(8, true) || { fs: 8, N: 1, cw: W, gap: 28, cols: [stanzasM], split: false };
+
+    let { fs, cw, gap, cols, split } = plan;
+
+    // Render de columnas de ancho fijo `cw`; los versos largos se envuelven dentro.
+    let html = `<div class="ent-dia-cols" style="gap:${gap}px">`;
+    if (!split) {
+        html += cols.map(col => `<div class="ent-dia-col" style="width:${Math.round(cw)}px">` +
+            col.map((st, i) => (i ? `<div class="ent-stanza-sep" style="height:${sepH(fs)}px"></div>` : '') + entStanzaHTML(st.lines)).join('')
+        + `</div>`).join('');
+    } else {
+        html += cols.map(col => {
+            let inner = '', prevSi = -1;
+            col.forEach((u, i) => {
+                if (i && u.si !== prevSi) inner += `<div class="ent-stanza-sep" style="height:${sepH(fs)}px"></div>`;
+                inner += entLineSpanHTML(u.l);
+                prevSi = u.si;
+            });
+            return `<div class="ent-dia-col" style="width:${Math.round(cw)}px"><div class="ent-stanza">${inner}</div></div>`;
+        }).join('');
+    }
+    html += `</div>`;
+    zona.innerHTML = html;
+    zona.querySelectorAll('.ent-lyric-line').forEach(el => el.style.fontSize = fs + 'px');
+
+    // Guarda anti-overflow: si por diferencias de métrica/envolvimiento real una columna
+    // rebasa el alto, reduce la fuente uniformemente hasta que TODO quepa (nunca overflow).
+    let g = 0;
+    while (g++ < 40) {
+        let over = false;
+        zona.querySelectorAll('.ent-dia-col').forEach(c => { if (c.scrollHeight > H + 1) over = true; });
+        const row = zona.querySelector('.ent-dia-cols');
+        if (row && row.scrollWidth > W + 1) over = true;
+        if (!over || fs <= 8) break;
+        fs = Math.max(8, fs * 0.96);
+        zona.querySelectorAll('.ent-lyric-line').forEach(el => el.style.fontSize = fs + 'px');
+        zona.querySelectorAll('.ent-stanza-sep').forEach(el => el.style.height = Math.round(fs * 0.75) + 'px');
+    }
+}
+
+// Re-encuadra la letra según el modo activo. Punto único usado por resize, toggles de
+// lista/loops, etc. → Diapositiva recompone columnas; Scroll reajusta el font por ancho.
+function entReflowLetra() {
+    if (entVersoEnEdicion) return;
+    if (entViewMode === 'pantalla' && !entSyncMode && !entModoEdicion) entRenderDiapositiva();
+    else entAjustarFontSize();
+}
+
+// Observa el tamaño de #ent-zona para re-encuadrar la letra ante CUALQUIER cambio de
+// tamaño disponible (ventana, fullscreen, header/lista/loops). Se usa en TODAS las
+// aperturas del Entrenador (individual y sesión) → un único observer, idempotente.
+function entAsegurarResizeObs() {
+    if (!window._entResizeObs) {
+        window._entResizeObs = new ResizeObserver(() => { entFontSizeGlobal = null; requestAnimationFrame(entReflowLetra); });
+    }
+    const zona = document.getElementById('ent-zona');
+    if (zona) window._entResizeObs.observe(zona);
 }
 
 function entClickLinea(e, i) {
@@ -6271,7 +6441,7 @@ function entToggleLista() {
     const visible = lista.style.display !== 'none';
     lista.style.display = visible ? 'none' : '';
     btn.classList.toggle('activo', !visible);
-    requestAnimationFrame(entAjustarFontSize);
+    requestAnimationFrame(entReflowLetra);
 }
 
 function entToggleLoopsPanel() {
@@ -6280,7 +6450,7 @@ function entToggleLoopsPanel() {
     const visible = panel.style.display !== 'none';
     panel.style.display = visible ? 'none' : '';
     btn.classList.toggle('activo', !visible);
-    requestAnimationFrame(entAjustarFontSize);
+    requestAnimationFrame(entReflowLetra);
 }
 
 function entToggleLoop() {
@@ -7116,11 +7286,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     entAplicarTema();
     if (!yaAbierto) entOcultarLoopsPanel();   // el panel arranca oculto (se abre con ⟳)
     document.getElementById('entrenador-overlay').classList.add('visible');
-
-    if (!window._entResizeObs) {
-        window._entResizeObs = new ResizeObserver(() => { entFontSizeGlobal = null; requestAnimationFrame(entAjustarFontSize); });
-    }
-    window._entResizeObs.observe(document.getElementById('ent-zona'));
+    entAsegurarResizeObs();
 }
 
 function cerrarEntrenadorModoEdicion() {
