@@ -372,24 +372,34 @@
         if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
         return _actx;
     }
+    // Ruido con envolvente de PALMADA (clap): varias micro-ráfagas seguidas de
+    // una cola corta, imitando el rebote de las manos al aplaudir. Sustituye al
+    // tick anterior (ruido con caída simple). Reutiliza el mismo mecanismo de
+    // buffer de ruido + biquad; no introduce dependencias nuevas.
     function bufferRuido(c) {
         if (_noise && _noise.sampleRate === c.sampleRate) return _noise;
-        const dur = 0.05, n = Math.ceil(c.sampleRate * dur);
-        const buf = c.createBuffer(1, n, c.sampleRate);
+        const sr = c.sampleRate;
+        const dur = 0.20, n = Math.ceil(sr * dur);
+        const buf = c.createBuffer(1, n, sr);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2.2);
+        const taps = [0, 0.009, 0.018, 0.027];   // ráfagas del golpe de palmas
+        for (let i = 0; i < n; i++) {
+            const t = i / sr;
+            let env = 0;
+            for (const tp of taps) if (t >= tp) env += Math.exp(-(t - tp) * 300);
+            env += 0.28 * Math.exp(-t * 22);      // cola corta
+            d[i] = (Math.random() * 2 - 1) * Math.min(env, 1);
+        }
         _noise = buf;
         return buf;
     }
     function programarGolpe(c, t, salida) {
-        const src = c.createBufferSource(); src.buffer = bufferRuido(c);
-        const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1750; bp.Q.value = 0.9;
-        const g = c.createGain();
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.9, t + 0.004);
-        g.gain.exponentialRampToValueAtTime(0.0008, t + 0.05);
+        const buf = bufferRuido(c);
+        const src = c.createBufferSource(); src.buffer = buf;
+        const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1150; bp.Q.value = 0.7;
+        const g = c.createGain(); g.gain.value = 1.0;   // envolvente ya horneada en el buffer
         src.connect(bp).connect(g).connect(salida);
-        src.start(t); src.stop(t + 0.06);
+        src.start(t); src.stop(t + buf.duration + 0.02);
         return src;
     }
 
