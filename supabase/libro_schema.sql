@@ -118,3 +118,191 @@ CREATE POLICY "acceso_total" ON libro_matriculas  FOR ALL USING (true) WITH CHEC
 -- Sin mecanismo de cierre/migración (F2+).
 INSERT INTO libro_anios (anio, activo) VALUES (2026, true)
 ON CONFLICT (anio) DO NOTHING;
+
+
+-- ============================================================
+-- LIBRO DE CLASES — F4: evaluaciones
+-- ============================================================
+-- Sistema de EVALUACIONES sobre la capa F1 (anios/estudiantes/matriculas).
+-- Aditivo e idempotente (re-ejecutable). NO modifica F1 ni estructuras
+-- ajenas: contextos, sesiones y alumnos_taller quedan intactas (solo se
+-- referencian por FK).
+--
+-- ALCANCE F4 (estricto): cabecera de evaluación, OA original, adecuaciones,
+-- detalle por estudiante (nota, comentario, objetivo aplicado), estado
+-- abierto/cerrado con cierre REVERSIBLE, e integridad en Supabase.
+-- NO incluye: rúbricas, participación, entregas, observaciones, talleres,
+-- administración/cierre/migración de año, promoción, matching (F5–F7).
+--
+-- Invariantes garantizadas aquí (numeración del prompt de F4):
+--   I7  una sola nota por estudiante/evaluación  → UNIQUE (evaluacion_id, estudiante_id)
+--   I8  nota NULL o en [1.0, 7.0]                → CHECK
+--   I9  la adecuación aplicada en una nota pertenece a la MISMA evaluación → trigger
+--   I12 cerrado = solo lectura (cabecera + detalles); reapertura explícita  → triggers
+--   I13 snapshot: la población se materializa al crear; sin re-sincronización
+--       → garantizado por diseño: NINGÚN mecanismo de BD añade filas de notas;
+--         la app inserta una fila por estudiante vigente al crear y nada más.
+-- ============================================================
+
+-- ── 4. LIBRO_EVALUACIONES ───────────────────────────────────
+-- Cabecera. Pertenece a un año y a un contexto de tipo 'curso'. La sesión de
+-- creación es solo trazabilidad: NO limita la vida de la evaluación (puede
+-- seguir abierta y editarse desde sesiones posteriores del mismo contexto).
+CREATE TABLE IF NOT EXISTS libro_evaluaciones (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    anio_id             UUID NOT NULL REFERENCES libro_anios(id),
+    contexto_id         UUID NOT NULL REFERENCES contextos(id),    -- debe ser tipo 'curso'
+    sesion_creacion_id  UUID NOT NULL REFERENCES sesiones(id),     -- trazabilidad
+    nombre              TEXT NOT NULL,
+    fecha               DATE NOT NULL,
+    oa_original         TEXT NOT NULL DEFAULT '',                  -- un único OA original
+    estado              TEXT NOT NULL DEFAULT 'abierto'
+                            CHECK (estado IN ('abierto', 'cerrado')),
+    created_at          TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_libro_eval_anio_ctx ON libro_evaluaciones (anio_id, contexto_id);
+
+-- ── 5. LIBRO_EVALUACION_ADECUACIONES ────────────────────────
+-- Cero o más adecuaciones derivadas del OA original de UNA evaluación.
+CREATE TABLE IF NOT EXISTS libro_evaluacion_adecuaciones (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    evaluacion_id  UUID NOT NULL REFERENCES libro_evaluaciones(id) ON DELETE CASCADE,
+    texto          TEXT NOT NULL,
+    created_at     TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_libro_adec_eval ON libro_evaluacion_adecuaciones (evaluacion_id);
+
+-- ── 6. LIBRO_EVALUACION_NOTAS ───────────────────────────────
+-- Detalle: una fila por estudiante incluido (materializado al crear = snapshot).
+-- adecuacion_id NULL = el estudiante trabaja con el OA original.
+CREATE TABLE IF NOT EXISTS libro_evaluacion_notas (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    evaluacion_id  UUID NOT NULL REFERENCES libro_evaluaciones(id) ON DELETE CASCADE,
+    estudiante_id  UUID NOT NULL REFERENCES libro_estudiantes(id),
+    nota           NUMERIC(2,1) CHECK (nota IS NULL OR (nota >= 1.0 AND nota <= 7.0)),  -- I8
+    comentario     TEXT,                                                                -- opcional (NULL permitido)
+    adecuacion_id  UUID REFERENCES libro_evaluacion_adecuaciones(id) ON DELETE SET NULL,-- NULL = OA original
+    created_at     TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (evaluacion_id, estudiante_id)                                               -- I7
+);
+CREATE INDEX IF NOT EXISTS idx_libro_notas_eval       ON libro_evaluacion_notas (evaluacion_id);
+CREATE INDEX IF NOT EXISTS idx_libro_notas_estudiante ON libro_evaluacion_notas (estudiante_id);
+
+-- ── TRIGGER: la evaluación solo puede apuntar a un contexto 'curso' ──
+CREATE OR REPLACE FUNCTION libro_eval_contexto_es_curso()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo TEXT;
+BEGIN
+    SELECT tipo INTO v_tipo FROM contextos WHERE id = NEW.contexto_id;
+    IF v_tipo IS DISTINCT FROM 'curso' THEN
+        RAISE EXCEPTION
+            'libro_evaluaciones.contexto_id debe apuntar a un contexto de tipo ''curso'' (recibido: %)',
+            COALESCE(v_tipo, 'inexistente');
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_eval_contexto_es_curso ON libro_evaluaciones;
+CREATE TRIGGER trg_libro_eval_contexto_es_curso
+    BEFORE INSERT OR UPDATE OF contexto_id ON libro_evaluaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_eval_contexto_es_curso();
+
+-- ── TRIGGER I9: la adecuación de una nota pertenece a la misma evaluación ──
+-- adecuacion_id NULL (OA original) siempre válido; si no es NULL, su
+-- evaluacion_id debe coincidir con el de la nota.
+CREATE OR REPLACE FUNCTION libro_notas_adecuacion_misma_eval()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_eval UUID;
+BEGIN
+    IF NEW.adecuacion_id IS NOT NULL THEN
+        SELECT evaluacion_id INTO v_eval
+            FROM libro_evaluacion_adecuaciones WHERE id = NEW.adecuacion_id;
+        IF v_eval IS DISTINCT FROM NEW.evaluacion_id THEN
+            RAISE EXCEPTION
+                'I9: la adecuación % no pertenece a la evaluación % de la nota',
+                NEW.adecuacion_id, NEW.evaluacion_id;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_notas_adecuacion_misma_eval ON libro_evaluacion_notas;
+CREATE TRIGGER trg_libro_notas_adecuacion_misma_eval
+    BEFORE INSERT OR UPDATE OF adecuacion_id, evaluacion_id ON libro_evaluacion_notas
+    FOR EACH ROW EXECUTE FUNCTION libro_notas_adecuacion_misma_eval();
+
+-- ── TRIGGER I12 (cabecera): inmutable mientras esté cerrada ──
+-- Con la evaluación cerrada solo se permite cambiar 'estado' (para reabrir).
+-- Cualquier edición de cabecera con estado='cerrado' se rechaza.
+CREATE OR REPLACE FUNCTION libro_eval_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.estado = 'cerrado' AND (
+           NEW.nombre             IS DISTINCT FROM OLD.nombre
+        OR NEW.fecha              IS DISTINCT FROM OLD.fecha
+        OR NEW.oa_original        IS DISTINCT FROM OLD.oa_original
+        OR NEW.contexto_id        IS DISTINCT FROM OLD.contexto_id
+        OR NEW.anio_id            IS DISTINCT FROM OLD.anio_id
+        OR NEW.sesion_creacion_id IS DISTINCT FROM OLD.sesion_creacion_id
+    ) THEN
+        RAISE EXCEPTION
+            'I12: evaluación cerrada es solo lectura; reábrela (estado=abierto) para editar la cabecera';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_eval_bloqueo_cerrada ON libro_evaluaciones;
+CREATE TRIGGER trg_libro_eval_bloqueo_cerrada
+    BEFORE UPDATE ON libro_evaluaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_eval_bloqueo_cerrada();
+
+-- ── TRIGGER I12 (detalles): adecuaciones y notas inmutables si la evaluación
+-- está cerrada. Sirve para INSERT/UPDATE (NEW) y DELETE (OLD). Si el padre ya
+-- no existe (borrado en cascada) no bloquea.
+CREATE OR REPLACE FUNCTION libro_hijo_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_eval   UUID;
+    v_estado TEXT;
+BEGIN
+    v_eval := COALESCE(NEW.evaluacion_id, OLD.evaluacion_id);
+    SELECT estado INTO v_estado FROM libro_evaluaciones WHERE id = v_eval;
+    IF NOT FOUND THEN
+        RETURN COALESCE(NEW, OLD);   -- padre en borrado en cascada → permitir
+    END IF;
+    IF v_estado = 'cerrado' THEN
+        RAISE EXCEPTION
+            'I12: la evaluación % está cerrada; reábrela para modificar sus adecuaciones/notas',
+            v_eval;
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_adec_bloqueo_cerrada ON libro_evaluacion_adecuaciones;
+CREATE TRIGGER trg_libro_adec_bloqueo_cerrada
+    BEFORE INSERT OR UPDATE OR DELETE ON libro_evaluacion_adecuaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_hijo_bloqueo_cerrada();
+
+DROP TRIGGER IF EXISTS trg_libro_notas_bloqueo_cerrada ON libro_evaluacion_notas;
+CREATE TRIGGER trg_libro_notas_bloqueo_cerrada
+    BEFORE INSERT OR UPDATE OR DELETE ON libro_evaluacion_notas
+    FOR EACH ROW EXECUTE FUNCTION libro_hijo_bloqueo_cerrada();
+
+-- ── ROW LEVEL SECURITY (patrón acceso_total del ecosistema) ──
+ALTER TABLE libro_evaluaciones             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE libro_evaluacion_adecuaciones  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE libro_evaluacion_notas         ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "acceso_total" ON libro_evaluaciones;
+DROP POLICY IF EXISTS "acceso_total" ON libro_evaluacion_adecuaciones;
+DROP POLICY IF EXISTS "acceso_total" ON libro_evaluacion_notas;
+
+CREATE POLICY "acceso_total" ON libro_evaluaciones            FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acceso_total" ON libro_evaluacion_adecuaciones FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acceso_total" ON libro_evaluacion_notas        FOR ALL USING (true) WITH CHECK (true);

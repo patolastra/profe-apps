@@ -5,73 +5,570 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Libro de Clases</title>
 <!--
-  Libro de Clases — ENTRADA (F3).
-  Alcance F3: solo infraestructura de entrada y contexto.
-  El Portal entrega las referencias por URL (?sesion=&ctx=&anio=); esta página
-  las LEE y las muestra. NO reconstruye ni reinterpreta la sesión, NO consulta
-  Supabase, NO lista estudiantes, NO edita nada. La interfaz funcional del Libro
-  (listado, matrículas, evaluaciones, etc.) es trabajo de fases posteriores y
-  vivirá separada de esta entrada.
+  Libro de Clases — F4: EVALUACIONES.
+  Entrada desde el Portal (F3): recibe ?sesion=&ctx=&anio= por URL y NO
+  reconstruye la sesión (usa 'sesion' solo como trazabilidad de creación).
+  F4 añade: listar/crear evaluaciones del curso/año, OA original, adecuaciones,
+  detalle por estudiante (nota, comentario, objetivo aplicado), guardar,
+  cerrar y reabrir. La integridad (I7/I8/I9/I12/I13) la garantiza Supabase.
+  Fuera de F4: participación, entregas, talleres, observaciones, años, F5–F7.
 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
 <style>
   :root{
-    --bg:#0f1216; --panel:#171c22; --line:#2a323c; --txt:#e6edf3;
-    --mut:#8b98a5; --acc:#4CAF50;
+    --bg:#0f1216; --panel:#171c22; --panel2:#131a21; --line:#2a323c; --txt:#e6edf3;
+    --mut:#8b98a5; --acc:#4CAF50; --danger:#d9534f; --warn:#e0a106;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--txt);
-    font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif;
-    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
-    padding:24px 26px;max-width:520px;width:100%}
-  h1{font-size:20px;margin:0 0 4px;display:flex;align-items:center;gap:10px}
-  .sub{color:var(--mut);font-size:13px;margin:0 0 20px}
-  dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:10px 16px}
-  dt{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.04em;align-self:center}
-  dd{margin:0;font-weight:600;word-break:break-all}
-  dd.vacio{color:#d9534f;font-weight:500}
-  .nota{margin-top:20px;padding-top:16px;border-top:1px solid var(--line);
-    color:var(--mut);font-size:12.5px}
-  code{background:#0d1117;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+    font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif}
+  header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);
+    padding:12px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;display:flex;gap:8px;align-items:center}
+  .crumbs{color:var(--mut);font-size:13px}
+  .crumbs b{color:var(--txt)}
+  main{max-width:1000px;margin:0 auto;padding:18px}
+  .btn{background:#20303f;color:var(--txt);border:1px solid var(--line);border-radius:8px;
+    padding:7px 12px;cursor:pointer;font-size:13px}
+  .btn:hover{background:#27455e}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.primary{background:#1e5a2f;border-color:#2c7d43}
+  .btn.primary:hover{background:#267a3e}
+  .btn.warn{background:#5a4a10;border-color:#7d6a2c}
+  .btn.ghost{background:transparent}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  label{display:block;color:var(--mut);font-size:12px;margin:0 0 4px;text-transform:uppercase;letter-spacing:.03em}
+  input,textarea,select{background:#0d1117;color:var(--txt);border:1px solid var(--line);
+    border-radius:7px;padding:7px 9px;font:inherit;width:100%}
+  input:disabled,textarea:disabled,select:disabled{opacity:.6}
+  textarea{resize:vertical;min-height:52px}
+  /* table-layout:fixed → anchos de columna estables e independientes de las filas
+     visibles (los define <colgroup>, no el contenido). Evita el salto horizontal
+     al filtrar "Pendientes". */
+  table{border-collapse:collapse;width:100%;table-layout:fixed;min-width:640px}
+  th,td{padding:6px 8px;border-top:1px solid var(--line);text-align:left;vertical-align:middle;
+    overflow:hidden;text-overflow:ellipsis}
+  td.est-nombre{white-space:normal;word-break:break-word}
+  th{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+  td.pos{color:var(--mut)}
+  .eval-item{display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:11px 14px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--panel2)}
+  .eval-item:hover{border-color:#3a4a5c}
+  .eval-item .meta{color:var(--mut);font-size:12px}
+  .badge{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;font-weight:600}
+  .badge.abierto{background:#1e5a2f;color:#d7ffe2}
+  .badge.cerrado{background:#4a2a2a;color:#ffd9d9}
+  .msg{padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;display:none}
+  .msg.show{display:block}
+  .msg.err{background:#3a1e1e;border:1px solid #6a2c2c;color:#ffd9d9}
+  .msg.ok{background:#1e3a24;border:1px solid #2c6a3a;color:#d7ffe2}
+  .adec-list{margin:8px 0 0;padding:0;list-style:none}
+  .adec-list li{padding:6px 0;border-top:1px solid var(--line);color:var(--txt)}
+  .adec-list li .ix{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.03em;margin-right:8px}
+  .hint{color:var(--mut);font-size:12px}
+  .sec-title{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin:0 0 10px}
+  .subsec{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .buscador{margin:0 0 12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  #buscador-est{max-width:340px}
+  /* Botón toggle "Pendientes" (no usa checkbox nativo) */
+  .toggle{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+  .toggle::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--mut);flex:none;transition:background .15s}
+  .toggle.on{background:#1e5a2f;border-color:#2c7d43;color:#d7ffe2}
+  .toggle.on:hover{background:#267a3e}
+  .toggle.on::before{background:#4ade80}
+  tr.oculto{display:none}
+  /* Toast: fixed, no desplaza ni recarga la página */
+  #toast-wrap{position:fixed;right:18px;bottom:18px;z-index:50;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+  .toast{min-width:200px;max-width:360px;padding:11px 15px;border-radius:9px;font-size:13.5px;
+    box-shadow:0 6px 24px rgba(0,0,0,.4);opacity:0;transform:translateY(8px);
+    transition:opacity .18s ease,transform .18s ease}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast.ok{background:#1e3a24;border:1px solid #2c6a3a;color:#d7ffe2}
+  .toast.err{background:#3a1e1e;border:1px solid #6a2c2c;color:#ffd9d9}
+  @media(max-width:640px){.grid2{grid-template-columns:1fr}.td.obj{width:auto}}
 </style>
 </head>
 <body>
-  <div class="card">
-    <h1>📒 Libro de Clases</h1>
-    <p class="sub">Entrada desde el Portal — referencias recibidas por URL.</p>
-    <dl>
-      <dt>Contexto</dt><dd id="v-ctx"></dd>
-      <dt>Año escolar</dt><dd id="v-anio"></dd>
-      <dt>Sesión (id)</dt><dd id="v-sesion"></dd>
-    </dl>
-    <p class="nota">
-      Esta pantalla es la <b>entrada F3</b>: recibe <code>sesion</code>,
-      <code>ctx</code> y <code>anio</code> y no hace nada más. La interfaz
-      funcional del Libro llegará en fases posteriores.
-    </p>
-  </div>
+<header>
+  <h1>📒 Libro de Clases</h1>
+  <span class="crumbs" id="crumbs"></span>
+  <span style="flex:1"></span>
+  <button class="btn ghost" id="btn-volver" onclick="volverLista()" style="display:none">← Evaluaciones</button>
+</header>
+<main>
+  <div class="msg" id="msg"></div>
+  <div id="vista"></div>
+</main>
+<div id="toast-wrap" aria-live="polite"></div>
 
 <script>
-  // F3: leer las referencias que entrega el Portal. Patrón del ecosistema
-  // (new URLSearchParams(location.search).get(...)). No se reconstruye la sesión.
-  const params = new URLSearchParams(location.search);
-  const ref = {
-    sesion: params.get('sesion'),
-    ctx:    params.get('ctx'),
-    anio:   params.get('anio'),
-  };
+// ── Estado ───────────────────────────────────────────────────
+let sb = null;
+const ref = {};            // { sesion, ctx, anio } desde la URL (F3)
+let ctxId = null, ctxTipo = null, ctxNombre = null;
+let anioId = null, anioNum = null;
+let evalActual = null;     // cabecera cargada en detalle
+let adecs = [];            // adecuaciones de la evaluación abierta
+let notas = [];            // filas de detalle (con estudiante embebido)
+let posMap = {};           // estudiante_id -> posición (orden)
 
-  function pintar(id, valor) {
-    const el = document.getElementById(id);
-    if (valor === null || valor === '') { el.textContent = '(no recibido)'; el.className = 'vacio'; }
-    else { el.textContent = valor; }
+// ── Utilidades ───────────────────────────────────────────────
+function msg(txt, tipo){
+  const el = document.getElementById('msg');
+  el.className = 'msg show ' + (tipo || 'err');
+  el.textContent = txt;
+  if (tipo === 'ok') setTimeout(() => { el.className = 'msg'; }, 2500);
+}
+function limpiarMsg(){ document.getElementById('msg').className = 'msg'; }
+// Toast flotante (position:fixed): no desplaza ni recarga la página.
+function toast(txt, tipo){
+  const wrap = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className = 'toast ' + (tipo || 'ok');
+  el.textContent = txt;
+  wrap.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 220);
+  }, 3000);
+}
+function esc(s){ return (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// Normaliza para búsqueda: sin acentos/diacríticos, minúsculas. No altera datos.
+function normBuscar(s){ return (s == null ? '' : String(s)).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(); }
+function tablaFalta(e){
+  if (!e) return false;
+  if (e.code === '42P01' || e.code === 'PGRST205') return true;
+  return /does not exist|could not find the table|schema cache/i.test(e.message || '');
+}
+
+// Normalización de nota (reglas F4): "7"→7,0 · "65"→6,5 · "70"→7,0 · "6,5"/"6.5" directos.
+function normalizarNota(raw){
+  if (raw == null) return { ok:true, val:null };
+  let s = String(raw).trim();
+  if (s === '') return { ok:true, val:null };
+  s = s.replace(',', '.');
+  let val;
+  if (s.includes('.')) {
+    if (!/^\d+(\.\d+)?$/.test(s)) return { ok:false };
+    val = parseFloat(s);
+  } else {
+    if (!/^\d+$/.test(s)) return { ok:false };
+    if (s.length === 1) val = parseInt(s, 10);         // 7 → 7.0
+    else if (s.length === 2) val = parseInt(s, 10)/10; // 65 → 6.5 · 70 → 7.0 · 10 → 1.0
+    else return { ok:false };
   }
-  pintar('v-ctx', ref.ctx);
-  pintar('v-anio', ref.anio);
-  pintar('v-sesion', ref.sesion);
+  if (isNaN(val)) return { ok:false };
+  val = Math.round(val * 10) / 10;
+  if (val < 1.0 || val > 7.0) return { ok:false, val };
+  return { ok:true, val };
+}
+function fmtNota(n){
+  if (n == null || n === '') return '';
+  const v = parseFloat(n);
+  return isNaN(v) ? '' : v.toFixed(1).replace('.', ',');
+}
 
-  // Disponible para el desarrollo de la interfaz funcional (fases posteriores).
+// ── Init ─────────────────────────────────────────────────────
+async function init(){
+  const p = new URLSearchParams(location.search);
+  ref.sesion = p.get('sesion'); ref.ctx = p.get('ctx'); ref.anio = p.get('anio');
   window.LIBRO_REF = ref;
+  document.getElementById('crumbs').innerHTML =
+    `<b>${esc(ref.ctx || '—')}</b> · año <b>${esc(ref.anio || '—')}</b>`;
+
+  if (!ref.ctx || !ref.anio || !ref.sesion) {
+    msg('Faltan referencias en la URL (sesion, ctx, anio). Abre el Libro desde el Portal.');
+    return;
+  }
+  try {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  } catch (e) { msg('No se pudo iniciar Supabase: ' + e.message); return; }
+
+  // Resolver contexto (por nombre) y año (por número) a sus ids.
+  try {
+    const { data: cx, error: e1 } = await sb.from('contextos')
+      .select('id,nombre,tipo').eq('nombre', ref.ctx).limit(1);
+    if (e1) throw e1;
+    if (!cx || !cx[0]) { msg('Contexto no encontrado: ' + ref.ctx); return; }
+    ctxId = cx[0].id; ctxTipo = cx[0].tipo; ctxNombre = cx[0].nombre;
+
+    const { data: an, error: e2 } = await sb.from('libro_anios')
+      .select('id,anio').eq('anio', parseInt(ref.anio, 10)).limit(1);
+    if (e2) throw e2;
+    if (!an || !an[0]) { msg('Año escolar no encontrado: ' + ref.anio); return; }
+    anioId = an[0].id; anioNum = an[0].anio;
+  } catch (e) {
+    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql en Supabase.' : ('Error resolviendo contexto/año: ' + e.message));
+    return;
+  }
+
+  // F4 sólo evalúa cursos. Si es taller u otro tipo, se informa (sin construir nada más).
+  if (ctxTipo !== 'curso') {
+    document.getElementById('vista').innerHTML =
+      `<div class="card"><p>Las evaluaciones (F4) aplican solo a contextos de tipo <b>curso</b>.</p>
+       <p class="hint">Este contexto es de tipo <b>${esc(ctxTipo)}</b>. Los talleres/observaciones son fases posteriores.</p></div>`;
+    return;
+  }
+  renderLista();
+}
+
+// ── Vista LISTA ──────────────────────────────────────────────
+async function renderLista(){
+  evalActual = null;
+  document.getElementById('btn-volver').style.display = 'none';
+  const v = document.getElementById('vista');
+  v.innerHTML = '<div class="card">Cargando evaluaciones…</div>';
+  let evs = [];
+  try {
+    const { data, error } = await sb.from('libro_evaluaciones')
+      .select('*').eq('anio_id', anioId).eq('contexto_id', ctxId)
+      .order('fecha', { ascending:false }).order('created_at', { ascending:false });
+    if (error) throw error;
+    evs = data || [];
+  } catch (e) {
+    v.innerHTML = '<div class="card"></div>';
+    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql en Supabase.' : ('Error listando evaluaciones: ' + e.message));
+    return;
+  }
+  const hoy = new Date().toISOString().slice(0,10);
+  v.innerHTML = `
+    <div class="card">
+      <p class="sec-title">Nueva evaluación</p>
+      <div class="grid2">
+        <div><label>Nombre</label><input id="nv-nombre" placeholder="Ej: Prueba unidad 1"></div>
+        <div><label>Fecha</label><input id="nv-fecha" type="date" value="${hoy}"></div>
+      </div>
+      <div style="margin-top:12px"><label>Objetivo de Aprendizaje (OA original)</label>
+        <textarea id="nv-oa" placeholder="OA original de la evaluación"></textarea></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="crearEvaluacion()">Crear evaluación</button>
+        <span class="hint">La población se materializa con los estudiantes vigentes del curso en la fecha (snapshot).</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="sec-title">Evaluaciones de ${esc(ctxNombre)} · ${anioNum} (${evs.length})</p>
+      <div id="lista-evs"></div>
+    </div>`;
+  const cont = document.getElementById('lista-evs');
+  if (!evs.length) { cont.innerHTML = '<p class="hint">Aún no hay evaluaciones.</p>'; return; }
+  cont.innerHTML = evs.map(ev => `
+    <div class="eval-item" onclick="abrirDetalle('${ev.id}')">
+      <div>
+        <div><b>${esc(ev.nombre)}</b></div>
+        <div class="meta">${esc(ev.fecha)}</div>
+      </div>
+      <span class="badge ${ev.estado}">${ev.estado}</span>
+    </div>`).join('');
+}
+
+async function crearEvaluacion(){
+  limpiarMsg();
+  const nombre = document.getElementById('nv-nombre').value.trim();
+  const fecha  = document.getElementById('nv-fecha').value;
+  const oa     = document.getElementById('nv-oa').value.trim();
+  if (!nombre) { msg('El nombre es obligatorio.'); return; }
+  if (!fecha)  { msg('La fecha es obligatoria.'); return; }
+
+  try {
+    // Población snapshot: matrículas vigentes del curso/año en la fecha.
+    // fechas de ingreso/retiro son NULL en los datos → equivale a estado='activo'.
+    const { data: mats, error: em } = await sb.from('libro_matriculas')
+      .select('estudiante_id,fecha_ingreso,fecha_retiro,estado')
+      .eq('anio_id', anioId).eq('contexto_id', ctxId).eq('estado', 'activo');
+    if (em) throw em;
+    const vigentes = (mats || []).filter(m =>
+      (!m.fecha_ingreso || m.fecha_ingreso <= fecha) &&
+      (!m.fecha_retiro  || m.fecha_retiro  >  fecha));
+
+    // Cabecera.
+    const { data: ins, error: ee } = await sb.from('libro_evaluaciones')
+      .insert({ anio_id:anioId, contexto_id:ctxId, sesion_creacion_id:ref.sesion,
+                nombre, fecha, oa_original:oa, estado:'abierto' })
+      .select('id').single();
+    if (ee) throw ee;
+    const evId = ins.id;
+
+    // Detalle materializado (una fila por estudiante vigente).
+    if (vigentes.length) {
+      const filas = vigentes.map(m => ({ evaluacion_id:evId, estudiante_id:m.estudiante_id,
+        nota:null, comentario:null, adecuacion_id:null }));
+      const { error: en } = await sb.from('libro_evaluacion_notas').insert(filas);
+      if (en) {
+        // Revertir la cabecera para no dejar una evaluación sin población.
+        await sb.from('libro_evaluaciones').delete().eq('id', evId);
+        throw en;
+      }
+    }
+    msg('Evaluación creada (' + vigentes.length + ' estudiantes).', 'ok');
+    abrirDetalle(evId);
+  } catch (e) {
+    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql.' : ('No se pudo crear: ' + e.message));
+  }
+}
+
+// ── Vista DETALLE ────────────────────────────────────────────
+async function abrirDetalle(evId){
+  limpiarMsg();
+  const v = document.getElementById('vista');
+  v.innerHTML = '<div class="card">Cargando evaluación…</div>';
+  try {
+    const [ce, ca, cn, cm] = await Promise.all([
+      sb.from('libro_evaluaciones').select('*').eq('id', evId).single(),
+      sb.from('libro_evaluacion_adecuaciones').select('*').eq('evaluacion_id', evId).order('created_at'),
+      sb.from('libro_evaluacion_notas')
+        .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,estudiante:libro_estudiantes(nombre,apellido)')
+        .eq('evaluacion_id', evId),
+      sb.from('libro_matriculas').select('estudiante_id,posicion').eq('anio_id', anioId).eq('contexto_id', ctxId),
+    ]);
+    if (ce.error) throw ce.error;
+    if (ca.error) throw ca.error;
+    if (cn.error) throw cn.error;
+    if (cm.error) throw cm.error;
+    evalActual = ce.data;
+    adecs = ca.data || [];
+    posMap = {}; (cm.data || []).forEach(m => { posMap[m.estudiante_id] = m.posicion; });
+    notas = (cn.data || []).slice().sort((a,b) => {
+      const pa = posMap[a.estudiante_id] ?? 9999, pb = posMap[b.estudiante_id] ?? 9999;
+      if (pa !== pb) return pa - pb;
+      const na = (a.estudiante?.apellido||'') + (a.estudiante?.nombre||'');
+      const nb = (b.estudiante?.apellido||'') + (b.estudiante?.nombre||'');
+      return na.localeCompare(nb);
+    });
+  } catch (e) {
+    v.innerHTML = '<div class="card"></div>';
+    msg('No se pudo cargar la evaluación: ' + e.message);
+    return;
+  }
+  document.getElementById('btn-volver').style.display = '';
+  renderDetalle();
+}
+
+// Opciones del dropdown "Objetivo aplicado": el texto VISIBLE es directamente
+// el OA original / el texto de cada adecuación (el value sigue siendo el id).
+function optObjetivoOA(){
+  const oa = (evalActual?.oa_original || '').trim();
+  return oa || 'OA original (sin texto)';
+}
+function optsObjetivo(sel){
+  let html = `<option value=""${!sel ? ' selected' : ''}>${esc(optObjetivoOA())}</option>`;
+  adecs.forEach(a => {
+    html += `<option value="${a.id}"${sel === a.id ? ' selected' : ''}>${esc(a.texto)}</option>`;
+  });
+  return html;
+}
+// Etiqueta de nombre para mostrar y para la búsqueda.
+function nombreEstudiante(n){
+  const ap = n.estudiante?.apellido || '', no = n.estudiante?.nombre || '';
+  return (ap + (ap ? ', ' : '') + no).trim();
+}
+
+function renderDetalle(){
+  const ev = evalActual;
+  const cerrada = ev.estado === 'cerrado';
+  const dis = cerrada ? 'disabled' : '';
+  const v = document.getElementById('vista');
+  v.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <p class="sec-title" style="margin:0">Cabecera</p>
+        <span class="badge ${ev.estado}">${ev.estado}</span>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>Nombre</label><input id="d-nombre" value="${esc(ev.nombre)}" ${dis}></div>
+        <div><label>Fecha</label><input id="d-fecha" type="date" value="${esc(ev.fecha)}" ${dis}></div>
+      </div>
+      <div style="margin-top:10px"><label>OA original</label>
+        <textarea id="d-oa" ${dis}>${esc(ev.oa_original)}</textarea></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="guardarCabecera()" ${dis}>Guardar cabecera</button>
+        ${cerrada
+          ? `<button class="btn warn" onclick="reabrirEval()">Reabrir</button>`
+          : `<button class="btn" onclick="cerrarEval()">Cerrar</button>`}
+        ${cerrada ? '<span class="hint">Evaluación cerrada: solo lectura. Reábrela para editar.</span>' : ''}
+      </div>
+
+      <div class="subsec">
+        <label style="margin-bottom:8px">Adecuaciones (<span id="d-adecs-count">${adecs.length}</span>)</label>
+        <ul class="adec-list" id="d-adecs">${
+          adecs.length ? adecs.map((a,i) => `<li><span class="ix">Adec ${i+1}</span>${esc(a.texto)}</li>`).join('')
+                       : '<li class="hint" style="border:none">Sin adecuaciones. Los estudiantes trabajan con el OA original.</li>'
+        }</ul>
+        ${cerrada ? '' : `
+        <div class="row" style="margin-top:10px">
+          <input id="d-nueva-adec" placeholder="Texto de la adecuación" style="max-width:520px">
+          <button class="btn" onclick="agregarAdecuacion()">Agregar adecuación</button>
+        </div>`}
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="sec-title">Estudiantes (${notas.length})</p>
+      ${notas.length ? `<div class="buscador">
+        <input id="buscador-est" type="text" placeholder="Buscar por nombre o apellido…" oninput="filtrarEstudiantes()" autocomplete="off">
+        <button type="button" id="btn-pendientes" class="btn toggle" aria-pressed="false" onclick="togglePendientes()">Pendientes</button>
+      </div>` : ''}
+      <div style="overflow-x:auto">
+      <table>
+        <colgroup>
+          <col style="width:44px"><col style="width:28%"><col style="width:230px"><col style="width:92px"><col>
+        </colgroup>
+        <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="obj">Objetivo aplicado</th><th class="nota">Nota</th><th>Comentario</th></tr></thead>
+        <tbody id="tbody-est">${notas.map((n, idx) => `
+          <tr data-idx="${idx}" data-buscar="${esc(normBuscar(nombreEstudiante(n)))}">
+            <td class="pos">${posMap[n.estudiante_id] ?? ''}</td>
+            <td class="est-nombre">${esc(nombreEstudiante(n))}</td>
+            <td class="obj"><select data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select></td>
+            <td class="nota"><input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${dis}></td>
+            <td><input data-i="${idx}" data-k="comentario" value="${esc(n.comentario||'')}" placeholder="(opcional)" ${dis}></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>
+      ${notas.length ? (cerrada ? '' : `
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="guardarNotas()">Guardar notas</button>
+        <span class="hint">Escala 1,0–7,0. "7"→7,0 · "65"→6,5. Vacío = sin nota.</span>
+      </div>`) : '<p class="hint">Esta evaluación no materializó estudiantes (no había matrículas activas en la fecha).</p>'}
+    </div>`;
+
+  // Bind edición en memoria (solo si está abierta).
+  if (!cerrada) {
+    v.querySelectorAll('[data-i]').forEach(el => {
+      el.addEventListener('change', () => {
+        const i = +el.dataset.i, k = el.dataset.k;
+        if (k === 'adecuacion_id') notas[i].adecuacion_id = el.value || null;
+        else if (k === 'comentario') notas[i].comentario = el.value.trim() === '' ? null : el.value;
+        else if (k === 'nota') {
+          const r = normalizarNota(el.value);
+          if (!r.ok) { toast('Nota inválida (usa 1,0–7,0): "' + el.value + '"', 'err'); el.focus(); return; }
+          notas[i].nota = r.val;
+          el.value = fmtNota(r.val);
+          filtrarEstudiantes();   // refresca "Pendientes" en vivo (aparece/desaparece según nota)
+        }
+      });
+    });
+  }
+}
+
+// Filtro visual en tiempo real (nombre/apellido, sin acentos ni mayúsculas).
+// No modifica datos ni orden; al limpiar reaparecen todos.
+function filtrarEstudiantes(){
+  const inp = document.getElementById('buscador-est');
+  if (!inp) return;
+  const q = normBuscar(inp.value);
+  const soloPend = !!document.getElementById('btn-pendientes')?.classList.contains('on');
+  document.querySelectorAll('#tbody-est tr').forEach(tr => {
+    const hay = tr.dataset.buscar || '';
+    const idx = +tr.dataset.idx;
+    const coincideTexto = q === '' || hay.includes(q);
+    const esPendiente = notas[idx]?.nota == null;   // null/vacía = sin nota
+    tr.classList.toggle('oculto', !(coincideTexto && (!soloPend || esPendiente)));
+  });
+}
+
+// Toggle "Pendientes": alterna estado y filtra SIN mover la página. La captura y
+// restauración de scroll ocurre en el mismo tick (antes del repintado), por lo que
+// no hay salto visual perceptible.
+function togglePendientes(){
+  const btn = document.getElementById('btn-pendientes');
+  if (!btn) return;
+  const y = window.scrollY;
+  const on = !btn.classList.contains('on');
+  btn.classList.toggle('on', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  filtrarEstudiantes();
+  window.scrollTo(0, y);   // síncrono, mismo tick → sin salto visible
+}
+
+async function guardarCabecera(){
+  const nombre = document.getElementById('d-nombre').value.trim();
+  const fecha  = document.getElementById('d-fecha').value;
+  const oa     = document.getElementById('d-oa').value.trim();
+  if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
+  if (!fecha)  { toast('La fecha es obligatoria.', 'err'); return; }
+  try {
+    const { error } = await sb.from('libro_evaluaciones')
+      .update({ nombre, fecha, oa_original: oa }).eq('id', evalActual.id);
+    if (error) throw error;
+    evalActual.nombre = nombre; evalActual.fecha = fecha; evalActual.oa_original = oa;
+    // Actualizar en vivo la etiqueta "OA original" de los dropdowns (sin re-render).
+    document.querySelectorAll('select[data-k="adecuacion_id"]').forEach(sel => {
+      if (sel.options.length) sel.options[0].textContent = optObjetivoOA();
+    });
+    toast('Guardado correctamente', 'ok');
+  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+}
+
+async function agregarAdecuacion(){
+  const inp = document.getElementById('d-nueva-adec');
+  const texto = inp.value.trim();
+  if (!texto) { toast('Escribe el texto de la adecuación.', 'err'); return; }
+  const scrollY0 = window.scrollY;   // conservar posición exacta tras el update local
+  try {
+    const { data, error } = await sb.from('libro_evaluacion_adecuaciones')
+      .insert({ evaluacion_id: evalActual.id, texto }).select('*').single();
+    if (error) throw error;
+    // Actualización local inmediata: sin recarga ni re-render (conserva scroll).
+    adecs.push(data);
+    const ul = document.getElementById('d-adecs');
+    const ph = ul.querySelector('li.hint'); if (ph) ph.remove();
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="ix">Adec ${adecs.length}</span>${esc(data.texto)}`;
+    ul.appendChild(li);
+    const cnt = document.getElementById('d-adecs-count'); if (cnt) cnt.textContent = adecs.length;
+    // Añadir la opción al dropdown de cada estudiante (conserva su selección).
+    document.querySelectorAll('select[data-k="adecuacion_id"]').forEach(sel => {
+      const opt = document.createElement('option');
+      opt.value = data.id; opt.textContent = data.texto;
+      sel.appendChild(opt);
+    });
+    inp.value = '';
+    window.scrollTo(0, scrollY0);   // restaurar posición exacta
+    toast('Guardado correctamente', 'ok');
+  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+}
+
+async function guardarNotas(){
+  // Validación final de rango (backstop de la BD, I8).
+  for (const n of notas) {
+    const r = normalizarNota(n.nota == null ? '' : String(n.nota).replace('.', ','));
+    if (!r.ok) { toast('Hay una nota fuera de rango (1,0–7,0).', 'err'); return; }
+    n.nota = r.val;
+  }
+  try {
+    const filas = notas.map(n => ({ id:n.id, evaluacion_id:n.evaluacion_id, estudiante_id:n.estudiante_id,
+      nota:n.nota, comentario:n.comentario ?? null, adecuacion_id:n.adecuacion_id ?? null }));
+    const { error } = await sb.from('libro_evaluacion_notas').upsert(filas, { onConflict:'id' });
+    if (error) throw error;
+    toast('Guardado correctamente', 'ok');
+  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+}
+
+async function cerrarEval(){
+  try {
+    const { error } = await sb.from('libro_evaluaciones').update({ estado:'cerrado' }).eq('id', evalActual.id);
+    if (error) throw error;
+    evalActual.estado = 'cerrado'; renderDetalle();
+    toast('Evaluación cerrada (solo lectura).', 'ok');
+  } catch (e) { toast('No se pudo cerrar la evaluación', 'err'); }
+}
+
+async function reabrirEval(){
+  try {
+    const { error } = await sb.from('libro_evaluaciones').update({ estado:'abierto' }).eq('id', evalActual.id);
+    if (error) throw error;
+    evalActual.estado = 'abierto'; renderDetalle();
+    toast('Evaluación reabierta (editable).', 'ok');
+  } catch (e) { toast('No se pudo reabrir la evaluación', 'err'); }
+}
+
+function volverLista(){ limpiarMsg(); renderLista(); }
+
+init();
 </script>
 </body>
 </html>
