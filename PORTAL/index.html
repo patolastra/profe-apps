@@ -1073,6 +1073,7 @@
         </div>
         <div class="hdr-ses-right">
             <button class="hdr-btn" onclick="abrirMemoria()" title="Memoria de esta clase (texto y audios)">📓 Memoria</button>
+            <button class="hdr-btn" onclick="abrirLibro()" title="Abrir el Libro de Clases de este curso">📒 Libro</button>
             <button class="hdr-btn" onclick="mostrarQRRemoto()" title="Abrir control remoto en celular">📱 Remoto</button>
             <button class="hdr-btn" onclick="abrirPizarra()">PRESENTAR ↗</button>
         </div>
@@ -1210,6 +1211,9 @@ let pendientesMap  = {};
 let presMap        = {};
 let sesionActual   = null;
 let presTimer      = null;
+// F3 Libro de Clases: año escolar activo (libro_anios.activo). Pre-resuelto al
+// iniciar para que abrirLibro() pase ?anio= sin await (evita popup blockers).
+let anioActivo     = null;
 // Id de la sesión de entrenamiento por defecto del contexto de la sesión abierta
 // (repertorio_sesiones_entrenamiento.contexto_id). Pre-resuelto en abrirSesion para
 // que PRESENTAR pueda abrir el Entrenador sin await (evita popup blockers). null = sin default.
@@ -1245,7 +1249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setStatus('Conectando...');
     try {
         sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-        await Promise.all([loadContextos(), loadHorario()]);
+        await Promise.all([loadContextos(), loadHorario(), cargarAnioActivo()]);
         await crearSesionesPendientes();
         await renderDashboard();
         await asignarPendientesHuerfanos();
@@ -2014,6 +2018,30 @@ async function guardarPres(sid) {
     } catch (e) {
         setSyncState('error');
     }
+}
+
+// F3 Libro de Clases: resuelve el año escolar activo desde libro_anios (dimensión
+// creada en F1). Solo lectura; no modifica nada. Si falla, abrirLibro() usa el
+// año de la fecha de la sesión como respaldo.
+async function cargarAnioActivo() {
+    try {
+        const { data } = await sb.from('libro_anios')
+            .select('anio').eq('activo', true).limit(1);
+        if (data && data[0]) anioActivo = data[0].anio;
+    } catch (_) { /* respaldo en abrirLibro() */ }
+}
+
+// F3 Libro de Clases: entrada desde el Portal. Portal entrega las referencias
+// (sesión, contexto, año) por URL; LIBRO NO reconstruye ni reinterpreta la sesión.
+function abrirLibro() {
+    if (!sesionActual) return;
+    const ctx  = contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '';
+    const anio = anioActivo || (sesionActual.fecha || '').slice(0, 4);
+    logEvento('abrir_libro', { contexto_id: sesionActual.contexto_id, sesion_id: sesionActual.id });
+    const url = `../LIBRO/index.html?sesion=${encodeURIComponent(sesionActual.id)}`
+              + `&ctx=${encodeURIComponent(ctx)}`
+              + `&anio=${encodeURIComponent(anio)}`;
+    window.open(url, '_blank');
 }
 
 function abrirPizarra() {
