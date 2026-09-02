@@ -80,6 +80,13 @@
   .toggle.on:hover{background:#267a3e}
   .toggle.on::before{background:#4ade80}
   tr.oculto{display:none}
+  /* Barra de secciones (curso: Evaluaciones/Participación · taller: Pertenencias/Participación) */
+  .secnav{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+  .btn.seg{background:transparent}
+  .btn.seg.on{background:var(--accent-soft,#20303f);border-color:#3a4a5c;color:var(--txt);font-weight:600}
+  /* Columna "Participó" */
+  td.part{width:96px;text-align:center}
+  td.part input{width:auto;transform:scale(1.25);cursor:pointer}
   /* Toast: fixed, no desplaza ni recarga la página */
   #toast-wrap{position:fixed;right:18px;bottom:18px;z-index:50;display:flex;flex-direction:column;gap:8px;pointer-events:none}
   .toast{min-width:200px;max-width:360px;padding:11px 15px;border-radius:9px;font-size:13.5px;
@@ -96,9 +103,12 @@
   <h1>📒 Libro de Clases</h1>
   <span class="crumbs" id="crumbs"></span>
   <span style="flex:1"></span>
-  <button class="btn ghost" id="btn-volver" onclick="volverLista()" style="display:none">← Evaluaciones</button>
+  <button class="btn" id="btn-orden" onclick="toggleOrden()" style="display:none"
+          title="Cambiar el orden de los estudiantes (solo visual)"></button>
+  <button class="btn ghost" id="btn-volver" onclick="volverAtras()" style="display:none">←</button>
 </header>
 <main>
+  <div class="secnav" id="secnav" style="display:none"></div>
   <div class="msg" id="msg"></div>
   <div id="vista"></div>
 </main>
@@ -114,6 +124,7 @@ let evalActual = null;     // cabecera cargada en detalle
 let adecs = [];            // adecuaciones de la evaluación abierta
 let notas = [];            // filas de detalle (con estudiante embebido)
 let posMap = {};           // estudiante_id -> posición (orden)
+let seccion = 'eval';      // sección activa: 'eval' | 'part' (curso) · 'pert' | 'part' (taller)
 
 // ── Utilidades ───────────────────────────────────────────────
 function msg(txt, tipo){
@@ -143,6 +154,80 @@ function tablaFalta(e){
   if (!e) return false;
   if (e.code === '42P01' || e.code === 'PGRST205') return true;
   return /does not exist|could not find the table|schema cache/i.test(e.message || '');
+}
+
+// ── Orden/etiqueta de estudiantes (SOLO visual — no toca datos ni Supabase) ──
+// Un único botón toggle en el header alterna dos modos, reutilizados por TODOS
+// los listados del Libro (evaluaciones, participación, talleres):
+//   'oficial' → APELLIDO, NOMBRE · 1–N  (orden por posición/matrícula; por defecto)
+//   'alfa'    → NOMBRE, APELLIDO · A–Z  (alfabético por nombre y luego apellido)
+// El modo cambia la etiqueta y el criterio de orden; nunca cambia posición,
+// matrículas, el snapshot almacenado ni nada en Supabase.
+let ordenModo   = 'oficial';   // 'oficial' | 'alfa'
+let vistaActiva = null;        // 'eval-lista'|'eval-detalle'|'part-lista'|'part-detalle'|'taller'
+
+// Etiqueta del nombre según el modo activo (ambos formatos usan coma, como el toggle).
+function nombreFmt(est){
+  const ap = (est?.apellido || '').trim(), no = (est?.nombre || '').trim();
+  if (ordenModo === 'alfa') return (no + (no && ap ? ', ' : '') + ap).trim();   // NOMBRE, APELLIDO
+  return (ap + (ap && no ? ', ' : '') + no).trim();                             // APELLIDO, NOMBRE
+}
+// Clave alfabética A–Z: nombre y luego apellido, sin acentos ni mayúsculas (normBuscar).
+function claveAlfa(est){ return normBuscar((est?.nombre||'') + ' ' + (est?.apellido||'')); }
+// Comparador común: getEst(item)->{nombre,apellido}; getPos(item)->posición oficial (o null).
+function cmpEstudiantes(getEst, getPos){
+  return (a, b) => {
+    if (ordenModo === 'alfa') {
+      const c = claveAlfa(getEst(a)).localeCompare(claveAlfa(getEst(b)));
+      if (c) return c;
+      return getPos ? ((getPos(a) ?? 9999) - (getPos(b) ?? 9999)) : 0;
+    }
+    if (getPos) {
+      const pa = getPos(a) ?? 9999, pb = getPos(b) ?? 9999;
+      if (pa !== pb) return pa - pb;
+    }
+    return normBuscar((getEst(a)?.apellido||'') + (getEst(a)?.nombre||''))
+      .localeCompare(normBuscar((getEst(b)?.apellido||'') + (getEst(b)?.nombre||'')));
+  };
+}
+// Re-orden en memoria de cada listado (no toca Supabase).
+function ordenarNotas(){ notas.sort(cmpEstudiantes(n => n.estudiante, n => posMap[n.estudiante_id])); }
+function ordenarPartDet(){ partDet.sort(cmpEstudiantes(d => d.estudiante, d => partPos[d.estudiante_id])); }
+function ordenarPertenencias(){
+  pertenencias.sort(cmpEstudiantes(p => p.estudiante, null));
+  estElegibles.sort(cmpEstudiantes(e => e, null));
+}
+// Botón toggle del header.
+function actualizarBtnOrden(){
+  const b = document.getElementById('btn-orden'); if (!b) return;
+  b.textContent = ordenModo === 'alfa' ? 'NOMBRE, APELLIDO · A–Z' : 'APELLIDO, NOMBRE · 1–N';
+  b.setAttribute('aria-pressed', ordenModo === 'alfa' ? 'true' : 'false');
+}
+function mostrarBtnOrden(){ const b = document.getElementById('btn-orden'); if (b){ b.style.display=''; actualizarBtnOrden(); } }
+function toggleOrden(){
+  ordenModo = ordenModo === 'oficial' ? 'alfa' : 'oficial';
+  actualizarBtnOrden();
+  aplicarOrden();
+}
+// Aplica el modo al listado activo re-renderizándolo, conservando scroll, búsqueda
+// y filtro "Pendientes". Las vistas de lista no listan estudiantes → nada que reordenar.
+function aplicarOrden(){
+  const y = window.scrollY;
+  if (vistaActiva === 'eval-detalle') {
+    const q = document.getElementById('buscador-est')?.value || '';
+    const pend = !!document.getElementById('btn-pendientes')?.classList.contains('on');
+    ordenarNotas(); renderDetalle();
+    const inp = document.getElementById('buscador-est'); if (inp) inp.value = q;
+    if (pend) { const bp = document.getElementById('btn-pendientes'); if (bp){ bp.classList.add('on'); bp.setAttribute('aria-pressed','true'); } }
+    filtrarEstudiantes();
+  } else if (vistaActiva === 'part-detalle') {
+    const q = document.getElementById('buscador-part')?.value || '';
+    ordenarPartDet(); renderPartDetalle();
+    const inp = document.getElementById('buscador-part'); if (inp) { inp.value = q; filtrarPart(); }
+  } else if (vistaActiva === 'taller') {
+    ordenarPertenencias(); renderTalleres();
+  }
+  window.scrollTo(0, y);
 }
 
 // Normalización de nota (reglas F4): "7"→7,0 · "65"→6,5 · "70"→7,0 · "6,5"/"6.5" directos.
@@ -206,20 +291,23 @@ async function init(){
     return;
   }
 
-  // F4 sólo evalúa cursos. Si es taller u otro tipo, se informa (sin construir nada más).
-  if (ctxTipo === 'taller') { initTalleres(); return; }   // F5: pertenencia a talleres
+  // Secciones por tipo de contexto:
+  //   curso  → Evaluaciones (F4) · Participación (F6)
+  //   taller → Pertenencias (F5) · Participación (F6)
+  if (ctxTipo === 'taller') { seccion = 'pert'; mostrarBtnOrden(); renderSecNav(); initTalleres(); return; }
   if (ctxTipo !== 'curso') {
+    document.getElementById('secnav').style.display = 'none';
     document.getElementById('vista').innerHTML =
-      `<div class="card"><p>El Libro aplica a contextos de tipo <b>curso</b> (evaluaciones · F4) o <b>taller</b> (pertenencia · F5).</p>
+      `<div class="card"><p>El Libro aplica a contextos de tipo <b>curso</b> (evaluaciones · F4) o <b>taller</b> (pertenencia · F5). La participación (F6) aplica a curso o taller.</p>
        <p class="hint">Este contexto es de tipo <b>${esc(ctxTipo)}</b>.</p></div>`;
     return;
   }
-  renderLista();
+  seccion = 'eval'; mostrarBtnOrden(); renderSecNav(); renderLista();
 }
 
 // ── Vista LISTA ──────────────────────────────────────────────
 async function renderLista(){
-  evalActual = null;
+  evalActual = null; vistaActiva = 'eval-lista';
   document.getElementById('btn-volver').style.display = 'none';
   const v = document.getElementById('vista');
   v.innerHTML = '<div class="card">Cargando evaluaciones…</div>';
@@ -332,19 +420,15 @@ async function abrirDetalle(evId){
     evalActual = ce.data;
     adecs = ca.data || [];
     posMap = {}; (cm.data || []).forEach(m => { posMap[m.estudiante_id] = m.posicion; });
-    notas = (cn.data || []).slice().sort((a,b) => {
-      const pa = posMap[a.estudiante_id] ?? 9999, pb = posMap[b.estudiante_id] ?? 9999;
-      if (pa !== pb) return pa - pb;
-      const na = (a.estudiante?.apellido||'') + (a.estudiante?.nombre||'');
-      const nb = (b.estudiante?.apellido||'') + (b.estudiante?.nombre||'');
-      return na.localeCompare(nb);
-    });
+    notas = (cn.data || []).slice();
+    ordenarNotas();   // orden según el modo activo (oficial 1–N por defecto)
   } catch (e) {
     v.innerHTML = '<div class="card"></div>';
     msg('No se pudo cargar la evaluación: ' + e.message);
     return;
   }
-  document.getElementById('btn-volver').style.display = '';
+  const btnV = document.getElementById('btn-volver');
+  btnV.textContent = '← Evaluaciones'; btnV.style.display = '';
   renderDetalle();
 }
 
@@ -361,13 +445,11 @@ function optsObjetivo(sel){
   });
   return html;
 }
-// Etiqueta de nombre para mostrar y para la búsqueda.
-function nombreEstudiante(n){
-  const ap = n.estudiante?.apellido || '', no = n.estudiante?.nombre || '';
-  return (ap + (ap ? ', ' : '') + no).trim();
-}
+// Etiqueta de nombre para mostrar y para la búsqueda (según el modo activo).
+function nombreEstudiante(n){ return nombreFmt(n.estudiante); }
 
 function renderDetalle(){
+  vistaActiva = 'eval-detalle';
   const ev = evalActual;
   const cerrada = ev.estado === 'cerrado';
   const dis = cerrada ? 'disabled' : '';
@@ -580,7 +662,7 @@ let pertenencias = [];  // filas de libro_pertenencias_taller (estudiante embebi
 let estElegibles = [];  // estudiantes con matrícula de curso en el año (requisito I6)
 let estMap = {};
 
-function nombreDe(e){ const ap=e?.apellido||'', no=e?.nombre||''; return (ap + (ap?', ':'') + no).trim(); }
+function nombreDe(e){ return nombreFmt(e); }
 
 async function initTalleres(){
   try {
@@ -595,7 +677,7 @@ async function initTalleres(){
     estMap = {};
     (em.data || []).forEach(m => { if (m.estudiante_id && !estMap[m.estudiante_id]) estMap[m.estudiante_id] = m.estudiante || {nombre:'',apellido:''}; });
     estElegibles = Object.keys(estMap).map(id => ({ id, ...estMap[id] }))
-      .sort((a,b) => (nombreDe(a)).localeCompare(nombreDe(b)));
+      .sort(cmpEstudiantes(e => e, null));
     await cargarPertenencias();
   } catch (e) {
     document.getElementById('vista').innerHTML = '<div class="card"></div>';
@@ -610,7 +692,7 @@ async function cargarPertenencias(){
     .select('id,estudiante_id,estudiante:libro_estudiantes(nombre,apellido)')
     .eq('anio_id', anioId).eq('contexto_id', tallerSel);
   if (r.error) throw r.error;
-  pertenencias = (r.data || []).slice().sort((a,b) => nombreDe(a.estudiante).localeCompare(nombreDe(b.estudiante)));
+  pertenencias = (r.data || []).slice().sort(cmpEstudiantes(p => p.estudiante, null));
 }
 
 function opcionesElegibles(){
@@ -629,6 +711,7 @@ function pertListaHTML(){
 }
 
 function renderTalleres(){
+  vistaActiva = 'taller';
   const v = document.getElementById('vista');
   v.innerHTML = `
     <div class="card">
@@ -672,7 +755,7 @@ async function agregarPertenencia(){
       .select('id,estudiante_id,estudiante:libro_estudiantes(nombre,apellido)').single();
     if (error) throw error;
     pertenencias.push(data);
-    pertenencias.sort((a,b) => nombreDe(a.estudiante).localeCompare(nombreDe(b.estudiante)));
+    pertenencias.sort(cmpEstudiantes(p => p.estudiante, null));
     pintarPertenencias();
     toast('Estudiante agregado al taller', 'ok');
   } catch (e) { toast('No se pudo agregar: ' + e.message, 'err'); }
@@ -686,6 +769,279 @@ async function quitarPertenencia(id){
     pintarPertenencias();
     toast('Estudiante quitado del taller', 'ok');
   } catch (e) { toast('No se pudo quitar: ' + e.message, 'err'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Navegación de secciones (curso: Evaluaciones/Participación ·
+// taller: Pertenencias/Participación)
+// ══════════════════════════════════════════════════════════════
+function renderSecNav(){
+  const nav = document.getElementById('secnav');
+  const secs = ctxTipo === 'taller'
+    ? [['pert','Pertenencias'], ['part','Participación']]
+    : [['eval','Evaluaciones'], ['part','Participación']];
+  nav.innerHTML = secs.map(([s,label]) =>
+    `<button class="btn seg${seccion===s?' on':''}" onclick="irSeccion('${s}')">${label}</button>`).join('');
+  nav.style.display = 'flex';
+}
+function irSeccion(s){
+  seccion = s;
+  limpiarMsg();
+  document.getElementById('btn-volver').style.display = 'none';
+  renderSecNav();
+  if (s === 'eval') renderLista();
+  else if (s === 'pert') initTalleres();
+  else if (s === 'part') renderPartLista();
+}
+function volverAtras(){
+  limpiarMsg();
+  if (seccion === 'part') renderPartLista();
+  else renderLista();   // 'eval' (talleres no tiene vista de detalle)
+}
+
+// ══════════════════════════════════════════════════════════════
+// F6 — PARTICIPACIÓN (unificada curso/taller)
+// Reutiliza los patrones de F4 (lista + crear + detalle + cerrar/reabrir).
+// Detalle por estudiante = participó (sí/no). Población snapshot: curso →
+// matrículas; taller → libro_pertenencias_taller (F5).
+// ══════════════════════════════════════════════════════════════
+let partActual = null;   // cabecera de participación en detalle
+let partDet = [];        // filas de detalle (estudiante embebido)
+let partPos = {};        // estudiante_id -> posición (solo curso)
+
+// Población del contexto para el año, materializada al crear (I13 snapshot).
+async function poblacionContexto(fecha){
+  if (ctxTipo === 'curso') {
+    const { data, error } = await sb.from('libro_matriculas')
+      .select('estudiante_id,fecha_ingreso,fecha_retiro')
+      .eq('anio_id', anioId).eq('contexto_id', ctxId).eq('estado', 'activo');
+    if (error) throw error;
+    return (data || []).filter(m =>
+      (!m.fecha_ingreso || m.fecha_ingreso <= fecha) && (!m.fecha_retiro || m.fecha_retiro > fecha))
+      .map(m => m.estudiante_id);
+  }
+  // taller → pertenencias (F5)
+  const { data, error } = await sb.from('libro_pertenencias_taller')
+    .select('estudiante_id').eq('anio_id', anioId).eq('contexto_id', ctxId);
+  if (error) throw error;
+  return (data || []).map(p => p.estudiante_id);
+}
+
+async function renderPartLista(){
+  partActual = null; vistaActiva = 'part-lista';
+  document.getElementById('btn-volver').style.display = 'none';
+  const v = document.getElementById('vista');
+  v.innerHTML = '<div class="card">Cargando participación…</div>';
+  let regs = [];
+  try {
+    const { data, error } = await sb.from('libro_participaciones')
+      .select('*').eq('anio_id', anioId).eq('contexto_id', ctxId)
+      .order('fecha', { ascending:false }).order('created_at', { ascending:false });
+    if (error) throw error;
+    regs = data || [];
+  } catch (e) {
+    v.innerHTML = '<div class="card"></div>';
+    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql en Supabase.' : ('Error listando participación: ' + e.message));
+    return;
+  }
+  const hoy = new Date().toISOString().slice(0,10);
+  v.innerHTML = `
+    <div class="card">
+      <p class="sec-title">Nueva participación</p>
+      <div class="grid2">
+        <div><label>Nombre</label><input id="np-nombre" placeholder="Ej: Juego rítmico"></div>
+        <div><label>Fecha</label><input id="np-fecha" type="date" value="${hoy}"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="crearParticipacion()">Crear participación</button>
+        <span class="hint">Se materializan los estudiantes ${ctxTipo==='taller'?'del taller':'del curso'} en la fecha (snapshot).</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="sec-title">Participaciones de ${esc(ctxNombre)} · ${anioNum} (${regs.length})</p>
+      <div id="lista-part"></div>
+    </div>`;
+  const cont = document.getElementById('lista-part');
+  if (!regs.length) { cont.innerHTML = '<p class="hint">Aún no hay registros de participación.</p>'; return; }
+  cont.innerHTML = regs.map(r => `
+    <div class="eval-item" onclick="abrirPartDetalle('${r.id}')">
+      <div><div><b>${esc(r.nombre)}</b></div><div class="meta">${esc(r.fecha)}</div></div>
+      <span class="badge ${r.estado}">${r.estado}</span>
+    </div>`).join('');
+}
+
+async function crearParticipacion(){
+  const nombre = document.getElementById('np-nombre').value.trim();
+  const fecha  = document.getElementById('np-fecha').value;
+  if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
+  if (!fecha)  { toast('La fecha es obligatoria.', 'err'); return; }
+  try {
+    const ids = await poblacionContexto(fecha);   // snapshot
+    const { data: ins, error: ee } = await sb.from('libro_participaciones')
+      .insert({ anio_id:anioId, contexto_id:ctxId, sesion_creacion_id:ref.sesion, nombre, fecha, estado:'abierto' })
+      .select('id').single();
+    if (ee) throw ee;
+    const pid = ins.id;
+    if (ids.length) {
+      const filas = ids.map(eid => ({ participacion_id:pid, estudiante_id:eid, participo:false }));
+      const { error: ed } = await sb.from('libro_participacion_detalle').insert(filas);
+      if (ed) { await sb.from('libro_participaciones').delete().eq('id', pid); throw ed; }
+    }
+    toast('Participación creada (' + ids.length + ' estudiantes).', 'ok');
+    abrirPartDetalle(pid);
+  } catch (e) { toast(tablaFalta(e) ? 'Faltan tablas del Libro.' : ('No se pudo crear: ' + e.message), 'err'); }
+}
+
+async function abrirPartDetalle(pid){
+  limpiarMsg();
+  const v = document.getElementById('vista');
+  v.innerHTML = '<div class="card">Cargando participación…</div>';
+  try {
+    const [cp, cd] = await Promise.all([
+      sb.from('libro_participaciones').select('*').eq('id', pid).single(),
+      sb.from('libro_participacion_detalle')
+        .select('id,participacion_id,estudiante_id,participo,estudiante:libro_estudiantes(nombre,apellido)')
+        .eq('participacion_id', pid),
+    ]);
+    if (cp.error) throw cp.error;
+    if (cd.error) throw cd.error;
+    partActual = cp.data;
+    partPos = {};
+    if (ctxTipo === 'curso') {
+      const cm = await sb.from('libro_matriculas').select('estudiante_id,posicion').eq('anio_id', anioId).eq('contexto_id', ctxId);
+      (cm.data || []).forEach(m => { partPos[m.estudiante_id] = m.posicion; });
+    }
+    partDet = (cd.data || []).slice();
+    ordenarPartDet();   // orden según el modo activo (oficial 1–N por defecto)
+  } catch (e) {
+    v.innerHTML = '<div class="card"></div>';
+    msg('No se pudo cargar la participación: ' + e.message);
+    return;
+  }
+  const btn = document.getElementById('btn-volver');
+  btn.textContent = '← Participaciones'; btn.style.display = '';
+  renderPartDetalle();
+}
+
+function renderPartDetalle(){
+  vistaActiva = 'part-detalle';
+  const p = partActual;
+  const cerrada = p.estado === 'cerrado';
+  const dis = cerrada ? 'disabled' : '';
+  const v = document.getElementById('vista');
+  v.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <p class="sec-title" style="margin:0">Cabecera</p>
+        <span class="badge ${p.estado}">${p.estado}</span>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>Nombre</label><input id="pd-nombre" value="${esc(p.nombre)}" ${dis}></div>
+        <div><label>Fecha</label><input id="pd-fecha" type="date" value="${esc(p.fecha)}" ${dis}></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="guardarPartCabecera()" ${dis}>Guardar cabecera</button>
+        ${cerrada ? `<button class="btn warn" onclick="reabrirPart()">Reabrir</button>`
+                  : `<button class="btn" onclick="cerrarPart()">Cerrar</button>`}
+        ${cerrada ? '<span class="hint">Participación cerrada: solo lectura. Reábrela para editar.</span>' : ''}
+      </div>
+    </div>
+    <div class="card">
+      <p class="sec-title">Estudiantes (${partDet.length}) · participaron: <span id="pd-si">${partDet.filter(d=>d.participo).length}</span></p>
+      ${partDet.length ? `<div class="buscador"><input id="buscador-part" type="text" placeholder="Buscar por nombre o apellido…" oninput="filtrarPart()" autocomplete="off"></div>` : ''}
+      <div style="overflow-x:auto">
+      <table>
+        <colgroup><col style="width:44px"><col><col style="width:96px"></colgroup>
+        <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="part">Participó</th></tr></thead>
+        <tbody id="tbody-part">${partDet.map((d, idx) => `
+          <tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(normBuscar(nombreDe(d.estudiante)))}">
+            <td class="pos">${partPos[d.estudiante_id] ?? ''}</td>
+            <td>${esc(nombreDe(d.estudiante))}</td>
+            <td class="part"><input type="checkbox" data-i="${idx}" ${d.participo?'checked':''} ${dis}></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>
+      ${partDet.length ? (cerrada ? '' : `
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="guardarPartDetalle()">Guardar participación</button>
+        <span class="hint">Marca quién participó. Los pendientes quedan arriba.</span>
+      </div>`) : '<p class="hint">Esta participación no materializó estudiantes (población vacía en la fecha).</p>'}
+    </div>`;
+  ordenarPartFilas();          // orden inicial: pendientes arriba, participantes abajo
+  if (!cerrada) {
+    v.querySelectorAll('input[type="checkbox"][data-i]').forEach(el => {
+      el.addEventListener('change', () => {
+        partDet[+el.dataset.i].participo = el.checked;
+        const si = document.getElementById('pd-si'); if (si) si.textContent = partDet.filter(d=>d.participo).length;
+        ordenarPartFilas();      // mueve la fila a su grupo, local y sin reconstruir la vista
+      });
+    });
+  }
+}
+
+// Orden dinámico: pendientes primero, participantes después; orden original
+// (data-oi) dentro de cada grupo. Reordena los <tr> existentes (appendChild los
+// mueve, no los recrea) → sin recargar, sin reconstruir, sin salto de scroll.
+function ordenarPartFilas(){
+  const tb = document.getElementById('tbody-part'); if (!tb) return;
+  const filas = Array.from(tb.querySelectorAll('tr'));
+  filas.sort((a, b) => {
+    const pa = partDet[+a.dataset.i]?.participo ? 1 : 0;
+    const pb = partDet[+b.dataset.i]?.participo ? 1 : 0;
+    if (pa !== pb) return pa - pb;
+    return (+a.dataset.oi) - (+b.dataset.oi);
+  });
+  filas.forEach(tr => tb.appendChild(tr));
+}
+
+// Búsqueda en tiempo real (mismo patrón/normalización que Evaluación).
+function filtrarPart(){
+  const inp = document.getElementById('buscador-part'); if (!inp) return;
+  const q = normBuscar(inp.value);
+  document.querySelectorAll('#tbody-part tr').forEach(tr => {
+    const hay = tr.dataset.buscar || '';
+    tr.classList.toggle('oculto', q !== '' && !hay.includes(q));
+  });
+}
+
+async function guardarPartCabecera(){
+  const nombre = document.getElementById('pd-nombre').value.trim();
+  const fecha  = document.getElementById('pd-fecha').value;
+  if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
+  if (!fecha)  { toast('La fecha es obligatoria.', 'err'); return; }
+  try {
+    const { error } = await sb.from('libro_participaciones').update({ nombre, fecha }).eq('id', partActual.id);
+    if (error) throw error;
+    partActual.nombre = nombre; partActual.fecha = fecha;
+    toast('Guardado correctamente', 'ok');
+  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+}
+
+async function guardarPartDetalle(){
+  try {
+    const filas = partDet.map(d => ({ id:d.id, participacion_id:d.participacion_id, estudiante_id:d.estudiante_id, participo:!!d.participo }));
+    const { error } = await sb.from('libro_participacion_detalle').upsert(filas, { onConflict:'id' });
+    if (error) throw error;
+    toast('Guardado correctamente', 'ok');
+  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+}
+
+async function cerrarPart(){
+  try {
+    const { error } = await sb.from('libro_participaciones').update({ estado:'cerrado' }).eq('id', partActual.id);
+    if (error) throw error;
+    partActual.estado = 'cerrado'; renderPartDetalle();
+    toast('Participación cerrada (solo lectura).', 'ok');
+  } catch (e) { toast('No se pudo cerrar', 'err'); }
+}
+async function reabrirPart(){
+  try {
+    const { error } = await sb.from('libro_participaciones').update({ estado:'abierto' }).eq('id', partActual.id);
+    if (error) throw error;
+    partActual.estado = 'abierto'; renderPartDetalle();
+    toast('Participación reabierta (editable).', 'ok');
+  } catch (e) { toast('No se pudo reabrir', 'err'); }
 }
 
 init();
