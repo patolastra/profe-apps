@@ -306,3 +306,83 @@ DROP POLICY IF EXISTS "acceso_total" ON libro_evaluacion_notas;
 CREATE POLICY "acceso_total" ON libro_evaluaciones            FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acceso_total" ON libro_evaluacion_adecuaciones FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acceso_total" ON libro_evaluacion_notas        FOR ALL USING (true) WITH CHECK (true);
+
+
+-- ============================================================
+-- LIBRO DE CLASES — F5: pertenencia de estudiantes a talleres
+-- ============================================================
+-- Un estudiante puede pertenecer a 0..N talleres durante un año escolar. La
+-- pertenencia es (estudiante + año + taller), siendo el taller un contexto de
+-- tipo='taller'. Aditivo e idempotente.
+--
+-- NO reemplaza ni modifica libro_matriculas (que sigue representando la
+-- pertenencia al CURSO). NO reutiliza ni toca alumnos_taller (estructura ajena
+-- en producción). Sin fechas, estados ni atributos extra: F5 no los define.
+-- La asignación inicial (de dónde salen las pertenencias) queda DIFERIDA a una
+-- futura iteración; F5 solo da el soporte para gestionarlas.
+--
+-- Invariantes (numeración del Plan Maestro §12):
+--   I6  Taller ⇒ matrícula: pertenecer a un taller exige matrícula de curso ese
+--       mismo año → trigger.
+--   I10 Pertenencia única: una sola fila por (estudiante, año, taller) → UNIQUE.
+--   (+ el contexto debe ser tipo='taller' → trigger, análogo al de 'curso' de F1/F4).
+--   Nota: I5 (fechas nulas) es de matrículas y NO aplica a esta capa (sin fechas).
+
+CREATE TABLE IF NOT EXISTS libro_pertenencias_taller (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    estudiante_id  UUID NOT NULL REFERENCES libro_estudiantes(id),
+    anio_id        UUID NOT NULL REFERENCES libro_anios(id),
+    contexto_id    UUID NOT NULL REFERENCES contextos(id),   -- debe ser tipo 'taller'
+    created_at     TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (estudiante_id, anio_id, contexto_id)             -- I10 (pertenencia única)
+);
+CREATE INDEX IF NOT EXISTS idx_libro_pert_taller_anio_ctx    ON libro_pertenencias_taller (anio_id, contexto_id);
+CREATE INDEX IF NOT EXISTS idx_libro_pert_taller_estudiante  ON libro_pertenencias_taller (estudiante_id);
+
+-- Trigger: el contexto de la pertenencia debe ser de tipo 'taller'.
+CREATE OR REPLACE FUNCTION libro_pert_taller_contexto_es_taller()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo TEXT;
+BEGIN
+    SELECT tipo INTO v_tipo FROM contextos WHERE id = NEW.contexto_id;
+    IF v_tipo IS DISTINCT FROM 'taller' THEN
+        RAISE EXCEPTION
+            'libro_pertenencias_taller.contexto_id debe apuntar a un contexto de tipo ''taller'' (recibido: %)',
+            COALESCE(v_tipo, 'inexistente');
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_pert_taller_contexto_es_taller ON libro_pertenencias_taller;
+CREATE TRIGGER trg_libro_pert_taller_contexto_es_taller
+    BEFORE INSERT OR UPDATE OF contexto_id ON libro_pertenencias_taller
+    FOR EACH ROW EXECUTE FUNCTION libro_pert_taller_contexto_es_taller();
+
+-- Trigger I6: pertenecer a un taller exige una matrícula de curso del mismo
+-- estudiante en el mismo año (libro_matriculas ya garantiza que es un 'curso').
+CREATE OR REPLACE FUNCTION libro_pert_taller_exige_matricula()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM libro_matriculas
+        WHERE estudiante_id = NEW.estudiante_id AND anio_id = NEW.anio_id
+    ) THEN
+        RAISE EXCEPTION
+            'I6: el estudiante % no tiene matrícula de curso en el año % (requisito para pertenecer a un taller)',
+            NEW.estudiante_id, NEW.anio_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_pert_taller_exige_matricula ON libro_pertenencias_taller;
+CREATE TRIGGER trg_libro_pert_taller_exige_matricula
+    BEFORE INSERT OR UPDATE OF estudiante_id, anio_id ON libro_pertenencias_taller
+    FOR EACH ROW EXECUTE FUNCTION libro_pert_taller_exige_matricula();
+
+-- ── ROW LEVEL SECURITY (patrón acceso_total del ecosistema) ──
+ALTER TABLE libro_pertenencias_taller ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "acceso_total" ON libro_pertenencias_taller;
+CREATE POLICY "acceso_total" ON libro_pertenencias_taller FOR ALL USING (true) WITH CHECK (true);

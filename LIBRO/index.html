@@ -207,10 +207,11 @@ async function init(){
   }
 
   // F4 sólo evalúa cursos. Si es taller u otro tipo, se informa (sin construir nada más).
+  if (ctxTipo === 'taller') { initTalleres(); return; }   // F5: pertenencia a talleres
   if (ctxTipo !== 'curso') {
     document.getElementById('vista').innerHTML =
-      `<div class="card"><p>Las evaluaciones (F4) aplican solo a contextos de tipo <b>curso</b>.</p>
-       <p class="hint">Este contexto es de tipo <b>${esc(ctxTipo)}</b>. Los talleres/observaciones son fases posteriores.</p></div>`;
+      `<div class="card"><p>El Libro aplica a contextos de tipo <b>curso</b> (evaluaciones · F4) o <b>taller</b> (pertenencia · F5).</p>
+       <p class="hint">Este contexto es de tipo <b>${esc(ctxTipo)}</b>.</p></div>`;
     return;
   }
   renderLista();
@@ -567,6 +568,125 @@ async function reabrirEval(){
 }
 
 function volverLista(){ limpiarMsg(); renderLista(); }
+
+// ══════════════════════════════════════════════════════════════
+// F5 — TALLERES: pertenencia de estudiantes (contexto tipo='taller')
+// Gestión mínima: consultar talleres, ver/agregar/quitar pertenencias del año.
+// No toca evaluaciones ni ninguna otra funcionalidad F3/F4.
+// ══════════════════════════════════════════════════════════════
+let talleres = [];      // contextos tipo='taller'
+let tallerSel = null;   // id del taller que se gestiona
+let pertenencias = [];  // filas de libro_pertenencias_taller (estudiante embebido)
+let estElegibles = [];  // estudiantes con matrícula de curso en el año (requisito I6)
+let estMap = {};
+
+function nombreDe(e){ const ap=e?.apellido||'', no=e?.nombre||''; return (ap + (ap?', ':'') + no).trim(); }
+
+async function initTalleres(){
+  try {
+    const ct = await sb.from('contextos').select('id,nombre').eq('tipo','taller').order('nombre');
+    if (ct.error) throw ct.error;
+    talleres = ct.data || [];
+    tallerSel = ctxId;   // taller del deep-link (ctx de la URL)
+    // Elegibles = estudiantes con matrícula de curso en el año (coherente con I6).
+    const em = await sb.from('libro_matriculas')
+      .select('estudiante_id,estudiante:libro_estudiantes(nombre,apellido)').eq('anio_id', anioId);
+    if (em.error) throw em.error;
+    estMap = {};
+    (em.data || []).forEach(m => { if (m.estudiante_id && !estMap[m.estudiante_id]) estMap[m.estudiante_id] = m.estudiante || {nombre:'',apellido:''}; });
+    estElegibles = Object.keys(estMap).map(id => ({ id, ...estMap[id] }))
+      .sort((a,b) => (nombreDe(a)).localeCompare(nombreDe(b)));
+    await cargarPertenencias();
+  } catch (e) {
+    document.getElementById('vista').innerHTML = '<div class="card"></div>';
+    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql en Supabase.' : ('Error cargando talleres: ' + e.message));
+    return;
+  }
+  renderTalleres();
+}
+
+async function cargarPertenencias(){
+  const r = await sb.from('libro_pertenencias_taller')
+    .select('id,estudiante_id,estudiante:libro_estudiantes(nombre,apellido)')
+    .eq('anio_id', anioId).eq('contexto_id', tallerSel);
+  if (r.error) throw r.error;
+  pertenencias = (r.data || []).slice().sort((a,b) => nombreDe(a.estudiante).localeCompare(nombreDe(b.estudiante)));
+}
+
+function opcionesElegibles(){
+  const yaEn = new Set(pertenencias.map(p => p.estudiante_id));
+  const libres = estElegibles.filter(e => !yaEn.has(e.id));
+  if (!libres.length) return '<option value="">(todos los estudiantes ya están en el taller)</option>';
+  return '<option value="">— elegir estudiante —</option>' +
+    libres.map(e => `<option value="${e.id}">${esc(nombreDe(e))}</option>`).join('');
+}
+
+function pertListaHTML(){
+  if (!pertenencias.length) return '<li class="hint" style="border:none">Sin estudiantes en este taller todavía.</li>';
+  return pertenencias.map(p => `<li style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <span>${esc(nombreDe(p.estudiante))}</span>
+      <button class="btn" onclick="quitarPertenencia('${p.id}')">Quitar</button></li>`).join('');
+}
+
+function renderTalleres(){
+  const v = document.getElementById('vista');
+  v.innerHTML = `
+    <div class="card">
+      <p class="sec-title">Talleres · ${anioNum}</p>
+      <div class="row">
+        <label style="margin:0">Taller</label>
+        <select id="pt-taller" style="max-width:280px" onchange="cambiarTaller()">${
+          talleres.map(t => `<option value="${t.id}"${t.id===tallerSel?' selected':''}>${esc(t.nombre)}</option>`).join('')
+        }</select>
+      </div>
+      <p class="hint" style="margin-top:10px">Pertenencia de estudiantes al taller durante ${anioNum}. Requiere que el estudiante tenga matrícula de curso ese año; no reemplaza la matrícula del curso.</p>
+    </div>
+    <div class="card">
+      <p class="sec-title">Estudiantes del taller (<span id="pt-count">${pertenencias.length}</span>)</p>
+      <div class="row">
+        <select id="pt-nuevo" style="max-width:340px">${opcionesElegibles()}</select>
+        <button class="btn primary" onclick="agregarPertenencia()">Agregar al taller</button>
+      </div>
+      <ul class="adec-list" id="pt-lista" style="margin-top:12px">${pertListaHTML()}</ul>
+    </div>`;
+}
+
+function pintarPertenencias(){
+  const cnt = document.getElementById('pt-count'); if (cnt) cnt.textContent = pertenencias.length;
+  const lista = document.getElementById('pt-lista'); if (lista) lista.innerHTML = pertListaHTML();
+  const sel = document.getElementById('pt-nuevo'); if (sel) sel.innerHTML = opcionesElegibles();
+}
+
+async function cambiarTaller(){
+  tallerSel = document.getElementById('pt-taller').value;
+  try { await cargarPertenencias(); pintarPertenencias(); }
+  catch (e) { toast('No se pudieron cargar las pertenencias', 'err'); }
+}
+
+async function agregarPertenencia(){
+  const estId = document.getElementById('pt-nuevo').value;
+  if (!estId) { toast('Elige un estudiante.', 'err'); return; }
+  try {
+    const { data, error } = await sb.from('libro_pertenencias_taller')
+      .insert({ estudiante_id: estId, anio_id: anioId, contexto_id: tallerSel })
+      .select('id,estudiante_id,estudiante:libro_estudiantes(nombre,apellido)').single();
+    if (error) throw error;
+    pertenencias.push(data);
+    pertenencias.sort((a,b) => nombreDe(a.estudiante).localeCompare(nombreDe(b.estudiante)));
+    pintarPertenencias();
+    toast('Estudiante agregado al taller', 'ok');
+  } catch (e) { toast('No se pudo agregar: ' + e.message, 'err'); }
+}
+
+async function quitarPertenencia(id){
+  try {
+    const { error } = await sb.from('libro_pertenencias_taller').delete().eq('id', id);
+    if (error) throw error;
+    pertenencias = pertenencias.filter(p => p.id !== id);
+    pintarPertenencias();
+    toast('Estudiante quitado del taller', 'ok');
+  } catch (e) { toast('No se pudo quitar: ' + e.message, 'err'); }
+}
 
 init();
 </script>
