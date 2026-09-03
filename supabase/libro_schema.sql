@@ -386,3 +386,338 @@ CREATE TRIGGER trg_libro_pert_taller_exige_matricula
 ALTER TABLE libro_pertenencias_taller ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "acceso_total" ON libro_pertenencias_taller;
 CREATE POLICY "acceso_total" ON libro_pertenencias_taller FOR ALL USING (true) WITH CHECK (true);
+
+
+-- ============================================================
+-- LIBRO DE CLASES — F6: participación (unificada curso/taller)
+-- ============================================================
+-- Registro de participación por estudiante (participó sí/no) para un CURSO o un
+-- TALLER en un año. Aditivo e idempotente. La sesión de creación es solo
+-- trazabilidad: NO limita la vida del registro (puede editarse desde otras
+-- sesiones del mismo contexto mientras esté abierto).
+--
+-- Población (snapshot al crear, I13): curso → matrículas del curso/año; taller →
+-- estudiantes de libro_pertenencias_taller (F5) de ese taller/año. La app la
+-- materializa; la BD nunca añade filas de detalle por su cuenta.
+--
+-- Invariantes (numeración del Plan Maestro §12):
+--   I7  Detalle único: una sola fila por estudiante en cada participación
+--       → UNIQUE (participacion_id, estudiante_id).
+--   I12 Cerrado = solo lectura: cabecera + detalle inmutables mientras cerrado;
+--       reapertura explícita permitida → triggers.
+--   I13 Snapshot: población fijada al crear, sin re-sincronización → por diseño.
+--   (+ el contexto debe ser 'curso' o 'taller' → trigger).
+-- NOTA de numeración: en el Plan vigente "detalle único" es I7 (no I10; I10 es la
+-- pertenencia única de talleres de F5). Ver el reporte de discrepancia de F6.
+
+CREATE TABLE IF NOT EXISTS libro_participaciones (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    anio_id             UUID NOT NULL REFERENCES libro_anios(id),
+    contexto_id         UUID NOT NULL REFERENCES contextos(id),   -- curso o taller
+    sesion_creacion_id  UUID NOT NULL REFERENCES sesiones(id),    -- trazabilidad
+    nombre              TEXT NOT NULL,
+    fecha               DATE NOT NULL,
+    estado              TEXT NOT NULL DEFAULT 'abierto'
+                            CHECK (estado IN ('abierto', 'cerrado')),
+    created_at          TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_libro_part_anio_ctx ON libro_participaciones (anio_id, contexto_id);
+
+CREATE TABLE IF NOT EXISTS libro_participacion_detalle (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    participacion_id  UUID NOT NULL REFERENCES libro_participaciones(id) ON DELETE CASCADE,
+    estudiante_id     UUID NOT NULL REFERENCES libro_estudiantes(id),
+    participo         BOOLEAN NOT NULL DEFAULT false,   -- participó sí/no
+    created_at        TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (participacion_id, estudiante_id)            -- I7 (detalle único)
+);
+CREATE INDEX IF NOT EXISTS idx_libro_part_det_part ON libro_participacion_detalle (participacion_id);
+CREATE INDEX IF NOT EXISTS idx_libro_part_det_est  ON libro_participacion_detalle (estudiante_id);
+
+-- Trigger: el contexto de una participación debe ser 'curso' o 'taller'.
+CREATE OR REPLACE FUNCTION libro_participacion_contexto_valido()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo TEXT;
+BEGIN
+    SELECT tipo INTO v_tipo FROM contextos WHERE id = NEW.contexto_id;
+    IF v_tipo IS DISTINCT FROM 'curso' AND v_tipo IS DISTINCT FROM 'taller' THEN
+        RAISE EXCEPTION
+            'libro_participaciones.contexto_id debe ser de tipo ''curso'' o ''taller'' (recibido: %)',
+            COALESCE(v_tipo, 'inexistente');
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_participacion_contexto_valido ON libro_participaciones;
+CREATE TRIGGER trg_libro_participacion_contexto_valido
+    BEFORE INSERT OR UPDATE OF contexto_id ON libro_participaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_participacion_contexto_valido();
+
+-- Trigger I12 (cabecera): inmutable mientras la participación esté cerrada.
+-- Solo se permite cambiar 'estado' (para reabrir).
+CREATE OR REPLACE FUNCTION libro_participacion_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.estado = 'cerrado' AND (
+           NEW.nombre             IS DISTINCT FROM OLD.nombre
+        OR NEW.fecha              IS DISTINCT FROM OLD.fecha
+        OR NEW.contexto_id        IS DISTINCT FROM OLD.contexto_id
+        OR NEW.anio_id            IS DISTINCT FROM OLD.anio_id
+        OR NEW.sesion_creacion_id IS DISTINCT FROM OLD.sesion_creacion_id
+    ) THEN
+        RAISE EXCEPTION
+            'I12: participación cerrada es solo lectura; reábrela (estado=abierto) para editar la cabecera';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_participacion_bloqueo_cerrada ON libro_participaciones;
+CREATE TRIGGER trg_libro_participacion_bloqueo_cerrada
+    BEFORE UPDATE ON libro_participaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_participacion_bloqueo_cerrada();
+
+-- Trigger I12 (detalle): el detalle es inmutable si su participación está cerrada.
+-- Sirve para INSERT/UPDATE (NEW) y DELETE (OLD); si el padre ya no existe
+-- (borrado en cascada) no bloquea.
+CREATE OR REPLACE FUNCTION libro_participacion_hijo_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_part   UUID;
+    v_estado TEXT;
+BEGIN
+    v_part := COALESCE(NEW.participacion_id, OLD.participacion_id);
+    SELECT estado INTO v_estado FROM libro_participaciones WHERE id = v_part;
+    IF NOT FOUND THEN
+        RETURN COALESCE(NEW, OLD);   -- padre en borrado en cascada → permitir
+    END IF;
+    IF v_estado = 'cerrado' THEN
+        RAISE EXCEPTION
+            'I12: la participación % está cerrada; reábrela para modificar su detalle', v_part;
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_part_det_bloqueo_cerrada ON libro_participacion_detalle;
+CREATE TRIGGER trg_libro_part_det_bloqueo_cerrada
+    BEFORE INSERT OR UPDATE OR DELETE ON libro_participacion_detalle
+    FOR EACH ROW EXECUTE FUNCTION libro_participacion_hijo_bloqueo_cerrada();
+
+-- ── ROW LEVEL SECURITY (patrón acceso_total del ecosistema) ──
+ALTER TABLE libro_participaciones        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE libro_participacion_detalle  ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "acceso_total" ON libro_participaciones;
+DROP POLICY IF EXISTS "acceso_total" ON libro_participacion_detalle;
+CREATE POLICY "acceso_total" ON libro_participaciones       FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acceso_total" ON libro_participacion_detalle FOR ALL USING (true) WITH CHECK (true);
+
+
+-- ============================================================
+-- LIBRO DE CLASES — F7: entregas (curso) + observaciones (taller)
+-- ============================================================
+-- Dos funcionalidades independientes entre sí y de F4/F6. Aditivo e
+-- idempotente (re-ejecutable). NO modifica F1–F6 ni estructuras ajenas
+-- (contextos, sesiones, alumnos_taller intactas; solo se referencian por FK).
+-- Reutiliza libro_estudiantes, libro_matriculas y libro_pertenencias_taller.
+--
+-- ── Invariantes aplicadas (numeración del Plan Maestro vigente) ──
+--   I11  Estados de Entrega (detalle): pendiente / entregado / no_aplica
+--        → CHECK (estado IN ('pendiente','entregado','no_aplica')).
+--   I12  Estado de la Entrega (cabecera): abierta / cerrada
+--        → CHECK (estado IN ('abierto','cerrado')).
+--   I13  Una Entrega cerrada es de solo lectura; solo puede modificarse mediante
+--        reapertura (estado=abierto) → triggers de bloqueo (cabecera + detalle).
+--   I7   Detalle único: una fila por estudiante en cada entrega
+--        → UNIQUE (entrega_id, estudiante_id) (misma invariante que en F4/F6).
+--   P3   Snapshot: la población de la entrega se fija al crear (todo el curso
+--        vigente en la fecha; seleccionados='pendiente', no seleccionados=
+--        'no_aplica'); la BD nunca añade filas → por diseño (la app inserta una
+--        vez y nada más).
+--   I6-análoga  (observaciones) el estudiante observado debe pertenecer al
+--               taller ese año (libro_pertenencias_taller) → trigger.
+--   (+ contexto tipo correcto: entregas→'curso', observaciones→'taller' → triggers).
+-- Observaciones: histórico pedagógico append-only, SIN mecanismo de cierre
+-- (el Plan las deja fuera de ese mecanismo), independiente de F4/F6/entregas.
+
+-- ── 7. LIBRO_ENTREGAS ───────────────────────────────────────
+-- Cabecera de una entrega/tarea solicitada a estudiantes de un CURSO. La sesión
+-- de creación es solo trazabilidad (no limita su vida, patrón F4/F6).
+CREATE TABLE IF NOT EXISTS libro_entregas (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    anio_id             UUID NOT NULL REFERENCES libro_anios(id),
+    contexto_id         UUID NOT NULL REFERENCES contextos(id),    -- debe ser tipo 'curso'
+    sesion_creacion_id  UUID NOT NULL REFERENCES sesiones(id),     -- trazabilidad
+    nombre              TEXT NOT NULL,
+    fecha               DATE NOT NULL,
+    estado              TEXT NOT NULL DEFAULT 'abierto'
+                            CHECK (estado IN ('abierto', 'cerrado')),   -- I12 (abierta/cerrada)
+    created_at          TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_libro_entregas_anio_ctx ON libro_entregas (anio_id, contexto_id);
+
+-- ── 8. LIBRO_ENTREGA_DETALLE ────────────────────────────────
+-- Una fila por estudiante del curso, materializada al crear (snapshot, P3).
+-- I11 — estados de la entrega:
+--   'pendiente'  → seleccionado; debe entregar y aún no lo hizo.
+--   'entregado'  → seleccionado; ya entregó.
+--   'no_aplica'  → NO seleccionado al crear (fuera de la entrega).
+CREATE TABLE IF NOT EXISTS libro_entrega_detalle (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entrega_id     UUID NOT NULL REFERENCES libro_entregas(id) ON DELETE CASCADE,
+    estudiante_id  UUID NOT NULL REFERENCES libro_estudiantes(id),
+    estado         TEXT NOT NULL DEFAULT 'pendiente'
+                        CHECK (estado IN ('pendiente', 'entregado', 'no_aplica')),  -- I11
+    created_at     TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (entrega_id, estudiante_id)             -- I7 (detalle único)
+);
+CREATE INDEX IF NOT EXISTS idx_libro_entrega_det_entrega ON libro_entrega_detalle (entrega_id);
+CREATE INDEX IF NOT EXISTS idx_libro_entrega_det_est     ON libro_entrega_detalle (estudiante_id);
+
+-- Trigger: la entrega solo puede apuntar a un contexto 'curso'.
+CREATE OR REPLACE FUNCTION libro_entrega_contexto_es_curso()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo TEXT;
+BEGIN
+    SELECT tipo INTO v_tipo FROM contextos WHERE id = NEW.contexto_id;
+    IF v_tipo IS DISTINCT FROM 'curso' THEN
+        RAISE EXCEPTION
+            'libro_entregas.contexto_id debe apuntar a un contexto de tipo ''curso'' (recibido: %)',
+            COALESCE(v_tipo, 'inexistente');
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_entrega_contexto_es_curso ON libro_entregas;
+CREATE TRIGGER trg_libro_entrega_contexto_es_curso
+    BEFORE INSERT OR UPDATE OF contexto_id ON libro_entregas
+    FOR EACH ROW EXECUTE FUNCTION libro_entrega_contexto_es_curso();
+
+-- Trigger I13 (cabecera): una entrega cerrada es de solo lectura; solo puede
+-- modificarse mediante reapertura (solo se permite cambiar 'estado').
+CREATE OR REPLACE FUNCTION libro_entrega_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.estado = 'cerrado' AND (
+           NEW.nombre             IS DISTINCT FROM OLD.nombre
+        OR NEW.fecha              IS DISTINCT FROM OLD.fecha
+        OR NEW.contexto_id        IS DISTINCT FROM OLD.contexto_id
+        OR NEW.anio_id            IS DISTINCT FROM OLD.anio_id
+        OR NEW.sesion_creacion_id IS DISTINCT FROM OLD.sesion_creacion_id
+    ) THEN
+        RAISE EXCEPTION
+            'I13: entrega cerrada es solo lectura; reábrela (estado=abierto) para editar la cabecera';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_entrega_bloqueo_cerrada ON libro_entregas;
+CREATE TRIGGER trg_libro_entrega_bloqueo_cerrada
+    BEFORE UPDATE ON libro_entregas
+    FOR EACH ROW EXECUTE FUNCTION libro_entrega_bloqueo_cerrada();
+
+-- Trigger I13 (detalle): inmutable si su entrega está cerrada. Para
+-- INSERT/UPDATE (NEW) y DELETE (OLD); si el padre ya no existe (cascada) no bloquea.
+CREATE OR REPLACE FUNCTION libro_entrega_hijo_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_entrega UUID;
+    v_estado  TEXT;
+BEGIN
+    v_entrega := COALESCE(NEW.entrega_id, OLD.entrega_id);
+    SELECT estado INTO v_estado FROM libro_entregas WHERE id = v_entrega;
+    IF NOT FOUND THEN
+        RETURN COALESCE(NEW, OLD);   -- padre en borrado en cascada → permitir
+    END IF;
+    IF v_estado = 'cerrado' THEN
+        RAISE EXCEPTION
+            'I13: la entrega % está cerrada; reábrela para modificar su detalle', v_entrega;
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_entrega_det_bloqueo_cerrada ON libro_entrega_detalle;
+CREATE TRIGGER trg_libro_entrega_det_bloqueo_cerrada
+    BEFORE INSERT OR UPDATE OR DELETE ON libro_entrega_detalle
+    FOR EACH ROW EXECUTE FUNCTION libro_entrega_hijo_bloqueo_cerrada();
+
+-- ── 9. LIBRO_OBSERVACIONES ──────────────────────────────────
+-- Histórico pedagógico individual para estudiantes de un TALLER. Cada fila es
+-- una observación puntual (append-only). SIN estado ni cierre (fuera del
+-- mecanismo de cierre por decisión del Plan). Independiente de F4/F6/entregas.
+-- La sesión de creación es trazabilidad (patrón F4/F6): de qué sesión salió.
+CREATE TABLE IF NOT EXISTS libro_observaciones (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    anio_id             UUID NOT NULL REFERENCES libro_anios(id),
+    contexto_id         UUID NOT NULL REFERENCES contextos(id),    -- debe ser tipo 'taller'
+    estudiante_id       UUID NOT NULL REFERENCES libro_estudiantes(id),
+    sesion_creacion_id  UUID REFERENCES sesiones(id),              -- trazabilidad ("si corresponde": nullable)
+    fecha               DATE NOT NULL,
+    texto               TEXT NOT NULL,
+    created_at          TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_libro_obs_anio_ctx_est ON libro_observaciones (anio_id, contexto_id, estudiante_id);
+CREATE INDEX IF NOT EXISTS idx_libro_obs_estudiante   ON libro_observaciones (estudiante_id);
+
+-- Trigger: la observación solo puede apuntar a un contexto 'taller'.
+CREATE OR REPLACE FUNCTION libro_obs_contexto_es_taller()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo TEXT;
+BEGIN
+    SELECT tipo INTO v_tipo FROM contextos WHERE id = NEW.contexto_id;
+    IF v_tipo IS DISTINCT FROM 'taller' THEN
+        RAISE EXCEPTION
+            'libro_observaciones.contexto_id debe apuntar a un contexto de tipo ''taller'' (recibido: %)',
+            COALESCE(v_tipo, 'inexistente');
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_obs_contexto_es_taller ON libro_observaciones;
+CREATE TRIGGER trg_libro_obs_contexto_es_taller
+    BEFORE INSERT OR UPDATE OF contexto_id ON libro_observaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_obs_contexto_es_taller();
+
+-- Trigger I6-análoga: el estudiante observado debe pertenecer al taller ese año
+-- (integridad coherente con F5/F6; el pool de la UI son las pertenencias del
+-- taller). Solo aplica a inserciones nuevas; el histórico ya escrito permanece.
+CREATE OR REPLACE FUNCTION libro_obs_exige_pertenencia()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM libro_pertenencias_taller
+        WHERE estudiante_id = NEW.estudiante_id
+          AND anio_id       = NEW.anio_id
+          AND contexto_id   = NEW.contexto_id
+    ) THEN
+        RAISE EXCEPTION
+            'I6-análoga: el estudiante % no pertenece al taller % en el año % (requisito para observarlo)',
+            NEW.estudiante_id, NEW.contexto_id, NEW.anio_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_obs_exige_pertenencia ON libro_observaciones;
+CREATE TRIGGER trg_libro_obs_exige_pertenencia
+    BEFORE INSERT OR UPDATE OF estudiante_id, anio_id, contexto_id ON libro_observaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_obs_exige_pertenencia();
+
+-- ── ROW LEVEL SECURITY (patrón acceso_total del ecosistema) ──
+ALTER TABLE libro_entregas         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE libro_entrega_detalle  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE libro_observaciones    ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "acceso_total" ON libro_entregas;
+DROP POLICY IF EXISTS "acceso_total" ON libro_entrega_detalle;
+DROP POLICY IF EXISTS "acceso_total" ON libro_observaciones;
+CREATE POLICY "acceso_total" ON libro_entregas        FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acceso_total" ON libro_entrega_detalle FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acceso_total" ON libro_observaciones   FOR ALL USING (true) WITH CHECK (true);

@@ -87,6 +87,12 @@
   /* Columna "Participó" */
   td.part{width:96px;text-align:center}
   td.part input{width:auto;transform:scale(1.25);cursor:pointer}
+  /* Lenguaje visual COMÚN de "fila completada": Participación=participó ·
+     Entregas=entregó · Evaluaciones=con nota. Se aplica a toda la fila. */
+  tr.fila-ok td{background:rgba(76,175,80,.14)}
+  tr.fila-ok td:first-child{box-shadow:inset 3px 0 0 var(--acc)}
+  /* Fila clickeable (Participación/Entregas editables) */
+  tr.fila-click{cursor:pointer}
   /* Toast: fixed, no desplaza ni recarga la página */
   #toast-wrap{position:fixed;right:18px;bottom:18px;z-index:50;display:flex;flex-direction:column;gap:8px;pointer-events:none}
   .toast{min-width:200px;max-width:360px;padding:11px 15px;border-radius:9px;font-size:13.5px;
@@ -226,6 +232,15 @@ function aplicarOrden(){
     const inp = document.getElementById('buscador-part'); if (inp) { inp.value = q; filtrarPart(); }
   } else if (vistaActiva === 'taller') {
     ordenarPertenencias(); renderTalleres();
+  } else if (vistaActiva === 'entrega-detalle') {
+    const q = document.getElementById('buscador-ent')?.value || '';
+    const pend = !!document.getElementById('btn-ent-pendientes')?.classList.contains('on');
+    ordenarEntregaDet(); renderEntregaDetalle();
+    const inp = document.getElementById('buscador-ent'); if (inp) inp.value = q;
+    if (pend) { const bp = document.getElementById('btn-ent-pendientes'); if (bp){ bp.classList.add('on'); bp.setAttribute('aria-pressed','true'); } }
+    filtrarEntregas();
+  } else if (vistaActiva === 'obs') {
+    ordenarObsEst(); renderObservaciones();
   }
   window.scrollTo(0, y);
 }
@@ -501,7 +516,7 @@ function renderDetalle(){
         </colgroup>
         <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="obj">Objetivo aplicado</th><th class="nota">Nota</th><th>Comentario</th></tr></thead>
         <tbody id="tbody-est">${notas.map((n, idx) => `
-          <tr data-idx="${idx}" data-buscar="${esc(normBuscar(nombreEstudiante(n)))}">
+          <tr data-idx="${idx}" data-buscar="${esc(normBuscar(nombreEstudiante(n)))}" class="${n.nota != null ? 'fila-ok' : ''}">
             <td class="pos">${posMap[n.estudiante_id] ?? ''}</td>
             <td class="est-nombre">${esc(nombreEstudiante(n))}</td>
             <td class="obj"><select data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select></td>
@@ -530,6 +545,7 @@ function renderDetalle(){
           if (!r.ok) { toast('Nota inválida (usa 1,0–7,0): "' + el.value + '"', 'err'); el.focus(); return; }
           notas[i].nota = r.val;
           el.value = fmtNota(r.val);
+          el.closest('tr')?.classList.toggle('fila-ok', r.val != null);   // coloreo "completado" en vivo
           filtrarEstudiantes();   // refresca "Pendientes" en vivo (aparece/desaparece según nota)
         }
       });
@@ -777,9 +793,11 @@ async function quitarPertenencia(id){
 // ══════════════════════════════════════════════════════════════
 function renderSecNav(){
   const nav = document.getElementById('secnav');
+  //   curso  → Evaluaciones (F4) · Participación (F6) · Entregas (F7)
+  //   taller → Pertenencias (F5) · Participación (F6) · Observaciones (F7)
   const secs = ctxTipo === 'taller'
-    ? [['pert','Pertenencias'], ['part','Participación']]
-    : [['eval','Evaluaciones'], ['part','Participación']];
+    ? [['pert','Pertenencias'], ['part','Participación'], ['obs','Observaciones']]
+    : [['eval','Evaluaciones'], ['part','Participación'], ['entregas','Entregas']];
   nav.innerHTML = secs.map(([s,label]) =>
     `<button class="btn seg${seccion===s?' on':''}" onclick="irSeccion('${s}')">${label}</button>`).join('');
   nav.style.display = 'flex';
@@ -792,11 +810,14 @@ function irSeccion(s){
   if (s === 'eval') renderLista();
   else if (s === 'pert') initTalleres();
   else if (s === 'part') renderPartLista();
+  else if (s === 'entregas') renderEntregasLista();
+  else if (s === 'obs') renderObservaciones();
 }
 function volverAtras(){
   limpiarMsg();
   if (seccion === 'part') renderPartLista();
-  else renderLista();   // 'eval' (talleres no tiene vista de detalle)
+  else if (seccion === 'entregas') renderEntregasLista();
+  else renderLista();   // 'eval' (talleres/obs no tienen vista de detalle propia)
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -954,7 +975,7 @@ function renderPartDetalle(){
         <colgroup><col style="width:44px"><col><col style="width:96px"></colgroup>
         <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="part">Participó</th></tr></thead>
         <tbody id="tbody-part">${partDet.map((d, idx) => `
-          <tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(normBuscar(nombreDe(d.estudiante)))}">
+          <tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(normBuscar(nombreDe(d.estudiante)))}" class="${cerrada?'':'fila-click'}${d.participo?' fila-ok':''}">
             <td class="pos">${partPos[d.estudiante_id] ?? ''}</td>
             <td>${esc(nombreDe(d.estudiante))}</td>
             <td class="part"><input type="checkbox" data-i="${idx}" ${d.participo?'checked':''} ${dis}></td>
@@ -970,30 +991,54 @@ function renderPartDetalle(){
     </div>`;
   ordenarPartFilas();          // orden inicial: pendientes arriba, participantes abajo
   if (!cerrada) {
-    v.querySelectorAll('input[type="checkbox"][data-i]').forEach(el => {
-      el.addEventListener('change', () => {
-        partDet[+el.dataset.i].participo = el.checked;
-        const si = document.getElementById('pd-si'); if (si) si.textContent = partDet.filter(d=>d.participo).length;
-        ordenarPartFilas();      // mueve la fila a su grupo, local y sin reconstruir la vista
+    // Fuente única de verdad: fija el estado, refleja el checkbox, la clase de la
+    // fila y el contador; reordena grupo. Todo local, sin re-render ni scroll.
+    const partSet = (idx, val) => {
+      partDet[idx].participo = val;
+      const tr = document.querySelector(`#tbody-part tr[data-i="${idx}"]`);
+      if (tr) {
+        tr.classList.toggle('fila-ok', val);
+        const chk = tr.querySelector('input[type="checkbox"][data-i]');
+        if (chk) chk.checked = val;
+      }
+      const si = document.getElementById('pd-si'); if (si) si.textContent = partDet.filter(d=>d.participo).length;
+      ordenarPartFilas();        // mueve la fila a su grupo, local (appendChild), sin recrear
+    };
+    // Click en cualquier zona de la fila alterna participó. Si el click se origina
+    // en el checkbox (u otro control), lo maneja su propio 'change' → sin doble toggle.
+    v.querySelectorAll('#tbody-part tr[data-i]').forEach(tr => {
+      tr.addEventListener('click', (e) => {
+        if (e.target.closest('input,button,a,select,label')) return;
+        const idx = +tr.dataset.i;
+        partSet(idx, !partDet[idx].participo);
       });
+    });
+    // El checkbox conserva su toggle propio (mouse/teclado). El navegador ya
+    // cambió .checked antes del 'change' → usar ese valor (evita doble conteo).
+    v.querySelectorAll('input[type="checkbox"][data-i]').forEach(el => {
+      el.addEventListener('change', () => partSet(+el.dataset.i, el.checked));
     });
   }
 }
 
-// Orden dinámico: pendientes primero, participantes después; orden original
-// (data-oi) dentro de cada grupo. Reordena los <tr> existentes (appendChild los
-// mueve, no los recrea) → sin recargar, sin reconstruir, sin salto de scroll.
-function ordenarPartFilas(){
-  const tb = document.getElementById('tbody-part'); if (!tb) return;
+// Agrupación dinámica COMÚN (Participación y Entregas): "no completados" arriba,
+// "completados" abajo; dentro de cada grupo se conserva el orden actual (data-oi,
+// que es el índice del arreglo ya ordenado según el modo activo). Reordena los
+// <tr> existentes (appendChild los mueve, no los recrea) → sin recargar, sin
+// reconstruir, sin salto de scroll. `esOk(item)` decide el grupo (completado).
+function agruparCompletadas(tbodyId, arr, esOk){
+  const tb = document.getElementById(tbodyId); if (!tb) return;
   const filas = Array.from(tb.querySelectorAll('tr'));
   filas.sort((a, b) => {
-    const pa = partDet[+a.dataset.i]?.participo ? 1 : 0;
-    const pb = partDet[+b.dataset.i]?.participo ? 1 : 0;
-    if (pa !== pb) return pa - pb;
+    const ca = esOk(arr[+a.dataset.i]) ? 1 : 0;
+    const cb = esOk(arr[+b.dataset.i]) ? 1 : 0;
+    if (ca !== cb) return ca - cb;
     return (+a.dataset.oi) - (+b.dataset.oi);
   });
   filas.forEach(tr => tb.appendChild(tr));
 }
+// Participación: no participantes (pendientes) arriba, participantes abajo.
+function ordenarPartFilas(){ agruparCompletadas('tbody-part', partDet, d => !!d?.participo); }
 
 // Búsqueda en tiempo real (mismo patrón/normalización que Evaluación).
 function filtrarPart(){
@@ -1042,6 +1087,426 @@ async function reabrirPart(){
     partActual.estado = 'abierto'; renderPartDetalle();
     toast('Participación reabierta (editable).', 'ok');
   } catch (e) { toast('No se pudo reabrir', 'err'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// F7 — ENTREGAS (solo curso)
+// Actividad/tarea solicitada a estudiantes del curso. Población snapshot al
+// crear (P3): todo el curso vigente en la fecha; seleccionados → 'pendiente',
+// no seleccionados → 'no_aplica' (I11: estados de la entrega). Estado de la
+// entrega abierta/cerrada (I12); cerrada = solo lectura, reapertura (I13).
+// Patrón F4/F6.
+// ══════════════════════════════════════════════════════════════
+let entregaActual = null;   // cabecera en detalle
+let entregaDet    = [];     // filas de detalle (estudiante embebido)
+let entregaPos    = {};     // estudiante_id -> posición (curso)
+let entNuevoSel   = null;   // Set de estudiante_id seleccionados en el form "nueva entrega"
+
+function ordenarEntregaDet(){ entregaDet.sort(cmpEstudiantes(d => d.estudiante, d => entregaPos[d.estudiante_id])); }
+
+// Estudiantes vigentes del curso en una fecha (matrículas activas; fechas NULL = vigente).
+async function vigentesCursoEnFecha(fecha){
+  const { data, error } = await sb.from('libro_matriculas')
+    .select('estudiante_id,posicion,fecha_ingreso,fecha_retiro,estudiante:libro_estudiantes(nombre,apellido)')
+    .eq('anio_id', anioId).eq('contexto_id', ctxId).eq('estado', 'activo');
+  if (error) throw error;
+  return (data || []).filter(m =>
+    (!m.fecha_ingreso || m.fecha_ingreso <= fecha) && (!m.fecha_retiro || m.fecha_retiro > fecha));
+}
+
+async function renderEntregasLista(){
+  entregaActual = null; vistaActiva = 'entregas-lista';
+  document.getElementById('btn-volver').style.display = 'none';
+  const v = document.getElementById('vista');
+  v.innerHTML = '<div class="card">Cargando entregas…</div>';
+  let regs = [];
+  try {
+    const { data, error } = await sb.from('libro_entregas')
+      .select('*').eq('anio_id', anioId).eq('contexto_id', ctxId)
+      .order('fecha', { ascending:false }).order('created_at', { ascending:false });
+    if (error) throw error;
+    regs = data || [];
+  } catch (e) {
+    v.innerHTML = '<div class="card"></div>';
+    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql en Supabase.' : ('Error listando entregas: ' + e.message));
+    return;
+  }
+  // Población actual del curso para elegir destinatarios (el snapshot se fija al crear).
+  let vigentes = [];
+  try { vigentes = await vigentesCursoEnFecha(new Date().toISOString().slice(0,10)); } catch (e) {}
+  vigentes.sort(cmpEstudiantes(m => m.estudiante, m => m.posicion));
+  entNuevoSel = new Set(vigentes.map(m => m.estudiante_id));   // por defecto: todo el curso
+  const hoy = new Date().toISOString().slice(0,10);
+  v.innerHTML = `
+    <div class="card">
+      <p class="sec-title">Nueva entrega</p>
+      <div class="grid2">
+        <div><label>Nombre</label><input id="ne-nombre" placeholder="Ej: Trabajo de investigación"></div>
+        <div><label>Fecha</label><input id="ne-fecha" type="date" value="${hoy}"></div>
+      </div>
+      <div style="margin-top:12px">
+        <label>¿Quiénes deben entregar? (<span id="ne-count">${entNuevoSel.size}</span>/${vigentes.length})</label>
+        <div class="row" style="margin:0 0 8px">
+          <button type="button" class="btn" onclick="entSelTodos(true)">Todo el curso</button>
+          <button type="button" class="btn" onclick="entSelTodos(false)">Ninguno</button>
+          <span class="hint">Los no seleccionados quedan como “No aplica”.</span>
+        </div>
+        <div id="ne-lista" style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px">${
+          vigentes.length ? vigentes.map(m => `
+            <label style="display:flex;gap:9px;align-items:center;text-transform:none;letter-spacing:0;margin:0;padding:4px 0;color:var(--txt);cursor:pointer">
+              <input type="checkbox" data-est="${m.estudiante_id}" checked onchange="entToggleSel('${m.estudiante_id}',this.checked)" style="width:auto">
+              <span class="hint" style="min-width:26px">${m.posicion ?? ''}</span>
+              <span>${esc(nombreDe(m.estudiante))}</span>
+            </label>`).join('')
+          : '<p class="hint" style="margin:4px 0">No hay estudiantes vigentes en el curso.</p>'
+        }</div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="crearEntrega()">Crear entrega</button>
+        <span class="hint">La población se materializa al crear (snapshot).</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="sec-title">Entregas de ${esc(ctxNombre)} · ${anioNum} (${regs.length})</p>
+      <div id="lista-ent"></div>
+    </div>`;
+  const cont = document.getElementById('lista-ent');
+  if (!regs.length) { cont.innerHTML = '<p class="hint">Aún no hay entregas.</p>'; return; }
+  cont.innerHTML = regs.map(r => `
+    <div class="eval-item" onclick="abrirEntregaDetalle('${r.id}')">
+      <div><div><b>${esc(r.nombre)}</b></div><div class="meta">${esc(r.fecha)}</div></div>
+      <span class="badge ${r.estado}">${r.estado}</span>
+    </div>`).join('');
+}
+
+function entToggleSel(id, on){
+  if (!entNuevoSel) return;
+  if (on) entNuevoSel.add(id); else entNuevoSel.delete(id);
+  const c = document.getElementById('ne-count'); if (c) c.textContent = entNuevoSel.size;
+}
+function entSelTodos(on){
+  entNuevoSel = new Set();
+  document.querySelectorAll('#ne-lista input[type="checkbox"]').forEach(ch => {
+    ch.checked = on; if (on) entNuevoSel.add(ch.dataset.est);
+  });
+  const c = document.getElementById('ne-count'); if (c) c.textContent = entNuevoSel.size;
+}
+
+async function crearEntrega(){
+  limpiarMsg();
+  const nombre = document.getElementById('ne-nombre').value.trim();
+  const fecha  = document.getElementById('ne-fecha').value;
+  if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
+  if (!fecha)  { toast('La fecha es obligatoria.', 'err'); return; }
+  try {
+    const vigentes = await vigentesCursoEnFecha(fecha);   // snapshot en la fecha de la entrega
+    if (!vigentes.length) { toast('No hay estudiantes vigentes en la fecha.', 'err'); return; }
+    const sel = entNuevoSel || new Set();
+    const seleccionadosVig = vigentes.filter(m => sel.has(m.estudiante_id));
+    if (!seleccionadosVig.length) { toast('Selecciona al menos un estudiante que deba entregar.', 'err'); return; }
+    const { data: ins, error: ee } = await sb.from('libro_entregas')
+      .insert({ anio_id:anioId, contexto_id:ctxId, sesion_creacion_id:ref.sesion, nombre, fecha, estado:'abierto' })
+      .select('id').single();
+    if (ee) throw ee;
+    const eid = ins.id;
+    // Materialización: una fila por vigente. Seleccionado → 'pendiente'; resto → 'no_aplica'.
+    const filas = vigentes.map(m => ({ entrega_id:eid, estudiante_id:m.estudiante_id,
+      estado: sel.has(m.estudiante_id) ? 'pendiente' : 'no_aplica' }));
+    const { error: ed } = await sb.from('libro_entrega_detalle').insert(filas);
+    if (ed) { await sb.from('libro_entregas').delete().eq('id', eid); throw ed; }
+    toast('Entrega creada (' + seleccionadosVig.length + ' deben entregar).', 'ok');
+    abrirEntregaDetalle(eid);
+  } catch (e) { toast(tablaFalta(e) ? 'Faltan tablas del Libro.' : ('No se pudo crear: ' + e.message), 'err'); }
+}
+
+async function abrirEntregaDetalle(eid){
+  limpiarMsg();
+  const v = document.getElementById('vista');
+  v.innerHTML = '<div class="card">Cargando entrega…</div>';
+  try {
+    const [ce, cd, cm] = await Promise.all([
+      sb.from('libro_entregas').select('*').eq('id', eid).single(),
+      sb.from('libro_entrega_detalle')
+        .select('id,entrega_id,estudiante_id,estado,estudiante:libro_estudiantes(nombre,apellido)')
+        .eq('entrega_id', eid),
+      sb.from('libro_matriculas').select('estudiante_id,posicion').eq('anio_id', anioId).eq('contexto_id', ctxId),
+    ]);
+    if (ce.error) throw ce.error;
+    if (cd.error) throw cd.error;
+    if (cm.error) throw cm.error;
+    entregaActual = ce.data;
+    entregaPos = {}; (cm.data || []).forEach(m => { entregaPos[m.estudiante_id] = m.posicion; });
+    entregaDet = (cd.data || []).slice();
+    ordenarEntregaDet();
+  } catch (e) {
+    v.innerHTML = '<div class="card"></div>';
+    msg('No se pudo cargar la entrega: ' + e.message);
+    return;
+  }
+  const btn = document.getElementById('btn-volver');
+  btn.textContent = '← Entregas'; btn.style.display = '';
+  renderEntregaDetalle();
+}
+
+function renderEntregaDetalle(){
+  vistaActiva = 'entrega-detalle';
+  const e = entregaActual;
+  const cerrada = e.estado === 'cerrado';
+  const dis = cerrada ? 'disabled' : '';
+  const aplican    = entregaDet.filter(d => d.estado !== 'no_aplica').length;
+  const entregados = entregaDet.filter(d => d.estado === 'entregado').length;
+  const v = document.getElementById('vista');
+  v.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <p class="sec-title" style="margin:0">Cabecera</p>
+        <span class="badge ${e.estado}">${e.estado}</span>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>Nombre</label><input id="ed-nombre" value="${esc(e.nombre)}" ${dis}></div>
+        <div><label>Fecha</label><input id="ed-fecha" type="date" value="${esc(e.fecha)}" ${dis}></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="guardarEntregaCabecera()" ${dis}>Guardar cabecera</button>
+        ${cerrada ? `<button class="btn warn" onclick="reabrirEntrega()">Reabrir</button>`
+                  : `<button class="btn" onclick="cerrarEntrega()">Cerrar</button>`}
+        ${cerrada ? '<span class="hint">Entrega cerrada: solo lectura. Reábrela para editar.</span>' : ''}
+      </div>
+    </div>
+    <div class="card">
+      <p class="sec-title">Estudiantes (${entregaDet.length}) · deben entregar: ${aplican} · entregaron: <span id="ed-si">${entregados}</span></p>
+      ${entregaDet.length ? `<div class="buscador">
+        <input id="buscador-ent" type="text" placeholder="Buscar por nombre o apellido…" oninput="filtrarEntregas()" autocomplete="off">
+        <button type="button" id="btn-ent-pendientes" class="btn toggle" aria-pressed="false" onclick="toggleEntPendientes()">Pendientes</button>
+      </div>` : ''}
+      <div style="overflow-x:auto">
+      <table>
+        <colgroup><col style="width:44px"><col><col style="width:150px"></colgroup>
+        <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="part">Estado</th></tr></thead>
+        <tbody id="tbody-ent">${entregaDet.map((d, idx) => {
+          const na = d.estado === 'no_aplica';
+          const clickable = !cerrada && !na;   // 'no aplica' no es toggleable ni clickeable
+          return `<tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(normBuscar(nombreDe(d.estudiante)))}" class="${clickable?'fila-click':''}${d.estado==='entregado'?' fila-ok':''}">
+            <td class="pos">${entregaPos[d.estudiante_id] ?? ''}</td>
+            <td class="est-nombre">${esc(nombreDe(d.estudiante))}</td>
+            <td class="part">${ na
+              ? '<span class="hint">No aplica</span>'
+              : `<label style="display:inline-flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;margin:0;cursor:pointer">
+                   <input type="checkbox" data-i="${idx}" ${d.estado==='entregado'?'checked':''} ${dis}>
+                   <span>Entregó</span></label>` }</td>
+          </tr>`; }).join('')}
+        </tbody>
+      </table>
+      </div>
+      ${entregaDet.length ? (cerrada ? '' : `
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="guardarEntregaDetalle()">Guardar entrega</button>
+        <span class="hint">Marca quién entregó. Sin marcar = sigue Pendiente. “No aplica” no cambia.</span>
+      </div>`) : '<p class="hint">Esta entrega no materializó estudiantes.</p>'}
+    </div>`;
+  // Agrupación inicial: pendientes/no_aplica arriba, entregados abajo.
+  agruparEntregaFilas();
+  if (!cerrada) {
+    // Fuente única de verdad para el toggle Pendiente↔Entregó (no toca 'no_aplica').
+    const entSet = (idx, entregado) => {
+      if (entregaDet[idx].estado === 'no_aplica') return;
+      entregaDet[idx].estado = entregado ? 'entregado' : 'pendiente';
+      const tr = document.querySelector(`#tbody-ent tr[data-i="${idx}"]`);
+      if (tr) {
+        tr.classList.toggle('fila-ok', entregado);
+        const chk = tr.querySelector('input[type="checkbox"][data-i]');
+        if (chk) chk.checked = entregado;
+      }
+      const si = document.getElementById('ed-si'); if (si) si.textContent = entregaDet.filter(d=>d.estado==='entregado').length;
+      agruparEntregaFilas();   // entregado baja / pendiente sube, sin recrear la vista
+      filtrarEntregas();       // refresca "Pendientes" en vivo
+    };
+    // Click en cualquier zona de la fila (salvo 'no aplica' y los controles).
+    v.querySelectorAll('#tbody-ent tr[data-i]').forEach(tr => {
+      tr.addEventListener('click', (e) => {
+        if (e.target.closest('input,button,a,select,label')) return;
+        const idx = +tr.dataset.i;
+        if (entregaDet[idx].estado === 'no_aplica') return;
+        entSet(idx, entregaDet[idx].estado !== 'entregado');
+      });
+    });
+    // El checkbox conserva su toggle propio; el navegador ya cambió .checked.
+    v.querySelectorAll('input[type="checkbox"][data-i]').forEach(el => {
+      el.addEventListener('change', () => entSet(+el.dataset.i, el.checked));
+    });
+  }
+}
+// Entregas: pendientes/no_aplica arriba, entregados abajo; dentro de cada grupo,
+// el orden del modo activo (data-oi). 'no aplica' no baja (no es "completado").
+function agruparEntregaFilas(){ agruparCompletadas('tbody-ent', entregaDet, d => d?.estado === 'entregado'); }
+
+// Filtro visual (nombre/apellido + "Pendientes"). No toca datos ni orden.
+function filtrarEntregas(){
+  const inp = document.getElementById('buscador-ent'); if (!inp) return;
+  const q = normBuscar(inp.value);
+  const soloPend = !!document.getElementById('btn-ent-pendientes')?.classList.contains('on');
+  document.querySelectorAll('#tbody-ent tr').forEach(tr => {
+    const hay = tr.dataset.buscar || '';
+    const idx = +tr.dataset.i;
+    const coincide = q === '' || hay.includes(q);
+    const esPendiente = entregaDet[idx]?.estado === 'pendiente';
+    tr.classList.toggle('oculto', !(coincide && (!soloPend || esPendiente)));
+  });
+}
+function toggleEntPendientes(){
+  const btn = document.getElementById('btn-ent-pendientes'); if (!btn) return;
+  const y = window.scrollY;
+  const on = !btn.classList.contains('on');
+  btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  filtrarEntregas();
+  window.scrollTo(0, y);
+}
+
+async function guardarEntregaCabecera(){
+  const nombre = document.getElementById('ed-nombre').value.trim();
+  const fecha  = document.getElementById('ed-fecha').value;
+  if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
+  if (!fecha)  { toast('La fecha es obligatoria.', 'err'); return; }
+  try {
+    const { error } = await sb.from('libro_entregas').update({ nombre, fecha }).eq('id', entregaActual.id);
+    if (error) throw error;
+    entregaActual.nombre = nombre; entregaActual.fecha = fecha;
+    toast('Guardado correctamente', 'ok');
+  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+}
+async function guardarEntregaDetalle(){
+  try {
+    const filas = entregaDet.map(d => ({ id:d.id, entrega_id:d.entrega_id, estudiante_id:d.estudiante_id, estado:d.estado }));
+    const { error } = await sb.from('libro_entrega_detalle').upsert(filas, { onConflict:'id' });
+    if (error) throw error;
+    toast('Guardado correctamente', 'ok');
+  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+}
+async function cerrarEntrega(){
+  try {
+    const { error } = await sb.from('libro_entregas').update({ estado:'cerrado' }).eq('id', entregaActual.id);
+    if (error) throw error;
+    entregaActual.estado = 'cerrado'; renderEntregaDetalle();
+    toast('Entrega cerrada (solo lectura).', 'ok');
+  } catch (e) { toast('No se pudo cerrar', 'err'); }
+}
+async function reabrirEntrega(){
+  try {
+    const { error } = await sb.from('libro_entregas').update({ estado:'abierto' }).eq('id', entregaActual.id);
+    if (error) throw error;
+    entregaActual.estado = 'abierto'; renderEntregaDetalle();
+    toast('Entrega reabierta (editable).', 'ok');
+  } catch (e) { toast('No se pudo reabrir', 'err'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// F7 — OBSERVACIONES PEDAGÓGICAS (solo taller)
+// Histórico individual append-only por estudiante del taller. Independiente de
+// Participación/Entregas. Sin estado ni cierre. Asociada a
+// año + taller + estudiante + sesión (trazabilidad) + fecha + texto.
+// ══════════════════════════════════════════════════════════════
+let obsEstSel    = null;   // {id,nombre,apellido} estudiante elegido
+let obsTallerEst = [];     // estudiantes del taller (pertenencias) para elegir
+let obsHist      = [];     // observaciones del estudiante elegido (histórico)
+
+function ordenarObsEst(){ obsTallerEst.sort(cmpEstudiantes(e => e, null)); }
+
+async function renderObservaciones(){
+  vistaActiva = 'obs';
+  document.getElementById('btn-volver').style.display = 'none';
+  const draft = document.getElementById('obs-texto')?.value || '';   // conservar borrador al re-render
+  const v = document.getElementById('vista');
+  v.innerHTML = '<div class="card">Cargando observaciones…</div>';
+  try {
+    const r = await sb.from('libro_pertenencias_taller')
+      .select('estudiante_id,estudiante:libro_estudiantes(nombre,apellido)')
+      .eq('anio_id', anioId).eq('contexto_id', ctxId);
+    if (r.error) throw r.error;
+    obsTallerEst = (r.data || []).map(p => ({ id:p.estudiante_id, ...(p.estudiante || {nombre:'',apellido:''}) }));
+    ordenarObsEst();
+  } catch (e) {
+    v.innerHTML = '<div class="card"></div>';
+    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql en Supabase.' : ('Error cargando observaciones: ' + e.message));
+    return;
+  }
+  const opts = obsTallerEst.map(e => `<option value="${e.id}"${obsEstSel?.id===e.id?' selected':''}>${esc(nombreDe(e))}</option>`).join('');
+  v.innerHTML = `
+    <div class="card">
+      <p class="sec-title">Observaciones · ${esc(ctxNombre)} · ${anioNum}</p>
+      <div class="row">
+        <label style="margin:0">Estudiante</label>
+        <select id="obs-est" style="max-width:340px" onchange="obsSeleccionar(this.value)">
+          <option value="">— elegir estudiante —</option>${opts}
+        </select>
+      </div>
+      ${obsTallerEst.length ? '' : '<p class="hint" style="margin-top:10px">Este taller no tiene estudiantes. Agrega pertenencias en la sección Pertenencias.</p>'}
+    </div>
+    <div id="obs-panel"></div>`;
+  renderObsPanel(draft);
+}
+
+function renderObsPanel(draft){
+  const wrap = document.getElementById('obs-panel'); if (!wrap) return;
+  if (!obsEstSel) { wrap.innerHTML = ''; return; }
+  const hoy = new Date().toISOString().slice(0,10);
+  wrap.innerHTML = `
+    <div class="card">
+      <p class="sec-title">Nueva observación · ${esc(nombreDe(obsEstSel))}</p>
+      <div class="grid2">
+        <div><label>Fecha</label><input id="obs-fecha" type="date" value="${hoy}"></div>
+      </div>
+      <div style="margin-top:10px"><label>Observación</label>
+        <textarea id="obs-texto" placeholder="Escribe la observación pedagógica…">${esc(draft || '')}</textarea></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="guardarObservacion()">Guardar observación</button>
+        <span class="hint">Se agrega al historial; no reemplaza observaciones anteriores.</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="sec-title">Historial de ${esc(nombreDe(obsEstSel))} (<span id="obs-count">${obsHist.length}</span>)</p>
+      <ul class="adec-list" id="obs-lista">${obsHistHTML()}</ul>
+    </div>`;
+}
+
+function obsHistHTML(){
+  if (!obsHist.length) return '<li class="hint" style="border:none">Sin observaciones anteriores.</li>';
+  return obsHist.map(o => `<li><span class="ix">${esc(o.fecha)}</span>${esc(o.texto)}</li>`).join('');
+}
+
+async function obsSeleccionar(estId){
+  if (!estId) { obsEstSel = null; obsHist = []; renderObsPanel(); return; }
+  obsEstSel = obsTallerEst.find(e => e.id === estId) || null;
+  try { await cargarObsHist(); }
+  catch (e) { toast('No se pudo cargar el historial: ' + e.message, 'err'); obsHist = []; }
+  renderObsPanel();
+}
+
+async function cargarObsHist(){
+  if (!obsEstSel) { obsHist = []; return; }
+  const { data, error } = await sb.from('libro_observaciones')
+    .select('id,fecha,texto,created_at')
+    .eq('anio_id', anioId).eq('contexto_id', ctxId).eq('estudiante_id', obsEstSel.id)
+    .order('fecha', { ascending:false }).order('created_at', { ascending:false });
+  if (error) throw error;
+  obsHist = data || [];
+}
+
+async function guardarObservacion(){
+  if (!obsEstSel) { toast('Elige un estudiante.', 'err'); return; }
+  const fecha = document.getElementById('obs-fecha').value;
+  const texto = document.getElementById('obs-texto').value.trim();
+  if (!fecha) { toast('La fecha es obligatoria.', 'err'); return; }
+  if (!texto) { toast('Escribe la observación.', 'err'); return; }
+  try {
+    const { data, error } = await sb.from('libro_observaciones')
+      .insert({ anio_id:anioId, contexto_id:ctxId, estudiante_id:obsEstSel.id,
+                sesion_creacion_id:ref.sesion, fecha, texto })
+      .select('id,fecha,texto,created_at').single();
+    if (error) throw error;
+    obsHist.unshift(data);   // append-only: se suma al historial (más reciente arriba)
+    renderObsPanel();        // limpia el textarea y refresca el historial
+    toast('Observación guardada', 'ok');
+  } catch (e) { toast(tablaFalta(e) ? 'Faltan tablas del Libro.' : ('No se pudo guardar: ' + e.message), 'err'); }
 }
 
 init();
