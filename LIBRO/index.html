@@ -115,6 +115,33 @@
   #vista[data-cat="eval"] .card{border-top:3px solid var(--acc)}
   #vista[data-cat="part"] .card{border-top:3px solid #e8730c}
   #vista[data-cat="ent"]  .card{border-top:3px solid var(--warn)}
+  #vista[data-cat="mat"]  .card{border-top:3px solid #3b5bdb}   /* Matrícula · azul */
+
+  /* ── MATRÍCULA ── */
+  .btn.mat{background:#3b5bdb;border-color:#3b5bdb;color:#fff}
+  .btn.mat:hover{background:#2f4ac2}
+  .btn.danger{background:#5a2020;border-color:#7d2c2c;color:#ffd9d9}
+  .btn.danger:hover{background:#7a2c2c}
+  /* Fila de matrícula: activo (acento azul) vs retirado (atenuado + acento rojo) */
+  .mat-item{cursor:pointer}
+  .mat-item.mat-activo{box-shadow:inset 3px 0 0 #3b5bdb}
+  .mat-item.mat-retirado{opacity:.72;background:rgba(217,83,79,.08);box-shadow:inset 3px 0 0 var(--danger)}
+  .mat-item.mat-retirado .est-nombre{text-decoration:line-through;text-decoration-color:rgba(255,255,255,.35)}
+  .mat-item.oculto{display:none}
+  .mat-tag{font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;white-space:nowrap}
+  .mat-tag.activo{color:#7ea6ff}
+  .mat-tag.retirado{color:#ff9d9d}
+  /* Modal resumen del estudiante */
+  #mat-modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
+  #mat-modal.show{display:flex}
+  .mm-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+  .mm-card{position:relative;background:var(--panel);border:1px solid var(--line);border-top:3px solid #3b5bdb;
+    border-radius:14px;max-width:520px;width:100%;max-height:88vh;overflow:auto;padding:18px 20px;box-shadow:0 12px 48px rgba(0,0,0,.5)}
+  .mm-close{position:absolute;top:8px;right:12px;background:transparent;border:none;color:var(--mut);font-size:20px;cursor:pointer;line-height:1}
+  .mm-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+  .mm-row:first-of-type{border-top:none}
+  .mm-k{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+  .mm-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
 
   /* Toast: fixed, no desplaza ni recarga la página */
   #toast-wrap{position:fixed;right:18px;bottom:18px;z-index:50;display:flex;flex-direction:column;gap:8px;pointer-events:none}
@@ -141,6 +168,8 @@
   <div class="msg" id="msg"></div>
   <div id="vista"></div>
 </main>
+<!-- Modal resumen de estudiante (Matrícula) -->
+<div id="mat-modal"><div class="mm-backdrop" onclick="matCerrarModal()"></div><div class="mm-card" id="mm-card"></div></div>
 <div id="toast-wrap" aria-live="polite"></div>
 
 <script>
@@ -264,6 +293,10 @@ function aplicarOrden(){
     filtrarEntregas();
   } else if (vistaActiva === 'obs') {
     ordenarObsEst(); renderObservaciones();
+  } else if (vistaActiva === 'matricula') {
+    const q = document.getElementById('buscador-mat')?.value || '';
+    ordenarMatriculas(); renderMatricula();
+    const inp = document.getElementById('buscador-mat'); if (inp) { inp.value = q; filtrarMatricula(); }
   }
   window.scrollTo(0, y);
 }
@@ -923,18 +956,245 @@ async function renderPanelCurso(){
   if (cont) cont.innerHTML = html || '<p class="hint">No hay actividades abiertas.</p>';
 }
 
-// Punto de entrada a MATRÍCULA del curso (F8+): pantalla preparada, sin mecanismo aún.
-function abrirMatriculaCurso(){
+// ══════════════════════════════════════════════════════════════
+// MATRÍCULA (curso): lista única activos+retirados, ingresar/retirar/reingresar.
+// Reutiliza cmpEstudiantes (orden), normBuscar (búsqueda), nombreDe (etiqueta),
+// mostrarBtnOrden, vistaCat, backAPanel y los badges existentes. El historial
+// pedagógico cuelga de estudiante_id: retirar/reingresar NUNCA lo tocan.
+// Contexto (curso + año) ya determinado por el Libro. Sin cambios de schema.
+// ══════════════════════════════════════════════════════════════
+let matriculas = [];   // filas de libro_matriculas del curso/año (activo+retirado) + estudiante embebido
+const matEstKey = e => normBuscar((e?.nombre || '') + ' ' + (e?.apellido || ''));   // clave para matching por identidad
+
+async function cargarMatriculas(){
+  const { data, error } = await sb.from('libro_matriculas')
+    .select('id,estudiante_id,posicion,estado,fecha_ingreso,fecha_retiro,estudiante:libro_estudiantes(nombre,apellido)')
+    .eq('anio_id', anioId).eq('contexto_id', ctxId);
+  if (error) throw error;
+  matriculas = data || [];
+  ordenarMatriculas();
+}
+function ordenarMatriculas(){ matriculas.sort(cmpEstudiantes(m => m.estudiante, m => m.posicion)); }
+// Siguiente posición disponible = max histórico + 1 (respeta posiciones congeladas; no reutiliza).
+function matNextPos(){ return matriculas.reduce((mx, m) => Math.max(mx, m.posicion || 0), 0) + 1; }
+
+async function abrirMatriculaCurso(){
   seccion = 'matricula'; vistaActiva = 'matricula'; limpiarMsg();
-  document.getElementById('btn-orden').style.display = 'none';
   document.getElementById('secnav').style.display = 'none';
-  vistaCat(''); backAPanel();
+  vistaCat('mat'); mostrarBtnOrden(); backAPanel();
+  const v = document.getElementById('vista');
+  v.innerHTML = '<div class="card">Cargando matrícula…</div>';
+  try { await cargarMatriculas(); }
+  catch (e) {
+    v.innerHTML = '<div class="card"></div>';
+    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql en Supabase.' : ('Error cargando matrícula: ' + e.message));
+    return;
+  }
+  renderMatricula();
+}
+
+function renderMatricula(){
+  vistaActiva = 'matricula';
+  const activos = matriculas.filter(m => m.estado === 'activo').length;
+  const retirados = matriculas.filter(m => m.estado === 'retirado').length;
   document.getElementById('vista').innerHTML = `
     <div class="card">
-      <p class="sec-title">Matrícula · ${esc(ctxNombre)} · ${anioNum}</p>
-      <p class="hint">Pantalla de matrícula / retiro del curso. La gestión (matricular, retirar, posiciones)
-      se implementará en una fase futura; este es el punto de entrada preparado.</p>
+      <div class="row" style="justify-content:space-between">
+        <p class="sec-title" style="margin:0">Matrícula · ${esc(ctxNombre)} · ${anioNum}</p>
+        <button class="btn mat" onclick="matToggleForm()">＋ Ingresar Estudiante</button>
+      </div>
+      <div id="mat-form" hidden style="margin-top:12px">
+        <div class="grid2">
+          <div><label>Nombre</label><input id="mat-nombre" placeholder="Nombre" autocomplete="off"></div>
+          <div><label>Apellido</label><input id="mat-apellido" placeholder="Apellido" autocomplete="off"></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn primary" onclick="matCrearEstudiante()">Confirmar ingreso</button>
+          <button class="btn" onclick="matToggleForm(false)">Cancelar</button>
+          <span class="hint">Se matricula en ${esc(ctxNombre)} · ${anioNum}, en la siguiente posición libre.</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="sec-title">Estudiantes (${matriculas.length}) · matriculados: ${activos} · retirados: ${retirados}</p>
+      ${matriculas.length ? `<div class="buscador"><input id="buscador-mat" type="text" placeholder="Buscar por nombre o apellido…" oninput="filtrarMatricula()" autocomplete="off"></div>` : ''}
+      <div id="mat-lista">${matListaHTML()}</div>
     </div>`;
+}
+
+function matListaHTML(){
+  if (!matriculas.length) return '<p class="hint">Sin estudiantes matriculados en este curso/año.</p>';
+  return matriculas.map(m => {
+    const ret = m.estado === 'retirado';
+    return `<div class="eval-item mat-item ${ret ? 'mat-retirado' : 'mat-activo'}" data-buscar="${esc(normBuscar(nombreDe(m.estudiante)))}" onclick="matAbrirResumen('${m.id}')" title="Ver ficha del estudiante">
+      <div style="display:flex;gap:10px;align-items:center;min-width:0">
+        <span class="hint" style="min-width:26px">${m.posicion ?? ''}</span>
+        <span class="est-nombre">${esc(nombreDe(m.estudiante))}</span>
+      </div>
+      <span class="mat-tag ${ret ? 'retirado' : 'activo'}">${ret ? 'Retirado' : 'Matriculado'}</span>
+    </div>`;
+  }).join('');
+}
+
+// Búsqueda en vivo (mismo mecanismo: normBuscar, sin acentos ni mayúsculas).
+function filtrarMatricula(){
+  const inp = document.getElementById('buscador-mat'); if (!inp) return;
+  const q = normBuscar(inp.value);
+  document.querySelectorAll('#mat-lista .mat-item').forEach(el => {
+    el.classList.toggle('oculto', q !== '' && !(el.dataset.buscar || '').includes(q));
+  });
+}
+
+function matToggleForm(show){
+  const f = document.getElementById('mat-form'); if (!f) return;
+  const abrir = (show === undefined) ? f.hidden : show;
+  f.hidden = !abrir;
+  if (abrir) {
+    document.getElementById('mat-nombre').value = '';
+    document.getElementById('mat-apellido').value = '';
+    document.getElementById('mat-nombre').focus();
+  }
+}
+
+// Ingresar Estudiante: crea persona NUEVA + matrícula nueva. Si el nombre coincide
+// con alguien ya en la lista, pregunta si es el MISMO (identidad no derivable sin RUT).
+async function matCrearEstudiante(){
+  const nombre = document.getElementById('mat-nombre').value.trim();
+  const apellido = document.getElementById('mat-apellido').value.trim();
+  if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
+  const key = matEstKey({ nombre, apellido });
+  const matches = matriculas.filter(m => matEstKey(m.estudiante) === key);
+  const retiradoMatch = matches.find(m => m.estado === 'retirado');
+  const activoMatch   = matches.find(m => m.estado === 'activo');
+  if (retiradoMatch) {
+    if (confirm(`Existe un estudiante RETIRADO con ese nombre (${nombreDe(retiradoMatch.estudiante)}).\n¿Es el MISMO estudiante?`)) {
+      // Reingreso del mismo estudiante → su ficha ofrece Matrícula nueva / Reintegración histórica.
+      matToggleForm(false);
+      matAbrirResumen(retiradoMatch.id);
+      return;
+    }
+    toast('Otra persona con el mismo nombre: agrega un 2° nombre o apellido para diferenciar y confirma de nuevo.', 'err');
+    return;
+  }
+  if (activoMatch) {
+    if (confirm(`Ya hay un estudiante MATRICULADO con ese nombre (${nombreDe(activoMatch.estudiante)}).\n¿Es el MISMO estudiante?`)) {
+      toast('Ese estudiante ya está matriculado en este curso.', 'err');
+      return;
+    }
+    toast('Otra persona con el mismo nombre: agrega un 2° nombre o apellido para diferenciar y confirma de nuevo.', 'err');
+    return;
+  }
+  // Sin coincidencias → crear estudiante nuevo + matrícula nueva en la siguiente posición.
+  try {
+    const { data: est, error: ee } = await sb.from('libro_estudiantes')
+      .insert({ nombre, apellido }).select('id,nombre,apellido').single();
+    if (ee) throw ee;
+    const pos = matNextPos();
+    const hoy = new Date().toISOString().slice(0, 10);
+    const { error: em } = await sb.from('libro_matriculas')
+      .insert({ estudiante_id: est.id, anio_id: anioId, contexto_id: ctxId, posicion: pos, estado: 'activo', fecha_ingreso: hoy });
+    if (em) { await sb.from('libro_estudiantes').delete().eq('id', est.id); throw em; }   // revertir estudiante huérfano
+    toast(`Estudiante ingresado en la posición ${pos}.`, 'ok');
+    matToggleForm(false);
+    await cargarMatriculas(); renderMatricula();
+  } catch (e) { toast(tablaFalta(e) ? 'Faltan tablas del Libro.' : ('No se pudo ingresar: ' + e.message), 'err'); }
+}
+
+// ── Ficha/resumen del estudiante (modal). Reutiliza el historial ligado a estudiante_id ──
+function matCerrarModal(){ document.getElementById('mat-modal').classList.remove('show'); }
+
+async function matAbrirResumen(matriculaId){
+  const m = matriculas.find(x => x.id === matriculaId); if (!m) return;
+  const card = document.getElementById('mm-card');
+  card.innerHTML = '<p class="hint">Cargando ficha…</p>';
+  document.getElementById('mat-modal').classList.add('show');
+  const estId = m.estudiante_id;
+  let notas = [], parts = [], ents = [], obs = [];
+  try {
+    const [nn, pp, ee, oo] = await Promise.all([
+      sb.from('libro_evaluacion_notas').select('nota,evaluacion:libro_evaluaciones(nombre,fecha,contexto_id,anio_id)').eq('estudiante_id', estId),
+      sb.from('libro_participacion_detalle').select('participo,participacion:libro_participaciones(contexto_id,anio_id)').eq('estudiante_id', estId),
+      sb.from('libro_entrega_detalle').select('estado,entrega:libro_entregas(contexto_id,anio_id)').eq('estudiante_id', estId),
+      sb.from('libro_observaciones').select('fecha').eq('estudiante_id', estId),
+    ]);
+    const aqui = x => x && x.contexto_id === ctxId && String(x.anio_id) === String(anioId);   // solo este curso/año
+    notas = (nn.data || []).filter(r => aqui(r.evaluacion));
+    parts = (pp.data || []).filter(r => aqui(r.participacion));
+    ents  = (ee.data || []).filter(r => aqui(r.entrega));
+    obs   = (oo.data || []);   // observaciones (talleres) por estudiante_id — historial pedagógico
+  } catch (e) { /* mostrar lo disponible; el historial es informativo */ }
+  card.innerHTML = matResumenHTML(m, notas, parts, ents, obs);
+}
+
+function matResumenHTML(m, notas, parts, ents, obs){
+  const ret = m.estado === 'retirado';
+  const conNota = notas.filter(n => n.nota != null);
+  const partSi = parts.filter(p => p.participo).length;
+  const entOk = ents.filter(e => e.estado === 'entregado').length;
+  const entAplican = ents.filter(e => e.estado !== 'no_aplica').length;
+  const notasList = conNota.length
+    ? conNota.map(n => `<div class="mm-row"><span>${esc(n.evaluacion?.nombre || '')}</span><b>${fmtNota(n.nota)}</b></div>`).join('')
+    : '<p class="hint" style="border:none;margin:4px 0">Sin notas registradas.</p>';
+  const acciones = ret
+    ? `<button class="btn mat" onclick="matMatriculaNueva('${m.estudiante_id}')">Matrícula nueva</button>
+       <button class="btn primary" onclick="matReintegrar('${m.id}')">Reintegrar en posición histórica</button>`
+    : `<button class="btn danger" onclick="matRetirar('${m.id}')">Retirar estudiante</button>`;
+  return `
+    <button class="mm-close" onclick="matCerrarModal()" title="Cerrar">✕</button>
+    <p class="sec-title" style="margin:0 0 8px;padding-right:24px">${esc(nombreDe(m.estudiante))}</p>
+    <div class="mm-row"><span class="mm-k">Estado</span><span class="badge ${ret ? 'cerrado' : 'abierto'}">${ret ? 'Retirado' : 'Matriculado'}</span></div>
+    <div class="mm-row"><span class="mm-k">Posición</span><b>${m.posicion ?? '—'}</b></div>
+    <div class="mm-row"><span class="mm-k">Curso · Año</span><span>${esc(ctxNombre)} · ${anioNum}</span></div>
+    <div class="mm-row"><span class="mm-k">Participaciones</span><span>${partSi} de ${parts.length}</span></div>
+    <div class="mm-row"><span class="mm-k">Entregas</span><span>${entOk} entregó · ${entAplican} debían</span></div>
+    <div class="mm-row"><span class="mm-k">Observaciones</span><span>${obs.length}</span></div>
+    <p class="sec-title" style="margin:14px 0 6px">Notas (${conNota.length})</p>
+    ${notasList}
+    <div class="mm-actions">${acciones}</div>`;
+}
+
+// ── Acciones (con confirmación explícita). Nunca desplazan ni renumeran a nadie ──
+async function matRetirar(matriculaId){
+  const m = matriculas.find(x => x.id === matriculaId); if (!m) return;
+  if (!confirm(`¿Retirar a ${nombreDe(m.estudiante)} del curso?\nConserva su posición (${m.posicion}) y todo su historial; no se mueve a nadie.`)) return;
+  try {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const { error } = await sb.from('libro_matriculas').update({ estado: 'retirado', fecha_retiro: hoy }).eq('id', matriculaId);
+    if (error) throw error;
+    toast('Estudiante retirado (posición congelada).', 'ok');
+    matCerrarModal(); await cargarMatriculas(); renderMatricula();
+  } catch (e) { toast('No se pudo retirar: ' + e.message, 'err'); }
+}
+
+async function matReintegrar(matriculaId){
+  const m = matriculas.find(x => x.id === matriculaId); if (!m) return;
+  if (matriculas.some(x => x.estudiante_id === m.estudiante_id && x.estado === 'activo')) {
+    toast('Ese estudiante ya tiene una matrícula activa en este curso/año.', 'err'); return;
+  }
+  if (!confirm(`¿Reintegrar a ${nombreDe(m.estudiante)} en su posición histórica (${m.posicion})?\nNo se crea matrícula nueva ni se mueve a nadie.`)) return;
+  try {
+    const { error } = await sb.from('libro_matriculas').update({ estado: 'activo', fecha_retiro: null }).eq('id', matriculaId);
+    if (error) throw error;
+    toast('Estudiante reintegrado en su posición histórica.', 'ok');
+    matCerrarModal(); await cargarMatriculas(); renderMatricula();
+  } catch (e) { toast('No se pudo reintegrar: ' + e.message, 'err'); }
+}
+
+async function matMatriculaNueva(estudianteId){
+  if (matriculas.some(x => x.estudiante_id === estudianteId && x.estado === 'activo')) {
+    toast('Ese estudiante ya tiene una matrícula activa en este curso/año.', 'err'); return;
+  }
+  const est = matriculas.find(x => x.estudiante_id === estudianteId)?.estudiante;
+  const pos = matNextPos();
+  if (!confirm(`¿Crear una matrícula NUEVA para ${est ? nombreDe(est) : 'este estudiante'} en la posición ${pos}?\nConserva su historial y su matrícula histórica; no se mueve a nadie.`)) return;
+  try {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const { error } = await sb.from('libro_matriculas')
+      .insert({ estudiante_id: estudianteId, anio_id: anioId, contexto_id: ctxId, posicion: pos, estado: 'activo', fecha_ingreso: hoy });
+    if (error) throw error;
+    toast(`Nueva matrícula creada en la posición ${pos}.`, 'ok');
+    matCerrarModal(); await cargarMatriculas(); renderMatricula();
+  } catch (e) { toast('No se pudo crear la matrícula: ' + e.message, 'err'); }
 }
 
 // ARCHIVO del curso: historial de actividades CERRADAS (estado='cerrado'), agrupadas
