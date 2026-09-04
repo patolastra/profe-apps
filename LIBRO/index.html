@@ -143,6 +143,51 @@
   .mm-k{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.03em}
   .mm-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
 
+  /* ── GRUPOS DE TRABAJO (Evaluación) ── */
+  .grupo-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--panel2)}
+  .grupo-card .grow{flex:1;min-width:140px}
+  .gm-toggle{cursor:pointer;color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.03em;user-select:none}
+  .gm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;margin-top:8px}
+  /* Checkbox de integración: identidad cromática VERDE de Evaluación (seleccionado) */
+  .gm-chk{display:flex;gap:8px;align-items:center;padding:5px 9px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:#0d1117;min-width:0}
+  .gm-chk input{width:auto;flex:none}
+  .gm-chk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gm-chk.on{background:rgba(76,175,80,.16);border-color:rgba(76,175,80,.5)}
+  /* Marcas de herencia/excepción por celda */
+  .cel-marca{margin-top:3px;display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+  .exc-tag{font-size:10px;text-transform:uppercase;letter-spacing:.03em;padding:1px 6px;border-radius:999px;white-space:nowrap}
+  .exc-tag.hered{background:#20303f;color:var(--mut)}
+  .exc-tag.indiv{background:rgba(76,175,80,.18);color:#9ff0a8}
+  .grupo-chip{font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:#9ff0a8;background:rgba(76,175,80,.14);padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap}
+  .btn.mini{padding:2px 7px;font-size:11px;line-height:1.2}
+
+  /* ── GRUPOS v2: disponibles + grupos creados en columnas + eval modal ── */
+  .gm-sub{font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--mut);margin:2px 0 6px}
+  .grupos-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+  .grupo-col{flex:1 1 200px;min-width:180px;max-width:300px;border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;background:var(--panel2);box-shadow:inset 3px 0 0 var(--acc)}
+  .grupo-col.evaluado{box-shadow:inset 3px 0 0 var(--mut)}
+  .grupo-col.dragover{border-color:var(--acc);background:rgba(76,175,80,.12)}
+  .grupo-col h4{margin:0 0 6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:6px}
+  .grupo-col h4 input{font:inherit;font-size:13px;padding:3px 6px}
+  .grupo-miembros{list-style:none;margin:6px 0 8px;padding:0;min-height:22px}
+  .grupo-miembros li{padding:4px 8px;border:1px solid var(--line);border-radius:7px;margin-bottom:4px;background:#0d1117;font-size:13px}
+  .grupo-miembros li.arrastrable{cursor:grab}
+  .grupo-col-vacio{color:var(--mut);font-size:12px;padding:2px 0 6px}
+  .grupo-badge{font-size:10px;text-transform:uppercase;letter-spacing:.03em;padding:1px 7px;border-radius:999px;white-space:nowrap;background:rgba(76,175,80,.18);color:#9ff0a8}
+  .grupo-badge.eval{background:#20303f;color:var(--mut)}
+  /* Modal de evaluación (grupo / individual) */
+  #eval-modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
+  #eval-modal.show{display:flex}
+  .em-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+  .em-card{position:relative;background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--acc);
+    border-radius:14px;max-width:660px;width:100%;max-height:88vh;overflow:auto;padding:18px 20px;box-shadow:0 12px 48px rgba(0,0,0,.5)}
+  .em-close{position:absolute;top:8px;right:12px;background:transparent;border:none;color:var(--mut);font-size:20px;cursor:pointer;line-height:1}
+  .em-mrow{display:grid;grid-template-columns:1fr 220px 120px;gap:8px;align-items:start;padding:8px 0;border-top:1px solid var(--line)}
+  .em-mrow:first-of-type{border-top:none}
+  .em-mrow .em-nom{align-self:center;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  @media(max-width:560px){ .em-mrow{grid-template-columns:1fr} }
+
   /* Toast: fixed, no desplaza ni recarga la página */
   #toast-wrap{position:fixed;right:18px;bottom:18px;z-index:50;display:flex;flex-direction:column;gap:8px;pointer-events:none}
   .toast{min-width:200px;max-width:360px;padding:11px 15px;border-radius:9px;font-size:13.5px;
@@ -170,6 +215,8 @@
 </main>
 <!-- Modal resumen de estudiante (Matrícula) -->
 <div id="mat-modal"><div class="mm-backdrop" onclick="matCerrarModal()"></div><div class="mm-card" id="mm-card"></div></div>
+<!-- Modal de evaluación de grupo / individual (Evaluaciones · Grupos de trabajo) -->
+<div id="eval-modal"><div class="em-backdrop" onclick="evalCerrarModal()"></div><div class="em-card" id="em-card"></div></div>
 <div id="toast-wrap" aria-live="polite"></div>
 
 <script>
@@ -180,7 +227,10 @@ let ctxId = null, ctxTipo = null, ctxNombre = null;
 let anioId = null, anioNum = null;
 let evalActual = null;     // cabecera cargada en detalle
 let adecs = [];            // adecuaciones de la evaluación abierta
-let notas = [];            // filas de detalle (con estudiante embebido)
+let notas = [];            // filas de detalle (con estudiante embebido) — nota/adecuacion_id EFECTIVOS
+let grupos = [];           // grupos de trabajo de la evaluación (capa de herencia)
+let grupoSelIds = new Set(); // selección provisional en la lista de disponibles (UI, no persiste)
+let evalModalCtx = null;   // { tipo:'grupo', gid } | { tipo:'indiv', notaId } — modal de evaluación
 let posMap = {};           // estudiante_id -> posición (orden)
 let seccion = 'eval';      // sección activa: 'eval' | 'part' (curso) · 'pert' | 'part' (taller)
 
@@ -477,18 +527,29 @@ async function abrirDetalle(evId){
   const v = document.getElementById('vista');
   v.innerHTML = '<div class="card">Cargando evaluación…</div>';
   try {
-    const [ce, ca, cn, cm] = await Promise.all([
+    const [ce, ca, cm] = await Promise.all([
       sb.from('libro_evaluaciones').select('*').eq('id', evId).single(),
       sb.from('libro_evaluacion_adecuaciones').select('*').eq('evaluacion_id', evId).order('created_at'),
-      sb.from('libro_evaluacion_notas')
-        .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,estudiante:libro_estudiantes(nombre,apellido)')
-        .eq('evaluacion_id', evId),
       sb.from('libro_matriculas').select('estudiante_id,posicion').eq('anio_id', anioId).eq('contexto_id', ctxId),
     ]);
     if (ce.error) throw ce.error;
     if (ca.error) throw ca.error;
-    if (cn.error) throw cn.error;
     if (cm.error) throw cm.error;
+    // Notas + grupos con FALLBACK retrocompatible: si el schema de grupos aún no
+    // está aplicado, evaluaciones sigue funcionando como antes (grupos=[]).
+    let cn = await sb.from('libro_evaluacion_notas')
+      .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,grupo_id,nota_excepcion,objetivo_excepcion,estudiante:libro_estudiantes(nombre,apellido)')
+      .eq('evaluacion_id', evId);
+    if (cn.error && /grupo_id|nota_excepcion|objetivo_excepcion|does not exist|schema cache/i.test(cn.error.message || '')) {
+      cn = await sb.from('libro_evaluacion_notas')
+        .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,estudiante:libro_estudiantes(nombre,apellido)')
+        .eq('evaluacion_id', evId);
+      grupos = [];
+    } else {
+      const cg = await sb.from('libro_evaluacion_grupos').select('*').eq('evaluacion_id', evId).order('created_at');
+      grupos = (cg.error && tablaFalta(cg)) ? [] : (cg.data || []);
+    }
+    if (cn.error) throw cn.error;
     evalActual = ce.data;
     adecs = ca.data || [];
     posMap = {}; (cm.data || []).forEach(m => { posMap[m.estudiante_id] = m.posicion; });
@@ -561,6 +622,8 @@ function renderDetalle(){
       </div>
     </div>
 
+    ${notas.length ? gruposCardHTML() : ''}
+
     <div class="card">
       <p class="sec-title">Estudiantes (${notas.length})</p>
       ${notas.length ? `<div class="buscador">
@@ -570,15 +633,15 @@ function renderDetalle(){
       <div style="overflow-x:auto">
       <table>
         <colgroup>
-          <col style="width:44px"><col style="width:28%"><col style="width:230px"><col style="width:92px"><col>
+          <col style="width:44px"><col style="width:26%"><col style="width:230px"><col style="width:118px"><col>
         </colgroup>
         <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="obj">Objetivo aplicado</th><th class="nota">Nota</th><th>Comentario</th></tr></thead>
         <tbody id="tbody-est">${notas.map((n, idx) => `
           <tr data-idx="${idx}" data-buscar="${esc(normBuscar(nombreEstudiante(n)))}" class="${n.nota != null ? 'fila-ok' : ''}">
             <td class="pos">${posMap[n.estudiante_id] ?? ''}</td>
-            <td class="est-nombre">${esc(nombreEstudiante(n))}</td>
-            <td class="obj"><select data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select></td>
-            <td class="nota"><input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${dis}></td>
+            <td class="est-nombre">${esc(nombreEstudiante(n))}${grupoChipHTML(n)}</td>
+            <td class="obj"><select data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select><div class="cel-marca">${marcaObjHTML(n, cerrada)}</div></td>
+            <td class="nota"><input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${dis}><div class="cel-marca">${marcaNotaHTML(n, cerrada)}</div></td>
             <td><input data-i="${idx}" data-k="comentario" value="${esc(n.comentario||'')}" placeholder="(opcional)" ${dis}></td>
           </tr>`).join('')}
         </tbody>
@@ -591,20 +654,28 @@ function renderDetalle(){
       </div>`) : '<p class="hint">Esta evaluación no materializó estudiantes (no había matrículas activas en la fecha).</p>'}
     </div>`;
 
-  // Bind edición en memoria (solo si está abierta).
+  // Bind edición en memoria (solo si está abierta). Para estudiantes EN GRUPO,
+  // editar nota/objetivo crea una excepción individual y se persiste de inmediato
+  // (para que el estado heredado/excepción quede consistente en la BD). Los
+  // individuales (grupo_id NULL) mantienen el flujo batch de "Guardar notas".
   if (!cerrada) {
     v.querySelectorAll('[data-i]').forEach(el => {
-      el.addEventListener('change', () => {
+      el.addEventListener('change', async () => {
         const i = +el.dataset.i, k = el.dataset.k;
-        if (k === 'adecuacion_id') notas[i].adecuacion_id = el.value || null;
-        else if (k === 'comentario') notas[i].comentario = el.value.trim() === '' ? null : el.value;
+        const n = notas[i];
+        if (k === 'adecuacion_id') {
+          n.adecuacion_id = el.value || null;
+          if (n.grupo_id) { n.objetivo_excepcion = true; try { await evalPersistNotasRows([n]); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); } refrescarDetalle(); }
+        }
+        else if (k === 'comentario') n.comentario = el.value.trim() === '' ? null : el.value;
         else if (k === 'nota') {
           const r = normalizarNota(el.value);
           if (!r.ok) { toast('Nota inválida (usa 1,0–7,0): "' + el.value + '"', 'err'); el.focus(); return; }
-          notas[i].nota = r.val;
+          n.nota = r.val;
           el.value = fmtNota(r.val);
           el.closest('tr')?.classList.toggle('fila-ok', r.val != null);   // coloreo "completado" en vivo
-          filtrarEstudiantes();   // refresca "Pendientes" en vivo (aparece/desaparece según nota)
+          if (n.grupo_id) { n.nota_excepcion = true; try { await evalPersistNotasRows([n]); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); } refrescarDetalle(); }
+          else filtrarEstudiantes();   // refresca "Pendientes" en vivo (aparece/desaparece según nota)
         }
       });
     });
@@ -698,11 +769,381 @@ async function guardarNotas(){
   }
   try {
     const filas = notas.map(n => ({ id:n.id, evaluacion_id:n.evaluacion_id, estudiante_id:n.estudiante_id,
-      nota:n.nota, comentario:n.comentario ?? null, adecuacion_id:n.adecuacion_id ?? null }));
+      nota:n.nota, comentario:n.comentario ?? null, adecuacion_id:n.adecuacion_id ?? null,
+      grupo_id:n.grupo_id ?? null, nota_excepcion:!!n.nota_excepcion, objetivo_excepcion:!!n.objetivo_excepcion }));
     const { error } = await sb.from('libro_evaluacion_notas').upsert(filas, { onConflict:'id' });
     if (error) throw error;
     toast('Guardado correctamente', 'ok');
   } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// GRUPOS DE TRABAJO (capa de herencia sobre las notas efectivas)
+// notas[i].nota / .adecuacion_id siguen siendo el valor EFECTIVO por estudiante.
+// El grupo aporta defaults; los flags *_excepcion marcan quién NO hereda.
+// ══════════════════════════════════════════════════════════════
+
+// Re-render del detalle conservando búsqueda, filtro Pendientes y scroll.
+function refrescarDetalle(){
+  const q = document.getElementById('buscador-est')?.value || '';
+  const pend = !!document.getElementById('btn-pendientes')?.classList.contains('on');
+  const y = window.scrollY;
+  renderDetalle();
+  const inp = document.getElementById('buscador-est'); if (inp) inp.value = q;
+  if (pend) { const bp = document.getElementById('btn-pendientes'); if (bp){ bp.classList.add('on'); bp.setAttribute('aria-pressed','true'); } }
+  filtrarEstudiantes();
+  window.scrollTo(0, y);
+}
+
+// Persiste (upsert) filas de notas con TODAS las columnas (efectivo + grupo + flags).
+async function evalPersistNotasRows(rows){
+  if (!rows.length) return;
+  const filas = rows.map(n => ({ id:n.id, evaluacion_id:n.evaluacion_id, estudiante_id:n.estudiante_id,
+    nota:n.nota ?? null, comentario:n.comentario ?? null, adecuacion_id:n.adecuacion_id ?? null,
+    grupo_id:n.grupo_id ?? null, nota_excepcion:!!n.nota_excepcion, objetivo_excepcion:!!n.objetivo_excepcion }));
+  const { error } = await sb.from('libro_evaluacion_notas').upsert(filas, { onConflict:'id' });
+  if (error) throw error;
+}
+async function evalUpsertGrupo(g){
+  const { error } = await sb.from('libro_evaluacion_grupos')
+    .upsert({ id:g.id, evaluacion_id:g.evaluacion_id, nombre:g.nombre, nota_grupal:g.nota_grupal ?? null, adecuacion_grupal_id:g.adecuacion_grupal_id ?? null });
+  if (error) throw error;
+}
+
+// ── HTML: chip de grupo + marcas de herencia/excepción en las celdas ──
+function grupoChipHTML(n){
+  if (!n.grupo_id) return '';
+  const g = grupos.find(x => x.id === n.grupo_id);
+  return g ? `<span class="grupo-chip" title="Grupo de trabajo">${esc(g.nombre)}</span>` : '';
+}
+function marcaNotaHTML(n, cerrada){
+  if (!n.grupo_id) return '';
+  return n.nota_excepcion
+    ? `<span class="exc-tag indiv">individual</span>${cerrada?'':`<button class="btn mini" title="Usar la nota del grupo" onclick="evalUsarNotaGrupo('${n.id}')">↩ grupo</button>`}`
+    : `<span class="exc-tag hered">heredado</span>`;
+}
+function marcaObjHTML(n, cerrada){
+  if (!n.grupo_id) return '';
+  return n.objetivo_excepcion
+    ? `<span class="exc-tag indiv">individual</span>${cerrada?'':`<button class="btn mini" title="Usar el objetivo del grupo" onclick="evalUsarObjetivoGrupo('${n.id}')">↩ grupo</button>`}`
+    : `<span class="exc-tag hered">heredado</span>`;
+}
+
+// ── HTML: tarjeta de administración de grupos ──
+// ── Estados derivados (sin columnas nuevas) ──
+// DISPONIBLE = sin grupo y sin nota (pendiente individual, aún no agrupado ni evaluado).
+function estDisponible(n){ return !n.grupo_id && n.nota == null; }
+// GRUPO TERMINADO = estado EXPLÍCITO (columna terminado), fijado por el profesor con
+// "Terminar evaluación". NO se deriva de la nota: tener nota NO termina el grupo.
+// Un grupo terminado queda congelado (no se reorganiza, no se elimina, no se edita).
+function grupoTerminado(g){ return !!(g && g.terminado); }
+
+// Tarjeta contenedora (id estable para re-render liviano al seleccionar).
+function gruposCardHTML(){ return `<div class="card" id="grupos-card">${gruposCardBody()}</div>`; }
+function renderGruposCard(){ const c = document.getElementById('grupos-card'); if (c) c.innerHTML = gruposCardBody(); }
+
+function gruposCardBody(){
+  const cerrada = evalActual.estado === 'cerrado';
+  const disponibles = notas.filter(estDisponible).sort(cmpEstudiantes(n => n.estudiante, n => posMap[n.estudiante_id]));
+  // solo cuentan como seleccionados los que siguen disponibles
+  grupoSelIds = new Set([...grupoSelIds].filter(id => disponibles.some(n => n.id === id)));
+  const selCount = grupoSelIds.size;
+
+  const listaDisp = disponibles.length
+    ? `<div class="gm-grid">${disponibles.map(n => `
+        <label class="gm-chk ${grupoSelIds.has(n.id) ? 'on' : ''}">
+          <input type="checkbox" ${grupoSelIds.has(n.id) ? 'checked' : ''} ${cerrada ? 'disabled' : ''} onchange="evalToggleSel('${n.id}',this.checked)">
+          <span>${esc(nombreDe(n.estudiante))}</span>
+        </label>`).join('')}</div>`
+    : '<p class="grupo-col-vacio">No hay estudiantes disponibles (todos están agrupados o evaluados).</p>';
+
+  const acciones = (cerrada || disponibles.length === 0) ? '' : `
+    <div class="row" style="margin-top:8px;gap:8px">
+      ${selCount >= 1 ? `<button class="btn" onclick="evalCrearGrupoDesdeSeleccion()">＋ Crear grupo (${selCount})</button>` : '<span class="hint">Selecciona estudiantes para crear un grupo.</span>'}
+      ${selCount === 1 ? `<button class="btn primary" onclick="evalEvaluarIndividualSel()">Evaluar individualmente</button>` : ''}
+    </div>`;
+
+  const cols = grupos.length
+    ? `<div class="grupos-row">${grupos.map(g => grupoColHTML(g, cerrada)).join('')}</div>`
+    : '<p class="grupo-col-vacio">Aún no hay grupos creados.</p>';
+
+  return `
+    <p class="sec-title" style="margin:0 0 6px">Grupos de trabajo</p>
+    <p class="hint" style="margin:0 0 8px">Selecciona estudiantes disponibles y crea un grupo, o evalúa a uno individualmente. Puedes evaluar cada grupo cuando quieras; los evaluados dejan de estar disponibles.</p>
+    <p class="gm-sub">Disponibles (${disponibles.length})</p>
+    ${listaDisp}
+    ${acciones}
+    <p class="gm-sub" style="margin-top:14px">Grupos creados (${grupos.length})</p>
+    ${cols}`;
+}
+
+function grupoColHTML(g, cerrada){
+  const terminado = grupoTerminado(g);
+  const reorg = !cerrada && !terminado;   // solo grupos en organización (no terminados) se editan/mueven/eliminan
+  const miembros = notas.filter(n => n.grupo_id === g.id).sort(cmpEstudiantes(n => n.estudiante, n => posMap[n.estudiante_id]));
+  const lis = miembros.length
+    ? miembros.map(n => `<li class="${reorg ? 'arrastrable' : ''}" ${reorg ? `draggable="true" ondragstart="evalDragStart(event,'${n.id}')"` : ''}>${esc(nombreDe(n.estudiante))}${n.nota != null ? ` · <b>${fmtNota(n.nota)}</b>` : ''}</li>`).join('')
+    : '<div class="grupo-col-vacio">Sin integrantes</div>';
+  return `
+    <div class="grupo-col ${terminado ? 'evaluado' : ''}" data-gid="${g.id}"
+         ${reorg ? `ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="evalDrop(event,'${g.id}')"` : ''}>
+      <h4>
+        ${reorg ? `<input value="${esc(g.nombre)}" onchange="evalRenombrarGrupo('${g.id}',this.value)">` : `<span>${esc(g.nombre)}</span>`}
+        <span class="grupo-badge ${terminado ? 'eval' : ''}">${terminado ? '🔒 Terminada' : miembros.length}</span>
+      </h4>
+      <ul class="grupo-miembros">${lis}</ul>
+      <div class="row" style="gap:6px">
+        <button class="btn primary mini" onclick="evalAbrirEvalGrupo('${g.id}')">${terminado ? 'Ver grupo' : (cerrada ? 'Ver grupo' : 'Evaluar grupo')}</button>
+        ${(terminado && !cerrada) ? `<button class="btn warn mini" onclick="evalReabrirGrupo('${g.id}')">Reabrir evaluación</button>` : ''}
+        ${reorg ? `<button class="btn danger mini" title="Eliminar grupo" onclick="evalEliminarGrupo('${g.id}')">🗑</button>` : ''}
+      </div>
+    </div>`;
+}
+
+// ── Etapa A: creación de grupos (selección de disponibles) ──
+// Selección provisional en la lista de disponibles (no persiste; solo UI).
+function evalToggleSel(notaId, checked){
+  if (checked) grupoSelIds.add(notaId); else grupoSelIds.delete(notaId);
+  renderGruposCard();   // re-render liviano (no toca la tabla general)
+}
+// Crea un grupo con los seleccionados. Heredan por defecto (sin excepción); como los
+// disponibles no tienen nota, su efectivo queda igual (grupo nuevo sin nota grupal).
+async function evalCrearGrupoDesdeSeleccion(){
+  const ids = [...grupoSelIds].filter(id => { const n = notas.find(x => x.id === id); return n && estDisponible(n); });
+  if (!ids.length) { toast('Selecciona al menos un estudiante disponible.', 'err'); return; }
+  try {
+    const { data: g, error } = await sb.from('libro_evaluacion_grupos')
+      .insert({ evaluacion_id: evalActual.id, nombre: 'Grupo ' + (grupos.length + 1) }).select('*').single();
+    if (error) throw error;
+    grupos.push(g);
+    const miembros = ids.map(id => notas.find(n => n.id === id));
+    miembros.forEach(n => { n.grupo_id = g.id; n.nota_excepcion = false; n.objetivo_excepcion = false;
+      n.nota = g.nota_grupal ?? null; n.adecuacion_id = g.adecuacion_grupal_id ?? null; });
+    await evalPersistNotasRows(miembros);
+    grupoSelIds.clear();
+    refrescarDetalle();
+    toast(`Grupo creado con ${ids.length} integrante(s).`, 'ok');
+  } catch (e) { toast('No se pudo crear el grupo: ' + e.message, 'err'); }
+}
+// Evaluar individualmente al único seleccionado (no crea grupo).
+function evalEvaluarIndividualSel(){
+  const ids = [...grupoSelIds].filter(id => { const n = notas.find(x => x.id === id); return n && estDisponible(n); });
+  if (ids.length !== 1) { toast('Selecciona exactamente un estudiante disponible.', 'err'); return; }
+  grupoSelIds.clear();
+  evalAbrirEvalIndividual(ids[0]);
+}
+
+// ── Etapa A: drag & drop entre grupos NO evaluados ──
+function evalDragStart(ev, notaId){ ev.dataTransfer.setData('text/plain', notaId); ev.dataTransfer.effectAllowed = 'move'; }
+async function evalDrop(ev, gidDestino){
+  ev.preventDefault();
+  const col = ev.currentTarget; if (col) col.classList.remove('dragover');
+  const notaId = ev.dataTransfer.getData('text/plain');
+  const n = notas.find(x => x.id === notaId); if (!n || !n.grupo_id || n.grupo_id === gidDestino) return;
+  const gOrigen = grupos.find(x => x.id === n.grupo_id);
+  const gDest = grupos.find(x => x.id === gidDestino);
+  if (!gDest || grupoTerminado(gDest) || (gOrigen && grupoTerminado(gOrigen))) return;   // no mover desde/hacia terminados
+  try {
+    // Mover: un solo grupo_id → cambia de grupo, nunca queda duplicado. Hereda del destino.
+    n.grupo_id = gidDestino; n.nota_excepcion = false; n.objetivo_excepcion = false;
+    n.nota = gDest.nota_grupal ?? null; n.adecuacion_id = gDest.adecuacion_grupal_id ?? null;
+    await evalPersistNotasRows([n]);
+    refrescarDetalle();
+  } catch (e) { toast('No se pudo mover: ' + e.message, 'err'); }
+}
+
+async function evalRenombrarGrupo(gid, nombre){
+  const g = grupos.find(x => x.id === gid); if (!g) return;
+  const nm = (nombre || '').trim();
+  if (!nm) { toast('El nombre del grupo no puede quedar vacío.', 'err'); evalRefrescar(); return; }
+  g.nombre = nm;
+  try { await evalUpsertGrupo(g); evalRefrescar(); }
+  catch (e) { toast('No se pudo renombrar: ' + e.message, 'err'); }
+}
+async function evalEliminarGrupo(gid){
+  const g = grupos.find(x => x.id === gid); if (!g) return;
+  if (grupoTerminado(g)) { toast('No se puede eliminar un grupo con evaluación terminada. Reábrelo primero.', 'err'); return; }   // solo en organización
+  if (!confirm(`¿Eliminar "${g.nombre}"? Sus integrantes vuelven a disponibles conservando sus valores.`)) return;
+  try {
+    const miembros = notas.filter(n => n.grupo_id === gid);
+    miembros.forEach(n => { n.grupo_id = null; n.nota_excepcion = false; n.objetivo_excepcion = false; });
+    await evalPersistNotasRows(miembros);                       // libera integrantes (conserva efectivo)
+    const { error } = await sb.from('libro_evaluacion_grupos').delete().eq('id', gid);
+    if (error) throw error;
+    grupos = grupos.filter(x => x.id !== gid);
+    refrescarDetalle();
+    toast('Grupo eliminado.', 'ok');
+  } catch (e) { toast('No se pudo eliminar: ' + e.message, 'err'); }
+}
+async function evalSetNotaGrupal(gid, rawVal){
+  const g = grupos.find(x => x.id === gid); if (!g) return;
+  let val = null;
+  if (String(rawVal).trim() !== '') {
+    const r = normalizarNota(rawVal);
+    if (!r.ok) { toast('Nota grupal inválida (usa 1,0–7,0).', 'err'); evalRefrescar(); return; }
+    val = r.val;
+  }
+  g.nota_grupal = val;
+  try {
+    await evalUpsertGrupo(g);
+    const afectados = notas.filter(n => n.grupo_id === gid && !n.nota_excepcion);   // solo los que heredan
+    afectados.forEach(n => n.nota = val);
+    await evalPersistNotasRows(afectados);
+    evalRefrescar();
+    toast('Nota grupal aplicada.', 'ok');
+  } catch (e) { toast('No se pudo aplicar la nota grupal: ' + e.message, 'err'); }
+}
+async function evalSetObjetivoGrupal(gid, adecId){
+  const g = grupos.find(x => x.id === gid); if (!g) return;
+  g.adecuacion_grupal_id = adecId || null;   // '' = OA original
+  try {
+    await evalUpsertGrupo(g);
+    const afectados = notas.filter(n => n.grupo_id === gid && !n.objetivo_excepcion);
+    afectados.forEach(n => n.adecuacion_id = g.adecuacion_grupal_id);
+    await evalPersistNotasRows(afectados);
+    evalRefrescar();
+    toast('Objetivo grupal aplicado.', 'ok');
+  } catch (e) { toast('No se pudo aplicar el objetivo grupal: ' + e.message, 'err'); }
+}
+async function evalUsarNotaGrupo(notaId){
+  const n = notas.find(x => x.id === notaId); if (!n || !n.grupo_id) return;
+  const g = grupos.find(x => x.id === n.grupo_id);
+  n.nota_excepcion = false; n.nota = g?.nota_grupal ?? null;
+  try { await evalPersistNotasRows([n]); evalRefrescar(); }
+  catch (e) { toast('No se pudo revertir: ' + e.message, 'err'); }
+}
+async function evalUsarObjetivoGrupo(notaId){
+  const n = notas.find(x => x.id === notaId); if (!n || !n.grupo_id) return;
+  const g = grupos.find(x => x.id === n.grupo_id);
+  n.objetivo_excepcion = false; n.adecuacion_id = g?.adecuacion_grupal_id ?? null;
+  try { await evalPersistNotasRows([n]); evalRefrescar(); }
+  catch (e) { toast('No se pudo revertir: ' + e.message, 'err'); }
+}
+
+// ── Etapa B: modal de evaluación (grupo o individual). Reutiliza la lógica existente ──
+function evalRefrescar(){
+  if (document.getElementById('eval-modal')?.classList.contains('show')) renderEvalModal();
+  else refrescarDetalle();
+}
+function evalAbrirEvalGrupo(gid){ evalModalCtx = { tipo: 'grupo', gid }; document.getElementById('eval-modal').classList.add('show'); renderEvalModal(); }
+function evalAbrirEvalIndividual(notaId){ evalModalCtx = { tipo: 'indiv', notaId }; document.getElementById('eval-modal').classList.add('show'); renderEvalModal(); }
+function evalCerrarModal(){ document.getElementById('eval-modal').classList.remove('show'); evalModalCtx = null; refrescarDetalle(); }
+
+// Fila de un integrante en el modal (reusa marcas/↩ y el objetivo dropdown).
+// `bloqueado` = evaluación cerrada O grupo terminado → solo lectura.
+function evalModalMiembroHTML(n, bloqueado){
+  const dis = bloqueado ? 'disabled' : '';
+  return `
+    <div class="em-mrow">
+      <div class="em-nom">${esc(nombreDe(n.estudiante))}</div>
+      <div><select data-em="obj" data-id="${n.id}" ${dis}>${optsObjetivo(n.adecuacion_id)}</select>
+        <div class="cel-marca">${marcaObjHTML(n, bloqueado)}</div></div>
+      <div><input data-em="nota" data-id="${n.id}" value="${fmtNota(n.nota)}" placeholder="—" ${dis}>
+        <div class="cel-marca">${marcaNotaHTML(n, bloqueado)}</div></div>
+    </div>`;
+}
+// Enlaza la edición por integrante (misma lógica que la tabla; excepción si está en grupo).
+function bindEvalModalEdits(card){
+  card.querySelectorAll('[data-em]').forEach(el => {
+    el.addEventListener('change', async () => {
+      const n = notas.find(x => x.id === el.dataset.id); if (!n) return;
+      const k = el.dataset.em;
+      if (k === 'obj') {
+        n.adecuacion_id = el.value || null;
+        if (n.grupo_id) n.objetivo_excepcion = true;
+        try { await evalPersistNotasRows([n]); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); }
+        renderEvalModal();
+      } else if (k === 'com') {
+        n.comentario = el.value.trim() === '' ? null : el.value;
+        try { await evalPersistNotasRows([n]); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); }
+      } else if (k === 'nota') {
+        const r = normalizarNota(el.value);
+        if (!r.ok) { toast('Nota inválida (usa 1,0–7,0).', 'err'); el.focus(); return; }
+        n.nota = r.val;
+        if (n.grupo_id) n.nota_excepcion = true;
+        try { await evalPersistNotasRows([n]); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); }
+        renderEvalModal();
+      }
+    });
+  });
+}
+function renderEvalModal(){
+  const card = document.getElementById('em-card'); if (!card || !evalModalCtx) return;
+  const cerrada = evalActual.estado === 'cerrado';
+  let html = `<button class="em-close" onclick="evalCerrarModal()" title="Cerrar">✕</button>`;
+  if (evalModalCtx.tipo === 'grupo') {
+    const g = grupos.find(x => x.id === evalModalCtx.gid);
+    if (!g) { evalCerrarModal(); return; }
+    const terminado = grupoTerminado(g);
+    const bloqueado = cerrada || terminado;   // terminado congela la edición desde esta interfaz
+    const dis = bloqueado ? 'disabled' : '';
+    const miembros = notas.filter(n => n.grupo_id === g.id).sort(cmpEstudiantes(n => n.estudiante, n => posMap[n.estudiante_id]));
+    html += `
+      <p class="sec-title" style="margin:0 0 8px;padding-right:24px">Evaluar — ${esc(g.nombre)} ${terminado ? '<span class="grupo-badge eval">🔒 Terminada</span>' : ''}</p>
+      ${terminado ? '<p class="hint" style="margin:0 0 8px">Evaluación de este grupo <b>terminada</b> (congelada). Reábrela para volver a editar.</p>' : ''}
+      <div class="grid2">
+        <div><label>Nota grupal</label><input value="${g.nota_grupal != null ? fmtNota(g.nota_grupal) : ''}" placeholder="—" ${dis} onchange="evalSetNotaGrupal('${g.id}',this.value)"></div>
+        <div><label>Objetivo grupal</label><select ${dis} onchange="evalSetObjetivoGrupal('${g.id}',this.value)">${optsObjetivo(g.adecuacion_grupal_id)}</select></div>
+      </div>
+      ${bloqueado ? '' : '<p class="hint" style="margin:10px 0 4px">La nota/objetivo grupal se aplica a los integrantes que heredan. Editar un integrante crea su excepción individual.</p>'}
+      <div>${miembros.map(n => evalModalMiembroHTML(n, bloqueado)).join('') || '<p class="hint">Sin integrantes.</p>'}</div>
+      <div class="mm-actions">
+        ${(!cerrada && !terminado) ? `<button class="btn primary" onclick="evalTerminarGrupo('${g.id}')">Terminar evaluación</button>` : ''}
+        ${(!cerrada && terminado) ? `<button class="btn warn" onclick="evalReabrirGrupo('${g.id}')">Reabrir evaluación</button>` : ''}
+        <button class="btn" onclick="evalCerrarModal()">Cerrar</button>
+      </div>`;
+    card.innerHTML = html;
+    if (!bloqueado) bindEvalModalEdits(card);
+  } else {
+    const n = notas.find(x => x.id === evalModalCtx.notaId);
+    if (!n) { evalCerrarModal(); return; }
+    const dis = cerrada ? 'disabled' : '';
+    html += `
+      <p class="sec-title" style="margin:0 0 10px;padding-right:24px">Evaluar — ${esc(nombreDe(n.estudiante))}</p>
+      <div class="grid2">
+        <div><label>Objetivo aplicado</label><select data-em="obj" data-id="${n.id}" ${dis}>${optsObjetivo(n.adecuacion_id)}</select></div>
+        <div><label>Nota</label><input data-em="nota" data-id="${n.id}" value="${fmtNota(n.nota)}" placeholder="—" ${dis}></div>
+      </div>
+      <div style="margin-top:10px"><label>Comentario</label><input data-em="com" data-id="${n.id}" value="${esc(n.comentario||'')}" placeholder="(opcional)" ${dis}></div>
+      <div class="mm-actions">
+        ${cerrada ? '' : `<button class="btn primary" onclick="evalTerminarIndividual('${n.id}')">Terminar evaluación</button>`}
+        <button class="btn" onclick="evalCerrarModal()">Cerrar</button>
+      </div>`;
+    card.innerHTML = html;
+    if (!cerrada) bindEvalModalEdits(card);
+  }
+}
+
+// ── Terminar / Reabrir (estado explícito por grupo; individual se deriva de la nota) ──
+async function evalTerminarGrupo(gid){
+  const g = grupos.find(x => x.id === gid); if (!g) return;
+  if (!confirm(`¿Terminar la evaluación de "${g.nombre}"?\nSus integrantes, objetivo y notas quedarán CONGELADOS. Podrás reabrirla mientras la evaluación general siga abierta.`)) return;
+  try {
+    const { error } = await sb.from('libro_evaluacion_grupos').update({ terminado: true }).eq('id', gid);
+    if (error) throw error;
+    g.terminado = true;
+    evalRefrescar();
+    toast('Evaluación del grupo terminada (congelada).', 'ok');
+  } catch (e) { toast('No se pudo terminar: ' + e.message, 'err'); }
+}
+async function evalReabrirGrupo(gid){
+  const g = grupos.find(x => x.id === gid); if (!g) return;
+  if (!confirm(`¿Reabrir la evaluación de "${g.nombre}"?\nVolverá a ser editable y reorganizable.`)) return;
+  try {
+    const { error } = await sb.from('libro_evaluacion_grupos').update({ terminado: false }).eq('id', gid);
+    if (error) throw error;
+    g.terminado = false;
+    evalRefrescar();
+    toast('Evaluación del grupo reabierta.', 'ok');
+  } catch (e) { toast('No se pudo reabrir: ' + e.message, 'err'); }
+}
+// Individual: "terminado" = tener nota (sale de Disponibles). El botón solo confirma y cierra.
+function evalTerminarIndividual(notaId){
+  const n = notas.find(x => x.id === notaId); if (!n) return;
+  if (n.nota == null) { toast('Ingresa una nota antes de terminar la evaluación.', 'err'); return; }
+  if (!confirm(`¿Terminar la evaluación de ${nombreDe(n.estudiante)}? Quedará como evaluado y saldrá de Disponibles.`)) return;
+  evalCerrarModal();
+  toast('Evaluación individual terminada.', 'ok');
 }
 
 async function cerrarEval(){

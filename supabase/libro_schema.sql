@@ -721,3 +721,198 @@ DROP POLICY IF EXISTS "acceso_total" ON libro_observaciones;
 CREATE POLICY "acceso_total" ON libro_entregas        FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acceso_total" ON libro_entrega_detalle FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "acceso_total" ON libro_observaciones   FOR ALL USING (true) WITH CHECK (true);
+
+
+-- ============================================================
+-- LIBRO DE CLASES — Evaluación: GRUPOS DE TRABAJO (capa aditiva sobre F4)
+-- ============================================================
+-- Capa de organización/herencia sobre las evaluaciones existentes. NO cambia el
+-- modelo individual: cada estudiante mantiene su fila en libro_evaluacion_notas
+-- con su nota y adecuacion_id EFECTIVOS. Un grupo aporta valores por defecto
+-- (nota_grupal, adecuacion_grupal_id) que los integrantes HEREDAN salvo excepción
+-- individual explícita. Aditivo e idempotente. No toca datos existentes.
+--
+-- Lectura A (confirmada): el "objetivo aplicado" es un único valor por estudiante
+-- (adecuacion_id: NULL = OA original · UUID = adecuación). El grupo fija ese mismo
+-- campo. No existe una segunda semántica de "objetivo original".
+--
+-- Herencia (regla central):
+--   nota_excepcion     = false → nota efectiva     = grupo.nota_grupal
+--   nota_excepcion     = true  → nota efectiva     = la individual de la fila
+--   objetivo_excepcion = false → adecuacion_id efec = grupo.adecuacion_grupal_id
+--   objetivo_excepcion = true  → adecuacion_id efec = el individual de la fila
+--   (ambas dimensiones son independientes)
+-- grupo_id NULL = estudiante individual (comportamiento idéntico al actual).
+-- NULL nunca significa "hereda": la herencia la marcan los flags *_excepcion.
+
+-- Grupo de una evaluación. nota_grupal NULL = sin nota grupal; adecuacion_grupal_id
+-- NULL = OA original (coherente con adecuacion_id NULL en las notas).
+CREATE TABLE IF NOT EXISTS libro_evaluacion_grupos (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    evaluacion_id         UUID NOT NULL REFERENCES libro_evaluaciones(id) ON DELETE CASCADE,
+    nombre                TEXT NOT NULL,
+    nota_grupal           NUMERIC(2,1) CHECK (nota_grupal IS NULL OR (nota_grupal >= 1.0 AND nota_grupal <= 7.0)),  -- I8-análoga
+    adecuacion_grupal_id  UUID REFERENCES libro_evaluacion_adecuaciones(id) ON DELETE SET NULL,   -- NULL = OA original
+    created_at            TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_libro_eval_grupos_eval ON libro_evaluacion_grupos (evaluacion_id);
+
+-- Estado EXPLÍCITO de "grupo terminado/congelado" (distinto de "tiene nota").
+-- Un grupo se termina con una acción del profesor ("Terminar evaluación"); recién
+-- ahí queda congelado (no se reorganiza, no se elimina, no se editan sus valores).
+-- No es derivable de la nota (poner nota NO termina el grupo), por eso es una columna.
+-- Aditiva y segura: grupos existentes quedan terminado=false (abiertos).
+-- (El "terminado" de un estudiante individual NO usa columna: se deriva de
+--  grupo_id NULL + nota != null — evaluado individual = fuera de Disponibles.)
+ALTER TABLE libro_evaluacion_grupos
+    ADD COLUMN IF NOT EXISTS terminado BOOLEAN NOT NULL DEFAULT false;
+
+-- Columnas aditivas en el detalle por estudiante: membresía + flags de excepción.
+-- Migración segura: filas existentes quedan con grupo_id=NULL y flags=false
+-- (una evaluación sin grupos se comporta exactamente como antes).
+ALTER TABLE libro_evaluacion_notas
+    ADD COLUMN IF NOT EXISTS grupo_id UUID REFERENCES libro_evaluacion_grupos(id) ON DELETE SET NULL;
+ALTER TABLE libro_evaluacion_notas
+    ADD COLUMN IF NOT EXISTS nota_excepcion BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE libro_evaluacion_notas
+    ADD COLUMN IF NOT EXISTS objetivo_excepcion BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS idx_libro_notas_grupo ON libro_evaluacion_notas (grupo_id);
+
+-- TRIGGER I9-análoga: la adecuación grupal debe pertenecer a la MISMA evaluación.
+CREATE OR REPLACE FUNCTION libro_grupo_adecuacion_misma_eval()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_eval UUID;
+BEGIN
+    IF NEW.adecuacion_grupal_id IS NOT NULL THEN
+        SELECT evaluacion_id INTO v_eval
+            FROM libro_evaluacion_adecuaciones WHERE id = NEW.adecuacion_grupal_id;
+        IF v_eval IS DISTINCT FROM NEW.evaluacion_id THEN
+            RAISE EXCEPTION
+                'I9: la adecuación grupal % no pertenece a la evaluación % del grupo',
+                NEW.adecuacion_grupal_id, NEW.evaluacion_id;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_grupo_adecuacion_misma_eval ON libro_evaluacion_grupos;
+CREATE TRIGGER trg_libro_grupo_adecuacion_misma_eval
+    BEFORE INSERT OR UPDATE OF adecuacion_grupal_id, evaluacion_id ON libro_evaluacion_grupos
+    FOR EACH ROW EXECUTE FUNCTION libro_grupo_adecuacion_misma_eval();
+
+-- TRIGGER I12 (cierre): grupos inmutables mientras la evaluación esté cerrada.
+-- Mismo criterio que libro_hijo_bloqueo_cerrada (INSERT/UPDATE/DELETE). Los cambios
+-- de grupo_id / nota_excepcion / objetivo_excepcion en libro_evaluacion_notas ya
+-- quedan bloqueados por el trigger EXISTENTE trg_libro_notas_bloqueo_cerrada.
+CREATE OR REPLACE FUNCTION libro_grupo_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_eval   UUID;
+    v_estado TEXT;
+BEGIN
+    v_eval := COALESCE(NEW.evaluacion_id, OLD.evaluacion_id);
+    SELECT estado INTO v_estado FROM libro_evaluaciones WHERE id = v_eval;
+    IF NOT FOUND THEN
+        RETURN COALESCE(NEW, OLD);   -- padre en borrado en cascada → permitir
+    END IF;
+    IF v_estado = 'cerrado' THEN
+        RAISE EXCEPTION
+            'I12: la evaluación % está cerrada; reábrela para modificar sus grupos', v_eval;
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_grupo_bloqueo_cerrada ON libro_evaluacion_grupos;
+CREATE TRIGGER trg_libro_grupo_bloqueo_cerrada
+    BEFORE INSERT OR UPDATE OR DELETE ON libro_evaluacion_grupos
+    FOR EACH ROW EXECUTE FUNCTION libro_grupo_bloqueo_cerrada();
+
+-- RLS (patrón acceso_total del ecosistema).
+ALTER TABLE libro_evaluacion_grupos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "acceso_total" ON libro_evaluacion_grupos;
+CREATE POLICY "acceso_total" ON libro_evaluacion_grupos FOR ALL USING (true) WITH CHECK (true);
+
+-- ── BLINDAJE BD: un grupo terminado (terminado=true) queda CONGELADO ──
+-- Complementa al bloqueo por cierre de evaluación (I12) y a la protección de UI:
+-- garantiza la regla aunque el UPDATE/DELETE venga directo contra Supabase.
+-- Única excepción: "Reabrir evaluación" = transición terminado true→false SIN otro
+-- cambio. El borrado en cascada de la evaluación padre se permite (padre inexistente).
+CREATE OR REPLACE FUNCTION libro_grupo_terminado_congela()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        -- cascada del padre (evaluación borrada) → permitir
+        IF NOT EXISTS (SELECT 1 FROM libro_evaluaciones WHERE id = OLD.evaluacion_id) THEN
+            RETURN OLD;
+        END IF;
+        IF OLD.terminado THEN
+            RAISE EXCEPTION 'Grupo terminado: no se puede eliminar (id %); reábrelo primero.', OLD.id;
+        END IF;
+        RETURN OLD;
+    END IF;
+    -- UPDATE: solo restringe si el grupo YA estaba terminado.
+    IF OLD.terminado THEN
+        -- Excepción legítima: Reabrir = terminado true→false y nada más cambia.
+        IF NEW.terminado = false
+           AND NEW.nombre               IS NOT DISTINCT FROM OLD.nombre
+           AND NEW.nota_grupal          IS NOT DISTINCT FROM OLD.nota_grupal
+           AND NEW.adecuacion_grupal_id IS NOT DISTINCT FROM OLD.adecuacion_grupal_id
+           AND NEW.evaluacion_id        IS NOT DISTINCT FROM OLD.evaluacion_id THEN
+            RETURN NEW;
+        END IF;
+        RAISE EXCEPTION 'Grupo terminado: solo se permite Reabrir (terminado=false); ninguna otra modificación (id %).', OLD.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_grupo_terminado_congela ON libro_evaluacion_grupos;
+CREATE TRIGGER trg_libro_grupo_terminado_congela
+    BEFORE UPDATE OR DELETE ON libro_evaluacion_grupos
+    FOR EACH ROW EXECUTE FUNCTION libro_grupo_terminado_congela();
+
+-- ── BLINDAJE BD: integrante de un grupo terminado queda CONGELADO ──
+-- Bloquea cualquier UPDATE de libro_evaluacion_notas que intente cambiar, para un
+-- estudiante cuyo grupo (origen o destino) esté terminado, las columnas:
+--   grupo_id · nota · adecuacion_id · nota_excepcion · objetivo_excepcion.
+-- No toca otras columnas (p. ej. comentario). Solo aplica a UPDATE (los INSERT del
+-- snapshot y los DELETE en cascada no se ven afectados).
+CREATE OR REPLACE FUNCTION libro_nota_grupo_terminado_congela()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_old_term BOOLEAN := false;
+    v_new_term BOOLEAN := false;
+BEGIN
+    -- ¿cambió alguna columna protegida? Si no, permitir (p. ej. solo comentario).
+    IF NOT ( NEW.grupo_id           IS DISTINCT FROM OLD.grupo_id
+          OR NEW.nota               IS DISTINCT FROM OLD.nota
+          OR NEW.adecuacion_id      IS DISTINCT FROM OLD.adecuacion_id
+          OR NEW.nota_excepcion     IS DISTINCT FROM OLD.nota_excepcion
+          OR NEW.objetivo_excepcion IS DISTINCT FROM OLD.objetivo_excepcion ) THEN
+        RETURN NEW;
+    END IF;
+    IF OLD.grupo_id IS NOT NULL THEN
+        SELECT COALESCE(terminado, false) INTO v_old_term FROM libro_evaluacion_grupos WHERE id = OLD.grupo_id;
+        v_old_term := COALESCE(v_old_term, false);
+    END IF;
+    IF NEW.grupo_id IS NOT NULL AND NEW.grupo_id IS DISTINCT FROM OLD.grupo_id THEN
+        SELECT COALESCE(terminado, false) INTO v_new_term FROM libro_evaluacion_grupos WHERE id = NEW.grupo_id;
+        v_new_term := COALESCE(v_new_term, false);
+    END IF;
+    IF v_old_term THEN
+        RAISE EXCEPTION 'Grupo terminado: no se puede modificar la evaluación/pertenencia de un integrante de un grupo terminado (nota %); reábrelo primero.', OLD.id;
+    END IF;
+    IF v_new_term THEN
+        RAISE EXCEPTION 'Grupo terminado: no se puede mover un integrante hacia un grupo terminado (nota %).', OLD.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_nota_grupo_terminado_congela ON libro_evaluacion_notas;
+CREATE TRIGGER trg_libro_nota_grupo_terminado_congela
+    BEFORE UPDATE ON libro_evaluacion_notas
+    FOR EACH ROW EXECUTE FUNCTION libro_nota_grupo_terminado_congela();
