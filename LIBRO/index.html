@@ -93,6 +93,29 @@
   tr.fila-ok td:first-child{box-shadow:inset 3px 0 0 var(--acc)}
   /* Fila clickeable (Participación/Entregas editables) */
   tr.fila-click{cursor:pointer}
+
+  /* ── PANEL DE CONTROL DEL CURSO ── */
+  /* 5 botones grandes de acción, con color por categoría. Responsive (auto-fit). */
+  .panel-acciones{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+  .panel-btn{border:none;border-radius:12px;padding:20px 14px;font-size:15px;font-weight:700;
+    color:#fff;cursor:pointer;letter-spacing:.02em;transition:filter .15s;text-align:center}
+  .panel-btn:hover{filter:brightness(1.12)}
+  .pb-eval{background:#2e7d32}                 /* Evaluación · verde */
+  .pb-part{background:#e8730c}                 /* Participación · naranjo */
+  .pb-ent {background:#c99700;color:#151515}   /* Entrega · amarillo */
+  .pb-mat {background:#3b5bdb}                 /* Matrícula · azul (propio) */
+  .pb-arch{background:#6b4ba3}                 /* Archivo · morado (propio) */
+  /* Filas de actividad abierta: MISMO lenguaje visual que .fila-ok (fondo tintado
+     + barra-acento a la izquierda), tintadas por categoría. Fila completa clickeable. */
+  .eval-item.cat-eval{background:rgba(76,175,80,.14);border-color:rgba(76,175,80,.35);box-shadow:inset 3px 0 0 var(--acc)}
+  .eval-item.cat-part{background:rgba(232,115,12,.15);border-color:rgba(232,115,12,.38);box-shadow:inset 3px 0 0 #e8730c}
+  .eval-item.cat-ent {background:rgba(224,161,6,.15);border-color:rgba(224,161,6,.40);box-shadow:inset 3px 0 0 var(--warn)}
+  .eval-item .act-tag{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);font-weight:600;white-space:nowrap}
+  /* Identidad cromática DENTRO de la actividad: acento superior por categoría. */
+  #vista[data-cat="eval"] .card{border-top:3px solid var(--acc)}
+  #vista[data-cat="part"] .card{border-top:3px solid #e8730c}
+  #vista[data-cat="ent"]  .card{border-top:3px solid var(--warn)}
+
   /* Toast: fixed, no desplaza ni recarga la página */
   #toast-wrap{position:fixed;right:18px;bottom:18px;z-index:50;display:flex;flex-direction:column;gap:8px;pointer-events:none}
   .toast{min-width:200px;max-width:360px;padding:11px 15px;border-radius:9px;font-size:13.5px;
@@ -317,13 +340,14 @@ async function init(){
        <p class="hint">Este contexto es de tipo <b>${esc(ctxTipo)}</b>.</p></div>`;
     return;
   }
-  seccion = 'eval'; mostrarBtnOrden(); renderSecNav(); renderLista();
+  // CURSO: la pantalla principal es el PANEL DE CONTROL (no una sección directa).
+  renderPanelCurso();
 }
 
 // ── Vista LISTA ──────────────────────────────────────────────
 async function renderLista(){
   evalActual = null; vistaActiva = 'eval-lista';
-  document.getElementById('btn-volver').style.display = 'none';
+  backAPanel(); mostrarBtnOrden(); vistaCat('eval');   // curso: volver al panel + identidad verde
   const v = document.getElementById('vista');
   v.innerHTML = '<div class="card">Cargando evaluaciones…</div>';
   let evs = [];
@@ -443,7 +467,7 @@ async function abrirDetalle(evId){
     return;
   }
   const btnV = document.getElementById('btn-volver');
-  btnV.textContent = '← Evaluaciones'; btnV.style.display = '';
+  btnV.textContent = '← Curso'; btnV.style.display = '';   // el regreso va al panel del curso
   renderDetalle();
 }
 
@@ -465,6 +489,7 @@ function nombreEstudiante(n){ return nombreFmt(n.estudiante); }
 
 function renderDetalle(){
   vistaActiva = 'eval-detalle';
+  vistaCat('eval'); mostrarBtnOrden();   // identidad verde + toggle de orden
   const ev = evalActual;
   const cerrada = ev.estado === 'cerrado';
   const dis = cerrada ? 'disabled' : '';
@@ -815,9 +840,146 @@ function irSeccion(s){
 }
 function volverAtras(){
   limpiarMsg();
+  // CURSO: el botón de regreso SIEMPRE devuelve al panel de control del curso.
+  if (ctxTipo === 'curso') { renderPanelCurso(); return; }
+  // TALLER: comportamiento existente (secnav + detalle de participación).
   if (seccion === 'part') renderPartLista();
-  else if (seccion === 'entregas') renderEntregasLista();
-  else renderLista();   // 'eval' (talleres/obs no tienen vista de detalle propia)
+  else renderLista();
+}
+
+// ══════════════════════════════════════════════════════════════
+// PANEL DE CONTROL DEL CURSO (pantalla principal del curso)
+// Reorganización de navegación sobre F4/F6/F7: 5 acciones + actividades abiertas.
+// Reutiliza los flujos existentes (crear/abrir) sin duplicar su lógica.
+// ══════════════════════════════════════════════════════════════
+// Identidad cromática de la vista actual (acento por categoría dentro de la actividad).
+function vistaCat(cat){ const el = document.getElementById('vista'); if (el) el.dataset.cat = cat || ''; }
+// Botón de regreso al panel (curso).
+function backAPanel(){ const b = document.getElementById('btn-volver'); if (b){ b.textContent = '← Curso'; b.style.display = ''; } }
+
+// Fila de actividad (compartida por el panel "abiertas" y el Archivo "cerradas").
+// Fila completa clickeable, tintada por categoría (mismo lenguaje visual .fila-ok),
+// que abre el detalle existente (abrirDetalle / abrirPartDetalle / abrirEntregaDetalle).
+function filaActividad(cat, etiqueta, fn, r){
+  return `<div class="eval-item ${cat}" onclick="${fn}('${r.id}')" title="Abrir ${etiqueta.toLowerCase()}">
+      <div><div><b>${esc(r.nombre)}</b></div><div class="meta">${esc(r.fecha)}</div></div>
+      <span class="act-tag">${etiqueta}</span>
+    </div>`;
+}
+
+// Entradas a los flujos EXISTENTES desde los botones del panel (no crean nada solas;
+// muestran el formulario/listado de creación ya implementado).
+function cursoEvaluaciones(){ seccion = 'eval'; limpiarMsg(); renderLista(); }
+function cursoParticipacion(){ seccion = 'part'; limpiarMsg(); renderPartLista(); }
+function cursoEntregas(){ seccion = 'entregas'; limpiarMsg(); renderEntregasLista(); }
+
+async function renderPanelCurso(){
+  seccion = 'panel'; vistaActiva = 'panel';
+  limpiarMsg();
+  document.getElementById('btn-volver').style.display = 'none';
+  document.getElementById('btn-orden').style.display  = 'none';   // el panel no lista estudiantes
+  document.getElementById('secnav').style.display     = 'none';   // el panel reemplaza las tabs en curso
+  vistaCat('');
+  const v = document.getElementById('vista');
+  v.innerHTML = `
+    <div class="card">
+      <div class="panel-acciones">
+        <button class="panel-btn pb-eval" onclick="cursoEvaluaciones()">＋ Evaluación</button>
+        <button class="panel-btn pb-part" onclick="cursoParticipacion()">＋ Participación</button>
+        <button class="panel-btn pb-ent"  onclick="cursoEntregas()">＋ Entrega</button>
+        <button class="panel-btn pb-mat"  onclick="abrirMatriculaCurso()">Matrícula</button>
+        <button class="panel-btn pb-arch" onclick="abrirArchivoCurso()">Archivo</button>
+      </div>
+    </div>
+    <div class="card">
+      <p class="sec-title">Actividades abiertas · ${esc(ctxNombre)} · ${anioNum}</p>
+      <div id="panel-abiertas"><p class="hint">Cargando…</p></div>
+    </div>`;
+  // Actividades ABIERTAS, agrupadas por categoría (no mezcladas cronológicamente):
+  // Evaluaciones → Participaciones → Entregas; dentro de cada grupo, de más antigua
+  // a más reciente. 3 consultas en paralelo (una por categoría).
+  let evs = [], parts = [], ents = [];
+  try {
+    const [re, rp, rt] = await Promise.all([
+      sb.from('libro_evaluaciones').select('id,nombre,fecha').eq('anio_id', anioId).eq('contexto_id', ctxId)
+        .eq('estado','abierto').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
+      sb.from('libro_participaciones').select('id,nombre,fecha').eq('anio_id', anioId).eq('contexto_id', ctxId)
+        .eq('estado','abierto').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
+      sb.from('libro_entregas').select('id,nombre,fecha').eq('anio_id', anioId).eq('contexto_id', ctxId)
+        .eq('estado','abierto').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
+    ]);
+    if (re.error) throw re.error; if (rp.error) throw rp.error; if (rt.error) throw rt.error;
+    evs = re.data || []; parts = rp.data || []; ents = rt.data || [];
+  } catch (e) {
+    const cont = document.getElementById('panel-abiertas'); if (cont) cont.innerHTML = '';
+    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql en Supabase.' : ('Error cargando actividades: ' + e.message));
+    return;
+  }
+  const html =
+    evs.map(r   => filaActividad('cat-eval','Evaluación',   'abrirDetalle',       r)).join('') +
+    parts.map(r => filaActividad('cat-part','Participación','abrirPartDetalle',   r)).join('') +
+    ents.map(r  => filaActividad('cat-ent', 'Entrega',      'abrirEntregaDetalle',r)).join('');
+  const cont = document.getElementById('panel-abiertas');
+  if (cont) cont.innerHTML = html || '<p class="hint">No hay actividades abiertas.</p>';
+}
+
+// Punto de entrada a MATRÍCULA del curso (F8+): pantalla preparada, sin mecanismo aún.
+function abrirMatriculaCurso(){
+  seccion = 'matricula'; vistaActiva = 'matricula'; limpiarMsg();
+  document.getElementById('btn-orden').style.display = 'none';
+  document.getElementById('secnav').style.display = 'none';
+  vistaCat(''); backAPanel();
+  document.getElementById('vista').innerHTML = `
+    <div class="card">
+      <p class="sec-title">Matrícula · ${esc(ctxNombre)} · ${anioNum}</p>
+      <p class="hint">Pantalla de matrícula / retiro del curso. La gestión (matricular, retirar, posiciones)
+      se implementará en una fase futura; este es el punto de entrada preparado.</p>
+    </div>`;
+}
+
+// ARCHIVO del curso: historial de actividades CERRADAS (estado='cerrado'), agrupadas
+// por categoría. Reutiliza tablas/consultas y los detalles existentes (abrirDetalle /
+// abrirPartDetalle / abrirEntregaDetalle). Al volver desde un detalle, "← Curso" lleva
+// al panel (comportamiento actual de volverAtras para curso).
+async function abrirArchivoCurso(){
+  seccion = 'archivo'; vistaActiva = 'archivo'; limpiarMsg();
+  document.getElementById('btn-orden').style.display = 'none';
+  document.getElementById('secnav').style.display = 'none';
+  vistaCat(''); backAPanel();
+  const v = document.getElementById('vista');
+  v.innerHTML = `
+    <div class="card">
+      <p class="sec-title">Archivo · ${esc(ctxNombre)} · ${anioNum}</p>
+      <p class="hint">Actividades cerradas del curso.</p>
+      <div id="arch-eval" class="subsec"><p class="hint" style="border:none">Cargando…</p></div>
+      <div id="arch-part" class="subsec"></div>
+      <div id="arch-ent"  class="subsec"></div>
+    </div>`;
+  // Cerradas por categoría, de más antigua a más reciente. 3 consultas en paralelo.
+  let evs = [], parts = [], ents = [];
+  try {
+    const [re, rp, rt] = await Promise.all([
+      sb.from('libro_evaluaciones').select('id,nombre,fecha').eq('anio_id', anioId).eq('contexto_id', ctxId)
+        .eq('estado','cerrado').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
+      sb.from('libro_participaciones').select('id,nombre,fecha').eq('anio_id', anioId).eq('contexto_id', ctxId)
+        .eq('estado','cerrado').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
+      sb.from('libro_entregas').select('id,nombre,fecha').eq('anio_id', anioId).eq('contexto_id', ctxId)
+        .eq('estado','cerrado').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
+    ]);
+    if (re.error) throw re.error; if (rp.error) throw rp.error; if (rt.error) throw rt.error;
+    evs = re.data || []; parts = rp.data || []; ents = rt.data || [];
+  } catch (e) {
+    ['arch-eval','arch-part','arch-ent'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql en Supabase.' : ('Error cargando el archivo: ' + e.message));
+    return;
+  }
+  const sub = (rows, cat, etiqueta, fn, titulo) =>
+    `<p class="sec-title" style="margin:0 0 8px">${titulo}</p>` +
+    (rows.length ? rows.map(r => filaActividad(cat, etiqueta, fn, r)).join('')
+                 : `<p class="hint" style="border:none">Sin ${titulo.toLowerCase()} cerradas.</p>`);
+  const eEval = document.getElementById('arch-eval'); if (eEval) eEval.innerHTML = sub(evs,   'cat-eval','Evaluación',   'abrirDetalle',        'Evaluaciones');
+  const ePart = document.getElementById('arch-part'); if (ePart) ePart.innerHTML = sub(parts, 'cat-part','Participación','abrirPartDetalle',    'Participaciones');
+  const eEnt  = document.getElementById('arch-ent');  if (eEnt)  eEnt.innerHTML  = sub(ents,  'cat-ent', 'Entrega',      'abrirEntregaDetalle', 'Entregas');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -850,7 +1012,10 @@ async function poblacionContexto(fecha){
 
 async function renderPartLista(){
   partActual = null; vistaActiva = 'part-lista';
-  document.getElementById('btn-volver').style.display = 'none';
+  mostrarBtnOrden();
+  // curso: participación es naranjo y el regreso va al panel; taller: sin cambios.
+  if (ctxTipo === 'curso') { vistaCat('part'); backAPanel(); }
+  else { vistaCat(''); document.getElementById('btn-volver').style.display = 'none'; }
   const v = document.getElementById('vista');
   v.innerHTML = '<div class="card">Cargando participación…</div>';
   let regs = [];
@@ -940,12 +1105,14 @@ async function abrirPartDetalle(pid){
     return;
   }
   const btn = document.getElementById('btn-volver');
-  btn.textContent = '← Participaciones'; btn.style.display = '';
+  btn.textContent = ctxTipo === 'curso' ? '← Curso' : '← Participaciones'; btn.style.display = '';
   renderPartDetalle();
 }
 
 function renderPartDetalle(){
   vistaActiva = 'part-detalle';
+  vistaCat(ctxTipo === 'curso' ? 'part' : '');   // identidad naranjo solo en curso
+  mostrarBtnOrden();
   const p = partActual;
   const cerrada = p.estado === 'cerrado';
   const dis = cerrada ? 'disabled' : '';
@@ -1116,7 +1283,7 @@ async function vigentesCursoEnFecha(fecha){
 
 async function renderEntregasLista(){
   entregaActual = null; vistaActiva = 'entregas-lista';
-  document.getElementById('btn-volver').style.display = 'none';
+  backAPanel(); mostrarBtnOrden(); vistaCat('ent');   // curso: volver al panel + identidad amarilla
   const v = document.getElementById('vista');
   v.innerHTML = '<div class="card">Cargando entregas…</div>';
   let regs = [];
@@ -1244,12 +1411,13 @@ async function abrirEntregaDetalle(eid){
     return;
   }
   const btn = document.getElementById('btn-volver');
-  btn.textContent = '← Entregas'; btn.style.display = '';
+  btn.textContent = '← Curso'; btn.style.display = '';   // el regreso va al panel del curso
   renderEntregaDetalle();
 }
 
 function renderEntregaDetalle(){
   vistaActiva = 'entrega-detalle';
+  vistaCat('ent'); mostrarBtnOrden();   // identidad amarilla + toggle de orden
   const e = entregaActual;
   const cerrada = e.estado === 'cerrado';
   const dis = cerrada ? 'disabled' : '';
