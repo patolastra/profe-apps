@@ -225,3 +225,31 @@ CREATE TABLE IF NOT EXISTS materiales_contexto (
 );
 ALTER TABLE materiales_contexto ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "acceso_total" ON materiales_contexto FOR ALL USING (true) WITH CHECK (true);
+
+-- ── 13. LECTOR_PARTICULARES ──────────────────────────────────
+-- Estudiantes PARTICULARES del Lector Tabs: alumnos que NO pertenecen a la
+-- escuela. Sin contexto, sin curso, sin matrícula, sin datos personales
+-- (nada de RUT/email/teléfono/password). NO aparecen en ninguna nómina
+-- escolar ni en el Libro de Clases. Su único propósito es tener una
+-- identidad propia dentro del Lector para recibir tabs/secciones/lecciones.
+--
+-- Reutilización: el `id` (UUID) se usa como alumno_id (TEXT) en las tablas
+-- de asignación existentes (alumno_tabs, alumno_tab_secciones,
+-- alumno_lecciones, tab_mensajes_alumno) — que NO tienen FK, por lo que
+-- aceptan cualquier id sin tocar su definición. No se modifica ninguna
+-- tabla escolar (alumnos_taller, contextos, matrículas, etc.).
+--
+-- slug: identificador legible y estable para la URL pública
+--       (/tabs/index.html?p=<slug>), p.ej. "juan-perez-a3f9". NO es el UUID
+--       ni un token; es ofuscación, no seguridad. La restricción real la
+--       aplica el Lector forzando modo público cuando hay ?p= (sin admin).
+CREATE TABLE IF NOT EXISTS lector_particulares (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre      TEXT NOT NULL,
+    apellido    TEXT NOT NULL DEFAULT '',
+    slug        TEXT NOT NULL UNIQUE,
+    activo      BOOLEAN NOT NULL DEFAULT true,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE lector_particulares ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "acceso_total" ON lector_particulares FOR ALL USING (true) WITH CHECK (true);
