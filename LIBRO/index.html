@@ -197,6 +197,86 @@
   .toast.ok{background:#1e3a24;border:1px solid #2c6a3a;color:#d7ffe2}
   .toast.err{background:#3a1e1e;border:1px solid #6a2c2c;color:#ffd9d9}
   @media(max-width:640px){.grid2{grid-template-columns:1fr}.td.obj{width:auto}}
+
+  /* ══ VISTA PROYECTOR — Participación (scope .ppro-*, aislado del resto) ══ */
+  /* Overlay a viewport completo: no depende del alto de la página ni del scroll
+     del Libro. Reutiliza la identidad cromática (verde=participó · naranjo=espera). */
+  .ppro{position:fixed;inset:0;z-index:80;display:none;flex-direction:column;
+    background:radial-gradient(1200px 800px at 50% -10%,#1a2330 0%,#0d1014 60%,#090b0e 100%);
+    color:var(--txt);font-family:inherit;overflow:hidden}
+  .ppro.show{display:flex}
+  /* Barra superior: contador + controles. Sin curso/año/formalidades. */
+  .ppro-bar{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:14px 20px;
+    border-bottom:1px solid rgba(255,255,255,.07);background:rgba(0,0,0,.18)}
+  .ppro-contador{font-weight:800;letter-spacing:.01em;font-size:clamp(18px,2.4vw,30px);
+    display:flex;align-items:center;gap:12px;white-space:nowrap;flex-wrap:wrap}
+  .ppro-cn-si{color:#7ee39a}
+  .ppro-cn-sep{color:var(--mut);opacity:.6}
+  .ppro-cn-esp{color:#ffb066}
+  .ppro-spacer{flex:1}
+  .ppro-lock{display:none;align-items:center;gap:7px;font-weight:700;font-size:clamp(13px,1.5vw,18px);
+    color:#ffd9a3;background:rgba(232,115,12,.16);border:1px solid rgba(232,115,12,.4);
+    padding:6px 13px;border-radius:999px}
+  .ppro.cerrada .ppro-lock{display:inline-flex}
+  .ppro-btn{border:none;border-radius:12px;font-family:inherit;font-weight:800;cursor:pointer;
+    font-size:clamp(14px,1.6vw,19px);padding:11px 20px;letter-spacing:.01em;transition:filter .15s,transform .08s}
+  .ppro-btn:hover{filter:brightness(1.12)}
+  .ppro-btn:active{transform:scale(.96)}
+  .ppro-btn.dado{background:linear-gradient(135deg,#7b4bd6,#4b73d6);color:#fff;box-shadow:0 4px 18px rgba(90,80,220,.4)}
+  .ppro-btn.dado:disabled{background:#2a2f38;color:#5b6470;cursor:not-allowed;box-shadow:none;filter:none}
+  .ppro-btn.salir{background:rgba(255,255,255,.10);color:var(--txt)}
+  /* Cuerpo: tablero de 2 zonas en UNA composición global sin scroll. El tamaño de
+     celda/columnas/fuente lo calcula JS (proyectorLayout) y llega por variables. */
+  .ppro-board{flex:1;position:relative;display:flex;flex-direction:column;min-height:0;
+    gap:var(--zgap,12px);padding:10px 16px 14px;overflow:hidden}
+  .ppro-zona{flex:0 0 auto;min-height:0;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;
+    border:1px solid rgba(255,255,255,.06)}
+  .ppro-zona.si{background:linear-gradient(180deg,rgba(46,125,50,.16),rgba(46,125,50,.05))}
+  .ppro-zona.esp{background:linear-gradient(180deg,rgba(232,115,12,.14),rgba(232,115,12,.04))}
+  .ppro-zona-tit{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:6px 14px;
+    font-weight:800;text-transform:uppercase;letter-spacing:.07em;font-size:clamp(11px,1.25vw,15px)}
+  .ppro-zona.si  .ppro-zona-tit{color:#8ff0a6}
+  .ppro-zona.esp .ppro-zona-tit{color:#ffb066}
+  .ppro-zona-tit .cnt{opacity:.7;font-weight:700}
+  /* Grilla: filas × columnas EXPLÍCITAS (calculadas por JS). Sin overflow: todo cabe. */
+  .ppro-grid{flex:1;min-height:0;overflow:hidden;display:grid;justify-content:center;align-content:center;
+    gap:var(--cg,10px);padding:4px 12px 10px;
+    grid-template-columns:repeat(var(--cols,4),var(--cw,160px));
+    grid-auto-rows:var(--ch,80px)}
+  .ppro-tile{position:relative;display:flex;align-items:center;justify-content:center;text-align:center;
+    width:var(--cw,160px);height:var(--ch,80px);padding:0 10px;border-radius:14px;cursor:pointer;user-select:none;
+    font-weight:800;line-height:1;font-size:var(--cf,26px);white-space:nowrap;overflow:hidden;
+    border:2px solid transparent;transition:transform .12s,box-shadow .12s,filter .12s;box-sizing:border-box}
+  .ppro-tile>span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ppro-zona.si  .ppro-tile{background:linear-gradient(160deg,#2e9c46,#1f7a34);color:#fff;
+    box-shadow:0 3px 0 rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.18)}
+  .ppro-zona.esp .ppro-tile{background:linear-gradient(160deg,#f08a25,#d1690c);color:#fff;
+    box-shadow:0 3px 0 rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.18)}
+  .ppro:not(.cerrada) .ppro-tile:hover{transform:translateY(-3px);filter:brightness(1.08);
+    box-shadow:0 8px 22px rgba(0,0,0,.35)}
+  .ppro.cerrada .ppro-tile{cursor:default}
+  /* Zona sin estudiantes: fila natural corta (no usa --ch, que sería enorme). */
+  .ppro-grid.vacia{grid-template-columns:1fr;grid-auto-rows:auto;align-content:center}
+  .ppro-vacio{grid-column:1/-1;align-self:center;text-align:center;color:var(--mut);font-weight:700;
+    font-size:clamp(13px,1.5vw,20px);opacity:.75;padding:4px 0}
+  /* Animación: entrada/cambio de zona (pop + brillo). */
+  @keyframes ppro-pop{0%{transform:scale(.55);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+  .ppro-tile.entra{animation:ppro-pop .4s cubic-bezier(.2,.9,.3,1.2)}
+  /* Sorteo: barajado (parpadeo de candidatos). */
+  @keyframes ppro-flash{0%,100%{filter:brightness(1)}50%{filter:brightness(1.75)}}
+  .ppro-tile.barajando{outline:4px solid #fff;outline-offset:-4px;animation:ppro-flash .16s linear infinite;z-index:2}
+  /* Destacado GIGANTE del elegido: casillero que "crece" al centro del tablero,
+     dimensionado por JS para caber sin overflow. No es un modal: vive dentro de .ppro-board. */
+  .ppro-big{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.2);
+    display:none;align-items:center;justify-content:center;text-align:center;z-index:20;
+    border-radius:26px;padding:0 6%;box-sizing:border-box;white-space:nowrap;overflow:hidden;
+    font-weight:900;line-height:1;color:#fff;background:linear-gradient(160deg,#f6a13a,#d1690c);
+    box-shadow:0 0 0 8px rgba(255,215,120,.35),0 24px 70px rgba(0,0,0,.6);opacity:0;
+    pointer-events:none}
+  .ppro-big.show{display:flex;animation:ppro-big-in .55s cubic-bezier(.18,.9,.28,1.3) forwards}
+  @keyframes ppro-big-in{0%{opacity:0;transform:translate(-50%,-50%) scale(.2)}
+    70%{opacity:1;transform:translate(-50%,-50%) scale(1.06)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+  .ppro-big .dado{position:absolute;top:6%;right:8%;font-size:.34em}
 </style>
 </head>
 <body>
@@ -217,6 +297,27 @@
 <div id="mat-modal"><div class="mm-backdrop" onclick="matCerrarModal()"></div><div class="mm-card" id="mm-card"></div></div>
 <!-- Modal de evaluación de grupo / individual (Evaluaciones · Grupos de trabajo) -->
 <div id="eval-modal"><div class="em-backdrop" onclick="evalCerrarModal()"></div><div class="em-card" id="em-card"></div></div>
+<!-- Vista Proyector de Participación (overlay a viewport completo; se llena por JS) -->
+<div id="part-proyector" class="ppro" role="dialog" aria-label="Tablero de participación">
+  <div class="ppro-bar">
+    <div class="ppro-contador" id="ppro-contador"></div>
+    <span class="ppro-lock">🔒 Participación cerrada</span>
+    <span class="ppro-spacer"></span>
+    <button class="ppro-btn dado" id="ppro-dado" onclick="proyectorSorteo()">🎲 Elegir al azar</button>
+    <button class="ppro-btn salir" onclick="cerrarProyector()">✕ Salir</button>
+  </div>
+  <div class="ppro-board" id="ppro-board">
+    <div class="ppro-zona esp">
+      <div class="ppro-zona-tit">⏳ Esperando su turno <span class="cnt" id="ppro-cnt-esp"></span></div>
+      <div class="ppro-grid" id="ppro-grid-esp"></div>
+    </div>
+    <div class="ppro-zona si">
+      <div class="ppro-zona-tit">✅ Participaron <span class="cnt" id="ppro-cnt-si"></span></div>
+      <div class="ppro-grid" id="ppro-grid-si"></div>
+    </div>
+    <div class="ppro-big" id="ppro-big"><span id="ppro-big-nom"></span><span class="dado">🎲</span></div>
+  </div>
+</div>
 <div id="toast-wrap" aria-live="polite"></div>
 
 <script>
@@ -1832,6 +1933,7 @@ function renderPartDetalle(){
         <button class="btn primary" onclick="guardarPartCabecera()" ${dis}>Guardar cabecera</button>
         ${cerrada ? `<button class="btn warn" onclick="reabrirPart()">Reabrir</button>`
                   : `<button class="btn" onclick="cerrarPart()">Cerrar</button>`}
+        ${partDet.length ? `<button class="btn" onclick="abrirProyector()" title="Tablero para proyectar al curso">🎬 Proyector</button>` : ''}
         ${cerrada ? '<span class="hint">Participación cerrada: solo lectura. Reábrela para editar.</span>' : ''}
       </div>
     </div>
@@ -1862,7 +1964,9 @@ function renderPartDetalle(){
     // Fuente única de verdad: fija el estado, refleja el checkbox, la clase de la
     // fila y el contador; reordena grupo. Todo local, sin re-render ni scroll.
     const partSet = (idx, val) => {
-      partDet[idx].participo = val;
+      // Núcleo común (mutación en memoria). La vista normal conserva su guardado
+      // por lotes: sin persistir ni difundir aquí (eso ocurre en guardarPartDetalle).
+      alternarParticipacion(partDet[idx].estudiante_id, val);
       const tr = document.querySelector(`#tbody-part tr[data-i="${idx}"]`);
       if (tr) {
         tr.classList.toggle('fila-ok', val);
@@ -1936,6 +2040,7 @@ async function guardarPartDetalle(){
     const filas = partDet.map(d => ({ id:d.id, participacion_id:d.participacion_id, estudiante_id:d.estudiante_id, participo:!!d.participo }));
     const { error } = await sb.from('libro_participacion_detalle').upsert(filas, { onConflict:'id' });
     if (error) throw error;
+    partDifundir('reload');   // otras pestañas reconcilian su partDet
     toast('Guardado correctamente', 'ok');
   } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
 }
@@ -1955,6 +2060,321 @@ async function reabrirPart(){
     partActual.estado = 'abierto'; renderPartDetalle();
     toast('Participación reabierta (editable).', 'ok');
   } catch (e) { toast('No se pudo reabrir', 'err'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// NÚCLEO COMÚN DE PARTICIPACIÓN + VISTA PROYECTOR
+// Ambas interfaces (tabla normal y tablero proyector) operan sobre el MISMO
+// partActual / partDet. El único punto que muta `participo` es
+// alternarParticipacion(); así las vistas nunca divergen. No hay tablas ni
+// columnas nuevas: se reutiliza libro_participacion_detalle.participo.
+// ══════════════════════════════════════════════════════════════
+
+// Canal local para sincronizar pestañas/ventanas del mismo navegador
+// (caso típico: proyector en segunda pantalla). No usa Supabase Realtime.
+let partCanal = null;
+try { partCanal = new BroadcastChannel('libro_participacion'); } catch (_) { partCanal = null; }
+if (partCanal) partCanal.onmessage = (ev) => {
+  const m = ev.data || {};
+  if (!partActual || m.pid !== partActual.id) return;
+  if (m.tipo === 'set') {
+    const d = partDet.find(x => x.estudiante_id === m.estudiante_id);
+    if (d && d.participo !== m.participo) { d.participo = m.participo; refrescarVistasParticipacion(); }
+  } else if (m.tipo === 'reload') {
+    reconciliarPartDet();
+  }
+};
+function partDifundir(tipo, extra){ if (partCanal && partActual) { try { partCanal.postMessage({ tipo, pid: partActual.id, ...extra }); } catch (_) {} } }
+
+// Refresca la interfaz activa (normal y/o proyector) tras un cambio externo.
+function refrescarVistasParticipacion(){
+  if (proyectorAbierto()) renderProyector();
+  if (vistaActiva === 'part-detalle' && document.getElementById('tbody-part')) renderPartDetalle();
+}
+// Reconciliación segura contra la DB (al entrar/salir del proyector o por 'reload').
+async function reconciliarPartDet(){
+  if (!partActual) return;
+  try {
+    const { data, error } = await sb.from('libro_participacion_detalle')
+      .select('id,participo').eq('participacion_id', partActual.id);
+    if (error) throw error;
+    const mapa = {}; (data || []).forEach(r => { mapa[r.id] = r.participo; });
+    partDet.forEach(d => { if (d.id in mapa) d.participo = mapa[d.id]; });
+    refrescarVistasParticipacion();
+  } catch (_) { /* silencioso: reconciliación best-effort */ }
+}
+
+// ÚNICO mutador de participo. Vista normal → persistir:false (guardado por lotes).
+// Proyector → persistir:true (upsert inmediato de la fila afectada) + difusión.
+async function alternarParticipacion(estudianteId, valor, { persistir = false } = {}){
+  const d = partDet.find(x => x.estudiante_id === estudianteId);
+  if (!d) return null;
+  const prev = d.participo;
+  d.participo = !!valor;                                   // mutación en memoria (síncrona)
+  if (persistir) {
+    try {
+      const { error } = await sb.from('libro_participacion_detalle')
+        .update({ participo: d.participo }).eq('id', d.id);
+      if (error) throw error;
+      partDifundir('set', { estudiante_id: estudianteId, participo: d.participo });
+    } catch (e) {
+      d.participo = prev;                                  // rollback si falla la escritura
+      throw e;
+    }
+  }
+  return d;
+}
+
+// ── Nombres para el tablero: solo `nombre`, salvo colisión → `nombre apellido` ──
+// La detección de duplicados usa los estudiantes reales de ESTA participación.
+function mapaNombresRepetidos(){
+  const cnt = {};
+  partDet.forEach(d => { const k = normBuscar(d.estudiante?.nombre || ''); cnt[k] = (cnt[k] || 0) + 1; });
+  return cnt;
+}
+// Texto a mostrar en UNA sola línea: solo nombre; nombre + apellido si el nombre
+// se repite en la población actual. El tamaño de fuente (proyectorLayout) se
+// calcula para que este texto completo quepa sin cortar ni envolver.
+function nombreProyector(est, repes){
+  const nom = (est?.nombre || '').trim() || '—';
+  const ap  = (est?.apellido || '').trim();
+  const dup = (repes[normBuscar(nom)] || 0) > 1;
+  return (dup && ap) ? `${nom} ${ap}` : nom;
+}
+
+// ── Overlay proyector ─────────────────────────────────────────
+let proyElegidoId = null;   // estudiante destacado por el sorteo (no implica participó)
+let proySorteando = false;
+
+function proyectorAbierto(){ return document.getElementById('part-proyector')?.classList.contains('show'); }
+
+let proyBigTimer = null;              // temporizador del destacado gigante
+let _proyRO = null, _proyRaf = 0;     // ResizeObserver + debounce por rAF
+let _proyCanvas = null;               // canvas para medir ancho de nombres
+
+async function abrirProyector(){
+  if (!partActual || !partDet.length) return;
+  await reconciliarPartDet();                 // partir de un estado fresco
+  const el = document.getElementById('part-proyector');
+  el.classList.toggle('cerrada', partActual.estado === 'cerrado');
+  proyectorOcultarBig();
+  el.classList.add('show');                    // mostrar ANTES de medir (necesita dimensiones reales)
+  renderProyector();                           // pinta tiles + calcula layout con medidas reales
+  document.addEventListener('keydown', proyectorEsc);
+  // Recalcular en tiempo real ante cualquier cambio de tamaño del viewport/tablero.
+  if (!_proyRO && 'ResizeObserver' in window) _proyRO = new ResizeObserver(proyectorOnResize);
+  const board = document.getElementById('ppro-board');
+  if (_proyRO && board) _proyRO.observe(board);
+  window.addEventListener('resize', proyectorOnResize);
+  requestAnimationFrame(proyectorLayout);      // segundo pase tras estabilizar el layout
+}
+function cerrarProyector(){
+  const el = document.getElementById('part-proyector');
+  if (!el) return;
+  el.classList.remove('show');
+  document.removeEventListener('keydown', proyectorEsc);
+  window.removeEventListener('resize', proyectorOnResize);
+  if (_proyRO) _proyRO.disconnect();
+  proyectorOcultarBig();
+  proySorteando = false;
+  // La vista normal comparte el mismo partDet; re-render para reflejar cambios.
+  if (vistaActiva === 'part-detalle') renderPartDetalle();
+}
+function proyectorEsc(e){ if (e.key === 'Escape') cerrarProyector(); }
+function proyectorOnResize(){
+  if (_proyRaf) return;
+  _proyRaf = requestAnimationFrame(() => { _proyRaf = 0; if (proyectorAbierto()) proyectorLayout(); });
+}
+
+// Contexto 2D para medir el ancho de un nombre a 100px (misma tipografía del tile).
+function proyectorCanvasCtx(){
+  if (!_proyCanvas) _proyCanvas = document.createElement('canvas').getContext('2d');
+  const board = document.getElementById('ppro-board');
+  const fam = (board ? getComputedStyle(board).fontFamily : '') || 'system-ui, sans-serif';
+  _proyCanvas.font = `800 100px ${fam}`;
+  return _proyCanvas;
+}
+
+// ── LAYOUT GLOBAL SIN SCROLL ──────────────────────────────────
+// Mide el tablero REAL y busca la mejor combinación filas×columnas (compartida por
+// ambas zonas) para que TODOS los tiles quepan sin scroll y cada nombre entre en
+// UNA sola línea. Deriva ancho/alto de celda, gap y tamaño de fuente. Se llama al
+// abrir, tras cada cambio de estado y ante cualquier resize del viewport.
+function proyectorLayout(){
+  const board = document.getElementById('ppro-board');
+  const ppro  = document.getElementById('part-proyector');
+  if (!board || !ppro || !partActual) return;
+  const si  = partDet.filter(d => d.participo).length;
+  const esp = partDet.filter(d => !d.participo).length;
+  const N = si + esp;
+  if (!N || !board.clientHeight) return;
+
+  const cs = getComputedStyle(board);
+  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const padY = parseFloat(cs.paddingTop)  + parseFloat(cs.paddingBottom);
+  const zgap = parseFloat(cs.rowGap || cs.gap) || 12;      // gap entre las dos zonas
+  const availW = board.clientWidth  - padX;
+  const availH = board.clientHeight - padY;
+  if (availW <= 20 || availH <= 20) return;
+
+  // Alturas reservadas: títulos de zona (medidos), paddings internos de cada grid
+  // y placeholder de una zona vacía. Todo se descuenta ANTES de repartir filas.
+  let titH = 0;
+  board.querySelectorAll('.ppro-zona-tit').forEach(t => { titH = Math.max(titH, t.offsetHeight || 28); });
+  titH = titH || 28;
+  const gridPadV = 14, gridPadX = 24, emptyPh = 34, zonas = 2;
+  const zoneBorder = 2 * zonas;      // borde 1px arriba+abajo de cada zona
+  const safety = 6;                  // colchón anti-overflow (redondeos)
+  const zonasVacias = (si === 0 ? 1 : 0) + (esp === 0 ? 1 : 0);
+  let hFilas = availH - titH*zonas - zgap*(zonas-1) - gridPadV*zonas - emptyPh*zonasVacias - zoneBorder - safety;
+  if (hFilas < 40) hFilas = 40;
+  const wZona = availW - gridPadX;
+
+  // Ancho del nombre más largo (a 100px) → límite de fuente por ancho de celda.
+  const repes = mapaNombresRepetidos();
+  const ctx2d = proyectorCanvasCtx();
+  let maxNameW100 = 1;
+  partDet.forEach(d => { const w = ctx2d.measureText(nombreProyector(d.estudiante, repes)).width; if (w > maxNameW100) maxNameW100 = w; });
+
+  // Búsqueda explícita: para cada nº de columnas, calcula celda/fuente y puntúa.
+  const cg = Math.max(6, Math.min(16, Math.round(availW * 0.008)));
+  const padTile = 22;
+  let best = null;
+  const maxCols = Math.min(N, 60);
+  for (let c = 1; c <= maxCols; c++){
+    const rSi  = si  ? Math.ceil(si  / c) : 0;
+    const rEsp = esp ? Math.ceil(esp / c) : 0;
+    const filas = rSi + rEsp;
+    if (!filas) continue;
+    const cw = Math.floor((wZona - cg*(c-1)) / c);
+    if (cw < 54) continue;
+    const ch = Math.floor((hFilas - cg*filas) / filas);
+    if (ch < 26) continue;
+    const fByH = ch * 0.52;
+    const fByW = (cw - padTile) / (maxNameW100 / 100);
+    const f = Math.max(12, Math.min(fByH, fByW, 120));
+    const score = f * 1000 + (cw * ch) / 1000;   // prioriza fuente; desempata por área
+    if (!best || score > best.score) best = { c, cw, ch, cg, f, score };
+  }
+  // Fallback (población extrema): nunca romper — sigue sin scroll aunque baje la fuente.
+  if (!best){
+    const c = Math.max(1, Math.ceil(Math.sqrt(N)));
+    const filas = (si?Math.ceil(si/c):0) + (esp?Math.ceil(esp/c):0) || 1;
+    const cw = Math.max(40, Math.floor((wZona - cg*(c-1)) / c));
+    const ch = Math.max(20, Math.floor((hFilas - cg*filas) / filas));
+    const f  = Math.max(11, Math.min(ch*0.5, (cw - 14) / (maxNameW100/100)));
+    best = { c, cw, ch, cg, f };
+  }
+  ppro.style.setProperty('--cols', best.c);
+  ppro.style.setProperty('--cw', best.cw + 'px');
+  ppro.style.setProperty('--ch', best.ch + 'px');
+  ppro.style.setProperty('--cg', best.cg + 'px');
+  ppro.style.setProperty('--cf', Math.floor(best.f) + 'px');
+}
+
+function proyectorContadorTxt(nSi, nEsp){
+  const si  = nSi  === 0 ? 'Nadie participó aún' : `<span class="ppro-cn-si">${nSi}</span> participaron`;
+  const esp = nEsp === 0 ? '<span class="ppro-cn-esp">nadie</span> esperando' : `<span class="ppro-cn-esp">${nEsp}</span> esperando su turno`;
+  return `${si} <span class="ppro-cn-sep">·</span> ${esp}`;
+}
+
+// Tile: nombre en UNA sola línea (nowrap; la fuente ya se calculó para que quepa).
+function tileHTML(d, repes){
+  const nom = nombreProyector(d.estudiante, repes);
+  return `<div class="ppro-tile" data-eid="${d.estudiante_id}" onclick="proyectorClickTile('${d.estudiante_id}')" title="${esc(nom)}"><span>${esc(nom)}</span></div>`;
+}
+
+function renderProyector(){
+  if (!partActual) return;
+  const repes = mapaNombresRepetidos();
+  const si  = partDet.filter(d => d.participo);
+  const esp = partDet.filter(d => !d.participo);
+  document.getElementById('ppro-contador').innerHTML = proyectorContadorTxt(si.length, esp.length);
+  document.getElementById('ppro-cnt-si').textContent  = si.length;
+  document.getElementById('ppro-cnt-esp').textContent = esp.length;
+  const gSi  = document.getElementById('ppro-grid-si');
+  const gEsp = document.getElementById('ppro-grid-esp');
+  // ESPERANDO arriba, PARTICIPARON abajo (el orden en el DOM lo fija el HTML).
+  gEsp.innerHTML = esp.length ? esp.map(d => tileHTML(d, repes)).join('') : `<div class="ppro-vacio">🎉 ¡Todos participaron!</div>`;
+  gSi.innerHTML  = si.length  ? si.map(d => tileHTML(d, repes)).join('')  : `<div class="ppro-vacio">Aún nadie participó</div>`;
+  gEsp.classList.toggle('vacia', esp.length === 0);
+  gSi.classList.toggle('vacia', si.length === 0);
+  const dado = document.getElementById('ppro-dado');
+  if (dado) dado.disabled = proySorteando || esp.length === 0 || partActual.estado === 'cerrado';
+  proyectorLayout();      // recalcular distribución con la nueva composición
+}
+
+// Click en tile: alterna participó (reversible), persiste, recalcula y anima.
+async function proyectorClickTile(estudianteId){
+  if (proySorteando) return;
+  if (partActual?.estado === 'cerrado') { toast('Participación cerrada: solo lectura.', 'err'); return; }
+  const d = partDet.find(x => x.estudiante_id === estudianteId);
+  if (!d) return;
+  proyectorOcultarBig();
+  const nuevo = !d.participo;
+  try {
+    await alternarParticipacion(estudianteId, nuevo, { persistir: true });
+  } catch (e) { toast('No se pudo guardar el cambio', 'err'); return; }
+  renderProyector();     // reorganiza (sin huecos reservados) y recalcula layout
+  const tile = document.querySelector(`.ppro-tile[data-eid="${estudianteId}"]`);
+  if (tile) { tile.classList.add('entra'); tile.addEventListener('animationend', () => tile.classList.remove('entra'), { once:true }); }
+}
+
+// Destacado GIGANTE del elegido: el casillero "crece" al centro del tablero,
+// dimensionado dinámicamente para caber sin overflow. No marca participación.
+function proyectorMostrarBig(d){
+  const board = document.getElementById('ppro-board');
+  const big = document.getElementById('ppro-big');
+  const nomEl = document.getElementById('ppro-big-nom');
+  if (!board || !big || !nomEl) return;
+  const nom = nombreProyector(d.estudiante, mapaNombresRepetidos());
+  nomEl.textContent = nom;
+  const bw = Math.floor(board.clientWidth  * 0.78);
+  const bh = Math.floor(board.clientHeight * 0.62);
+  big.style.width  = bw + 'px';
+  big.style.height = bh + 'px';
+  // Fuente máxima que quepa en UNA línea dentro de la caja (86% del ancho útil).
+  const w100 = proyectorCanvasCtx().measureText(nom).width;
+  const f = Math.min((bw * 0.86) / (w100 / 100), bh * 0.6);
+  big.style.fontSize = Math.max(28, Math.floor(f)) + 'px';
+  big.classList.add('show');
+  clearTimeout(proyBigTimer);
+  proyBigTimer = setTimeout(proyectorOcultarBig, 4200);
+}
+function proyectorOcultarBig(){ const b = document.getElementById('ppro-big'); if (b) b.classList.remove('show'); clearTimeout(proyBigTimer); }
+
+// 🎲 Elegir al azar: SOLO entre los que esperan. NO registra participación;
+// baraja candidatos y termina con el destacado GIGANTE del elegido.
+function proyectorSorteo(){
+  if (proySorteando) return;
+  if (partActual?.estado === 'cerrado') return;
+  const esperando = partDet.filter(d => !d.participo);
+  if (!esperando.length) return;
+  proySorteando = true;
+  proyectorOcultarBig();
+  const dado = document.getElementById('ppro-dado'); if (dado) dado.disabled = true;
+  const tiles = () => Array.from(document.querySelectorAll('#ppro-grid-esp .ppro-tile'));
+  const limpiar = () => tiles().forEach(t => t.classList.remove('barajando'));
+  const elegido = esperando[Math.floor(Math.random() * esperando.length)];
+  let pasos = Math.min(24, 10 + esperando.length);
+  let delay = 55;
+  const paso = () => {
+    limpiar();
+    const arr = tiles();
+    if (arr.length) { const t = arr[Math.floor(Math.random() * arr.length)]; t.classList.add('barajando'); }
+    pasos--;
+    if (pasos > 0) {
+      delay = delay < 230 ? delay + 13 : delay;   // desaceleración progresiva
+      setTimeout(paso, delay);
+    } else {
+      limpiar();
+      proySorteando = false;
+      const dd = document.getElementById('ppro-dado');
+      if (dd) dd.disabled = partDet.filter(d => !d.participo).length === 0;
+      proyectorMostrarBig(elegido);               // GRAN destacado del elegido
+    }
+  };
+  paso();
 }
 
 // ══════════════════════════════════════════════════════════════
