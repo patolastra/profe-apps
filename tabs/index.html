@@ -1467,7 +1467,7 @@ function doRestart() {
     detenerPractica();
     // Misma lógica para tab pura y TabSync: precuenta siempre
     if (loopActive) initLoopCycle();
-    currentTime = loopActive ? loopPassiveInStart : (seccionActiva ? seccionActiva.start : 0);
+    currentTime = loopActive ? loopPassiveInStart : (seccionActiva ? seccionActiva.audioStart : 0);
     prevTime = currentTime - 0.001;
     tabEnded = false; lastClickBeat = -1; lastScheduledBeat = -1; fallVY = 0;
     resetHits();
@@ -1476,6 +1476,8 @@ function doRestart() {
         const audioStart = partituraTimeToAudioSec(currentTime);
         tabAudioEl.currentTime = Math.max(0, audioStart);
     }
+    // Volumen coherente con la posición de reposo (sección → 1; sin sección → 1).
+    if (audioSyncMode) tabAudioEl.volume = loopActive ? 1 : volumenSeccion(currentTime);
 }
 document.getElementById('btnPlay').onclick = () => {
     if (enModoEdicion()) return;
@@ -1509,12 +1511,17 @@ function syncHitsToTime(t) {
 }
 
 function seekTab(audioSec) {
-    const clamp = Math.max(0, audioSec);
+    let clamp = Math.max(0, audioSec);
+    // Con sección activa, el seek no puede escapar del intervalo de la sección.
+    const b = seccionAudioBounds();
+    if (b) clamp = Math.min(Math.max(clamp, b.lo), b.hi);
     tabAudioEl.currentTime = clamp;
     if (audioSyncMode && tabSyncData) {
         currentTime = audioToPartituraTime(clamp);
         prevTime    = currentTime - 0.001;
         syncHitsToTime(currentTime);
+        // Volumen coherente con la posición: seek dentro del fade-in/out respeta la rampa.
+        tabAudioEl.volume = loopActive ? 1 : volumenSeccion(currentTime);
     }
     // Invalidar beats pre-agendados y referencia de sync al hacer seek
     lastScheduledBeat = -1;
@@ -2279,12 +2286,17 @@ function animLoop(ts) {
         }
         document.getElementById('timeDisplay').textContent = currentTime.toFixed(2) + 's';
 
+        // Envolvente de volumen de la sección (fade-in / 100% / fade-out). Sin sección = 1.
+        // Durante loops NO se aplica (el loop maneja su propio ciclo dentro de la sección).
+        if (audioSyncMode) tabAudioEl.volume = loopActive ? 1 : volumenSeccion(currentTime);
+
         const beatDur = 60 / bpm;
 
         if (!loopActive && (notes.length || chordEvents.length)) {
             const lastContentT = notes.length ? (notes[notes.length - 1].time + beatDur)
                                               : (chordEvents[chordEvents.length - 1]?.tEnd ?? Infinity);
-            const endTime = seccionActiva ? seccionActiva.end : lastContentT;
+            // Fin del RANGO DE AUDIO = final del compás de fade-out (audioEnd), no el fin visual.
+            const endTime = seccionActiva ? seccionActiva.audioEnd : lastContentT;
             // Reproducción COMPLETA con audio: el audio es el maestro y debe sonar hasta el
             // final del archivo (evento 'ended'). No cortar en la última nota. En modo sección
             // o en tab sin audio, sí se corta al terminar el contenido.
@@ -2309,7 +2321,7 @@ function animLoop(ts) {
         // TabSync: arrancar audio cuando termina la precuenta
         if (audioSyncMode && isPlaying && tabSyncData && tabAudioEl.paused && (notes.length || cifradoEvents.length)) {
             const pastPrecuenta = loopActive ? (loopPhase === 'active')
-                : seccionActiva ? (currentTime >= seccionActiva.start)
+                : seccionActiva ? (currentTime >= seccionActiva.audioStart)   // audio arranca en el compás de fade-in
                 : (currentTime >= (notes[0]?.time ?? syncAnchorTime));
             if (pastPrecuenta && tabAudioEl.src.startsWith('http')) {
                 iniciarAudioSync();
@@ -2328,9 +2340,10 @@ function animLoop(ts) {
                 clickAnchor = loopPassiveInStart;
             } else if (loopActive && loopPhase === 'passiveOut') {
                 clickAnchor = loopPassiveOutStart;
-            } else if (seccionActiva && currentTime >= seccionActiva.precountStart && currentTime < seccionActiva.start) {
-                // Compás de precuenta de la sección (metrónomo sí, audio no)
-                clickAnchor = seccionActiva.precountStart;
+            } else if (seccionActiva && !audioSyncMode && currentTime >= seccionActiva.audioStart && currentTime < seccionActiva.start) {
+                // Tab sin audio: el compás anterior es guía de metrónomo (con audio, suena el
+                // audio con fade-in en su lugar, sin metrónomo forzado encima).
+                clickAnchor = seccionActiva.audioStart;
             } else if (!loopActive) {
                 const firstNote = notes.length ? notes[0].time : startOffset;
                 if (currentTime >= approachEnd && currentTime < firstNote) clickAnchor = approachEnd;
@@ -2378,7 +2391,7 @@ function animLoop(ts) {
             // Marcar chord events como interpretados
             for (const ev of chordEvents) {
                 if (!ev.hit && prevTime < ev.tStart && ev.tStart <= currentTime) {
-                    const inRange = !loopActive || (ev.tStart >= loopIn && ev.tStart <= loopOut);
+                    const inRange = (!loopActive || (ev.tStart >= loopIn && ev.tStart <= loopOut)) && enSeccionVisual(ev.tStart);
                     if (inRange) { ev.hit = true; ev.hitAt = currentTime; }
                 }
             }
@@ -2386,7 +2399,7 @@ function animLoop(ts) {
             const pendientes = [];
             for (const note of notes) {
                 if (note.hit || !(prevTime < note.time && note.time <= currentTime)) continue;
-                const inRange = !loopActive || (note.time >= loopIn && note.time <= loopOut);
+                const inRange = (!loopActive || (note.time >= loopIn && note.time <= loopOut)) && enSeccionVisual(note.time);
                 if (inRange) { note.hit = true; note.hitAt = currentTime; pendientes.push(note); }
             }
             const grupos = new Map();
@@ -2427,7 +2440,7 @@ function animLoop(ts) {
                 if (track.muted) continue;
                 for (const note of track.notes) {
                     if (note.hit || !(prevTime < note.time && note.time <= currentTime)) continue;
-                    const inRange = !loopActive || (note.time >= loopIn && note.time <= loopOut);
+                    const inRange = (!loopActive || (note.time >= loopIn && note.time <= loopOut)) && enSeccionVisual(note.time);
                     if (inRange) { note.hit = true; playAccompNote(note.midi, note.durSec, ti, note.drum); }
                 }
             }
@@ -2466,6 +2479,22 @@ function ballTargetY(b) {
 // (dos keyframes dentro del evento); 3+ (acorde real) usa la posición central.
 function getBallYAtTime(t) {
     if (!ballTargets.length) return START_Y;
+    // ── Compases de CONTEXTO de una sección (fade-in / fade-out) ─────────────────
+    // La bola rebota por PULSO MÉTRICO del compás (calcPulseDur), NO por las figuras
+    // de las notas de ese compás (que no se renderizan ni suenan). Anclada al inicio
+    // del compás → los rebotes caen en el downbeat; un nº entero de pulsos encaja exacto.
+    if (seccionActiva) {
+        const s = seccionActiva;
+        const rebotePulso = (t0, dur, evt) => {
+            const baseY    = evt ? ballTargetY(evt) : ballTargetY(ballTargets[0]);
+            const nP       = Math.max(1, Math.round(dur / calcPulseDur()));
+            const pulseDur = dur / nP;
+            const elapsed  = ((t - t0) % pulseDur + pulseDur) % pulseDur;
+            return baseY - Math.sin((elapsed / pulseDur) * Math.PI) * BOUNCE_H;
+        };
+        if (s.fadeInDur  > 0 && t >= s.audioStart && t < s.start)    return rebotePulso(s.audioStart, s.fadeInDur,  s.firstSecEvt);
+        if (s.fadeOutDur > 0 && t >= s.end        && t < s.audioEnd) return rebotePulso(s.end,        s.fadeOutDur, s.lastSecEvt);
+    }
     const beatDur         = 60 / bpm;
     const first           = ballTargets[0];
     const restY           = ballTargetY(first);
@@ -2983,6 +3012,8 @@ function drawChordBlocks() {
     // Segunda pasada: labels encima de todos los bloques
     for (const ev of chordEvents) {
         if (!ev.showLabel) continue;
+        // Hermeticidad de sección: el label del acorde tampoco se dibuja fuera de [start, end).
+        if (seccionActiva && (ev.tStart < seccionActiva.start - 0.001 || ev.tStart >= seccionActiva.end)) continue;
         if (loopActive && isPlaying && (ev.tStart < loopIn - 0.001 || ev.tStart >= loopOut)) continue;
         const x1raw = getX(ev.tStart);
         const x2raw = getX(ev.tEnd);
@@ -3320,7 +3351,7 @@ function startSyncedPlayback() {
     // Reproducción completa: el audio arranca aquí desde el segundo 0. En loop/sección, el
     // audio queda pre-buffereado y el animLoop lo arranca al terminar la precuenta.
     const firstNoteT  = notes.length ? notes[0].time : syncAnchorTime;
-    const startRef    = seccionActiva ? seccionActiva.start : firstNoteT;
+    const startRef    = seccionActiva ? seccionActiva.audioStart : firstNoteT;  // rango de audio arranca en el fade-in
     const inPrecuenta = loopActive ? (loopPhase !== 'active') : (currentTime < startRef);
     if (!inPrecuenta) {
         iniciarAudioSync();
@@ -3652,6 +3683,33 @@ function mostrarBarraAudio(visible) {
     document.getElementById('tab-audio-bar').classList.toggle('visible', visible);
 }
 
+// Universo temporal de reproducción de la barra de audio:
+//  · sin sección activa  → canción completa [0, duración]
+//  · con sección activa  → intervalo de la sección en segundos de AUDIO
+// Devuelve {lo, hi} en tiempo de audio, o null si no aplica (sin sección o sin sync).
+// Se usa el inicio real de la sección (no la precuenta, que es solo metrónomo).
+function seccionAudioBounds() {
+    if (!seccionActiva || !tabSyncData) return null;
+    // Rango de audio = compás de fade-in + sección + compás de fade-out.
+    const lo = Math.max(0, partituraTimeToAudioSec(seccionActiva.audioStart));
+    let   hi = partituraTimeToAudioSec(seccionActiva.audioEnd);
+    if (isFinite(tabAudioEl.duration) && tabAudioEl.duration > 0) hi = Math.min(hi, tabAudioEl.duration);
+    if (!(hi > lo)) return null;   // datos inconsistentes → no acotar
+    return { lo, hi };
+}
+
+// Ajusta min/max/step de #tab-seek al universo temporal vigente (sección o canción).
+function actualizarLimitesBarraAudio() {
+    const seek = document.getElementById('tab-seek');
+    if (!seek) return;
+    const b = seccionAudioBounds();
+    const lo = b ? b.lo : 0;
+    const hi = b ? b.hi : (isFinite(tabAudioEl.duration) ? tabAudioEl.duration : 0);
+    seek.min  = lo;
+    seek.max  = hi;
+    seek.step = hi > lo ? (hi - lo) / 1000 : 0.1;
+}
+
 function actualizarSyncStatus() {
     const lbl = document.getElementById('sync-status-label');
     const btn = document.getElementById('btn-config-sync');
@@ -3690,11 +3748,31 @@ tabAudioEl.addEventListener('playing',   () => { _lastAudioTime = tabAudioEl.cur
 tabAudioEl.addEventListener('timeupdate', () => {
     _lastAudioTime = tabAudioEl.currentTime;
     _lastAudioPerf = performance.now();
+    // Red de seguridad de fin de sección: el corte "oficial" vive en el animLoop (rAF), que
+    // se congela si la pestaña pasa a segundo plano y deja escapar el audio (que sigue sonando).
+    // Este guard actúa sobre el reloj del propio audio y detiene la reproducción en el límite
+    // de la sección aunque el rAF no esté corriendo. No aplica en loops ni sin sección.
+    if (seccionActiva && !loopActive && isPlaying && !tabAudioEl.paused) {
+        const _bEnd = seccionAudioBounds();
+        if (_bEnd && tabAudioEl.currentTime >= _bEnd.hi - 0.03) {
+            tabAudioEl.currentTime = _bEnd.hi;
+            tabAudioEl.pause();
+            isPlaying = false; tabEnded = true;
+            detenerPractica();
+        }
+    }
     const seek = document.getElementById('tab-seek');
     const lbl  = document.getElementById('tab-time-display');
-    seek.value = tabAudioEl.currentTime;
+    seek.value = tabAudioEl.currentTime;   // el thumb sigue en tiempo de audio absoluto (min/max lo acotan)
     const fmt = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
-    lbl.textContent = `${fmt(tabAudioEl.currentTime)} / ${fmt(tabAudioEl.duration || 0)}`;
+    // Indicador temporal coherente con el universo vigente: relativo a la sección si hay una activa.
+    const _b = seccionAudioBounds();
+    if (_b) {
+        const rel = Math.max(0, tabAudioEl.currentTime - _b.lo);
+        lbl.textContent = `${fmt(rel)} / ${fmt(_b.hi - _b.lo)}`;
+    } else {
+        lbl.textContent = `${fmt(tabAudioEl.currentTime)} / ${fmt(tabAudioEl.duration || 0)}`;
+    }
 
     // Badge diagnóstico: compás partitura | compás MIDI | BPM actual
     const badge = document.getElementById('sync-beat-badge');
@@ -3715,9 +3793,8 @@ tabAudioEl.addEventListener('timeupdate', () => {
 });
 
 tabAudioEl.addEventListener('loadedmetadata', () => {
-    const seek = document.getElementById('tab-seek');
-    seek.max  = tabAudioEl.duration;
-    seek.step = tabAudioEl.duration / 1000;
+    // Respeta el universo vigente (sección o canción completa).
+    actualizarLimitesBarraAudio();
 });
 
 tabAudioEl.addEventListener('ended', () => {
@@ -4076,6 +4153,7 @@ async function cargarDesdeStorage(storagePath, nombreArchivo, meta = {}) {
         parseXML(new DOMParser().parseFromString(xml, 'text/xml'));
         if (currentTabAssetId) guardarSecciones(currentTabAssetId);
         seccionActiva = null;
+        tabAudioEl.volume = 1;   // sin sección → volumen normal (no heredar fades)
         if (currentSeccionAsignada) activarModoSeccion(currentSeccionAsignada);
         cargarMensaje(storagePath);
     } catch (err) {
@@ -4750,10 +4828,10 @@ function activarModoSeccion(nombre) {
     const idx = measureData.findIndex(m => m.rehearsalText === nombre);
     if (idx < 0) return;
     const start = measureData[idx].tStart;
-    // Fin = inicio de la próxima sección (siguiente rehearsal mark), o fin de la canción
-    let end = Infinity;
+    // Fin VISUAL = inicio de la próxima sección (siguiente rehearsal mark), o fin de la canción.
+    let end = Infinity, idxNext = -1;
     for (let i = idx + 1; i < measureData.length; i++) {
-        if (measureData[i].rehearsalText) { end = measureData[i].tStart; break; }
+        if (measureData[i].rehearsalText) { end = measureData[i].tStart; idxNext = i; break; }
     }
     if (!isFinite(end)) {
         const last = notes[notes.length - 1];
@@ -4763,22 +4841,66 @@ function activarModoSeccion(nombre) {
     // (en modo grid el bpm es constante; en tempomap se usa el bpm global como aprox.)
     const barDur = beatsPerBar * (4 / beatType) * (60 / bpm);
     const precountStart = Math.max(0, start - barDur);
-    seccionActiva = { nombre, start, end, precountStart };
-    currentTime = start;          // en reposo, vista posicionada al inicio de la sección
-    prevTime    = start - 0.001;
+    // ── RANGO DE AUDIO (≠ rango visual) ────────────────────────────────────────
+    // Visual = [start, end) SOLO. Audio = 1 compás anterior (FADE-IN) + sección +
+    // 1 compás posterior (FADE-OUT). Se usan límites REALES de measureData; si no
+    // existe compás de contexto (sección al inicio/fin de la canción) degrada sin fade.
+    const prevM = idx > 0 ? measureData[idx - 1] : null;
+    const nextM = idxNext >= 0 ? measureData[idxNext] : null;
+    const audioStart = prevM ? prevM.tStart : start;   // sin compás anterior → sin fade-in
+    const audioEnd   = nextM ? nextM.tEnd   : end;     // sin compás posterior → sin fade-out
+    const fadeInDur  = start - audioStart;             // 0 ⇒ fade-in desactivado
+    const fadeOutDur = audioEnd - end;                 // 0 ⇒ fade-out desactivado
+    // Eventos primero/último de la sección: solo dan la ALTURA de reposo de la bola durante
+    // los compases de contexto (la bola rebota por pulso métrico, no sigue estas notas).
+    const secTargets = ballTargets.filter(b => b.time >= start - 1e-6 && b.time < end);
+    const firstSecEvt = secTargets[0] || ballTargets[0] || null;
+    const lastSecEvt  = secTargets[secTargets.length - 1] || firstSecEvt;
+    seccionActiva = { nombre, start, end, precountStart, audioStart, audioEnd, fadeInDur, fadeOutDur, firstSecEvt, lastSecEvt };
+    // En reposo la bola se posiciona en audioStart (tiempo 1 del compás de fade-in), que es el
+    // punto REAL desde donde arranca la reproducción. El render de la partitura NO se desplaza
+    // al fade-in: sus filtros [start, end) siguen dejando ese compás sin elementos.
+    currentTime = audioStart;
+    prevTime    = audioStart - 0.001;
     tabEnded    = false;
-    syncHitsToTime(start);
+    if (audioSyncMode) tabAudioEl.volume = volumenSeccion(currentTime);   // coherente con la posición (0 en fade-in)
+    syncHitsToTime(audioStart);
     if (audioSyncMode && tabSyncData) {
-        tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(start));
+        tabAudioEl.currentTime = Math.max(0, partituraTimeToAudioSec(audioStart));
     }
+    // Reencuadra la barra de audio al rango de audio (si la metadata ya está lista;
+    // si no, loadedmetadata lo hará al terminar de cargar el audio).
+    actualizarLimitesBarraAudio();
 }
 
-// Antes de reproducir desde el comienzo de una sección, retrocede al compás de
-// precuenta (solo metrónomo, sin audio). Si ya estamos avanzados en la sección, no hace nada.
+// Volumen del audio según la posición temporal dentro del rango de una sección:
+//  · fade-in  (compás anterior)  → 0 → 1 lineal, llega a 1 exactamente en el inicio de la sección
+//  · sección                     → 1
+//  · fade-out (compás posterior) → 1 → 0 lineal, llega a 0 exactamente al final del rango
+// Sin sección activa (o sin compás de contexto) devuelve 1: no altera la canción completa.
+function volumenSeccion(t) {
+    const s = seccionActiva;
+    if (!s) return 1;
+    if (s.fadeInDur  > 0 && t < s.start) return Math.max(0, Math.min(1, (t - s.audioStart) / s.fadeInDur));
+    if (s.fadeOutDur > 0 && t > s.end)   return Math.max(0, Math.min(1, (s.audioEnd - t) / s.fadeOutDur));
+    return 1;
+}
+
+// ¿El tiempo t pertenece al RANGO VISUAL de la sección [start, end)? Fuera de él, la
+// partitura NO suena (notas/rasgueos/golpe/acompañamiento) aunque el audio de la canción
+// sí siga en los compases de contexto. Sin sección → siempre true (canción completa intacta).
+function enSeccionVisual(t) {
+    const s = seccionActiva;
+    return !s || (t >= s.start - 1e-6 && t < s.end);
+}
+
+// Antes de reproducir desde el comienzo de una sección, retrocede al inicio del RANGO
+// DE AUDIO = compás de fade-in (audioStart). Ahí el audio suena desde 0% y sube a 100%
+// justo al llegar a la sección. Si ya estamos avanzados en la sección, no hace nada.
 function ajustarInicioSeccion() {
-    if (!seccionActiva) return;
+    if (!seccionActiva || loopActive) return;   // el loop tiene su propio precount; no lo tocamos
     if (currentTime <= seccionActiva.start + 0.05) {
-        currentTime = seccionActiva.precountStart;
+        currentTime = seccionActiva.audioStart;
         prevTime    = currentTime - 0.001;
         lastClickBeat = -1; lastScheduledBeat = -1;
         syncHitsToTime(currentTime);
@@ -6588,10 +6710,20 @@ function actualizarOverlayAcordes() {
         document.getElementById('chordOverlay').classList.remove('visible');
         return;
     }
+    // Hermeticidad de sección: en los compases de contexto (fade-in/out) no se muestra
+    // ninguna representación de acordes derivada de la partitura.
+    if (seccionActiva && (currentTime < seccionActiva.start - 1e-6 || currentTime >= seccionActiva.end)) {
+        document.getElementById('chordOverlay').classList.remove('visible');
+        chordOverlayCurLabel = null; chordOverlaySigLabel = null;
+        return;
+    }
     let curLabel = null, sigLabel = null;
     for (let i = 0; i < chordEvents.length; i++) {
-        if (chordEvents[i].tStart <= currentTime) curLabel = chordEvents[i].label;
-        else if (sigLabel === null)               sigLabel = chordEvents[i].label;
+        const ev = chordEvents[i];
+        // "Próximo" nunca apunta a un acorde fuera de la sección.
+        if (seccionActiva && (ev.tStart < seccionActiva.start - 1e-6 || ev.tStart >= seccionActiva.end)) continue;
+        if (ev.tStart <= currentTime) curLabel = ev.label;
+        else if (sigLabel === null)   sigLabel = ev.label;
     }
     if (curLabel === chordOverlayCurLabel && sigLabel === chordOverlaySigLabel) return;
     chordOverlayCurLabel = curLabel;
