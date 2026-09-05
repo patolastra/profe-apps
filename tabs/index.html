@@ -1276,6 +1276,7 @@ function playGolpe() {
 
 // ─── ESTADO ───────────────────────────────────────────────────────────────
 let notes       = [];
+let ballTargets = [];   // keyframes verticales de la bola por evento (melodía sigue cuerda; acorde real = centro)
 let measureData = [];
 let currentTime = 0;
 let prevTime    = 0;
@@ -2454,44 +2455,55 @@ function swingBounceSin(t, refTime, cycleDur) {
         : Math.sin(((elapsed - longDur) / shortDur) * Math.PI);
 }
 
+// Y de un keyframe de la bola (se calcula EN VIVO: START_Y/BALL_STRING_Y cambian
+// con el tamaño del canvas). chord → posición central; melodía → su cuerda.
+function ballTargetY(b) {
+    return b.chord ? BALL_STRING_Y : START_Y + (b.string - 1) * STR_SPACING;
+}
+
+// La bola decide su altura según el EVENTO ACTIVO (ballTargets), no según un
+// chordMode global: 1 nota sigue su cuerda; 2 notas rebotan entre ambas cuerdas
+// (dos keyframes dentro del evento); 3+ (acorde real) usa la posición central.
 function getBallYAtTime(t) {
-    if (!notes.length) return chordMode ? BALL_STRING_Y : START_Y;
+    if (!ballTargets.length) return START_Y;
     const beatDur         = 60 / bpm;
-    const stringY         = chordMode ? BALL_STRING_Y : START_Y + (notes[0].string - 1) * STR_SPACING;
+    const first           = ballTargets[0];
+    const restY           = ballTargetY(first);
     const preImpulseStart = approachEnd - beatDur;
 
-    if (t < preImpulseStart) return stringY;
+    if (t < preImpulseStart) return restY;
     if (t < approachEnd) {
         // Arco único de impulso — sin swing para que sea suave
         const phase = (t - preImpulseStart) / beatDur;
-        return stringY - Math.sin(phase * Math.PI) * BOUNCE_H;
+        return restY - Math.sin(phase * Math.PI) * BOUNCE_H;
     }
-    const firstNoteTime = notes.length ? notes[0].time : startOffset;
-    if (t < firstNoteTime) {
+    if (t < first.time) {
         const pulseDur = (4 / beatType) * (60 / bpm);
         const elapsed  = ((t - approachEnd) % pulseDur + pulseDur) % pulseDur;
-        return stringY - Math.sin((elapsed / pulseDur) * Math.PI) * BOUNCE_H;
+        return restY - Math.sin((elapsed / pulseDur) * Math.PI) * BOUNCE_H;
     }
     let cur = null, nxt = null;
-    for (const n of notes) { if (n.time <= t) cur = n; else { nxt = n; break; } }
-    if (!cur) return stringY;
-    if (chordMode) {
+    for (const b of ballTargets) { if (b.time <= t) cur = b; else { nxt = b; break; } }
+    if (!cur) return restY;
+    if (cur.chord) {
+        // Acorde real: bota en el sitio, posición central (comportamiento existente).
         const prog = Math.max(0, Math.min(1, nxt ? (t - cur.time) / (nxt.time - cur.time) : 0));
         return BALL_STRING_Y - Math.sin(prog * Math.PI) * BOUNCE_H;
     }
-    if (!nxt) return START_Y + (cur.string - 1) * STR_SPACING;
+    const baseY = ballTargetY(cur);
+    if (!nxt) return baseY;
     const prog  = Math.max(0, Math.min(1, (t - cur.time) / (nxt.time - cur.time)));
-    const baseY = START_Y + (cur.string - 1) * STR_SPACING;
-    const targY = START_Y + (nxt.string - 1) * STR_SPACING;
+    const targY = ballTargetY(nxt);
     return baseY + (targY - baseY) * prog - Math.sin(prog * Math.PI) * BOUNCE_H * (1 + Math.abs(targY - baseY) / 100);
 }
 
 function updateBall() {
     if (!notes.length || tabEnded) return;
     if (loopActive && loopPhase !== 'active') {
-        const anchorNote = chordMode ? null : (notes.find(n => n.time >= loopIn) ?? notes[0]);
-        const baseY  = chordMode ? BALL_STRING_Y : START_Y + (anchorNote.string - 1) * STR_SPACING;
-        const anchor = loopPhase === 'passiveOut' ? loopPassiveOutBallAnchor : loopBallAnchorT;
+        // Ancla de reposo del loop: primer keyframe dentro del loop (según su evento).
+        const anchorT = ballTargets.find(b => b.time >= loopIn) ?? ballTargets[0];
+        const baseY   = anchorT ? ballTargetY(anchorT) : START_Y;
+        const anchor  = loopPhase === 'passiveOut' ? loopPassiveOutBallAnchor : loopBallAnchorT;
         ballY = baseY - swingBounceSin(currentTime, anchor, loopCyclePulseDur) * BOUNCE_H;
         return;
     }
@@ -2787,7 +2799,7 @@ function drawLoopMarkers() {
 function drawNotes() {
     for (let i = 0; i < notes.length; i++) {
         const note = notes[i];
-        if (chordMode && note.harmonyLabel) continue; // renderizado por drawChordBlocks
+        if (note.esAcordeReal) continue; // solo los acordes reales (3+) los dibuja drawChordBlocks
         if (seccionActiva && (note.time < seccionActiva.start - 0.001 || note.time >= seccionActiva.end)) continue;
         if (loopActive && isPlaying && (note.time < loopIn - 0.001 || note.time >= loopOut)) continue;
         const nw = note.durSec * note.zoom;
@@ -3017,13 +3029,60 @@ function lightenColor(hex, amount) {
     return `rgb(${r},${g},${b})`;
 }
 
+// Clasifica CADA evento musical (notas que suenan simultáneamente, agrupadas por
+// onset) según cuántas CUERDAS distintas suenan a la vez — independientemente de
+// que exista un <harmony> vigente:
+//   1 cuerda  → melodía            (esAcordeReal = false)
+//   2 cuerdas → melodía armonizada (esAcordeReal = false)
+//   3+ cuerdas→ acorde real        (esAcordeReal = true)
+// Además construye ballTargets: los keyframes verticales que sigue la bola. Para
+// melodía apunta a la(s) cuerda(s) real(es) (en 2 notas, rebota entre ambas); en
+// acorde real usa la posición central. NUNCA usa harmonyLabel como criterio.
+function classifyNoteEvents() {
+    ballTargets = [];
+    if (!notes.length) return;
+    const byTime = new Map();
+    for (const n of notes) {
+        const key = Math.round(n.time * 1000);
+        if (!byTime.has(key)) byTime.set(key, []);
+        byTime.get(key).push(n);
+    }
+    const keys = Array.from(byTime.keys()).sort((a, b) => a - b);
+    for (const key of keys) {
+        const grp     = byTime.get(key);
+        const strings = [...new Set(grp.map(n => n.string))].sort((a, b) => a - b);
+        const real    = strings.length >= 3;
+        for (const n of grp) n.esAcordeReal = real;
+        const lead = grp.find(n => !n.isChord) ?? grp[0];
+        const t    = lead.time;
+        if (real) {
+            ballTargets.push({ time: t, string: null, chord: true });
+        } else if (strings.length === 1) {
+            ballTargets.push({ time: t, string: strings[0], chord: false });
+        } else {
+            // 2 notas melódicas: la bola rebota ENTRE ambas cuerdas durante el evento.
+            ballTargets.push({ time: t, string: strings[0], chord: false });
+            ballTargets.push({ time: t + Math.max(0.05, (lead.durSec || 0.3) * 0.5), string: strings[1], chord: false });
+        }
+    }
+    ballTargets.sort((a, b) => a.time - b.time);
+}
+
 function buildChordEvents() {
     chordEvents = [];
-    if (!notes.some(n => n.harmonyLabel)) { buildChordEventsFromCifrado(); return; }
+    classifyNoteEvents();                 // fija esAcordeReal por evento + ballTargets
+    // Solo los ACORDES REALES (3+ cuerdas) se dibujan como bloques. La melodía
+    // (1-2 notas) se renderiza como notas, aunque haya <harmony> vigente.
+    if (!notes.some(n => n.esAcordeReal)) {
+        // Sin acordes reales: dibujar cifrado como bloques solo en charts de
+        // cifrado puro (sin notas con traste que tapar).
+        if (!notes.length) buildChordEventsFromCifrado();
+        return;
+    }
 
     const byTime = new Map();
     for (const n of notes) {
-        if (!n.harmonyLabel) continue;
+        if (!n.esAcordeReal) continue;
         const key = Math.round(n.time * 1000);
         if (!byTime.has(key)) byTime.set(key, []);
         byTime.get(key).push(n);
