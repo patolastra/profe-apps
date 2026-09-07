@@ -1829,8 +1829,11 @@
         .ritmo-ctl label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
         .ritmo-ctl input[type=number] {
             width: 58px; padding: 5px 7px; border: 1.5px solid var(--border); border-radius: 7px;
-            font-size: 0.82rem; font-family: inherit;
+            font-size: 0.82rem; font-family: inherit; text-align: center;
         }
+        /* Toggles cíclicos (Modo/Timbre): ancho fijo → alternar el texto no redimensiona ni
+           mueve los controles vecinos. box-sizing explícito para que min-width sea estable. */
+        .ritmo-toggle.rit-ciclo { box-sizing: border-box; min-width: 104px; text-align: center; }
         .ritmo-seg { display: inline-flex; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; }
         .ritmo-seg button {
             border: none; background: #eef2f7; color: var(--muted); cursor: pointer;
@@ -1875,6 +1878,29 @@
             background: #334155; color: #cbd5e1; border-color: #475569;
         }
         #entrenador-overlay:not(.ent-light) .ritmo-toggle.on { background: #ea580c; border-color: #ea580c; color: #fff; }
+
+        /* Toggles cíclicos coloreados por estado (Partitura↔Infantil, Palmas↔Piano).
+           Solo estética: el color indica el estado actual, reutilizando la paleta ya
+           existente (--accent celeste, #ea580c naranja del Entrenador, #0284c7 azul del
+           tema oscuro). El texto se pinta en JS; aquí solo mapeamos estado→color.
+           CLARO: Partitura/Piano = celeste · Infantil/Palmas = naranja.
+           OSCURO: Partitura/Piano = naranja · Infantil/Palmas = azul. */
+        #entrenador-overlay.ent-light .ritmo-toggle.rit-partitura,
+        #entrenador-overlay.ent-light .ritmo-toggle.rit-piano {
+            background: var(--accent); border-color: var(--accent); color: #fff;
+        }
+        #entrenador-overlay.ent-light .ritmo-toggle.rit-infantil,
+        #entrenador-overlay.ent-light .ritmo-toggle.rit-palmas {
+            background: #ea580c; border-color: #ea580c; color: #fff;
+        }
+        #entrenador-overlay:not(.ent-light) .ritmo-toggle.rit-partitura,
+        #entrenador-overlay:not(.ent-light) .ritmo-toggle.rit-piano {
+            background: #ea580c; border-color: #ea580c; color: #fff;
+        }
+        #entrenador-overlay:not(.ent-light) .ritmo-toggle.rit-infantil,
+        #entrenador-overlay:not(.ent-light) .ritmo-toggle.rit-palmas {
+            background: #0284c7; border-color: #0284c7; color: #fff;
+        }
 
         #ent-main {
             flex: 1;
@@ -5663,7 +5689,16 @@ function entCargarAsset(asset, userInitiated = false) {
 // Estado de SESIÓN del ritmo activo (BPM/reps/modo/tresillo editables sin tocar el asset).
 let entRitmoObj = null;
 let entRitmoLayout = null;
-let entRitmoTresillo = true;   // mostrar indicador de tresillo (partitura)
+// Preferencias del ENTRENADOR (sesión), NO del asset. Se conservan al cambiar de Ritmo.
+let entRitmoTresillo = false;  // indicador de tresillo — OFF por defecto en sesión nueva
+let entRitmoModo = null;       // 'partitura'|'infantil' — inicial = modo del 1er asset cargado
+let entRitmoMetronomo = true;  // Metrónomo = precuenta + click — ON por defecto
+let entRitmoTimbre = 'palmas'; // timbre del patrón: 'palmas' | 'pianoC4'
+// opts para crearPlayer: el toggle único activa precuenta y metrónomo juntos.
+function entRitmoOpts() {
+    return { onState: entRitmoOnState, precuenta: entRitmoMetronomo,
+             metronomo: entRitmoMetronomo, timbrePatron: entRitmoTimbre };
+}
 
 function entRenderRitmo(asset) {
     const zona = document.getElementById('ent-zona');
@@ -5677,8 +5712,11 @@ function entRenderRitmo(asset) {
         </div>`;
         return;
     }
+    // Modo es preferencia de sesión: inicial = modo del 1er asset; luego NO se reinicia.
+    if (entRitmoModo === null) entRitmoModo = obj.modo || 'partitura';
+    obj.modo = entRitmoModo;
     entRitmoObj = obj;            // copia de sesión (se muta aquí, nunca el asset)
-    entRitmoTresillo = true;     // estado inicial del nuevo ritmo
+    // NO se reinician Tresillo/Metrónomo/Timbre/Modo: son preferencias del Entrenador.
     zona.innerHTML = `<div class="ent-ritmo-box">
         <div id="ent-ritmo-canvas" class="ent-ritmo-canvas"></div>
         <div class="ent-ritmo-controls">
@@ -5686,10 +5724,9 @@ function entRenderRitmo(asset) {
                 <input id="ent-ritmo-bpm" type="number" min="20" max="300" step="5" value="${obj.bpm}" oninput="entRitmoSetBpm(this.value)"></span>
             <span class="ritmo-ctl"><label>Reps</label>
                 <input id="ent-ritmo-reps" type="number" min="1" max="99" value="${obj.reps}" oninput="entRitmoSetReps(this.value)"></span>
-            <span class="ritmo-seg" id="ent-ritmo-modo">
-                <button data-val="partitura" onclick="entRitmoSetModo('partitura')">Partitura</button>
-                <button data-val="infantil" onclick="entRitmoSetModo('infantil')">Infantil</button>
-            </span>
+            <button class="ritmo-toggle" id="ent-ritmo-metronomo" onclick="entRitmoToggleMetronomo()" title="Metrónomo: precuenta (4/4: 1 compás · 6/8: 2 compases) + click durante la reproducción">Metrónomo</button>
+            <button class="ritmo-toggle rit-ciclo" id="ent-ritmo-modo-btn" onclick="entRitmoToggleModo()" title="Alternar Partitura / Infantil">Partitura</button>
+            <button class="ritmo-toggle rit-ciclo" id="ent-ritmo-timbre-btn" onclick="entRitmoToggleTimbre()" title="Alternar Palmas / Piano">Palmas</button>
             <button class="ritmo-toggle" id="ent-ritmo-tresillo" onclick="entRitmoToggleTresillo()" title="Mostrar/ocultar indicador de tresillo">Tresillo</button>
         </div>
     </div>`;
@@ -5724,7 +5761,7 @@ function entRitmoRerender() {
                 g.style.visibility = entRitmoTresillo ? '' : 'hidden');
         } catch (_) {}
     }
-    entRitmoPlayer = RITMO_UI.crearPlayer(entRitmoObj, entRitmoLayout, { onState: entRitmoOnState });
+    entRitmoPlayer = RITMO_UI.crearPlayer(entRitmoObj, entRitmoLayout, entRitmoOpts());
     entRitmoActualizarControles();
     entRitmoSetPlayIcon(false);
 }
@@ -5733,16 +5770,33 @@ function entRitmoRerender() {
 function entRitmoRecrearPlayer() {
     if (!entRitmoObj || !entRitmoLayout) return;
     if (entRitmoPlayer) { try { entRitmoPlayer.stop(); } catch (_) {} entRitmoPlayer = null; }
-    entRitmoPlayer = RITMO_UI.crearPlayer(entRitmoObj, entRitmoLayout, { onState: entRitmoOnState });
+    entRitmoPlayer = RITMO_UI.crearPlayer(entRitmoObj, entRitmoLayout, entRitmoOpts());
     entRitmoActualizarControles();
     entRitmoSetPlayIcon(false);
 }
 
 function entRitmoActualizarControles() {
     if (!entRitmoObj) return;
-    document.querySelectorAll('#ent-ritmo-modo button').forEach(b => b.classList.toggle('on', b.dataset.val === entRitmoObj.modo));
+    const modoBtn = document.getElementById('ent-ritmo-modo-btn');
+    if (modoBtn) {
+        const inf = entRitmoModo === 'infantil';
+        modoBtn.textContent = inf ? 'Infantil' : 'Partitura';
+        // Clase de estado (solo estética): tiñe el botón según Partitura/Infantil.
+        modoBtn.classList.toggle('rit-infantil', inf);
+        modoBtn.classList.toggle('rit-partitura', !inf);
+    }
+    const timBtn = document.getElementById('ent-ritmo-timbre-btn');
+    if (timBtn) {
+        const piano = entRitmoTimbre === 'pianoC4';
+        timBtn.textContent = piano ? 'Piano' : 'Palmas';
+        // Clase de estado (solo estética): tiñe el botón según Palmas/Piano.
+        timBtn.classList.toggle('rit-piano', piano);
+        timBtn.classList.toggle('rit-palmas', !piano);
+    }
     const tb = document.getElementById('ent-ritmo-tresillo');
     if (tb) tb.classList.toggle('on', entRitmoTresillo);
+    const mt = document.getElementById('ent-ritmo-metronomo');
+    if (mt) mt.classList.toggle('on', entRitmoMetronomo);
 }
 
 function entRitmoOnState(st) {
@@ -5772,8 +5826,9 @@ function entRitmoSetBpm(v) {
     entRitmoObj.bpm = n;          // solo sesión; NO modifica el asset
     const estabaSonando = !!(entRitmoPlayer && entRitmoPlayer.playing);
     entRitmoRecrearPlayer();
-    // Si estaba reproduciéndose, continúa al nuevo BPM sin verse detenida.
-    if (estabaSonando && entRitmoPlayer) entRitmoPlayer.play();
+    // Si estaba reproduciéndose, continúa al nuevo BPM sin verse detenida y SIN repetir
+    // la precuenta (la precuenta solo ocurre al iniciar manualmente una reproducción nueva).
+    if (estabaSonando && entRitmoPlayer) entRitmoPlayer.play(true);
 }
 function entRitmoSetReps(v) {
     if (!entRitmoObj) return;
@@ -5782,15 +5837,30 @@ function entRitmoSetReps(v) {
     entRitmoObj.reps = n;
     entRitmoRecrearPlayer();
 }
-function entRitmoSetModo(m) {
-    if (!entRitmoObj || (m !== 'partitura' && m !== 'infantil')) return;
-    entRitmoObj.modo = m;
+// Toggle cíclico Partitura ↔ Infantil (preferencia de sesión).
+function entRitmoToggleModo() {
+    if (!entRitmoObj) return;
+    entRitmoModo = (entRitmoModo === 'infantil') ? 'partitura' : 'infantil';
+    entRitmoObj.modo = entRitmoModo;
     entRitmoRerender();          // el cambio de modo re-renderiza el dibujo
 }
 function entRitmoToggleTresillo() {
     if (!entRitmoObj) return;
     entRitmoTresillo = !entRitmoTresillo;
     entRitmoRerender();          // solo visual; usa la API existente del renderer
+}
+// Ajustes de reproducción: recrean el player (se detiene; la precuenta suena al dar Play).
+// Metrónomo = precuenta + click, en un solo toggle.
+function entRitmoToggleMetronomo() {
+    if (!entRitmoObj) return;
+    entRitmoMetronomo = !entRitmoMetronomo;
+    entRitmoRecrearPlayer();
+}
+// Toggle cíclico Palmas ↔ Piano (preferencia de sesión). Solo cambia el sonido del patrón.
+function entRitmoToggleTimbre() {
+    if (!entRitmoObj) return;
+    entRitmoTimbre = (entRitmoTimbre === 'pianoC4') ? 'palmas' : 'pianoC4';
+    entRitmoRecrearPlayer();
 }
 
 // Metalófono desde los chips del Entrenador: usa el MISMO mecanismo que la tarjeta

@@ -403,42 +403,154 @@
         return src;
     }
 
+    // ── PIANO (patrón): síntesis de una nota tipo piano (C4 = 261.63 Hz).
+    // Respeta la DURACIÓN real de la figura (durSec): ataque rápido + decaimiento
+    // progresivo que SOSTIENE hasta el final de la figura y luego libera (release).
+    // No es un oscilador de volumen constante ni desaparece antes de tiempo.
+    function programarPiano(c, t, salida, freq, durSec) {
+        const dur   = Math.max(0.25, durSec || 0);   // cubre la duración musical (piso audible)
+        const rel   = 0.12;                           // cola de liberación
+        const total = dur + rel;
+        const g = c.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.9, t + 0.006);                       // ataque rápido
+        g.gain.exponentialRampToValueAtTime(0.30, t + Math.min(dur * 0.5, 0.35));  // caída inicial (percusivo)
+        g.gain.exponentialRampToValueAtTime(0.12, t + dur);                        // sostiene hasta el fin de la figura
+        g.gain.exponentialRampToValueAtTime(0.0006, t + total);                    // release
+        g.connect(salida);
+        const parciales = [[1, 1.0], [2, 0.42], [3, 0.20], [4, 0.09]];
+        const oscs = [];
+        for (const [mult, amp] of parciales) {
+            const o = c.createOscillator();
+            o.type = 'triangle';
+            o.frequency.value = freq * mult;
+            const gp = c.createGain(); gp.gain.value = amp;
+            o.connect(gp).connect(g);
+            o.start(t); o.stop(t + total + 0.05);
+            oscs.push(o);
+        }
+        return oscs;   // varios osciladores → array de sources
+    }
+
+    // ── TICK de metrónomo/precuenta (canal independiente del patrón).
+    // Timbre de metrónomo original (blip square). La ALTURA la aporta `reg` según el
+    // timbre del patrón (ver TICK_REG): mismo tick, distinto registro. Pulso 1 = más agudo.
+    function programarTick(c, t, salida, agudo, reg) {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = 'square';
+        o.frequency.value = agudo ? reg.agudo : reg.normal;
+        const dur = 0.035, peak = (agudo ? 0.32 : 0.18) * (reg.vol || 1);   // nivel según timbre; ratio acento/normal intacto
+        g.gain.setValueAtTime(peak, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g).connect(salida);
+        o.start(t); o.stop(t + dur + 0.01);
+        return o;
+    }
+
+    // Registro de TIMBRES del PATRÓN. Cada timbre programa UN ataque y devuelve source(s).
+    // El timbre se asocia a la VOZ, no al player (arquitectura lista para 2+ voces).
+    const TIMBRES_PATRON = {
+        palmas:  (c, t, out, durSec) => programarGolpe(c, t, out),               // el clap ignora la duración
+        pianoC4: (c, t, out, durSec) => programarPiano(c, t, out, 392.00, durSec), // G4 (id conservado por compat)
+    };
+
+    // Registro del metrónomo según el timbre del patrón (MISMO tick, distinta altura):
+    //  · palmas → algo más agudo que el registro base (1200/2000) para separarlo del clap;
+    //  · piano  → algo más grave para que el piano no lo tape.
+    const TICK_REG = {
+        palmas:  { normal: 1400, agudo: 2300, vol: 1.35 },  // un poco más fuerte
+        pianoC4: { normal: 1000, agudo: 1700, vol: 1.70 },  // todavía más fuerte (para no quedar tapado por el piano)
+    };
+
     function crearPlayer(obj, layout, opts) {
         opts = opts || {};
         const secPorTick = 60 / (obj.bpm * obj.meter.beatTicks);
         const tpr = obj.ticksPorRep;
         const totalTicks = tpr * obj.reps;
 
+        // Ataques del patrón dentro de UNA repetición (absTick + evIdx).
         const ataquesRep = [];
         obj.measures.forEach((m, mi) => m.events.forEach(e =>
-            ataquesRep.push({ absTick: mi * m.capacityTicks + e.startTick, evIdx: e.evIdx })));
+            ataquesRep.push({ absTick: mi * m.capacityTicks + e.startTick, durTick: e.durTick, evIdx: e.evIdx })));
+
+        // Lista GLOBAL (todas las reps) para cursor/FX — común a todas las voces.
         const ataquesGlobal = [];
         for (let r = 0; r < obj.reps; r++)
             for (const a of ataquesRep)
                 ataquesGlobal.push({ t: (a.absTick + r * tpr) * secPorTick, evIdx: a.evIdx });
         ataquesGlobal.sort((a, b) => a.t - b.t);
 
+        // CANAL PATRÓN — voces. Esta iteración: una sola voz con su propio timbre.
+        // `opts.voces` (futuro) permite N voces; por defecto se arma una desde el patrón.
+        const voces = opts.voces || [{ timbre: opts.timbrePatron || 'palmas', ataques: ataquesRep }];
+
+        // PRECUENTA — 4/4: 1 compás · 6/8: 2 compases (respeta meter.beats/beatTicks).
+        const precountMeasures = opts.precuenta ? (obj.meter.group === 'compound' ? 2 : 1) : 0;
+        const offsetPatron = precountMeasures * obj.meter.capacityTicks * secPorTick;  // desplaza el arranque del patrón
+
         let raf = null, sources = [], playing = false, t0 = 0, fired = -1;
+        let busPatron = null, busMetro = null, offActual = 0;
 
         function loop() {
-            const el = audioCtx().currentTime - t0;
-            if (el >= totalTicks * secPorTick) { finalizar(); return; }
-            layout.setCursor(el < 0 ? 0 : (el / secPorTick) % tpr);
-            while (fired + 1 < ataquesGlobal.length && ataquesGlobal[fired + 1].t <= el) {
+            const elPat = audioCtx().currentTime - (t0 + offActual);      // tiempo del PATRÓN
+            if (elPat >= totalTicks * secPorTick) { finalizar(); return; }
+            layout.setCursor(elPat < 0 ? 0 : (elPat / secPorTick) % tpr); // durante la precuenta: cursor en 0
+            while (fired + 1 < ataquesGlobal.length && ataquesGlobal[fired + 1].t <= elPat) {
                 fired++; layout.fx(ataquesGlobal[fired].evIdx);
             }
             raf = requestAnimationFrame(loop);
         }
-        function play() {
+        // sinPrecuenta: al reanudar tras un cambio de BPM/reps NO se vuelve a oír la precuenta.
+        function play(sinPrecuenta) {
             stop();
             const c = audioCtx();
             if (c.state === 'suspended') c.resume();
-            playing = true; fired = -1; t0 = c.currentTime + 0.12;
-            for (const a of ataquesGlobal) sources.push(programarGolpe(c, t0 + a.t, c.destination));
+            playing = true; fired = -1;
+            // Buses independientes: patrón ↔ metrónomo/precuenta.
+            busPatron = c.createGain(); busPatron.gain.value = 1.0; busPatron.connect(c.destination);
+            busMetro  = c.createGain(); busMetro.gain.value  = 1.0; busMetro.connect(c.destination);
+            const pm = sinPrecuenta ? 0 : precountMeasures;
+            offActual = sinPrecuenta ? 0 : offsetPatron;
+            t0 = c.currentTime + 0.12;
+            // Registro del metrónomo adaptado al timbre de la voz del patrón (mismo tick).
+            const regTick = TICK_REG[(voces[0] && voces[0].timbre)] || TICK_REG.palmas;
+
+            // Precuenta (canal metrónomo). Acento (agudo) en el pulso 1 de cada compás.
+            for (let p = 0; p < pm; p++)
+                for (let k = 0; k < obj.meter.beats; k++) {
+                    const tick = p * obj.meter.capacityTicks + k * obj.meter.beatTicks;
+                    sources.push(programarTick(c, t0 + tick * secPorTick, busMetro, k === 0, regTick));
+                }
+
+            // Metrónomo durante el patrón (canal metrónomo). Un tick por pulso, acento en el 1.
+            if (opts.metronomo)
+                for (let r = 0; r < obj.reps; r++)
+                    for (let mi = 0; mi < obj.measures.length; mi++)
+                        for (let k = 0; k < obj.meter.beats; k++) {
+                            const tick = r * tpr + mi * obj.meter.capacityTicks + k * obj.meter.beatTicks;
+                            sources.push(programarTick(c, t0 + offActual + tick * secPorTick, busMetro, k === 0, regTick));
+                        }
+
+            // Patrón por voces (canal patrón). El timbre viaja con la voz.
+            for (const voz of voces) {
+                const fn = TIMBRES_PATRON[voz.timbre] || TIMBRES_PATRON.palmas;
+                for (let r = 0; r < obj.reps; r++)
+                    for (const a of voz.ataques) {
+                        const durSec = (a.durTick || 0) * secPorTick;   // duración real de la figura
+                        const res = fn(c, t0 + offActual + (a.absTick + r * tpr) * secPorTick, busPatron, durSec);
+                        if (Array.isArray(res)) for (const s of res) sources.push(s); else sources.push(res);
+                    }
+            }
+
             if (opts.onState) opts.onState('playing');
             raf = requestAnimationFrame(loop);
         }
-        function detenerAudio() { sources.forEach(s => { try { s.stop(); } catch (_) {} }); sources = []; }
+        function detenerAudio() {
+            sources.forEach(s => { try { s.stop(); } catch (_) {} }); sources = [];
+            if (busPatron) { try { busPatron.disconnect(); } catch (_) {} busPatron = null; }
+            if (busMetro)  { try { busMetro.disconnect();  } catch (_) {} busMetro  = null; }
+        }
         function finalizar() {
             if (raf) cancelAnimationFrame(raf); raf = null; playing = false;
             detenerAudio(); layout.limpiarFx();
