@@ -142,6 +142,136 @@
         /* ── LAYOUT ── */
         #main { max-width: 960px; margin: 0 auto; padding: 20px 16px 110px; }
 
+        /* ── DASHBOARD · Etapa 1: mesa de trabajo en dos áreas ──────────────
+           Solo aplica al Dashboard (en modo Plan, body.sesion-activa sobre-escribe
+           #main y #vista-sesion). Ensanchamos el dashboard para acomodar el split. */
+        body:not(.sesion-activa) #main { max-width: 1280px; }
+
+        /* ── DASHBOARD a pantalla completa (bajo las pestañas del Workspace) ──
+           Se oculta el header (vacío en dashboard; el modo Plan lo conserva vía
+           body.sesion-activa). El dock ya no existe. */
+        body:not(.sesion-activa) #header { display: none; }
+        /* Llenar el viewport sin scroll de página: solo en el layout lado-a-lado
+           (≥861px, la mesa de trabajo del Workspace). En angosto se apila y fluye
+           con normalidad para no forzar dos columnas de alto completo (overflow).
+           El calendario navega por semanas con su propio gesto, no con scroll. */
+        @media (min-width: 861px) {
+            body:not(.sesion-activa) { overflow: hidden; }
+            body:not(.sesion-activa) #main { height: 100vh; padding: 14px 16px; overflow: hidden; }
+            body:not(.sesion-activa) #vista-dashboard { height: 100%; }
+            body:not(.sesion-activa) #dash-split { height: 100%; align-items: stretch; }
+            body:not(.sesion-activa) #dash-cal { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+            body:not(.sesion-activa) #dash-cal #cal-mensual { flex: 1; }
+            body:not(.sesion-activa) #dash-pend { height: 100%; overflow: auto; }
+        }
+        #dash-split {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        #dash-cal  { flex: 1 1 58%; min-width: 0; }   /* izquierda: calendario (por ahora, render actual en #grid) */
+        #dash-pend {                                   /* derecha: panel de Pendientes (vacío en Etapa 1) */
+            flex: 1 1 42%; min-width: 0;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            padding: 12px 14px;
+            min-height: 240px;
+        }
+        .dash-pend-hdr {
+            font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px;
+        }
+        /* En ventanas angostas, apilar (calendario arriba, pendientes abajo). */
+        @media (max-width: 860px) {
+            #dash-split { flex-direction: column; }
+            #dash-cal, #dash-pend { flex: 1 1 auto; width: 100%; }
+        }
+
+        /* ── DASHBOARD · Etapa 2: calendario mensual (lu–ju) ────────────────── */
+        #cal-hdr {
+            display: flex; align-items: center; justify-content: center; gap: 14px;
+            margin-bottom: 14px;
+        }
+        #cal-titulo {
+            font-size: 1.05rem; font-weight: 800; letter-spacing: 0.04em;
+            color: var(--text); min-width: 220px; text-align: center; text-transform: uppercase;
+        }
+        .cal-nav-btn {
+            background: #fff; border: 1px solid var(--border); border-radius: 8px;
+            width: 34px; height: 30px; cursor: pointer; font-size: 0.85rem;
+            color: var(--text); line-height: 1; font-family: inherit;
+        }
+        .cal-nav-btn:hover:not(:disabled) { background: #f1f5f9; }
+        .cal-nav-btn:disabled { opacity: 0.35; cursor: default; }
+        .cal-semana {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px;
+        }
+        .cal-celda {
+            border: 1px solid var(--border); border-radius: 10px; background: #fff;
+            min-height: 92px; padding: 6px 7px; display: flex; flex-direction: column; gap: 4px;
+        }
+        .cal-celda.vacia { background: transparent; border: none; }
+        .cal-celda-fecha {
+            font-size: 0.7rem; font-weight: 700; color: var(--muted);
+            text-transform: lowercase; margin-bottom: 2px; align-self: flex-start;
+        }
+        .cal-celda-fecha.hoy {
+            color: #fff; background: var(--accent); border-radius: 6px; padding: 1px 8px;
+        }
+        .cal-clase {
+            font-size: 0.8rem; padding: 3px 7px; border-radius: 6px;
+            background: #f6f9ff; border: 1px solid var(--border); cursor: pointer;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .cal-clase:hover { border-color: var(--accent); background: #eef4ff; }
+
+        /* ── DASHBOARD · Etapa 3: ventana de 3 semanas ─────────────────────── */
+        #cal-mensual { overflow: hidden; }                 /* sin barra de scroll propia */
+        #cal-hoy {
+            background: var(--accent); color: #fff; border: none; border-radius: 8px;
+            padding: 4px 12px; font-size: 0.75rem; font-weight: 700; cursor: pointer;
+            font-family: inherit; margin-left: 8px;
+        }
+        #cal-hoy:hover { filter: brightness(1.08); }
+        .cal-sem-bloque { margin-bottom: 12px; border-radius: 12px; }
+        .cal-sem-bloque:last-child { margin-bottom: 0; }
+        .cal-sem-bloque.actual {                            /* semana en curso destacada */
+            background: #eef4ff; border: 1px solid #c7dbff;
+            padding: 8px 8px 2px; margin: 0 -8px 12px;
+        }
+        .cal-sem-label {
+            font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em;
+            text-transform: uppercase; color: var(--muted); margin: 0 0 6px 2px;
+        }
+        .cal-sem-bloque.actual .cal-sem-label { color: var(--accent); }
+
+        /* ── DASHBOARD · Etapa 4B: panel de Pendientes ─────────────────────── */
+        #dash-pend-body { display: flex; flex-direction: column; gap: 14px; }
+        .pend-vacio { font-size: 0.82rem; color: var(--muted); padding: 6px 2px; }
+        .pend-grupo { display: flex; flex-direction: column; gap: 4px; }
+        .pend-grupo-hdr {
+            font-size: 0.82rem; font-weight: 800; color: var(--text);
+            padding: 2px 2px 4px; border-bottom: 1px solid var(--border); margin-bottom: 2px;
+        }
+        .pend-item {
+            display: flex; align-items: flex-start; gap: 8px;
+            padding: 5px 4px; border-radius: 7px;
+        }
+        .pend-item:hover { background: #f6f9ff; }
+        .pend-chk {
+            flex-shrink: 0; width: 22px; height: 22px; line-height: 1;
+            background: none; border: none; cursor: pointer;
+            font-size: 1.05rem; color: var(--muted); padding: 0; font-family: inherit;
+        }
+        .pend-chk:hover { color: var(--accent); }
+        .pend-chk:disabled { opacity: 0.5; cursor: default; }
+        .pend-txt {
+            font-size: 0.84rem; color: var(--text); line-height: 1.35;
+            overflow-wrap: anywhere; padding-top: 1px;
+        }
+        .pend-grupo-vacio { font-size: 0.8rem; color: var(--muted); font-style: italic; font-weight: 400; }
+
         #btn-ir-hoy {
             display: none; font-size: 0.8rem; padding: 4px 12px;
             border-radius: 5px; border: 1px solid rgba(255,255,255,0.3);
@@ -1096,7 +1226,28 @@
 <div id="main">
 
     <div id="vista-dashboard">
-        <div id="grid"></div>
+        <!-- Etapa 1: esqueleto de dos áreas (izq calendario · der pendientes).
+             El render actual (renderDashboard/renderDia) sigue apuntando a #grid, intacto. -->
+        <div id="dash-split">
+            <div id="dash-cal" class="dash-col">
+                <!-- Etapa 3: ventana deslizante de 3 semanas (lu–ju, mar–dic).
+                     ▲ = semana anterior · ▼ = semana siguiente · rueda/touch = ±1 semana. -->
+                <div id="cal-hdr">
+                    <button id="cal-prev" class="cal-nav-btn" onclick="dashSemNav(-1)" title="Semana anterior">▲</button>
+                    <div id="cal-titulo"></div>
+                    <button id="cal-next" class="cal-nav-btn" onclick="dashSemNav(1)" title="Semana siguiente">▼</button>
+                    <button id="cal-hoy" onclick="dashVolverPresente()" title="Volver a la semana actual" hidden>Hoy</button>
+                </div>
+                <div id="cal-mensual"></div>
+                <!-- #grid legacy (lista de 8 días): conservado y oculto por si el modo Plan
+                     u otras funciones lo requieren; renderDashboard/renderDia siguen usándolo. -->
+                <div id="grid" hidden></div>
+            </div>
+            <aside id="dash-pend" class="dash-col" aria-label="Pendientes">
+                <div class="dash-pend-hdr">Pendientes</div>
+                <div id="dash-pend-body"><!-- Etapa 4: panel de pendientes (vacío por ahora) --></div>
+            </aside>
+        </div>
     </div>
 
     <div id="vista-sesion">
@@ -1255,7 +1406,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
         await Promise.all([loadContextos(), loadHorario(), cargarAnioActivo()]);
         await crearSesionesPendientes();
-        await renderDashboard();
+        await renderDashboard();          // legacy: puebla #grid (oculto); conserva ?ctx y semáforo
+        renderCalSemanas();               // Etapa 3: ventana de 3 semanas visible en #dash-cal
+        initCalNav();                     // rueda/touch → ±1 semana
+        cargarPendientesDashboard();      // Etapa 4B: panel de pendientes en #dash-pend
         await asignarPendientesHuerfanos();
         setStatus('');
         // Deep-link: ?ctx=&fecha= → MODO PLAN (abre directo esa clase, sin dashboard).
@@ -1795,7 +1949,294 @@ function hayArrastre(cid, fechaStr) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// CALENDARIO
+// DASHBOARD · CALENDARIO DE 3 SEMANAS (Etapa 3)
+// Ventana deslizante de exactamente 3 semanas (lu–ju): pasada / actual / siguiente
+// por defecto. Navegación por rueda/touch (con anti-rebote) y flechas ▲▼, una
+// semana por gesto. Rango fijo marzo–diciembre del año en curso; las clases fuera
+// de rango en semanas límite no se muestran. Reutiliza contextos + horarioDia +
+// identidad global (ctxDisplay). Sin semáforo.
+// ═══════════════════════════════════════════════════════════
+const CAL_ANIO     = new Date().getFullYear();
+const CAL_INI      = new Date(CAL_ANIO, 2, 1);     // 1 de marzo
+const CAL_FIN      = new Date(CAL_ANIO, 11, 31);   // 31 de diciembre
+const CAL_DIA_ABBR = ['lu', 'ma', 'mi', 'ju'];     // dia_semana 0..3
+const CAL_MES_ABBR = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+// Lunes 00:00 (reusa lunesDeSemana). Límites de la fila SUPERIOR de la ventana:
+const calMinTop = () => lunesDeSemana(CAL_INI);                                   // semana que contiene el 1-mar
+const calMaxTop = () => { const m = lunesDeSemana(CAL_FIN); m.setDate(m.getDate() - 14); return m; }; // deja la última semana abajo
+function calClampTop(d) { const min = calMinTop(), max = calMaxTop(); const x = new Date(d); return x < min ? min : x > max ? max : x; }
+function calDefaultTop() { const t = lunesDeSemana(new Date()); t.setDate(t.getDate() - 7); return calClampTop(t); }
+
+let dashWinTop = calDefaultTop();   // lunes de la semana superior (fila 0 de las 3)
+
+function dashSemNav(dir) {
+    const n = new Date(dashWinTop); n.setDate(n.getDate() + dir * 7);
+    const c = calClampTop(n);
+    if (c.getTime() === dashWinTop.getTime()) return;   // en el límite: no hacer nada
+    dashWinTop = c;
+    renderCalSemanas();
+}
+
+function dashVolverPresente() { dashWinTop = calDefaultTop(); renderCalSemanas(); }
+
+function calRangoSemana(mon) {
+    const ju = new Date(mon); ju.setDate(mon.getDate() + 3);
+    const mismoMes = mon.getMonth() === ju.getMonth();
+    return mismoMes
+        ? `${mon.getDate()}–${ju.getDate()} ${CAL_MES_ABBR[ju.getMonth()]}`.toUpperCase()
+        : `${mon.getDate()} ${CAL_MES_ABBR[mon.getMonth()]}–${ju.getDate()} ${CAL_MES_ABBR[ju.getMonth()]}`.toUpperCase();
+}
+
+function renderCalSemanas() {
+    const cont = document.getElementById('cal-mensual');
+    if (!cont) return;
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const hoyStr = isoDate(hoy);
+    const curMon = lunesDeSemana(hoy);          // lunes de la semana actual
+    const defTop = calDefaultTop();
+
+    cont.innerHTML = '';
+    const mesesVis = new Set();
+
+    for (let i = 0; i < 3; i++) {
+        const mon = new Date(dashWinTop); mon.setDate(dashWinTop.getDate() + i * 7);
+        const offCur = Math.round((mon - curMon) / (7 * 86400000));   // 0 = semana actual
+
+        const bloque = document.createElement('div');
+        bloque.className = 'cal-sem-bloque' + (offCur === 0 ? ' actual' : '');
+
+        const lbl = document.createElement('div');
+        lbl.className = 'cal-sem-label';
+        lbl.textContent = offCur === 0 ? 'Semana en curso'
+                        : offCur === -1 ? 'Semana pasada'
+                        : offCur === 1 ? 'Semana siguiente'
+                        : calRangoSemana(mon);
+        bloque.appendChild(lbl);
+
+        const fila = document.createElement('div');
+        fila.className = 'cal-semana';
+        for (let off = 0; off < 4; off++) {          // 0=lun … 3=jue
+            const d = new Date(mon); d.setDate(mon.getDate() + off);
+            const celda = document.createElement('div');
+            const enRango = d >= CAL_INI && d <= CAL_FIN;
+            if (!enRango) {                          // semana límite: día fuera de mar–dic → hueco
+                celda.className = 'cal-celda vacia';
+                fila.appendChild(celda);
+                continue;
+            }
+            celda.className = 'cal-celda';
+            const dStr = isoDate(d);
+            mesesVis.add(d.getMonth());
+
+            const fechaEl = document.createElement('div');
+            fechaEl.className = 'cal-celda-fecha' + (dStr === hoyStr ? ' hoy' : '');
+            fechaEl.textContent = `${CAL_DIA_ABBR[off]} ${String(d.getDate()).padStart(2, '0')}`;
+            celda.appendChild(fechaEl);
+
+            (horarioDia[off] || []).forEach(h => {   // clases reales, identidad icónica, clic → Plan
+                const ctx = contextos[h.contexto_id];
+                if (!ctx) return;
+                const chip = document.createElement('div');
+                chip.className = 'cal-clase';
+                chip.textContent = ctxDisplay(ctx.nombre);
+                chip.title = ctxNombreVisible(ctx.nombre);
+                chip.addEventListener('click', () => abrirPlanEnWorkspace(h.contexto_id, dStr, ctx.nombre));
+                celda.appendChild(chip);
+            });
+
+            fila.appendChild(celda);
+        }
+        bloque.appendChild(fila);
+        cont.appendChild(bloque);
+    }
+
+    // Título: mes(es) realmente visibles (in-rango). Uno → "SEPTIEMBRE 2026";
+    // dos → "SEP – OCT 2026" (compacto) para no rotular mal el período.
+    const meses = [...mesesVis].sort((a, b) => a - b);
+    const titulo = document.getElementById('cal-titulo');
+    if (titulo) {
+        if (meses.length <= 1) {
+            const m = meses.length ? meses[0] : dashWinTop.getMonth();
+            titulo.textContent = new Date(CAL_ANIO, m, 1).toLocaleDateString('es-CL', { month: 'long' }).toUpperCase() + ' ' + CAL_ANIO;
+        } else {
+            titulo.textContent = CAL_MES_ABBR[meses[0]].toUpperCase() + ' – ' + CAL_MES_ABBR[meses[meses.length - 1]].toUpperCase() + ' ' + CAL_ANIO;
+        }
+    }
+
+    // Flechas y botón "Hoy"
+    const prev = document.getElementById('cal-prev'), next = document.getElementById('cal-next');
+    if (prev) prev.disabled = dashWinTop.getTime() <= calMinTop().getTime();
+    if (next) next.disabled = dashWinTop.getTime() >= calMaxTop().getTime();
+    const btnHoy = document.getElementById('cal-hoy');
+    if (btnHoy) btnHoy.hidden = (dashWinTop.getTime() === defTop.getTime());
+}
+
+// Navegación por rueda/touch (anti-rebote): un paso de semana por gesto.
+let calWheelLock = false;
+function initCalNav() {
+    const cont = document.getElementById('cal-mensual');
+    if (!cont || cont.dataset.navReady) return;
+    cont.dataset.navReady = '1';
+
+    cont.addEventListener('wheel', (e) => {
+        e.preventDefault();                          // no hay scroll propio del calendario
+        if (calWheelLock || Math.abs(e.deltaY) < 8) return;
+        calWheelLock = true;
+        dashSemNav(e.deltaY > 0 ? 1 : -1);           // rueda abajo → semana siguiente
+        setTimeout(() => { calWheelLock = false; }, 350);
+    }, { passive: false });
+
+    let touchY = null;
+    cont.addEventListener('touchstart', (e) => { touchY = e.touches[0].clientY; }, { passive: true });
+    cont.addEventListener('touchmove',  (e) => { if (touchY !== null) e.preventDefault(); }, { passive: false });
+    cont.addEventListener('touchend',   (e) => {
+        if (touchY === null) return;
+        const endY = (e.changedTouches[0] || {}).clientY;
+        const dy = (endY == null ? touchY : endY) - touchY;
+        touchY = null;
+        if (Math.abs(dy) < 40) return;
+        dashSemNav(dy < 0 ? 1 : -1);                 // arrastrar hacia arriba → semana siguiente
+    }, { passive: true });
+}
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD · PANEL DE PENDIENTES (Etapa 4B)
+// Resumen de pendientes activos en #dash-pend: "Generales" (contexto_id null o
+// GENERAL) + un grupo por instancia con pendientes, en el orden del sistema.
+// Solo lectura + completar. Independiente del semáforo/pendientesMap y del
+// calendario. Reutiliza la identidad global (ctxDisplay / ctxIcono).
+// ═══════════════════════════════════════════════════════════
+let pendientesDash = [];   // estado local del panel (no toca pendientesMap del semáforo)
+
+// Orden "natural del sistema": índice del nombre técnico en el mapa de identidad
+// global (contextos.js), que ya lista Primero…Octavo y luego el resto. No duplica
+// el mapa: solo lee el orden de sus claves. Fallback al final para desconocidos.
+function ordenContexto(nombre) {
+    const claves = (typeof CTX_IDENTIDAD !== 'undefined') ? Object.keys(CTX_IDENTIDAD) : [];
+    const i = claves.indexOf(String(nombre || '').toUpperCase());
+    return i === -1 ? 999 : i;
+}
+
+async function cargarPendientesDashboard() {
+    const body = document.getElementById('dash-pend-body');
+    if (!body) return;
+    body.innerHTML = '<div class="pend-vacio">Cargando…</div>';
+    const { data, error } = await sb.from('pendientes')
+        .select('id, contexto_id, sesion_id, categoria, texto, estado, fecha_captura')
+        .eq('estado', 'activo')
+        .order('fecha_captura', { ascending: false });
+    if (error) {
+        body.innerHTML = '<div class="pend-vacio">No se pudieron cargar los pendientes.</div>';
+        return;
+    }
+    pendientesDash = data || [];
+    renderPendientesDashboard();
+}
+
+function renderPendientesDashboard() {
+    const body = document.getElementById('dash-pend-body');
+    if (!body) return;
+
+    // GENERAL_ID: contexto cuyo nombre técnico es 'GENERAL' (del mapa ya cargado).
+    const gCtx = Object.values(contextos).find(c => (c.nombre || '').toUpperCase() === 'GENERAL');
+    const GENERAL_ID = gCtx ? gCtx.id : null;
+
+    // Agrupar SOLO por contexto_id. Generales = contexto_id null o === GENERAL_ID.
+    const porGrupo = new Map();   // 'GEN' | contexto_id → [pendientes]
+    pendientesDash.forEach(p => {
+        const esGen = p.contexto_id == null || p.contexto_id === GENERAL_ID;
+        const key = esGen ? 'GEN' : p.contexto_id;
+        if (!porGrupo.has(key)) porGrupo.set(key, []);
+        porGrupo.get(key).push(p);
+    });
+
+    // Los grupos SIEMPRE visibles no dependen de tener pendientes: Generales +
+    // toda instancia activa (excepto GENERAL), en el orden del sistema.
+    const instancias = Object.values(contextos)
+        .filter(c => c.id !== GENERAL_ID)
+        .sort((a, b) => ordenContexto(a.nombre) - ordenContexto(b.nombre));
+
+    body.innerHTML = '';
+    body.appendChild(buildPendGrupo('GEN', ctxIcono('GENERAL') + ' Generales', porGrupo.get('GEN') || []));
+    instancias.forEach(c => {
+        body.appendChild(buildPendGrupo(c.id, ctxDisplay(c.nombre), porGrupo.get(c.id) || []));
+    });
+}
+
+// Un grupo del panel: encabezado (identidad) + lista de pendientes, o estado
+// vacío compacto si no tiene ninguno. El grupo permanece aunque tenga 0.
+function buildPendGrupo(key, label, items) {
+    const grp = document.createElement('div');
+    grp.className = 'pend-grupo';
+    grp.dataset.grupo = key;
+
+    const hdr = document.createElement('div');
+    hdr.className = 'pend-grupo-hdr';
+    hdr.textContent = label;
+
+    if (items.length) {
+        grp.appendChild(hdr);
+        items.forEach(p => grp.appendChild(buildPendItemDash(p)));
+    } else {
+        hdr.appendChild(pendGrupoVacioEl());   // estado vacío en la misma línea del título
+        grp.appendChild(hdr);
+    }
+    return grp;
+}
+
+function pendGrupoVacioEl() {
+    // Sufijo inline del encabezado: " - no hay pendientes" (misma tipografía/color).
+    const v = document.createElement('span');
+    v.className = 'pend-grupo-vacio';
+    v.textContent = ' - no hay pendientes';
+    return v;
+}
+
+function buildPendItemDash(p) {
+    const row = document.createElement('div');
+    row.className = 'pend-item';
+    row.dataset.id = p.id;
+
+    const chk = document.createElement('button');
+    chk.className = 'pend-chk';
+    chk.title = 'Marcar como completado';
+    chk.textContent = '☐';
+    chk.addEventListener('click', () => completarPendienteDash(p.id, chk));
+
+    const txt = document.createElement('div');
+    txt.className = 'pend-txt';
+    txt.textContent = p.texto;
+
+    row.appendChild(chk);
+    row.appendChild(txt);
+    return row;
+}
+
+// Completar: actualiza Supabase; al éxito quita el ítem. El grupo PERMANECE
+// visible: si queda sin ítems, muestra un estado vacío compacto (la instancia no
+// desaparece). En error, conserva el ítem y avisa (no oculta silenciosamente).
+async function completarPendienteDash(id, btnEl) {
+    if (btnEl) btnEl.disabled = true;
+    const { error } = await sb.from('pendientes').update({ estado: 'completado' }).eq('id', id);
+    if (error) {
+        if (btnEl) btnEl.disabled = false;
+        alert('No se pudo completar el pendiente. Revisa la conexión e inténtalo de nuevo.');
+        return;
+    }
+    pendientesDash = pendientesDash.filter(p => p.id !== id);   // estado local
+    const row = document.querySelector(`.pend-item[data-id="${id}"]`);
+    const grp = row ? row.closest('.pend-grupo') : null;
+    if (row) row.remove();
+    // El grupo NO se elimina: si quedó sin ítems, mostrar el estado vacío inline
+    // en la misma línea del título.
+    if (grp && !grp.querySelector('.pend-item') && !grp.querySelector('.pend-grupo-vacio')) {
+        grp.querySelector('.pend-grupo-hdr').appendChild(pendGrupoVacioEl());
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CALENDARIO (popover legacy — conservado)
 // ═══════════════════════════════════════════════════════════
 function toggleCalendario() {
     const wrap = document.getElementById('calendario-wrap');
@@ -2219,31 +2660,8 @@ function renderDock() {
         dock.appendChild(el);
     });
 }
-document.addEventListener('DOMContentLoaded', () => {
-    renderDock();
-
-    // ── DOCK MAGNIFICACIÓN ────────────────────────────────────
-    const dock  = document.getElementById('dock');
-    if (!dock) return;
-    const items = () => dock.querySelectorAll('.dock-item:not(.disabled)');
-    const MAX_SCALE = 1.9;
-    const RADIUS    = 130;
-
-    dock.addEventListener('mousemove', e => {
-        items().forEach(item => {
-            const r    = item.getBoundingClientRect();
-            const cx   = r.left + r.width / 2;
-            const dist = Math.abs(e.clientX - cx);
-            const t    = Math.max(0, 1 - dist / RADIUS);
-            const s    = 1 + (MAX_SCALE - 1) * t * t;
-            item.style.transform = `scale(${s.toFixed(3)})`;
-        });
-    });
-
-    dock.addEventListener('mouseleave', () => {
-        items().forEach(item => item.style.transform = 'scale(1)');
-    });
-});
+// Dock retirado (obsoleto): render y magnificación eliminados. La navegación entre
+// módulos vive en las pestañas del Workspace. renderDock() queda sin invocar.
 
 const TEMAS_PIZARRA = [
     { id:'polar',   font:'system-ui,-apple-system,sans-serif', bg:'#ffffff', text:'#1a1a2e', h1:'#0f172a', h2:'#64748b', c1:'#ea580c', c2:'#2563eb', li:'#ea580c', hlBg:'#fff7ed', hlBorder:'#ea580c', hlText:'#9a3412' },
@@ -4433,7 +4851,8 @@ async function guardarMateriales() {
     </div>
 </div>
 
-<div id="dock"></div>
+<!-- Dock retirado (obsoleto): la navegación entre módulos vive en las pestañas del Workspace. -->
+
 
 <div id="qr-remoto-panel" onclick="if(event.target===this)cerrarQRRemoto()">
     <div id="qr-remoto-box">
