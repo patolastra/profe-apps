@@ -1069,7 +1069,6 @@
     <!-- Modo sesión -->
     <div id="hdr-ses">
         <div class="hdr-ses-left">
-            <button class="hdr-btn" onclick="volverDashboard()">← VOLVER</button>
             <button class="hdr-cal-btn" onclick="toggleCalendario()" title="Calendario">📅</button>
             <span id="hdr-ses-titulo"></span>
             <span id="sync-label"></span>
@@ -1258,9 +1257,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         await renderDashboard();
         await asignarPendientesHuerfanos();
         setStatus('');
-        wsTitulo('planner', 'Plan');   // rotula la pestaña del Workspace al cargar
-        const ctxParam = new URLSearchParams(location.search).get('ctx');
-        if (ctxParam) {
+        // Deep-link: ?ctx=&fecha= → MODO PLAN (abre directo esa clase, sin dashboard).
+        // Solo ?ctx= → comportamiento previo (abre la clase de hoy de ese curso).
+        const _p = new URLSearchParams(location.search);
+        const ctxParam = _p.get('ctx');
+        const fechaParam = _p.get('fecha');
+        if (ctxParam && fechaParam) {
+            const cid = cidPorNombre(ctxParam);
+            if (cid) await abrirSesion(cid, fechaParam, contextos[cid].nombre);   // MODO PLAN
+        } else if (ctxParam) {
             const spans = document.querySelectorAll('.ctx-nombre');
             for (const span of spans) {
                 if (span.dataset.nombre?.toUpperCase() === ctxParam.toUpperCase()) {
@@ -1770,7 +1775,7 @@ function buildCard(ctx, cid, fechaStr) {
             <span class="sem-dot ${tieneArr  ? 'arr-on'  : ''}" title="Arrastre"></span>
         </div>
     `;
-    card.addEventListener('click', () => abrirSesion(cid, fechaStr, ctx.nombre));
+    card.addEventListener('click', () => abrirPlanEnWorkspace(cid, fechaStr, ctx.nombre));
     return card;
 }
 
@@ -1907,7 +1912,6 @@ async function abrirSesion(cid, fechaStr, nombre) {
     const sesion = await getOrCreate(cid, fechaStr);
     sesionActual = { id: sesion.id, contexto_id: cid, fecha: fechaStr, nombre };
     logEvento('abrir_sesion', { contexto_id: cid, sesion_id: sesion.id });
-    wsTitulo('planner', `Plan: ${cursoLabel(nombre)}`);   // pestaña del Workspace → "Plan: Curso"
 
     modoTriptico = 'pres';   // vista única: el Portal siempre entra en modo pres
     aplicarModo();
@@ -1957,7 +1961,6 @@ function volverDashboard() {
     document.body.classList.remove('sesion-activa');
     document.getElementById('vista-dashboard').style.display = 'block';
     sesionActual = null;
-    wsTitulo('planner', 'Plan');   // sin curso activo → título genérico de la pestaña
 
     if (vistaOrigen === 'dia' && diaNavegado) {
         renderDia(diaNavegado.fechaStr, diaNavegado.diaSemana);
@@ -2063,6 +2066,52 @@ function cursoLabel(nombre) {
     return String(nombre || '').toLowerCase().split(/\s+/).filter(Boolean)
         .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
+
+// Resuelve el contexto_id (cid) a partir del nombre visible del contexto.
+function cidPorNombre(nombre) {
+    const up = String(nombre || '').toUpperCase();
+    for (const [cid, c] of Object.entries(contextos)) {
+        if (String(c.nombre || '').toUpperCase() === up) return cid;
+    }
+    return null;
+}
+
+// DASHBOARD → PLAN: al hacer click en una clase, pedir al Workspace que abra el
+// Plan en SU PROPIA pestaña (no togglear la vista de este iframe). Identidad de la
+// clase = contexto_id + fecha → key determinística "plan:<cid>|<fecha>". El Portal
+// abierto así arranca en modo Plan (?ctx=&fecha=). Fallback (Portal suelto o sin
+// shell): abrir la sesión aquí mismo, como antes.
+function abrirPlanEnWorkspace(cid, fechaStr, nombre) {
+    const url = `../PORTAL/index.html?ctx=${encodeURIComponent(nombre)}&fecha=${encodeURIComponent(fechaStr)}`;
+    const enviado = wsAbrir({
+        key:    `plan:${cid}|${fechaStr}`,
+        titulo: `Plan: ${cursoLabel(nombre)}`,
+        ico:    '📋',
+        src:    url,
+        guardarAlCerrar: true,
+    });
+    if (!enviado) abrirSesion(cid, fechaStr, nombre);   // fallback: Portal fuera del Workspace
+}
+
+// Guardado previo al cierre de una pestaña de Plan (invocado por el shell del
+// Workspace vía postMessage 'ws-guardar'). Reutiliza el guardado existente
+// (guardarPres + flush de la Bitácora). Devuelve true si ok, false si error real.
+async function guardarPlanParaCierre() {
+    if (!sesionActual) return true;              // nada que guardar
+    try { cerrarMemoria(); } catch (_) {}        // flush de Bitácora/tareas pendientes (idempotente)
+    await guardarPres(sesionActual.id);          // autosave existente; marca 'error' en fallo
+    return document.getElementById('sync-label')?.dataset.state !== 'error';
+}
+
+// Canal shell → Portal: solo se atiende el handshake de guardado al cerrar el Plan.
+window.addEventListener('message', (e) => {
+    if (e.source !== window.parent) return;      // solo del shell del Workspace
+    const m = e.data;
+    if (!m || m.tipo !== 'ws-guardar') return;
+    guardarPlanParaCierre().then(ok => {
+        try { window.parent.postMessage({ tipo: 'ws-guardado', reqId: m.reqId, ok }, '*'); } catch (_) {}
+    });
+});
 
 // F3 Libro de Clases: entrada desde el Portal. Portal entrega las referencias
 // (sesión, contexto, año) por URL; LIBRO NO reconstruye ni reinterpreta la sesión.

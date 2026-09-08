@@ -160,7 +160,7 @@
 // ── CATÁLOGO DE LA DEMO (solo dos apps; rutas relativas a PC/) ──────────────
 // No se lee modulos.js a propósito: es una demo autocontenida y aislada.
 const APPS = {
-    planner:    { id:'planner',    ico:'📋', titulo:'Planner',     src:'../PORTAL/index.html' },
+    dashboard:  { id:'dashboard',  ico:'📅', titulo:'Dashboard',   src:'../PORTAL/index.html' },
     repertorio: { id:'repertorio', ico:'🎵', titulo:'Repertorio',  src:'../REPERTORIO/index.html' },
     entrenador: { id:'entrenador', ico:'🏋️', titulo:'Entrenador',  src:'../REPERTORIO/index.html?vista=sesiones' },
     metalofono: { id:'metalofono', ico:'🎹', titulo:'Metalófono',  src:'../METALÓFONO APP/METAL21 (ALPHA).HTML' },
@@ -201,7 +201,10 @@ document.addEventListener('click', (e) => {
 // ── ABRIR INSTANCIA (dedupe por `key`: si ya está abierta, solo la enfoca) ──
 // Punto único de creación de pestañas. Lo usan el catálogo (+) y el canal
 // postMessage desde los iframes.
-function abrirInstancia({ key, titulo, ico, src }) {
+// `fijo`: pestaña permanente (Dashboard, Repertorio) → sin botón ×, no cerrable.
+// `guardarAlCerrar`: al cerrar, pedir al iframe que guarde antes de destruirse
+// (Planes). Ambos por defecto false.
+function abrirInstancia({ key, titulo, ico, src, fijo = false, guardarAlCerrar = false }) {
     const existente = tabs.find(t => t.key === key);
     if (existente) { activar(key); return; }
 
@@ -216,27 +219,28 @@ function abrirInstancia({ key, titulo, ico, src }) {
     iframe.setAttribute('allowfullscreen', '');
     stage.appendChild(iframe);
 
-    // pestaña (ícono ANTES del texto)
+    // pestaña (ícono ANTES del texto). Las fijas no muestran botón de cierre.
     const tabEl = document.createElement('div');
     tabEl.className = 'tab';
     tabEl.innerHTML =
         `<span class="tab-ico">${ico}</span>` +
         `<span class="tab-title"></span>` +
-        `<span class="tab-close" title="Cerrar pestaña">✕</span>`;
+        (fijo ? '' : `<span class="tab-close" title="Cerrar pestaña">✕</span>`);
     tabEl.querySelector('.tab-title').textContent = titulo;   // texto por textContent (no HTML)
     tabEl.onclick = () => activar(key);
-    tabEl.querySelector('.tab-close').onclick = (e) => { e.stopPropagation(); cerrarTab(key); };
+    const closeEl = tabEl.querySelector('.tab-close');
+    if (closeEl) closeEl.onclick = (e) => { e.stopPropagation(); cerrarTab(key); };
     tabbar.insertBefore(tabEl, document.getElementById('launcher-wrap'));
 
-    tabs.push({ key, titulo, ico, tabEl, iframeEl: iframe });
+    tabs.push({ key, titulo, ico, tabEl, iframeEl: iframe, fijo, guardarAlCerrar });
     activar(key);
 }
 
-// Abre una app del catálogo (launcher +). key = appId.
-function abrirApp(appId) {
+// Abre una app del catálogo (launcher +). key = appId. `fijo` para las iniciales.
+function abrirApp(appId, fijo = false) {
     const app = APPS[appId];
     if (!app) return;
-    abrirInstancia({ key: appId, titulo: app.titulo, ico: app.ico, src: app.src });
+    abrirInstancia({ key: appId, titulo: app.titulo, ico: app.ico, src: app.src, fijo });
 }
 
 // ── ACTIVAR (mostrar solo el iframe activo; el resto oculto pero VIVO) ──────
@@ -250,8 +254,37 @@ function activar(key) {
     empty.classList.toggle('hidden', tabs.length > 0);
 }
 
-// ── CERRAR (destruye el iframe → pierde su estado, como se espera) ──────────
-function cerrarTab(key) {
+// ── GUARDADO PREVIO AL CIERRE (handshake con el iframe) ─────────────────────
+// Pide al iframe que guarde y espera confirmación. Devuelve true si se puede
+// cerrar (ok o sin respuesta a tiempo → best-effort), false si el iframe reporta
+// un error real de guardado. Reutiliza el guardado existente de la app; no crea
+// persistencia nueva.
+const cierresPendientes = new Map();   // reqId → resolve(ok)
+let reqSeq = 0;
+function pedirGuardado(t) {
+    if (!t.iframeEl || !t.iframeEl.contentWindow) return Promise.resolve(true);
+    const reqId = 'g' + (++reqSeq);
+    return new Promise(resolve => {
+        let resuelto = false;
+        const fin = (ok) => { if (resuelto) return; resuelto = true; cierresPendientes.delete(reqId); resolve(ok); };
+        cierresPendientes.set(reqId, fin);
+        try { t.iframeEl.contentWindow.postMessage({ tipo: 'ws-guardar', reqId }, '*'); }
+        catch (_) { fin(true); return; }
+        // Tolerancia: si el iframe no responde (no es Portal, etc.), no bloquear.
+        setTimeout(() => fin(true), 4000);
+    });
+}
+
+// ── CERRAR (guarda primero si corresponde, luego destruye el iframe) ────────
+async function cerrarTab(key) {
+    const t0 = tabs.find(t => t.key === key);
+    if (!t0) return;
+    if (t0.fijo) return;                       // Dashboard/Repertorio: no cerrables
+    if (t0.guardarAlCerrar) {
+        const ok = await pedirGuardado(t0);
+        if (!ok) { alert('No se pudo guardar el Plan. La pestaña no se cerró para no perder cambios.'); return; }
+    }
+    // Reubicar por índice tras el await (la lista pudo cambiar).
     const i = tabs.findIndex(t => t.key === key);
     if (i === -1) return;
     const t = tabs[i];
@@ -279,8 +312,9 @@ function renombrarTab(key, titulo) {
 // Contrato mínimo. Seguridad: solo se aceptan mensajes cuyo `source` sea el
 // contentWindow de un iframe que ESTE shell creó (independiente del origin, por
 // lo que funciona igual en file:// y en GitHub Pages). Mensajes:
-//   { tipo:'ws-abrir',  key, titulo, ico, src }  → abre/enfoca una instancia
-//   { tipo:'ws-titulo', key, titulo }            → renombra una pestaña existente
+//   { tipo:'ws-abrir',  key, titulo, ico, src, guardarAlCerrar? } → abre/enfoca
+//   { tipo:'ws-titulo', key, titulo }             → renombra una pestaña existente
+//   { tipo:'ws-guardado', reqId, ok }             → respuesta al handshake de cierre
 window.addEventListener('message', (e) => {
     const esNuestro = tabs.some(t => t.iframeEl && t.iframeEl.contentWindow === e.source);
     if (!esNuestro) return;
@@ -293,22 +327,27 @@ window.addEventListener('message', (e) => {
             titulo: String(m.titulo || m.key),
             ico: String(m.ico || '📄'),
             src: m.src,
+            guardarAlCerrar: !!m.guardarAlCerrar,
+            // `fijo` NO se acepta por postMessage: solo las iniciales locales son fijas.
         });
     } else if (m.tipo === 'ws-titulo') {
         if (typeof m.key !== 'string') return;
         renombrarTab(m.key, String(m.titulo || ''));
+    } else if (m.tipo === 'ws-guardado') {
+        const cb = cierresPendientes.get(m.reqId);
+        if (cb) cb(m.ok !== false);
     }
 });
 
 // ── INIT ──────────────────────────────────────────────────────────────────
 renderLauncher();
 
-// Pestañas iniciales: Planner → Repertorio (Planner activa).
-// El Entrenador genérico NO se abre por defecto; sigue disponible en el (+).
-// Metalófono tampoco se abre por defecto, pero sigue disponible en el (+).
-abrirApp('planner');
-abrirApp('repertorio');
-activar('planner');
+// Pestañas iniciales PERMANENTES (no cerrables): Dashboard → Repertorio.
+// Dashboard activo. Los Planes se abren como pestañas aparte (postMessage).
+// El Entrenador genérico y Metalófono NO se abren por defecto; siguen en el (+).
+abrirApp('dashboard', true);
+abrirApp('repertorio', true);
+activar('dashboard');
 </script>
 </body>
 </html>
