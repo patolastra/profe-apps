@@ -33,8 +33,8 @@ const MODULOS_CONFIG = [
         pc:true, mobile:true, dock:true
     },
     {
-        ico:'📓', nombre:'Memoria',
-        desc:'Registrar memoria de clase',
+        ico:'✍🏼', nombre:'Bitácora',
+        desc:'Registrar bitácora de clase',
         badge:'activo', href:'MEMORIA/index.html',
         pc:false, mobile:true, dock:false
     },

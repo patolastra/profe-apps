@@ -167,8 +167,13 @@ const APPS = {
 };
 
 // ── ESTADO EN MEMORIA ───────────────────────────────────────────────────────
-const tabs = [];          // [{ appId, titulo, ico, tabEl, iframeEl }]
-let activeAppId = null;
+// Cada pestaña se identifica por una CLAVE única (`key`), no por el appId del
+// catálogo. Así pueden coexistir varias instancias del mismo tipo con distinto
+// curso (p. ej. "libro:6", "libro:7") sin que el workspace las confunda.
+//   · apps del catálogo (+)  → key = appId  ("planner", "repertorio", ...)
+//   · instancias dinámicas   → key = "libro:<ctx>", "sesion:<ctx>", etc.
+const tabs = [];          // [{ key, titulo, ico, tabEl, iframeEl }]
+let activeKey = null;
 
 const tabbar   = document.getElementById('tabbar');
 const stage    = document.getElementById('stage');
@@ -193,17 +198,16 @@ document.addEventListener('click', (e) => {
     if (!launcher.contains(e.target) && e.target !== btnAdd) cerrarLauncher();
 });
 
-// ── ABRIR APP (dedupe: si ya está abierta, solo la enfoca) ──────────────────
-function abrirApp(appId) {
-    const app = APPS[appId];
-    if (!app) return;
-
-    const existente = tabs.find(t => t.appId === appId);
-    if (existente) { activar(appId); return; }
+// ── ABRIR INSTANCIA (dedupe por `key`: si ya está abierta, solo la enfoca) ──
+// Punto único de creación de pestañas. Lo usan el catálogo (+) y el canal
+// postMessage desde los iframes.
+function abrirInstancia({ key, titulo, ico, src }) {
+    const existente = tabs.find(t => t.key === key);
+    if (existente) { activar(key); return; }
 
     // iframe persistente: se crea UNA vez y se mantiene vivo en el DOM
     const iframe = document.createElement('iframe');
-    iframe.src = encodeURI(app.src);           // codifica espacios/acentos del path
+    iframe.src = encodeURI(src);               // codifica espacios/acentos del path
     iframe.className = 'hidden';
     // Permisos inofensivos por si la app usa audio/fullscreen. No modifica la app.
     // allowfullscreen (atributo legacy) + allow="fullscreen": algunos motores exigen el
@@ -212,26 +216,34 @@ function abrirApp(appId) {
     iframe.setAttribute('allowfullscreen', '');
     stage.appendChild(iframe);
 
-    // pestaña
+    // pestaña (ícono ANTES del texto)
     const tabEl = document.createElement('div');
     tabEl.className = 'tab';
     tabEl.innerHTML =
-        `<span class="tab-ico">${app.ico}</span>` +
-        `<span class="tab-title">${app.titulo}</span>` +
+        `<span class="tab-ico">${ico}</span>` +
+        `<span class="tab-title"></span>` +
         `<span class="tab-close" title="Cerrar pestaña">✕</span>`;
-    tabEl.onclick = () => activar(appId);
-    tabEl.querySelector('.tab-close').onclick = (e) => { e.stopPropagation(); cerrarTab(appId); };
+    tabEl.querySelector('.tab-title').textContent = titulo;   // texto por textContent (no HTML)
+    tabEl.onclick = () => activar(key);
+    tabEl.querySelector('.tab-close').onclick = (e) => { e.stopPropagation(); cerrarTab(key); };
     tabbar.insertBefore(tabEl, document.getElementById('launcher-wrap'));
 
-    tabs.push({ appId, titulo: app.titulo, ico: app.ico, tabEl, iframeEl: iframe });
-    activar(appId);
+    tabs.push({ key, titulo, ico, tabEl, iframeEl: iframe });
+    activar(key);
+}
+
+// Abre una app del catálogo (launcher +). key = appId.
+function abrirApp(appId) {
+    const app = APPS[appId];
+    if (!app) return;
+    abrirInstancia({ key: appId, titulo: app.titulo, ico: app.ico, src: app.src });
 }
 
 // ── ACTIVAR (mostrar solo el iframe activo; el resto oculto pero VIVO) ──────
-function activar(appId) {
-    activeAppId = appId;
+function activar(key) {
+    activeKey = key;
     tabs.forEach(t => {
-        const on = t.appId === appId;
+        const on = t.key === key;
         t.tabEl.classList.toggle('active', on);
         t.iframeEl.classList.toggle('hidden', !on);   // display:none NO recarga el iframe
     });
@@ -239,29 +251,63 @@ function activar(appId) {
 }
 
 // ── CERRAR (destruye el iframe → pierde su estado, como se espera) ──────────
-function cerrarTab(appId) {
-    const i = tabs.findIndex(t => t.appId === appId);
+function cerrarTab(key) {
+    const i = tabs.findIndex(t => t.key === key);
     if (i === -1) return;
     const t = tabs[i];
     t.iframeEl.remove();   // destrucción real del iframe
     t.tabEl.remove();
     tabs.splice(i, 1);
 
-    if (activeAppId === appId) {
+    if (activeKey === key) {
         const siguiente = tabs[i] || tabs[i - 1] || null;
-        if (siguiente) activar(siguiente.appId);
-        else { activeAppId = null; empty.classList.remove('hidden'); }
+        if (siguiente) activar(siguiente.key);
+        else { activeKey = null; empty.classList.remove('hidden'); }
     }
 }
+
+// ── RENOMBRAR el título de una pestaña existente (p. ej. Planner → "Plan: Curso") ──
+function renombrarTab(key, titulo) {
+    const t = tabs.find(t => t.key === key);
+    if (!t) return;
+    t.titulo = titulo;
+    const el = t.tabEl.querySelector('.tab-title');
+    if (el) el.textContent = titulo;
+}
+
+// ── CANAL iframe → shell (postMessage) ──────────────────────────────────────
+// Contrato mínimo. Seguridad: solo se aceptan mensajes cuyo `source` sea el
+// contentWindow de un iframe que ESTE shell creó (independiente del origin, por
+// lo que funciona igual en file:// y en GitHub Pages). Mensajes:
+//   { tipo:'ws-abrir',  key, titulo, ico, src }  → abre/enfoca una instancia
+//   { tipo:'ws-titulo', key, titulo }            → renombra una pestaña existente
+window.addEventListener('message', (e) => {
+    const esNuestro = tabs.some(t => t.iframeEl && t.iframeEl.contentWindow === e.source);
+    if (!esNuestro) return;
+    const m = e.data;
+    if (!m || typeof m !== 'object' || typeof m.tipo !== 'string') return;
+    if (m.tipo === 'ws-abrir') {
+        if (typeof m.key !== 'string' || typeof m.src !== 'string') return;
+        abrirInstancia({
+            key: m.key,
+            titulo: String(m.titulo || m.key),
+            ico: String(m.ico || '📄'),
+            src: m.src,
+        });
+    } else if (m.tipo === 'ws-titulo') {
+        if (typeof m.key !== 'string') return;
+        renombrarTab(m.key, String(m.titulo || ''));
+    }
+});
 
 // ── INIT ──────────────────────────────────────────────────────────────────
 renderLauncher();
 
-// Pestañas iniciales: Planner → Repertorio → Entrenador (Planner activa).
-// Metalófono NO se abre por defecto, pero sigue disponible en el launcher (+).
+// Pestañas iniciales: Planner → Repertorio (Planner activa).
+// El Entrenador genérico NO se abre por defecto; sigue disponible en el (+).
+// Metalófono tampoco se abre por defecto, pero sigue disponible en el (+).
 abrirApp('planner');
 abrirApp('repertorio');
-abrirApp('entrenador');
 activar('planner');
 </script>
 </body>

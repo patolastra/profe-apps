@@ -57,7 +57,10 @@
         .hdr-cal-btn:hover { opacity: 1; }
         #header-status { font-size: 0.75rem; opacity: 0.5; margin-left: auto; }
         .hdr-ses-left  { display: flex; align-items: center; gap: 16px; flex: 1; }
-        .hdr-ses-right { display: flex; justify-content: flex-end; }
+        /* Separación clara entre cada acción (Libro · Repertorio · Bitácora · Remoto ·
+           Presentar) y un margen extra que despega el bloque de "CURSO, fecha" para que
+           el 📒 no parezca asociado al título anterior. */
+        .hdr-ses-right { display: flex; align-items: center; justify-content: flex-end; gap: 26px; margin-left: 32px; }
         #sync-label {
             font-size: 0.72rem; color: rgba(255,255,255,0.42);
             font-weight: 400; font-style: italic; white-space: nowrap;
@@ -1072,10 +1075,11 @@
             <span id="sync-label"></span>
         </div>
         <div class="hdr-ses-right">
-            <button class="hdr-btn" onclick="abrirMemoria()" title="Memoria de esta clase (texto y audios)">📓 Memoria</button>
             <button class="hdr-btn" onclick="abrirLibro()" title="Abrir el Libro de Clases de este curso">📒 Libro</button>
+            <button class="hdr-btn" onclick="abrirRepertorioCurso()" title="Abrir la sesión de Entrenador de este curso">🏋️ Repertorio</button>
+            <button class="hdr-btn" onclick="abrirMemoria()" title="Bitácora de esta clase (texto y audios)">✍🏼 Bitácora</button>
             <button class="hdr-btn" onclick="mostrarQRRemoto()" title="Abrir control remoto en celular">📱 Remoto</button>
-            <button class="hdr-btn" onclick="abrirPizarra()">PRESENTAR ↗</button>
+            <button class="hdr-btn" onclick="abrirPizarra()">📽️ Presentar</button>
         </div>
     </div>
 </div>
@@ -1163,11 +1167,11 @@
 <div id="mem-modal" onclick="if(event.target===this)cerrarMemoria()">
     <div id="mem-inner">
         <div id="mem-hdr">
-            <span id="mem-titulo">📓 Memoria de la clase</span>
+            <span id="mem-titulo">✍🏼 Bitácora de la clase</span>
             <button onclick="cerrarMemoria()">✕</button>
         </div>
         <div id="mem-audios"></div>
-        <textarea id="mem-area" placeholder="¿Qué ocurrió en esta clase? Observaciones, reflexiones, contexto...&#10;&#10;Este texto se conserva como memoria permanente de la sesión. No genera pendientes."></textarea>
+        <textarea id="mem-area" placeholder="¿Qué ocurrió en esta clase? Observaciones, reflexiones, contexto...&#10;&#10;Este texto se conserva como bitácora permanente de la sesión. No genera pendientes."></textarea>
         <div id="mem-tareas">
             <div id="mem-tareas-hdr">
                 <span>Pendientes para la próxima clase</span>
@@ -1254,6 +1258,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await renderDashboard();
         await asignarPendientesHuerfanos();
         setStatus('');
+        wsTitulo('planner', 'Plan');   // rotula la pestaña del Workspace al cargar
         const ctxParam = new URLSearchParams(location.search).get('ctx');
         if (ctxParam) {
             const spans = document.querySelectorAll('.ctx-nombre');
@@ -1902,6 +1907,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
     const sesion = await getOrCreate(cid, fechaStr);
     sesionActual = { id: sesion.id, contexto_id: cid, fecha: fechaStr, nombre };
     logEvento('abrir_sesion', { contexto_id: cid, sesion_id: sesion.id });
+    wsTitulo('planner', `Plan: ${cursoLabel(nombre)}`);   // pestaña del Workspace → "Plan: Curso"
 
     modoTriptico = 'pres';   // vista única: el Portal siempre entra en modo pres
     aplicarModo();
@@ -1951,6 +1957,7 @@ function volverDashboard() {
     document.body.classList.remove('sesion-activa');
     document.getElementById('vista-dashboard').style.display = 'block';
     sesionActual = null;
+    wsTitulo('planner', 'Plan');   // sin curso activo → título genérico de la pestaña
 
     if (vistaOrigen === 'dia' && diaNavegado) {
         renderDia(diaNavegado.fechaStr, diaNavegado.diaSemana);
@@ -2031,8 +2038,36 @@ async function cargarAnioActivo() {
     } catch (_) { /* respaldo en abrirLibro() */ }
 }
 
+// ── PUENTE CON EL SHELL DEL WORKSPACE ───────────────────────────────────────
+// El Portal puede correr dentro de un iframe del Workspace (PC/workspace.html) o
+// suelto en una pestaña de navegador. Cuando hay shell padre, se le pide abrir /
+// renombrar pestañas internas por postMessage; suelto, el llamador usa su fallback.
+function enWorkspace() {
+    try { return window.parent && window.parent !== window; } catch (_) { return false; }
+}
+// Abre (o enfoca) una pestaña interna del Workspace. Devuelve true si se envió al
+// shell; false si el Portal está suelto → el llamador aplica su fallback.
+function wsAbrir(instancia) {
+    if (!enWorkspace()) return false;
+    try { window.parent.postMessage({ tipo: 'ws-abrir', ...instancia }, '*'); return true; }
+    catch (_) { return false; }
+}
+// Renombra el título de una pestaña interna (p. ej. la del Planner). Silencioso si suelto.
+function wsTitulo(key, titulo) {
+    if (!enWorkspace()) return;
+    try { window.parent.postMessage({ tipo: 'ws-titulo', key, titulo }, '*'); } catch (_) {}
+}
+// Etiqueta de curso para títulos de pestaña ("SEXTO" → "Sexto", "KIDS CASTIGADAS" →
+// "Kids Castigadas"). Solo presentación; NO altera el nombre interno del contexto.
+function cursoLabel(nombre) {
+    return String(nombre || '').toLowerCase().split(/\s+/).filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
 // F3 Libro de Clases: entrada desde el Portal. Portal entrega las referencias
 // (sesión, contexto, año) por URL; LIBRO NO reconstruye ni reinterpreta la sesión.
+// Preferencia: pestaña INTERNA del Workspace (una por curso, clave "libro:<ctx>").
+// Fallback (Portal suelto): pestaña de navegador como antes.
 function abrirLibro() {
     if (!sesionActual) return;
     const ctx  = contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '';
@@ -2041,7 +2076,35 @@ function abrirLibro() {
     const url = `../LIBRO/index.html?sesion=${encodeURIComponent(sesionActual.id)}`
               + `&ctx=${encodeURIComponent(ctx)}`
               + `&anio=${encodeURIComponent(anio)}`;
-    window.open(url, '_blank');
+    const enviado = wsAbrir({
+        key:    `libro:${sesionActual.contexto_id}`,
+        titulo: `Libro: ${cursoLabel(ctx)}`,
+        ico:    '📒',
+        src:    url,
+    });
+    if (!enviado) window.open(url, '_blank');   // fallback: Portal fuera del Workspace
+}
+
+// Repertorio del curso: abre la SESIÓN de Entrenador concreta del curso activo
+// (entrenamientoDefaultId, ya resuelto en abrirSesion) como pestaña interna del
+// Workspace ("sesion:<ctx>"). NO abre la lista genérica de sesiones. Si el curso
+// no tiene sesión de Entrenador, avisa y no abre nada.
+function abrirRepertorioCurso() {
+    if (!sesionActual) return;
+    const ctx = contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '';
+    if (!entrenamientoDefaultId) {
+        alert(`El curso ${cursoLabel(ctx)} no tiene una sesión de Entrenador disponible.`);
+        return;
+    }
+    logEvento('abrir_repertorio_curso', { contexto_id: sesionActual.contexto_id });
+    const url = `../REPERTORIO/index.html?practicar=${encodeURIComponent(entrenamientoDefaultId)}`;
+    const enviado = wsAbrir({
+        key:    `sesion:${sesionActual.contexto_id}`,
+        titulo: `Sesión: ${cursoLabel(ctx)}`,
+        ico:    '🏋️',
+        src:    url,
+    });
+    if (!enviado) window.open(url, '_blank');   // fallback: Portal fuera del Workspace
 }
 
 function abrirPizarra() {
@@ -3726,14 +3789,14 @@ function memAudioHtml(a, i) {
     </div>`;
 }
 
-// Sección MEMORIA dentro del panel "Revisión" (clase anterior)
-function buildMemSeccion(mem, titulo = '📓 MEMORIA') {
+// Sección BITÁCORA dentro del panel "Revisión" (clase anterior)
+function buildMemSeccion(mem, titulo = '✍🏼 BITÁCORA') {
     const texto  = (mem?.contenido || '').trim();
     const audios = Array.isArray(mem?.audios) ? mem.audios : [];
     const hay    = texto || audios.length;
     const cuerpo = hay
         ? `${audios.map(memAudioHtml).join('')}${texto ? `<div class="rev-mem-texto">${escapeHtmlMem(texto)}</div>` : ''}`
-        : `<div class="vacio">Sin memoria registrada.</div>`;
+        : `<div class="vacio">Sin bitácora registrada.</div>`;
     return `
         <div class="rev-seccion">
             <div class="rev-sec-hdr${hay ? '' : ' collapsed'}" onclick="toggleRevSec(this)">
@@ -3754,7 +3817,7 @@ async function abrirMemoria() {
     logEvento('abrir_memoria');
     document.getElementById('mem-modal').classList.add('show');
     document.getElementById('mem-titulo').textContent =
-        `📓 Memoria — ${fmtTituloSesion(sesionActual.nombre, sesionActual.fecha)}`;
+        `✍🏼 Bitácora — ${fmtTituloSesion(sesionActual.nombre, sesionActual.fecha)}`;
     const area = document.getElementById('mem-area');
     area.value = '';
     document.getElementById('mem-audios').innerHTML = '';
