@@ -7,6 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
     <script src="../supabase/config.js"></script>
+    <script src="../supabase/contextos.js"></script>
     <script src="../modulos.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -1463,7 +1464,7 @@ function fmtTituloSesion(nombre, fechaStr) {
     const dia = d.toLocaleDateString('es-CL', { weekday: 'long' });
     const num = d.getDate();
     const mes = d.toLocaleDateString('es-CL', { month: 'long' });
-    return `${nombre}, ${dia} ${num} de ${mes}`;
+    return `${ctxDisplay(nombre)}, ${dia} ${num} de ${mes}`;   // identidad visible + ícono
 }
 
 // ── DIAPOSITIVA INICIAL AUTOMÁTICA ──────────────────────────
@@ -1768,7 +1769,7 @@ function buildCard(ctx, cid, fechaStr) {
     const card = document.createElement('div');
     card.className = 'ctx-card';
     card.innerHTML = `
-        <span class="ctx-nombre" data-nombre="${ctx.nombre}" title="${ctx.nombre}">${ctx.nombre}</span>
+        <span class="ctx-nombre" data-nombre="${ctx.nombre}" title="${ctxNombreVisible(ctx.nombre)}">${ctxDisplay(ctx.nombre)}</span>
         <div class="semaforo">
             <span class="sem-dot ${dotClasePlan(estadoPlan)}" title="Plan"></span>
             <span class="sem-dot ${tienePres ? 'pres-on' : ''}" title="Presentación"></span>
@@ -2060,11 +2061,10 @@ function wsTitulo(key, titulo) {
     if (!enWorkspace()) return;
     try { window.parent.postMessage({ tipo: 'ws-titulo', key, titulo }, '*'); } catch (_) {}
 }
-// Etiqueta de curso para títulos de pestaña ("SEXTO" → "Sexto", "KIDS CASTIGADAS" →
-// "Kids Castigadas"). Solo presentación; NO altera el nombre interno del contexto.
+// Nombre visible de curso, desde la identidad central (contextos.js).
+// Solo presentación; NO altera el nombre técnico del contexto.
 function cursoLabel(nombre) {
-    return String(nombre || '').toLowerCase().split(/\s+/).filter(Boolean)
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    return ctxNombreVisible(nombre);
 }
 
 // Resuelve el contexto_id (cid) a partir del nombre visible del contexto.
@@ -2085,7 +2085,7 @@ function abrirPlanEnWorkspace(cid, fechaStr, nombre) {
     const url = `../PORTAL/index.html?ctx=${encodeURIComponent(nombre)}&fecha=${encodeURIComponent(fechaStr)}`;
     const enviado = wsAbrir({
         key:    `plan:${cid}|${fechaStr}`,
-        titulo: `Plan: ${cursoLabel(nombre)}`,
+        titulo: `Plan: ${ctxDisplay(nombre)}`,
         ico:    '📋',
         src:    url,
         guardarAlCerrar: true,
@@ -2127,7 +2127,7 @@ function abrirLibro() {
               + `&anio=${encodeURIComponent(anio)}`;
     const enviado = wsAbrir({
         key:    `libro:${sesionActual.contexto_id}`,
-        titulo: `Libro: ${cursoLabel(ctx)}`,
+        titulo: `Libro: ${ctxDisplay(ctx)}`,
         ico:    '📒',
         src:    url,
     });
@@ -2149,7 +2149,7 @@ function abrirRepertorioCurso() {
     const url = `../REPERTORIO/index.html?practicar=${encodeURIComponent(entrenamientoDefaultId)}`;
     const enviado = wsAbrir({
         key:    `sesion:${sesionActual.contexto_id}`,
-        titulo: `Sesión: ${cursoLabel(ctx)}`,
+        titulo: `Sesión: ${ctxDisplay(ctx)}`,
         ico:    '🏋️',
         src:    url,
     });
@@ -3545,10 +3545,13 @@ document.getElementById('rev-resize').addEventListener('mousedown', e => {
 // ═══════════════════════════════════════════════════════════
 function ajustarNombres() {
     document.querySelectorAll('.ctx-nombre[data-nombre]').forEach(el => {
-        const nombre = el.dataset.nombre;
-        el.textContent = nombre;
-        if (el.scrollWidth > el.clientWidth && NOMBRE_CORTO[nombre]) {
-            el.textContent = NOMBRE_CORTO[nombre];
+        const nombre = el.dataset.nombre;                 // clave técnica (intacta)
+        const info = contextoInfo(nombre);
+        el.textContent = info.display;                    // identidad visible: "3️⃣ Tercero"
+        // Si no cabe, acortar el TEXTO conservando el ícono (alias corto si existe).
+        if (el.scrollWidth > el.clientWidth) {
+            const corto = NOMBRE_CORTO[nombre] || info.label;
+            el.textContent = (info.icono ? info.icono + ' ' : '') + corto;
         }
     });
 }
