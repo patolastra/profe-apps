@@ -8,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
     <script src="../supabase/config.js"></script>
     <script src="../supabase/contextos.js"></script>
-    <script src="../modulos.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -949,58 +948,6 @@
         .cheat-foot {
             margin-top: 10px; padding-top: 8px; border-top: 1px solid #334155;
             font-size: 0.7rem; color: #475569; text-align: center;
-        }
-        /* ── DOCK ── */
-        #dock {
-            position: fixed; bottom: 14px; left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255,255,255,0.22);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.45);
-            border-radius: 22px;
-            padding: 12px 20px;
-            display: flex; align-items: flex-end; gap: 12px;
-            z-index: 90;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.6) inset;
-        }
-        body.sesion-activa #dock { display: none; }
-        .dock-item {
-            display: flex; flex-direction: column; align-items: center;
-            position: relative; cursor: pointer;
-            transition: transform 0.15s cubic-bezier(.34,1.56,.64,1);
-            transform-origin: bottom center;
-            text-decoration: none;
-        }
-        .dock-item.disabled { opacity: 0.4; cursor: default; }
-        .dock-ico {
-            width: 65px; height: 65px;
-            border-radius: 16px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 2.25rem;
-            background: rgba(255,255,255,0.6);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-            transition: box-shadow 0.15s;
-            user-select: none;
-        }
-        .dock-item:hover .dock-ico {
-            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
-        }
-        .dock-label {
-            position: absolute; bottom: calc(100% + 10px);
-            background: rgba(30,41,59,0.88);
-            color: #fff; font-size: 0.72rem; font-weight: 600;
-            padding: 4px 10px; border-radius: 7px;
-            white-space: nowrap; pointer-events: none;
-            opacity: 0; transform: translateY(4px);
-            transition: opacity 0.15s, transform 0.15s;
-            font-family: system-ui, sans-serif;
-        }
-        .dock-item:hover .dock-label {
-            opacity: 1; transform: translateY(0);
-        }
-        .dock-sep {
-            width: 1px; height: 40px; align-self: center;
-            background: rgba(0,0,0,0.15); margin: 0 2px;
         }
 
         /* ── QR REMOTO ── */
@@ -2391,25 +2338,6 @@ async function getOrCreate(cid, fechaStr) {
     return nueva;
 }
 
-function volverDashboard() {
-    clearTimeout(presTimer);
-    presTimer = null;
-    if (sesionActual) guardarPres(sesionActual.id); // guardar cambios pendientes antes de salir
-    const fechaEditada = sesionActual?.fecha;
-    cerrarRevision();
-    cerrarMemoria();
-    document.querySelector('.s-col-plan').style.width = '';
-    document.getElementById('vista-sesion').classList.remove('show');
-    document.body.classList.remove('sesion-activa');
-    document.getElementById('vista-dashboard').style.display = 'block';
-    sesionActual = null;
-
-    if (vistaOrigen === 'dia' && diaNavegado) {
-        renderDia(diaNavegado.fechaStr, diaNavegado.diaSemana);
-    } else {
-        renderDashboard(fechaEditada);
-    }
-}
 
 // ═══════════════════════════════════════════════════════════
 // PRESENTACIÓN
@@ -2496,11 +2424,6 @@ function wsAbrir(instancia) {
     if (!enWorkspace()) return false;
     try { window.parent.postMessage({ tipo: 'ws-abrir', ...instancia }, '*'); return true; }
     catch (_) { return false; }
-}
-// Renombra el título de una pestaña interna (p. ej. la del Planner). Silencioso si suelto.
-function wsTitulo(key, titulo) {
-    if (!enWorkspace()) return;
-    try { window.parent.postMessage({ tipo: 'ws-titulo', key, titulo }, '*'); } catch (_) {}
 }
 // Nombre visible de curso, desde la identidad central (contextos.js).
 // Solo presentación; NO altera el nombre técnico del contexto.
@@ -2639,29 +2562,6 @@ if (false && sessionStorage.getItem('profe_auth') !== '1') {
     window.location.replace('../PC/workspace.html');
 }
 
-// ── DOCK ──────────────────────────────────────────────────
-function renderDock() {
-    const dock = document.getElementById('dock');
-    dock.innerHTML = '';
-    MODULOS_CONFIG.forEach(m => {
-        if (m.sep) return;
-        if (m.dockSep) {
-            const sep = document.createElement('div');
-            sep.className = 'dock-sep';
-            dock.appendChild(sep);
-            return;
-        }
-        if (!m.dock) return;
-        const el = m.href
-            ? Object.assign(document.createElement('a'), { className: 'dock-item', href: '../' + m.href })
-            : Object.assign(document.createElement('div'), { className: 'dock-item disabled' });
-        if (m.disabled) el.classList.add('disabled');
-        el.innerHTML = `<span class="dock-label">${m.nombre}</span><span class="dock-ico">${m.ico}</span>`;
-        dock.appendChild(el);
-    });
-}
-// Dock retirado (obsoleto): render y magnificación eliminados. La navegación entre
-// módulos vive en las pestañas del Workspace. renderDock() queda sin invocar.
 
 const TEMAS_PIZARRA = [
     { id:'polar',   font:'system-ui,-apple-system,sans-serif', bg:'#ffffff', text:'#1a1a2e', h1:'#0f172a', h2:'#64748b', c1:'#ea580c', c2:'#2563eb', li:'#ea580c', hlBg:'#fff7ed', hlBorder:'#ea580c', hlText:'#9a3412' },
