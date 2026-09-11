@@ -40,6 +40,13 @@
 
 - **F2 — Fuente de Verdad del Ecosistema.** Creación de `/CLAUDE.md` como documento normativo permanente que consolida F0/F1/F1.5. *Cerrada.*
 
+- **F3 — Revisión y Plan de Saneamiento.** *Cerrada.* Secuencia B1 (auditoría de `modulos.js`) → B2 (dependencias de lo aprobado para retiro) → B3 (dudas abiertas) → B4 (**decisiones del Autor**: D1 retirar el shell móvil antiguo, D2 retirar el legacy interno del Portal, y **Opción A** para retirar el deep-link `?ctx`-solo) → **F3.1** (definición conceptual del **Dashboard V1**: mapa temporal / punto de entrada, con los días derivados del horario real y no de una semana fija). Resultado: un plan de saneamiento **por bloques, incremental y verificable**.
+
+- **F4 — Saneamiento (ejecución controlada).** *Cerrada.* Ocho bloques, **un commit por bloque**:
+  - `bf5098b` experimentos de prueba + FICHAS · `21662ae` MIDIs de prueba (`PRUEBAS/`) · `0da22d2` A1: repunta redirects de ADMIN/Portal → Workspace · `a91f434` `PC/index.html` (lanzador PC antiguo) · `f270b7b` código muerto del Portal (dock, `volverDashboard`, `wsTitulo`) · `6bbcbd5` Dashboard y calendario legacy del Portal · `9c2be51` shell móvil legacy · `0374729` `modulos.js`.
+  - **Infraestructura:** rama **`gh-pages` eliminada** (local y remota); **default branch** de GitHub cambiada **`gh-pages → master`**; **GitHub Pages** sigue en **`master / (root)`**; `origin/HEAD → origin/master`.
+  - **Qué se preservó / qué se retiró:** `?ctx&fecha` **preservado**, `?ctx`-solo **retirado**; **SRP congelado** (en `SRP/`) **preservado e intacto**, mientras que la vieja **UI móvil de captura SRP-adjacente** embebida en `MOVIL` + su **IndexedDB `SRP_VozDB`** fueron **retiradas**; `modulos.js` **retirado sin reemplazo** (no se creó un registro central ejecutable). En conjunto: **se retiró el legacy sin rescatarlo ni reemplazarlo**, conservando las arquitecturas y funcionalidades vigentes.
+
 ---
 
-*Nota: las fechas provienen de la documentación existente (CLAUDE.md previo, notas de trabajo y Git). El detalle fino por commit no se reconstruye aquí a propósito.*
+*Nota: las fechas provienen de la documentación existente (CLAUDE.md previo, notas de trabajo y Git). Los hashes de F4 provienen del historial Git de esta etapa. El detalle fino por commit (más allá de los checkpoints de F4) no se reconstruye aquí a propósito.*

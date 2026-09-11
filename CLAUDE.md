@@ -8,7 +8,7 @@
 > - **PROPUESTA** — alternativa planteada; **no** es decisión.
 > - **PENDIENTE** — todavía sin resolver o no verificable.
 >
-> **Estado de la Fuente de Verdad:** creada en Fase 2 (2026-09-11) a partir de F0 (historia), F1 (auditoría técnica) y F1.5 (clasificación del Autor). No introduce decisiones nuevas.
+> **Estado de la Fuente de Verdad:** creada en Fase 2 (2026-09-11) a partir de F0 (historia), F1 (auditoría técnica) y F1.5 (clasificación del Autor). Consolida las decisiones aprobadas por el Autor y se actualiza cuando el estado, arquitectura, alcance o decisiones del ecosistema cambian. Actualizada tras **F3** (plan de saneamiento) y **F4** (saneamiento ejecutado, Bloques 1–8): el legacy aprobado fue **retirado**; ver `AUDITORIA/HISTORIA_HITOS.md` para el recorrido y los checkpoints.
 
 ---
 
@@ -44,7 +44,7 @@ Estado = clasificación oficial de Fase 1.5 (ver §5 para la leyenda). Detalle p
 | **CAJÓN (generador de planificación)** | Genera planificaciones `.docx`. | `CAJON/generador-planificacion.html` | 🟡 Activo pero antiguo (en uso) |
 | **ANALIZADOR** | Analítica de uso (`eventos_uso`) + análisis Gemini. | `ANALIZADOR/index.html` | 🟡 Antiguo — **visor congelado, logging activo** |
 | **SRP** | Captura voz → Gemini → pendientes. | `SRP/` | 🔵 **Congelado** (concepto + backend) |
-| **Shells antiguos** | Launcher PC clásico y shell móvil histórico. | `PC/index.html`, `MOVIL/index.html` | 🟠/🟣 **En retiro** (reemplazados) |
+| ~~Shells antiguos~~ | **Retirados en F4:** `PC/index.html` (lanzador PC clásico) eliminado; shell móvil histórico eliminado. Entrada PC = `PC/workspace.html`; móvil = `MOVIL/index.html` en **lienzo mínimo** (solo Bitácora). | — | ⚪ retirado |
 
 **Contratos y assets reales (HECHO):**
 - Lector: `tabs/index.html` es el **único** archivo oficial (no crear `index-beta`/`dev`/`2`; todo se desarrolla ahí).
@@ -89,14 +89,20 @@ Columna vertebral de la interoperabilidad. Toda app nueva debe respetarlo.
 
 **Codificación de URL (HECHO — cuidado):** al construir `iframe.src` en el Workspace, la query ya viene codificada; se codifica **solo el path** (no reencodear la query), para no romper `?ctx` con caracteres como `%` (bug de doble codificación ya corregido).
 
+**`?ctx` — mecanismo vigente (HECHO):** **`?ctx=<NOMBRE>&fecha=<YYYY-MM-DD>`** (MODO PLAN) abre directamente el Plan de esa clase en el Workspace; es el mecanismo **vigente**. La variante **`?ctx`-solo** (sin fecha, "abrir la clase de hoy del curso") era **legacy** —dependía del Dashboard de 8 días para localizar la carta del curso— y **se retiró en F4** (decisión Opción A); su único llamador era el shell móvil antiguo, también retirado.
+
 ### Los 4 conceptos centrales (HECHO)
 1. **Eje temporal:** el tiempo no es un filtro, es el eje. Todo se ancla a una **sesión** (contexto + fecha). Pendiente sin sesión → próxima clase futura del curso.
 2. **Flujo SRP ↔ Portal** (hoy en pausa por SRP congelado): SRP→Portal (captura→pendientes) y Portal→SRP (planifica→panel móvil).
 3. **Biblioteca de assets + deep linking:** assets en Storage con UUID; `?asset=uuid` (futuro).
 4. **Memoria de clase:** documento narrativo permanente de la sesión (tabla `memorias`, 1:1 con `sesiones`, audios en bucket `memorias-audio`). **No genera pendientes, no ejecuta IA.** No confundir con la Bitácora de captura de SRP. En el móvil, "Bitácora" (`MEMORIA/`) es hoy la única superficie visible.
 
-### `modulos.js` (HECHO + PENDIENTE)
-Registro de módulos leído por `PC/index.html`, el drawer de `MOVIL` y el dock del Portal — **los tres en retiro o ya muertos**; el Workspace lo ignora. Hoy es 🟠 **LEGACY** sin renderizador activo real. Su destino (promover a catálogo único del Workspace **o** retirar) queda **DIFERIDO a Fase 3**. Hasta entonces: **no actualizar sus datos ni borrarlo**.
+### Dashboard (HECHO + DECISIÓN)
+**HECHO (hoy):** el Dashboard muestra una ventana de **3 semanas** (pasada · en curso · siguiente) con **columnas fijas lun–jue** — código y datos cableados a `dia_semana` `0..3`, la semana **L-M-M-J** de este profesor —, **todas** las clases de **todos** los contextos, más un **panel de pendientes** independiente. No existe concepto de escuela ni selección/filtro de curso.
+**DECISIÓN (V1 · F3.1):** el Dashboard es el **mapa temporal y punto de entrada al trabajo** — *"¿qué ocurrió? (semana pasada) · ¿qué me toca? (semana actual) · ¿qué viene? (próxima)"* —, con las **clases reales** del profesor y sus **pendientes**, y cada clase como **trampolín** a su Plan en el Workspace. Principio: **los días y actividades emergen del horario real del profesor, no de una semana fija impuesta por el sistema** (ni L-V, ni L-M-M-J, ni constantes cableadas). Que hoy el horario sea L-M-M-J es un **rasgo local del Autor (HECHO)**, no una regla del producto. *(Decisión conceptual; no obliga a modificar el Dashboard ahora — al implementarlo, derivar los días de los datos y no del cableado `0..3`.)*
+
+### `modulos.js` (HECHO)
+Antiguo registro global de módulos (`MODULOS_CONFIG`). Ya no existe: fue **retirado en F4** (junto con `PC/index.html` y los `<script>` inertes de MOVIL y Portal). **No** se reemplazó por un registro central ejecutable, y **no** debe reutilizarse como base de uno futuro. El Workspace mantiene su propio catálogo (`const APPS`); `CLAUDE.md` es la fuente de verdad **conceptual y de gobierno** del ecosistema.
 
 ---
 
@@ -113,6 +119,7 @@ Estas son **reglas**, no recomendaciones:
 7. **Deep-linking:** respetar el protocolo del §3; no meter datos personales en la URL.
 8. **Alias de display en espacios compactos:** cuando el nombre no cabe, usar alias corto (`KIDS CASTIGADAS`→`KIDS`) en vez de truncar; `title` siempre con el nombre completo.
 9. **Antes de un cambio relevante:** consultar esta Fuente de Verdad (§ *Regla de uso*).
+10. **Reimplementar, no rescatar legacy:** una funcionalidad futura que resulte deseable se **reimplementa sobre la arquitectura vigente**; **no** se conserva código legacy únicamente como fallback.
 
 ---
 
@@ -124,10 +131,10 @@ Resumen por grupos (detalle completo en el Excel):
 
 - **🟢 Núcleo activo (conservar):** Portal/Dashboard, Workspace PC, Repertorio, Entrenador, Ritmo, Lector, Pizarra, Libro, Bitácora/Memoria, Metalófono, `contextos.js`, config Supabase, CAJÓN (planificación), ADMIN (base del futuro panel de administración), `SHELL_MINIMO` (puente móvil provisional).
 - **🔵 Conservar dormido (congelado — no desarrollar, no borrar):** SRP completo (concepto + backend, filas 6a-6e), visor de ANALIZADOR (logging sigue activo), LOOP-LAB, `import_2026` (respaldo histórico), PRESENTADOR PEDAGÓGICO (`.txt` de diseño, archivar), función **Lecciones**.
-- **🟠 No continúa (retiro aprobado, se ejecuta en Fase 4):** `PC/index.html`, shell móvil antiguo (`MOVIL` histórico), FICHAS (`walk-secuencia`), legacy del Portal (dock, dashboard 8 días, popover, bloques modo Plan), experimentos de test (`supabase/test.html`, `ritmo-demo.html`, `vexflow-test.html`, comando `/elementos`), MIDIs de prueba (`METALÓFONO APP/MIDI/PRUEBAS/`). Rama `gh-pages` → retiro **condicionado** (ver §7).
-- **⚪/diferido:** `modulos.js` (Fase 3); módulos futuros que no existen aún (§9).
+- **🟠 Retirado en F4 (ejecutado):** `modulos.js`, `PC/index.html`, shell móvil antiguo (incluida su **UI de captura SRP-adjacente** e IndexedDB `SRP_VozDB` embebidas en `MOVIL`), FICHAS (`walk-secuencia`), legacy del Portal (dock, dashboard de 8 días, popover/calendario, semáforo, deep-link `?ctx`-solo, `volverAHoy`/`volverDashboard`/`wsTitulo`), experimentos de test (`supabase/test.html`, `ritmo-demo.html`, `vexflow-test.html`, comando `/elementos`), MIDIs de prueba (`METALÓFONO APP/MIDI/PRUEBAS/`), y la rama **`gh-pages`** (local y remota).
+- **⚪/diferido:** módulos futuros que no existen aún (§9).
 
-> Regla de Fase 1.5–2: **nada se borra ni modifica todavía.** "Retiro aprobado" significa candidato a **Fase 4**, no acción inmediata.
+> **F4 ejecutó estos retiros** por bloques verificables (un commit por bloque; ver `HISTORIA_HITOS.md`). Se retiró el legacy **sin rescatarlo ni reemplazarlo**; **SRP congelado** (en `SRP/`) y todas las arquitecturas/funcionalidades **vigentes** (incl. `?ctx&fecha`) se preservaron.
 
 ---
 
@@ -135,23 +142,29 @@ Resumen por grupos (detalle completo en el Excel):
 
 Aprobadas por el Autor en Fase 1.5. Si surge motivo para reconsiderar una, **plantearla al Autor** — no cambiarla en silencio.
 
+> **Estado de ejecución:** las decisiones de retiro (2b, 2c/4f, 4a-4d, 1n/4g, 3d, 5a/5c/5d/5e) fueron **ejecutadas en F4** (Bloques 1–8); ver `HISTORIA_HITOS.md`.
+
 | # | Tema | Decisión |
 |---|---|---|
 | 1m | `contextos.js` | Activo; conservar; no candidato a limpieza. |
-| 2b | `PC/index.html` | Retirar (reemplazado por el Workspace). |
-| 2c/4f | Shell móvil antiguo | Retirar; el móvil se rehará **desde cero** conservando solo Bitácora. |
+| 1n/4g | `modulos.js` | **Retirar** en F4 (F3-B1): legacy, sin consumidores vivos (su único uso está en `PC/index.html`, también en retiro). No reutilizar como base de un futuro registro/sistema comercial. No se implementa ahora un registro ejecutable central. |
+| 2b | `PC/index.html` | **Retirar** (B4) — **tras la acción previa A1**: repuntar los redirects de ADMIN y el target legacy del Portal a `PC/workspace.html`. |
+| 2c/4f | Shell móvil antiguo | **Retirar (B4/D1):** eliminar el **código dormido** del shell móvil antiguo dentro de `MOVIL/index.html`; **conservar el archivo** como entrada móvil activa y solo el móvil vigente (Bitácora). No conservarlo como fallback. |
 | 1l/2e/6 | **SRP** | **Congelar** (concepto + backend): preservar, **no desarrollar, no integrar, no borrar**. No forma parte del desarrollo actual; se conserva deliberadamente. Podría eventualmente servir de **base/referencia para una futura nueva interfaz móvil** — **no decidido**: retomarlo requiere una **nueva decisión explícita del Autor**. Es **distinto** de la UI móvil vieja, que sí se retira (el móvil se rehace desde cero). SRP **no** está retirado ni fuera de uso: está **congelado**. |
 | 3a | ADMIN | Conservar como **base del futuro panel de administración** (escuelas/años/clases); su función de pendientes se absorbe en el Dashboard. |
 | 3b | ANALIZADOR | Congelar el visor; mantener el logging (`eventos_uso`); reevaluar como métricas de producto en V1. |
 | 3c | CAJÓN | Sumar a V1 como **motor de planificación con formatos por escuela** (plantillas); empezar por predefinidas. |
 | 3d/3e | FICHAS / Presentador | FICHAS: eliminar. Presentador Pedagógico: **archivar** (es el prompt de diseño de la Pizarra). |
 | 3f | Cuaderno MIDI | Desarrollar como **funcionalidad básica de V1**. |
-| 4a-4d | Legacy del Portal | Limpieza aprobada en F4 (cuidar `?ctx`; por partes). |
+| 4a-4d | Legacy del Portal | **Retirar (B4/D2), sin fallback.** Alcance: Dashboard de 8 días, `#grid` + constructores, tubería de datos y `pendientesMap` **exclusivos** de ese sistema, semáforo legacy, popover/calendario + su navegación + **botón 📅 de sesión**, `volverAHoy` (circuito legacy), `volverDashboard`, `wsTitulo`, Dock antiguo, y toda pieza interna exclusiva de ese legacy. Cirugía interna controlada (ver T2): 4a y las funciones muertas = bajo riesgo; el resto = excindir invocaciones vivas (init/`volverAHoy`/`asignarPendientesHuerfanos`) sin efecto visible ni sobre `?ctx`. |
 | 5a/5d/5e, 5c | Experimentos y MIDIs de prueba | Retiro aprobado en F4 (sin tocar `ritmo.js` ni los MIDIs reales). |
 | 5b | `import_2026` | Conservar como respaldo histórico. |
 | 8 | Naturaleza | Clasificación de naturaleza completa en todo el inventario. |
 | Supabase-1 | Esquema real | Exportar el esquema real de Supabase al repo (robustez pre-V1). |
 | Supabase-2 | `alumno_repertorio` | Conservar como tabla **futura** (asignar repertorio a alumnos). |
+| F4-B5b | **`?ctx`-solo** | Retirar la rama legacy de deep-link `?ctx` sin fecha (Opción A); **preservar `?ctx&fecha`** (MODO PLAN). Ejecutado en F4. |
+| F4-B6 | **Captura móvil SRP-adjacente** | Retirar la vieja UI de captura embebida en `MOVIL` (voz/foto/video + IndexedDB `SRP_VozDB`). **`SRP/` congelado NO se toca.** Ejecutado en F4. |
+| F3.1 | **Dashboard V1** | Mapa temporal y punto de entrada al trabajo (pasado reciente + presente + futuro cercano); muestra las **clases reales** + **pendientes**; cada clase = trampolín al Plan/Workspace. **Días y actividades derivados del horario real**, no de una semana fija ni de constantes (opción D). Detalle en §3. |
 | **#10** | Multi-año + multi-escuela | V1 soporta: (1) año lectivo como contexto temporal; (2) múltiples escuelas; (3) **identidad de contextos data-driven** en la tabla `contextos`, no hardcodeada. |
 | **#11** | Estructura del proyecto | **Un solo sistema.** V1 = subconjunto curado y estable; lo personal/experimental convive **marcado** (Naturaleza + flags), no en un proyecto aparte. Separación dura solo al desplegar V1 a escuelas reales; el sistema personal podrá ser "una escuela/tenant más". |
 
@@ -161,10 +174,11 @@ Aprobadas por el Autor en Fase 1.5. Si surge motivo para reconsiderar una, **pla
 
 Deliberadamente sin resolver (≠ rechazado, ≠ congelado, ≠ futuro):
 
-- **`modulos.js` (1n/4g) → Fase 3:** decidir si se **promueve** a catálogo único del Workspace o se **retira**. Hasta entonces no se actualiza ni se borra.
+- *(Resuelto: `modulos.js` (1n/4g) → **retirado en F4**; ver §3 y §6. Ya no está postergado.)*
 - **Roadmap de módulos que no existen (3g–3l):** Flauta, Huiro, Cifrado, Chords, Games, Cajón-instrumento. Criterio (ligado a **#11**): **construir y probar primero**, decidir su entrada a V1 después.
 - **SRP — congelado (no retirado):** se conserva deliberadamente; hoy **no** se desarrolla ni integra. Una eventual reutilización futura (p. ej. como base/referencia de una nueva interfaz móvil) **o** su retiro requieren una **nueva decisión explícita del Autor**. No confundir con la **UI móvil antigua**, que sí está en retiro.
-- **Rama `gh-pages`:** retiro **condicionado** a verificar antes, en GitHub, que Pages publica desde `master`. **Verificación aún no hecha.**
+- *(Resuelto en F4: verificación A2 hecha — Pages publica desde `master`; la **default branch** de GitHub se cambió `gh-pages → master`; la rama **`gh-pages` fue eliminada** (local y remota). Ver §Infraestructura y `HISTORIA_HITOS.md`.)*
+- *(Resuelto en F3.1: **Dashboard V1** = mapa temporal / punto de entrada; **días derivados del horario real** (opción D), no cableados a una semana fija. Ver §3 y §6.)*
 
 ---
 
@@ -173,16 +187,18 @@ Deliberadamente sin resolver (≠ rechazado, ≠ congelado, ≠ futuro):
 No convertir posibilidades en compromisos. Estado a hoy:
 
 - **Incluido (Sí):** Portal/Dashboard, Workspace, Repertorio, Entrenador, Ritmo, Lector, Pizarra, Libro, Bitácora/Memoria, Metalófono, `contextos.js`, config Supabase, **CAJÓN** (motor de planificación con formatos por escuela), **ADMIN** (panel de administración), **Cuaderno MIDI** (básico).
-- **Posible:** `modulos.js`, ANALIZADOR (como métricas de producto), y los módulos de roadmap (Flauta, Huiro, Cifrado+Chords, Games, Cajón-instrumento).
+- **Posible:** ANALIZADOR (como métricas de producto) y los módulos de roadmap (Flauta, Huiro, Cifrado+Chords, Games, Cajón-instrumento).
 - **Futuro:** LOOP-LAB, `alumno_repertorio`, Biblioteca Musical, editor de plantillas de planificación por escuela.
-- **Excluido:** `PC/index.html`, shells antiguos, FICHAS, legacy del Portal, experimentos de test, MIDIs de prueba.
-- **Pendiente:** SRP (**congelado**; retomar o retirar = decisión futura del Autor), `modulos.js` (F3).
+- **Excluido:** `modulos.js`, `PC/index.html`, shells antiguos, FICHAS, legacy del Portal, experimentos de test, MIDIs de prueba.
+- **Pendiente:** SRP (**congelado**; retomar o retirar = decisión futura del Autor).
 
 **Direcciones transversales de V1 (DECISIÓN):**
 - **#10 — multi-año + multi-escuela:** el sistema debe soportar que las instancias cambien por año y que existan varias escuelas, con la **identidad de contextos data-driven** (hoy `contextos.js` está hardcodeado a los 15 fijos). Impacta `seed.sql`, `?ctx`, matrícula por año y aislamiento de datos.
 - **#11 — un solo sistema (producto vs taller):** V1 es la "tienda" estable; el sistema personal del Autor es el "taller" donde se experimenta. Misma base, marcado por Naturaleza.
 
 **PENDIENTE — modelo comercial (SaaS):** Profe Apps **podría** eventualmente convertirse en un producto **SaaS** para escuelas; esa posibilidad queda **abierta como decisión futura de producto/comercial, todavía no tomada**. La arquitectura actual **no** es —ni se presenta como— una arquitectura SaaS ya definida. Si en el futuro se adoptara ese modelo, cobrarían relevancia aspectos como múltiples escuelas, aislamiento de datos, cuentas/usuarios, seguridad, conectividad intermitente en establecimientos, y persistencia/sincronización local — **ninguno** de ellos es una decisión técnica actual.
+
+En ese escenario futuro **podría** contemplarse un modelo de **cuentas, suscripciones y acceso modular** (distintos usuarios o planes con acceso a distintos módulos de Profe Apps). Si se concretara, se diseñaría **entonces** un **nuevo registro/catálogo ejecutable central** adecuado a esa arquitectura — **no** se anticipa ni se implementa ahora, y **no** se reutilizará `modulos.js` para ello. Hoy **no** existen cuentas, suscripciones, permisos ni acceso modular: nada de eso es **HECHO** ni **DECISIÓN** técnica actual. Mientras tanto, **no** se implementa un registro ejecutable central de módulos; `CLAUDE.md` es la fuente de verdad conceptual y de gobierno.
 
 ---
 
@@ -192,6 +208,8 @@ No convertir posibilidades en compromisos. Estado a hoy:
 - **Biblioteca Musical:** interfaz navegable sobre Supabase Storage (MIDIs, ejercicios, canciones).
 - **Editor de plantillas de planificación por escuela** (nivel ambicioso de CAJÓN).
 - **Asignación de repertorio a alumnos** (`alumno_repertorio`, ya con schema listo).
+- **Indicador de pendientes por clase ("semáforo") — POSIBILIDAD FUTURA:** mostrar en el Dashboard actual cuántos pendientes tiene cada clase (de un vistazo). Es una **posibilidad**, no una decisión de implementación. Si se decide, se **reimplementa sobre el Dashboard vigente**; **no** se reutiliza la implementación legacy (que se retira en F4).
+- **Multi-institución — orientación futura (POSIBILIDAD, no arquitectura actual):** un profesor podría trabajar en **más de una institución**; su Dashboard debería poder representar su **semana completa como una sola agenda de trabajo**, diferenciando el **contexto institucional** de cada actividad (p. ej. lun→Escuela A→4°, mar→Escuela B→8°), percibida como **una sola semana**, no como calendarios separados por escuela. Identificar "en qué escuela estoy hoy" y usarlo para contexto/acceso/comportamiento queda para **V2 o etapa posterior**. Encaja en la cadena futura **Usuario → institución(es) → horario real → cursos/contextos → módulos según plan/suscripción**. **HOY no existe** entidad de escuela, cuentas, planes ni acceso modular (ni HECHO ni DECISIÓN); **no** implementar ni diseñar ahora. La única exigencia para V1 (ya recogida en §3 y regla §4.10) es **no cablear supuestos** —como la semana `0..3`— que después impidan esta evolución.
 - **SRP** eventualmente retomable si la captura voz→pendientes entra al producto.
 - **Preparación V1 (Fase 5):** onboarding, cuentas, seguridad, aislamiento de datos multi-escuela, recuperación, pagos/suscripciones, privacidad, robustez multi-dispositivo. No implementar sin autorización.
 
@@ -268,7 +286,7 @@ ORIENTACIÓN·jefatura·Lun · TERCERO·curso·Lun · CUARTO·curso·Lun · CUER
 
 **Auth (HECHO):** PIN por oscuridad vía `sessionStorage`. Shells (Workspace/MOVIL) tienen auth gate; PIN = `new Date().getDate()` (día del mes) → `sessionStorage.profe_auth='1'`. Los módulos verifican ese flag. No existe tabla `usuarios`/`tokens_invitado` aún; invitados = futuro. *(Nota: el auth del Planner quedó temporalmente desactivado con `false &&` — pendiente reactivar; la seguridad unificada es trabajo de V1.)*
 
-**Deployment (HECHO):** GitHub Pages desde `master` en `https://patolastra.github.io/profe-apps/` (repo `patolastra/profe-apps`). Cada push a `master` despliega. Rama `gh-pages` = legacy (retiro condicionado, §7). El backend Python de SRP sigue pospuesto.
+**Deployment (HECHO):** GitHub Pages desde **`master / (root)`** en `https://patolastra.github.io/profe-apps/` (repo `patolastra/profe-apps`). Cada push a `master` despliega. **Default branch = `master`** (cambiada desde `gh-pages` en F4); `origin/HEAD → origin/master`. La rama `gh-pages` fue **eliminada** (local y remota) en F4. El backend Python de SRP sigue pospuesto.
 
 ---
 
@@ -278,4 +296,4 @@ ORIENTACIÓN·jefatura·Lun · TERCERO·curso·Lun · CUARTO·curso·Lun · CUER
 
 > **CLAUDE.md** → verdad oficial resumida y normativa · **Excel** → detalle del inventario y auditoría.
 
-**Documento histórico complementario:** `AUDITORIA/HISTORIA_HITOS.md` — historia conceptual del ecosistema (hitos M0–M12 + fases F0–F2). No es normativo; es contexto.
+**Documento histórico complementario:** `AUDITORIA/HISTORIA_HITOS.md` — historia conceptual del ecosistema (hitos M0–M12 + fases F0–F4). No es normativo; es contexto.
