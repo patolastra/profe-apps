@@ -8,7 +8,7 @@
 > - **PROPUESTA** — alternativa planteada; **no** es decisión.
 > - **PENDIENTE** — todavía sin resolver o no verificable.
 >
-> **Estado de la Fuente de Verdad:** creada en Fase 2 (2026-09-11) a partir de F0 (historia), F1 (auditoría técnica) y F1.5 (clasificación del Autor). Consolida las decisiones aprobadas por el Autor y se actualiza cuando el estado, arquitectura, alcance o decisiones del ecosistema cambian. Actualizada tras **F3** (plan de saneamiento) y **F4** (saneamiento ejecutado, Bloques 1–8): el legacy aprobado fue **retirado**; ver `AUDITORIA/HISTORIA_HITOS.md` para el recorrido y los checkpoints.
+> **Estado de la Fuente de Verdad:** creada en Fase 2 (2026-09-11) a partir de F0 (historia), F1 (auditoría técnica) y F1.5 (clasificación del Autor). Consolida las decisiones aprobadas por el Autor y se actualiza cuando el estado, arquitectura, alcance o decisiones del ecosistema cambian. Actualizada tras **F3** (plan de saneamiento), **F4** (saneamiento ejecutado, Bloques 1–8) y **F5** (auditoría funcional post-saneamiento, **cerrada**): el legacy aprobado fue **retirado** y el ecosistema activo se **verificó funcionalmente sin regresiones** causadas por F4. Ver `AUDITORIA/HISTORIA_HITOS.md` para el recorrido y los checkpoints.
 
 ---
 
@@ -42,7 +42,7 @@ Estado = clasificación oficial de Fase 1.5 (ver §5 para la leyenda). Detalle p
 | **Metalófono** | Herramienta pedagógica MIDI. | `METALÓFONO APP/METAL21 (ALPHA).HTML` | 🟢 Activo (estable; el rótulo "alpha" es histórico) |
 | **ADMIN** | Gestión de pendientes (CRUD, 3 vistas). | `ADMIN/index.html` | 🟡 Activo pero antiguo → **futuro panel de administración** |
 | **CAJÓN (generador de planificación)** | Genera planificaciones `.docx`. | `CAJON/generador-planificacion.html` | 🟡 Activo pero antiguo (en uso) |
-| **ANALIZADOR** | Analítica de uso (`eventos_uso`) + análisis Gemini. | `ANALIZADOR/index.html` | 🟡 Antiguo — **visor congelado, logging activo** |
+| **ANALIZADOR** | Analítica de uso (`eventos_uso`) + análisis Gemini. | `ANALIZADOR/index.html` | 🟡 Antiguo — **visor congelado**; el logging (`eventos_uso`) **hoy NO persiste** (INSERT → 401, ver §7) |
 | **SRP** | Captura voz → Gemini → pendientes. | `SRP/` | 🔵 **Congelado** (concepto + backend) |
 | ~~Shells antiguos~~ | **Retirados en F4:** `PC/index.html` (lanzador PC clásico) eliminado; shell móvil histórico eliminado. Entrada PC = `PC/workspace.html`; móvil = `MOVIL/index.html` en **lienzo mínimo** (solo Bitácora). | — | ⚪ retirado |
 
@@ -130,7 +130,7 @@ Estas son **reglas**, no recomendaciones:
 Resumen por grupos (detalle completo en el Excel):
 
 - **🟢 Núcleo activo (conservar):** Portal/Dashboard, Workspace PC, Repertorio, Entrenador, Ritmo, Lector, Pizarra, Libro, Bitácora/Memoria, Metalófono, `contextos.js`, config Supabase, CAJÓN (planificación), ADMIN (base del futuro panel de administración), `SHELL_MINIMO` (puente móvil provisional).
-- **🔵 Conservar dormido (congelado — no desarrollar, no borrar):** SRP completo (concepto + backend, filas 6a-6e), visor de ANALIZADOR (logging sigue activo), LOOP-LAB, `import_2026` (respaldo histórico), PRESENTADOR PEDAGÓGICO (`.txt` de diseño, archivar), función **Lecciones**.
+- **🔵 Conservar dormido (congelado — no desarrollar, no borrar):** SRP completo (concepto + backend, filas 6a-6e), visor de ANALIZADOR (logging postergado; eventos_uso no persiste actualmente), LOOP-LAB, `import_2026` (respaldo histórico), PRESENTADOR PEDAGÓGICO (`.txt` de diseño, archivar), función **Lecciones**.
 - **🟠 Retirado en F4 (ejecutado):** `modulos.js`, `PC/index.html`, shell móvil antiguo (incluida su **UI de captura SRP-adjacente** e IndexedDB `SRP_VozDB` embebidas en `MOVIL`), FICHAS (`walk-secuencia`), legacy del Portal (dock, dashboard de 8 días, popover/calendario, semáforo, deep-link `?ctx`-solo, `volverAHoy`/`volverDashboard`/`wsTitulo`), experimentos de test (`supabase/test.html`, `ritmo-demo.html`, `vexflow-test.html`, comando `/elementos`), MIDIs de prueba (`METALÓFONO APP/MIDI/PRUEBAS/`), y la rama **`gh-pages`** (local y remota).
 - **⚪/diferido:** módulos futuros que no existen aún (§9).
 
@@ -177,6 +177,7 @@ Deliberadamente sin resolver (≠ rechazado, ≠ congelado, ≠ futuro):
 - *(Resuelto: `modulos.js` (1n/4g) → **retirado en F4**; ver §3 y §6. Ya no está postergado.)*
 - **Roadmap de módulos que no existen (3g–3l):** Flauta, Huiro, Cifrado, Chords, Games, Cajón-instrumento. Criterio (ligado a **#11**): **construir y probar primero**, decidir su entrada a V1 después.
 - **SRP — congelado (no retirado):** se conserva deliberadamente; hoy **no** se desarrolla ni integra. Una eventual reutilización futura (p. ej. como base/referencia de una nueva interfaz móvil) **o** su retiro requieren una **nueva decisión explícita del Autor**. No confundir con la **UI móvil antigua**, que sí está en retiro.
+- **`eventos_uso` — el logging no persiste (F5):** **HECHO** verificado en la auditoría F5 — el `INSERT` en `eventos_uso` (vía `logEvento` del Portal) devuelve **401**, por lo que el registro de uso **no se guarda**. **No bloqueante** y **preexistente** (NO causado por F4). **DECISIÓN del Autor:** se desea que el logging funcione en el futuro, pero su **causa exacta y corrección quedan postergadas** (no se toca Supabase/RLS/permisos ahora), **junto con** la corrección de la contradicción documental (secciones que aún describan el logging como funcionando). **PENDIENTE técnico.**
 - *(Resuelto en F4: verificación A2 hecha — Pages publica desde `master`; la **default branch** de GitHub se cambió `gh-pages → master`; la rama **`gh-pages` fue eliminada** (local y remota). Ver §Infraestructura y `HISTORIA_HITOS.md`.)*
 - *(Resuelto en F3.1: **Dashboard V1** = mapa temporal / punto de entrada; **días derivados del horario real** (opción D), no cableados a una semana fija. Ver §3 y §6.)*
 
@@ -211,7 +212,7 @@ En ese escenario futuro **podría** contemplarse un modelo de **cuentas, suscrip
 - **Indicador de pendientes por clase ("semáforo") — POSIBILIDAD FUTURA:** mostrar en el Dashboard actual cuántos pendientes tiene cada clase (de un vistazo). Es una **posibilidad**, no una decisión de implementación. Si se decide, se **reimplementa sobre el Dashboard vigente**; **no** se reutiliza la implementación legacy (que se retira en F4).
 - **Multi-institución — orientación futura (POSIBILIDAD, no arquitectura actual):** un profesor podría trabajar en **más de una institución**; su Dashboard debería poder representar su **semana completa como una sola agenda de trabajo**, diferenciando el **contexto institucional** de cada actividad (p. ej. lun→Escuela A→4°, mar→Escuela B→8°), percibida como **una sola semana**, no como calendarios separados por escuela. Identificar "en qué escuela estoy hoy" y usarlo para contexto/acceso/comportamiento queda para **V2 o etapa posterior**. Encaja en la cadena futura **Usuario → institución(es) → horario real → cursos/contextos → módulos según plan/suscripción**. **HOY no existe** entidad de escuela, cuentas, planes ni acceso modular (ni HECHO ni DECISIÓN); **no** implementar ni diseñar ahora. La única exigencia para V1 (ya recogida en §3 y regla §4.10) es **no cablear supuestos** —como la semana `0..3`— que después impidan esta evolución.
 - **SRP** eventualmente retomable si la captura voz→pendientes entra al producto.
-- **Preparación V1 (Fase 5):** onboarding, cuentas, seguridad, aislamiento de datos multi-escuela, recuperación, pagos/suscripciones, privacidad, robustez multi-dispositivo. No implementar sin autorización.
+- **Preparación V1 (Fase 6):** onboarding, cuentas, seguridad, aislamiento de datos multi-escuela, recuperación, pagos/suscripciones, privacidad, robustez multi-dispositivo. No implementar sin autorización.
 
 ---
 
@@ -279,7 +280,7 @@ Actualizar este documento cuando un trabajo modifique significativamente: arquit
 **Supabase (compartida por todas las apps) — HECHO:** la configuración y las credenciales están en **`supabase/config.js`** (se incluye con `<script src="../supabase/config.js">` desde cualquier app). La anon key es pública (va en el frontend); la secret key nunca va al navegador. No exponer credenciales en la documentación.
 Archivos en `supabase/`: `config.js` (credenciales), `schema.sql` (DDL base), `seed.sql` (15 contextos + horario), `contextos.js` (identidad visible), `libro_schema.sql`. **PENDIENTE (Supabase-1):** el esquema **real** (varias tablas con DDL no versionado, además de RLS/RPC/triggers) sólo vive en Supabase; exportarlo al repo.
 
-**Tablas principales (HECHO):** `contextos`, `horario`, `sesiones`, `pendientes`, `plan_sesion_items`, `presentaciones`, `memorias`, `materiales_contexto` (activa; `pendientes_materiales` es legacy oculto), `repertorio_*`, `lecciones`/`leccion_items` (función congelada), `alumnos_taller`, `alumno_tabs`/`alumno_tab_secciones`, `tab_mensajes_alumno`, `lector_particulares`, `practica_log`, `eventos_uso` (logging activo), `libro_*` (14 tablas, `libro_schema.sql` versionado), `sesiones_srp` (registros históricos; SRP congelado —conservar datos—), `alumno_repertorio` (futura, sin uso aún). Detalle en el Excel, hoja SUPABASE.
+**Tablas principales (HECHO):** `contextos`, `horario`, `sesiones`, `pendientes`, `plan_sesion_items`, `presentaciones`, `memorias`, `materiales_contexto` (activa; `pendientes_materiales` es legacy oculto), `repertorio_*`, `lecciones`/`leccion_items` (función congelada), `alumnos_taller`, `alumno_tabs`/`alumno_tab_secciones`, `tab_mensajes_alumno`, `lector_particulares`, `practica_log`, `eventos_uso` (logging **hoy NO persiste** — INSERT → 401, verificado en F5; pendiente §7), `libro_*` (14 tablas, `libro_schema.sql` versionado), `sesiones_srp` (registros históricos; SRP congelado —conservar datos—), `alumno_repertorio` (futura, sin uso aún). Detalle en el Excel, hoja SUPABASE.
 
 **Los 15 contextos (HECHO — hoy fijos; DECISIÓN #10: pasarán a data-driven):**
 ORIENTACIÓN·jefatura·Lun · TERCERO·curso·Lun · CUARTO·curso·Lun · CUERDAS·taller·Lun · ENLACE·jefatura·Mar · SEXTO·curso·Mar · RECREO·recreo·Mar · QUINTO·curso·Mar · PRIMERO·curso·Mié · SEGUNDO·curso·Jue · SEPTIMO·curso·Jue · KIDS CASTIGADAS·taller·Jue · OCTAVO·curso·Jue · CASTIGADAS·taller·Jue · GENERAL·virtual. Jefatura actual: 8° (cambia año a año). Alias compacto: `KIDS CASTIGADAS`→`KIDS`.

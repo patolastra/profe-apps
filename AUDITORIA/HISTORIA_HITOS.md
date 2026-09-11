@@ -1,6 +1,6 @@
 # Historia de Hitos — Ecosistema Profe Apps
 
-> Historia **conceptual** (no una crónica commit por commit). Recoge los grandes hitos identificados durante F0/F1/F1.5/F2. Documento **complementario y no normativo**: la fuente de verdad es `/CLAUDE.md`. Donde un detalle no puede comprobarse con los antecedentes existentes, se omite o se marca como *no verificable*.
+> Historia **conceptual** (no una crónica commit por commit). Recoge los grandes hitos identificados durante F0–F5. Documento **complementario y no normativo**: la fuente de verdad es `/CLAUDE.md`. Donde un detalle no puede comprobarse con los antecedentes existentes, se omite o se marca como *no verificable*.
 
 ## Hitos de desarrollo
 
@@ -46,6 +46,8 @@
   - `bf5098b` experimentos de prueba + FICHAS · `21662ae` MIDIs de prueba (`PRUEBAS/`) · `0da22d2` A1: repunta redirects de ADMIN/Portal → Workspace · `a91f434` `PC/index.html` (lanzador PC antiguo) · `f270b7b` código muerto del Portal (dock, `volverDashboard`, `wsTitulo`) · `6bbcbd5` Dashboard y calendario legacy del Portal · `9c2be51` shell móvil legacy · `0374729` `modulos.js`.
   - **Infraestructura:** rama **`gh-pages` eliminada** (local y remota); **default branch** de GitHub cambiada **`gh-pages → master`**; **GitHub Pages** sigue en **`master / (root)`**; `origin/HEAD → origin/master`.
   - **Qué se preservó / qué se retiró:** `?ctx&fecha` **preservado**, `?ctx`-solo **retirado**; **SRP congelado** (en `SRP/`) **preservado e intacto**, mientras que la vieja **UI móvil de captura SRP-adjacente** embebida en `MOVIL` + su **IndexedDB `SRP_VozDB`** fueron **retiradas**; `modulos.js` **retirado sin reemplazo** (no se creó un registro central ejecutable). En conjunto: **se retiró el legacy sin rescatarlo ni reemplazarlo**, conservando las arquitecturas y funcionalidades vigentes.
+
+- **F5 — Auditoría Funcional Post-Saneamiento.** *Cerrada.* Dos rondas de comprobación funcional **en vivo** del ecosistema activo tras F4: el núcleo (Workspace/entrada/auth, Portal → Dashboard y Plan, MOVIL lienzo, redirect A1 ADMIN→Workspace, Repertorio) y, en la segunda ronda, **Pizarra, Libro, CAJÓN, Metalófono, ANALIZADOR y Lector**. **No se detectaron regresiones atribuibles a F4**; 0 referencias de código a lo retirado; sintaxis correcta. Se limpiaron los comentarios stale (`c5cf14c`, `fabe299`). Único hallazgo **postergado**: `eventos_uso` (el `INSERT` devuelve 401 → el logging no persiste; **no bloqueante, preexistente, no causado por F4**) — queda como pendiente técnico futuro, junto con la contradicción documental asociada. **Con F5 cerrada, las Fases 0–5 de la GRAN ETAPA quedan cerradas; la siguiente etapa es F6 — Preparación V1.**
 
 ---
 
