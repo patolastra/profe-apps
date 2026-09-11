@@ -298,3 +298,5 @@ ORIENTACIÓN·jefatura·Lun · TERCERO·curso·Lun · CUARTO·curso·Lun · CUER
 > **CLAUDE.md** → verdad oficial resumida y normativa · **Excel** → detalle del inventario y auditoría.
 
 **Documento histórico complementario:** `AUDITORIA/HISTORIA_HITOS.md` — historia conceptual del ecosistema (hitos M0–M12 + fases F0–F4). No es normativo; es contexto.
+
+**Documento de trabajo conceptual de F6:** `AUDITORIA/BOSQUEJO_CONCEPTUAL_V1.txt` — registra la **definición conceptual preliminar de V1** elaborada por el Autor durante F6 (Preparación V1). Es **complementario y NO normativo**: **no** reemplaza a `CLAUDE.md` como Fuente de Verdad. Sus **hipótesis** y aspectos **provisionales** **no** deben interpretarse automáticamente como decisiones aprobadas; una definición o hipótesis del bosquejo se convierte en DECISIÓN solo por decisión explícita del Autor registrada en este documento.
