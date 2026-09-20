@@ -916,3 +916,213 @@ DROP TRIGGER IF EXISTS trg_libro_nota_grupo_terminado_congela ON libro_evaluacio
 CREATE TRIGGER trg_libro_nota_grupo_terminado_congela
     BEFORE UPDATE ON libro_evaluacion_notas
     FOR EACH ROW EXECUTE FUNCTION libro_nota_grupo_terminado_congela();
+
+
+-- ============================================================
+-- LIBRO DE CLASES — F6 (desarrollo paralelo): INSTRUMENTOS DE EVALUACIÓN
+-- Rúbricas y Listas de Cotejo — ETAPA 1: esquema base (aditivo)
+-- ============================================================
+-- Fuente funcional: AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md
+-- Decisiones del PO: AUDITORIA/INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md §0
+--   · Objetivos = Opción A (instrumento_id en el OA original y en cada adecuación).
+--   · Instrumento por estudiante = 4a (override individual en las notas).
+--   · Nota persistida + estados Pendiente/Evaluado/No aplica (5a/5c).
+--   · Conversión/recálculo, PDF, bloqueo/congelado de cierre, y la
+--     reconciliación de población / cambio de I13 = ETAPAS POSTERIORES (aquí NO).
+--
+-- ALCANCE ETAPA 1 (estricto): SOLO estructura de datos + integridad estructural
+-- "mismo ámbito" (análoga a I9). Aditivo e idempotente. NO incluye UI, ni cálculo
+-- de nota, ni recálculo por piso, ni bloqueo/congelado de cierre, ni la
+-- reconciliación de población (todo eso = etapas 2..7).
+--
+-- COMPATIBILIDAD: ninguna estructura existente cambia de significado. Las
+-- columnas nuevas son NULL o tienen DEFAULT; una evaluación TRADICIONAL (sin
+-- instrumentos) se comporta EXACTAMENTE como hoy. Nada lee estas columnas aún
+-- (la UI llega en etapas posteriores). En particular `estado_eval` queda INERTE
+-- en esta etapa (su uso — bloqueo de cierre, No aplica — es Etapa 5).
+--
+-- Se ejecuta UNA vez en el SQL Editor de Supabase (la anon key no ejecuta DDL
+-- por REST). Idempotente: re-ejecutable sin romper nada.
+--
+-- Nota técnica menor (sin impacto de producto): las descripciones de los 4
+-- niveles de rúbrica se guardan como columnas desc_n1..desc_n4 (Opción 1a); en
+-- listas de cotejo quedan NULL (el ítem se responde Sí/No = 2/1).
+-- ============================================================
+
+-- ── PLANTILLAS (independientes de las evaluaciones) ─────────
+CREATE TABLE IF NOT EXISTS libro_instrumento_plantillas (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tipo        TEXT NOT NULL CHECK (tipo IN ('rubrica','cotejo')),
+    nombre      TEXT NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS libro_plantilla_items (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    plantilla_id  UUID NOT NULL REFERENCES libro_instrumento_plantillas(id) ON DELETE CASCADE,
+    orden         INT  NOT NULL DEFAULT 0,
+    texto         TEXT NOT NULL,            -- rúbrica: criterio · cotejo: ítem
+    desc_n1       TEXT,                     -- rúbrica nivel 1 "Por lograr" · cotejo: NULL
+    desc_n2       TEXT,                     -- rúbrica nivel 2 "Medianamente logrado"
+    desc_n3       TEXT,                     -- rúbrica nivel 3 "Logrado"
+    desc_n4       TEXT,                     -- rúbrica nivel 4 "Logrado con distinción"
+    created_at    TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_libro_plantilla_items_plantilla ON libro_plantilla_items (plantilla_id);
+
+-- ── INSTRUMENTO APLICADO (copia independiente DENTRO de la evaluación) ──
+-- origen_plantilla_id es trazabilidad NO vinculante: cambiar/borrar la plantilla
+-- original nunca afecta a este instrumento ya copiado (spec §A3).
+CREATE TABLE IF NOT EXISTS libro_eval_instrumentos (
+    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    evaluacion_id        UUID NOT NULL REFERENCES libro_evaluaciones(id) ON DELETE CASCADE,
+    tipo                 TEXT NOT NULL CHECK (tipo IN ('rubrica','cotejo')),
+    nombre               TEXT NOT NULL,
+    origen_plantilla_id  UUID REFERENCES libro_instrumento_plantillas(id) ON DELETE SET NULL,
+    created_at           TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_libro_eval_instrumentos_eval ON libro_eval_instrumentos (evaluacion_id);
+
+CREATE TABLE IF NOT EXISTS libro_eval_instrumento_items (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    instrumento_id UUID NOT NULL REFERENCES libro_eval_instrumentos(id) ON DELETE CASCADE,
+    orden          INT  NOT NULL DEFAULT 0,
+    texto          TEXT NOT NULL,
+    desc_n1        TEXT,
+    desc_n2        TEXT,
+    desc_n3        TEXT,
+    desc_n4        TEXT,
+    created_at     TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_libro_eval_instr_items_instr ON libro_eval_instrumento_items (instrumento_id);
+
+-- ── COLUMNAS ADITIVAS EN ESTRUCTURAS EXISTENTES ────────────
+-- Piso configurable por evaluación (spec §A1): 2.0–6.9, por defecto 2.0.
+ALTER TABLE libro_evaluaciones
+    ADD COLUMN IF NOT EXISTS nota_min NUMERIC(2,1) NOT NULL DEFAULT 2.0
+        CHECK (nota_min >= 2.0 AND nota_min <= 6.9);
+-- OA original (Opción A): su instrumento se asocia en la cabecera.
+ALTER TABLE libro_evaluaciones
+    ADD COLUMN IF NOT EXISTS instrumento_id UUID REFERENCES libro_eval_instrumentos(id) ON DELETE SET NULL;
+
+-- Cada adecuación (Opción A): su propio instrumento.
+ALTER TABLE libro_evaluacion_adecuaciones
+    ADD COLUMN IF NOT EXISTS instrumento_id UUID REFERENCES libro_eval_instrumentos(id) ON DELETE SET NULL;
+
+-- Detalle por estudiante: override de instrumento (4a; NULL = hereda del OA/adec.)
+-- + estado por estudiante (5c). estado_eval INERTE en Etapa 1 (uso = Etapa 5).
+ALTER TABLE libro_evaluacion_notas
+    ADD COLUMN IF NOT EXISTS instrumento_id UUID REFERENCES libro_eval_instrumentos(id) ON DELETE SET NULL;
+ALTER TABLE libro_evaluacion_notas
+    ADD COLUMN IF NOT EXISTS estado_eval TEXT NOT NULL DEFAULT 'pendiente'
+        CHECK (estado_eval IN ('pendiente','evaluado','no_aplica'));
+
+-- ── RESULTADO POR ÍTEM Y POR ESTUDIANTE ────────────────────
+-- valor: rúbrica 1..4 · cotejo 1..2 (No=1, Sí=2). Un valor por (estudiante, ítem).
+CREATE TABLE IF NOT EXISTS libro_eval_resultados (
+    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nota_id              UUID NOT NULL REFERENCES libro_evaluacion_notas(id) ON DELETE CASCADE,
+    instrumento_item_id  UUID NOT NULL REFERENCES libro_eval_instrumento_items(id) ON DELETE CASCADE,
+    valor                INT  NOT NULL CHECK (valor BETWEEN 1 AND 4),
+    created_at           TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (nota_id, instrumento_item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_libro_eval_resultados_nota ON libro_eval_resultados (nota_id);
+CREATE INDEX IF NOT EXISTS idx_libro_eval_resultados_item ON libro_eval_resultados (instrumento_item_id);
+
+-- ── INTEGRIDAD ESTRUCTURAL "MISMO ÁMBITO" (análoga a I9) ────
+-- Un instrumento asociado a un OA/adecuación/nota debe pertenecer a la MISMA
+-- evaluación; un resultado une una nota y un ítem de la MISMA evaluación.
+CREATE OR REPLACE FUNCTION libro_instr_eval(p_instr UUID)
+RETURNS UUID AS $$
+    SELECT evaluacion_id FROM libro_eval_instrumentos WHERE id = p_instr;
+$$ LANGUAGE sql STABLE;
+
+CREATE OR REPLACE FUNCTION libro_eval_instr_misma_eval()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.instrumento_id IS NOT NULL
+       AND libro_instr_eval(NEW.instrumento_id) IS DISTINCT FROM NEW.id THEN
+        RAISE EXCEPTION 'Instrumento % no pertenece a la evaluación %', NEW.instrumento_id, NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_libro_eval_instr_misma_eval ON libro_evaluaciones;
+CREATE TRIGGER trg_libro_eval_instr_misma_eval
+    BEFORE INSERT OR UPDATE OF instrumento_id ON libro_evaluaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_eval_instr_misma_eval();
+
+CREATE OR REPLACE FUNCTION libro_adec_instr_misma_eval()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.instrumento_id IS NOT NULL
+       AND libro_instr_eval(NEW.instrumento_id) IS DISTINCT FROM NEW.evaluacion_id THEN
+        RAISE EXCEPTION 'Instrumento % no pertenece a la evaluación % de la adecuación', NEW.instrumento_id, NEW.evaluacion_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_libro_adec_instr_misma_eval ON libro_evaluacion_adecuaciones;
+CREATE TRIGGER trg_libro_adec_instr_misma_eval
+    BEFORE INSERT OR UPDATE OF instrumento_id ON libro_evaluacion_adecuaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_adec_instr_misma_eval();
+
+CREATE OR REPLACE FUNCTION libro_nota_instr_misma_eval()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.instrumento_id IS NOT NULL
+       AND libro_instr_eval(NEW.instrumento_id) IS DISTINCT FROM NEW.evaluacion_id THEN
+        RAISE EXCEPTION 'Instrumento % no pertenece a la evaluación % de la nota', NEW.instrumento_id, NEW.evaluacion_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_libro_nota_instr_misma_eval ON libro_evaluacion_notas;
+CREATE TRIGGER trg_libro_nota_instr_misma_eval
+    BEFORE INSERT OR UPDATE OF instrumento_id ON libro_evaluacion_notas
+    FOR EACH ROW EXECUTE FUNCTION libro_nota_instr_misma_eval();
+
+CREATE OR REPLACE FUNCTION libro_resultado_misma_eval()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_eval_nota UUID;
+    v_eval_item UUID;
+BEGIN
+    SELECT evaluacion_id INTO v_eval_nota FROM libro_evaluacion_notas WHERE id = NEW.nota_id;
+    SELECT i.evaluacion_id INTO v_eval_item
+        FROM libro_eval_instrumento_items it
+        JOIN libro_eval_instrumentos i ON i.id = it.instrumento_id
+        WHERE it.id = NEW.instrumento_item_id;
+    IF v_eval_nota IS DISTINCT FROM v_eval_item THEN
+        RAISE EXCEPTION 'Resultado inconsistente: nota (eval %) e ítem (eval %) no son de la misma evaluación', v_eval_nota, v_eval_item;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_libro_resultado_misma_eval ON libro_eval_resultados;
+CREATE TRIGGER trg_libro_resultado_misma_eval
+    BEFORE INSERT OR UPDATE OF nota_id, instrumento_item_id ON libro_eval_resultados
+    FOR EACH ROW EXECUTE FUNCTION libro_resultado_misma_eval();
+
+-- ── ROW LEVEL SECURITY (patrón acceso_total del ecosistema) ──
+ALTER TABLE libro_instrumento_plantillas    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE libro_plantilla_items           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE libro_eval_instrumentos         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE libro_eval_instrumento_items    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE libro_eval_resultados           ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "acceso_total" ON libro_instrumento_plantillas;
+DROP POLICY IF EXISTS "acceso_total" ON libro_plantilla_items;
+DROP POLICY IF EXISTS "acceso_total" ON libro_eval_instrumentos;
+DROP POLICY IF EXISTS "acceso_total" ON libro_eval_instrumento_items;
+DROP POLICY IF EXISTS "acceso_total" ON libro_eval_resultados;
+
+CREATE POLICY "acceso_total" ON libro_instrumento_plantillas    FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acceso_total" ON libro_plantilla_items           FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acceso_total" ON libro_eval_instrumentos         FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acceso_total" ON libro_eval_instrumento_items    FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "acceso_total" ON libro_eval_resultados           FOR ALL USING (true) WITH CHECK (true);
+-- ============================================================
+-- FIN — Instrumentos de Evaluación · Etapa 1 (esquema base)
+-- ============================================================

@@ -129,11 +129,17 @@ posterior/"no aplica" y su efecto en el cierre; congelado al cerrar + reapertura
 pool previo + asignación y creación **in situ**; dos **PDF Carta** con identidad
 institucional (hardcode permitido ahora, personalizable en V1.0). **Especificación
 completa en `AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md`.**
-**Estado:** propuesto — **especificación funcional aprobada por Producto**;
-**auditoría técnica realizada** (`INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md`); **las
-6 decisiones técnicas + la identidad/encabezado institucional + el criterio de cierre
-fueron resueltas por el PO (2026-09-20): NO quedan decisiones de Producto pendientes**;
-**implementación NO autorizada aún**.
+**Estado:** en desarrollo — spec aprobada + auditoría técnica + decisiones del PO
+cerradas (NO quedan decisiones de Producto pendientes); **implementación autorizada por
+el PO (2026-09-20), por etapas**. **Etapa 1 (esquema base) implementada en código**
+(`supabase/libro_schema.sql`, sección "F6 … ETAPA 1"): 5 tablas nuevas
+(`libro_instrumento_plantillas`, `libro_plantilla_items`, `libro_eval_instrumentos`,
+`libro_eval_instrumento_items`, `libro_eval_resultados`), columnas aditivas (`nota_min`,
+`instrumento_id` en evaluaciones/adecuaciones/notas, `estado_eval`), integridad "mismo
+ámbito" y RLS; aditivo e idempotente. **Pendiente: ejecutar el DDL en el SQL Editor de
+Supabase** (este entorno no ejecuta DDL) y la prueba en vivo posterior. **Etapas 2–7 NO
+iniciadas.** Registro detallado en `INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md`
+("Registro de implementación — Etapa 1").
 **Identidad institucional del PDF (PO):** escuela *Escuela Juana de Lestonnac*;
 sostenedor *Servicio Local de Educación Pública Los Parques*; **logos** se adjuntarán a
 Claude (pendiente de recibir). El **encabezado institucional** debe **repetirse en todas

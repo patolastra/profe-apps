@@ -353,10 +353,11 @@ Claves de compatibilidad:
 
 - **Etapa 0 — Decisiones técnicas del PO. ✅ CERRADA (2026-09-20).** Las 6 opciones de
   §6 resueltas (ver §0). *Sin código.*
-- **Etapa 1 — Esquema base (aditivo).** Plantillas + instrumentos aplicados + items +
-  resultados + `nota_min` + estado por estudiante (según decisiones). *Sin UII.*
-  Depende de: E0. Prueba: el `.sql` aplica idempotente; evaluaciones existentes intactas
-  (consulta de regresión).
+- **Etapa 1 — Esquema base (aditivo). 🟡 IMPLEMENTADA EN CÓDIGO (2026-09-20); pendiente
+  de ejecución en Supabase.** Plantillas + instrumentos aplicados + items + resultados +
+  `nota_min` + estado por estudiante + integridad "mismo ámbito". *Sin UI.* Ver
+  "Registro de implementación — Etapa 1" al final. Depende de: E0. Prueba: el `.sql`
+  aplica idempotente; evaluaciones existentes intactas (consulta de regresión).
 - **Etapa 2 — Sección Plantillas (CRUD).** Crear/nombrar/editar/duplicar/eliminar/listar
   rúbricas y cotejos (§A3), independiente de evaluaciones. Depende de: E1. Prueba:
   E2E de CRUD; verificar que borrar una plantilla no afecta nada más.
@@ -450,8 +451,53 @@ resta solo esto:
 las descripciones de los 4 niveles de rúbrica (Opción 1a columnas vs 1b tabla hija,
 §4.1) — sin impacto de producto.
 
-## Cierre de la etapa
-Auditoría, decisiones del PO (§0) y propuesta por etapas **actualizadas**. **Nada
-implementado, sin cambios de código/SQL, sin migraciones, línea no cerrada.** Siguiente
-paso (a autorizar por el PO): **autorizar la implementación por etapas (§7)**, partiendo
-por la Etapa 1 (esquema base aditivo), previa autorización de los cambios en Supabase.
+## Cierre de la etapa (auditoría)
+Auditoría, decisiones del PO (§0) y propuesta por etapas **actualizadas**. Implementación
+autorizada por el PO (2026-09-20), **por etapas**, comenzando por la Etapa 1.
+
+---
+
+## Registro de implementación — Etapa 1 (esquema base) · 2026-09-20
+
+**Autorización:** PO, sobre el checkpoint `44a0052`. Alcance ejecutado = **solo Etapa 1**
+(esquema base aditivo). Sin UI, sin cálculo, sin cierre/congelado, sin cambio de I13.
+
+**Qué se implementó (en `supabase/libro_schema.sql`, sección "F6 … ETAPA 1"):**
+- **Tablas nuevas (5):** `libro_instrumento_plantillas`, `libro_plantilla_items`,
+  `libro_eval_instrumentos`, `libro_eval_instrumento_items`, `libro_eval_resultados`.
+- **Columnas aditivas:** `libro_evaluaciones.nota_min` (NUMERIC(2,1), CHECK 2.0–6.9,
+  DEFAULT 2.0) y `.instrumento_id`; `libro_evaluacion_adecuaciones.instrumento_id`;
+  `libro_evaluacion_notas.instrumento_id` (override 4a) y `.estado_eval`
+  ('pendiente'|'evaluado'|'no_aplica', DEFAULT 'pendiente', **inerte** en esta etapa).
+- **Integridad estructural "mismo ámbito"** (análoga a I9): triggers que verifican que un
+  `instrumento_id` asociado a OA/adecuación/nota pertenezca a la misma evaluación, y que
+  un resultado una nota e ítem de la misma evaluación. Helper `libro_instr_eval`.
+- **RLS `acceso_total`** en las 5 tablas (patrón del ecosistema). DDL **aditivo e
+  idempotente** (`IF NOT EXISTS` / `CREATE OR REPLACE` / `DROP … IF EXISTS`).
+
+**Decisiones reflejadas:** Objetivos A, instrumento por estudiante 4a, estados 5c,
+`nota_min` (piso) 5a-preparado. Descripciones de niveles de rúbrica = columnas
+`desc_n1..desc_n4` (Opción 1a; detalle técnico menor, sin impacto de producto).
+
+**Fuera de alcance (etapas posteriores), NO tocado en Etapa 1:** cálculo puntaje→nota y
+recálculo por piso (E4); reconciliación de población / cambio efectivo de **I13** (E5);
+bloqueo y congelado de cierre (E5); grupos↔instrumentos (E6); PDFs (E7); toda la UI.
+**I13 no se modificó**: la sección de invariantes del esquema sigue como está; su cambio
+ocurrirá en la Etapa 5 (población), como estaba previsto.
+
+**Verificación realizada (estática):** balance de bloques `$$` (10 = 5 funciones), 5
+tablas / 5 columnas / 5 funciones / 4 triggers / 5 políticas RLS; orden correcto de la
+FK circular (`libro_eval_instrumentos` se crea antes de referenciarla desde
+`libro_evaluaciones`); todo `IF NOT EXISTS` (re-ejecutable). **Regresión de lo tradicional
+(razonada):** no se tocó código de aplicación; las columnas nuevas son NULL o con DEFAULT
+y **ninguna consulta actual las usa** (los `SELECT`/`INSERT`/`upsert` del Libro nombran
+columnas explícitas), por lo que una evaluación tradicional se comporta igual tras aplicar.
+
+**Límite de ejecución (importante):** este entorno **no puede ejecutar DDL** contra
+Supabase (la anon key no ejecuta DDL; el esquema se corre en el **SQL Editor de
+Supabase**, como indica el propio `libro_schema.sql`). Por lo tanto la migración quedó
+**escrita y verificada estáticamente**, pero **su ejecución en la base la debe correr el
+PO** en el SQL Editor. La prueba en vivo (aplica idempotente + regresión funcional del
+Libro) se realizará **después** de esa ejecución; puedo guiarla/verificarla cuando el PO
+la aplique. **No hay decisiones de Producto nuevas pendientes por esto** (es un límite de
+acceso, no un cambio de alcance).
