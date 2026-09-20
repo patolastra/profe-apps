@@ -361,10 +361,10 @@ Claves de compatibilidad:
 - **Etapa 2 — Sección Plantillas (CRUD). ✅ IMPLEMENTADA Y VERIFICADA EN VIVO
   (2026-09-20).** Crear/nombrar/editar/duplicar/eliminar/listar rúbricas y cotejos (§A3),
   independiente de evaluaciones. Ver "Registro de implementación — Etapa 2" al final.
-- **Etapa 3 — Objetivos + instrumento + carga de plantilla (copia).** Piso por eval;
-  asociar instrumento a OA/adecuación; cargar plantilla como **copia independiente**
-  (§A3/§A5/§A11 pool). Depende de: E1. Prueba: modificar la plantilla original tras
-  cargarla y verificar que la eval no cambia.
+- **Etapa 3 — Objetivos + instrumento + carga de plantilla (copia). ✅ IMPLEMENTADA Y
+  VERIFICADA EN VIVO (2026-09-20).** Piso por eval; asociar instrumento a OA/adecuación;
+  cargar plantilla como **copia independiente**; pool (§A3/§A5/§A11). Ver "Registro de
+  implementación — Etapa 3" al final.
 - **Etapa 4 — Aplicación por estudiante + cálculo.** Completar instrumento; puntaje y
   nota **en vivo**; guardado **parcial**; recálculo al cambiar **piso** (§A1/§A8/§A9).
   Depende de: E3. Prueba: casos de conversión y redondeo (incl. mín=máx, 1 criterio);
@@ -575,3 +575,54 @@ altas sucesivas producen ítems distintos con `orden` 0 y 1.
 **No surgieron decisiones de Producto nuevas.** **CLAUDE.md:** sin cambios (la Etapa 2 no
 introduce regla normativa permanente; es CRUD de una funcionalidad en desarrollo).
 **Etapas 3–7 NO iniciadas.**
+
+---
+
+## Registro de implementación — Etapa 3 (Objetivos + instrumento + plantilla + piso + pool) · 2026-09-20
+
+**Autorización:** PO, sobre los checkpoints Etapa 1 `253982b` y Etapa 2 `6471ded`.
+Alcance = asociación OA/adecuación→instrumento, carga de plantilla como copia
+independiente, piso de nota (config, sin cálculo), y pool. **Sin** cálculo/puntajes,
+resultados por criterio, estados en funcionamiento, reglas de estudiantes, cierre,
+congelamiento, grupos, PDF ni móvil.
+
+**Qué se implementó (todo en `LIBRO/index.html`, en la vista de detalle de evaluación;
+usa el esquema de Etapa 1):**
+- **Card "Instrumentos de evaluación"** (nueva, entre Cabecera y Grupos), visible en la
+  evaluación; controles habilitados solo si la evaluación está abierta (cerrada = solo
+  lectura).
+- **Piso de nota** (`nota_min`): input numérico 2,0–6,9 (def. 2,0), persistido con
+  validación (`guardarPiso`). **Solo configuración** — el cálculo llega en Etapa 4.
+- **Instrumentos de esta evaluación (pool):** cargar una **plantilla** (global) como
+  **copia independiente** dentro de la evaluación (`cargarPlantillaEnEval`: crea
+  `libro_eval_instrumentos` + copia de `libro_eval_instrumento_items`, con
+  `origen_plantilla_id` como trazabilidad no vinculante); listar con "Ver" (estructura
+  read-only: rúbrica 4 niveles / cotejo Sí-No) y "Quitar" (`quitarInstrAplicado`).
+- **Objetivo → instrumento:** por **OA original** (`asociarInstrOA` →
+  `libro_evaluaciones.instrumento_id`, Opción A) y por **cada adecuación**
+  (`asociarInstrAdec` → `libro_evaluacion_adecuaciones.instrumento_id`, Opción A). Un
+  mismo instrumento puede asignarse a varios objetivos (reutilización).
+- Carga retrocompatible en `abrirDetalle` (`recargarInstrumentos`, degrada a [] si el
+  esquema no está); refresco de asociaciones al agregar una adecuación.
+- CSS `.instr-ver`/`.instr-desc`.
+
+**Pruebas realizadas (E2E navegador + persistencia REST, 2026-09-20):**
+- **Piso:** fijar 4,0 → persistido (`nota_min=4.0`); rango 2,0–6,9 validado. ✅
+- **Cargar plantilla:** creó instrumento aplicado copia ("E3 Rubrica base") con su
+  criterio "Ritmo" y descripciones; `origen_plantilla_id` registrado. ✅
+- **Asociación:** OA→instrumento y Adec 1→**mismo** instrumento (reutilización); Adec
+  2/3 sin instrumento. ✅
+- **Independencia (clave):** editar el criterio de la **plantilla original** ("Ritmo
+  (EDITADO EN ORIGINAL)"/"cambiado") **no** alteró el instrumento **aplicado** (siguió
+  "Ritmo"/"Impreciso"). ✅
+- **Quitar (SET NULL):** eliminar el instrumento aplicado dejó en `null` el
+  `instrumento_id` del OA y de todas las adecuaciones (comportamiento de "Quitar"; el
+  `confirm()` nativo se auto-descarta en la automatización, así que se validó vía el
+  mismo endpoint). ✅
+- **Regresión tradicional:** la evaluación "prueba" (cabecera, adecuaciones, grupos, 24
+  estudiantes, "Objetivo aplicado" por estudiante, guardar notas 1,0–7,0) sigue igual;
+  **0 errores de consola**. Datos de prueba **limpiados**: eval restaurada a
+  `nota_min=2.0` sin instrumentos; 0 plantillas; 0 ítems huérfanos. ✅
+
+**No surgieron decisiones de Producto nuevas.** **CLAUDE.md:** sin cambios (Etapa 3 no
+introduce regla normativa permanente). **Etapas 4–7 NO iniciadas.**

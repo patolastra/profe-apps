@@ -112,6 +112,8 @@
   .pl-item{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;background:rgba(255,255,255,.02)}
   .pl-niveles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px;padding-left:28px}
   .pl-niveles label{font-size:11px;color:var(--mut)}
+  .instr-ver{margin:6px 0 0 28px}
+  .instr-desc{font-size:12px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:6px;padding:4px 6px;min-height:20px}
   /* Filas de actividad abierta: MISMO lenguaje visual que .fila-ok (fondo tintado
      + barra-acento a la izquierda), tintadas por categoría. Fila completa clickeable. */
   .eval-item.cat-eval{background:rgba(76,175,80,.14);border-color:rgba(76,175,80,.35);box-shadow:inset 3px 0 0 var(--acc)}
@@ -337,6 +339,9 @@ let evalActual = null;     // cabecera cargada en detalle
 let adecs = [];            // adecuaciones de la evaluación abierta
 let notas = [];            // filas de detalle (con estudiante embebido) — nota/adecuacion_id EFECTIVOS
 let grupos = [];           // grupos de trabajo de la evaluación (capa de herencia)
+let evalInstrumentos = []; // Etapa 3: instrumentos aplicados (copias) de la evaluación abierta
+let evalInstrItems = [];   // Etapa 3: ítems/criterios de esos instrumentos aplicados
+let instrVerId = null;     // Etapa 3: id del instrumento aplicado expandido (solo lectura)
 let grupoSelIds = new Set(); // selección provisional en la lista de disponibles (UI, no persiste)
 let evalModalCtx = null;   // { tipo:'grupo', gid } | { tipo:'indiv', notaId } — modal de evaluación
 let posMap = {};           // estudiante_id -> posición (orden)
@@ -663,6 +668,8 @@ async function abrirDetalle(evId){
     posMap = {}; (cm.data || []).forEach(m => { posMap[m.estudiante_id] = m.posicion; });
     notas = (cn.data || []).slice();
     ordenarNotas();   // orden según el modo activo (oficial 1–N por defecto)
+    await recargarInstrumentos();   // Etapa 3: instrumentos aplicados (retrocompatible → [])
+    instrVerId = null;
   } catch (e) {
     v.innerHTML = '<div class="card"></div>';
     msg('No se pudo cargar la evaluación: ' + e.message);
@@ -730,6 +737,8 @@ function renderDetalle(){
       </div>
     </div>
 
+    ${instrCardHTML(cerrada)}
+
     ${notas.length ? gruposCardHTML() : ''}
 
     <div class="card">
@@ -761,6 +770,8 @@ function renderDetalle(){
         <span class="hint">Escala 1,0–7,0. "7"→7,0 · "65"→6,5. Vacío = sin nota.</span>
       </div>`) : '<p class="hint">Esta evaluación no materializó estudiantes (no había matrículas activas en la fecha).</p>'}
     </div>`;
+
+  bindInstrCard();   // Etapa 3: piso + carga de plantilla + asociaciones
 
   // Bind edición en memoria (solo si está abierta). Para estudiantes EN GRUPO,
   // editar nota/objetivo crea una excepción individual y se persiste de inmediato
@@ -863,6 +874,7 @@ async function agregarAdecuacion(){
       sel.appendChild(opt);
     });
     inp.value = '';
+    renderInstrCard();   // Etapa 3: la nueva adecuación aparece en "Objetivo → instrumento"
     window.scrollTo(0, scrollY0);   // restaurar posición exacta
     toast('Guardado correctamente', 'ok');
   } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
@@ -1783,6 +1795,196 @@ async function eliminarPlantilla(id){
 }
 
 function volverPlantillas(){ limpiarMsg(); renderPlantillasLista(); }
+
+// ══════════════════════════════════════════════════════════════
+// INSTRUMENTOS EN LA EVALUACIÓN — Etapa 3
+// Asociar OA/adecuación → instrumento, cargar plantilla (copia INDEPENDIENTE),
+// configurar el piso de nota (nota_min) y preparar el pool. SIN cálculo de
+// notas, SIN resultados por criterio, SIN estados ni cierre (etapas 4+).
+// Opera sobre una evaluación ABIERTA; cerrada = solo lectura (controles disabled).
+// ══════════════════════════════════════════════════════════════
+async function recargarInstrumentos(){
+  try {
+    const ins = await sb.from('libro_eval_instrumentos').select('*')
+      .eq('evaluacion_id', evalActual.id).order('created_at', { ascending: true });
+    evalInstrumentos = ins.error ? [] : (ins.data || []);
+    if (evalInstrumentos.length) {
+      const its = await sb.from('libro_eval_instrumento_items').select('*')
+        .in('instrumento_id', evalInstrumentos.map(i => i.id))
+        .order('orden', { ascending: true }).order('created_at', { ascending: true });
+      evalInstrItems = its.error ? [] : (its.data || []);
+    } else evalInstrItems = [];
+  } catch (_) { evalInstrumentos = []; evalInstrItems = []; }
+}
+
+function instrItemsDe(instrId){ return evalInstrItems.filter(x => x.instrumento_id === instrId); }
+
+// Estructura read-only de un instrumento aplicado (para "Ver").
+function instrEstructuraHTML(instr){
+  const items = instrItemsDe(instr.id);
+  if (!items.length) return '<p class="hint" style="margin:6px 0 0 28px">Sin criterios/ítems.</p>';
+  if (instr.tipo === 'rubrica') {
+    return '<div class="instr-ver">' + items.map((it, idx) =>
+      `<div class="pl-item"><div class="row" style="gap:8px"><span class="ix">${idx + 1}</span><b>${esc(it.texto)}</b></div>
+        <div class="pl-niveles">${PL_NIVELES.map(([k, lab, n]) =>
+          `<div><label>${lab} (${n})</label><div class="instr-desc">${esc(it[k] || '—')}</div></div>`).join('')}</div>
+      </div>`).join('') + '</div>';
+  }
+  return '<div class="instr-ver">' + items.map((it, idx) =>
+    `<div class="pl-item"><div class="row" style="gap:8px"><span class="ix">${idx + 1}</span><span>${esc(it.texto)}</span>
+      <span class="meta">· Sí = 2 / No = 1</span></div></div>`).join('') + '</div>';
+}
+
+function instrCardHTML(cerrada){
+  const dis = cerrada ? 'disabled' : '';
+  const piso = (evalActual.nota_min != null ? evalActual.nota_min : 2.0);
+  const optInstr = (sel) => `<option value=""${!sel ? ' selected' : ''}>(sin instrumento)</option>` +
+    evalInstrumentos.map(i => `<option value="${i.id}"${sel === i.id ? ' selected' : ''}>${esc(i.nombre)} · ${plTipoLabel(i.tipo)}</option>`).join('');
+
+  const lista = evalInstrumentos.length ? evalInstrumentos.map(i => {
+    const n = instrItemsDe(i.id).length;
+    const abierto = instrVerId === i.id;
+    return `<div class="eval-item" style="flex-wrap:wrap">
+        <div style="flex:1;min-width:180px"><b>${esc(i.nombre)}</b> <span class="meta">· ${plTipoLabel(i.tipo)} · ${n} ${i.tipo === 'rubrica' ? 'criterios' : 'ítems'}</span></div>
+        <div class="row" style="gap:6px">
+          <button class="btn mini" onclick="verInstrAplicado('${i.id}')">${abierto ? 'Ocultar' : 'Ver'}</button>
+          ${cerrada ? '' : `<button class="btn mini danger" onclick="quitarInstrAplicado('${i.id}')">Quitar</button>`}
+        </div>
+        ${abierto ? `<div style="flex-basis:100%">${instrEstructuraHTML(i)}</div>` : ''}
+      </div>`;
+  }).join('') : '<p class="hint">Aún no hay instrumentos en esta evaluación.</p>';
+
+  const filaAsoc = (label, sel, onchange) =>
+    `<div class="row" style="gap:8px;align-items:center;margin:6px 0">
+       <div style="flex:1">${label}</div>
+       <select ${dis} onchange="${onchange}" style="max-width:340px">${optInstr(sel)}</select>
+     </div>`;
+  let asoc = filaAsoc(`<b>OA original</b>${evalActual.oa_original ? ` <span class="meta">${esc(evalActual.oa_original)}</span>` : ''}`,
+    evalActual.instrumento_id || '', 'asociarInstrOA(this.value)');
+  asoc += adecs.map((a, i) => filaAsoc(`Adec ${i + 1}: <span class="meta">${esc(a.texto)}</span>`,
+    a.instrumento_id || '', `asociarInstrAdec('${a.id}',this.value)`)).join('');
+
+  return `<div class="card" id="instr-card">
+      <p class="sec-title">Instrumentos de evaluación</p>
+      <div class="grid2">
+        <div><label>Piso de nota (mínimo)</label>
+          <input id="d-nota-min" type="number" min="2.0" max="6.9" step="0.1" value="${piso}" ${dis}></div>
+        <div style="align-self:end"><p class="hint" style="margin:0">Entre 2,0 y 6,9 (por defecto 2,0). El cálculo de la nota con este piso llega en la próxima etapa.</p></div>
+      </div>
+      <div class="subsec">
+        <label style="margin-bottom:8px">Instrumentos de esta evaluación (${evalInstrumentos.length})</label>
+        <div id="instr-lista">${lista}</div>
+        ${cerrada ? '' : `<div class="row" style="margin-top:10px;gap:8px">
+          <select id="instr-plantilla-sel" style="max-width:340px"><option value="">— elegir plantilla —</option></select>
+          <button class="btn" onclick="cargarPlantillaEnEval()">Cargar plantilla</button>
+        </div>`}
+      </div>
+      <div class="subsec">
+        <label style="margin-bottom:8px">Objetivo → instrumento</label>
+        ${asoc}
+      </div>
+    </div>`;
+}
+
+function renderInstrCard(){
+  const card = document.getElementById('instr-card');
+  if (!card) return;
+  const cerrada = evalActual.estado === 'cerrado';
+  card.outerHTML = instrCardHTML(cerrada);
+  bindInstrCard();
+}
+
+async function bindInstrCard(){
+  const min = document.getElementById('d-nota-min');
+  if (min) min.addEventListener('change', guardarPiso);
+  const sel = document.getElementById('instr-plantilla-sel');
+  if (sel) {
+    try { await cargarPlantillas(); } catch (_) {}
+    sel.innerHTML = '<option value="">— elegir plantilla —</option>' +
+      plantillas.map(p => `<option value="${p.id}">${esc(p.nombre)} · ${plTipoLabel(p.tipo)}</option>`).join('');
+  }
+}
+
+async function guardarPiso(){
+  const el = document.getElementById('d-nota-min');
+  const prev = (evalActual.nota_min != null ? evalActual.nota_min : 2.0);
+  let v = parseFloat(String(el.value).replace(',', '.'));
+  if (isNaN(v)) { toast('Piso inválido.', 'err'); el.value = prev; return; }
+  v = Math.round(v * 10) / 10;
+  if (v < 2.0 || v > 6.9) { toast('El piso debe estar entre 2,0 y 6,9.', 'err'); el.value = prev; return; }
+  try {
+    const { error } = await sb.from('libro_evaluaciones').update({ nota_min: v }).eq('id', evalActual.id);
+    if (error) throw error;
+    evalActual.nota_min = v; el.value = v;
+    toast('Piso guardado.', 'ok');
+  } catch (e) { el.value = prev; toast('No se pudo guardar el piso: ' + e.message, 'err'); }
+}
+
+async function asociarInstrOA(val){
+  const instrumento_id = val || null;
+  try {
+    const { error } = await sb.from('libro_evaluaciones').update({ instrumento_id }).eq('id', evalActual.id);
+    if (error) throw error;
+    evalActual.instrumento_id = instrumento_id;
+    toast('Instrumento del OA actualizado.', 'ok');
+  } catch (e) { toast('No se pudo asociar: ' + e.message, 'err'); renderInstrCard(); }
+}
+
+async function asociarInstrAdec(id, val){
+  const instrumento_id = val || null;
+  try {
+    const { error } = await sb.from('libro_evaluacion_adecuaciones').update({ instrumento_id }).eq('id', id);
+    if (error) throw error;
+    const a = adecs.find(x => x.id === id); if (a) a.instrumento_id = instrumento_id;
+    toast('Instrumento de la adecuación actualizado.', 'ok');
+  } catch (e) { toast('No se pudo asociar: ' + e.message, 'err'); renderInstrCard(); }
+}
+
+async function cargarPlantillaEnEval(){
+  const sel = document.getElementById('instr-plantilla-sel');
+  const pid = sel ? sel.value : '';
+  if (!pid) { toast('Elige una plantilla.', 'err'); return; }
+  try {
+    const [cp, ci] = await Promise.all([
+      sb.from('libro_instrumento_plantillas').select('*').eq('id', pid).single(),
+      sb.from('libro_plantilla_items').select('*').eq('plantilla_id', pid)
+        .order('orden', { ascending: true }).order('created_at', { ascending: true }),
+    ]);
+    if (cp.error) throw cp.error;
+    if (ci.error) throw ci.error;
+    const { data: instr, error: ei } = await sb.from('libro_eval_instrumentos')
+      .insert({ evaluacion_id: evalActual.id, tipo: cp.data.tipo, nombre: cp.data.nombre, origen_plantilla_id: pid })
+      .select('*').single();
+    if (ei) throw ei;
+    const items = (ci.data || []).map(it => ({
+      instrumento_id: instr.id, orden: it.orden, texto: it.texto,
+      desc_n1: it.desc_n1, desc_n2: it.desc_n2, desc_n3: it.desc_n3, desc_n4: it.desc_n4,
+    }));
+    if (items.length) {
+      const { error: eit } = await sb.from('libro_eval_instrumento_items').insert(items);
+      if (eit) { await sb.from('libro_eval_instrumentos').delete().eq('id', instr.id); throw eit; }
+    }
+    toast('Instrumento cargado (copia independiente).', 'ok');
+    await recargarInstrumentos();
+    renderInstrCard();
+  } catch (e) { toast('No se pudo cargar la plantilla: ' + e.message, 'err'); }
+}
+
+async function quitarInstrAplicado(id){
+  if (!confirm('¿Quitar este instrumento de la evaluación? Las asociaciones que lo usaban quedarán sin instrumento.')) return;
+  try {
+    const { error } = await sb.from('libro_eval_instrumentos').delete().eq('id', id);
+    if (error) throw error;
+    if (evalActual.instrumento_id === id) evalActual.instrumento_id = null;   // reflejar ON DELETE SET NULL
+    adecs.forEach(a => { if (a.instrumento_id === id) a.instrumento_id = null; });
+    if (instrVerId === id) instrVerId = null;
+    toast('Instrumento quitado.', 'ok');
+    await recargarInstrumentos();
+    renderInstrCard();
+  } catch (e) { toast('No se pudo quitar: ' + e.message, 'err'); }
+}
+
+function verInstrAplicado(id){ instrVerId = (instrVerId === id ? null : id); renderInstrCard(); }
 
 // ══════════════════════════════════════════════════════════════
 // MATRÍCULA (curso): lista única activos+retirados, ingresar/retirar/reingresar.

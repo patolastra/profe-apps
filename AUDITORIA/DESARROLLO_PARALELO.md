@@ -143,9 +143,15 @@ y verificada en vivo (2026-09-20)** en `LIBRO/index.html`: crear/editar/duplicar
 listar plantillas (rúbrica 4 niveles / cotejo Sí-No), acceso desde el panel del curso,
 copia independiente al duplicar; incluye una corrección de robustez en el alta de ítems
 (guard de reentrada). Sin regresión en evaluaciones tradicionales; datos de prueba
-limpiados. **Etapas 3–7 NO iniciadas.** Registro detallado en
-`INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación — Etapa 1"
-y "— Etapa 2").
+limpiados. **Etapa 3 (Objetivos+instrumento+plantilla+piso+pool) implementada y
+verificada en vivo (2026-09-20)** en `LIBRO/index.html`: card "Instrumentos de
+evaluación" en el detalle (evaluación abierta); asociar OA/adecuación→instrumento
+(Opción A), cargar plantilla como **copia independiente** (verificado: editar la original
+no altera la aplicada), configurar el **piso** (`nota_min`, sin cálculo aún), pool y
+"Quitar" (ON DELETE SET NULL). Sin regresión en evaluaciones tradicionales; datos de
+prueba limpiados. **Etapas 4–7 NO iniciadas.** Registro detallado en
+`INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación — Etapa 1",
+"— Etapa 2" y "— Etapa 3").
 **Identidad institucional del PDF (PO):** escuela *Escuela Juana de Lestonnac*;
 sostenedor *Servicio Local de Educación Pública Los Parques*; **logos** se adjuntarán a
 Claude (pendiente de recibir). El **encabezado institucional** debe **repetirse en todas
