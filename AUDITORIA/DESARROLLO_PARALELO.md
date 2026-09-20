@@ -108,5 +108,56 @@ todos los campos. Mantener las entradas en orden cronológico bajo "Entradas".
 
 ## Entradas
 
-*(Sin entradas todavía. La primera se agregará cuando comience un desarrollo
-paralelo.)*
+### Desarrollo paralelo: Instrumentos de Evaluación — Rúbricas y Listas de Cotejo (Libro de Clases)
+
+**Fecha:** 2026-09-20
+**Necesidad profesional que lo origina:** el profesor necesita evaluar con
+**instrumentos formales** (rúbricas y listas de cotejo) que **generen la nota
+automáticamente** a partir del puntaje, aplicarlos digitalmente por estudiante y por
+grupo (con excepciones y adecuaciones), y producir **informes PDF para UTP** (uno
+previo que informa cómo se evaluará y otro de resultados). Producto lo define como
+**vital para V1.0** del Bosquejo Conceptual.
+**Funcionalidad desarrollada:** especificación funcional cerrada por Producto (14
+puntos): conversión puntaje→nota con piso configurable por evaluación (2,0–6,9; def.
+2,0; máx 7,0) y redondeo a un decimal; estructura de rúbrica (criterios × 4 niveles
+1–4) y lista de cotejo (ítems Sí/No = 2/1); sección **Plantillas** (copia independiente
+al cargarse en una evaluación); integración con EVALUACIÓN (tradicional / rúbrica /
+cotejo); cadena OA→instrumento→estudiante (varios instrumentos por evaluación, uno por
+OA/adecuación); grupos con excepciones (incl. otro instrumento/adecuación individual);
+cálculo en tiempo real y recálculo al cambiar el piso; pendientes/retiro/ingreso
+posterior/"no aplica" y su efecto en el cierre; congelado al cerrar + reapertura;
+pool previo + asignación y creación **in situ**; dos **PDF Carta** con identidad
+institucional (hardcode permitido ahora, personalizable en V1.0). **Especificación
+completa en `AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md`.**
+**Estado:** propuesto — **especificación funcional aprobada por Producto**;
+**implementación NO autorizada**; **pendiente de auditoría técnica** (etapa siguiente,
+autorización separada del PO).
+**Relación con la arquitectura actual:** se integra sobre la funcionalidad EVALUACIÓN
+del Libro (`LIBRO/index.html`; tablas `libro_evaluaciones`, `libro_evaluacion_notas`,
+`libro_evaluacion_adecuaciones`, `libro_evaluacion_grupos`). Producto **no prescribe**
+persistencia (§A7). **Contradice comportamientos vigentes** que deberán resolverse en
+la auditoría técnica (detalle en la spec §B): hoy el cierre **no** bloquea por
+pendientes, y la población es un **snapshot inmutable** (invariante I13) que **no**
+admite ingresos posteriores.
+**Relación con el Bosquejo Conceptual V1:** funcionalidad **adelantada** durante el
+período de desarrollo paralelo. No reordena ni sustituye el Bosquejo; su estado
+definitivo en V1 se decidirá en la reintegración.
+**Fase del Bosquejo donde originalmente estaba contemplado:** **F6H
+(Evaluaciones/UTP)** — rúbricas y entrega a UTP; con tangencias a F6E (recursos/
+plantillas), F6G (Libro/alumnos) y F6K (identidad institucional en el PDF /
+multi-escuela #10).
+**Decisiones de producto adoptadas durante el desarrollo:** las 14 de la especificación
+(§A de `INSTRUMENTOS_EVALUACION_SPEC.md`).
+**Documentación/código afectado:** se creó `AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md`;
+se registró esta ficha. **Código: ninguno** (sin implementación en esta etapa).
+**Pendientes:** toda la resolución técnica (spec §B): modelo de datos, algoritmo de
+conversión/redondeo, resolución de las contradicciones con el comportamiento vigente
+(cierre con pendientes, snapshot/ingreso posterior, retiro, "no aplica"), congelado de
+las nuevas estructuras al cerrar, convivencia grupos↔instrumentos, generación de PDF en
+stack vanilla, y autorización de cambios en Supabase (§4.4). **Mobile V1.0** queda como
+requisito futuro (spec §C), no implementado ahora.
+**Observaciones para la reintegración:** contrastar contra F6H del Bosquejo; si Producto
+lo confirma como V1 firme, evaluar la actualización de `CLAUDE.md` (§8 alcance V1 y §9
+roadmap, hoy con rúbricas/UTP como "posible/identificado"). Registrar que esta línea
+**cambia reglas vigentes** de EVALUACIÓN (cierre y snapshot), lo que debe quedar
+reflejado en la Fuente de Verdad cuando se implemente y decida.
