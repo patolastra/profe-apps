@@ -138,9 +138,14 @@ el PO (2026-09-20), por etapas**. **Etapa 1 (esquema base) implementada en códi
 `instrumento_id` en evaluaciones/adecuaciones/notas, `estado_eval`), integridad "mismo
 ámbito" y RLS; aditivo e idempotente. **DDL ejecutado por el PO en Supabase y verificado
 en vivo (2026-09-20): 5 tablas, columnas y defaults OK, RLS y CHECK activos, sin
-regresión en las evaluaciones tradicionales.** **Etapas 2–7 NO iniciadas.** Registro
-detallado en `INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación
-— Etapa 1").
+regresión en las evaluaciones tradicionales.** **Etapa 2 (Plantillas CRUD) implementada
+y verificada en vivo (2026-09-20)** en `LIBRO/index.html`: crear/editar/duplicar/eliminar/
+listar plantillas (rúbrica 4 niveles / cotejo Sí-No), acceso desde el panel del curso,
+copia independiente al duplicar; incluye una corrección de robustez en el alta de ítems
+(guard de reentrada). Sin regresión en evaluaciones tradicionales; datos de prueba
+limpiados. **Etapas 3–7 NO iniciadas.** Registro detallado en
+`INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación — Etapa 1"
+y "— Etapa 2").
 **Identidad institucional del PDF (PO):** escuela *Escuela Juana de Lestonnac*;
 sostenedor *Servicio Local de Educación Pública Los Parques*; **logos** se adjuntarán a
 Claude (pendiente de recibir). El **encabezado institucional** debe **repetirse en todas

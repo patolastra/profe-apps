@@ -106,6 +106,12 @@
   .pb-ent {background:#c99700;color:#151515}   /* Entrega · amarillo */
   .pb-mat {background:#3b5bdb}                 /* Matrícula · azul (propio) */
   .pb-arch{background:#6b4ba3}                 /* Archivo · morado (propio) */
+  .pb-plant{background:#1a8c8c}               /* Plantillas · teal (propio) */
+  /* ── PLANTILLAS (Instrumentos) ── */
+  #vista[data-cat="plant"] .card{border-top:3px solid #1fb0b0}
+  .pl-item{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;background:rgba(255,255,255,.02)}
+  .pl-niveles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px;padding-left:28px}
+  .pl-niveles label{font-size:11px;color:var(--mut)}
   /* Filas de actividad abierta: MISMO lenguaje visual que .fila-ok (fondo tintado
      + barra-acento a la izquierda), tintadas por categoría. Fila completa clickeable. */
   .eval-item.cat-eval{background:rgba(76,175,80,.14);border-color:rgba(76,175,80,.35);box-shadow:inset 3px 0 0 var(--acc)}
@@ -1465,6 +1471,7 @@ async function renderPanelCurso(){
         <button class="panel-btn pb-ent"  onclick="cursoEntregas()">＋ Entrega</button>
         <button class="panel-btn pb-mat"  onclick="abrirMatriculaCurso()">Matrícula</button>
         <button class="panel-btn pb-arch" onclick="abrirArchivoCurso()">Archivo</button>
+        <button class="panel-btn pb-plant" onclick="abrirPlantillas()">Plantillas</button>
       </div>
     </div>
     <div class="card">
@@ -1498,6 +1505,284 @@ async function renderPanelCurso(){
   const cont = document.getElementById('panel-abiertas');
   if (cont) cont.innerHTML = html || '<p class="hint">No hay actividades abiertas.</p>';
 }
+
+// ══════════════════════════════════════════════════════════════
+// PLANTILLAS DE INSTRUMENTOS — Etapa 2 (CRUD + gestión)
+// Plantillas GLOBALES: NO dependen de curso/año ni contienen OA. CRUD sobre
+// libro_instrumento_plantillas + libro_plantilla_items (esquema de Etapa 1).
+// Alcance Etapa 2: solo crear/editar/duplicar/eliminar/listar plantillas y sus
+// criterios/ítems. NO carga en evaluaciones, NO cálculo, NO cierre (etapas 3+).
+// El tipo (Rúbrica/Cotejo) se fija al crear y NO se cambia después (cambiarlo
+// invalidaría la estructura de sus ítems); para otro tipo, crear/duplicar.
+// ══════════════════════════════════════════════════════════════
+let plantillas = [];   // lista de plantillas (global)
+let plActual   = null; // plantilla en edición
+let plItems    = [];    // ítems/criterios de la plantilla en edición
+
+// Rúbrica: 4 niveles fijos (valor 1..4). Cotejo: Sí=2 / No=1 (implícito).
+const PL_NIVELES = [
+  ['desc_n1','Por lograr','1'],
+  ['desc_n2','Medianamente logrado','2'],
+  ['desc_n3','Logrado','3'],
+  ['desc_n4','Logrado con distinción','4'],
+];
+const plTipoLabel = t => t === 'rubrica' ? 'Rúbrica' : 'Lista de cotejo';
+
+async function abrirPlantillas(){
+  seccion = 'plantillas'; vistaActiva = 'plantillas'; limpiarMsg();
+  document.getElementById('secnav').style.display = 'none';
+  document.getElementById('btn-orden').style.display = 'none';   // no lista estudiantes
+  vistaCat('plant'); backAPanel();
+  plActual = null; plItems = [];
+  const v = document.getElementById('vista');
+  v.innerHTML = '<div class="card">Cargando plantillas…</div>';
+  try { await cargarPlantillas(); }
+  catch (e) {
+    v.innerHTML = '<div class="card"></div>';
+    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql en Supabase.' : ('Error cargando plantillas: ' + e.message));
+    return;
+  }
+  renderPlantillasLista();
+}
+
+async function cargarPlantillas(){
+  const { data, error } = await sb.from('libro_instrumento_plantillas')
+    .select('*').order('created_at', { ascending: true });
+  if (error) throw error;
+  plantillas = data || [];
+}
+
+function renderPlantillasLista(){
+  plActual = null; plItems = [];
+  vistaActiva = 'plantillas'; vistaCat('plant'); backAPanel();
+  const v = document.getElementById('vista');
+  v.innerHTML = `
+    <div class="card">
+      <p class="sec-title">Nueva plantilla</p>
+      <p class="hint" style="border:none;margin:0 0 8px">Las plantillas son compartidas (no dependen del curso ni del año) y no contienen OA.</p>
+      <div class="grid2">
+        <div><label>Nombre</label><input id="pl-nombre" placeholder="Ej: Rúbrica de interpretación"></div>
+        <div><label>Tipo</label><select id="pl-tipo">
+          <option value="rubrica">Rúbrica</option>
+          <option value="cotejo">Lista de cotejo</option>
+        </select></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" onclick="crearPlantilla()">Crear plantilla</button>
+      </div>
+    </div>
+    <div class="card">
+      <p class="sec-title">Plantillas (${plantillas.length})</p>
+      <div id="pl-lista"></div>
+    </div>`;
+  const cont = document.getElementById('pl-lista');
+  if (!plantillas.length) { cont.innerHTML = '<p class="hint">Aún no hay plantillas.</p>'; return; }
+  cont.innerHTML = plantillas.map(p => `
+    <div class="eval-item">
+      <div onclick="abrirPlantilla('${p.id}')" style="cursor:pointer;flex:1">
+        <div><b>${esc(p.nombre)}</b></div>
+        <div class="meta">${plTipoLabel(p.tipo)}</div>
+      </div>
+      <div class="row" style="gap:6px">
+        <button class="btn mini" onclick="abrirPlantilla('${p.id}')">Editar</button>
+        <button class="btn mini" onclick="duplicarPlantilla('${p.id}')">Duplicar</button>
+        <button class="btn mini danger" onclick="eliminarPlantilla('${p.id}')">Eliminar</button>
+      </div>
+    </div>`).join('');
+}
+
+async function crearPlantilla(){
+  const nombre = document.getElementById('pl-nombre').value.trim();
+  const tipo   = document.getElementById('pl-tipo').value;
+  if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
+  if (tipo !== 'rubrica' && tipo !== 'cotejo') { toast('Tipo inválido.', 'err'); return; }
+  try {
+    const { data, error } = await sb.from('libro_instrumento_plantillas')
+      .insert({ tipo, nombre }).select('*').single();
+    if (error) throw error;
+    plantillas.push(data);
+    toast('Plantilla creada.', 'ok');
+    abrirPlantilla(data.id);
+  } catch (e) { toast('No se pudo crear: ' + e.message, 'err'); }
+}
+
+async function abrirPlantilla(id){
+  limpiarMsg();
+  const v = document.getElementById('vista');
+  v.innerHTML = '<div class="card">Cargando plantilla…</div>';
+  try {
+    const [cp, ci] = await Promise.all([
+      sb.from('libro_instrumento_plantillas').select('*').eq('id', id).single(),
+      sb.from('libro_plantilla_items').select('*').eq('plantilla_id', id)
+        .order('orden', { ascending: true }).order('created_at', { ascending: true }),
+    ]);
+    if (cp.error) throw cp.error;
+    if (ci.error) throw ci.error;
+    plActual = cp.data; plItems = ci.data || [];
+  } catch (e) {
+    v.innerHTML = '<div class="card"></div>';
+    msg('No se pudo cargar la plantilla: ' + e.message);
+    return;
+  }
+  renderPlantillaEditor();
+}
+
+function renderPlantillaEditor(){
+  const p = plActual; const esRub = p.tipo === 'rubrica';
+  vistaCat('plant'); backAPanel();
+  const v = document.getElementById('vista');
+  v.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <p class="sec-title" style="margin:0">Plantilla</p>
+        <span class="badge">${plTipoLabel(p.tipo)}</span>
+      </div>
+      <div style="margin-top:10px"><label>Nombre</label><input id="ple-nombre" value="${esc(p.nombre)}"></div>
+      <div class="row" style="margin-top:12px;gap:6px">
+        <button class="btn" onclick="volverPlantillas()">← Plantillas</button>
+        <button class="btn" onclick="duplicarPlantilla('${p.id}')">Duplicar</button>
+        <button class="btn danger" onclick="eliminarPlantilla('${p.id}')">Eliminar</button>
+      </div>
+      <p class="hint" style="margin-top:10px">${esRub
+        ? 'Rúbrica: cada criterio se evalúa en 4 niveles fijos (Por lograr = 1 · Medianamente logrado = 2 · Logrado = 3 · Logrado con distinción = 4). La descripción de cada nivel es opcional.'
+        : 'Lista de cotejo: cada ítem se responde Sí (= 2) / No (= 1).'}</p>
+    </div>
+    <div class="card">
+      <p class="sec-title">${esRub ? 'Criterios' : 'Ítems'} (${plItems.length})</p>
+      <div id="ple-items"></div>
+      <div class="row" style="margin-top:12px">
+        <input id="ple-nuevo" placeholder="${esRub ? 'Nuevo criterio' : 'Nuevo ítem'}" style="flex:1"
+               onkeydown="if(event.key==='Enter')agregarPlItem()">
+        <button class="btn primary" onclick="agregarPlItem()">Agregar</button>
+      </div>
+    </div>`;
+  document.getElementById('ple-nombre').addEventListener('change', renombrarPlantilla);
+  renderPlItems();
+}
+
+function renderPlItems(){
+  const esRub = plActual.tipo === 'rubrica';
+  const cont = document.getElementById('ple-items');
+  if (!cont) return;
+  if (!plItems.length) { cont.innerHTML = `<p class="hint">Sin ${esRub ? 'criterios' : 'ítems'} todavía.</p>`; return; }
+  cont.innerHTML = plItems.map((it, idx) => `
+    <div class="pl-item">
+      <div class="row" style="gap:8px;align-items:center">
+        <span class="ix">${idx + 1}</span>
+        <input class="pl-texto" data-id="${it.id}" data-k="texto" value="${esc(it.texto)}" placeholder="${esRub ? 'Criterio' : 'Ítem'}" style="flex:1">
+        <button class="btn mini danger" onclick="eliminarPlItem('${it.id}')" title="Eliminar">✕</button>
+      </div>
+      ${esRub ? `<div class="pl-niveles">${PL_NIVELES.map(([k, lab, n]) =>
+        `<div><label>${lab} (${n})</label><input data-id="${it.id}" data-k="${k}" value="${esc(it[k] || '')}" placeholder="Descripción (opcional)"></div>`).join('')}</div>` : ''}
+    </div>`).join('');
+  cont.querySelectorAll('input[data-id]').forEach(el => {
+    el.addEventListener('change', () => guardarPlItemCampo(el.dataset.id, el.dataset.k, el.value));
+  });
+}
+
+async function renombrarPlantilla(){
+  const inp = document.getElementById('ple-nombre');
+  const nombre = inp.value.trim();
+  if (!nombre) { toast('El nombre no puede quedar vacío.', 'err'); inp.value = plActual.nombre; return; }
+  if (nombre === plActual.nombre) return;
+  try {
+    const { error } = await sb.from('libro_instrumento_plantillas').update({ nombre }).eq('id', plActual.id);
+    if (error) throw error;
+    plActual.nombre = nombre;
+    const li = plantillas.find(x => x.id === plActual.id); if (li) li.nombre = nombre;
+    toast('Guardado.', 'ok');
+  } catch (e) { toast('No se pudo guardar: ' + e.message, 'err'); }
+}
+
+let plAdding = false;   // guard de reentrada: evita inserciones concurrentes (doble clic / Enter rápido)
+async function agregarPlItem(){
+  if (plAdding) return;
+  const inp = document.getElementById('ple-nuevo');
+  const texto = inp.value.trim();
+  if (!texto) { toast('Escribe el texto.', 'err'); return; }
+  plAdding = true;
+  inp.value = '';   // limpiar de inmediato (antes del await) para no concatenar reentradas rápidas
+  try {
+    const orden = plItems.length ? Math.max(...plItems.map(i => i.orden || 0)) + 1 : 0;
+    const { data, error } = await sb.from('libro_plantilla_items')
+      .insert({ plantilla_id: plActual.id, orden, texto }).select('*').single();
+    if (error) throw error;
+    plItems.push(data);
+    renderPlItems();
+    // refrescar el contador del encabezado sin perder el foco general
+    const t = document.querySelector('#vista .card:last-child .sec-title');
+    if (t) t.textContent = (plActual.tipo === 'rubrica' ? 'Criterios' : 'Ítems') + ` (${plItems.length})`;
+    toast('Agregado.', 'ok');
+  } catch (e) { inp.value = texto; toast('No se pudo agregar: ' + e.message, 'err'); }
+  finally { plAdding = false; }
+}
+
+async function guardarPlItemCampo(id, k, val){
+  const it = plItems.find(x => x.id === id); if (!it) return;
+  const limpio = val.trim();
+  if (k === 'texto' && limpio === '') { toast('El texto no puede quedar vacío.', 'err'); renderPlItems(); return; }
+  const nuevo = (k === 'texto') ? limpio : (limpio === '' ? null : val);
+  try {
+    const { error } = await sb.from('libro_plantilla_items').update({ [k]: nuevo }).eq('id', id);
+    if (error) throw error;
+    it[k] = nuevo;
+    toast('Guardado.', 'ok');
+  } catch (e) { toast('No se pudo guardar: ' + e.message, 'err'); }
+}
+
+async function eliminarPlItem(id){
+  if (!confirm('¿Eliminar este elemento de la plantilla?')) return;
+  try {
+    const { error } = await sb.from('libro_plantilla_items').delete().eq('id', id);
+    if (error) throw error;
+    plItems = plItems.filter(x => x.id !== id);
+    renderPlItems();
+    const t = document.querySelector('#vista .card:last-child .sec-title');
+    if (t) t.textContent = (plActual.tipo === 'rubrica' ? 'Criterios' : 'Ítems') + ` (${plItems.length})`;
+    toast('Eliminado.', 'ok');
+  } catch (e) { toast('No se pudo eliminar: ' + e.message, 'err'); }
+}
+
+async function duplicarPlantilla(id){
+  try {
+    const [cp, ci] = await Promise.all([
+      sb.from('libro_instrumento_plantillas').select('*').eq('id', id).single(),
+      sb.from('libro_plantilla_items').select('*').eq('plantilla_id', id)
+        .order('orden', { ascending: true }).order('created_at', { ascending: true }),
+    ]);
+    if (cp.error) throw cp.error;
+    if (ci.error) throw ci.error;
+    const { data: nueva, error: en } = await sb.from('libro_instrumento_plantillas')
+      .insert({ tipo: cp.data.tipo, nombre: cp.data.nombre + ' (copia)' }).select('*').single();
+    if (en) throw en;
+    const items = (ci.data || []).map(it => ({
+      plantilla_id: nueva.id, orden: it.orden, texto: it.texto,
+      desc_n1: it.desc_n1, desc_n2: it.desc_n2, desc_n3: it.desc_n3, desc_n4: it.desc_n4,
+    }));
+    if (items.length) {
+      const { error: ei } = await sb.from('libro_plantilla_items').insert(items);
+      if (ei) { await sb.from('libro_instrumento_plantillas').delete().eq('id', nueva.id); throw ei; }
+    }
+    toast('Plantilla duplicada.', 'ok');
+    await cargarPlantillas();
+    renderPlantillasLista();
+  } catch (e) { toast('No se pudo duplicar: ' + e.message, 'err'); }
+}
+
+async function eliminarPlantilla(id){
+  const p = plantillas.find(x => x.id === id) || plActual;
+  const nom = p ? ` "${p.nombre}"` : '';
+  if (!confirm('¿Eliminar la plantilla' + nom + '? Se borrarán sus criterios/ítems. No afecta a evaluaciones ya creadas.')) return;
+  try {
+    const { error } = await sb.from('libro_instrumento_plantillas').delete().eq('id', id);
+    if (error) throw error;
+    toast('Plantilla eliminada.', 'ok');
+    await cargarPlantillas();
+    renderPlantillasLista();
+  } catch (e) { toast('No se pudo eliminar: ' + e.message, 'err'); }
+}
+
+function volverPlantillas(){ limpiarMsg(); renderPlantillasLista(); }
 
 // ══════════════════════════════════════════════════════════════
 // MATRÍCULA (curso): lista única activos+retirados, ingresar/retirar/reingresar.

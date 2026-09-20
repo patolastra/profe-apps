@@ -358,9 +358,9 @@ Claves de compatibilidad:
   estado por estudiante + integridad "mismo ámbito". *Sin UI.* DDL ejecutado en Supabase
   y verificado (5 tablas, columnas, defaults, RLS, CHECK, regresión de lo tradicional).
   Ver "Registro de implementación — Etapa 1" al final.
-- **Etapa 2 — Sección Plantillas (CRUD).** Crear/nombrar/editar/duplicar/eliminar/listar
-  rúbricas y cotejos (§A3), independiente de evaluaciones. Depende de: E1. Prueba:
-  E2E de CRUD; verificar que borrar una plantilla no afecta nada más.
+- **Etapa 2 — Sección Plantillas (CRUD). ✅ IMPLEMENTADA Y VERIFICADA EN VIVO
+  (2026-09-20).** Crear/nombrar/editar/duplicar/eliminar/listar rúbricas y cotejos (§A3),
+  independiente de evaluaciones. Ver "Registro de implementación — Etapa 2" al final.
 - **Etapa 3 — Objetivos + instrumento + carga de plantilla (copia).** Piso por eval;
   asociar instrumento a OA/adecuación; cargar plantilla como **copia independiente**
   (§A3/§A5/§A11 pool). Depende de: E1. Prueba: modificar la plantilla original tras
@@ -514,3 +514,64 @@ columnas explícitas), por lo que una evaluación tradicional se comporta igual 
 
 **Resultado:** Etapa 1 **aplicada y verificada en vivo, sin regresiones**. No surgieron
 decisiones de Producto nuevas.
+
+---
+
+## Registro de implementación — Etapa 2 (Plantillas CRUD) · 2026-09-20
+
+**Autorización:** PO, sobre el checkpoint `253982b`. Alcance = **solo CRUD/gestión de
+plantillas** (sin carga en evaluaciones, sin asociación OA→instrumento, sin aplicación,
+cálculo, cierre, grupos ni PDF).
+
+**Qué se implementó (todo en `LIBRO/index.html`, vanilla, usando el esquema de Etapa 1):**
+- **Entrada:** botón **"Plantillas"** en el panel del curso (`renderPanelCurso`). *(Decisión
+  de UX, reversible: las plantillas son globales, pero el punto de acceso se ubicó en el
+  panel del curso, que es el que existe hoy; los talleres no tienen panel y quedan sin
+  entrada propia por ahora — ver "decisiones/observaciones".)*
+- **Lista + creación:** `abrirPlantillas`/`renderPlantillasLista`/`crearPlantilla` —
+  nombre libre + tipo (Rúbrica/Lista de cotejo); lista con Editar/Duplicar/Eliminar.
+- **Editor:** `abrirPlantilla`/`renderPlantillaEditor`/`renderPlItems` — renombrar
+  (`renombrarPlantilla`); **rúbrica**: criterios con **4 niveles fijos** (Por lograr=1 …
+  Logrado con distinción=4) y descripción opcional por nivel (`desc_n1..desc_n4`);
+  **cotejo**: ítems Sí(=2)/No(=1) (sin niveles); agregar (`agregarPlItem`), editar campo
+  (`guardarPlItemCampo`), eliminar (`eliminarPlItem`).
+- **Duplicar** (`duplicarPlantilla`): copia profunda (cabecera + ítems) como plantilla
+  nueva "… (copia)", **independiente**. **Eliminar** (`eliminarPlantilla`) con
+  confirmación (cascade borra ítems).
+- **CSS:** botón `.pb-plant` y estilos `#vista[data-cat="plant"]`, `.pl-item`, `.pl-niveles`.
+
+**Decisiones técnicas tomadas (sin impacto sobre lo cerrado por Producto; anotadas para
+revisión):**
+- **Tipo inmutable tras crear:** el tipo (Rúbrica/Cotejo) se fija al crear y no se cambia
+  luego (cambiarlo invalidaría la estructura de ítems); para otro tipo, crear/duplicar.
+- **Descripciones de nivel** guardadas en columnas `desc_n1..4` (Opción 1a de la §4.1).
+- **Acceso solo desde el panel de curso** (los talleres no tienen panel; las plantillas
+  siguen siendo globales y visibles desde cualquier curso).
+
+**Corrección de robustez (código nuevo):** `agregarPlItem` era vulnerable a una
+**condición de carrera** en altas muy rápidas (doble clic / Enter repetido) → texto
+concatenado y `orden` repetido. Se añadió **guard de reentrada** + **limpieza inmediata
+del input** antes del `await` (y restauración del texto ante error). Reverificado: dos
+altas sucesivas producen ítems distintos con `orden` 0 y 1.
+
+**Pruebas realizadas (E2E navegador + persistencia REST, 2026-09-20):**
+- **Crear** rúbrica y cotejo → 201, editor correcto por tipo. ✅
+- **Criterios/ítems:** alta, edición de texto y de descripciones de nivel; persistidos
+  (`texto`, `desc_n1`, `desc_n4`; `desc_n2/n3` null; cotejo sin desc). ✅
+- **Renombrar** plantilla → persistido. ✅
+- **Duplicar** → copia independiente con su criterio y descripciones; **el original queda
+  intacto**. ✅
+- **Validación de tipo:** el CHECK de `tipo` rechaza valores inválidos (400, verificado
+  en Etapa 1); en UI el tipo es un `select` cerrado. ✅
+- **Eliminar:** el borrado a nivel de datos funciona (DELETE→204; **cascade** borra los
+  ítems, verificado). *Nota:* en la automatización el `confirm()` nativo se auto-descarta,
+  por lo que el borrado vía botón no se ejerció en el navegador; la lógica está cableada y
+  el endpoint validado. Para un usuario real el diálogo aparece normalmente.
+- **Regresión:** el panel del curso y la **evaluación tradicional "prueba"** abren
+  igual que antes (cabecera, adecuaciones, grupos, 24 estudiantes, guardar notas 1,0–7,0);
+  **0 errores en consola**. Datos de prueba **limpiados** al finalizar (plantillas e ítems
+  en 0; 3 evaluaciones tradicionales intactas). ✅
+
+**No surgieron decisiones de Producto nuevas.** **CLAUDE.md:** sin cambios (la Etapa 2 no
+introduce regla normativa permanente; es CRUD de una funcionalidad en desarrollo).
+**Etapas 3–7 NO iniciadas.**
