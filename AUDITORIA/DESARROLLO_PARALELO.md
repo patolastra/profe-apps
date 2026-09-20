@@ -136,10 +136,11 @@ el PO (2026-09-20), por etapas**. **Etapa 1 (esquema base) implementada en códi
 (`libro_instrumento_plantillas`, `libro_plantilla_items`, `libro_eval_instrumentos`,
 `libro_eval_instrumento_items`, `libro_eval_resultados`), columnas aditivas (`nota_min`,
 `instrumento_id` en evaluaciones/adecuaciones/notas, `estado_eval`), integridad "mismo
-ámbito" y RLS; aditivo e idempotente. **Pendiente: ejecutar el DDL en el SQL Editor de
-Supabase** (este entorno no ejecuta DDL) y la prueba en vivo posterior. **Etapas 2–7 NO
-iniciadas.** Registro detallado en `INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md`
-("Registro de implementación — Etapa 1").
+ámbito" y RLS; aditivo e idempotente. **DDL ejecutado por el PO en Supabase y verificado
+en vivo (2026-09-20): 5 tablas, columnas y defaults OK, RLS y CHECK activos, sin
+regresión en las evaluaciones tradicionales.** **Etapas 2–7 NO iniciadas.** Registro
+detallado en `INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación
+— Etapa 1").
 **Identidad institucional del PDF (PO):** escuela *Escuela Juana de Lestonnac*;
 sostenedor *Servicio Local de Educación Pública Los Parques*; **logos** se adjuntarán a
 Claude (pendiente de recibir). El **encabezado institucional** debe **repetirse en todas

@@ -353,11 +353,11 @@ Claves de compatibilidad:
 
 - **Etapa 0 — Decisiones técnicas del PO. ✅ CERRADA (2026-09-20).** Las 6 opciones de
   §6 resueltas (ver §0). *Sin código.*
-- **Etapa 1 — Esquema base (aditivo). 🟡 IMPLEMENTADA EN CÓDIGO (2026-09-20); pendiente
-  de ejecución en Supabase.** Plantillas + instrumentos aplicados + items + resultados +
-  `nota_min` + estado por estudiante + integridad "mismo ámbito". *Sin UI.* Ver
-  "Registro de implementación — Etapa 1" al final. Depende de: E0. Prueba: el `.sql`
-  aplica idempotente; evaluaciones existentes intactas (consulta de regresión).
+- **Etapa 1 — Esquema base (aditivo). ✅ IMPLEMENTADA, EJECUTADA Y VERIFICADA EN VIVO
+  (2026-09-20).** Plantillas + instrumentos aplicados + items + resultados + `nota_min` +
+  estado por estudiante + integridad "mismo ámbito". *Sin UI.* DDL ejecutado en Supabase
+  y verificado (5 tablas, columnas, defaults, RLS, CHECK, regresión de lo tradicional).
+  Ver "Registro de implementación — Etapa 1" al final.
 - **Etapa 2 — Sección Plantillas (CRUD).** Crear/nombrar/editar/duplicar/eliminar/listar
   rúbricas y cotejos (§A3), independiente de evaluaciones. Depende de: E1. Prueba:
   E2E de CRUD; verificar que borrar una plantilla no afecta nada más.
@@ -493,11 +493,24 @@ FK circular (`libro_eval_instrumentos` se crea antes de referenciarla desde
 y **ninguna consulta actual las usa** (los `SELECT`/`INSERT`/`upsert` del Libro nombran
 columnas explícitas), por lo que una evaluación tradicional se comporta igual tras aplicar.
 
-**Límite de ejecución (importante):** este entorno **no puede ejecutar DDL** contra
-Supabase (la anon key no ejecuta DDL; el esquema se corre en el **SQL Editor de
-Supabase**, como indica el propio `libro_schema.sql`). Por lo tanto la migración quedó
-**escrita y verificada estáticamente**, pero **su ejecución en la base la debe correr el
-PO** en el SQL Editor. La prueba en vivo (aplica idempotente + regresión funcional del
-Libro) se realizará **después** de esa ejecución; puedo guiarla/verificarla cuando el PO
-la aplique. **No hay decisiones de Producto nuevas pendientes por esto** (es un límite de
-acceso, no un cambio de alcance).
+**Ejecución en Supabase:** el PO ejecutó el DDL en el **SQL Editor de Supabase**
+(2026-09-20): "Success. No rows returned".
+
+**Verificación en vivo (2026-09-20, vía REST con anon key / RLS `acceso_total`):**
+- **Estructura:** las 5 tablas nuevas responden 200; las columnas nuevas
+  (`libro_evaluaciones.nota_min`/`instrumento_id`, `libro_evaluacion_adecuaciones.instrumento_id`,
+  `libro_evaluacion_notas.estado_eval`/`instrumento_id`) existen (200). ✅
+- **Regresión de lo tradicional:** las **3 evaluaciones** existentes se leen sin cambios;
+  **todas** con `nota_min=2.0` e `instrumento_id=null`; **todas** las notas con
+  `estado_eval='pendiente'`, `instrumento_id=null` y sus notas intactas (5.0, 7.0, 6.7,
+  null…). Filtros de control: 0 filas con `nota_min≠2.0` y 0 notas con
+  `estado_eval≠'pendiente'`. ✅
+- **Escritura + constraint (prueba reversible en la tabla independiente de plantillas):**
+  insert válido → 201; insert con `tipo='xxx'` → **400 (CHECK activo)**; lectura → 1 fila;
+  DELETE → 204; limpieza confirmada (sin filas de prueba residuales). ✅
+- **Triggers de integridad "mismo ámbito":** verificados **estáticamente**; su prueba en
+  vivo se ejercerá naturalmente en etapas posteriores (requieren instrumentos ligados a
+  evaluaciones reales, que aún no existen).
+
+**Resultado:** Etapa 1 **aplicada y verificada en vivo, sin regresiones**. No surgieron
+decisiones de Producto nuevas.
