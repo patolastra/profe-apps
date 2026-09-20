@@ -58,6 +58,27 @@ funcionalidad no cambia su posición en el Bosquejo; una implementación no cier
 automáticamente su diseño conceptual; nada de esto modifica automáticamente el
 Bosquejo V1.
 
+### Participación de ChatGPT en el ciclo
+
+ChatGPT (arquitecto y coordinador; opera fuera del repositorio, vía el PO) participa
+así, **sin cambiar** el ciclo ni tomar decisiones:
+
+- **Necesidad (1) y Ficha (2):** ayuda a formular la necesidad profesional y a redactar
+  la ficha/especificación.
+- **Auditoría técnica (3):** puede aportar **revisión arquitectónica** de alto nivel; la
+  auditoría del repo la hace **Claude**.
+- **Decisión (4):** **prepara las propuestas** para el PO; **decide el PO**.
+- **Implementación (5):** la hace **Claude**; ChatGPT **transforma la decisión aprobada
+  en prompts/especificaciones**.
+- **Prueba (6) y Documentación/cierre (7):** **revisa** resultados/diffs y documentación
+  **a través del PO**.
+- **Checkpoint Git (8):** lo hace **Claude**; ChatGPT **no commitea**.
+- **Reintegración (9–12):** participa en la **revisión conceptual** frente al Bosquejo y
+  en la propuesta de decisiones definitivas; **decide el PO**.
+
+ChatGPT **no implementa ni hace commits**. Contexto de entrada de ChatGPT:
+`AUDITORIA/CONTEXTO_CHATGPT.md`.
+
 ## Cómo usar este registro
 
 Copiar la plantilla de abajo por **cada desarrollo paralelo relevante** y completar

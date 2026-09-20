@@ -246,11 +246,21 @@ Y al finalizar el período paralelo: 9. **Reintegración/auditoría global** · 
 
 ## 11. Modelo de gobernanza
 
-- **Autor / Product Owner (Pato):** autoridad final. **Decide** producto, alcance, arquitectura, roadmap, qué se conserva/congela/modifica/elimina.
-- **ChatGPT:** arquitectura, análisis, investigación, coordinación, revisión; transforma objetivos del Autor en specs/prompts.
-- **Claude:** inspección del repo, implementación, pruebas, custodia técnica y mantenimiento de esta Fuente de Verdad.
+Definición **canónica** de roles (las demás fuentes remiten aquí):
+
+- **Autor / Product Owner (Pato):** **autoridad final.** Decide producto, alcance, prioridades, arquitectura, roadmap y las decisiones definitivas; aprueba o rechaza propuestas; qué se conserva/congela/modifica/elimina.
+- **ChatGPT — arquitecto y coordinador** (opera **fuera del repositorio**, sin acceso directo al código): analiza, diseña, investiga cuando corresponde, **detecta contradicciones**, **transforma las decisiones del PO en especificaciones/prompts** para Claude, y **revisa** propuestas, implementaciones, resultados/diffs y documentación **a través del PO**. **Participa en el desarrollo paralelo y en la reintegración.** **Propone, pero NO decide; no modifica directamente el repositorio; no hace commits.**
+- **Claude — custodio técnico del repositorio:** audita técnicamente, **implementa lo autorizado**, prueba/valida, mantiene la documentación técnica y la coherencia del repo, y realiza los **checkpoints Git**. **Propone, pero NO decide producto.**
 
 **Regla común:** los tres pueden proponer, opinar, detectar problemas, cuestionar y presentar alternativas. **Pero las decisiones finales corresponden exclusivamente al Autor. Una propuesta nunca se presenta como decisión.**
+
+**Puntos de entrada y persistencia documental:**
+- `CLAUDE.md` es la **fuente normativa** para el trabajo de **Claude**.
+- `AUDITORIA/CONTEXTO_CHATGPT.md` es el **punto de entrada operativo** para **ChatGPT**.
+- Los **documentos del repositorio son la memoria permanente** del proyecto: el contexto **reside en los documentos, no en la memoria del chat**.
+- Al comenzar una **nueva ventana/contexto**, ChatGPT debe **reanclarse en `AUDITORIA/CONTEXTO_CHATGPT.md`** y desde allí consultar las fuentes indicadas.
+
+**Regla de comunicación ChatGPT → Product Owner:** siempre lo más **breve** posible, solo con lo **indispensable**, **sin palabrería** y en **términos humanos, no técnicos**. La información técnica se transmite **solo** cuando tenga una implicancia humana, de producto, de decisión o de riesgo que el PO necesite conocer.
 
 ### Protocolo de revisión documental de ChatGPT — SOLO LECTURA
 
