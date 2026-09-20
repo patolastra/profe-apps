@@ -130,8 +130,28 @@ pool previo + asignación y creación **in situ**; dos **PDF Carta** con identid
 institucional (hardcode permitido ahora, personalizable en V1.0). **Especificación
 completa en `AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md`.**
 **Estado:** propuesto — **especificación funcional aprobada por Producto**;
-**implementación NO autorizada**; **pendiente de auditoría técnica** (etapa siguiente,
-autorización separada del PO).
+**auditoría técnica realizada** (`INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md`); **las
+6 decisiones técnicas + la identidad/encabezado institucional + el criterio de cierre
+fueron resueltas por el PO (2026-09-20): NO quedan decisiones de Producto pendientes**;
+**implementación NO autorizada aún**.
+**Identidad institucional del PDF (PO):** escuela *Escuela Juana de Lestonnac*;
+sostenedor *Servicio Local de Educación Pública Los Parques*; **logos** se adjuntarán a
+Claude (pendiente de recibir). El **encabezado institucional** debe **repetirse en todas
+las páginas** de los PDF replicando el layout del archivo de referencia versionado
+`AUDITORIA/assets/ENCABEZADO PDF.pdf` (posición de nombres, logos y proporciones); las versiones grandes
+de logos en ese PDF son solo material de referencia, no van en el cuerpo. Detalle en
+`INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` §0.2.
+**Criterio de cierre (PO, aprobado):** bloquea el cierre el estudiante que está
+**matriculado + no "No aplica" + instrumento incompleto**; retirado y "No aplica" no
+bloquean (§0.3).
+**Decisiones técnicas del PO (2026-09-20):** (1) Objetivos = **Opción A** (OA en
+cabecera + adecuaciones; `instrumento_id` en ambos); (2) Instrumento por estudiante =
+**4a** (override individual); (3) Nota **persistida y recalculada al cambiar el piso**,
+estados **Pendiente/Evaluado/No aplica**, incompleto = pendiente sin nota; (4) Ingreso
+posterior = **6b** (re-sync automático con la eval abierta; cerrada no incorpora;
+reabrir re-reconcilia) **+ el PO autoriza modificar la invariante I13**; (5) Cierre =
+**7b** (bloqueo en UI + BD); (6) PDF = **8a** (impresión del navegador/CSS, sin
+bibliotecas). Detalle en `INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` §0.
 **Relación con la arquitectura actual:** se integra sobre la funcionalidad EVALUACIÓN
 del Libro (`LIBRO/index.html`; tablas `libro_evaluaciones`, `libro_evaluacion_notas`,
 `libro_evaluacion_adecuaciones`, `libro_evaluacion_grupos`). Producto **no prescribe**
@@ -148,14 +168,19 @@ plantillas), F6G (Libro/alumnos) y F6K (identidad institucional en el PDF /
 multi-escuela #10).
 **Decisiones de producto adoptadas durante el desarrollo:** las 14 de la especificación
 (§A de `INSTRUMENTOS_EVALUACION_SPEC.md`).
-**Documentación/código afectado:** se creó `AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md`;
-se registró esta ficha. **Código: ninguno** (sin implementación en esta etapa).
-**Pendientes:** toda la resolución técnica (spec §B): modelo de datos, algoritmo de
-conversión/redondeo, resolución de las contradicciones con el comportamiento vigente
-(cierre con pendientes, snapshot/ingreso posterior, retiro, "no aplica"), congelado de
-las nuevas estructuras al cerrar, convivencia grupos↔instrumentos, generación de PDF en
-stack vanilla, y autorización de cambios en Supabase (§4.4). **Mobile V1.0** queda como
-requisito futuro (spec §C), no implementado ahora.
+**Documentación/código afectado:** se creó `AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md`
+y `AUDITORIA/INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` (auditoría + decisiones del
+PO); se actualizó esta ficha. **Código: ninguno** (sin implementación en esta etapa).
+**Pendientes (post-decisiones):** **no quedan decisiones de Producto pendientes.** Antes
+de implementar resta: (a) **autorización del PO para implementar y ejecutar los cambios
+en Supabase** (incl. modificar I13; §4.4); (b) **insumo:** recibir los **archivos de
+logo** (escuela y sostenedor) — necesario solo para cerrar la Etapa 7 (PDF), no bloquea
+etapas previas. Detalle técnico menor sin impacto de producto: almacenamiento de
+descripciones de niveles de rúbrica. **Mobile V1.0** sigue como requisito futuro (spec
+§C), no implementado ahora.
+**Consecuencia documental pendiente (al implementar):** actualizar la invariante **I13**
+en `supabase/libro_schema.sql` y su descripción en `CLAUDE.md` (hoy "sin
+re-sincronización") conforme a la decisión 6b — **no se toca ahora**.
 **Observaciones para la reintegración:** contrastar contra F6H del Bosquejo; si Producto
 lo confirma como V1 firme, evaluar la actualización de `CLAUDE.md` (§8 alcance V1 y §9
 roadmap, hoy con rúbricas/UTP como "posible/identificado"). Registrar que esta línea
