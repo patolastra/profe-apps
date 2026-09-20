@@ -1,6 +1,6 @@
 # Historia de Hitos — Ecosistema Profe Apps
 
-> Historia **conceptual** (no una crónica commit por commit). Recoge los grandes hitos identificados durante F0–F5. Documento **complementario y no normativo**: la fuente de verdad es `/CLAUDE.md`. Donde un detalle no puede comprobarse con los antecedentes existentes, se omite o se marca como *no verificable*.
+> Historia **conceptual** (no una crónica commit por commit). Recoge los grandes hitos identificados durante F0–F6. Documento **complementario y no normativo**: la fuente de verdad es `/CLAUDE.md`. Donde un detalle no puede comprobarse con los antecedentes existentes, se omite o se marca como *no verificable*.
 
 ## Hitos de desarrollo
 
@@ -48,6 +48,8 @@
   - **Qué se preservó / qué se retiró:** `?ctx&fecha` **preservado**, `?ctx`-solo **retirado**; **SRP congelado** (en `SRP/`) **preservado e intacto**, mientras que la vieja **UI móvil de captura SRP-adjacente** embebida en `MOVIL` + su **IndexedDB `SRP_VozDB`** fueron **retiradas**; `modulos.js` **retirado sin reemplazo** (no se creó un registro central ejecutable). En conjunto: **se retiró el legacy sin rescatarlo ni reemplazarlo**, conservando las arquitecturas y funcionalidades vigentes.
 
 - **F5 — Auditoría Funcional Post-Saneamiento.** *Cerrada.* Dos rondas de comprobación funcional **en vivo** del ecosistema activo tras F4: el núcleo (Workspace/entrada/auth, Portal → Dashboard y Plan, MOVIL lienzo, redirect A1 ADMIN→Workspace, Repertorio) y, en la segunda ronda, **Pizarra, Libro, CAJÓN, Metalófono, ANALIZADOR y Lector**. **No se detectaron regresiones atribuibles a F4**; 0 referencias de código a lo retirado; sintaxis correcta. Se limpiaron los comentarios stale (`c5cf14c`, `fabe299`). Único hallazgo **postergado**: `eventos_uso` (el `INSERT` devuelve 401 → el logging no persiste; **no bloqueante, preexistente, no causado por F4**) — queda como pendiente técnico futuro, junto con la contradicción documental asociada. **Con F5 cerrada, las Fases 0–5 de la GRAN ETAPA quedan cerradas; la siguiente etapa es F6 — Preparación V1.**
+
+- **F6 — Preparación V1 (etapa conceptual).** *En curso.* Exploración conceptual de la V1 comercial mediante un recorrido A–K (F6A Configuración inicial → F6B Dashboard → F6C Curso → F6D Clase/Planificación → F6E Biblioteca/Repertorio/Recursos → F6F Pizarra → F6G Libro/alumnos → F6H Evaluaciones/UTP → F6I Audio/video → F6J Creación de recursos → F6K Administración/seguridad). Se **cerró conceptualmente F6A** (Configuración inicial / primera experiencia) y se **incorporó el recorrido A–K** al repositorio (`F6A_CONFIGURACION_INICIAL.txt`, `F6_RECORRIDO_A-K.txt`). Tras F6A, el **recorrido lineal quedó temporalmente suspendido** (~2–3 meses) y se **abrió formalmente un período de desarrollo paralelo** motivado por necesidades profesionales reales, que no reordena ni sustituye el Bosquejo y debe quedar trazable (`DESARROLLO_PARALELO.md`). La continuidad prevista es **desarrollo paralelo → reintegración/auditoría global → reanudación en F6B**. Estado y continuidad en `BOSQUEJO_V1_ESTADO_Y_CONTINUIDAD.md`.
 
 ---
 

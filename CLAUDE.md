@@ -8,7 +8,7 @@
 > - **PROPUESTA** — alternativa planteada; **no** es decisión.
 > - **PENDIENTE** — todavía sin resolver o no verificable.
 >
-> **Estado de la Fuente de Verdad:** creada en Fase 2 (2026-09-11) a partir de F0 (historia), F1 (auditoría técnica) y F1.5 (clasificación del Autor). Consolida las decisiones aprobadas por el Autor y se actualiza cuando el estado, arquitectura, alcance o decisiones del ecosistema cambian. Actualizada tras **F3** (plan de saneamiento), **F4** (saneamiento ejecutado, Bloques 1–8) y **F5** (auditoría funcional post-saneamiento, **cerrada**): el legacy aprobado fue **retirado** y el ecosistema activo se **verificó funcionalmente sin regresiones** causadas por F4. Ver `AUDITORIA/HISTORIA_HITOS.md` para el recorrido y los checkpoints.
+> **Estado de la Fuente de Verdad:** creada en Fase 2 (2026-09-11) a partir de F0 (historia), F1 (auditoría técnica) y F1.5 (clasificación del Autor). Consolida las decisiones aprobadas por el Autor y se actualiza cuando el estado, arquitectura, alcance o decisiones del ecosistema cambian. Actualizada tras **F3** (plan de saneamiento), **F4** (saneamiento ejecutado, Bloques 1–8) y **F5** (auditoría funcional post-saneamiento, **cerrada**): el legacy aprobado fue **retirado** y el ecosistema activo se **verificó funcionalmente sin regresiones** causadas por F4. Ver `AUDITORIA/HISTORIA_HITOS.md` para el recorrido y los checkpoints. **F6 — Preparación V1** está **en curso como etapa conceptual**: **F6A (Configuración inicial / primera experiencia) cerrada conceptualmente**, **F6B (Dashboard) es la siguiente etapa lineal**, y el recorrido lineal quedó **temporalmente suspendido tras F6A** para un **período de desarrollo paralelo** (ver §9 y `AUDITORIA/BOSQUEJO_V1_ESTADO_Y_CONTINUIDAD.md`).
 
 ---
 
@@ -214,6 +214,8 @@ En ese escenario futuro **podría** contemplarse un modelo de **cuentas, suscrip
 - **SRP** eventualmente retomable si la captura voz→pendientes entra al producto.
 - **Preparación V1 (Fase 6):** onboarding, cuentas, seguridad, aislamiento de datos multi-escuela, recuperación, pagos/suscripciones, privacidad, robustez multi-dispositivo. No implementar sin autorización.
 
+**Estado de F6 y período de desarrollo paralelo (HECHO):** F6 es una **exploración conceptual** de V1 con un recorrido **A–K** (F6A Configuración inicial → F6B Dashboard → F6C Curso → F6D Clase/Planificación → F6E Biblioteca/Repertorio/Recursos → F6F Pizarra → F6G Libro/alumnos → F6H Evaluaciones/UTP → F6I Audio/video → F6J Creación de recursos → F6K Administración/seguridad). **F6A está cerrada conceptualmente**; **F6B (Dashboard) es la siguiente etapa lineal pendiente**. Tras F6A, el recorrido lineal quedó **temporalmente suspendido** (~2–3 meses) y se abrió un **período formal de desarrollo paralelo** motivado por necesidades profesionales reales. **Regla del período paralelo:** un desarrollo paralelo (1) **puede adelantarse** respecto del orden del Bosquejo; (2) **no reordena automáticamente** el Bosquejo; (3) **no convierte automáticamente** una implementación en decisión conceptual; (4) **debe mantener trazabilidad** en `AUDITORIA/DESARROLLO_PARALELO.md`; (5) será objeto de **reintegración/auditoría** antes de reanudar F6B. Referencias: `AUDITORIA/BOSQUEJO_V1_ESTADO_Y_CONTINUIDAD.md`, `AUDITORIA/DESARROLLO_PARALELO.md`, `AUDITORIA/F6A_CONFIGURACION_INICIAL.txt`, `AUDITORIA/F6_RECORRIDO_A-K.txt`.
+
 ---
 
 ## 10. Elementos protegidos (no eliminar/reemplazar/modificar sin autorización explícita)
@@ -297,6 +299,12 @@ ORIENTACIÓN·jefatura·Lun · TERCERO·curso·Lun · CUARTO·curso·Lun · CUER
 
 > **CLAUDE.md** → verdad oficial resumida y normativa · **Excel** → detalle del inventario y auditoría.
 
-**Documento histórico complementario:** `AUDITORIA/HISTORIA_HITOS.md` — historia conceptual del ecosistema (hitos M0–M12 + fases F0–F4). No es normativo; es contexto.
+**Documento histórico complementario:** `AUDITORIA/HISTORIA_HITOS.md` — historia conceptual del ecosistema (hitos M0–M12 + fases F0–F6). No es normativo; es contexto.
 
 **Documento de trabajo conceptual de F6:** `AUDITORIA/BOSQUEJO_CONCEPTUAL_V1.txt` — registra la **definición conceptual preliminar de V1** elaborada por el Autor durante F6 (Preparación V1). Es **complementario y NO normativo**: **no** reemplaza a `CLAUDE.md` como Fuente de Verdad. Sus **hipótesis** y aspectos **provisionales** **no** deben interpretarse automáticamente como decisiones aprobadas; una definición o hipótesis del bosquejo se convierte en DECISIÓN solo por decisión explícita del Autor registrada en este documento.
+
+**Documentos de F6 (trabajo conceptual + estado/continuidad, NO normativos):**
+- `AUDITORIA/F6A_CONFIGURACION_INICIAL.txt` — consolidación conceptual de **F6A** (verbatim).
+- `AUDITORIA/F6_RECORRIDO_A-K.txt` — estructura del recorrido **F6 A–K** (verbatim).
+- `AUDITORIA/BOSQUEJO_V1_ESTADO_Y_CONTINUIDAD.md` — **estado y continuidad** del Bosquejo (F6A cerrada, suspensión tras F6A, reanudación en F6B, reintegración).
+- `AUDITORIA/DESARROLLO_PARALELO.md` — **registro de trazabilidad** del período de desarrollo paralelo. Ver la regla del período paralelo en §9.
