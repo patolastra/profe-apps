@@ -216,6 +216,20 @@ En ese escenario futuro **podría** contemplarse un modelo de **cuentas, suscrip
 
 **Estado de F6 y período de desarrollo paralelo (HECHO):** F6 es una **exploración conceptual** de V1 con un recorrido **A–K** (F6A Configuración inicial → F6B Dashboard → F6C Curso → F6D Clase/Planificación → F6E Biblioteca/Repertorio/Recursos → F6F Pizarra → F6G Libro/alumnos → F6H Evaluaciones/UTP → F6I Audio/video → F6J Creación de recursos → F6K Administración/seguridad). **F6A está cerrada conceptualmente**; **F6B (Dashboard) es la siguiente etapa lineal pendiente**. Tras F6A, el recorrido lineal quedó **temporalmente suspendido** (~2–3 meses) y se abrió un **período formal de desarrollo paralelo** motivado por necesidades profesionales reales. **Regla del período paralelo:** un desarrollo paralelo (1) **puede adelantarse** respecto del orden del Bosquejo; (2) **no reordena automáticamente** el Bosquejo; (3) **no convierte automáticamente** una implementación en decisión conceptual; (4) **debe mantener trazabilidad** en `AUDITORIA/DESARROLLO_PARALELO.md`; (5) será objeto de **reintegración/auditoría** antes de reanudar F6B. Referencias: `AUDITORIA/BOSQUEJO_V1_ESTADO_Y_CONTINUIDAD.md`, `AUDITORIA/DESARROLLO_PARALELO.md`, `AUDITORIA/F6A_CONFIGURACION_INICIAL.txt`, `AUDITORIA/F6_RECORRIDO_A-K.txt`.
 
+**Ciclo de trabajo obligatorio de cada desarrollo paralelo (REGLA PERMANENTE):** todo desarrollo paralelo sigue este ciclo, sin saltarse pasos —
+1. **Necesidad profesional** (qué necesidad docente real lo origina);
+2. **Ficha de trazabilidad** en `AUDITORIA/DESARROLLO_PARALELO.md`;
+3. **Auditoría técnica** (Claude: estado actual, dependencias, impacto);
+4. **Decisión del Product Owner** (aprobar/ajustar alcance);
+5. **Implementación** (solo el alcance autorizado);
+6. **Prueba / validación**;
+7. **Documentación y cierre** (actualizar la ficha y lo que corresponda);
+8. **Git checkpoint** propio del desarrollo.
+
+Y al finalizar el período paralelo: 9. **Reintegración/auditoría global** · 10. **Revisión frente al Bosquejo V1** · 11. **Decisiones definitivas** · 12. **Reanudación del Bosquejo en F6B**.
+
+**Aclaraciones normativas:** el **Product Owner define** las decisiones de producto; **Claude audita e implementa** técnicamente. Ningún desarrollo paralelo modifica automáticamente el Bosquejo; **adelantar** una funcionalidad no cambia su posición en el Bosquejo; una **implementación** no cierra automáticamente su diseño conceptual. Cada desarrollo debe quedar **trazable** en `AUDITORIA/DESARROLLO_PARALELO.md`, con **su propio checkpoint Git**; **no mezclar** checkpoints de desarrollos paralelos distintos. La **reintegración global** se hará **antes** de retomar F6B. Procedimiento operativo detallado en `AUDITORIA/DESARROLLO_PARALELO.md`.
+
 ---
 
 ## 10. Elementos protegidos (no eliminar/reemplazar/modificar sin autorización explícita)
