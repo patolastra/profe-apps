@@ -156,9 +156,18 @@ piso y redondeo, guardado parcial (incompleto = sin nota), recálculo al cambiar
 override individual (4a) respetado, persistencia y recuperación tras recarga. Incluye 3
 correcciones de robustez (instrumento_id en el SELECT de notas; persistir objetivo con
 instrumento; recalcular al asociar). E2E sobre evaluación desechable (creada y borrada);
-sin regresión en la evaluación tradicional real. **Etapas 5–7 NO iniciadas.** Registro
-detallado en `INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación
-— Etapa 1" a "— Etapa 4").
+sin regresión en la evaluación tradicional real. **Etapa 5 (estados, población, cierre,
+reapertura) implementada y verificada en vivo (2026-09-20)** en `LIBRO/index.html` +
+`supabase/libro_schema.sql`: estados Pendiente/Evaluado/No aplica, reconciliación con la
+matrícula activa (cambio de I13 autorizado por el PO), guard de cierre en UI + BD
+(trigger), congelado integral al cerrar (incl. tablas nuevas) y reapertura con
+reconciliación. **Decisión del PO: aplica a TODAS las evaluaciones.** 14 tests E2E OK
+(incl. protección de BD, tests 10 y 13); una corrección (estado_eval en el SELECT de
+notas). Datos de prueba limpiados y datos reales restaurados. **CLAUDE.md sin cambios**
+(consolidación normativa de I13/estados/cierre diferida a la reintegración; el comentario
+de I13 en el esquema sí se actualizó). **Etapas 6–7 NO iniciadas.** Registro detallado en
+`INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación — Etapa 1" a
+"— Etapa 5").
 **Identidad institucional del PDF (PO):** escuela *Escuela Juana de Lestonnac*;
 sostenedor *Servicio Local de Educación Pública Los Parques*; **logos** se adjuntarán a
 Claude (pendiente de recibir). El **encabezado institucional** debe **repetirse en todas

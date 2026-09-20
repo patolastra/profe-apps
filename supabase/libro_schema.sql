@@ -139,9 +139,15 @@ ON CONFLICT (anio) DO NOTHING;
 --   I8  nota NULL o en [1.0, 7.0]                → CHECK
 --   I9  la adecuación aplicada en una nota pertenece a la MISMA evaluación → trigger
 --   I12 cerrado = solo lectura (cabecera + detalles); reapertura explícita  → triggers
---   I13 snapshot: la población se materializa al crear; sin re-sincronización
---       → garantizado por diseño: NINGÚN mecanismo de BD añade filas de notas;
---         la app inserta una fila por estudiante vigente al crear y nada más.
+--   I13 snapshot: la población se materializa al crear.
+--       [MODIFICADO EN ETAPA 5 — F6 instrumentos, autorizado por el PO 2026-09-20]
+--       Ya NO es un snapshot estrictamente inmutable: mientras la evaluación está
+--       ABIERTA, la app RECONCILIA la población con la matrícula ACTIVA (incorpora
+--       automáticamente a los estudiantes que se matriculen después; no duplica, no
+--       toca filas existentes y conserva a los retirados como historial). Al CERRAR,
+--       la población queda congelada; al REABRIR, vuelve a reconciliarse. La BD sigue
+--       sin añadir filas por sí sola: la reconciliación la hace la app (ver
+--       AUDITORIA/INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md §0.1 y Etapa 5).
 -- ============================================================
 
 -- ── 4. LIBRO_EVALUACIONES ───────────────────────────────────
@@ -1125,4 +1131,142 @@ CREATE POLICY "acceso_total" ON libro_eval_instrumento_items    FOR ALL USING (t
 CREATE POLICY "acceso_total" ON libro_eval_resultados           FOR ALL USING (true) WITH CHECK (true);
 -- ============================================================
 -- FIN — Instrumentos de Evaluación · Etapa 1 (esquema base)
+-- ============================================================
+
+
+-- ============================================================
+-- LIBRO DE CLASES — F6 (desarrollo paralelo): INSTRUMENTOS DE EVALUACIÓN
+-- ETAPA 5: estados, cierre con guard y congelamiento (nivel BD)
+-- ============================================================
+-- Fuente: AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md · decisiones §0.
+-- Decisión del PO (2026-09-20): las reglas de estado/cierre aplican a TODAS
+-- las evaluaciones (no solo a las que usan instrumentos).
+--
+-- ALCANCE ETAPA 5 (BD):
+--  1) GUARD DE CIERRE (7b): una evaluación no puede pasar a 'cerrado' si algún
+--     estudiante con MATRÍCULA ACTIVA (curso/año) está pendiente = (nota IS NULL
+--     y estado_eval <> 'no_aplica'). Los retirados (sin matrícula activa) y los
+--     'no_aplica' no bloquean. Usa `nota` (sincronizada por la app) + estado_eval.
+--  2) CONGELADO al cerrar, extendido a nota_min + instrumento_id (cabecera) y a
+--     las tablas nuevas (instrumentos, ítems de instrumento, resultados),
+--     replicando el patrón I12. Reapertura sigue permitida (solo cambia estado).
+--
+-- Aditivo e idempotente. NO toca datos. Se ejecuta en el SQL Editor de Supabase.
+-- ============================================================
+
+-- ── GUARD DE CIERRE (BD) ────────────────────────────────────
+CREATE OR REPLACE FUNCTION libro_eval_cierre_guard()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.estado = 'cerrado' AND OLD.estado IS DISTINCT FROM 'cerrado' THEN
+        IF EXISTS (
+            SELECT 1
+              FROM libro_evaluacion_notas en
+              JOIN libro_matriculas m
+                ON m.estudiante_id = en.estudiante_id
+               AND m.anio_id      = NEW.anio_id
+               AND m.contexto_id  = NEW.contexto_id
+               AND m.estado       = 'activo'
+             WHERE en.evaluacion_id = NEW.id
+               AND en.estado_eval IS DISTINCT FROM 'no_aplica'
+               AND en.nota IS NULL
+        ) THEN
+            RAISE EXCEPTION
+                'No se puede cerrar: hay estudiantes pendientes (sin nota y no marcados No aplica).';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_eval_cierre_guard ON libro_evaluaciones;
+CREATE TRIGGER trg_libro_eval_cierre_guard
+    BEFORE UPDATE OF estado ON libro_evaluaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_eval_cierre_guard();
+
+-- ── CONGELADO DE CABECERA (extiende I12 con nota_min + instrumento_id) ──
+-- Re-define la función base; el trigger existente sigue apuntando a ella.
+CREATE OR REPLACE FUNCTION libro_eval_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.estado = 'cerrado' AND (
+           NEW.nombre             IS DISTINCT FROM OLD.nombre
+        OR NEW.fecha              IS DISTINCT FROM OLD.fecha
+        OR NEW.oa_original        IS DISTINCT FROM OLD.oa_original
+        OR NEW.contexto_id        IS DISTINCT FROM OLD.contexto_id
+        OR NEW.anio_id            IS DISTINCT FROM OLD.anio_id
+        OR NEW.sesion_creacion_id IS DISTINCT FROM OLD.sesion_creacion_id
+        OR NEW.nota_min           IS DISTINCT FROM OLD.nota_min
+        OR NEW.instrumento_id     IS DISTINCT FROM OLD.instrumento_id
+    ) THEN
+        RAISE EXCEPTION
+            'I12: evaluación cerrada es solo lectura; reábrela (estado=abierto) para editar la cabecera';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ── CONGELADO DE LAS TABLAS NUEVAS (patrón I12) ─────────────
+-- Instrumentos aplicados: inmutables si su evaluación está cerrada.
+CREATE OR REPLACE FUNCTION libro_eval_instr_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+DECLARE v_eval UUID; v_estado TEXT;
+BEGIN
+    v_eval := COALESCE(NEW.evaluacion_id, OLD.evaluacion_id);
+    SELECT estado INTO v_estado FROM libro_evaluaciones WHERE id = v_eval;
+    IF NOT FOUND THEN RETURN COALESCE(NEW, OLD); END IF;   -- padre en cascada → permitir
+    IF v_estado = 'cerrado' THEN
+        RAISE EXCEPTION 'I12: la evaluación % está cerrada; reábrela para modificar sus instrumentos', v_eval;
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_libro_eval_instr_bloqueo_cerrada ON libro_eval_instrumentos;
+CREATE TRIGGER trg_libro_eval_instr_bloqueo_cerrada
+    BEFORE INSERT OR UPDATE OR DELETE ON libro_eval_instrumentos
+    FOR EACH ROW EXECUTE FUNCTION libro_eval_instr_bloqueo_cerrada();
+
+-- Ítems de instrumento aplicado: evaluación vía el instrumento.
+CREATE OR REPLACE FUNCTION libro_eval_instr_item_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+DECLARE v_instr UUID; v_eval UUID; v_estado TEXT;
+BEGIN
+    v_instr := COALESCE(NEW.instrumento_id, OLD.instrumento_id);
+    SELECT evaluacion_id INTO v_eval FROM libro_eval_instrumentos WHERE id = v_instr;
+    IF NOT FOUND THEN RETURN COALESCE(NEW, OLD); END IF;   -- instrumento en cascada → permitir
+    SELECT estado INTO v_estado FROM libro_evaluaciones WHERE id = v_eval;
+    IF NOT FOUND THEN RETURN COALESCE(NEW, OLD); END IF;
+    IF v_estado = 'cerrado' THEN
+        RAISE EXCEPTION 'I12: la evaluación % está cerrada; reábrela para modificar sus instrumentos', v_eval;
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_libro_eval_instr_item_bloqueo_cerrada ON libro_eval_instrumento_items;
+CREATE TRIGGER trg_libro_eval_instr_item_bloqueo_cerrada
+    BEFORE INSERT OR UPDATE OR DELETE ON libro_eval_instrumento_items
+    FOR EACH ROW EXECUTE FUNCTION libro_eval_instr_item_bloqueo_cerrada();
+
+-- Resultados: evaluación vía la nota.
+CREATE OR REPLACE FUNCTION libro_eval_resultado_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+DECLARE v_nota UUID; v_eval UUID; v_estado TEXT;
+BEGIN
+    v_nota := COALESCE(NEW.nota_id, OLD.nota_id);
+    SELECT evaluacion_id INTO v_eval FROM libro_evaluacion_notas WHERE id = v_nota;
+    IF NOT FOUND THEN RETURN COALESCE(NEW, OLD); END IF;   -- nota en cascada → permitir
+    SELECT estado INTO v_estado FROM libro_evaluaciones WHERE id = v_eval;
+    IF NOT FOUND THEN RETURN COALESCE(NEW, OLD); END IF;
+    IF v_estado = 'cerrado' THEN
+        RAISE EXCEPTION 'I12: la evaluación % está cerrada; reábrela para modificar sus resultados', v_eval;
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_libro_eval_resultado_bloqueo_cerrada ON libro_eval_resultados;
+CREATE TRIGGER trg_libro_eval_resultado_bloqueo_cerrada
+    BEFORE INSERT OR UPDATE OR DELETE ON libro_eval_resultados
+    FOR EACH ROW EXECUTE FUNCTION libro_eval_resultado_bloqueo_cerrada();
+-- ============================================================
+-- FIN — Instrumentos de Evaluación · Etapa 5 (estados/cierre/congelado BD)
 -- ============================================================

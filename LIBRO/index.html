@@ -196,6 +196,10 @@
   .nota-val{font-weight:700}
   .nota-val.incompleto{color:var(--mut)}
   .nota-sub{font-size:11px;color:var(--mut)}
+  .est-badge{font-size:10px;text-transform:uppercase;letter-spacing:.03em;padding:1px 6px;border-radius:999px;white-space:nowrap;font-weight:600}
+  .est-badge.pendiente{background:rgba(224,161,6,.18);color:#f0c040}
+  .est-badge.evaluado{background:rgba(76,175,80,.18);color:#7bd88a}
+  .est-badge.no_aplica{background:rgba(255,255,255,.10);color:var(--mut)}
   .em-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
   .em-card{position:relative;background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--acc);
     border-radius:14px;max-width:660px;width:100%;max-height:88vh;overflow:auto;padding:18px 20px;box-shadow:0 12px 48px rgba(0,0,0,.5)}
@@ -353,6 +357,7 @@ let evalInstrItems = [];   // Etapa 3: ítems/criterios de esos instrumentos apl
 let instrVerId = null;     // Etapa 3: id del instrumento aplicado expandido (solo lectura)
 let evalResultados = [];   // Etapa 4: filas de libro_eval_resultados (por nota × ítem)
 let instrModalNotaId = null; // Etapa 4: estudiante cuyo instrumento se está aplicando en el modal
+let matriculaActiva = new Set(); // Etapa 5: estudiante_ids con matrícula ACTIVA (curso/año)
 let grupoSelIds = new Set(); // selección provisional en la lista de disponibles (UI, no persiste)
 let evalModalCtx = null;   // { tipo:'grupo', gid } | { tipo:'indiv', notaId } — modal de evaluación
 let posMap = {};           // estudiante_id -> posición (orden)
@@ -654,15 +659,32 @@ async function abrirDetalle(evId){
     const [ce, ca, cm] = await Promise.all([
       sb.from('libro_evaluaciones').select('*').eq('id', evId).single(),
       sb.from('libro_evaluacion_adecuaciones').select('*').eq('evaluacion_id', evId).order('created_at'),
-      sb.from('libro_matriculas').select('estudiante_id,posicion').eq('anio_id', anioId).eq('contexto_id', ctxId),
+      sb.from('libro_matriculas').select('estudiante_id,posicion,estado').eq('anio_id', anioId).eq('contexto_id', ctxId),
     ]);
     if (ce.error) throw ce.error;
     if (ca.error) throw ca.error;
     if (cm.error) throw cm.error;
+    evalActual = ce.data;   // se necesita temprano para la reconciliación
+    matriculaActiva = new Set((cm.data || []).filter(m => m.estado === 'activo').map(m => m.estudiante_id));
+    // Etapa 5 — Reconciliación de población (cambio de I13): con la evaluación
+    // ABIERTA, incorporar automáticamente los estudiantes con matrícula ACTIVA que
+    // aún no estén en la evaluación. No duplica (compara por estudiante_id), no
+    // toca filas existentes y conserva a los retirados (historial). Cerrada = NO.
+    if (evalActual.estado === 'abierto') {
+      const ex = await sb.from('libro_evaluacion_notas').select('estudiante_id').eq('evaluacion_id', evId);
+      if (!ex.error) {
+        const pres = new Set((ex.data || []).map(r => r.estudiante_id));
+        const faltan = [...matriculaActiva].filter(id => !pres.has(id));
+        if (faltan.length) {
+          await sb.from('libro_evaluacion_notas').insert(faltan.map(id =>
+            ({ evaluacion_id: evId, estudiante_id: id, nota: null, estado_eval: 'pendiente' })));
+        }
+      }
+    }
     // Notas + grupos con FALLBACK retrocompatible: si el schema de grupos aún no
     // está aplicado, evaluaciones sigue funcionando como antes (grupos=[]).
     let cn = await sb.from('libro_evaluacion_notas')
-      .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,instrumento_id,grupo_id,nota_excepcion,objetivo_excepcion,estudiante:libro_estudiantes(nombre,apellido)')
+      .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,instrumento_id,estado_eval,grupo_id,nota_excepcion,objetivo_excepcion,estudiante:libro_estudiantes(nombre,apellido)')
       .eq('evaluacion_id', evId);
     if (cn.error && /grupo_id|nota_excepcion|objetivo_excepcion|does not exist|schema cache/i.test(cn.error.message || '')) {
       cn = await sb.from('libro_evaluacion_notas')
@@ -1282,21 +1304,28 @@ function evalTerminarIndividual(notaId){
 }
 
 async function cerrarEval(){
+  // Etapa 5: guard de cierre en UI (la BD lo refuerza con un trigger).
+  // Bloquea si algún estudiante ACTIVO está pendiente (sin nota y no "No aplica").
+  const pend = notas.filter(n => esActivo(n) && estadoEfectivo(n) === 'pendiente');
+  if (pend.length) {
+    toast(`No se puede cerrar: ${pend.length} estudiante(s) pendiente(s). Evalúalos o márcalos "No aplica".`, 'err');
+    return;
+  }
   try {
     const { error } = await sb.from('libro_evaluaciones').update({ estado:'cerrado' }).eq('id', evalActual.id);
     if (error) throw error;
     evalActual.estado = 'cerrado'; renderDetalle();
     toast('Evaluación cerrada (solo lectura).', 'ok');
-  } catch (e) { toast('No se pudo cerrar la evaluación', 'err'); }
+  } catch (e) { toast('No se pudo cerrar: ' + e.message, 'err'); }
 }
 
 async function reabrirEval(){
   try {
     const { error } = await sb.from('libro_evaluaciones').update({ estado:'abierto' }).eq('id', evalActual.id);
     if (error) throw error;
-    evalActual.estado = 'abierto'; renderDetalle();
     toast('Evaluación reabierta (editable).', 'ok');
-  } catch (e) { toast('No se pudo reabrir la evaluación', 'err'); }
+    await abrirDetalle(evalActual.id);   // Etapa 5: recarga + reconciliación de población
+  } catch (e) { toast('No se pudo reabrir: ' + e.message, 'err'); }
 }
 
 function volverLista(){ limpiarMsg(); renderLista(); }
@@ -2058,17 +2087,56 @@ function calcNota(n){
   return { instrumento: true, iid, tipo: instr ? instr.tipo : 'rubrica', nItems, answered, completo, puntaje, minPos, maxPos, nota };
 }
 
-// Celda de nota: computada (instrumento) o input manual (tradicional).
+// ── Etapa 5: estado del estudiante (Pendiente/Evaluado/No aplica) ──
+// no_aplica es explícito (columna). evaluado = tiene nota definitiva (instrumento
+// completo persiste nota; tradicional = nota manual). pendiente = el resto.
+function estadoEfectivo(n){
+  if (n.estado_eval === 'no_aplica') return 'no_aplica';
+  return (n.nota != null) ? 'evaluado' : 'pendiente';
+}
+function estLabel(e){ return e === 'evaluado' ? 'Evaluado' : e === 'no_aplica' ? 'No aplica' : 'Pendiente'; }
+function esActivo(n){ return matriculaActiva.has(n.estudiante_id); }
+
+// Celda de nota: estado + (nota computada por instrumento | input manual) + No aplica.
 function notaCellHTML(n, idx, cerrada){
+  const est = estadoEfectivo(n);
+  const badge = `<span class="est-badge ${est}">${estLabel(est)}</span>`;
+  const naBtn = cerrada ? '' : (est === 'no_aplica'
+    ? `<button class="btn mini" onclick="setNoAplica('${n.id}',false)" title="Quitar No aplica">Aplicar</button>`
+    : `<button class="btn mini" onclick="setNoAplica('${n.id}',true)" title="Marcar No aplica">No aplica</button>`);
+  if (est === 'no_aplica') {
+    return `<td class="nota"><div class="nota-instr"><span class="nota-val incompleto">N/A</span>${badge}${naBtn}</div></td>`;
+  }
   const c = calcNota(n);
   if (!c.instrumento) {
-    return `<td class="nota"><input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${cerrada ? 'disabled' : ''}><div class="cel-marca">${marcaNotaHTML(n, cerrada)}</div></td>`;
+    return `<td class="nota"><div class="nota-instr">
+        <input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${cerrada ? 'disabled' : ''} style="max-width:64px">
+        ${badge}${naBtn}<div class="cel-marca">${marcaNotaHTML(n, cerrada)}</div></div></td>`;
   }
   return `<td class="nota"><div class="nota-instr">
       <span class="nota-val${c.completo ? '' : ' incompleto'}">${c.completo ? fmtNota(c.nota) : '—'}</span>
-      <span class="nota-sub">${c.answered}/${c.nItems}${c.completo ? '' : ' · incompleto'}</span>
-      ${cerrada ? '' : `<button class="btn mini" onclick="abrirInstrEstudiante('${n.id}')">Evaluar</button>`}
+      <span class="nota-sub">${c.answered}/${c.nItems} ${badge}</span>
+      ${cerrada ? '' : `<button class="btn mini" onclick="abrirInstrEstudiante('${n.id}')">Evaluar</button>`}${naBtn}
     </div></td>`;
+}
+
+// Marcar / quitar "No aplica" (Etapa 5).
+async function setNoAplica(notaId, on){
+  const n = notas.find(x => x.id === notaId); if (!n) return;
+  try {
+    if (on) {
+      const { error } = await sb.from('libro_evaluacion_notas').update({ estado_eval: 'no_aplica', nota: null }).eq('id', notaId);
+      if (error) throw error;
+      n.estado_eval = 'no_aplica'; n.nota = null;
+    } else {
+      const { error } = await sb.from('libro_evaluacion_notas').update({ estado_eval: 'pendiente' }).eq('id', notaId);
+      if (error) throw error;
+      n.estado_eval = 'pendiente';
+      if (calcNota(n).instrumento) await persistNotaCalculada(n);   // recupera nota desde resultados existentes
+    }
+    toast('Guardado.', 'ok');
+    actualizarFilaNota(n); filtrarEstudiantes();
+  } catch (e) { toast('No se pudo guardar: ' + e.message, 'err'); }
 }
 function actualizarFilaNota(n){
   const tr = document.querySelector(`#tbody-est tr[data-nota-id="${n.id}"]`);

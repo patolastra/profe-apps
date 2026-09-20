@@ -369,13 +369,12 @@ Claves de compatibilidad:
   (2026-09-20).** Completar instrumento; puntaje y nota **en vivo**; guardado **parcial**;
   recálculo al cambiar **piso** (§A1/§A8/§A9). Ver "Registro de implementación — Etapa 4"
   al final.
-- **Etapa 5 — Reglas de población y cierre.** Estados Pendiente/Evaluado/No aplica;
-  bloqueo de cierre por pendientes (UI + trigger, 7b); retiro (no bloquea, conserva
-  histórico); **ingreso posterior por re-sync automático (6b): reconciliar el snapshot
-  con las matrículas activas mientras la eval está abierta, congelar al cerrar,
-  re-reconciliar al reabrir** (modifica I13, §0.1); **congelado integral** al cerrar +
-  reapertura (§A10). Depende de: E4. Prueba: matriz de escenarios
-  (pendiente/retirado/ingreso posterior/no_aplica × abierta/cerrada/reabierta).
+- **Etapa 5 — Reglas de población y cierre. ✅ IMPLEMENTADA Y VERIFICADA EN VIVO
+  (2026-09-20).** Estados Pendiente/Evaluado/No aplica; bloqueo de cierre por pendientes
+  (UI + trigger BD, 7b); retiro (no bloquea, conserva histórico); ingreso posterior por
+  re-sync automático (6b, modifica I13); congelado integral al cerrar + reapertura
+  (§A10). **Decisión del PO: aplica a TODAS las evaluaciones** (no solo a las que usan
+  instrumentos). Ver "Registro de implementación — Etapa 5" al final.
 - **Etapa 6 — Grupos + excepciones con instrumentos.** Evaluar grupo y aplicar a
   integrantes; excepciones arbitrarias (individual, otra adecuación, otro instrumento,
   resultado propio) (§A6). Depende de: E4 (y E5 para estados). Prueba: herencia +
@@ -688,3 +687,71 @@ pruebas y quedó intacta):**
 
 **No surgieron decisiones de Producto nuevas.** **CLAUDE.md:** sin cambios (Etapa 4 no
 introduce regla normativa permanente). **Etapas 5–7 NO iniciadas.**
+
+---
+
+## Registro de implementación — Etapa 5 (estados, población, cierre, reapertura) · 2026-09-20
+
+**Autorización:** PO, sobre los checkpoints Etapa 1 `253982b` … Etapa 4 `6f6c0b7`.
+**Decisión de alcance del PO (2026-09-20):** las reglas de Etapa 5 aplican a **TODAS las
+evaluaciones**, no solo a las que usan instrumentos. Reinterpretación del test 14: la
+evaluación tradicional **sigue funcionando** (notas manuales operativas), asumiendo que
+ahora también tiene estados, "No aplica" y bloqueo de cierre.
+
+**Qué se implementó:**
+- **BD (`supabase/libro_schema.sql`, sección "ETAPA 5"):** (a) **guard de cierre** —
+  trigger `libro_eval_cierre_guard` que impide pasar a `cerrado` si algún estudiante con
+  **matrícula activa** está pendiente (`nota IS NULL` y `estado_eval <> 'no_aplica'`);
+  (b) **congelado extendido** — `libro_eval_bloqueo_cerrada` redefinido para incluir
+  `nota_min` e `instrumento_id`, y nuevos triggers de congelado para
+  `libro_eval_instrumentos`, `libro_eval_instrumento_items` y `libro_eval_resultados`.
+  Idempotente; ejecutado por el PO en el SQL Editor.
+- **App (`LIBRO/index.html`):** estado por estudiante (`estadoEfectivo`:
+  no_aplica explícito · evaluado = nota definitiva · pendiente = resto); **No aplica**
+  (`setNoAplica`, con recuperación al quitarlo); badges de estado en la tabla; **guard de
+  cierre en UI** (`cerrarEval`); **reapertura con recarga** (`reabrirEval` → `abrirDetalle`);
+  **reconciliación de población** en `abrirDetalle` (evaluación abierta: incorpora
+  automáticamente los activos faltantes, no duplica, conserva retirados) — **cambio de
+  I13** (comentario del esquema actualizado).
+- **Modelo de estado:** `estado_eval` almacena `no_aplica`; evaluado/pendiente se derivan
+  de `nota` (que la app mantiene). El guard de BD usa `nota IS NULL` + `estado_eval` +
+  matrícula activa (robusto también para datos previos, sin depender de sincronizar
+  'evaluado').
+
+**Corrección de robustez (detectada en el E2E):** el `SELECT` de notas de `abrirDetalle`
+no incluía `estado_eval` → los "No aplica" se leían como pendientes en la UI (el guard de
+BD, que usa la columna real, sí funcionaba). **Corregido** (se agregó `estado_eval` al
+select).
+
+**Pruebas E2E (persistencia real en Supabase, sobre evaluación desechable; datos de
+prueba limpiados y datos reales restaurados):**
+1. Pendiente **bloquea** cierre (guard BD → P0001/400). ✅
+2. Evaluado permite continuar (cierre exitoso con evaluados). ✅
+3. No aplica permite continuar y no genera nota. ✅
+4. Estudiante nuevo **aparece** al abrir (reconciliación; 24→25, sin duplicar). ✅
+5. Estudiante nuevo puede ser **evaluado** (→ evaluado, nota 7,0). ✅
+6. Estudiante nuevo puede quedar **No aplica** (y al revertir recupera su nota). ✅
+7. Retirado **antes** de evaluar **no bloquea** el cierre. ✅
+8. Evaluado que luego se retira **conserva** su resultado y nota (7,0). ✅
+9. Cierre exitoso **congela** (UI: sin botones, inputs disabled; BD: ver test 10). ✅
+10. Modificar una evaluación **cerrada falla en BD** (nota, nota_min, cabecera, insert de
+    resultado, update/delete de instrumento e ítem → todos I12/400). ✅
+11. Reapertura vuelve a permitir edición (editar nota tras reabrir → 204). ✅
+12. Tras reabrir, la **reconciliación** vuelve a funcionar (nuevo activo incorporado). ✅
+13. Guard de cierre **a nivel BD** (cierre vía REST con pendientes → rechazado). ✅
+14. Evaluación tradicional ("prueba") sigue funcionando (inputs manuales, 0 errores de
+    consola; ahora con estados por la decisión del PO). ✅
+
+**Cleanup:** evaluación desechable eliminada; 24 matrículas activas restauradas (2 retiros
+de prueba revertidos); "prueba" con 24 estudiantes y sus notas reales (6,6/6,7/7,0)
+intactas; 0 instrumentos/plantillas/resultados globales.
+
+**CLAUDE.md — decisión:** **no se modificó**. `CLAUDE.md` no documenta I13/snapshot (no
+hay enunciado normativo que corregir); la consolidación normativa del comportamiento de
+población/estados/cierre en `CLAUDE.md` corresponde a la **reintegración** del período
+paralelo (regla §9). El comentario de I13 en `supabase/libro_schema.sql` **sí** se
+actualizó (exactitud técnica). **Pendiente para reintegración:** decidir si I13/estados/
+cierre pasan a `CLAUDE.md` como regla permanente.
+
+**No surgieron decisiones de Producto nuevas** más allá de la de alcance ya consultada y
+resuelta por el PO. **Etapas 6–7 NO iniciadas.**
