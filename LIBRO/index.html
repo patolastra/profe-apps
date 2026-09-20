@@ -208,6 +208,11 @@
   .em-mrow:first-of-type{border-top:none}
   .em-mrow .em-nom{align-self:center;min-width:0;overflow:hidden;text-overflow:ellipsis}
   @media(max-width:560px){ .em-mrow{grid-template-columns:1fr} }
+  /* Etapa 6: fila de integrante en modo instrumento (grupo con rúbrica/cotejo) */
+  .em-mrow-instr{padding:8px 0;border-top:1px solid var(--line)}
+  .em-mrow-instr:first-of-type{border-top:none}
+  .em-mrow-instr .em-nom{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .em-mrow-instr select{max-width:240px}
 
   /* Toast: fixed, no desplaza ni recarga la página */
   #toast-wrap{position:fixed;right:18px;bottom:18px;z-index:50;display:flex;flex-direction:column;gap:8px;pointer-events:none}
@@ -818,7 +823,16 @@ function renderDetalle(){
         const n = notas[i];
         if (k === 'adecuacion_id') {
           n.adecuacion_id = el.value || null;
-          if (n.grupo_id) { n.objetivo_excepcion = true; try { await evalPersistNotasRows([n]); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); } refrescarDetalle(); }
+          if (n.grupo_id) {
+            n.objetivo_excepcion = true;
+            try {
+              await evalPersistNotasRows([n]);
+              // Etapa 6: si el integrante usa instrumento, cambiar su objetivo cambia
+              // su instrumento efectivo → recalcular la nota persistida.
+              if (instrEfectivoId(n) || calcNota(n).instrumento) await persistNotaCalculada(n);
+            } catch(e){ toast('No se pudo guardar: '+e.message,'err'); }
+            refrescarDetalle();
+          }
           // Etapa 4: si el estudiante (fuera de grupo) usa instrumento, el objetivo
           // define qué instrumento aplica → persistir de inmediato y recalcular su nota.
           else if (instrEfectivoId(n)) { try { await evalPersistNotasRows([n]); await persistNotaCalculada(n); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); } refrescarDetalle(); }
@@ -957,6 +971,7 @@ async function evalPersistNotasRows(rows){
   if (!rows.length) return;
   const filas = rows.map(n => ({ id:n.id, evaluacion_id:n.evaluacion_id, estudiante_id:n.estudiante_id,
     nota:n.nota ?? null, comentario:n.comentario ?? null, adecuacion_id:n.adecuacion_id ?? null,
+    instrumento_id:n.instrumento_id ?? null,   // Etapa 6: override 4a (otro instrumento)
     grupo_id:n.grupo_id ?? null, nota_excepcion:!!n.nota_excepcion, objetivo_excepcion:!!n.objetivo_excepcion }));
   const { error } = await sb.from('libro_evaluacion_notas').upsert(filas, { onConflict:'id' });
   if (error) throw error;
@@ -965,6 +980,118 @@ async function evalUpsertGrupo(g){
   const { error } = await sb.from('libro_evaluacion_grupos')
     .upsert({ id:g.id, evaluacion_id:g.evaluacion_id, nombre:g.nombre, nota_grupal:g.nota_grupal ?? null, adecuacion_grupal_id:g.adecuacion_grupal_id ?? null });
   if (error) throw error;
+}
+
+// ══════════════════════════════════════════════════════════════
+// ETAPA 6 — GRUPOS + INSTRUMENTOS + EXCEPCIONES INDIVIDUALES
+// El grupo se evalúa UNA vez con su instrumento; el resultado se aplica (fan-out)
+// a los integrantes que HEREDAN (sin excepción). Una excepción (otro objetivo,
+// otro instrumento u evaluación individual) saca a ese estudiante del fan-out y
+// le da resultados propios, sin alterar al resto. Almacenamiento por estudiante
+// (libro_eval_resultados), coherente con Etapa 4 (spec §A6, persistencia §A7).
+// ══════════════════════════════════════════════════════════════
+
+// Instrumento derivado de un objetivo (adecuación; si null → OA original).
+function instrDeObjetivo(adecId){
+  if (adecId) { const a = adecs.find(x => x.id === adecId); return a ? (a.instrumento_id || null) : null; }
+  return evalActual.instrumento_id || null;
+}
+// Instrumento efectivo del grupo = el de su objetivo grupal.
+function grupoInstrId(g){ return g ? instrDeObjetivo(g.adecuacion_grupal_id) : null; }
+// Un integrante HEREDA del grupo si no tiene NINGUNA excepción (nota/objetivo/instrumento).
+function heredaGrupo(n){ return !!n.grupo_id && !n.nota_excepcion && !n.objetivo_excepcion && !n.instrumento_id; }
+// Integrantes de un grupo que heredan (destino del fan-out de resultados).
+function miembrosHeredan(gid){ return notas.filter(n => n.grupo_id === gid && heredaGrupo(n)); }
+// Miembro de referencia: todos los que heredan comparten los mismos resultados.
+function grupoRefMiembro(gid, exceptId){ return miembrosHeredan(gid).find(m => m.id !== exceptId) || null; }
+
+// Sincroniza el estado local evalResultados con filas devueltas por un upsert.
+function mergeResultados(rows){
+  (rows || []).forEach(row => {
+    const i = evalResultados.findIndex(r => r.nota_id === row.nota_id && r.instrumento_item_id === row.instrumento_item_id);
+    if (i >= 0) evalResultados[i] = row; else evalResultados.push(row);
+  });
+}
+
+// Evaluar el GRUPO con su instrumento: escribe el nivel/valor del criterio-ítem en
+// TODOS los integrantes que heredan; recalcula y persiste sus notas.
+async function setResultadoGrupo(gid, itemId, valor){
+  const dest = miembrosHeredan(gid);
+  if (!dest.length) { toast('Ningún integrante hereda del grupo (todos con excepción individual).', 'err'); return; }
+  try {
+    const filas = dest.map(n => ({ nota_id:n.id, instrumento_item_id:itemId, valor }));
+    const { data, error } = await sb.from('libro_eval_resultados')
+      .upsert(filas, { onConflict:'nota_id,instrumento_item_id' }).select('*');
+    if (error) throw error;
+    mergeResultados(data);
+    for (const n of dest) await persistNotaCalculada(n);
+    renderEvalModal();
+    dest.forEach(n => actualizarFilaNota(n));
+    filtrarEstudiantes();
+  } catch (e) { toast('No se pudo evaluar el grupo: ' + e.message, 'err'); }
+}
+
+// Copia los resultados actuales del grupo (del miembro de referencia) al integrante n.
+async function copiarResultadosGrupoA(n, g){
+  const ref = grupoRefMiembro(g.id, n.id);
+  if (!ref) return;
+  const refRes = evalResultados.filter(r => r.nota_id === ref.id);
+  if (!refRes.length) return;
+  const filas = refRes.map(r => ({ nota_id:n.id, instrumento_item_id:r.instrumento_item_id, valor:r.valor }));
+  const { data, error } = await sb.from('libro_eval_resultados')
+    .upsert(filas, { onConflict:'nota_id,instrumento_item_id' }).select('*');
+  if (error) throw error;
+  mergeResultados(data);
+}
+
+// Excepción "otro instrumento" (4a): el integrante usa un instrumento distinto al del grupo.
+async function setInstrOverride(notaId, val){
+  const n = notas.find(x => x.id === notaId); if (!n) return;
+  const nuevo = val || null;
+  n.instrumento_id = nuevo;
+  if (n.grupo_id && nuevo) n.nota_excepcion = true;   // deja de heredar la evaluación del grupo
+  try {
+    await evalPersistNotasRows([n]);
+    await persistNotaCalculada(n);   // recalcula con el nuevo instrumento (probablemente incompleto → null)
+    renderEvalModal(); actualizarFilaNota(n); filtrarEstudiantes();
+    toast('Instrumento del integrante actualizado.', 'ok');
+  } catch (e) { toast('No se pudo cambiar el instrumento: ' + e.message, 'err'); }
+}
+
+// "Evaluar individual": el integrante tendrá resultados propios (no hereda del grupo).
+async function evalEvaluarMiembroIndividual(notaId){
+  const n = notas.find(x => x.id === notaId); if (!n) return;
+  if (!instrEfectivoId(n)) { toast('Este integrante no tiene instrumento asociado.', 'err'); return; }
+  if (n.grupo_id && !n.nota_excepcion) {
+    n.nota_excepcion = true;   // sus resultados dejan de sincronizarse con el grupo
+    try { await evalPersistNotasRows([n]); } catch (e) { toast('No se pudo marcar la excepción: ' + e.message, 'err'); return; }
+    actualizarFilaNota(n);
+  }
+  abrirInstrEstudiante(n.id);   // abre el modal de instrumento individual (encima del de grupo)
+}
+
+// Deshacer TODAS las excepciones del integrante: vuelve a heredar objetivo,
+// instrumento y resultados del grupo (o, sin instrumento, la nota grupal).
+async function evalVolverAlGrupo(notaId){
+  const n = notas.find(x => x.id === notaId); if (!n || !n.grupo_id) return;
+  const g = grupos.find(x => x.id === n.grupo_id);
+  const conInstr = !!grupoInstrId(g);
+  n.nota_excepcion = false; n.objetivo_excepcion = false; n.instrumento_id = null;
+  n.adecuacion_id = g ? (g.adecuacion_grupal_id ?? null) : null;
+  try {
+    if (conInstr) {
+      await sb.from('libro_eval_resultados').delete().eq('nota_id', n.id);   // borra sus resultados propios
+      evalResultados = evalResultados.filter(r => r.nota_id !== n.id);
+      await evalPersistNotasRows([n]);
+      await copiarResultadosGrupoA(n, g);   // hereda los resultados del grupo
+      await persistNotaCalculada(n);
+    } else {
+      n.nota = g ? (g.nota_grupal ?? null) : null;
+      await evalPersistNotasRows([n]);
+    }
+    renderEvalModal(); actualizarFilaNota(n); filtrarEstudiantes();
+    toast('El integrante vuelve a heredar del grupo.', 'ok');
+  } catch (e) { toast('No se pudo volver al grupo: ' + e.message, 'err'); }
 }
 
 // ── HTML: chip de grupo + marcas de herencia/excepción en las celdas ──
@@ -1075,6 +1202,7 @@ async function evalCrearGrupoDesdeSeleccion(){
     grupos.push(g);
     const miembros = ids.map(id => notas.find(n => n.id === id));
     miembros.forEach(n => { n.grupo_id = g.id; n.nota_excepcion = false; n.objetivo_excepcion = false;
+      n.instrumento_id = null;   // Etapa 6: sin override → hereda el instrumento del grupo
       n.nota = g.nota_grupal ?? null; n.adecuacion_id = g.adecuacion_grupal_id ?? null; });
     await evalPersistNotasRows(miembros);
     grupoSelIds.clear();
@@ -1103,8 +1231,12 @@ async function evalDrop(ev, gidDestino){
   try {
     // Mover: un solo grupo_id → cambia de grupo, nunca queda duplicado. Hereda del destino.
     n.grupo_id = gidDestino; n.nota_excepcion = false; n.objetivo_excepcion = false;
+    n.instrumento_id = null;   // Etapa 6: sin override → hereda el instrumento del destino
     n.nota = gDest.nota_grupal ?? null; n.adecuacion_id = gDest.adecuacion_grupal_id ?? null;
     await evalPersistNotasRows([n]);
+    // Etapa 6: si el grupo destino usa instrumento y ya tiene evaluación, el nuevo
+    // integrante hereda esos resultados (copia) y su nota se recalcula.
+    if (grupoInstrId(gDest)) { await copiarResultadosGrupoA(n, gDest); await persistNotaCalculada(n); }
     refrescarDetalle();
   } catch (e) { toast('No se pudo mover: ' + e.message, 'err'); }
 }
@@ -1158,6 +1290,10 @@ async function evalSetObjetivoGrupal(gid, adecId){
     const afectados = notas.filter(n => n.grupo_id === gid && !n.objetivo_excepcion);
     afectados.forEach(n => n.adecuacion_id = g.adecuacion_grupal_id);
     await evalPersistNotasRows(afectados);
+    // Etapa 6: el objetivo grupal define el instrumento del grupo. Al cambiarlo, los
+    // integrantes que heredan recalculan su nota (el instrumento nuevo suele quedar
+    // incompleto → nota null hasta reevaluar al grupo).
+    if (grupoInstrId(g)) { for (const n of afectados) if (heredaGrupo(n)) await persistNotaCalculada(n); }
     evalRefrescar();
     toast('Objetivo grupal aplicado.', 'ok');
   } catch (e) { toast('No se pudo aplicar el objetivo grupal: ' + e.message, 'err'); }
@@ -1165,6 +1301,7 @@ async function evalSetObjetivoGrupal(gid, adecId){
 async function evalUsarNotaGrupo(notaId){
   const n = notas.find(x => x.id === notaId); if (!n || !n.grupo_id) return;
   const g = grupos.find(x => x.id === n.grupo_id);
+  if (grupoInstrId(g)) { await evalVolverAlGrupo(notaId); return; }   // Etapa 6: grupo con instrumento → revertir completo
   n.nota_excepcion = false; n.nota = g?.nota_grupal ?? null;
   try { await evalPersistNotasRows([n]); evalRefrescar(); }
   catch (e) { toast('No se pudo revertir: ' + e.message, 'err'); }
@@ -1172,6 +1309,7 @@ async function evalUsarNotaGrupo(notaId){
 async function evalUsarObjetivoGrupo(notaId){
   const n = notas.find(x => x.id === notaId); if (!n || !n.grupo_id) return;
   const g = grupos.find(x => x.id === n.grupo_id);
+  if (grupoInstrId(g)) { await evalVolverAlGrupo(notaId); return; }   // Etapa 6: grupo con instrumento → revertir completo
   n.objetivo_excepcion = false; n.adecuacion_id = g?.adecuacion_grupal_id ?? null;
   try { await evalPersistNotasRows([n]); evalRefrescar(); }
   catch (e) { toast('No se pudo revertir: ' + e.message, 'err'); }
@@ -1188,15 +1326,47 @@ function evalCerrarModal(){ document.getElementById('eval-modal').classList.remo
 
 // Fila de un integrante en el modal (reusa marcas/↩ y el objetivo dropdown).
 // `bloqueado` = evaluación cerrada O grupo terminado → solo lectura.
-function evalModalMiembroHTML(n, bloqueado){
+// `conInstr` = el grupo usa instrumento → fila con override + "Evaluar individual".
+function evalModalMiembroHTML(n, bloqueado, conInstr){
   const dis = bloqueado ? 'disabled' : '';
+  if (!conInstr) {
+    return `
+      <div class="em-mrow">
+        <div class="em-nom">${esc(nombreDe(n.estudiante))}</div>
+        <div><select data-em="obj" data-id="${n.id}" ${dis}>${optsObjetivo(n.adecuacion_id)}</select>
+          <div class="cel-marca">${marcaObjHTML(n, bloqueado)}</div></div>
+        <div><input data-em="nota" data-id="${n.id}" value="${fmtNota(n.nota)}" placeholder="—" ${dis}>
+          <div class="cel-marca">${marcaNotaHTML(n, bloqueado)}</div></div>
+      </div>`;
+  }
+  // Modo instrumento: estado + nota efectiva + controles de excepción.
+  const c = calcNota(n);
+  const est = estadoEfectivo(n);
+  const badge = `<span class="est-badge ${est}">${estLabel(est)}</span>`;
+  const notaTxt = est === 'no_aplica'
+    ? '<span class="nota-val incompleto">N/A</span>'
+    : (c.instrumento
+        ? `<span class="nota-val${c.completo ? '' : ' incompleto'}">${c.completo ? fmtNota(c.nota) : '—'}</span> <span class="nota-sub">${c.answered}/${c.nItems}</span>`
+        : `<span class="nota-val">${fmtNota(n.nota) || '—'}</span>`);
+  const excepcion = !heredaGrupo(n);
+  const marca = excepcion ? '<span class="exc-tag indiv">individual</span>' : '<span class="exc-tag hered">heredado</span>';
+  // Override de instrumento (4a): (hereda del objetivo) + instrumentos de la evaluación.
+  const optOverride = `<option value=""${!n.instrumento_id ? ' selected' : ''}>Instrumento: hereda del objetivo</option>` +
+    evalInstrumentos.map(i => `<option value="${i.id}"${n.instrumento_id === i.id ? ' selected' : ''}>Instrumento: ${esc(i.nombre)}</option>`).join('');
+  const ctrls = bloqueado ? '' : `
+      <select data-em="instr" data-id="${n.id}" title="Otro instrumento (excepción)">${optOverride}</select>
+      ${instrEfectivoId(n) ? `<button class="btn mini" onclick="evalEvaluarMiembroIndividual('${n.id}')">Evaluar individual</button>` : ''}
+      ${excepcion ? `<button class="btn mini" title="Volver a la evaluación del grupo" onclick="evalVolverAlGrupo('${n.id}')">↩ grupo</button>` : ''}`;
   return `
-    <div class="em-mrow">
-      <div class="em-nom">${esc(nombreDe(n.estudiante))}</div>
-      <div><select data-em="obj" data-id="${n.id}" ${dis}>${optsObjetivo(n.adecuacion_id)}</select>
-        <div class="cel-marca">${marcaObjHTML(n, bloqueado)}</div></div>
-      <div><input data-em="nota" data-id="${n.id}" value="${fmtNota(n.nota)}" placeholder="—" ${dis}>
-        <div class="cel-marca">${marcaNotaHTML(n, bloqueado)}</div></div>
+    <div class="em-mrow-instr">
+      <div class="row" style="justify-content:space-between;align-items:center;gap:8px">
+        <b class="em-nom">${esc(nombreDe(n.estudiante))}</b>
+        <span class="row" style="gap:6px;align-items:center">${notaTxt} ${badge} ${marca}</span>
+      </div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center">
+        <select data-em="obj" data-id="${n.id}" ${dis} title="Objetivo/adecuación del integrante">${optsObjetivo(n.adecuacion_id)}</select>
+        ${ctrls}
+      </div>
     </div>`;
 }
 // Enlaza la edición por integrante (misma lógica que la tabla; excepción si está en grupo).
@@ -1205,10 +1375,17 @@ function bindEvalModalEdits(card){
     el.addEventListener('change', async () => {
       const n = notas.find(x => x.id === el.dataset.id); if (!n) return;
       const k = el.dataset.em;
-      if (k === 'obj') {
+      if (k === 'instr') {   // Etapa 6: excepción "otro instrumento" (override 4a)
+        await setInstrOverride(n.id, el.value);
+      } else if (k === 'obj') {
         n.adecuacion_id = el.value || null;
         if (n.grupo_id) n.objetivo_excepcion = true;
-        try { await evalPersistNotasRows([n]); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); }
+        try {
+          await evalPersistNotasRows([n]);
+          // Etapa 6: si el integrante usa instrumento, el objetivo cambia su instrumento
+          // efectivo → recalcular su nota (probablemente incompleta hasta reevaluar).
+          if (instrEfectivoId(n) || calcNota(n).instrumento) await persistNotaCalculada(n);
+        } catch(e){ toast('No se pudo guardar: '+e.message,'err'); }
         renderEvalModal();
       } else if (k === 'com') {
         n.comentario = el.value.trim() === '' ? null : el.value;
@@ -1235,15 +1412,46 @@ function renderEvalModal(){
     const bloqueado = cerrada || terminado;   // terminado congela la edición desde esta interfaz
     const dis = bloqueado ? 'disabled' : '';
     const miembros = notas.filter(n => n.grupo_id === g.id).sort(cmpEstudiantes(n => n.estudiante, n => posMap[n.estudiante_id]));
+    const iid = grupoInstrId(g);   // Etapa 6: instrumento efectivo del grupo (según su objetivo grupal)
+    const conInstr = !!iid;
+    // Panel de evaluación del grupo: con instrumento (fan-out) o nota grupal manual.
+    let panelGrupo = '';
+    if (conInstr) {
+      const instr = evalInstrumentos.find(x => x.id === iid);
+      const items = instrItemsDe(iid);
+      const ref = grupoRefMiembro(g.id);
+      const heredanN = miembrosHeredan(g.id).length;
+      const resMap = {}; if (ref) evalResultados.filter(r => r.nota_id === ref.id).forEach(r => { resMap[r.instrumento_item_id] = r.valor; });
+      const cg = ref ? calcNota(ref) : null;
+      const filas = (heredanN && items.length)
+        ? items.map((it, idx) => instrItemFilaHTML(instr, it, idx, resMap[it.id], bloqueado,
+            val => `setResultadoGrupo('${g.id}','${it.id}',${val})`)).join('')
+        : (heredanN ? '<p class="hint">Este instrumento no tiene criterios/ítems.</p>'
+                    : '<p class="hint">Ningún integrante hereda del grupo (todos con excepción individual). Evalúa a cada uno en su fila.</p>');
+      panelGrupo = `
+        <div class="grid2">
+          <div><label>Objetivo grupal</label><select ${dis} onchange="evalSetObjetivoGrupal('${g.id}',this.value)">${optsObjetivo(g.adecuacion_grupal_id)}</select></div>
+          <div style="align-self:end"><p class="hint" style="margin:0">Instrumento del grupo: <b>${esc(instr ? instr.nombre : '')}</b> · ${plTipoLabel(instr ? instr.tipo : 'rubrica')}</p></div>
+        </div>
+        <div class="subsec"><label style="margin-bottom:6px">Evaluación del grupo</label>
+          <div>${filas}</div>
+          ${(heredanN && cg) ? `<div class="row" style="justify-content:space-between;margin-top:8px;gap:8px">
+            <div><b>Puntaje:</b> ${cg.puntaje}/${cg.maxPos} · <b>Nota:</b> ${cg.completo ? fmtNota(cg.nota) : '—'} ${cg.completo ? '' : '<span class="exc-tag" style="background:rgba(217,83,79,.18);color:#ff9d9d">incompleto</span>'}</div>
+            <span class="hint">Se aplica a ${heredanN} integrante(s) que heredan.</span></div>` : ''}
+        </div>`;
+    } else {
+      panelGrupo = `
+        <div class="grid2">
+          <div><label>Nota grupal</label><input value="${g.nota_grupal != null ? fmtNota(g.nota_grupal) : ''}" placeholder="—" ${dis} onchange="evalSetNotaGrupal('${g.id}',this.value)"></div>
+          <div><label>Objetivo grupal</label><select ${dis} onchange="evalSetObjetivoGrupal('${g.id}',this.value)">${optsObjetivo(g.adecuacion_grupal_id)}</select></div>
+        </div>`;
+    }
     html += `
       <p class="sec-title" style="margin:0 0 8px;padding-right:24px">Evaluar — ${esc(g.nombre)} ${terminado ? '<span class="grupo-badge eval">🔒 Terminada</span>' : ''}</p>
       ${terminado ? '<p class="hint" style="margin:0 0 8px">Evaluación de este grupo <b>terminada</b> (congelada). Reábrela para volver a editar.</p>' : ''}
-      <div class="grid2">
-        <div><label>Nota grupal</label><input value="${g.nota_grupal != null ? fmtNota(g.nota_grupal) : ''}" placeholder="—" ${dis} onchange="evalSetNotaGrupal('${g.id}',this.value)"></div>
-        <div><label>Objetivo grupal</label><select ${dis} onchange="evalSetObjetivoGrupal('${g.id}',this.value)">${optsObjetivo(g.adecuacion_grupal_id)}</select></div>
-      </div>
-      ${bloqueado ? '' : '<p class="hint" style="margin:10px 0 4px">La nota/objetivo grupal se aplica a los integrantes que heredan. Editar un integrante crea su excepción individual.</p>'}
-      <div>${miembros.map(n => evalModalMiembroHTML(n, bloqueado)).join('') || '<p class="hint">Sin integrantes.</p>'}</div>
+      ${panelGrupo}
+      ${bloqueado ? '' : `<p class="hint" style="margin:10px 0 4px">${conInstr ? 'La evaluación del grupo se aplica a los integrantes que heredan. Cambiar el objetivo/instrumento de un integrante, darle otro instrumento o evaluarlo individualmente crea su excepción.' : 'La nota/objetivo grupal se aplica a los integrantes que heredan. Editar un integrante crea su excepción individual.'}</p>`}
+      <div>${miembros.map(n => evalModalMiembroHTML(n, bloqueado, conInstr)).join('') || '<p class="hint">Sin integrantes.</p>'}</div>
       <div class="mm-actions">
         ${(!cerrada && !terminado) ? `<button class="btn primary" onclick="evalTerminarGrupo('${g.id}')">Terminar evaluación</button>` : ''}
         ${(!cerrada && terminado) ? `<button class="btn warn" onclick="evalReabrirGrupo('${g.id}')">Reabrir evaluación</button>` : ''}
@@ -2185,6 +2393,26 @@ function abrirInstrEstudiante(notaId){
 function cerrarInstrModal(){
   document.getElementById('instr-modal').classList.remove('show');
   instrModalNotaId = null;
+  // Etapa 6: si venía del modal de grupo (evaluación individual de un integrante),
+  // refrescar el modal de grupo que quedó detrás.
+  if (document.getElementById('eval-modal')?.classList.contains('show')) renderEvalModal();
+}
+// Render de UN criterio/ítem con sus botones de nivel. `onclickFn(val)` devuelve el
+// string del onclick (permite reusarlo para el modal individual y el de grupo).
+// Compartido por renderInstrModal (Etapa 4) y el panel de grupo (Etapa 6).
+function instrItemFilaHTML(instr, it, idx, valorActual, cerrada, onclickFn){
+  if (instr.tipo === 'rubrica') {
+    const botones = PL_NIVELES.map(([k, lab, nv]) => {
+      const val = +nv; const sel = valorActual === val;
+      return `<button class="btn mini niv${sel ? ' on' : ''}" ${cerrada ? 'disabled' : ''} onclick="${onclickFn(val)}">${lab} (${nv})</button>`;
+    }).join('');
+    const descSel = valorActual ? esc(it['desc_n' + valorActual] || '') : '';
+    return `<div class="pl-item"><div class="row" style="gap:8px"><span class="ix">${idx + 1}</span><b>${esc(it.texto)}</b></div>
+        <div class="niv-row">${botones}</div>${descSel ? `<div class="instr-desc" style="margin:6px 0 0 28px">${descSel}</div>` : ''}</div>`;
+  }
+  return `<div class="pl-item"><div class="row" style="gap:8px;align-items:center"><span class="ix">${idx + 1}</span><span style="flex:1">${esc(it.texto)}</span>
+      <button class="btn mini niv${valorActual === 2 ? ' on' : ''}" ${cerrada ? 'disabled' : ''} onclick="${onclickFn(2)}">Sí (2)</button>
+      <button class="btn mini niv${valorActual === 1 ? ' on' : ''}" ${cerrada ? 'disabled' : ''} onclick="${onclickFn(1)}">No (1)</button></div></div>`;
 }
 function renderInstrModal(){
   const card = document.getElementById('instr-modal-card');
@@ -2197,22 +2425,10 @@ function renderInstrModal(){
   const instr = evalInstrumentos.find(x => x.id === c.iid);
   const items = instrItemsDe(c.iid);
   const resMap = {}; evalResultados.filter(r => r.nota_id === n.id).forEach(r => { resMap[r.instrumento_item_id] = r.valor; });
-  const esRub = instr.tipo === 'rubrica';
-  const filas = items.length ? items.map((it, idx) => {
-    if (esRub) {
-      const botones = PL_NIVELES.map(([k, lab, nv]) => {
-        const val = +nv; const sel = resMap[it.id] === val;
-        return `<button class="btn mini niv${sel ? ' on' : ''}" ${cerrada ? 'disabled' : ''} onclick="setResultado('${n.id}','${it.id}',${val})">${lab} (${nv})</button>`;
-      }).join('');
-      const descSel = resMap[it.id] ? esc(it['desc_n' + resMap[it.id]] || '') : '';
-      return `<div class="pl-item"><div class="row" style="gap:8px"><span class="ix">${idx + 1}</span><b>${esc(it.texto)}</b></div>
-          <div class="niv-row">${botones}</div>${descSel ? `<div class="instr-desc" style="margin:6px 0 0 28px">${descSel}</div>` : ''}</div>`;
-    }
-    const v = resMap[it.id];
-    return `<div class="pl-item"><div class="row" style="gap:8px;align-items:center"><span class="ix">${idx + 1}</span><span style="flex:1">${esc(it.texto)}</span>
-        <button class="btn mini niv${v === 2 ? ' on' : ''}" ${cerrada ? 'disabled' : ''} onclick="setResultado('${n.id}','${it.id}',2)">Sí (2)</button>
-        <button class="btn mini niv${v === 1 ? ' on' : ''}" ${cerrada ? 'disabled' : ''} onclick="setResultado('${n.id}','${it.id}',1)">No (1)</button></div></div>`;
-  }).join('') : '<p class="hint">Este instrumento no tiene criterios/ítems.</p>';
+  const filas = items.length
+    ? items.map((it, idx) => instrItemFilaHTML(instr, it, idx, resMap[it.id], cerrada,
+        val => `setResultado('${n.id}','${it.id}',${val})`)).join('')
+    : '<p class="hint">Este instrumento no tiene criterios/ítems.</p>';
   card.innerHTML = `<button class="em-close" onclick="cerrarInstrModal()" title="Cerrar">✕</button>
     <p class="sec-title" style="margin:0 0 4px;padding-right:24px">Evaluar — ${esc(nombreDe(n.estudiante))}</p>
     <p class="hint" style="margin:0 0 10px">${esc(instr.nombre)} · ${plTipoLabel(instr.tipo)} · objetivo: ${esc(objetivoTexto(n))}</p>

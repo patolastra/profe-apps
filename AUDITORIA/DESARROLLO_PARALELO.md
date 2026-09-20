@@ -165,9 +165,20 @@ reconciliación. **Decisión del PO: aplica a TODAS las evaluaciones.** 14 tests
 (incl. protección de BD, tests 10 y 13); una corrección (estado_eval en el SELECT de
 notas). Datos de prueba limpiados y datos reales restaurados. **CLAUDE.md sin cambios**
 (consolidación normativa de I13/estados/cierre diferida a la reintegración; el comentario
-de I13 en el esquema sí se actualizó). **Etapas 6–7 NO iniciadas.** Registro detallado en
-`INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación — Etapa 1" a
-"— Etapa 5").
+de I13 en el esquema sí se actualizó). **Etapa 6 (grupos + excepciones con instrumentos)
+implementada y verificada en vivo (2026-09-20)** en `LIBRO/index.html` (**sin cambios de
+esquema**): evaluar el grupo con su instrumento (reparto/*fan-out* a los integrantes que
+heredan, sobre `libro_eval_resultados`) y excepciones individuales arbitrarias por
+integrante (evaluación individual, otra adecuación, otro instrumento por override 4a,
+resultado propio) sin alterar al resto; el modal de grupo es instrument-aware (conserva la
+nota grupal manual tradicional cuando no hay instrumento); reintegración del override 4a en
+la persistencia y del congelado de Etapa 5 (verificado). 12 tests E2E OK contra Supabase
+real (evaluación desechable en CUARTO, datos de prueba limpiados; evaluaciones reales y
+matrículas intactas), incl. el cálculo con excepciones y el congelado al cerrar. **CLAUDE.md
+sin cambios** (no cambia esquema/invariantes; consolidación normativa diferida a la
+reintegración). **Etapa 7 (PDFs) NO iniciada** (bloqueada por el insumo de logos). Registro
+detallado en `INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación —
+Etapa 1" a "— Etapa 6").
 **Identidad institucional del PDF (PO):** escuela *Escuela Juana de Lestonnac*;
 sostenedor *Servicio Local de Educación Pública Los Parques*; **logos** se adjuntarán a
 Claude (pendiente de recibir). El **encabezado institucional** debe **repetirse en todas

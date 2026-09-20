@@ -375,10 +375,12 @@ Claves de compatibilidad:
   re-sync automático (6b, modifica I13); congelado integral al cerrar + reapertura
   (§A10). **Decisión del PO: aplica a TODAS las evaluaciones** (no solo a las que usan
   instrumentos). Ver "Registro de implementación — Etapa 5" al final.
-- **Etapa 6 — Grupos + excepciones con instrumentos.** Evaluar grupo y aplicar a
-  integrantes; excepciones arbitrarias (individual, otra adecuación, otro instrumento,
-  resultado propio) (§A6). Depende de: E4 (y E5 para estados). Prueba: herencia +
-  cada tipo de excepción; interacción con grupo "terminado".
+- **Etapa 6 — Grupos + excepciones con instrumentos. ✅ IMPLEMENTADA Y VERIFICADA EN
+  VIVO (2026-09-20).** Evaluar el grupo con su instrumento (fan-out a los integrantes
+  que heredan) y excepciones arbitrarias por integrante (individual, otra adecuación,
+  otro instrumento 4a, resultado propio) sin alterar al resto (§A6). **Sin cambios de
+  esquema** (el modelo de Etapa 1 y el congelado de Etapa 5 ya lo cubren). Ver "Registro
+  de implementación — Etapa 6" al final.
 - **Etapa 7 — PDFs UTP + resultados + identidad institucional.** Informe previo e
   informe de resultados, Carta, vía impresión/CSS (8a). **Encabezado institucional
   repetido en TODAS las páginas** replicando `AUDITORIA/assets/ENCABEZADO PDF.pdf`
@@ -755,3 +757,89 @@ cierre pasan a `CLAUDE.md` como regla permanente.
 
 **No surgieron decisiones de Producto nuevas** más allá de la de alcance ya consultada y
 resuelta por el PO. **Etapas 6–7 NO iniciadas.**
+
+---
+
+## Registro de implementación — Etapa 6 (grupos + excepciones con instrumentos) · 2026-09-20
+
+**Autorización:** PO, sobre los checkpoints Etapa 1 `253982b` … Etapa 5 `3ba322f`.
+Alcance = integrar los **grupos** con los instrumentos de evaluación y las **excepciones
+individuales** (§A6). **Sin** PDF, sin móvil, sin nuevas reglas de cierre, sin cambios de
+cálculo salvo lo necesario para que funcione con excepciones (§A6/§A11). **Sin cambios de
+esquema Supabase.**
+
+**Decisión técnica clave (persistencia, dentro de §A7 — Producto no prescribe tablas):**
+la evaluación de un grupo con instrumento se almacena **por estudiante** (reparto /
+*fan-out* a `libro_eval_resultados`, la tabla por-estudiante de Etapa 4), no en una
+estructura de grupo aparte. Es exactamente lo que pide §A6 ("el resultado **se aplica a
+sus integrantes**"). Un integrante **hereda** del grupo si no tiene **ninguna** excepción
+(nota/objetivo/instrumento); una excepción lo saca del fan-out y le da resultados propios,
+sin tocar al resto. **No es una regla de Producto nueva** (es implementación de la spec).
+
+**Qué se implementó (todo en `LIBRO/index.html`, vanilla; usa el esquema de Etapa 1 y el
+congelado de Etapa 5):**
+- **Instrumento efectivo del grupo** = el de su **objetivo grupal** (`grupoInstrId` →
+  `instrDeObjetivo(adecuacion_grupal_id)`); cada integrante que hereda usa ese instrumento
+  (coherente con `instrEfectivoId` de Etapa 4).
+- **Evaluar el grupo con instrumento** (`setResultadoGrupo`): escribe el nivel/valor del
+  criterio-ítem en **todos** los integrantes que heredan (upsert por `nota_id`), recalcula
+  y persiste sus notas (reusa `persistNotaCalculada`/`calcNota` de Etapa 4). El modal de
+  grupo (`renderEvalModal`) es ahora **instrument-aware**: si el objetivo grupal tiene
+  instrumento, muestra la rúbrica/cotejo del grupo (reusa el nuevo helper compartido
+  `instrItemFilaHTML`) y el puntaje/nota del grupo; si no, mantiene la **nota grupal
+  manual** tradicional (sin cambios).
+- **Excepciones individuales** por integrante (fila `evalModalMiembroHTML` en modo
+  instrumento): (a) **otra adecuación/objetivo** → `objetivo_excepcion` (dropdown, dispara
+  `bindEvalModalEdits`), cambia su instrumento efectivo; (b) **otro instrumento** (override
+  4a) → `setInstrOverride` (nuevo dropdown por integrante), marca `nota_excepcion`;
+  (c) **evaluación individual / resultado propio** → `evalEvaluarMiembroIndividual` marca
+  `nota_excepcion` y abre el modal individual de Etapa 4 (encima del de grupo);
+  (d) **volver al grupo** → `evalVolverAlGrupo` limpia las tres excepciones, rehereda
+  objetivo/instrumento y **copia los resultados del grupo** (`copiarResultadosGrupoA`).
+- **Coherencia de herencia:** al **crear** grupo o **arrastrar** un integrante se resetea
+  también el override de instrumento; al arrastrar a un grupo ya evaluado, el nuevo
+  integrante **hereda por copia** los resultados del grupo y recalcula su nota. Cambiar el
+  **objetivo grupal** recalcula la nota de los que heredan (su instrumento pudo cambiar).
+- **Persistencia:** `evalPersistNotasRows` ahora incluye `instrumento_id` (el override 4a
+  no se guardaba antes). Reverts existentes (`evalUsarNotaGrupo`/`evalUsarObjetivoGrupo`)
+  se vuelven instrument-aware (delegan en `evalVolverAlGrupo` cuando el grupo usa
+  instrumento). Refactor menor: se extrajo `instrItemFilaHTML` (compartido por el modal
+  individual de Etapa 4 y el panel de grupo) — sin cambio de cálculo.
+- **CSS:** `.em-mrow-instr` (fila de integrante en modo instrumento).
+
+**Congelado (Etapa 5):** no se añadió nada — los resultados/instrumentos/ítems y grupos
+ya quedan inmutables al cerrar por los triggers de Etapa 5; verificado en vivo (abajo).
+
+**Pruebas E2E (persistencia real en Supabase, sobre evaluación desechable en CUARTO —
+26 activos, sin evaluaciones reales; datos de prueba eliminados al terminar; las 3
+evaluaciones reales y las matrículas quedaron intactas). Se ejercieron las funciones
+reales de la implementación y, para objetivo/override, los eventos `change` reales del
+modal:**
+1. Evaluar un grupo completo (rúbrica 3 criterios, nivel 3) → **9 resultados persistidos**. ✅
+2. Sus 3 integrantes reciben la nota correspondiente (**5,3**, cálculo lineal con piso 2,0). ✅
+3. Un integrante pasa a **evaluación individual** (`nota_excepcion`, deja de heredar). ✅
+4. A otro se le asigna **otra adecuación** (cotejo) → `objetivo_excepcion`. ✅
+5. Ese integrante recibe el **instrumento de esa adecuación** (cotejo, efectivo). ✅
+6. A un tercero se le asigna **otro instrumento** por excepción (override 4a → cotejo). ✅
+7. El resultado individual **difiere del grupo** (1/1/1 → **2,0** = piso). ✅
+8. Los demás integrantes **permanecen sin cambios** (siguen 5,3, sin excepción). ✅
+9. Reevaluar el grupo (nivel 4 → 7,0) **no sobrescribe** la excepción (sigue 2,0). ✅
+10. Puntaje/nota siguen calculándose (rúbrica 5,3/7,0; **cotejo 7,0 y 4,5**). ✅
+11. El **cierre de Etapa 5 congela** también estas estructuras (update de resultado,
+    insert de ítem/instrumento y delete de grupo con la eval cerrada → **400/bloqueado**);
+    reapertura OK. ✅
+12. Una **evaluación tradicional** (sin instrumentos) sigue funcionando: nota manual 6,5,
+    grupo manual con nota grupal 5,0 heredada, celda con input manual; 0 instrumentos. ✅
+- Extra: **↩ grupo** revierte la excepción y **copia** los resultados del grupo
+  (integrante reincorporado obtiene la misma nota, 5,3). ✅
+- Consola sin errores inesperados (solo los 400 deliberados del test 11).
+
+**CLAUDE.md — decisión:** **no se modificó.** La Etapa 6 no cambia el esquema, ni las
+invariantes, ni introduce una regla normativa permanente nueva: reusa el modelo de Etapa 1
+y el congelado de Etapa 5 (cuya consolidación normativa ya estaba diferida a la
+reintegración del período paralelo, regla §9). **Pendiente para reintegración:** al
+confirmarse la línea como V1 firme, decidir si grupos↔instrumentos/excepciones y el
+modelo de estados/cierre pasan a `CLAUDE.md` como regla permanente.
+
+**No surgieron decisiones de Producto nuevas.** **Etapa 7 (PDFs) NO iniciada** (además,
+bloqueada por el insumo de logos).
