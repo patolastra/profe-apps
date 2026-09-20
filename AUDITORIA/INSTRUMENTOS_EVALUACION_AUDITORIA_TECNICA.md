@@ -365,10 +365,10 @@ Claves de compatibilidad:
   VERIFICADA EN VIVO (2026-09-20).** Piso por eval; asociar instrumento a OA/adecuación;
   cargar plantilla como **copia independiente**; pool (§A3/§A5/§A11). Ver "Registro de
   implementación — Etapa 3" al final.
-- **Etapa 4 — Aplicación por estudiante + cálculo.** Completar instrumento; puntaje y
-  nota **en vivo**; guardado **parcial**; recálculo al cambiar **piso** (§A1/§A8/§A9).
-  Depende de: E3. Prueba: casos de conversión y redondeo (incl. mín=máx, 1 criterio);
-  cambio de piso recalcula todos.
+- **Etapa 4 — Aplicación por estudiante + cálculo. ✅ IMPLEMENTADA Y VERIFICADA EN VIVO
+  (2026-09-20).** Completar instrumento; puntaje y nota **en vivo**; guardado **parcial**;
+  recálculo al cambiar **piso** (§A1/§A8/§A9). Ver "Registro de implementación — Etapa 4"
+  al final.
 - **Etapa 5 — Reglas de población y cierre.** Estados Pendiente/Evaluado/No aplica;
   bloqueo de cierre por pendientes (UI + trigger, 7b); retiro (no bloquea, conserva
   histórico); **ingreso posterior por re-sync automático (6b): reconciliar el snapshot
@@ -626,3 +626,65 @@ usa el esquema de Etapa 1):**
 
 **No surgieron decisiones de Producto nuevas.** **CLAUDE.md:** sin cambios (Etapa 3 no
 introduce regla normativa permanente). **Etapas 4–7 NO iniciadas.**
+
+---
+
+## Registro de implementación — Etapa 4 (Aplicación del instrumento + cálculo) · 2026-09-20
+
+**Autorización:** PO, sobre los checkpoints Etapa 1 `253982b`, Etapa 2 `6471ded`, Etapa 3
+`5659da0`. Alcance = aplicar el instrumento por estudiante y calcular puntaje/nota en
+vivo, con persistencia e incompletitud. **Sin** cierre, congelamiento, reapertura,
+ingreso posterior, retirados, "No aplica" como flujo, grupos/excepciones, PDF ni móvil.
+
+**Qué se implementó (todo en `LIBRO/index.html`, sobre el esquema de Etapa 1):**
+- **Instrumento efectivo por estudiante** (`instrEfectivoId`): override individual
+  `nota.instrumento_id` (4a) → instrumento de la adecuación → instrumento del OA. No se
+  inventó lógica nueva de asociación.
+- **Celda de nota por estudiante** (`notaCellHTML`): si el estudiante tiene instrumento,
+  muestra nota calculada + "n/N" + "incompleto" + botón **Evaluar**; si no, mantiene el
+  **input manual** tradicional.
+- **Modal de aplicación** (`#instr-modal` / `renderInstrModal`): rúbrica con los 4
+  niveles fijos (1..4) por criterio (con descripción del nivel elegido); cotejo con
+  **Sí=2 / No=1** por ítem; muestra puntaje y nota en vivo. `setResultado` hace **upsert**
+  del valor por criterio/ítem y recalcula.
+- **Cálculo** (`calcNota` + `redondear1`): puntaje = suma; mín/máx posibles = nItems×1 /
+  nItems×(4 rúbrica | 2 cotejo); nota lineal entre [mín→`nota_min`] y [máx→7,0];
+  **redondeo a 1 decimal half-up** ("5–9 sube"). **Incompleto** (falta algún
+  criterio/ítem) → **sin nota definitiva** (`nota=null`), resultados parciales guardados.
+- **Persistencia de la nota** (`persistNotaCalculada`): guarda la nota calculada
+  (o null si incompleta) en `libro_evaluacion_notas.nota`. **Recálculo al cambiar el
+  piso** (`recalcularTodasLasNotas` desde `guardarPiso`) y **al (des)asociar** un
+  instrumento (evita notas obsoletas). Carga de resultados en `abrirDetalle`
+  (`recargarResultados`).
+- **CSS** (niveles/nota) y modal reutilizando el patrón `.em-*`.
+
+**Correcciones de robustez detectadas durante el E2E (código nuevo):**
+1. **`instrumento_id` faltaba en el SELECT de notas** de `abrirDetalle` → el override
+   individual (4a) no se cargaba y no se respetaba tras recargar. **Corregido**
+   (se agregó la columna al select principal).
+2. **Cambio de "Objetivo aplicado"** para un estudiante con instrumento (fuera de grupo)
+   no persistía de inmediato → el instrumento efectivo no se actualizaba. **Corregido**
+   (persistir + recalcular al cambiar objetivo si el estudiante usa instrumento).
+3. **Notas obsoletas al asociar** un instrumento a un OA/adecuación que ya tenía notas
+   manuales → se recalculan a null si el instrumento queda incompleto. **Añadido**
+   `recalcularTodasLasNotas` en las asociaciones.
+
+**Pruebas realizadas (E2E navegador + persistencia REST, sobre una evaluación
+desechable creada y luego eliminada; la evaluación real "prueba" NO se usó como banco de
+pruebas y quedó intacta):**
+- **Rúbrica (3 criterios):** máximo (12→7,0, vía clics en el modal), intermedios
+  (p=6→**3,7** redondeo↑, p=9→**5,3** redondeo↓), incompleto (1/3→**null**). ✅
+- **Cotejo (2 ítems) + override 4a:** máximo (Sí+Sí→7,0), mínimo (No+No→**piso**),
+  intermedio (Sí+No=3→**5,5**); el override individual fue **respetado** (tipo cotejo,
+  máx 4). ✅
+- **Cambio de piso** 2,0→4,0: recálculo inmediato (3,7→5,0; 5,3→6,0; máx sigue 7,0). ✅
+- **Guardado y recuperación tras recargar:** piso, 1 instrumento/3 ítems, 10 resultados,
+  notas y estado incompleto recuperados. ✅
+- **Independencia:** editar la plantilla original **no** alteró el instrumento aplicado. ✅
+- **Regresión tradicional:** "prueba" (sin instrumentos) mantiene inputs de nota manual,
+  sin botones "Evaluar", con sus 3 notas reales intactas; **0 errores de consola**. ✅
+- **Datos de prueba limpiados:** evaluación desechable y plantillas eliminadas; 0
+  instrumentos/resultados globales; "prueba" restaurada e intacta.
+
+**No surgieron decisiones de Producto nuevas.** **CLAUDE.md:** sin cambios (Etapa 4 no
+introduce regla normativa permanente). **Etapas 5–7 NO iniciadas.**

@@ -186,8 +186,16 @@
   .grupo-badge{font-size:10px;text-transform:uppercase;letter-spacing:.03em;padding:1px 7px;border-radius:999px;white-space:nowrap;background:rgba(76,175,80,.18);color:#9ff0a8}
   .grupo-badge.eval{background:#20303f;color:var(--mut)}
   /* Modal de evaluación (grupo / individual) */
-  #eval-modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
-  #eval-modal.show{display:flex}
+  #eval-modal,#instr-modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
+  #eval-modal.show,#instr-modal.show{display:flex}
+  /* ── Aplicación de instrumento (Etapa 4) ── */
+  .niv-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;padding-left:28px}
+  .btn.niv{background:var(--panel);border:1px solid var(--line);color:var(--txt)}
+  .btn.niv.on{background:var(--acc);border-color:var(--acc);color:#04210a;font-weight:700}
+  .nota-instr{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+  .nota-val{font-weight:700}
+  .nota-val.incompleto{color:var(--mut)}
+  .nota-sub{font-size:11px;color:var(--mut)}
   .em-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
   .em-card{position:relative;background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--acc);
     border-radius:14px;max-width:660px;width:100%;max-height:88vh;overflow:auto;padding:18px 20px;box-shadow:0 12px 48px rgba(0,0,0,.5)}
@@ -306,6 +314,7 @@
 <div id="mat-modal"><div class="mm-backdrop" onclick="matCerrarModal()"></div><div class="mm-card" id="mm-card"></div></div>
 <!-- Modal de evaluación de grupo / individual (Evaluaciones · Grupos de trabajo) -->
 <div id="eval-modal"><div class="em-backdrop" onclick="evalCerrarModal()"></div><div class="em-card" id="em-card"></div></div>
+<div id="instr-modal"><div class="em-backdrop" onclick="cerrarInstrModal()"></div><div class="em-card" id="instr-modal-card"></div></div>
 <!-- Vista Proyector de Participación (overlay a viewport completo; se llena por JS) -->
 <div id="part-proyector" class="ppro" role="dialog" aria-label="Tablero de participación">
   <div class="ppro-bar">
@@ -342,6 +351,8 @@ let grupos = [];           // grupos de trabajo de la evaluación (capa de heren
 let evalInstrumentos = []; // Etapa 3: instrumentos aplicados (copias) de la evaluación abierta
 let evalInstrItems = [];   // Etapa 3: ítems/criterios de esos instrumentos aplicados
 let instrVerId = null;     // Etapa 3: id del instrumento aplicado expandido (solo lectura)
+let evalResultados = [];   // Etapa 4: filas de libro_eval_resultados (por nota × ítem)
+let instrModalNotaId = null; // Etapa 4: estudiante cuyo instrumento se está aplicando en el modal
 let grupoSelIds = new Set(); // selección provisional en la lista de disponibles (UI, no persiste)
 let evalModalCtx = null;   // { tipo:'grupo', gid } | { tipo:'indiv', notaId } — modal de evaluación
 let posMap = {};           // estudiante_id -> posición (orden)
@@ -651,7 +662,7 @@ async function abrirDetalle(evId){
     // Notas + grupos con FALLBACK retrocompatible: si el schema de grupos aún no
     // está aplicado, evaluaciones sigue funcionando como antes (grupos=[]).
     let cn = await sb.from('libro_evaluacion_notas')
-      .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,grupo_id,nota_excepcion,objetivo_excepcion,estudiante:libro_estudiantes(nombre,apellido)')
+      .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,instrumento_id,grupo_id,nota_excepcion,objetivo_excepcion,estudiante:libro_estudiantes(nombre,apellido)')
       .eq('evaluacion_id', evId);
     if (cn.error && /grupo_id|nota_excepcion|objetivo_excepcion|does not exist|schema cache/i.test(cn.error.message || '')) {
       cn = await sb.from('libro_evaluacion_notas')
@@ -669,7 +680,8 @@ async function abrirDetalle(evId){
     notas = (cn.data || []).slice();
     ordenarNotas();   // orden según el modo activo (oficial 1–N por defecto)
     await recargarInstrumentos();   // Etapa 3: instrumentos aplicados (retrocompatible → [])
-    instrVerId = null;
+    await recargarResultados();     // Etapa 4: resultados por criterio/ítem (retrocompatible → [])
+    instrVerId = null; instrModalNotaId = null;
   } catch (e) {
     v.innerHTML = '<div class="card"></div>';
     msg('No se pudo cargar la evaluación: ' + e.message);
@@ -754,11 +766,11 @@ function renderDetalle(){
         </colgroup>
         <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="obj">Objetivo aplicado</th><th class="nota">Nota</th><th>Comentario</th></tr></thead>
         <tbody id="tbody-est">${notas.map((n, idx) => `
-          <tr data-idx="${idx}" data-buscar="${esc(normBuscar(nombreEstudiante(n)))}" class="${n.nota != null ? 'fila-ok' : ''}">
+          <tr data-idx="${idx}" data-nota-id="${n.id}" data-buscar="${esc(normBuscar(nombreEstudiante(n)))}" class="${n.nota != null ? 'fila-ok' : ''}">
             <td class="pos">${posMap[n.estudiante_id] ?? ''}</td>
             <td class="est-nombre">${esc(nombreEstudiante(n))}${grupoChipHTML(n)}</td>
             <td class="obj"><select data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select><div class="cel-marca">${marcaObjHTML(n, cerrada)}</div></td>
-            <td class="nota"><input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${dis}><div class="cel-marca">${marcaNotaHTML(n, cerrada)}</div></td>
+            ${notaCellHTML(n, idx, cerrada)}
             <td><input data-i="${idx}" data-k="comentario" value="${esc(n.comentario||'')}" placeholder="(opcional)" ${dis}></td>
           </tr>`).join('')}
         </tbody>
@@ -785,6 +797,9 @@ function renderDetalle(){
         if (k === 'adecuacion_id') {
           n.adecuacion_id = el.value || null;
           if (n.grupo_id) { n.objetivo_excepcion = true; try { await evalPersistNotasRows([n]); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); } refrescarDetalle(); }
+          // Etapa 4: si el estudiante (fuera de grupo) usa instrumento, el objetivo
+          // define qué instrumento aplica → persistir de inmediato y recalcular su nota.
+          else if (instrEfectivoId(n)) { try { await evalPersistNotasRows([n]); await persistNotaCalculada(n); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); } refrescarDetalle(); }
         }
         else if (k === 'comentario') n.comentario = el.value.trim() === '' ? null : el.value;
         else if (k === 'nota') {
@@ -1916,6 +1931,8 @@ async function guardarPiso(){
     const { error } = await sb.from('libro_evaluaciones').update({ nota_min: v }).eq('id', evalActual.id);
     if (error) throw error;
     evalActual.nota_min = v; el.value = v;
+    await recalcularTodasLasNotas();   // Etapa 4: el piso cambia → recalcular notas de instrumentos completos
+    refrescarDetalle();
     toast('Piso guardado.', 'ok');
   } catch (e) { el.value = prev; toast('No se pudo guardar el piso: ' + e.message, 'err'); }
 }
@@ -1926,7 +1943,9 @@ async function asociarInstrOA(val){
     const { error } = await sb.from('libro_evaluaciones').update({ instrumento_id }).eq('id', evalActual.id);
     if (error) throw error;
     evalActual.instrumento_id = instrumento_id;
+    await recalcularTodasLasNotas();   // Etapa 4: notas obsoletas pasan a null si el instrumento queda incompleto
     toast('Instrumento del OA actualizado.', 'ok');
+    refrescarDetalle();   // Etapa 4: la tabla de estudiantes refleja el instrumento efectivo
   } catch (e) { toast('No se pudo asociar: ' + e.message, 'err'); renderInstrCard(); }
 }
 
@@ -1936,7 +1955,9 @@ async function asociarInstrAdec(id, val){
     const { error } = await sb.from('libro_evaluacion_adecuaciones').update({ instrumento_id }).eq('id', id);
     if (error) throw error;
     const a = adecs.find(x => x.id === id); if (a) a.instrumento_id = instrumento_id;
+    await recalcularTodasLasNotas();   // Etapa 4: notas obsoletas pasan a null si el instrumento queda incompleto
     toast('Instrumento de la adecuación actualizado.', 'ok');
+    refrescarDetalle();   // Etapa 4: la tabla de estudiantes refleja el instrumento efectivo
   } catch (e) { toast('No se pudo asociar: ' + e.message, 'err'); renderInstrCard(); }
 }
 
@@ -1985,6 +2006,154 @@ async function quitarInstrAplicado(id){
 }
 
 function verInstrAplicado(id){ instrVerId = (instrVerId === id ? null : id); renderInstrCard(); }
+
+// ══════════════════════════════════════════════════════════════
+// APLICACIÓN DEL INSTRUMENTO Y CÁLCULO — Etapa 4
+// El estudiante usa el instrumento efectivo (override individual → objetivo).
+// Rúbrica: niveles 1..4 · Cotejo: Sí=2/No=1. Puntaje = suma; nota lineal entre
+// [mín posible → nota_min] y [máx posible → 7,0], redondeada a 1 decimal.
+// Incompleto = falta algún criterio/ítem → sin nota definitiva (nota = null).
+// SIN estados/cierre/grupos (etapas 5+). Solo evaluación abierta es editable.
+// ══════════════════════════════════════════════════════════════
+async function recargarResultados(){
+  if (!notas.length) { evalResultados = []; return; }
+  try {
+    const rr = await sb.from('libro_eval_resultados').select('*').in('nota_id', notas.map(n => n.id));
+    evalResultados = rr.error ? [] : (rr.data || []);
+  } catch (_) { evalResultados = []; }
+}
+
+// Instrumento EFECTIVO del estudiante: override individual (4a) → adecuación → OA original.
+function instrEfectivoId(n){
+  if (n.instrumento_id) return n.instrumento_id;
+  if (n.adecuacion_id) { const a = adecs.find(x => x.id === n.adecuacion_id); return a ? (a.instrumento_id || null) : null; }
+  return evalActual.instrumento_id || null;
+}
+function objetivoTexto(n){
+  if (n.adecuacion_id) { const a = adecs.find(x => x.id === n.adecuacion_id); return a ? a.texto : '(adecuación)'; }
+  return evalActual.oa_original || 'OA original';
+}
+// Redondeo a 1 decimal, convención "segundo decimal 5–9 sube" (half-up robusto ante FP).
+function redondear1(x){ return Math.round((x + 1e-9) * 10) / 10; }
+
+// Cálculo de puntaje/nota de un estudiante según su instrumento efectivo.
+function calcNota(n){
+  const iid = instrEfectivoId(n);
+  if (!iid) return { instrumento: false };
+  const instr = evalInstrumentos.find(x => x.id === iid);
+  const items = instrItemsDe(iid);
+  const nItems = items.length;
+  const maxVal = (instr && instr.tipo === 'cotejo') ? 2 : 4;
+  const itemIds = new Set(items.map(it => it.id));
+  const res = evalResultados.filter(r => r.nota_id === n.id && itemIds.has(r.instrumento_item_id));
+  const answered = res.length;
+  const completo = nItems > 0 && answered === nItems;
+  const puntaje = res.reduce((s, r) => s + (r.valor || 0), 0);
+  const minPos = nItems * 1, maxPos = nItems * maxVal;
+  let nota = null;
+  if (completo) {
+    const piso = (evalActual.nota_min != null ? evalActual.nota_min : 2.0);
+    nota = (maxPos > minPos) ? redondear1(piso + (puntaje - minPos) / (maxPos - minPos) * (7.0 - piso)) : 7.0;
+  }
+  return { instrumento: true, iid, tipo: instr ? instr.tipo : 'rubrica', nItems, answered, completo, puntaje, minPos, maxPos, nota };
+}
+
+// Celda de nota: computada (instrumento) o input manual (tradicional).
+function notaCellHTML(n, idx, cerrada){
+  const c = calcNota(n);
+  if (!c.instrumento) {
+    return `<td class="nota"><input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${cerrada ? 'disabled' : ''}><div class="cel-marca">${marcaNotaHTML(n, cerrada)}</div></td>`;
+  }
+  return `<td class="nota"><div class="nota-instr">
+      <span class="nota-val${c.completo ? '' : ' incompleto'}">${c.completo ? fmtNota(c.nota) : '—'}</span>
+      <span class="nota-sub">${c.answered}/${c.nItems}${c.completo ? '' : ' · incompleto'}</span>
+      ${cerrada ? '' : `<button class="btn mini" onclick="abrirInstrEstudiante('${n.id}')">Evaluar</button>`}
+    </div></td>`;
+}
+function actualizarFilaNota(n){
+  const tr = document.querySelector(`#tbody-est tr[data-nota-id="${n.id}"]`);
+  if (!tr) return;
+  const idx = +tr.dataset.idx;
+  const cell = tr.querySelector('td.nota');
+  if (cell) cell.outerHTML = notaCellHTML(n, idx, evalActual.estado === 'cerrado');
+  tr.classList.toggle('fila-ok', n.nota != null);
+}
+
+// Persiste la nota calculada: valor si completo, null si incompleto/sin instrumento.
+async function persistNotaCalculada(n){
+  const c = calcNota(n);
+  const nueva = (c.instrumento && c.completo) ? c.nota : null;
+  if (n.nota === nueva) return;
+  const { error } = await sb.from('libro_evaluacion_notas').update({ nota: nueva }).eq('id', n.id);
+  if (error) { toast('No se pudo actualizar la nota: ' + error.message, 'err'); return; }
+  n.nota = nueva;
+}
+async function recalcularTodasLasNotas(){
+  for (const n of notas) { if (calcNota(n).instrumento) await persistNotaCalculada(n); }
+}
+
+// Registrar el nivel/valor de un criterio-ítem (upsert) y recalcular en vivo.
+async function setResultado(notaId, itemId, valor){
+  try {
+    const { data, error } = await sb.from('libro_eval_resultados')
+      .upsert({ nota_id: notaId, instrumento_item_id: itemId, valor }, { onConflict: 'nota_id,instrumento_item_id' })
+      .select('*').single();
+    if (error) throw error;
+    const i = evalResultados.findIndex(r => r.nota_id === notaId && r.instrumento_item_id === itemId);
+    if (i >= 0) evalResultados[i] = data; else evalResultados.push(data);
+    const n = notas.find(x => x.id === notaId);
+    await persistNotaCalculada(n);
+    renderInstrModal();
+    actualizarFilaNota(n);
+    filtrarEstudiantes();
+  } catch (e) { toast('No se pudo guardar el resultado: ' + e.message, 'err'); }
+}
+
+function abrirInstrEstudiante(notaId){
+  instrModalNotaId = notaId;
+  document.getElementById('instr-modal').classList.add('show');
+  renderInstrModal();
+}
+function cerrarInstrModal(){
+  document.getElementById('instr-modal').classList.remove('show');
+  instrModalNotaId = null;
+}
+function renderInstrModal(){
+  const card = document.getElementById('instr-modal-card');
+  if (!card || !instrModalNotaId) return;
+  const n = notas.find(x => x.id === instrModalNotaId);
+  if (!n) { cerrarInstrModal(); return; }
+  const c = calcNota(n);
+  if (!c.instrumento) { cerrarInstrModal(); return; }
+  const cerrada = evalActual.estado === 'cerrado';
+  const instr = evalInstrumentos.find(x => x.id === c.iid);
+  const items = instrItemsDe(c.iid);
+  const resMap = {}; evalResultados.filter(r => r.nota_id === n.id).forEach(r => { resMap[r.instrumento_item_id] = r.valor; });
+  const esRub = instr.tipo === 'rubrica';
+  const filas = items.length ? items.map((it, idx) => {
+    if (esRub) {
+      const botones = PL_NIVELES.map(([k, lab, nv]) => {
+        const val = +nv; const sel = resMap[it.id] === val;
+        return `<button class="btn mini niv${sel ? ' on' : ''}" ${cerrada ? 'disabled' : ''} onclick="setResultado('${n.id}','${it.id}',${val})">${lab} (${nv})</button>`;
+      }).join('');
+      const descSel = resMap[it.id] ? esc(it['desc_n' + resMap[it.id]] || '') : '';
+      return `<div class="pl-item"><div class="row" style="gap:8px"><span class="ix">${idx + 1}</span><b>${esc(it.texto)}</b></div>
+          <div class="niv-row">${botones}</div>${descSel ? `<div class="instr-desc" style="margin:6px 0 0 28px">${descSel}</div>` : ''}</div>`;
+    }
+    const v = resMap[it.id];
+    return `<div class="pl-item"><div class="row" style="gap:8px;align-items:center"><span class="ix">${idx + 1}</span><span style="flex:1">${esc(it.texto)}</span>
+        <button class="btn mini niv${v === 2 ? ' on' : ''}" ${cerrada ? 'disabled' : ''} onclick="setResultado('${n.id}','${it.id}',2)">Sí (2)</button>
+        <button class="btn mini niv${v === 1 ? ' on' : ''}" ${cerrada ? 'disabled' : ''} onclick="setResultado('${n.id}','${it.id}',1)">No (1)</button></div></div>`;
+  }).join('') : '<p class="hint">Este instrumento no tiene criterios/ítems.</p>';
+  card.innerHTML = `<button class="em-close" onclick="cerrarInstrModal()" title="Cerrar">✕</button>
+    <p class="sec-title" style="margin:0 0 4px;padding-right:24px">Evaluar — ${esc(nombreDe(n.estudiante))}</p>
+    <p class="hint" style="margin:0 0 10px">${esc(instr.nombre)} · ${plTipoLabel(instr.tipo)} · objetivo: ${esc(objetivoTexto(n))}</p>
+    <div>${filas}</div>
+    <div class="row" style="justify-content:space-between;margin-top:12px;gap:8px">
+      <div><b>Puntaje:</b> ${c.puntaje}/${c.maxPos} · <b>Nota:</b> ${c.completo ? fmtNota(c.nota) : '—'} ${c.completo ? '' : '<span class="exc-tag" style="background:rgba(217,83,79,.18);color:#ff9d9d">incompleto</span>'}</div>
+      <button class="btn" onclick="cerrarInstrModal()">Cerrar</button>
+    </div>`;
+}
 
 // ══════════════════════════════════════════════════════════════
 // MATRÍCULA (curso): lista única activos+retirados, ingresar/retirar/reingresar.

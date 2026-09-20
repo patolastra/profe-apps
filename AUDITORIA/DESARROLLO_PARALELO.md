@@ -149,9 +149,16 @@ evaluación" en el detalle (evaluación abierta); asociar OA/adecuación→instr
 (Opción A), cargar plantilla como **copia independiente** (verificado: editar la original
 no altera la aplicada), configurar el **piso** (`nota_min`, sin cálculo aún), pool y
 "Quitar" (ON DELETE SET NULL). Sin regresión en evaluaciones tradicionales; datos de
-prueba limpiados. **Etapas 4–7 NO iniciadas.** Registro detallado en
-`INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación — Etapa 1",
-"— Etapa 2" y "— Etapa 3").
+prueba limpiados. **Etapa 4 (aplicación del instrumento + cálculo) implementada y
+verificada en vivo (2026-09-20)** en `LIBRO/index.html`: aplicar el instrumento por
+estudiante (modal con niveles rúbrica 1–4 / cotejo Sí=2/No=1), puntaje→nota en vivo con
+piso y redondeo, guardado parcial (incompleto = sin nota), recálculo al cambiar el piso,
+override individual (4a) respetado, persistencia y recuperación tras recarga. Incluye 3
+correcciones de robustez (instrumento_id en el SELECT de notas; persistir objetivo con
+instrumento; recalcular al asociar). E2E sobre evaluación desechable (creada y borrada);
+sin regresión en la evaluación tradicional real. **Etapas 5–7 NO iniciadas.** Registro
+detallado en `INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación
+— Etapa 1" a "— Etapa 4").
 **Identidad institucional del PDF (PO):** escuela *Escuela Juana de Lestonnac*;
 sostenedor *Servicio Local de Educación Pública Los Parques*; **logos** se adjuntarán a
 Claude (pendiente de recibir). El **encabezado institucional** debe **repetirse en todas
