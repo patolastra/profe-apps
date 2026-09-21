@@ -51,8 +51,11 @@ resolución vigente; el resto del documento debe leerse a la luz de estas decisi
 **Datos institucionales (para hardcodear ahora; personalizable en V1.0):**
 - **Escuela:** *Escuela Juana de Lestonnac*
 - **Sostenedor:** *Servicio Local de Educación Pública Los Parques*
-- **Logos:** serán **adjuntados directamente a Claude** (aún no recibidos al cerrar esta
-  etapa; ver "Puntos abiertos").
+- **Logos:** **disponibles en el propio PDF de referencia versionado**
+  `AUDITORIA/assets/ENCABEZADO PDF.pdf` (dos imágenes embebidas: logo SLEP "Los Parques" y
+  escudo "Santa Juana de Lestonnac / Renca"). **[ACTUALIZADO Etapa 7, 2026-09-21]** No fue
+  necesario recibir archivos aparte: en la implementación de la Etapa 7 se **extrajeron de
+  ese PDF** y se incrustaron como data-URI en `LIBRO/index.html`.
 
 **Requisito visual (no es "poner logos"):** el archivo de referencia entregado por el PO
 —versionado en el repo como **`AUDITORIA/assets/ENCABEZADO PDF.pdf`**— es la
@@ -381,14 +384,14 @@ Claves de compatibilidad:
   otro instrumento 4a, resultado propio) sin alterar al resto (§A6). **Sin cambios de
   esquema** (el modelo de Etapa 1 y el congelado de Etapa 5 ya lo cubren). Ver "Registro
   de implementación — Etapa 6" al final.
-- **Etapa 7 — PDFs UTP + resultados + identidad institucional.** Informe previo e
-  informe de resultados, Carta, vía impresión/CSS (8a). **Encabezado institucional
-  repetido en TODAS las páginas** replicando `AUDITORIA/assets/ENCABEZADO PDF.pdf`
-  (escuela *Juana de
-  Lestonnac*, sostenedor *SLEP Los Parques*, logos), hardcode en config única y
-  configurable en V1.0 (§0.2/§A13). Depende de: E4–E6 (datos completos) **y de recibir
-  los logos**. Prueba: render Carta; encabezado en todas las páginas fiel a la
-  referencia; contenido por estudiante; informe previo con estructura de instrumentos.
+- **Etapa 7 — PDFs UTP + resultados + identidad institucional. ✅ IMPLEMENTADA Y
+  VERIFICADA EN VIVO (2026-09-21).** Informe previo e informe de resultados, Carta, vía
+  impresión/CSS (8a). **Encabezado institucional repetido en TODAS las páginas**
+  (vía `<thead>`) replicando `AUDITORIA/assets/ENCABEZADO PDF.pdf` (escuela *Juana de
+  Lestonnac*, sostenedor *SLEP Los Parques*), con los **logos extraídos de ese mismo PDF**
+  e incrustados como data-URI, en config única (`INFORME_INSTITUCION` + `LOGO_*`),
+  data-driven en V1.0 (§0.2/§A13). **Sin cambios de esquema.** Ver "Registro de
+  implementación — Etapa 7" al final.
 
 **Fuera de estas etapas (spec §C):** Mobile V1.0 — no se implementa; el modelo se diseña
 para no impedirlo.
@@ -435,22 +438,27 @@ verificación de esquema:
 
 ## Puntos que quedan abiertos antes de implementar
 
+> **[RESUELTO — 2026-09-21] Las 7 etapas están implementadas y verificadas en vivo. Ya no
+> hay puntos abiertos para implementar en esta línea.** Se conserva el texto original como
+> registro histórico; las notas en corchetes marcan su cierre.
+
 Con todas las decisiones de Producto cerradas (§0, incluidas §0.2 identidad/encabezado y
 §0.3 cierre) **no quedan decisiones de producto pendientes**. Antes de escribir código
-resta solo esto:
+restaba solo esto:
 
-1. **Autorización de implementación + cambios en Supabase (PO).** Ejecutar el esquema
-   nuevo y modificar la invariante I13 son cambios de base de datos: `CLAUDE.md` §4.4
-   exige autorización explícita del PO **al momento de implementar** (la de I13 ya está
-   dada en el plano conceptual; falta la de ejecutar). Esta etapa **no** ejecuta nada.
-2. **Insumo pendiente (no es decisión):** los **archivos de logo** (escuela y
-   sostenedor) que el PO adjuntará a Claude. Los nombres institucionales y el layout de
-   encabezado ya están definidos (§0.2). Sin los logos no se puede cerrar la Etapa 7
-   (PDF), pero no bloquea las etapas previas.
+1. **Autorización de implementación + cambios en Supabase (PO).** **[RESUELTO]** El PO
+   autorizó la implementación por etapas (2026-09-20) y ejecutó el DDL en Supabase
+   (Etapas 1 y 5). La Etapa 7 **no** requirió cambios de esquema.
+2. **Insumo pendiente (no es decisión):** los **archivos de logo** (escuela y sostenedor).
+   **[RESUELTO — 2026-09-21]** No hizo falta recibir archivos aparte: los logos ya estaban
+   **embebidos en el PDF de referencia versionado** `AUDITORIA/assets/ENCABEZADO PDF.pdf` y
+   se **extrajeron de allí** en la Etapa 7 (§0.2). El PDF es la referencia institucional
+   oficial de esta implementación.
 
 **Detalle técnico menor (no requiere PO), a fijar al implementar:** almacenamiento de
 las descripciones de los 4 niveles de rúbrica (Opción 1a columnas vs 1b tabla hija,
-§4.1) — sin impacto de producto.
+§4.1) — sin impacto de producto. **[RESUELTO]** Se implementó la **Opción 1a** (columnas
+`desc_n1..desc_n4`) desde la Etapa 1.
 
 ## Cierre de la etapa (auditoría)
 Auditoría, decisiones del PO (§0) y propuesta por etapas **actualizadas**. Implementación
@@ -843,3 +851,83 @@ modelo de estados/cierre pasan a `CLAUDE.md` como regla permanente.
 
 **No surgieron decisiones de Producto nuevas.** **Etapa 7 (PDFs) NO iniciada** (además,
 bloqueada por el insumo de logos).
+
+---
+
+## Registro de implementación — Etapa 7 (Informes PDF UTP + resultados) · 2026-09-21
+
+**Autorización:** PO, sobre los checkpoints Etapa 1 `253982b` … Etapa 6 `e05219c`.
+**Última etapa de la línea.** Alcance = los **dos informes** de §A13, tamaño **Carta**,
+por **impresión del navegador + CSS** (Opción 8a; sin jsPDF ni librerías). **Sin** móvil,
+sin nuevas reglas de cierre, sin tocar la lógica de evaluación (los informes solo **leen**
+datos), sin cambios de esquema.
+
+**Insumo de logos — RESUELTO:** los dos logos estaban **embebidos en el PDF de referencia
+versionado** `AUDITORIA/assets/ENCABEZADO PDF.pdf` (logo SLEP "Los Parques" 453×263 sin
+pérdida; escudo "Santa Juana de Lestonnac / Renca" 113×153 JPEG). Se **extrajeron** de ese
+PDF, se optimizaron (PNG cuantizado + JPEG, ~24 KB en total) y se **incrustaron como
+data-URI** en `LIBRO/index.html` (constantes `LOGO_SLEP`/`LOGO_ESCUELA`). No se pidieron
+archivos aparte al PO.
+
+**Qué se implementó (todo en `LIBRO/index.html`, vanilla; los informes solo leen el estado
+ya cargado del detalle de evaluación):**
+- **Identidad institucional** en un objeto único `INFORME_INSTITUCION` (sostenedor
+  *SLEP Los Parques – Renca*, escuela *Escuela Juana de Lestonnac*) + los dos logos
+  data-URI. Hardcode ahora, **diseñado para volverse data-driven en V1.0** (#10).
+- **Encabezado institucional repetido en cada página**: se usa `<thead>` (los navegadores
+  repiten el grupo de cabecera de tabla en cada página impresa) con el layout de la
+  referencia — logo SLEP a la izquierda, dos líneas de texto centradas, escudo a la
+  derecha, línea inferior.
+- **Overlay `#informe`** (vista previa en pantalla + destino de impresión). CSS de
+  impresión (`@media print`): `@page { size: letter }`, se oculta todo salvo `#informe`,
+  se oculta la barra de acciones, y los bloques de estudiante/instrumento evitan cortarse
+  (`break-inside:avoid`). Botón **"Imprimir / Guardar PDF"** → `window.print()`.
+- **(A) Informe previo de instrumentos para UTP** (`abrirInformePrevio`): OA original y
+  cada adecuación con su **instrumento asociado**, y la **estructura completa** de cada
+  instrumento usado (rúbrica: 4 niveles con descripciones por criterio; cotejo: ítems con
+  Sí=2/No=1). Es informativo — no aplica la evaluación.
+- **(B) Informe de resultados** (`abrirInformeResultados`): por estudiante — nombre,
+  objetivo aplicado, instrumento utilizado, **resultado por criterio/ítem**, **puntaje
+  total** y **nota**, respetando los estados: **Evaluado** → resultado + nota; **No
+  aplica** → sin nota (etiqueta); **Pendiente/incompleto** → sin nota definitiva (etiqueta
+  + "n/N · incompleto"). El tradicional (sin instrumento) muestra "nota directa".
+- **Botones** en el detalle de evaluación ("🖨 Informe previo (UTP)" · "🖨 Informe de
+  resultados"). **Sin cambios en la lógica de evaluación** (solo lectura del estado).
+
+**Pruebas E2E (persistencia real en Supabase, evaluación desechable en CUARTO con un
+escenario rico: grupo evaluado con rúbrica, un alumno por cotejo, uno incompleto, uno "No
+aplica", resto pendiente; datos de prueba eliminados; evaluaciones reales y matrículas
+intactas):**
+1. Informe **previo** se genera. ✅
+2. Informe de **resultados** se genera. ✅
+3. **OA/adaptaciones** correctos (OA7 + adecuación por cotejo). ✅
+4. **Instrumento** correcto (rúbrica en OA, cotejo en la adecuación). ✅
+5. **Criterios/ítems** correctos (rúbrica 3 criterios con descripciones de 4 niveles;
+   cotejo 2 ítems). ✅
+6. **Resultados y puntajes** correctos (9/12, 4/4, 4/12). ✅
+7. **Notas** correctas (grupo 5,3; cotejo 7,0). ✅
+8. **No aplica** (sin nota) y **Pendiente/incompleto** (sin nota definitiva, "1/3
+   criterios · incompleto") representados correctamente. ✅
+9. **Formato Letter** (`@page size: letter`; hoja 8,5 in). ✅
+10. **Encabezado institucional en todas las páginas** (vía `<thead>`), fiel a la
+    referencia — verificado visualmente contra `AUDITORIA/assets/ENCABEZADO PDF.pdf`. ✅
+11. **`window.print()`** cableado al botón (impresión / "Guardar como PDF"). ✅
+    *(No se dispara el diálogo nativo en la automatización headless para no bloquear la
+    pestaña; la exportación la realiza el usuario desde el navegador.)*
+12. **Evaluación tradicional** sigue funcionando sin cambios (nota manual 6,5; informe la
+    muestra como "nota directa", sin tabla de criterios; 0 instrumentos). ✅
+- Consola **sin errores**.
+
+**Documentación corregida (info obsoleta de logos):** §0.2 y "Puntos que quedan abiertos"
+de este documento, y la ficha en `DESARROLLO_PARALELO.md` — la referencia institucional ya
+estaba en el repo; no había que "recibir" logos.
+
+**CLAUDE.md — decisión:** **no se modificó.** La Etapa 7 no cambia esquema ni invariantes
+ni introduce una regla normativa permanente: es una salida informativa (Opción 8a) sobre el
+modelo existente, con identidad institucional **hardcodeada** (data-driven recién en V1.0).
+La consolidación normativa de toda la línea queda para la **reintegración** del período
+paralelo (regla §9).
+
+**No surgieron decisiones de Producto nuevas.** **Con la Etapa 7 se cierra la línea
+"Instrumentos de Evaluación" (Etapas 1–7 implementadas y verificadas).** Próximo hito de la
+línea: su **reintegración/auditoría** al retomar el recorrido V1 (F6B).

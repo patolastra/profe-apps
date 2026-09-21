@@ -129,9 +129,11 @@ posterior/"no aplica" y su efecto en el cierre; congelado al cerrar + reapertura
 pool previo + asignación y creación **in situ**; dos **PDF Carta** con identidad
 institucional (hardcode permitido ahora, personalizable en V1.0). **Especificación
 completa en `AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md`.**
-**Estado:** en desarrollo — spec aprobada + auditoría técnica + decisiones del PO
-cerradas (NO quedan decisiones de Producto pendientes); **implementación autorizada por
-el PO (2026-09-20), por etapas**. **Etapa 1 (esquema base) implementada en código**
+**Estado:** **LÍNEA COMPLETA — Etapas 1–7 implementadas y verificadas en vivo
+(2026-09-20/21).** Spec aprobada + auditoría técnica + decisiones del PO cerradas (NO
+quedan decisiones de Producto pendientes); implementación autorizada por el PO, por etapas.
+Queda para la **reintegración/auditoría** al retomar F6B (regla §9). Detalle por etapa:
+**Etapa 1 (esquema base) implementada en código**
 (`supabase/libro_schema.sql`, sección "F6 … ETAPA 1"): 5 tablas nuevas
 (`libro_instrumento_plantillas`, `libro_plantilla_items`, `libro_eval_instrumentos`,
 `libro_eval_instrumento_items`, `libro_eval_resultados`), columnas aditivas (`nota_min`,
@@ -176,16 +178,31 @@ la persistencia y del congelado de Etapa 5 (verificado). 12 tests E2E OK contra 
 real (evaluación desechable en CUARTO, datos de prueba limpiados; evaluaciones reales y
 matrículas intactas), incl. el cálculo con excepciones y el congelado al cerrar. **CLAUDE.md
 sin cambios** (no cambia esquema/invariantes; consolidación normativa diferida a la
-reintegración). **Etapa 7 (PDFs) NO iniciada** (bloqueada por el insumo de logos). Registro
-detallado en `INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación —
-Etapa 1" a "— Etapa 6").
+reintegración). **Etapa 7 (Informes PDF UTP + resultados) implementada y verificada en vivo
+(2026-09-21)** en `LIBRO/index.html` (**sin cambios de esquema**): dos informes tamaño
+**Carta** por impresión del navegador + CSS (Opción 8a, sin librerías) — (A) informe previo
+de instrumentos para UTP (OA/adecuaciones + instrumento asociado + estructura completa) y
+(B) informe de resultados por estudiante (objetivo, instrumento, resultado por
+criterio/ítem, puntaje y nota) respetando estados (Evaluado/No aplica/Pendiente-incompleto);
+**encabezado institucional repetido en todas las páginas** (vía `<thead>`) fiel a
+`AUDITORIA/assets/ENCABEZADO PDF.pdf`, con los **logos extraídos de ese mismo PDF** e
+incrustados como data-URI (sin pedir archivos aparte); los informes **solo leen** datos (no
+tocan la lógica de evaluación). 12 tests E2E OK contra Supabase real (escenario rico en
+CUARTO: evaluado/No aplica/incompleto/tradicional; datos de prueba limpiados; evaluaciones
+reales y matrículas intactas); comparación visual del encabezado contra la referencia OK.
+**CLAUDE.md sin cambios** (identidad institucional hardcodeada, data-driven en V1.0;
+consolidación normativa diferida a la reintegración). **Con la Etapa 7 se CIERRA la línea
+"Instrumentos de Evaluación" (Etapas 1–7 implementadas y verificadas).** Registro detallado
+en `INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` ("Registro de implementación — Etapa 1" a
+"— Etapa 7").
 **Identidad institucional del PDF (PO):** escuela *Escuela Juana de Lestonnac*;
-sostenedor *Servicio Local de Educación Pública Los Parques*; **logos** se adjuntarán a
-Claude (pendiente de recibir). El **encabezado institucional** debe **repetirse en todas
-las páginas** de los PDF replicando el layout del archivo de referencia versionado
-`AUDITORIA/assets/ENCABEZADO PDF.pdf` (posición de nombres, logos y proporciones); las versiones grandes
-de logos en ese PDF son solo material de referencia, no van en el cuerpo. Detalle en
-`INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` §0.2.
+sostenedor *Servicio Local de Educación Pública Los Parques*. **Logos [ACTUALIZADO
+2026-09-21]:** ya estaban **embebidos en el PDF de referencia versionado**
+`AUDITORIA/assets/ENCABEZADO PDF.pdf`; en la Etapa 7 se **extrajeron de allí** e incrustaron
+como data-URI — **no** hubo que recibir archivos aparte. El **encabezado institucional** se
+**repite en todas las páginas** replicando el layout de ese PDF (posición de nombres, logos
+y proporciones); las versiones grandes de logos en ese PDF son solo material de referencia,
+no van en el cuerpo. Detalle en `INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` §0.2.
 **Criterio de cierre (PO, aprobado):** bloquea el cierre el estudiante que está
 **matriculado + no "No aplica" + instrumento incompleto**; retirado y "No aplica" no
 bloquean (§0.3).
@@ -213,16 +230,16 @@ plantillas), F6G (Libro/alumnos) y F6K (identidad institucional en el PDF /
 multi-escuela #10).
 **Decisiones de producto adoptadas durante el desarrollo:** las 14 de la especificación
 (§A de `INSTRUMENTOS_EVALUACION_SPEC.md`).
-**Documentación/código afectado:** se creó `AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md`
-y `AUDITORIA/INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` (auditoría + decisiones del
-PO); se actualizó esta ficha. **Código: ninguno** (sin implementación en esta etapa).
-**Pendientes (post-decisiones):** **no quedan decisiones de Producto pendientes.** Antes
-de implementar resta: (a) **autorización del PO para implementar y ejecutar los cambios
-en Supabase** (incl. modificar I13; §4.4); (b) **insumo:** recibir los **archivos de
-logo** (escuela y sostenedor) — necesario solo para cerrar la Etapa 7 (PDF), no bloquea
-etapas previas. Detalle técnico menor sin impacto de producto: almacenamiento de
-descripciones de niveles de rúbrica. **Mobile V1.0** sigue como requisito futuro (spec
-§C), no implementado ahora.
+**Documentación/código afectado:** `AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md` y
+`AUDITORIA/INSTRUMENTOS_EVALUACION_AUDITORIA_TECNICA.md` (spec + auditoría + registros de
+implementación Etapas 1–7); `supabase/libro_schema.sql` (Etapas 1 y 5); `LIBRO/index.html`
+(Etapas 2–7); esta ficha. Referencia institucional: `AUDITORIA/assets/ENCABEZADO PDF.pdf`.
+**Pendientes (post-decisiones):** **no quedan decisiones de Producto pendientes** ni
+etapas por implementar en esta línea. **[ACTUALIZADO 2026-09-21]** Resueltos: (a) la
+autorización del PO para implementar/ejecutar en Supabase (Etapas 1 y 5); (b) el insumo de
+logos — estaban en el PDF de referencia y se extrajeron en la Etapa 7. Detalle técnico
+menor (descripciones de niveles de rúbrica): implementado como Opción 1a (`desc_n1..n4`).
+**Mobile V1.0** sigue como **requisito futuro** (spec §C), fuera de esta línea.
 **Consecuencia documental pendiente (al implementar):** actualizar la invariante **I13**
 en `supabase/libro_schema.sql` y su descripción en `CLAUDE.md` (hoy "sin
 re-sincronización") conforme a la decisión 6b — **no se toca ahora**.
