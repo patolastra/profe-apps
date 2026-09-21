@@ -151,6 +151,29 @@ informes** y (e) **experiencia de uso**. **Regla:** las incidencias que aparezca
 tratan como **correcciones de la implementación existente**, **no** como una nueva línea
 de desarrollo paralelo **ni** como reapertura automática de las Etapas 1–7.
 
+**Marcha blanca — registro de incidencias y correcciones:**
+- **#1 — Descubribilidad de Plantillas (2026-09-21).**
+  - **Incidencia:** en una evaluación **sin plantillas**, el bloque "Instrumentos de esta
+    evaluación" mostraba el selector "— elegir plantilla —" vacío, **sin indicar dónde
+    crear** una plantilla.
+  - **Diagnóstico:** la funcionalidad de Plantillas **existía y funcionaba**; el problema
+    era **de descubribilidad/UX**, no de funcionamiento, datos ni acceso (las plantillas
+    se crean/gestionan en la sección global "Plantillas", accesible desde el panel del
+    curso; el selector estaba vacío simplemente porque aún no se había creado ninguna).
+  - **Corrección:** con 0 plantillas se muestra un **mensaje explicativo** ("No hay
+    plantillas creadas todavía…") y un **acceso directo "Crear plantilla"** que lleva a la
+    **sección global existente** de Plantillas (reutiliza `abrirPlantillas()`; **no**
+    duplica el formulario). Con plantillas existentes, el selector y la carga se comportan
+    igual que antes. **Solo UI en `LIBRO/index.html`; sin cambios de esquema ni de
+    Supabase.**
+  - **Verificación (con Supabase real):** estado vacío → mensaje + acceso; acceso lleva a
+    la pantalla de Plantillas; creación de plantilla; aparición en el selector; **carga en
+    la evaluación como copia independiente**; y **regresión** del flujo existente (0
+    errores). Datos de prueba creados y **eliminados** (estado global restaurado a 0
+    plantillas).
+  - **Estado:** **corrección verificada localmente, PENDIENTE de publicación online.**
+  - **Checkpoint:** `4100a2d`.
+
 **Checkpoints Git (uno por etapa):** E1 `253982b` (precursor de esquema `2af798e`) · E2
 `6471ded` · E3 `5659da0` · E4 `6f6c0b7` · E5 `3ba322f` · E6 `e05219c` · **E7 `7470a35`
 (checkpoint final de implementación)**. Etapa documental previa: `44a0052`. **Cierre
