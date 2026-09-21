@@ -132,7 +132,11 @@ completa en `AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md`.**
 **Estado:** **LÍNEA COMPLETA — Etapas 1–7 implementadas y verificadas en vivo
 (2026-09-20/21).** Spec aprobada + auditoría técnica + decisiones del PO cerradas (NO
 quedan decisiones de Producto pendientes); implementación autorizada por el PO, por etapas.
-Queda para la **reintegración/auditoría** al retomar F6B (regla §9). Detalle por etapa:
+Queda para la **reintegración/auditoría** al retomar F6B (regla §9).
+**Checkpoints Git (uno por etapa):** E1 `253982b` (precursor de esquema `2af798e`) · E2
+`6471ded` · E3 `5659da0` · E4 `6f6c0b7` · E5 `3ba322f` · E6 `e05219c` · **E7 `7470a35`
+(checkpoint final que cierra la línea)**. La etapa documental previa cerró en `44a0052`.
+Detalle por etapa:
 **Etapa 1 (esquema base) implementada en código**
 (`supabase/libro_schema.sql`, sección "F6 … ETAPA 1"): 5 tablas nuevas
 (`libro_instrumento_plantillas`, `libro_plantilla_items`, `libro_eval_instrumentos`,
