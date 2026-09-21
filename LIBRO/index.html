@@ -186,8 +186,8 @@
   .grupo-badge{font-size:10px;text-transform:uppercase;letter-spacing:.03em;padding:1px 7px;border-radius:999px;white-space:nowrap;background:rgba(76,175,80,.18);color:#9ff0a8}
   .grupo-badge.eval{background:#20303f;color:var(--mut)}
   /* Modal de evaluación (grupo / individual) */
-  #eval-modal,#instr-modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
-  #eval-modal.show,#instr-modal.show{display:flex}
+  #eval-modal,#instr-modal,#instr-edit-modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
+  #eval-modal.show,#instr-modal.show,#instr-edit-modal.show{display:flex}
   /* ── Aplicación de instrumento (Etapa 4) ── */
   .niv-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;padding-left:28px}
   .btn.niv{background:var(--panel);border:1px solid var(--line);color:var(--txt)}
@@ -382,6 +382,8 @@
 <!-- Modal de evaluación de grupo / individual (Evaluaciones · Grupos de trabajo) -->
 <div id="eval-modal"><div class="em-backdrop" onclick="evalCerrarModal()"></div><div class="em-card" id="em-card"></div></div>
 <div id="instr-modal"><div class="em-backdrop" onclick="cerrarInstrModal()"></div><div class="em-card" id="instr-modal-card"></div></div>
+<!-- Marcha blanca: editor de instrumento creado directamente en la evaluación -->
+<div id="instr-edit-modal"><div class="em-backdrop" onclick="cerrarInstrEdit()"></div><div class="em-card" id="instr-edit-card"></div></div>
 <!-- Etapa 7: vista previa / impresión de informes PDF (Carta) -->
 <div id="informe">
   <div class="rep-toolbar">
@@ -429,6 +431,8 @@ let evalInstrItems = [];   // Etapa 3: ítems/criterios de esos instrumentos apl
 let instrVerId = null;     // Etapa 3: id del instrumento aplicado expandido (solo lectura)
 let evalResultados = [];   // Etapa 4: filas de libro_eval_resultados (por nota × ítem)
 let instrModalNotaId = null; // Etapa 4: estudiante cuyo instrumento se está aplicando en el modal
+let instrEditCtx = null;   // Marcha blanca: editor de instrumento DIRECTO en-eval { fase:'crear'|'editar', instrId?, tipo? }
+let instrEditAdding = false; // guard de reentrada al agregar criterios/ítems
 let matriculaActiva = new Set(); // Etapa 5: estudiante_ids con matrícula ACTIVA (curso/año)
 let grupoSelIds = new Set(); // selección provisional en la lista de disponibles (UI, no persiste)
 let evalModalCtx = null;   // { tipo:'grupo', gid } | { tipo:'indiv', notaId } — modal de evaluación
@@ -2181,6 +2185,7 @@ function instrCardHTML(cerrada){
         <div style="flex:1;min-width:180px"><b>${esc(i.nombre)}</b> <span class="meta">· ${plTipoLabel(i.tipo)} · ${n} ${i.tipo === 'rubrica' ? 'criterios' : 'ítems'}</span></div>
         <div class="row" style="gap:6px">
           <button class="btn mini" onclick="verInstrAplicado('${i.id}')">${abierto ? 'Ocultar' : 'Ver'}</button>
+          ${cerrada ? '' : (instrumentoTieneResultados(i.id) ? '' : `<button class="btn mini" onclick="abrirEditarInstrumento('${i.id}')">Editar</button>`)}
           ${cerrada ? '' : `<button class="btn mini danger" onclick="quitarInstrAplicado('${i.id}')">Quitar</button>`}
         </div>
         ${abierto ? `<div style="flex-basis:100%">${instrEstructuraHTML(i)}</div>` : ''}
@@ -2207,6 +2212,10 @@ function instrCardHTML(cerrada){
       <div class="subsec">
         <label style="margin-bottom:8px">Instrumentos de esta evaluación (${evalInstrumentos.length})</label>
         <div id="instr-lista">${lista}</div>
+        ${cerrada ? '' : `<div class="row" style="margin-top:10px;gap:8px;align-items:center">
+          <button class="btn primary" onclick="abrirCrearInstrumento()">＋ Crear instrumento</button>
+          <span class="hint">Crea una rúbrica o lista de cotejo directamente para esta evaluación (no queda como plantilla).</span>
+        </div>`}
         ${cerrada ? '' : `<div id="instr-cargar-row" class="row" style="margin-top:10px;gap:8px">
           <select id="instr-plantilla-sel" style="max-width:340px"><option value="">— elegir plantilla —</option></select>
           <button class="btn" onclick="cargarPlantillaEnEval()">Cargar plantilla</button>
@@ -2335,6 +2344,190 @@ async function quitarInstrAplicado(id){
 }
 
 function verInstrAplicado(id){ instrVerId = (instrVerId === id ? null : id); renderInstrCard(); }
+
+// ══════════════════════════════════════════════════════════════
+// CREAR INSTRUMENTO DIRECTAMENTE EN LA EVALUACIÓN (marcha blanca)
+// Reutiliza el pipeline de instrumentos aplicados (libro_eval_instrumentos +
+// libro_eval_instrumento_items) SIN pasar por plantilla: origen_plantilla_id = NULL.
+// NO toca libro_instrumento_plantillas. Estructura editable solo mientras la
+// evaluación esté ABIERTA y el instrumento NO tenga resultados de estudiantes.
+// El cálculo/aplicación/grupos/informes ya tratan cualquier instrumento aplicado
+// de forma uniforme (no se modifican).
+// ══════════════════════════════════════════════════════════════
+
+// ¿El instrumento ya tiene resultados de estudiantes? → estructura bloqueada.
+function instrumentoTieneResultados(instrId){
+  const itemIds = new Set(instrItemsDe(instrId).map(i => i.id));
+  if (!itemIds.size) return false;
+  return evalResultados.some(r => itemIds.has(r.instrumento_item_id));
+}
+
+function abrirCrearInstrumento(){
+  if (evalActual.estado === 'cerrado') { toast('La evaluación está cerrada.', 'err'); return; }
+  instrEditCtx = { fase: 'crear' };
+  document.getElementById('instr-edit-modal').classList.add('show');
+  renderInstrEdit();
+}
+function abrirEditarInstrumento(instrId){
+  if (evalActual.estado === 'cerrado') { toast('La evaluación está cerrada.', 'err'); return; }
+  if (instrumentoTieneResultados(instrId)) { toast('El instrumento ya tiene resultados: su estructura queda bloqueada.', 'err'); return; }
+  const instr = evalInstrumentos.find(x => x.id === instrId); if (!instr) return;
+  instrEditCtx = { fase: 'editar', instrId, tipo: instr.tipo };
+  document.getElementById('instr-edit-modal').classList.add('show');
+  renderInstrEdit();
+}
+function cerrarInstrEdit(){
+  document.getElementById('instr-edit-modal').classList.remove('show');
+  instrEditCtx = null;
+  recargarInstrumentos().then(() => renderInstrCard());   // refresca la tarjeta (lista + estudiantes reflejan el instrumento)
+}
+
+// Fila de criterio/ítem en el editor (mismo patrón visual que Plantillas: .pl-item + PL_NIVELES).
+function instrEditItemRowHTML(it, idx, esRub, bloqueado){
+  const dis = bloqueado ? 'disabled' : '';
+  return `<div class="pl-item">
+      <div class="row" style="gap:8px;align-items:center">
+        <span class="ix">${idx + 1}</span>
+        <input data-id="${it.id}" data-k="texto" value="${esc(it.texto)}" placeholder="${esRub ? 'Criterio' : 'Ítem'}" style="flex:1" ${dis}>
+        ${bloqueado ? '' : `<button class="btn mini danger" onclick="instrEditEliminarItem('${it.id}')" title="Eliminar">✕</button>`}
+      </div>
+      ${esRub ? `<div class="pl-niveles">${PL_NIVELES.map(([k, lab, n]) =>
+        `<div><label>${lab} (${n})</label><input data-id="${it.id}" data-k="${k}" value="${esc(it[k] || '')}" placeholder="Descripción (opcional)" ${dis}></div>`).join('')}</div>` : ''}
+    </div>`;
+}
+
+function renderInstrEdit(){
+  const card = document.getElementById('instr-edit-card');
+  if (!card || !instrEditCtx) return;
+  if (evalActual.estado === 'cerrado') { cerrarInstrEdit(); return; }
+  let html = `<button class="em-close" onclick="cerrarInstrEdit()" title="Cerrar">✕</button>`;
+  if (instrEditCtx.fase === 'crear') {
+    html += `
+      <p class="sec-title" style="margin:0 0 10px;padding-right:24px">Crear instrumento</p>
+      <div class="grid2">
+        <div><label>Nombre</label><input id="ie-nombre" placeholder="Ej: Rúbrica de esta evaluación" autocomplete="off"></div>
+        <div><label>Tipo</label><select id="ie-tipo">
+          <option value="rubrica">Rúbrica</option>
+          <option value="cotejo">Lista de cotejo</option>
+        </select></div>
+      </div>
+      <p class="hint" style="margin:8px 0 0">Se crea directamente en esta evaluación (no queda como plantilla).</p>
+      <div class="mm-actions">
+        <button class="btn primary" onclick="crearInstrumentoConfirmar()">Crear y configurar</button>
+        <button class="btn" onclick="cerrarInstrEdit()">Cancelar</button>
+      </div>`;
+    card.innerHTML = html;
+    return;
+  }
+  // fase 'editar'
+  const instr = evalInstrumentos.find(x => x.id === instrEditCtx.instrId);
+  if (!instr) { cerrarInstrEdit(); return; }
+  const esRub = instr.tipo === 'rubrica';
+  const bloqueado = instrumentoTieneResultados(instr.id);   // estructura bloqueada si ya hay resultados
+  const dis = bloqueado ? 'disabled' : '';
+  const items = instrItemsDe(instr.id);
+  const itemsHTML = items.length
+    ? items.map((it, idx) => instrEditItemRowHTML(it, idx, esRub, bloqueado)).join('')
+    : `<p class="hint">Sin ${esRub ? 'criterios' : 'ítems'} todavía.</p>`;
+  html += `
+    <p class="sec-title" style="margin:0 0 6px;padding-right:24px">Instrumento · ${plTipoLabel(instr.tipo)}</p>
+    ${bloqueado ? '<p class="hint" style="margin:0 0 8px">Este instrumento ya tiene resultados de estudiantes: su estructura queda <b>bloqueada</b> (no se pueden agregar, editar ni eliminar criterios/ítems). Sigue disponible para evaluar.</p>' : ''}
+    <div><label>Nombre</label><input id="ie-nombre" value="${esc(instr.nombre)}" ${dis} onchange="instrEditRenombrar(this.value)" autocomplete="off"></div>
+    <p class="hint" style="margin:8px 0 4px">${esRub
+      ? 'Rúbrica: 4 niveles fijos (Por lograr=1 · Medianamente logrado=2 · Logrado=3 · Logrado con distinción=4); descripción opcional por nivel.'
+      : 'Lista de cotejo: cada ítem se responde Sí (=2) / No (=1).'}</p>
+    <p class="sec-title" style="margin:6px 0 4px">${esRub ? 'Criterios' : 'Ítems'} (${items.length})</p>
+    <div id="ie-items">${itemsHTML}</div>
+    ${bloqueado ? '' : `<div class="row" style="margin-top:10px">
+      <input id="ie-nuevo" placeholder="${esRub ? 'Nuevo criterio' : 'Nuevo ítem'}" style="flex:1" autocomplete="off"
+             onkeydown="if(event.key==='Enter')instrEditAgregarItem()">
+      <button class="btn primary" onclick="instrEditAgregarItem()">Agregar</button>
+    </div>`}
+    <div class="mm-actions"><button class="btn primary" onclick="cerrarInstrEdit()">Listo</button></div>`;
+  card.innerHTML = html;
+  card.querySelectorAll('#ie-items input[data-id]').forEach(el => {
+    el.addEventListener('change', () => instrEditGuardarCampo(el.dataset.id, el.dataset.k, el.value));
+  });
+}
+
+async function crearInstrumentoConfirmar(){
+  const nombre = (document.getElementById('ie-nombre').value || '').trim();
+  const tipo   = document.getElementById('ie-tipo').value;
+  if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
+  if (tipo !== 'rubrica' && tipo !== 'cotejo') { toast('Tipo inválido.', 'err'); return; }
+  try {
+    const { data, error } = await sb.from('libro_eval_instrumentos')
+      .insert({ evaluacion_id: evalActual.id, tipo, nombre, origen_plantilla_id: null })
+      .select('*').single();
+    if (error) throw error;
+    await recargarInstrumentos();
+    instrEditCtx = { fase: 'editar', instrId: data.id, tipo };
+    toast('Instrumento creado. Agrega sus criterios/ítems.', 'ok');
+    renderInstrEdit();
+  } catch (e) { toast('No se pudo crear el instrumento: ' + e.message, 'err'); }
+}
+
+async function instrEditAgregarItem(){
+  if (instrEditAdding) return;
+  const instr = instrEditCtx && evalInstrumentos.find(x => x.id === instrEditCtx.instrId);
+  if (!instr) return;
+  if (instrumentoTieneResultados(instr.id)) { toast('Estructura bloqueada: el instrumento ya tiene resultados.', 'err'); return; }
+  const inp = document.getElementById('ie-nuevo');
+  const texto = (inp.value || '').trim();
+  if (!texto) { toast('Escribe el texto.', 'err'); return; }
+  instrEditAdding = true;
+  inp.value = '';   // limpiar antes del await (evita concatenar reentradas rápidas)
+  try {
+    const its = instrItemsDe(instr.id);
+    const orden = its.length ? Math.max(...its.map(i => i.orden || 0)) + 1 : 0;
+    const { data, error } = await sb.from('libro_eval_instrumento_items')
+      .insert({ instrumento_id: instr.id, orden, texto }).select('*').single();
+    if (error) throw error;
+    evalInstrItems.push(data);
+    renderInstrEdit();
+  } catch (e) { inp.value = texto; toast('No se pudo agregar: ' + e.message, 'err'); }
+  finally { instrEditAdding = false; }
+}
+
+async function instrEditGuardarCampo(id, k, val){
+  const it = evalInstrItems.find(x => x.id === id); if (!it) return;
+  if (instrumentoTieneResultados(it.instrumento_id)) { toast('Estructura bloqueada: el instrumento ya tiene resultados.', 'err'); renderInstrEdit(); return; }
+  const limpio = (val || '').trim();
+  if (k === 'texto' && limpio === '') { toast('El texto no puede quedar vacío.', 'err'); renderInstrEdit(); return; }
+  const nuevo = (k === 'texto') ? limpio : (limpio === '' ? null : val);
+  try {
+    const { error } = await sb.from('libro_eval_instrumento_items').update({ [k]: nuevo }).eq('id', id);
+    if (error) throw error;
+    it[k] = nuevo;
+    toast('Guardado.', 'ok');
+  } catch (e) { toast('No se pudo guardar: ' + e.message, 'err'); }
+}
+
+async function instrEditEliminarItem(id){
+  const it = evalInstrItems.find(x => x.id === id); if (!it) return;
+  if (instrumentoTieneResultados(it.instrumento_id)) { toast('Estructura bloqueada: el instrumento ya tiene resultados.', 'err'); return; }
+  if (!confirm('¿Eliminar este elemento del instrumento?')) return;
+  try {
+    const { error } = await sb.from('libro_eval_instrumento_items').delete().eq('id', id);
+    if (error) throw error;
+    evalInstrItems = evalInstrItems.filter(x => x.id !== id);
+    renderInstrEdit();
+  } catch (e) { toast('No se pudo eliminar: ' + e.message, 'err'); }
+}
+
+async function instrEditRenombrar(nombre){
+  const instr = instrEditCtx && evalInstrumentos.find(x => x.id === instrEditCtx.instrId);
+  if (!instr) return;
+  const nm = (nombre || '').trim();
+  if (!nm) { toast('El nombre no puede quedar vacío.', 'err'); renderInstrEdit(); return; }
+  if (nm === instr.nombre) return;
+  try {
+    const { error } = await sb.from('libro_eval_instrumentos').update({ nombre: nm }).eq('id', instr.id);
+    if (error) throw error;
+    instr.nombre = nm;
+    toast('Guardado.', 'ok');
+  } catch (e) { toast('No se pudo renombrar: ' + e.message, 'err'); }
+}
 
 // ══════════════════════════════════════════════════════════════
 // APLICACIÓN DEL INSTRUMENTO Y CÁLCULO — Etapa 4
