@@ -173,6 +173,36 @@ de desarrollo paralelo **ni** como reapertura automática de las Etapas 1–7.
     plantillas).
   - **Estado:** **corrección verificada localmente, PENDIENTE de publicación online.**
   - **Checkpoint:** `4100a2d`.
+- **#2 — Creación directa de instrumentos (2026-09-21).**
+  - **Incidencia:** el flujo permitía **cargar plantillas**, pero **no** crear directamente
+    una **Rúbrica** o **Lista de cotejo** para una evaluación cuando ya existían plantillas;
+    obligaba a convertir artificialmente la necesidad de crear un instrumento concreto en
+    la creación previa de una plantilla.
+  - **Diagnóstico:** la funcionalidad de Plantillas **funcionaba correctamente**; faltaba el
+    **flujo operativo de creación directa** de un instrumento aplicado a una evaluación.
+  - **Corrección:** se agregó **"＋ Crear instrumento"** dentro de la evaluación → elegir
+    **Rúbrica / Lista de cotejo**, ingresar **nombre** y configurar directamente sus
+    **criterios/ítems**. El instrumento directo: se crea en `libro_eval_instrumentos` con
+    **`origen_plantilla_id = NULL`**; usa `libro_eval_instrumento_items`; funciona con el
+    **pipeline existente** (asociación OA/adaptación, evaluación, cálculo, grupos/
+    excepciones, informes) **sin modificarlo**; y **no crea ni modifica Plantillas**.
+    Edición de estructura **solo con evaluación abierta y sin resultados**; con resultados,
+    **bloqueada**; evaluación cerrada respeta el congelamiento de Etapa 5 (UI + triggers).
+    **Solo UI en `LIBRO/index.html`; sin cambios de esquema ni de Supabase.**
+  - **Verificación:** **16 pruebas E2E con Supabase real, todas OK** — creación directa de
+    rúbrica; creación directa de lista de cotejo; persistencia; `origen_plantilla_id` NULL;
+    asociación a OA; cálculo de resultados; compatibilidad con plantillas existentes;
+    bloqueo de edición con resultados; bloqueo en evaluación cerrada (UI + BD); regresión
+    de evaluación tradicional; consola sin errores relevantes.
+  - **Datos:** datos de prueba **eliminados**; **datos reales del profesor intactos**
+    (incl. su plantilla y su evaluación real con instrumentos).
+  - **Estado:** **corrección verificada localmente, PENDIENTE de publicación online.**
+  - **Checkpoint de implementación:** `9a5da65`.
+  - **Deuda futura (identificada, NO implementada):** (1) "Guardar instrumento como
+    plantilla"; (2) promover instrumento directo a plantilla; (3) reutilizar instrumentos
+    sin convertirlos en plantilla; (4) gestión definitiva de instrumentos reutilizables;
+    (5) diferenciación UX definitiva Instrumento vs. Plantilla; (6) acceso desde Talleres;
+    (7) política definitiva de edición/versionado de instrumentos con resultados.
 
 **Checkpoints Git (uno por etapa):** E1 `253982b` (precursor de esquema `2af798e`) · E2
 `6471ded` · E3 `5659da0` · E4 `6f6c0b7` · E5 `3ba322f` · E6 `e05219c` · **E7 `7470a35`
