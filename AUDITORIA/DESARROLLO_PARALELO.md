@@ -129,13 +129,33 @@ posterior/"no aplica" y su efecto en el cierre; congelado al cerrar + reapertura
 pool previo + asignación y creación **in situ**; dos **PDF Carta** con identidad
 institucional (hardcode permitido ahora, personalizable en V1.0). **Especificación
 completa en `AUDITORIA/INSTRUMENTOS_EVALUACION_SPEC.md`.**
-**Estado:** **LÍNEA COMPLETA — Etapas 1–7 implementadas y verificadas en vivo
-(2026-09-20/21).** Spec aprobada + auditoría técnica + decisiones del PO cerradas (NO
-quedan decisiones de Producto pendientes); implementación autorizada por el PO, por etapas.
-Queda para la **reintegración/auditoría** al retomar F6B (regla §9).
+**Estado:** **CERRADA — EN MARCHA BLANCA / VALIDACIÓN EN USO REAL** (2026-09-21).
+Resumen para lectura rápida (una ventana/contexto nueva puede entenderlo de inmediato):
+- **IMPLEMENTACIÓN:** CERRADA (Etapas 1–7 completas y verificadas en vivo, 2026-09-20/21).
+- **ESTADO OPERATIVO:** EN MARCHA BLANCA (publicada online; en uso real).
+- **VALIDACIÓN REAL:** EN CURSO (recién iniciada; **NO** validada/aprobada aún).
+- **DECISIONES PENDIENTES (de Producto):** NINGUNA dentro de esta línea.
+- **REINTEGRACIÓN F6B:** PENDIENTE al final del período general de desarrollos paralelos.
+
+**Publicación online (2026-09-21):** la implementación se **publicó mediante `git push` a
+`origin/master`** (fast-forward `cf14b98..f883fd5`); **GitHub Pages** reconstruyó y **sirve
+la implementación completa** en https://patolastra.github.io/profe-apps/ (LIBRO online
+byte-idéntico al blob commiteado). El **backend Supabase** requerido (tablas/columnas/
+triggers de las Etapas 1 y 5) está **operativo**. La evaluación tradicional sigue sin
+regresiones.
+
+**Marcha blanca (validación en uso real — EN CURSO, sin resultados aún):** el uso real
+buscará detectar eventuales incidencias de (a) **funcionamiento**, (b) **persistencia/
+sincronización**, (c) **integración con el Libro de Clases**, (d) **generación de
+informes** y (e) **experiencia de uso**. **Regla:** las incidencias que aparezcan se
+tratan como **correcciones de la implementación existente**, **no** como una nueva línea
+de desarrollo paralelo **ni** como reapertura automática de las Etapas 1–7.
+
 **Checkpoints Git (uno por etapa):** E1 `253982b` (precursor de esquema `2af798e`) · E2
 `6471ded` · E3 `5659da0` · E4 `6f6c0b7` · E5 `3ba322f` · E6 `e05219c` · **E7 `7470a35`
-(checkpoint final que cierra la línea)**. La etapa documental previa cerró en `44a0052`.
+(checkpoint final de implementación)**. Etapa documental previa: `44a0052`. **Cierre
+documental de la línea: `f883fd5`.** Publicación online: push `cf14b98..f883fd5` a
+`origin/master`.
 Detalle por etapa:
 **Etapa 1 (esquema base) implementada en código**
 (`supabase/libro_schema.sql`, sección "F6 … ETAPA 1"): 5 tablas nuevas
