@@ -171,7 +171,7 @@ de desarrollo paralelo **ni** como reapertura automática de las Etapas 1–7.
     la evaluación como copia independiente**; y **regresión** del flujo existente (0
     errores). Datos de prueba creados y **eliminados** (estado global restaurado a 0
     plantillas).
-  - **Estado:** **corrección verificada localmente, PENDIENTE de publicación online.**
+  - **Estado:** **corrección verificada y publicada online** (push `eb00137..b264d85`, 2026-09-21).
   - **Checkpoint:** `4100a2d`.
 - **#2 — Creación directa de instrumentos (2026-09-21).**
   - **Incidencia:** el flujo permitía **cargar plantillas**, pero **no** crear directamente
@@ -196,7 +196,7 @@ de desarrollo paralelo **ni** como reapertura automática de las Etapas 1–7.
     de evaluación tradicional; consola sin errores relevantes.
   - **Datos:** datos de prueba **eliminados**; **datos reales del profesor intactos**
     (incl. su plantilla y su evaluación real con instrumentos).
-  - **Estado:** **corrección verificada localmente, PENDIENTE de publicación online.**
+  - **Estado:** **corrección verificada y publicada online** (push `eb00137..b264d85`, 2026-09-21).
   - **Checkpoint de implementación:** `9a5da65`.
   - **Deuda futura (identificada, NO implementada):** (1) "Guardar instrumento como
     plantilla"; (2) promover instrumento directo a plantilla; (3) reutilizar instrumentos
@@ -317,9 +317,10 @@ autorización del PO para implementar/ejecutar en Supabase (Etapas 1 y 5); (b) e
 logos — estaban en el PDF de referencia y se extrajeron en la Etapa 7. Detalle técnico
 menor (descripciones de niveles de rúbrica): implementado como Opción 1a (`desc_n1..n4`).
 **Mobile V1.0** sigue como **requisito futuro** (spec §C), fuera de esta línea.
-**Consecuencia documental pendiente (al implementar):** actualizar la invariante **I13**
-en `supabase/libro_schema.sql` y su descripción en `CLAUDE.md` (hoy "sin
-re-sincronización") conforme a la decisión 6b — **no se toca ahora**.
+**Consecuencia documental [ACTUALIZADO 2026-09-22]:** la invariante **I13** ya se
+actualizó en `supabase/libro_schema.sql` durante la **Etapa 5** (conforme a la decisión
+6b). `CLAUDE.md` no describe I13; decidir si I13/estados/cierre pasan a `CLAUDE.md` como
+regla permanente queda **pendiente para la reintegración**.
 **Observaciones para la reintegración:** contrastar contra F6H del Bosquejo; si Producto
 lo confirma como V1 firme, evaluar la actualización de `CLAUDE.md` (§8 alcance V1 y §9
 roadmap, hoy con rúbricas/UTP como "posible/identificado"). Registrar que esta línea
