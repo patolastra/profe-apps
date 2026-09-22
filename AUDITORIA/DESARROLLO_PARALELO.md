@@ -354,3 +354,81 @@ en navegador OK; consola sin errores).
 **Checkpoint:** `b81d5e6`.
 **Nota de gobernanza:** cambio acotado a `PC/workspace.html`; sin cambios de Supabase, de
 arquitectura de pestañas ni de `CLAUDE.md` (no es regla permanente; es UX provisional).
+
+---
+
+### Microiteración de uso real: Participación — Inhabilitar y Preseleccionar participante
+
+> Entrada **breve** y **separada**: microiteración de UX sobre un módulo activo (Libro de
+> Clases → Participación), surgida en uso real durante el período paralelo. **No** es una
+> línea de desarrollo paralelo del Bosquejo ni una regla general del sistema.
+
+**Fecha:** 2026-09-22
+**Módulo / archivo:** Libro de Clases → Participación — `LIBRO/index.html` (vista normal
+de la tabla y vista Proyector).
+**Necesidad detectada en uso real:** durante el sorteo "🎲 Elegir al azar" el profesor
+necesita (1) **excluir temporalmente** a un estudiante (ausente, no quiere participar u
+otra razón puntual del momento) y (2) poder **decidir en secreto** quién saldrá en el
+próximo sorteo.
+**Ciclo seguido:** auditoría técnica (sin cambios) → **autorización del PO** →
+implementación → pruebas → esta ficha → checkpoint propio.
+**Decisión puntual (PO):** dos gestos nuevos, independientes entre sí:
+- **Shift + clic** → **Inhabilitar / rehabilitar** participante.
+- **Ctrl + Shift + clic** → **Preseleccionar / quitar preselección** para el próximo sorteo.
+
+**Distinción de estados (clave de esta microiteración):**
+| Estado | Naturaleza | Dónde vive | Al salir de la instancia |
+|---|---|---|---|
+| **Participó / En espera** | **persistente** (existente, sin cambios) | Supabase `libro_participacion_detalle.participo` | se conserva |
+| **Inhabilitado** | **temporal, visible, no persistente** | solo memoria de la página | se descarta |
+| **Preseleccionado** | **temporal, secreto, no persistente, consumido por el sorteo** | solo memoria de la página | se descarta |
+
+**Comportamiento implementado:**
+- **Inhabilitado:** no entra al sorteo; el clic normal (fila, casilla o tarjeta) **no**
+  registra participación; se rehabilita con Shift + clic. Se ve **atenuado** en la tabla
+  (con la etiqueta "inhabilitado") y **gris, punteado y tachado** en el Proyector, en su
+  mismo lugar (el tablero no se reordena). El contador **"esperando su turno"** cuenta solo
+  a quienes están en espera **y** habilitados; el botón del sorteo se desactiva si no queda
+  nadie elegible.
+- **Preseleccionado:** solo se puede preseleccionar a quien está en espera y habilitado. El
+  próximo "🎲 Elegir al azar" lo elige; la animación y el destacado son **exactamente** los
+  de un sorteo normal (el barajado nunca "aterriza" en una tarjeta, así que no delata nada).
+  **Ninguna** marca visual en el Proyector ni en la vista normal (ni clase, ni texto, ni
+  tooltip). Se **consume** al sortear; se **anula** si el preseleccionado se inhabilita o
+  pasa a "Participó"; repetir el gesto sobre la misma persona la quita. **No** modifica
+  "Participó" (igual que hoy, el sorteo solo destaca; el profesor registra la participación
+  con el clic normal).
+- **Fin de la instancia:** ambos estados temporales se descartan al volver a la lista, al
+  volver al panel del curso ("← Curso"), al abrir una participación o al recargar. **Cerrar
+  el Proyector no los descarta.**
+- **Participación cerrada:** ambos gestos quedan bloqueados (igual que el clic normal).
+- **Segunda ventana del Proyector:** sincronización por el canal local existente
+  (`BroadcastChannel 'libro_participacion'`), **sin Supabase**: cambios de inhabilitación,
+  preselección (solo como dato, **nunca se pinta**) y su consumo/anulación. Una ventana que
+  abre la **misma** participación mientras otra la tiene abierta **recibe** el estado
+  temporal vigente (así el sorteo del Proyector conoce lo marcado en la otra ventana).
+
+**Pruebas (2026-09-22, navegador local contra Supabase real, sobre una participación
+desechable en CUARTO):** 21/21 OK — inhabilitar/rehabilitar (clic simulado y clic real con
+teclas); inhabilitado fuera del sorteo y del barajado (40 sorteos, 0 casos); participó fuera
+del sorteo (40 sorteos, 0 violaciones); en espera + habilitado dentro; contador sin
+inhabilitados; clic normal (fila, casilla, tarjeta) sobre inhabilitado no registra nada;
+reflejo en tabla y Proyector; descarte al volver al panel/lista, al reabrir y al recargar;
+"Participó" persistido intacto tras recargar (memoria = BD); preselección con clic real
+Ctrl+Shift; el sorteo eligió al preseleccionado con presentación normal; sin señal en el
+Proyector (tarjeta idéntica); consumo tras un sorteo (los siguientes vuelven al azar);
+anulación al inhabilitar y al marcar "Participó"; no se puede preseleccionar a quien ya
+participó o está inhabilitado; segunda ventana recibe el estado al abrir, refleja cambios en
+vivo y su sorteo usó la preselección hecha en la otra ventana; cerrar el Proyector conserva
+el estado; participación cerrada bloquea ambos gestos; guardado normal de la tabla sin
+regresión; consola sin errores. Datos de prueba **eliminados** (conteos de
+`libro_participaciones`/`libro_participacion_detalle` iguales a los previos: 10/273);
+datos reales del profesor intactos.
+**Supabase:** **sin cambios** de esquema, tablas, columnas, RLS, triggers ni migraciones.
+**Nota de gobernanza:** cambio acotado a `LIBRO/index.html`; sin cambios de `CLAUDE.md` ni
+de otros módulos. **No** es una regla general del sistema; es UX provisional en observación
+de uso real, a considerar en la reintegración (F6G Libro/alumnos).
+**Pendiente de observación (no decidido):** si en uso real conviene que abrir la misma
+participación en una ventana nueva **no** herede el estado temporal de otra ventana abierta
+(hoy lo hereda para mantener coherente el sorteo del Proyector).
+**Estado:** **implementada y verificada localmente; PENDIENTE de publicación online.**

@@ -94,6 +94,9 @@
   tr.fila-ok td:first-child{box-shadow:inset 3px 0 0 var(--acc)}
   /* Fila clickeable (Participación/Entregas editables) */
   tr.fila-click{cursor:pointer}
+  /* Participación: inhabilitado temporal (Shift+clic). Solo visual, no persiste. */
+  tr.fila-inhab td{opacity:.4}
+  tr.fila-inhab td:nth-child(2)::after{content:' · inhabilitado';font-size:.82em;font-style:italic}
 
   /* ── PANEL DE CONTROL DEL CURSO ── */
   /* 5 botones grandes de acción, con color por categoría. Responsive (auto-fit). */
@@ -291,6 +294,11 @@
   /* Sorteo: barajado (parpadeo de candidatos). */
   @keyframes ppro-flash{0%,100%{filter:brightness(1)}50%{filter:brightness(1.75)}}
   .ppro-tile.barajando{outline:4px solid #fff;outline-offset:-4px;animation:ppro-flash .16s linear infinite;z-index:2}
+  /* Inhabilitado temporal (Shift+clic): gris, borde punteado, nombre tachado. Queda
+     en su lugar (no reordena el tablero) y no entra al sorteo. */
+  .ppro-zona .ppro-tile.inhab{background:#3a414b;color:#9aa3ad;box-shadow:none;opacity:.6;
+    border:2px dashed rgba(255,255,255,.28)}
+  .ppro-tile.inhab>span{text-decoration:line-through}
   /* Destacado GIGANTE del elegido: casillero que "crece" al centro del tablero,
      dimensionado por JS para caber sin overflow. No es un modal: vive dentro de .ppro-board. */
   .ppro-big{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.2);
@@ -1771,6 +1779,7 @@ function irSeccion(s){
 }
 function volverAtras(){
   limpiarMsg();
+  if (vistaActiva === 'part-detalle') partLimpiarTemporal();   // salir de la instancia de Participación
   // CURSO: el botón de regreso SIEMPRE devuelve al panel de control del curso.
   if (ctxTipo === 'curso') { renderPanelCurso(); return; }
   // TALLER: comportamiento existente (secnav + detalle de participación).
@@ -3177,6 +3186,7 @@ async function poblacionContexto(fecha){
 
 async function renderPartLista(){
   partActual = null; vistaActiva = 'part-lista';
+  partLimpiarTemporal();   // salir de la instancia: inhabilitados/preselección se descartan
   mostrarBtnOrden();
   // curso: participación es naranjo y el regreso va al panel; taller: sin cambios.
   if (ctxTipo === 'curso') { vistaCat('part'); backAPanel(); }
@@ -3245,6 +3255,7 @@ async function crearParticipacion(){
 
 async function abrirPartDetalle(pid){
   limpiarMsg();
+  partLimpiarTemporal();   // abrir una instancia parte sin estado temporal propio
   const v = document.getElementById('vista');
   v.innerHTML = '<div class="card">Cargando participación…</div>';
   try {
@@ -3272,6 +3283,9 @@ async function abrirPartDetalle(pid){
   const btn = document.getElementById('btn-volver');
   btn.textContent = ctxTipo === 'curso' ? '← Curso' : '← Participaciones'; btn.style.display = '';
   renderPartDetalle();
+  // Otra ventana con esta misma instancia abierta (p. ej. proyector en 2ª pantalla)
+  // comparte su estado temporal. Solo canal local del navegador; nada va a Supabase.
+  partDifundir('pedir-temporal');
 }
 
 function renderPartDetalle(){
@@ -3308,7 +3322,7 @@ function renderPartDetalle(){
         <colgroup><col style="width:44px"><col><col style="width:96px"></colgroup>
         <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="part">Participó</th></tr></thead>
         <tbody id="tbody-part">${partDet.map((d, idx) => `
-          <tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(normBuscar(nombreDe(d.estudiante)))}" class="${cerrada?'':'fila-click'}${d.participo?' fila-ok':''}">
+          <tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(normBuscar(nombreDe(d.estudiante)))}" class="${cerrada?'':'fila-click'}${d.participo?' fila-ok':''}${partInhab.has(d.estudiante_id)?' fila-inhab':''}">
             <td class="pos">${partPos[d.estudiante_id] ?? ''}</td>
             <td>${esc(nombreDe(d.estudiante))}</td>
             <td class="part"><input type="checkbox" data-i="${idx}" ${d.participo?'checked':''} ${dis}></td>
@@ -3342,9 +3356,17 @@ function renderPartDetalle(){
     // Click en cualquier zona de la fila alterna participó. Si el click se origina
     // en el checkbox (u otro control), lo maneja su propio 'change' → sin doble toggle.
     v.querySelectorAll('#tbody-part tr[data-i]').forEach(tr => {
+      // Shift: evita que el navegador extienda la selección de texto al hacer el gesto.
+      tr.addEventListener('mousedown', (e) => { if (e.shiftKey) e.preventDefault(); });
       tr.addEventListener('click', (e) => {
-        if (e.target.closest('input,button,a,select,label')) return;
         const idx = +tr.dataset.i;
+        const eid = partDet[idx].estudiante_id;
+        // Gestos temporales (también sobre el checkbox): preventDefault anula el
+        // toggle nativo del checkbox → no se dispara 'change' ni cambia participó.
+        if (e.shiftKey) { e.preventDefault(); partGestoTemporal(eid, e); return; }
+        // Inhabilitado: el clic normal no registra participación (tampoco el checkbox).
+        if (partInhab.has(eid)) { e.preventDefault(); return; }
+        if (e.target.closest('input,button,a,select,label')) return;
         partSet(idx, !partDet[idx].participo);
       });
     });
@@ -3442,12 +3464,75 @@ if (partCanal) partCanal.onmessage = (ev) => {
   if (!partActual || m.pid !== partActual.id) return;
   if (m.tipo === 'set') {
     const d = partDet.find(x => x.estudiante_id === m.estudiante_id);
-    if (d && d.participo !== m.participo) { d.participo = m.participo; refrescarVistasParticipacion(); }
+    if (d && d.participo !== m.participo) { d.participo = m.participo; partValidarPresel(); refrescarVistasParticipacion(); }
   } else if (m.tipo === 'reload') {
     reconciliarPartDet();
+  } else if (partEnInstancia()) {
+    // Estado TEMPORAL (inhabilitados / preselección): solo entre ventanas que tienen
+    // abierta esta misma instancia. Nunca pasa por Supabase.
+    if (m.tipo === 'inhab') {
+      if (m.inhab) partInhab.add(m.estudiante_id); else partInhab.delete(m.estudiante_id);
+      partValidarPresel(); partPintarInhab();
+    } else if (m.tipo === 'presel') {
+      partPresel = m.estudiante_id || null;                  // solo dato: jamás se pinta
+      partValidarPresel({ difundir: false });
+    } else if (m.tipo === 'pedir-temporal') {
+      if (partInhab.size || partPresel) partDifundir('temporal', { inhab: [...partInhab], presel: partPresel });
+    } else if (m.tipo === 'temporal') {
+      partInhab = new Set(m.inhab || []); partPresel = m.presel || null;
+      partValidarPresel({ difundir: false }); partPintarInhab();
+    }
   }
 };
 function partDifundir(tipo, extra){ if (partCanal && partActual) { try { partCanal.postMessage({ tipo, pid: partActual.id, ...extra }); } catch (_) {} } }
+
+// ── ESTADO TEMPORAL de la instancia (microiteración de uso real) ──────────────
+// Distinto del estado PERSISTENTE participó/en espera (libro_participacion_detalle).
+//  · Inhabilitado (Shift+clic): visible; fuera del sorteo; el clic normal no lo marca.
+//  · Preseleccionado (Ctrl+Shift+clic): SECRETO; el próximo 🎲 lo elige y se consume.
+//    No tiene ninguna representación visual (ni clase, ni texto, ni title).
+// Ambos viven solo en memoria: se descartan al volver a la lista / al panel, al abrir
+// una participación o al recargar. Cerrar el proyector NO los descarta.
+let partInhab  = new Set();   // estudiante_id inhabilitados temporalmente
+let partPresel = null;        // estudiante_id preseleccionado (o null)
+
+function partLimpiarTemporal(){ partInhab = new Set(); partPresel = null; }
+// Esta ventana tiene abierta la instancia (tabla o proyector), no solo partActual residual.
+function partEnInstancia(){ return !!partActual && (vistaActiva === 'part-detalle' || proyectorAbierto()); }
+// Candidato del sorteo: en espera (persistente) y habilitado (temporal).
+function partEsElegible(d){ return !!d && !d.participo && !partInhab.has(d.estudiante_id); }
+// Anula la preselección si dejó de ser válida; avisa a la otra ventana.
+function partValidarPresel({ difundir = true } = {}){
+  if (!partPresel) return;
+  if (partEsElegible(partDet.find(x => x.estudiante_id === partPresel))) return;
+  partPresel = null;
+  if (difundir) partDifundir('presel', { estudiante_id: null });
+}
+// Shift+clic → inhabilitar/rehabilitar · Ctrl+Shift+clic → preseleccionar/quitar.
+function partGestoTemporal(estudianteId, e){
+  if (!partActual || partActual.estado === 'cerrado') return;
+  if (e.ctrlKey || e.metaKey) {
+    const d = partDet.find(x => x.estudiante_id === estudianteId);
+    if (partPresel === estudianteId) partPresel = null;          // repetir → quitar
+    else if (partEsElegible(d)) partPresel = estudianteId;       // solo en espera + habilitado
+    else return;                                                 // no elegible: sin efecto ni señal
+    partDifundir('presel', { estudiante_id: partPresel });
+    return;
+  }
+  const inhab = !partInhab.has(estudianteId);
+  if (inhab) partInhab.add(estudianteId); else partInhab.delete(estudianteId);
+  partValidarPresel();
+  partDifundir('inhab', { estudiante_id: estudianteId, inhab });
+  partPintarInhab();
+}
+// Refleja inhabilitados en ambas vistas sin recrear la tabla (conserva búsqueda/scroll).
+function partPintarInhab(){
+  document.querySelectorAll('#tbody-part tr[data-i]').forEach(tr => {
+    const d = partDet[+tr.dataset.i];
+    tr.classList.toggle('fila-inhab', !!d && partInhab.has(d.estudiante_id));
+  });
+  if (proyectorAbierto()) renderProyector();
+}
 
 // Refresca la interfaz activa (normal y/o proyector) tras un cambio externo.
 function refrescarVistasParticipacion(){
@@ -3474,6 +3559,7 @@ async function alternarParticipacion(estudianteId, valor, { persistir = false } 
   if (!d) return null;
   const prev = d.participo;
   d.participo = !!valor;                                   // mutación en memoria (síncrona)
+  partValidarPresel();                                     // quien pasa a "participó" deja de ser preseleccionable
   if (persistir) {
     try {
       const { error } = await sb.from('libro_participacion_detalle')
@@ -3644,7 +3730,8 @@ function proyectorContadorTxt(nSi, nEsp){
 // Tile: nombre en UNA sola línea (nowrap; la fuente ya se calculó para que quepa).
 function tileHTML(d, repes){
   const nom = nombreProyector(d.estudiante, repes);
-  return `<div class="ppro-tile" data-eid="${d.estudiante_id}" onclick="proyectorClickTile('${d.estudiante_id}')" title="${esc(nom)}"><span>${esc(nom)}</span></div>`;
+  // Solo el inhabilitado tiene marca visual; la preselección NUNCA se refleja aquí.
+  return `<div class="ppro-tile${partInhab.has(d.estudiante_id) ? ' inhab' : ''}" data-eid="${d.estudiante_id}" onmousedown="if(event.shiftKey)event.preventDefault()" onclick="proyectorClickTile('${d.estudiante_id}', event)" title="${esc(nom)}"><span>${esc(nom)}</span></div>`;
 }
 
 function renderProyector(){
@@ -3652,9 +3739,10 @@ function renderProyector(){
   const repes = mapaNombresRepetidos();
   const si  = partDet.filter(d => d.participo);
   const esp = partDet.filter(d => !d.participo);
-  document.getElementById('ppro-contador').innerHTML = proyectorContadorTxt(si.length, esp.length);
+  const nEleg = esp.filter(partEsElegible).length;   // "esperando su turno" = en espera Y habilitados
+  document.getElementById('ppro-contador').innerHTML = proyectorContadorTxt(si.length, nEleg);
   document.getElementById('ppro-cnt-si').textContent  = si.length;
-  document.getElementById('ppro-cnt-esp').textContent = esp.length;
+  document.getElementById('ppro-cnt-esp').textContent = nEleg;
   const gSi  = document.getElementById('ppro-grid-si');
   const gEsp = document.getElementById('ppro-grid-esp');
   // ESPERANDO arriba, PARTICIPARON abajo (el orden en el DOM lo fija el HTML).
@@ -3663,16 +3751,19 @@ function renderProyector(){
   gEsp.classList.toggle('vacia', esp.length === 0);
   gSi.classList.toggle('vacia', si.length === 0);
   const dado = document.getElementById('ppro-dado');
-  if (dado) dado.disabled = proySorteando || esp.length === 0 || partActual.estado === 'cerrado';
+  if (dado) dado.disabled = proySorteando || nEleg === 0 || partActual.estado === 'cerrado';
   proyectorLayout();      // recalcular distribución con la nueva composición
 }
 
 // Click en tile: alterna participó (reversible), persiste, recalcula y anima.
-async function proyectorClickTile(estudianteId){
+async function proyectorClickTile(estudianteId, ev){
   if (proySorteando) return;
   if (partActual?.estado === 'cerrado') { toast('Participación cerrada: solo lectura.', 'err'); return; }
   const d = partDet.find(x => x.estudiante_id === estudianteId);
   if (!d) return;
+  // Gestos temporales: Shift (inhabilitar) / Ctrl+Shift (preseleccionar, sin señal visual).
+  if (ev && ev.shiftKey) { partGestoTemporal(estudianteId, ev); return; }
+  if (partInhab.has(estudianteId)) return;   // inhabilitado: el clic normal no registra participación
   proyectorOcultarBig();
   const nuevo = !d.participo;
   try {
@@ -3711,14 +3802,19 @@ function proyectorOcultarBig(){ const b = document.getElementById('ppro-big'); i
 function proyectorSorteo(){
   if (proySorteando) return;
   if (partActual?.estado === 'cerrado') return;
-  const esperando = partDet.filter(d => !d.participo);
+  const esperando = partDet.filter(partEsElegible);   // en espera y habilitados
   if (!esperando.length) return;
   proySorteando = true;
   proyectorOcultarBig();
   const dado = document.getElementById('ppro-dado'); if (dado) dado.disabled = true;
-  const tiles = () => Array.from(document.querySelectorAll('#ppro-grid-esp .ppro-tile'));
+  const tiles = () => Array.from(document.querySelectorAll('#ppro-grid-esp .ppro-tile:not(.inhab)'));
   const limpiar = () => tiles().forEach(t => t.classList.remove('barajando'));
-  const elegido = esperando[Math.floor(Math.random() * esperando.length)];
+  // Preselección válida → es el elegido; si no, azar. El barajado de abajo es idéntico
+  // en ambos casos (nunca "aterriza" en un tile), así que no delata nada. Se consume.
+  partValidarPresel();
+  const presel = partPresel && esperando.find(d => d.estudiante_id === partPresel);
+  const elegido = presel || esperando[Math.floor(Math.random() * esperando.length)];
+  if (partPresel) { partPresel = null; partDifundir('presel', { estudiante_id: null }); }
   let pasos = Math.min(24, 10 + esperando.length);
   let delay = 55;
   const paso = () => {
@@ -3733,7 +3829,7 @@ function proyectorSorteo(){
       limpiar();
       proySorteando = false;
       const dd = document.getElementById('ppro-dado');
-      if (dd) dd.disabled = partDet.filter(d => !d.participo).length === 0;
+      if (dd) dd.disabled = partDet.filter(partEsElegible).length === 0;
       proyectorMostrarBig(elegido);               // GRAN destacado del elegido
     }
   };
