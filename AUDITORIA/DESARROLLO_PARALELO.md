@@ -325,3 +325,31 @@ lo confirma como V1 firme, evaluar la actualización de `CLAUDE.md` (§8 alcance
 roadmap, hoy con rúbricas/UTP como "posible/identificado"). Registrar que esta línea
 **cambia reglas vigentes** de EVALUACIÓN (cierre y snapshot), lo que debe quedar
 reflejado en la Fuente de Verdad cuando se implemente y decida.
+
+---
+
+### Microiteración de uso real: Workspace — cierre de pestaña → Dashboard
+
+> Entrada **breve** y **separada** de la línea de Instrumentos: es una **microiteración de
+> UX** sobre un módulo activo (Workspace PC), surgida en uso real durante el período
+> paralelo. **No** es una línea de desarrollo paralelo del Bosquejo ni una especificación
+> general del sistema de pestañas.
+
+**Fecha:** 2026-09-21
+**Módulo / archivo:** Workspace PC — `PC/workspace.html` (función `cerrarTab`).
+**Necesidad detectada en uso real:** al cerrar una **pestaña adicional activa**, cuando
+quedaban únicamente las dos pestañas fijas **Dashboard** y **Repertorio**, la aplicación
+dejaba activa **Repertorio**.
+**Decisión puntual (PO):** cuando se cierra la pestaña **activa** y, tras el cierre, solo
+quedan las **dos pestañas fijas** (Dashboard + Repertorio), activar **Dashboard**.
+**Alcance:** **solo ese caso.** En cualquier otro escenario se conserva **exactamente** la
+lógica actual (`tabs[i] || tabs[i-1] || null`): otras pestañas adicionales abiertas, cierre
+de una pestaña no activa, cierre de una intermedia, o varias adicionales.
+**Aclaración fundamental:** el **comportamiento general de cierre de pestañas sigue
+deliberadamente sin definir** y queda **pendiente de observación mediante uso real**. Esta
+microiteración **NO** constituye una especificación general de la política de pestañas.
+**Estado:** **publicada online y verificada** (byte-idéntica al blob commiteado; 5 pruebas
+en navegador OK; consola sin errores).
+**Checkpoint:** `b81d5e6`.
+**Nota de gobernanza:** cambio acotado a `PC/workspace.html`; sin cambios de Supabase, de
+arquitectura de pestañas ni de `CLAUDE.md` (no es regla permanente; es UX provisional).
