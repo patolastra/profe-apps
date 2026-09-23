@@ -430,8 +430,12 @@ de otros módulos. **No** es una regla general del sistema; es UX provisional en
 de uso real, a considerar en la reintegración (F6G Libro/alumnos).
 **Pendiente de observación (no decidido):** si en uso real conviene que abrir la misma
 participación en una ventana nueva **no** herede el estado temporal de otra ventana abierta
-(hoy lo hereda para mantener coherente el sorteo del Proyector).
-**Estado:** **implementada y verificada localmente; PENDIENTE de publicación online.**
+(hoy lo hereda para mantener coherente el sorteo del Proyector). Ver "Deudas pendientes", D.
+**Estado [ACTUALIZADO 2026-09-23]:** **implementada, verificada y publicada.** Checkpoint
+`1dbb227`; publicado con `git push` a `origin/master` (fast-forward `74b0fe6..1dbb227`,
+junto con el commit documental `b581c6b`, que es independiente); verificado a nivel Git:
+`origin/master` = `1dbb227` y local/remoto sincronizados (0/0). No se registró una
+verificación de la página servida por GitHub Pages.
 
 ---
 
@@ -445,9 +449,18 @@ distintas dentro de OCTAVO**, deben tener **su propio Libro** (separado entre s�
 de Música de OCTAVO) y trabajar con **los mismos alumnos de OCTAVO**.
 **Ciclo seguido:** auditoría acotada → propuesta técnica → **autorización del PO**
 (incl. Supabase) → implementación → SQL ejecutado por el PO en Supabase → pruebas → esta
-ficha → checkpoint propio.
-**Estado:** **implementado y verificado localmente contra Supabase real; PENDIENTE de
-publicación online.**
+ficha → checkpoint propio → publicación.
+**Nomenclatura:** la asignatura se denomina oficialmente **ENLACES** (así se muestra, vía
+la identidad común `supabase/contextos.js`); el nombre técnico del contexto en la BD sigue
+siendo `ENLACE` (clave `?ctx`, no se cambia). En esta ficha, "ENLACE" en contexto técnico =
+ENLACES. Ver "Deudas pendientes", C.
+**Estado [ACTUALIZADO 2026-09-23]:** **implementado, verificado contra Supabase real y
+publicado.** Checkpoint **`b81c4bf`**; publicado con `git push` a `origin/master`
+(fast-forward `1dbb227..b81c4bf`); verificado a nivel Git: `origin/master` = `b81c4bf`,
+local/remoto sincronizados (0/0), commit propio sin squash. El SQL de Supabase ya estaba
+ejecutado por el PO antes de la publicación. No se registró una verificación de la página
+servida por GitHub Pages. El trabajo del Loop (`tabs/index.html`, `LOOP-LAB/`,
+`.claude/launch.json`) quedó **fuera** del commit y del push.
 
 **Causa (auditoría):** tres barreras superpuestas — (1) el Libro solo abría contextos
 `curso`/`taller`; (2) triggers de BD exigían `tipo='curso'` (evaluaciones, entregas) o
@@ -477,7 +490,7 @@ tenerlos por matrícula porque la BD admite **una sola matrícula activa por est
   - `libro_eval_cierre_guard` (Etapa 5): busca pendientes en la matrícula de la población
     (sin este ajuste, una evaluación de ORIENTACIÓN se habría podido cerrar con pendientes
     sin error);
-  - **datos 2026:** ORIENTACIÓN → OCTAVO, ENLACE → OCTAVO.
+  - **datos 2026:** ORIENTACIÓN → OCTAVO, ENLACES (`ENLACE`) → OCTAVO.
   - **Intactos:** `libro_matriculas` y su unicidad, la tabla `contextos` (ORIENTACIÓN/ENLACE
     siguen siendo `jefatura`), talleres, congelamiento, datos existentes.
 - **`LIBRO/index.html`:** al abrir, consulta el vínculo del año (si la tabla no existiera,
@@ -527,28 +540,61 @@ administrado hoy directamente en Supabase** (`libro_contexto_poblacion`). Cada a
 requiere su fila; sin ella el contexto vuelve a mostrar el aviso de "no aplica" sin romper
 nada. En el futuro deberá gestionarse desde Producto/UI.
 
-**Deuda conceptual (existente, NO resuelta):** `jefatura` mezcla **rol** del profesor,
-**asignaturas/contextos** y una **relación implícita con un curso** (también cableada en el
-Portal como `esOctavo`). Esta implementación **no la profundiza**: el Libro funciona por la
-población (propia o vinculada), no por el tipo `jefatura`. Revisión definitiva en la
-reintegración (coherente con F6A: "Jefatura" no es tipo de contexto en V1.0).
-
-**NUEVA deuda futura — configuración de Jefatura (NO implementada):** el profesor debería
-poder declarar algo equivalente a: ¿Soy profesor jefe? (Sí/No) → ¿de qué curso? → ¿qué
-asignaturas/contextos complementarios realizo por ser profesor jefe de ese curso?
-(Orientación, Enlace, otras). A partir de eso el sistema establecería las relaciones de
-población **sin modificar código ni configurar Supabase a mano**. La arquitectura quedó
-preparada: esa UI solo tendría que crear/administrar filas de `libro_contexto_poblacion`,
-sin rediseñar el Libro. **Fuera de alcance ahora:** interfaz de configuración de Jefatura,
-perfil docente, creación automática de contextos, rediseño de `jefatura`, cambios generales
-al modelo de contextos.
-
-**Observación de presentación (para el PO):** el nombre visible de ENLACE sale de la
-identidad global `supabase/contextos.js`, donde su etiqueta es **"Enlaces"**; por eso se
-muestra "Asignatura: Enlaces" (no "Enlace"). Cambiarlo toca un archivo compartido por todo
-el ecosistema: queda a decisión del PO.
+**Deudas asociadas (NO resueltas; detalle en "Deudas pendientes identificadas durante el
+desarrollo paralelo"):** A — configuración futura de Jefatura; B — deuda conceptual de
+`jefatura`; C — nomenclatura "Enlaces".
 **Relación con el Bosquejo:** funcionalidad adelantada; tangencias con F6A (Jefatura como
 posibilidad futura), F6C (Curso: curso/asignatura/población) y F6G (Libro/alumnos).
 **Observaciones para la reintegración:** decidir si la distinción dueño/población y
 `libro_contexto_poblacion` se consolidan en `CLAUDE.md`; revisar el concepto `jefatura`;
 diseñar la configuración de Jefatura en la UI.
+
+---
+
+## Deudas pendientes identificadas durante el desarrollo paralelo
+
+> Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
+> desarrollos del período paralelo. **Ninguna está resuelta.** Cada una se aborda en una
+> iteración futura o en la reintegración, **con decisión del PO**. No reemplaza a las
+> "Deudas futuras" ya listadas dentro de la ficha de Instrumentos de Evaluación.
+
+### A. Configuración futura de Jefatura
+*Origen: Libro de Clases para contextos de Jefatura (`b81c4bf`).*
+- **Hoy:** las relaciones de población (2026: ORIENTACIÓN → OCTAVO, ENLACES → OCTAVO) se
+  cargan como **datos** en Supabase (`libro_contexto_poblacion`).
+- **No es un hardcode en el código:** la relación ya está expresada como dato por año; el
+  Libro no conoce nombres de contextos. La deuda es hacer esa configuración
+  **administrable desde Producto/UI**.
+- **Deuda futura:** configuración desde la interfaz — ¿soy profesor jefe? (Sí/No) → ¿de qué
+  curso? → ¿qué asignaturas/contextos complementarios corresponden a esa jefatura? — y, a
+  partir de ello, generar/administrar las filas de población vinculada, evitando que cada
+  año se requiera configuración manual directa en Supabase.
+- **Fuera de alcance por ahora:** interfaz de Jefatura, perfil docente, creación automática
+  de contextos, cambios generales al modelo de contextos.
+
+### B. Deuda conceptual de "jefatura"
+*Origen: auditoría del Libro para contextos de Jefatura.*
+- Hoy `jefatura` (tipo de contexto) mezcla: **rol del profesor** (ser profesor jefe),
+  **asignatura/contexto** (Orientación, Enlaces) y **relación con un curso** (OCTAVO; además
+  cableada en el Portal como `esOctavo`).
+- La implementación actual **no la profundiza**: el Libro funciona por tener población
+  (propia o vinculada), no por ser de tipo `jefatura`.
+- **Pendiente:** determinar cómo encaja Jefatura en el modelo V1, considerando lo ya
+  señalado en F6A ("Jefatura" no es opción de tipo en V1.0; posible área funcional futura).
+  **No se resuelve ahora.**
+
+### C. Nomenclatura "Enlaces"
+*Origen: presentación del Libro de ENLACES.*
+- La asignatura se denomina oficialmente **Enlaces**. El nombre visible lo determina la
+  identidad común del ecosistema, `supabase/contextos.js` (etiqueta "Enlaces"); el nombre
+  técnico del contexto en la BD es `ENLACE` (clave de `?ctx`, que por regla no se cambia).
+- **Pendiente:** revisar la nomenclatura de forma **global** en una iteración futura. **No
+  se modifica ahora** el archivo compartido.
+
+### D. Participación — herencia de estado temporal entre ventanas
+*Origen: microiteración de Participación (`1dbb227`).*
+- **Hoy:** si una segunda ventana abre la misma participación mientras otra la tiene
+  abierta, **hereda** su estado temporal (inhabilitados y preselección), para que el sorteo
+  del Proyector sea coherente con lo marcado en la otra ventana.
+- **Pendiente (observación de uso real):** evaluar si conviene que **no** lo herede. **No se
+  cambia ahora.**
