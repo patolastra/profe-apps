@@ -622,8 +622,7 @@ decisión del PO.
 **Deudas registradas:** E — Docente configurable; F — Asignatura configurable (ver
 "Deudas pendientes").
 **Estado:** implementada y verificada en el navegador local; **no publicada** (sin push).
-**Checkpoint:** commit "Libro (microiteracion): informes UTP — cabecera, introduccion y
-tipografia" (hash en el registro de git; se anota abajo al cerrar).
+**Checkpoint:** `a723b8a` (implementación + esta ficha).
 **Nota de gobernanza:** cambio acotado a `LIBRO/index.html`; sin cambios de Supabase ni de
 `CLAUDE.md` (son decisiones provisionales, no reglas permanentes).
 
