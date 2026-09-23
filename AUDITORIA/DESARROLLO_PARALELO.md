@@ -551,6 +551,84 @@ diseñar la configuración de Jefatura en la UI.
 
 ---
 
+### Microiteración de uso real: Informes UTP — cabecera, introducción y tipografía
+
+> Entrada **breve** y **separada**: primera capa de rediseño documental común de los dos
+> informes UTP del Libro (Instrumentos de Evaluación, Etapa 7). **No** es una línea nueva
+> de desarrollo paralelo ni reabre la Etapa 7.
+
+**Fecha:** 2026-09-23
+**Módulo / archivo:** Libro de Clases → Evaluación → informes PDF — `LIBRO/index.html`.
+**Necesidad:** los informes funcionaban, pero su aspecto no era el de un documento
+institucional sobrio (encabezado con líneas negras y texto grande, subtítulos y datos
+innecesarios, tipografía mezclada heredada del Libro, leyenda final).
+**Ciclo seguido:** auditoría técnica de los informes (sin cambios) → **decisión del PO**
+(especificación de esta microiteración) → implementación → pruebas → esta ficha →
+checkpoint propio.
+**Decisión de Producto (PO):**
+- **Encabezado** (ambos): se conservan logos y composición izquierda/centro/derecha; se
+  eliminan las líneas negras; texto institucional a **8px** con menor interlineado.
+- **Introducción** (ambos): encabezado → título → **sin subtítulo** → datos → contenido.
+  Títulos exactos: **"Instrumento de Evaluación"** (previo) e **"Informe de Resultados"**.
+  Datos: **Curso, Asignatura, Evaluación, Fecha, Docente**. Se eliminan **Estado, Año y
+  Piso de nota**.
+- **Docente:** "Patricio Lastra", provisional y fijo en el código.
+- **Asignatura:** con la información que el sistema ya dispone.
+- **Leyenda final** "Generado desde el Libro de Clases · …" eliminada, sin reemplazo.
+- **Tipografía** de ambos documentos completos: **Arial**; texto común **12px**; título
+  en bold y mayor (16px); secciones en bold a 12px.
+
+**Implementación (solo `LIBRO/index.html`, solo presentación de los informes):**
+- **Las "dos líneas negras"** eran: (1) el borde inferior de `.rep-head` y (2) un borde
+  superior que las celdas de la tabla envolvente (`.rep-table`) heredaban de la regla
+  global `th, td` del Libro (una sobre el encabezado y otra justo debajo). Se quitaron
+  ambas (`border:0` en esas celdas).
+- Estilos `.rep-*`: Arial en todo `#rep-page`; tamaños en pt → 12px (incluye tablas y
+  etiquetas de estado); título 16px bold; `.rep-head-txt` 8px, interlineado 1.35 → 1.15.
+  Se retiraron los estilos `.rep-sub` y `.rep-foot`, que quedaron sin uso.
+- `INFORME_INSTITUCION.docente = 'Patricio Lastra'`.
+- Nueva `informeAsignatura()`: un contexto **vinculado** (Orientación, Enlaces) usa su
+  nombre visible (`ctxNombreVisible`, ya existente); el resto muestra **"Música"**, la
+  asignatura por defecto del sistema (profesor de música; el Libro propio de un curso es
+  el de Música). Es la única fuente disponible hoy; no se creó configuración nueva.
+- `informeMetaHTML()` rehecha con los 5 datos; títulos cambiados; subtítulos y leyenda
+  final retirados; se quitó la variable del piso, que solo alimentaba la introducción.
+- **Sin cambios:** cálculos, notas, resultados, instrumentos, estructura de tablas y del
+  detalle, márgenes, paginación, Supabase, otros archivos.
+
+**Pruebas (2026-09-23, navegador local contra Supabase real, solo lectura):** evaluación
+real "LECTURA RÍTMICA EN 6/8" (SEXTO, 36 estudiantes). Las 16 comprobaciones de la
+especificación, OK:
+- **Encabezado:** 0 líneas (bordes de `.rep-head` y de las celdas envolventes en 0);
+  logos intactos (60px / 57px, misma disposición); texto a 8px con interlineado 9,2px
+  (antes 21,6px).
+- **Introducción:** títulos exactos, sin subtítulo, con Curso, Asignatura (Música),
+  Evaluación, Fecha (2026-09-22) y Docente (Patricio Lastra). Ya no aparecen Estado, Año,
+  Piso de nota ni la leyenda final.
+- **Tipografía:** una sola familia en todo el documento (Arial); todo el texto común a
+  12px; solo el título a 16px/700 y el encabezado a 8px.
+- **Contenido evaluativo idéntico:** el texto de objetivos, instrumentos y las 36 fichas
+  de resultados es igual carácter por carácter al de la versión anterior (comparado
+  contra `HEAD` en el mismo navegador).
+- **Asignatura en otros Libros:** ORIENTACIÓN (vinculado) → "Curso: OCTAVO · Asignatura:
+  Orientación"; taller CUERDAS → "Música".
+- Consola sin errores; ningún dato creado ni modificado.
+
+**Observación (no resuelta, fuera de alcance):** los títulos de columna de las tablas
+siguen heredando del Libro las mayúsculas, el gris y el corte con "…"; con 12px el corte
+de "Medianamente logrado" / "Logrado con distinción" en la rúbrica sigue visible. Estaba
+diagnosticado en la auditoría previa y queda para una próxima capa del rediseño, con
+decisión del PO.
+**Deudas registradas:** E — Docente configurable; F — Asignatura configurable (ver
+"Deudas pendientes").
+**Estado:** implementada y verificada en el navegador local; **no publicada** (sin push).
+**Checkpoint:** commit "Libro (microiteracion): informes UTP — cabecera, introduccion y
+tipografia" (hash en el registro de git; se anota abajo al cerrar).
+**Nota de gobernanza:** cambio acotado a `LIBRO/index.html`; sin cambios de Supabase ni de
+`CLAUDE.md` (son decisiones provisionales, no reglas permanentes).
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
@@ -598,3 +676,21 @@ diseñar la configuración de Jefatura en la UI.
   del Proyector sea coherente con lo marcado en la otra ventana.
 - **Pendiente (observación de uso real):** evaluar si conviene que **no** lo herede. **No se
   cambia ahora.**
+
+### E. Docente configurable
+*Origen: microiteración de informes UTP (cabecera, introducción y tipografía).*
+- **Hoy:** el campo "Docente" de ambos informes UTP muestra "Patricio Lastra", **fijo en el
+  código** (`INFORME_INSTITUCION.docente` en `LIBRO/index.html`).
+- **Deuda futura:** el nombre del docente deberá ser **configurable** y no depender de un
+  valor fijo (se relaciona con la identidad del profesor de F6A y con cuentas/F6K).
+- **No se implementa ahora.**
+
+### F. Asignatura configurable
+*Origen: microiteración de informes UTP (cabecera, introducción y tipografía).*
+- **Hoy:** la asignatura de los informes sale de lo que el sistema ya sabe: un contexto
+  **vinculado** usa su nombre visible (Orientación, Enlaces); todo otro contexto muestra
+  **"Música"** (`informeAsignatura()` en `LIBRO/index.html`).
+- **Deuda futura:** un mecanismo **formal y configurable** para saber qué asignatura
+  corresponde a cada contexto (p. ej. Música, Enlaces, Literatura…). Se relaciona con la
+  deuda B (jefatura), la C (nomenclatura "Enlaces") y la asignatura por defecto de F6A.
+- **No se resuelve en esta microiteración.**
