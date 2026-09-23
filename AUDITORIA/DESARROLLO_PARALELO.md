@@ -1029,6 +1029,93 @@ ficha. El trabajo del Loop (`tabs/index.html`, `LOOP-LAB/`, `.claude/launch.json
 
 ---
 
+### Microiteración de uso real: Workspace — cierre con clic central + retiro del badge "Demo"
+
+> Entrada **breve** y **separada**: microiteración de UX sobre un módulo activo (Workspace
+> PC), surgida en uso real. **No** redefine la política general de pestañas (que sigue
+> pendiente de observación, ver la microiteración "cierre de pestaña → Dashboard").
+
+**Fecha:** 2026-09-23
+**Módulo / archivo:** Workspace PC — `PC/workspace.html` (única modificación).
+**Necesidad observada:**
+1. Cerrar las pestañas cerrables con **clic central** del mouse, como en los navegadores.
+2. Quitar el badge visual **"Demo"** que aparecía junto a las pestañas.
+
+**Ciclo seguido:** auditoría técnica (solo lectura) → **decisión y autorización del PO** →
+implementación → pruebas → esta ficha → checkpoint propio.
+
+**Decisiones de producto (PO):**
+- **Clic central sobre una pestaña cerrable → cerrarla**, reutilizando `cerrarTab(key)`.
+  - Dashboard y Repertorio (fijas): el clic central no hace nada y no muestra aviso.
+  - La ✕, el clic normal, el guardado previo de los Planes y la elección de la pestaña que
+    queda activa (incluida la regla que activa Dashboard cuando solo quedan las fijas)
+    **no cambian**.
+  - Una pestaña inactiva se cierra **sin activarse** antes.
+  - Evitar el desplazamiento automático del botón central de Windows.
+- **Retirar el badge "Demo"** por completo, sin reemplazo y sin otros cambios visuales.
+
+**Auditoría técnica (resumen):**
+- Las pestañas nacen en un único punto, `abrirInstancia()`, con la marca `fijo`. Solo
+  Dashboard y Repertorio son fijas; las que se abren desde las apps nunca lo son.
+- `cerrarTab()` ya ignora las fijas.
+- El clic central no dispara `click` (no activa la pestaña), sino `auxclick`.
+- No existen arrastrar y soltar ni otros manejadores del mouse en las pestañas.
+- Ningún otro archivo participa.
+
+**Implementación:**
+- **Cambio 1:** en `abrirInstancia()`, **solo para pestañas no fijas**:
+  - `auxclick` con `button === 1` llama a `cerrarTab(key)`;
+  - `mousedown` con `button === 1` hace `preventDefault()`, para evitar el desplazamiento
+    automático.
+  - Las fijas no reciben estos manejadores, y además `cerrarTab()` las ignora (doble
+    protección).
+- **Cambio 2:** eliminado el `<span class="demo-badge">Demo</span>` de la barra y su estilo
+  `.demo-badge`, que quedó sin uso.
+- **No tocado:** el título de la pestaña del navegador ("Workspace (demo) — PROFE") y los
+  comentarios internos que dicen "demo". No forman parte del badge visual; queda anotado
+  por si el PO quiere revisarlos.
+
+**Pruebas (2026-09-23, navegador local):**
+- **Método:** el panel de pruebas no puede hacer un clic central físico, así que se
+  enviaron a las pestañas los mismos eventos que genera el mouse (`mousedown` / `mouseup`
+  / `auxclick` con el botón central).
+- **Resultado de las 13 comprobaciones:**
+  1. Central sobre la pestaña cerrable activa → cierra. Si solo quedan las fijas, activa
+     Dashboard; con otra adicional a la derecha, activa la vecina (lógica existente).
+  2. Central sobre una cerrable **inactiva** → cierra y la activa no cambia.
+  3–4. Central sobre Dashboard y sobre Repertorio → no pasa nada; en ellas tampoco se
+     bloquea el comportamiento del botón central.
+  5. Plan: pestaña con guardado previo (`guardarAlCerrar`) sobre una página vacía,
+     registrando cada pedido de guardado:
+     - el clic central **pide el mismo guardado previo que la ✕** y cierra;
+     - si el guardado **falla**, ni el clic central ni la ✕ cierran, y muestran el mismo
+       aviso.
+     - No se usó un Plan real, porque su cierre escribe en Supabase y editarlo alteraría
+       datos del profesor.
+  6. La ✕ funciona igual en pestañas activas e inactivas.
+  7. El clic normal sigue activando pestañas.
+  8. Desplazamiento automático: el `mousedown` central sobre las pestañas cerrables queda
+     bloqueado. El efecto visual del desplazamiento de Windows no se pudo observar con
+     eventos simulados.
+  9. Central sobre el ícono, el título y la zona de la ✕ → cierra.
+  10. El badge "Demo" no aparece; la barra muestra solo "📅 Dashboard · 🎵 Repertorio · +",
+      y el estilo `.demo-badge` ya no existe.
+  11. Recorrido abriendo Entrenador, Metalófono y 3 Planes, cerrándolos con central y ✕
+      mezclados: resultados coherentes y sin marcos de contenido sobrantes (2 al final).
+  12. Consola sin errores.
+  13. El diff contiene solo los dos cambios.
+
+**Resultado:** implementada y verificada en el navegador local; **no publicada** (esperando
+autorización del PO).
+**Checkpoint:** commit "Workspace (microiteracion): cierre con clic central + retiro del
+badge Demo" (hash informado al PO al cerrar).
+**Pendiente sugerido:** probar en uso real con un mouse físico (clic central real y
+desplazamiento automático de Windows).
+**Nota de gobernanza:** solo `PC/workspace.html` y esta ficha. Sin cambios de Supabase ni
+de `CLAUDE.md`. El Loop quedó **fuera**.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
