@@ -1463,3 +1463,54 @@ ON CONFLICT (anio_id, contexto_id) DO NOTHING;
 -- ============================================================
 -- FIN — Población vinculada
 -- ============================================================
+
+
+-- ============================================================
+-- LIBRO DE CLASES — DESARROLLO PARALELO: OBSERVACIÓN GENERAL DE LA EVALUACIÓN
+-- ============================================================
+-- Apreciación general del proceso evaluativo, una por evaluación completa
+-- (independiente de notas, comentarios individuales, grupos, OA e instrumentos).
+-- Texto libre multilínea sin límite práctico. Editable con la evaluación ABIERTA;
+-- congelada al CERRAR (también en BD); editable de nuevo al REABRIR.
+-- NO aparece en los informes UTP (previo ni de resultados).
+--
+-- Aditivo e idempotente. Las evaluaciones existentes quedan con '' (vacía).
+-- Se ejecuta en el SQL Editor de Supabase (autorizado por el PO, 2026-09-23).
+-- ============================================================
+
+-- ── 1. COLUMNA ──────────────────────────────────────────────
+ALTER TABLE libro_evaluaciones
+    ADD COLUMN IF NOT EXISTS observacion_general TEXT NOT NULL DEFAULT '';
+
+-- ── 2. CONGELADO AL CERRAR (extiende I12 con observacion_general) ──
+-- Re-define la función base (última versión: Etapa 5, con nota_min +
+-- instrumento_id); el trigger trg_libro_eval_bloqueo_cerrada sigue apuntando
+-- a ella. Con estado='cerrado' solo se permite cambiar 'estado' (reabrir).
+CREATE OR REPLACE FUNCTION libro_eval_bloqueo_cerrada()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.estado = 'cerrado' AND (
+           NEW.nombre              IS DISTINCT FROM OLD.nombre
+        OR NEW.fecha               IS DISTINCT FROM OLD.fecha
+        OR NEW.oa_original         IS DISTINCT FROM OLD.oa_original
+        OR NEW.contexto_id         IS DISTINCT FROM OLD.contexto_id
+        OR NEW.anio_id             IS DISTINCT FROM OLD.anio_id
+        OR NEW.sesion_creacion_id  IS DISTINCT FROM OLD.sesion_creacion_id
+        OR NEW.nota_min            IS DISTINCT FROM OLD.nota_min
+        OR NEW.instrumento_id      IS DISTINCT FROM OLD.instrumento_id
+        OR NEW.observacion_general IS DISTINCT FROM OLD.observacion_general
+    ) THEN
+        RAISE EXCEPTION
+            'I12: evaluación cerrada es solo lectura; reábrela (estado=abierto) para editar la cabecera';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Verificación (opcional):
+-- SELECT column_name, data_type, column_default, is_nullable
+--   FROM information_schema.columns
+--  WHERE table_name = 'libro_evaluaciones' AND column_name = 'observacion_general';
+-- ============================================================
+-- FIN — Observación general de la evaluación
+-- ============================================================

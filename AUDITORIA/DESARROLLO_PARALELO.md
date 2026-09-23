@@ -909,6 +909,121 @@ pendientes".
 
 ---
 
+### Desarrollo paralelo: Observación general de la evaluación (Libro de Clases)
+
+**Fecha:** 2026-09-23
+**Necesidad profesional que lo origina:** el profesor necesita registrar, para cada
+evaluación completa, una **apreciación general del proceso evaluativo**, distinta de las
+notas y de los comentarios por estudiante.
+**Ciclo seguido:** auditoría técnica (solo lectura) → **decisión y autorización del PO**
+(incluido el cambio de esquema en Supabase) → implementación → SQL ejecutado por el PO →
+pruebas contra Supabase real → esta ficha → checkpoint propio.
+
+**Decisiones de producto (PO):**
+- Pertenece a una evaluación completa y es independiente de notas, comentarios
+  individuales, grupos, OA e instrumentos.
+- Tarjeta propia titulada **"Observación general"**, **al final** de la evaluación
+  (después de Estudiantes). Se muestra **siempre**, incluso vacía y con la evaluación
+  cerrada.
+- Texto libre, multilínea, sin límite práctico; conserva los saltos de línea.
+- **Guardado:** automático al salir del campo **y** con el botón **"Guardar observación"**.
+- **Al cerrar** con cambios sin guardar, se guarda automáticamente antes de cerrar.
+- **Cerrada:** congelada; campo y botón deshabilitados; la **base de datos también
+  rechaza** modificarla. **Reabierta:** vuelve a ser editable y conserva el contenido.
+- **No** aparece en el Informe Previo ni en el Informe de Resultados.
+
+**Solución técnica:**
+- **Supabase — `supabase/libro_schema.sql`** (sección nueva "OBSERVACIÓN GENERAL DE LA
+  EVALUACIÓN", aditiva e idempotente, **ejecutada por el PO** en el SQL Editor):
+  - columna `libro_evaluaciones.observacion_general TEXT NOT NULL DEFAULT ''`; las
+    evaluaciones existentes quedan vacías;
+  - redefinición de `libro_eval_bloqueo_cerrada()` con los mismos campos protegidos de la
+    Etapa 5 **más `observacion_general`**. El trigger existente sigue apuntando a ella.
+  - No se tocaron otras reglas, triggers ni tablas. La política RLS `acceso_total` ya cubre
+    la columna.
+- **`LIBRO/index.html`:**
+  - tarjeta nueva al final de `renderDetalle()`;
+  - funciones `obsGen*`: borrador `obsGenBorrador` que sobrevive a los redibujados,
+    guardado al salir del campo y con el botón, y guardados en cola, uno detrás de otro;
+  - `cerrarEval()` guarda la observación antes de cerrar. Si no logra guardarla, **no
+    cierra** y avisa.
+  - Si la columna no existiera en Supabase, la tarjeta se muestra deshabilitada con un aviso
+    y el Libro sigue funcionando.
+  - La lectura no cambió: `abrirDetalle` ya trae toda la fila de la evaluación.
+  - Los informes no se tocaron.
+
+**Comportamiento abierto / cerrado / reabierto:** editable → congelada en pantalla y en la
+base de datos → editable conservando el texto.
+
+**Pruebas (2026-09-23, navegador local contra Supabase real):**
+- **Datos de prueba:** una evaluación desechable en CUARTO (26 estudiantes) y otra en cada
+  Libro vinculado (ORIENTACIÓN y ENLACE). Las 24 comprobaciones pedidas, OK.
+- **Escritura y guardado:**
+  - escribir con teclado real, con salto de línea;
+  - guardar con el botón;
+  - **guardado automático al salir del campo** (clic real fuera);
+  - persistencia tras recargar;
+  - multilínea (los `\n` se conservan);
+  - texto largo: 20.691 caracteres y 200 líneas, idéntico en la base y tras recargar.
+- **Redibujados:** el texto sin guardar **sobrevive** a `refrescarDetalle()`, al cambio de
+  orden de estudiantes, a la creación de un grupo y a la creación/asociación de un
+  instrumento. Mientras tanto, la base conserva lo último guardado.
+- **Cierre:**
+  - cerrar con la observación modificada (sin salir del campo) → se guardó y luego cerró;
+  - cerrada: campo y botón deshabilitados;
+  - **la base rechaza** modificar y vaciar la observación de una evaluación cerrada (error
+    I12); los demás campos siguen congelados;
+  - reabrir → editable y conserva el texto; se editó y se guardó de nuevo;
+  - cerrada y vacía → tarjeta visible y vacía.
+- **Archivo:** la evaluación cerrada abierta desde Archivo muestra la observación en solo
+  lectura.
+- **Informes:** la observación no aparece en ninguno. En la evaluación real "Lectura
+  rítmica en 6/8" ambos informes salen **idénticos en su HTML completo** a la versión
+  publicada.
+- **Regresión:**
+  - nota puesta desde la tabla + "Guardar notas";
+  - grupo creado (1 grupo, 2 integrantes en la base);
+  - instrumento directo creado y asociado al OA;
+  - **cierre con pendientes** bloqueado en pantalla (26 pendientes) y en la base; la
+    observación se guardó igual antes del intento;
+  - reapertura;
+  - ORIENTACIÓN y ENLACE: 14 alumnos de OCTAVO cada uno, evaluación en su propio contexto,
+    observación guardada;
+  - la evaluación real de SEXTO carga igual (36 estudiantes, 1 instrumento, 99 resultados).
+- **Consola:** un recorrido normal completo (abrir, reabrir, editar, guardar, redibujar,
+  informes, cerrar) no produjo errores. Los 400 registrados corresponden a la fase de
+  rechazos provocados a propósito: el guard de cierre en la base y los intentos sobre la
+  evaluación cerrada. Uno de los cinco no se pudo atribuir con certeza porque la consola no
+  guarda la dirección de cada petición; no se repitió en el recorrido normal.
+- **Datos:** las 3 evaluaciones de prueba se **eliminaron**. Los 11 conteos de tablas del
+  Libro quedaron **idénticos** a los previos (p. ej. 4 evaluaciones, 123 notas,
+  151 resultados, 233 matrículas), y las 4 evaluaciones reales quedaron **idénticas campo
+  por campo**, con `observacion_general` vacía.
+- **Límite de la herramienta:** con el navegador de pruebas sin foco no se dispara el evento
+  de salida del campo. El guardado automático se verificó con clic real y el panel
+  enfocado; en los pasos sin foco se usó el botón o el cierre.
+- **Observado, sin cambio:** al asociar al OA un instrumento incompleto, el Libro recalcula
+  la nota desde el instrumento (comportamiento vigente de la Etapa 4), por lo que la nota
+  manual de prueba quedó vacía. No es una regresión.
+
+**Resultado:** implementado y verificado contra Supabase real; **no publicado** (sin push).
+**Checkpoint:** commit "Libro: observación general de la evaluación" (hash en el registro
+de git; se informa al PO).
+**Deudas / pendientes:**
+- Si el profesor recarga o cierra la pestaña **sin salir antes del campo**, lo escrito desde
+  el último guardado se pierde (no hay aviso al salir de la página). El PO pidió evitar un
+  sistema de borradores complejo.
+- `CLAUDE.md` no se modificó. Registrar en la reintegración que `libro_evaluaciones` tiene
+  una columna nueva protegida por I12.
+
+**Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6H**
+(Evaluaciones/UTP) y **F6G** (Libro).
+**Nota de gobernanza:** archivos `LIBRO/index.html`, `supabase/libro_schema.sql` y esta
+ficha. El trabajo del Loop (`tabs/index.html`, `LOOP-LAB/`, `.claude/launch.json`) quedó
+**fuera**.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
