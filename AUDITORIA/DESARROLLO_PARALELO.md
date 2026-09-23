@@ -729,6 +729,180 @@ iteración, con decisión del PO. Tampoco se tocaron las deudas E (docente) y F 
 
 ---
 
+### Informe UTP previo — cuatro microiteraciones consolidadas (2026-09-23)
+
+> Cuatro microiteraciones **sucesivas** sobre el **Informe Previo** ("Instrumento de
+> Evaluación") del Libro, cada una con su propio ciclo: especificación del PO → auditoría →
+> implementación → pruebas → revisión del PO.
+> **Checkpoints:** ninguna tuvo commit propio. Se trabajaron una tras otra sobre el mismo
+> archivo **sin commit intermedio**, así que **no existen checkpoints Git individuales** y
+> no se inventan. Las cuatro quedan **consolidadas en un único checkpoint final** (ver
+> "Cierre de las cuatro" al final de esta sección), por orden del PO.
+> **Alcance común:** solo `LIBRO/index.html` (función `abrirInformePrevio`, función
+> `instrEstructuraInforme` y estilos `.rep-*` del informe). Sin cambios de Supabase, datos,
+> lógica de evaluación, cálculo de notas ni `CLAUDE.md`.
+> **Pruebas comunes:** navegador local contra Supabase real, **solo lectura**, sobre la
+> evaluación real "Lectura rítmica en 6/8" (SEXTO). El contenido de las tablas y el texto del
+> Informe de Resultados se compararon **carácter por carácter** contra la versión publicada
+> (`HEAD`) en el mismo navegador. Consola sin errores. Ningún dato creado ni modificado.
+
+#### Microiteración 1 — Orden objetivo → instrumento
+
+**Necesidad:** en el informe previo aparecían primero todos los objetivos (OA y
+adecuaciones) y después todos los instrumentos juntos, y costaba saber qué instrumento
+evaluaba qué.
+**Decisión de Producto (PO):**
+- Secuencia **OBJETIVO → INSTRUMENTO**: OA original → su instrumento → cada adecuación →
+  su instrumento.
+- "Objetivo de aprendizaje: [OA]" en una sola línea.
+- Título del instrumento "Rúbrica de X criterio(s)" / "Lista de cotejo de X criterio(s)",
+  con singular/plural según la cantidad real.
+- Conservar la relación real de los datos; no rediseñar las tablas.
+
+**Auditoría:** la relación ya era **explícita** en los datos. El OA usa
+`evalActual.instrumento_id` y cada adecuación su `instrumento_id`; hay un OA por evaluación.
+Se pudo reordenar sin tocar datos.
+**Implementación:**
+- `abrirInformePrevio` rehecha: por cada objetivo, su línea y luego su instrumento.
+- Si dos objetivos comparten instrumento, este se muestra completo tras cada uno (antes se
+  mostraba una sola vez).
+- Adecuaciones como "Adecuación:" sin número, según el ejemplo del PO.
+- Sin instrumento: se conservan los textos previos ("Sin instrumento (evaluación
+  tradicional)." / "Sin instrumento.").
+- Se retiraron los títulos de sección "Objetivo de Aprendizaje y adecuaciones" y
+  "Estructura completa de los instrumentos".
+- Nuevo estilo `.rep-instr-tit`.
+
+**Pruebas:**
+- SEXTO real: OA con rúbrica y 2 adecuaciones sin instrumento.
+- TERCERO real: OA con rúbrica, sin adecuaciones.
+- PRIMERO real: sin instrumentos, 3 adecuaciones.
+- **Casos simulados solo en la memoria de la página** (sin guardar nada, datos restaurados
+  al terminar), porque los datos reales no los tienen:
+  - listas de cotejo de 1 y de 2 criterios;
+  - rúbrica compartida entre objetivos;
+  - rúbrica de 1 criterio.
+- Resultado: orden, relación y singular/plural correctos; Informe de Resultados sin
+  cambios.
+
+**Estado:** implementada, aprobada, **consolidada en el checkpoint final**.
+
+#### Microiteración 2 — Limpieza visual de rúbricas
+
+**Necesidad:** dentro de cada rúbrica se repetía una línea "nombre · Rúbrica · N criterios"
+y todo iba dentro de un gran marco; además, el título de cada criterio quedaba pegado a la
+tabla anterior.
+**Decisión de Producto (PO):**
+- Eliminar esa línea redundante y el **marco contenedor general** de la rúbrica.
+- Conservar los bordes de cada tabla de criterio.
+- Más espacio antes de cada criterio y menos entre el criterio y su tabla.
+- Listas de cotejo sin cambios internos.
+
+**Implementación:**
+- `instrEstructuraInforme` devuelve la rúbrica en un contenedor sin borde (`.rep-rub`), sin
+  la línea `in-nom`.
+- Espaciado de criterios en `.rep-rub .rep-crit`, que además no queda separado de su tabla
+  en un salto de página.
+- Las listas de cotejo conservan su marco y su línea interior.
+
+**Pruebas (SEXTO):**
+- Línea y marco eliminados; bordes de tabla intactos.
+- Criterios "1. Lectura rítmica", "2. Pulso" y "3. Coordinación" presentes.
+- Espacio antes de cada criterio: 18,9px (antes 0); criterio→tabla: 3,8px (antes ~11px).
+- Tablas idénticas; Resultados sin cambios.
+
+**Observación:** con la línea eliminada, el nombre propio del instrumento (p. ej. "Lectura
+rítmica en 6/8") ya no aparece en el informe previo.
+**Estado:** implementada, aprobada, **consolidada en el checkpoint final**.
+
+#### Microiteración 3 — Ajuste de espaciados y encabezados de nivel
+
+**Necesidad:** había demasiado aire en el bloque de datos inicial, entre cada adecuación y
+su información y entre criterio y tabla; además, los nombres de nivel salían cortados con
+"…" ("MEDIANAMENTE LOG…", "LOGRADO CON DISTI…").
+**Decisión de Producto (PO):**
+- Bloque de datos compacto, con las dos columnas.
+- Cada objetivo junto a su información.
+- Criterio pegado a su tabla.
+- Nombres de nivel **siempre completos**, con salto de línea dentro de la celda si hace
+  falta, sin "…" ni abreviar.
+
+**Auditoría:**
+- Datos: 2mm entre filas + interlineado 1,45 heredado del Libro.
+- El corte con "…" venía de la regla global `th, td` (`overflow:hidden;
+  text-overflow:ellipsis`) más `white-space:nowrap` en `.rep-niv th`.
+
+**Implementación:**
+- `.rep-meta` con 0,5mm entre filas e interlineado 1,3.
+- Bloque `.rep-blq` que agrupa cada objetivo con su instrumento.
+- Criterio→tabla a 0,5mm.
+- `.rep-niv th` con `white-space:normal; overflow:visible; text-overflow:clip`.
+
+**Pruebas (SEXTO):**
+- Filas de datos a 1,9px (antes ~7,5px).
+- Adecuación→información a 1,9px; entre bloques 15,1px.
+- Criterio→tabla a 1,9px; entre criterios 18,9px.
+- Los cuatro niveles completos, con salto de línea en "MEDIANAMENTE / LOGRADO (2)" y
+  "LOGRADO CON / DISTINCIÓN (4)".
+- Tablas idénticas; texto de Resultados sin cambios.
+
+**Observación:** `.rep-meta` es el **bloque de datos común a ambos informes**, por lo que
+su interlineado compacto se aplica también a la introducción del **Informe de Resultados**.
+El texto de ese informe no cambia; su bloque de datos solo se ve más compacto.
+**Estado:** implementada, aprobada, **consolidada en el checkpoint final**.
+
+#### Microiteración 4 — Ajuste final: adecuaciones, centrado vertical y jerarquía
+
+**Necesidad:**
+- "Adecuación: …" y "Sin instrumento." aún se veían separadas.
+- Los nombres de nivel de una línea quedaban pegados arriba de su celda.
+- Sobraba espacio entre "Rúbrica de X criterios" y el primer criterio, y faltaba entre el
+  OA y ese título.
+
+**Decisión de Producto (PO):**
+- Espaciado normal dentro de cada adecuación.
+- **Centrado vertical real** (por CSS) de los cuatro nombres de nivel, con un centro común.
+- Jerarquía espacial: cada encabezado más cerca de lo que introduce que de lo anterior.
+
+**Auditoría:**
+- La fila de encabezados toma la altura del nombre de dos líneas.
+- Todas las celdas tenían `vertical-align:top` por la regla compartida
+  `.rep-niv td,.rep-niv th`.
+- OA→título estaba a 0,5mm y título→primer criterio a 2mm.
+
+**Implementación:**
+- `.rep-blq > .rep-obj` sin margen, con interlineado 1,25.
+- `.rep-blq > .rep-instr-tit` con margen 3mm arriba y 1mm abajo.
+- `.rep-niv th` con `vertical-align:middle`.
+
+**Pruebas (SEXTO):**
+- Adecuación→"Sin instrumento.": 1,3px entre textos.
+- Entre adecuaciones: 15,1px.
+- OA→título del instrumento: 11,3px.
+- Título→primer criterio: 3,8px.
+- Criterio→tabla: 1,9px.
+- Entre criterios: 18,9px.
+- Los cuatro niveles con el mismo centro vertical (1px de diferencia, que corresponde al
+  borde de la celda).
+- Tablas idénticas; Resultados sin cambios.
+
+**Estado:** implementada, aprobada, **consolidada en el checkpoint final**.
+
+#### Cierre de las cuatro microiteraciones
+
+**Aprobación del PO:** estado actual del Informe Previo **aprobado** (2026-09-23), con
+orden de consolidar, documentar, publicar y cerrar.
+**Checkpoint de consolidación:** el commit "Libro: informe UTP previo — cierre del
+desarrollo hasta este punto", único checkpoint de las cuatro microiteraciones. Su hash se
+anota al publicar.
+**Pendientes derivados (NO resueltos):** deudas G (rúbricas de adecuaciones), H (listas de
+cotejo en el Informe Previo) e I (información del Informe de Resultados). Ver "Deudas
+pendientes".
+**Nota de gobernanza:** sin cambios de Supabase ni de `CLAUDE.md`. El trabajo del Loop
+(`tabs/index.html`, `LOOP-LAB/`, `.claude/launch.json`) queda **fuera**.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
@@ -795,3 +969,31 @@ iteración, con decisión del PO. Tampoco se tocaron las deudas E (docente) y F 
   corresponde a cada contexto (p. ej. Música, Enlaces, Literatura…). Se relaciona con la
   deuda B (jefatura), la C (nomenclatura "Enlaces") y la asignatura por defecto de F6A.
 - **No se resuelve en esta microiteración.**
+
+### G. Informe Previo — rúbricas de adecuaciones
+*Origen: microiteraciones del Informe UTP previo (2026-09-23).*
+- **PENDIENTE:** revisar específicamente cómo se muestran las **rúbricas asociadas a las
+  adecuaciones**.
+  - En los datos reales actuales ninguna adecuación tiene instrumento; solo se probó con
+    casos simulados en memoria.
+  - Si una adecuación usa el mismo instrumento que el OA, este se repite completo.
+- **No resuelto.**
+
+### H. Informe Previo — listas de cotejo
+*Origen: microiteraciones del Informe UTP previo (2026-09-23).*
+- **PENDIENTE:** revisar y definir la **presentación visual de las listas de cotejo** en el
+  Informe Previo.
+- Hoy conservan el marco y la línea interior "nombre · Lista de cotejo · N ítems" (que dice
+  "1 ítems" con un solo ítem). Su título dice "criterios", pero adentro se habla de "ítems".
+- **No resuelto.**
+
+### I. Informe de Resultados — información y estructura
+*Origen: auditoría de los informes UTP y microiteraciones del Informe Previo (2026-09-23).*
+- **PENDIENTE:** definir y modificar qué información presenta el **Informe de Resultados**
+  y cómo la estructura.
+- Temas señalados en la auditoría:
+  - ficha por estudiante que repite el OA completo;
+  - largo del documento (~9 páginas para 36 estudiantes);
+  - falta de resumen o estadísticas;
+  - títulos de columna en mayúscula gris heredados del Libro.
+- **No resuelto.**

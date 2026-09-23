@@ -337,17 +337,31 @@
   .rep-head .rep-logo-r{height:15mm;justify-self:end}
   .rep-head-txt{text-align:center;font-weight:700;line-height:1.15;font-size:10px;color:#111;letter-spacing:.01em}
   .rep-title{text-align:center;font-size:16px;font-weight:700;margin:0 0 4mm}
-  .rep-meta{display:grid;grid-template-columns:1fr 1fr;gap:2mm 8mm;font-size:13px;margin:0 0 5mm}
+  .rep-meta{display:grid;grid-template-columns:1fr 1fr;gap:.5mm 8mm;font-size:13px;line-height:1.3;margin:0 0 5mm}
   .rep-meta b{color:#000}
   .rep-h2{font-size:13px;font-weight:700;margin:5mm 0 2mm;padding-bottom:1mm;border-bottom:1px solid #bbb;break-after:avoid}
   .rep-obj{font-size:13px;margin:0 0 2mm}
   .rep-instr{border:1px solid #ccc;border-radius:4px;padding:3mm;margin:0 0 3mm;break-inside:avoid}
+  /* Bloque objetivo (OA o adecuación) + su instrumento: juntos por dentro, separados entre bloques. */
+  .rep-blq{margin:0 0 4mm}
+  .rep-blq > .rep-obj{margin:0;line-height:1.25}
+  /* Jerarquía: el título del instrumento queda más cerca de lo que introduce que del objetivo. */
+  .rep-blq > .rep-instr-tit{margin:3mm 0 1mm}
+  .rep-blq > :last-child{margin-bottom:0}
+  .rep-instr-tit{font-size:13px;font-weight:700;margin:0 0 2mm;break-after:avoid}
   .rep-instr .in-nom{font-weight:700;font-size:13px;margin-bottom:2mm}
   .rep-crit{font-size:13px;margin:0 0 2mm}
   .rep-crit .cnum{display:inline-block;min-width:5mm;color:#555}
   .rep-niv{width:100%;border-collapse:collapse;margin:1mm 0 0;font-size:13px}
+  /* Rúbrica sin marco: más aire antes de cada criterio, menos entre el criterio y su tabla;
+     el primero queda cerca del título "Rúbrica de X criterios". */
+  .rep-rub{margin:0 0 3mm}
+  .rep-rub .rep-crit{margin:5mm 0 .5mm;break-after:avoid}
+  .rep-rub .rep-crit:first-child{margin-top:0}
+  .rep-rub .rep-niv{margin:0}
   .rep-niv td,.rep-niv th{border:1px solid #ccc;padding:1.4mm 2mm;vertical-align:top;text-align:left;font-size:13px}
-  .rep-niv th{background:#f0f0f0;font-weight:700;white-space:nowrap}
+  /* Nivel siempre completo: se anula el corte con "…" heredado (th global) y se permite salto de línea. */
+  .rep-niv th{background:#f0f0f0;font-weight:700;white-space:normal;overflow:visible;text-overflow:clip;vertical-align:middle}
   .rep-est{break-inside:avoid;border:1px solid #ddd;border-radius:4px;padding:2.5mm 3mm;margin:0 0 2.5mm}
   .rep-est .e-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border-bottom:1px solid #eee;padding-bottom:1mm;margin-bottom:1.5mm}
   .rep-est .e-nom{font-weight:700;font-size:13px}
@@ -2827,33 +2841,33 @@ function instrEstructuraInforme(instr){
     cuerpo = `<table class="rep-res"><thead><tr><th style="width:8mm">#</th><th>Ítem</th><th class="v">Puntaje</th></tr></thead>
       <tbody>${items.map((it, i) => `<tr><td>${i + 1}</td><td>${esc(it.texto)}</td><td class="v">Sí = 2 · No = 1</td></tr>`).join('')}</tbody></table>`;
   }
+  // Rúbrica: sin marco contenedor ni línea de nombre/tipo/cantidad (ya los declara el
+  // título "Rúbrica de X criterios"); cada tabla de criterio conserva sus bordes.
+  if (instr.tipo === 'rubrica') return `<div class="rep-rub">${cuerpo}</div>`;
   return `<div class="rep-instr"><div class="in-nom">${esc(instr.nombre)} · ${plTipoLabel(instr.tipo)} · ${items.length} ${instr.tipo === 'rubrica' ? 'criterios' : 'ítems'}</div>${cuerpo}</div>`;
 }
 
 // ── (A) Informe previo de instrumentos para UTP ──
+// Secuencia OBJETIVO → INSTRUMENTO: cada objetivo (OA original, luego cada adecuación en
+// su orden) va seguido de SU instrumento asociado (evalActual.instrumento_id /
+// adecuación.instrumento_id). Si dos objetivos comparten instrumento, se muestra en ambos.
 function abrirInformePrevio(){
   if (!evalActual) return;
-  const nombreInstr = id => { const i = evalInstrumentos.find(x => x.id === id); return i ? `${i.nombre} · ${plTipoLabel(i.tipo)}` : null; };
-  const oaInstr = nombreInstr(evalActual.instrumento_id);
-  let objetivos = `<div class="rep-obj"><b>OA original:</b> ${esc(evalActual.oa_original || '(sin texto)')} — <b>Instrumento:</b> ${oaInstr ? esc(oaInstr) : 'sin instrumento (evaluación tradicional)'}</div>`;
-  objetivos += adecs.map((a, i) => {
-    const ai = nombreInstr(a.instrumento_id);
-    return `<div class="rep-obj"><b>Adecuación ${i + 1}:</b> ${esc(a.texto)} — <b>Instrumento:</b> ${ai ? esc(ai) : 'sin instrumento'}</div>`;
-  }).join('');
-  // Instrumentos efectivamente asociados (OA + adecuaciones), únicos y en orden.
-  const idsAsoc = [];
-  if (evalActual.instrumento_id) idsAsoc.push(evalActual.instrumento_id);
-  adecs.forEach(a => { if (a.instrumento_id && !idsAsoc.includes(a.instrumento_id)) idsAsoc.push(a.instrumento_id); });
-  const estructura = idsAsoc.length
-    ? idsAsoc.map(id => { const instr = evalInstrumentos.find(x => x.id === id); return instr ? instrEstructuraInforme(instr) : ''; }).join('')
-    : '<div class="rep-obj">Esta evaluación no utiliza instrumentos (evaluación tradicional con nota directa).</div>';
+  const bloqueInstr = (id, sinInstr) => {
+    const instr = id ? evalInstrumentos.find(x => x.id === id) : null;
+    if (!instr) return `<div class="rep-obj">${sinInstr}</div>`;
+    const n = instrItemsDe(instr.id).length;
+    return `<div class="rep-instr-tit">${plTipoLabel(instr.tipo)} de ${n} ${n === 1 ? 'criterio' : 'criterios'}</div>${instrEstructuraInforme(instr)}`;
+  };
+  let secuencia = `<div class="rep-blq"><div class="rep-obj"><b>Objetivo de aprendizaje:</b> ${esc(evalActual.oa_original || '(sin texto)')}</div>`
+    + bloqueInstr(evalActual.instrumento_id, 'Sin instrumento (evaluación tradicional).') + '</div>';
+  secuencia += adecs.map(a =>
+    `<div class="rep-blq"><div class="rep-obj"><b>Adecuación:</b> ${esc(a.texto)}</div>` + bloqueInstr(a.instrumento_id, 'Sin instrumento.') + '</div>'
+  ).join('');
   const body = `
     <div class="rep-title">Instrumento de Evaluación</div>
     ${informeMetaHTML()}
-    <div class="rep-h2">Objetivo de Aprendizaje y adecuaciones</div>
-    ${objetivos}
-    <div class="rep-h2">Estructura completa de los instrumentos</div>
-    ${estructura}`;
+    ${secuencia}`;
   informeMostrar(body);
 }
 
