@@ -430,6 +430,15 @@ let sb = null;
 const ref = {};            // { sesion, ctx, anio } desde la URL (F3)
 let ctxId = null, ctxTipo = null, ctxNombre = null;
 let anioId = null, anioNum = null;
+// Población vinculada (libro_contexto_poblacion): ctxId es el DUEÑO de los registros
+// (evaluaciones/participaciones/entregas); pobCtxId es de dónde salen los ALUMNOS
+// (libro_matriculas). Sin vínculo, ambos son el mismo contexto (comportamiento de siempre).
+let pobCtxId = null, pobCtxNombre = null, ctxVinculado = false;
+// El Libro opera en modo curso si el contexto tiene población válida: propia
+// ('curso') o vinculada. NO depende de que el contexto sea de tipo 'jefatura'.
+function libroModoCurso(){ return ctxTipo === 'curso' || ctxVinculado; }
+// Etiqueta de títulos: "OCTAVO · Orientación" si vinculado; si no, el nombre de siempre.
+function ctxTitulo(){ return ctxVinculado ? `${pobCtxNombre} · ${ctxNombreVisible(ctxNombre)}` : ctxNombre; }
 let evalActual = null;     // cabecera cargada en detalle
 let adecs = [];            // adecuaciones de la evaluación abierta
 let notas = [];            // filas de detalle (con estudiante embebido) — nota/adecuacion_id EFECTIVOS
@@ -635,11 +644,28 @@ async function init(){
     return;
   }
 
+  // Población: propia por defecto; vinculada si existe un vínculo para este año.
+  // Si la tabla aún no existe en Supabase, se sigue sin vínculo (retrocompatible).
+  pobCtxId = ctxId; pobCtxNombre = ctxNombre; ctxVinculado = false;
+  try {
+    const { data: vp, error: ev } = await sb.from('libro_contexto_poblacion')
+      .select('poblacion_ctx_id').eq('contexto_id', ctxId).eq('anio_id', anioId).limit(1);
+    if (!ev && vp && vp[0]) {
+      const { data: pc, error: ep } = await sb.from('contextos')
+        .select('id,nombre').eq('id', vp[0].poblacion_ctx_id).limit(1);
+      if (!ep && pc && pc[0]) {
+        pobCtxId = pc[0].id; pobCtxNombre = pc[0].nombre; ctxVinculado = true;
+        document.getElementById('crumbs').innerHTML =
+          `<b>${esc(ctxDisplay(ctxNombre))}</b> · alumnos de <b>${esc(ctxDisplay(pobCtxNombre))}</b> · año <b>${esc(String(anioNum))}</b>`;
+      }
+    }
+  } catch (_) { /* sin vínculo */ }
+
   // Secciones por tipo de contexto:
-  //   curso  → Evaluaciones (F4) · Participación (F6)
+  //   curso (o población vinculada) → panel: Evaluaciones · Participación · Entregas
   //   taller → Pertenencias (F5) · Participación (F6)
   if (ctxTipo === 'taller') { seccion = 'pert'; mostrarBtnOrden(); renderSecNav(); initTalleres(); return; }
-  if (ctxTipo !== 'curso') {
+  if (!libroModoCurso()) {
     document.getElementById('secnav').style.display = 'none';
     document.getElementById('vista').innerHTML =
       `<div class="card"><p>El Libro aplica a contextos de tipo <b>curso</b> (evaluaciones · F4) o <b>taller</b> (pertenencia · F5). La participación (F6) aplica a curso o taller.</p>
@@ -684,7 +710,7 @@ async function renderLista(){
       </div>
     </div>
     <div class="card">
-      <p class="sec-title">Evaluaciones de ${esc(ctxNombre)} · ${anioNum} (${evs.length})</p>
+      <p class="sec-title">Evaluaciones de ${esc(ctxTitulo())} · ${anioNum} (${evs.length})</p>
       <div id="lista-evs"></div>
     </div>`;
   const cont = document.getElementById('lista-evs');
@@ -712,7 +738,7 @@ async function crearEvaluacion(){
     // fechas de ingreso/retiro son NULL en los datos → equivale a estado='activo'.
     const { data: mats, error: em } = await sb.from('libro_matriculas')
       .select('estudiante_id,fecha_ingreso,fecha_retiro,estado')
-      .eq('anio_id', anioId).eq('contexto_id', ctxId).eq('estado', 'activo');
+      .eq('anio_id', anioId).eq('contexto_id', pobCtxId).eq('estado', 'activo');   // población (propia o vinculada)
     if (em) throw em;
     const vigentes = (mats || []).filter(m =>
       (!m.fecha_ingreso || m.fecha_ingreso <= fecha) &&
@@ -753,7 +779,7 @@ async function abrirDetalle(evId){
     const [ce, ca, cm] = await Promise.all([
       sb.from('libro_evaluaciones').select('*').eq('id', evId).single(),
       sb.from('libro_evaluacion_adecuaciones').select('*').eq('evaluacion_id', evId).order('created_at'),
-      sb.from('libro_matriculas').select('estudiante_id,posicion,estado').eq('anio_id', anioId).eq('contexto_id', ctxId),
+      sb.from('libro_matriculas').select('estudiante_id,posicion,estado').eq('anio_id', anioId).eq('contexto_id', pobCtxId),   // población
     ]);
     if (ce.error) throw ce.error;
     if (ca.error) throw ca.error;
@@ -1781,7 +1807,7 @@ function volverAtras(){
   limpiarMsg();
   if (vistaActiva === 'part-detalle') partLimpiarTemporal();   // salir de la instancia de Participación
   // CURSO: el botón de regreso SIEMPRE devuelve al panel de control del curso.
-  if (ctxTipo === 'curso') { renderPanelCurso(); return; }
+  if (libroModoCurso()) { renderPanelCurso(); return; }
   // TALLER: comportamiento existente (secnav + detalle de participación).
   if (seccion === 'part') renderPartLista();
   else renderLista();
@@ -1833,7 +1859,7 @@ async function renderPanelCurso(){
       </div>
     </div>
     <div class="card">
-      <p class="sec-title">Actividades abiertas · ${esc(ctxNombre)} · ${anioNum}</p>
+      <p class="sec-title">Actividades abiertas · ${esc(ctxTitulo())} · ${anioNum}</p>
       <div id="panel-abiertas"><p class="hint">Cargando…</p></div>
     </div>`;
   // Actividades ABIERTAS, agrupadas por categoría (no mezcladas cronológicamente):
@@ -2765,7 +2791,7 @@ function cerrarInforme(){ document.getElementById('informe').classList.remove('s
 function informeMetaHTML(extra){
   const est = evalActual.estado === 'cerrado' ? 'Cerrada' : 'Abierta';
   return `<div class="rep-meta">
-    <div><b>Curso:</b> ${esc(ctxNombre)}</div><div><b>Año:</b> ${esc(String(anioNum))}</div>
+    <div><b>Curso:</b> ${esc(ctxVinculado ? pobCtxNombre : ctxNombre)}${ctxVinculado ? ` · <b>Asignatura:</b> ${esc(ctxNombreVisible(ctxNombre))}` : ''}</div><div><b>Año:</b> ${esc(String(anioNum))}</div>
     <div><b>Evaluación:</b> ${esc(evalActual.nombre)}</div><div><b>Fecha:</b> ${esc(evalActual.fecha || '—')}</div>
     <div><b>Estado:</b> ${est}</div>${extra || '<div></div>'}
   </div>`;
@@ -2897,6 +2923,17 @@ async function abrirMatriculaCurso(){
   document.getElementById('secnav').style.display = 'none';
   vistaCat('mat'); mostrarBtnOrden(); backAPanel();
   const v = document.getElementById('vista');
+  // Población vinculada: la matrícula NO se administra aquí (no hay matrícula propia
+  // ni se crea una segunda); se gestiona en el curso de origen.
+  if (ctxVinculado) {
+    document.getElementById('btn-orden').style.display = 'none';
+    v.innerHTML = `<div class="card">
+      <p class="sec-title">Matrícula · ${esc(ctxTitulo())} · ${anioNum}</p>
+      <p><b>La matrícula se gestiona en ${esc(pobCtxNombre)}.</b></p>
+      <p class="hint">${esc(ctxNombreVisible(ctxNombre))} trabaja con los estudiantes matriculados en ${esc(pobCtxNombre)}. Sus evaluaciones, participaciones y entregas son propias y no se mezclan con las de ${esc(pobCtxNombre)}.</p>
+    </div>`;
+    return;
+  }
   v.innerHTML = '<div class="card">Cargando matrícula…</div>';
   try { await cargarMatriculas(); }
   catch (e) {
@@ -3123,7 +3160,7 @@ async function abrirArchivoCurso(){
   const v = document.getElementById('vista');
   v.innerHTML = `
     <div class="card">
-      <p class="sec-title">Archivo · ${esc(ctxNombre)} · ${anioNum}</p>
+      <p class="sec-title">Archivo · ${esc(ctxTitulo())} · ${anioNum}</p>
       <p class="hint">Actividades cerradas del curso.</p>
       <div id="arch-eval" class="subsec"><p class="hint" style="border:none">Cargando…</p></div>
       <div id="arch-part" class="subsec"></div>
@@ -3168,10 +3205,10 @@ let partPos = {};        // estudiante_id -> posición (solo curso)
 
 // Población del contexto para el año, materializada al crear (I13 snapshot).
 async function poblacionContexto(fecha){
-  if (ctxTipo === 'curso') {
+  if (libroModoCurso()) {
     const { data, error } = await sb.from('libro_matriculas')
       .select('estudiante_id,fecha_ingreso,fecha_retiro')
-      .eq('anio_id', anioId).eq('contexto_id', ctxId).eq('estado', 'activo');
+      .eq('anio_id', anioId).eq('contexto_id', pobCtxId).eq('estado', 'activo');   // población (propia o vinculada)
     if (error) throw error;
     return (data || []).filter(m =>
       (!m.fecha_ingreso || m.fecha_ingreso <= fecha) && (!m.fecha_retiro || m.fecha_retiro > fecha))
@@ -3189,7 +3226,7 @@ async function renderPartLista(){
   partLimpiarTemporal();   // salir de la instancia: inhabilitados/preselección se descartan
   mostrarBtnOrden();
   // curso: participación es naranjo y el regreso va al panel; taller: sin cambios.
-  if (ctxTipo === 'curso') { vistaCat('part'); backAPanel(); }
+  if (libroModoCurso()) { vistaCat('part'); backAPanel(); }
   else { vistaCat(''); document.getElementById('btn-volver').style.display = 'none'; }
   const v = document.getElementById('vista');
   v.innerHTML = '<div class="card">Cargando participación…</div>';
@@ -3219,7 +3256,7 @@ async function renderPartLista(){
       </div>
     </div>
     <div class="card">
-      <p class="sec-title">Participaciones de ${esc(ctxNombre)} · ${anioNum} (${regs.length})</p>
+      <p class="sec-title">Participaciones de ${esc(ctxTitulo())} · ${anioNum} (${regs.length})</p>
       <div id="lista-part"></div>
     </div>`;
   const cont = document.getElementById('lista-part');
@@ -3269,8 +3306,8 @@ async function abrirPartDetalle(pid){
     if (cd.error) throw cd.error;
     partActual = cp.data;
     partPos = {};
-    if (ctxTipo === 'curso') {
-      const cm = await sb.from('libro_matriculas').select('estudiante_id,posicion').eq('anio_id', anioId).eq('contexto_id', ctxId);
+    if (libroModoCurso()) {
+      const cm = await sb.from('libro_matriculas').select('estudiante_id,posicion').eq('anio_id', anioId).eq('contexto_id', pobCtxId);
       (cm.data || []).forEach(m => { partPos[m.estudiante_id] = m.posicion; });
     }
     partDet = (cd.data || []).slice();
@@ -3281,7 +3318,7 @@ async function abrirPartDetalle(pid){
     return;
   }
   const btn = document.getElementById('btn-volver');
-  btn.textContent = ctxTipo === 'curso' ? '← Curso' : '← Participaciones'; btn.style.display = '';
+  btn.textContent = libroModoCurso() ? '← Curso' : '← Participaciones'; btn.style.display = '';
   renderPartDetalle();
   // Otra ventana con esta misma instancia abierta (p. ej. proyector en 2ª pantalla)
   // comparte su estado temporal. Solo canal local del navegador; nada va a Supabase.
@@ -3290,7 +3327,7 @@ async function abrirPartDetalle(pid){
 
 function renderPartDetalle(){
   vistaActiva = 'part-detalle';
-  vistaCat(ctxTipo === 'curso' ? 'part' : '');   // identidad naranjo solo en curso
+  vistaCat(libroModoCurso() ? 'part' : '');   // identidad naranjo solo en curso
   mostrarBtnOrden();
   const p = partActual;
   const cerrada = p.estado === 'cerrado';
@@ -3855,7 +3892,7 @@ function ordenarEntregaDet(){ entregaDet.sort(cmpEstudiantes(d => d.estudiante, 
 async function vigentesCursoEnFecha(fecha){
   const { data, error } = await sb.from('libro_matriculas')
     .select('estudiante_id,posicion,fecha_ingreso,fecha_retiro,estudiante:libro_estudiantes(nombre,apellido)')
-    .eq('anio_id', anioId).eq('contexto_id', ctxId).eq('estado', 'activo');
+    .eq('anio_id', anioId).eq('contexto_id', pobCtxId).eq('estado', 'activo');   // población (propia o vinculada)
   if (error) throw error;
   return (data || []).filter(m =>
     (!m.fecha_ingreso || m.fecha_ingreso <= fecha) && (!m.fecha_retiro || m.fecha_retiro > fecha));
@@ -3914,7 +3951,7 @@ async function renderEntregasLista(){
       </div>
     </div>
     <div class="card">
-      <p class="sec-title">Entregas de ${esc(ctxNombre)} · ${anioNum} (${regs.length})</p>
+      <p class="sec-title">Entregas de ${esc(ctxTitulo())} · ${anioNum} (${regs.length})</p>
       <div id="lista-ent"></div>
     </div>`;
   const cont = document.getElementById('lista-ent');
@@ -3976,7 +4013,7 @@ async function abrirEntregaDetalle(eid){
       sb.from('libro_entrega_detalle')
         .select('id,entrega_id,estudiante_id,estado,estudiante:libro_estudiantes(nombre,apellido)')
         .eq('entrega_id', eid),
-      sb.from('libro_matriculas').select('estudiante_id,posicion').eq('anio_id', anioId).eq('contexto_id', ctxId),
+      sb.from('libro_matriculas').select('estudiante_id,posicion').eq('anio_id', anioId).eq('contexto_id', pobCtxId),   // población
     ]);
     if (ce.error) throw ce.error;
     if (cd.error) throw cd.error;

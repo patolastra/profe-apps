@@ -432,3 +432,123 @@ de uso real, a considerar en la reintegración (F6G Libro/alumnos).
 participación en una ventana nueva **no** herede el estado temporal de otra ventana abierta
 (hoy lo hereda para mantener coherente el sorteo del Proyector).
 **Estado:** **implementada y verificada localmente; PENDIENTE de publicación online.**
+
+---
+
+### Desarrollo paralelo: Libro de Clases para contextos de Jefatura con población vinculada
+
+**Fecha:** 2026-09-23
+**Necesidad profesional que lo origina:** el profesor no podía usar el Libro de Clases en
+ORIENTACIÓN ni en ENLACE (contextos de tipo `jefatura`). Para Producto, ser "jefatura" y
+usar el Libro son dimensiones **independientes**: ORIENTACIÓN y ENLACE son **asignaturas
+distintas dentro de OCTAVO**, deben tener **su propio Libro** (separado entre sí y del Libro
+de Música de OCTAVO) y trabajar con **los mismos alumnos de OCTAVO**.
+**Ciclo seguido:** auditoría acotada → propuesta técnica → **autorización del PO**
+(incl. Supabase) → implementación → SQL ejecutado por el PO en Supabase → pruebas → esta
+ficha → checkpoint propio.
+**Estado:** **implementado y verificado localmente contra Supabase real; PENDIENTE de
+publicación online.**
+
+**Causa (auditoría):** tres barreras superpuestas — (1) el Libro solo abría contextos
+`curso`/`taller`; (2) triggers de BD exigían `tipo='curso'` (evaluaciones, entregas) o
+`curso`/`taller` (participaciones); (3) ORIENTACIÓN/ENLACE no tienen alumnos, y no pueden
+tenerlos por matrícula porque la BD admite **una sola matrícula activa por estudiante/año**
+(los alumnos ya están en OCTAVO). Convertirlos en `curso` no resolvía el problema.
+
+**Solución adoptada — distinción contexto DUEÑO / contexto de POBLACIÓN:**
+- **Contexto dueño de los registros** (sin cambios): evaluaciones, participaciones y
+  entregas se guardan con el `contexto_id` del Libro abierto; instrumentos, resultados,
+  adecuaciones y grupos cuelgan de la evaluación. Por eso los Libros no se mezclan.
+- **Contexto de población** (nuevo): de qué curso salen los alumnos (`libro_matriculas`).
+  Por defecto es el propio contexto; si existe un vínculo para ese año, es el curso de
+  origen. **No se duplican matrículas.**
+- El Libro **ya no depende de que el contexto sea `jefatura`**: se habilita porque el
+  contexto tiene una **población válida**, propia (`curso`) o **vinculada** (dato).
+
+**Cambios realizados:**
+- **Supabase / `supabase/libro_schema.sql`** (sección nueva "POBLACIÓN VINCULADA", aditiva
+  e idempotente, **ejecutada por el PO** en el SQL Editor):
+  - tabla `libro_contexto_poblacion (anio_id, contexto_id, poblacion_ctx_id)` — un origen
+    por contexto/año; trigger de validez (el origen debe ser `curso`; el vinculado no puede
+    ser `curso` ni `taller`); RLS `acceso_total` como el resto del Libro;
+  - funciones `libro_ctx_poblacion(ctx, año)` y `libro_ctx_vinculado(ctx, año)`;
+  - triggers de contexto de evaluaciones / participaciones / entregas: aceptan además un
+    contexto vinculado (todo lo válido antes sigue válido);
+  - `libro_eval_cierre_guard` (Etapa 5): busca pendientes en la matrícula de la población
+    (sin este ajuste, una evaluación de ORIENTACIÓN se habría podido cerrar con pendientes
+    sin error);
+  - **datos 2026:** ORIENTACIÓN → OCTAVO, ENLACE → OCTAVO.
+  - **Intactos:** `libro_matriculas` y su unicidad, la tabla `contextos` (ORIENTACIÓN/ENLACE
+    siguen siendo `jefatura`), talleres, congelamiento, datos existentes.
+- **`LIBRO/index.html`:** al abrir, consulta el vínculo del año (si la tabla no existiera,
+  sigue sin vínculo: retrocompatible); variables separadas `ctxId` (dueño) / `pobCtxId`
+  (población); las condiciones "es curso" pasan a `libroModoCurso()` (curso **o**
+  vinculado); **solo** las consultas de alumnos usan `pobCtxId` (crear/abrir/reconciliar
+  evaluación, participación, entregas y posiciones); todas las consultas de registros siguen
+  en `ctxId`. **Matrícula** en un contexto vinculado muestra "La matrícula se gestiona en
+  OCTAVO" y no permite administrar ni crear matrícula. **Presentación:** títulos
+  "OCTAVO · Orientación", migas "Orientación · alumnos de Octavo" e informes PDF
+  "Curso: OCTAVO · Asignatura: Orientación".
+- **Sin cambios:** `PORTAL/index.html` (ya abre cada Libro con su contexto y en su propia
+  pestaña), `CLAUDE.md`, otros módulos.
+
+**Pruebas (2026-09-23, navegador local contra Supabase real, datos desechables):** todas OK.
+- **ORIENTACIÓN:** abre el Libro completo; toma los **14 alumnos activos de OCTAVO**;
+  **0 matrículas propias**; evaluación, participación y entrega propias (con `contexto_id`
+  de ORIENTACIÓN); instrumento directo + resultados → nota calculada (4,5); cierre con
+  pendientes **bloqueado en UI y en BD**; cierre correcto con "No aplica", **resultados
+  congelados** al cerrar, reapertura OK; informes previo y de resultados con
+  "Curso: OCTAVO · Asignatura: Orientación"; Matrícula muestra el aviso.
+- **ENLACE:** mismas verificaciones esenciales (14 alumnos, registros propios, cierre
+  bloqueado en BD, informe, aviso de matrícula).
+- **Separación:** ORIENTACIÓN y ENLACE solo ven lo suyo; OCTAVO no ve nada de ninguno
+  (panel, listas, archivo); consulta directa por contexto confirma 1 evaluación,
+  1 participación y 1 entrega en cada uno, 0 en OCTAVO.
+- **Regresión:** OCTAVO igual que antes (sin vínculo, población propia, matrícula normal
+  16/14); CUARTO: evaluación (26), cierre bloqueado UI/BD, cierre con "No aplica",
+  cabecera congelada, reapertura, participación (26); taller CUERDAS sin cambios;
+  **Instrumentos:** evaluación real "LECTURA RÍTMICA EN 6/8" (SEXTO) carga igual
+  (36 notas, 1 instrumento, 99 resultados, informe) y sus datos quedaron **idénticos**.
+- **Reglas de BD:** contexto sin vínculo (GENERAL) sigue rechazado; matrícula en
+  ORIENTACIÓN rechazada; vínculo de un `curso` o hacia un no-`curso` rechazados.
+- Consola: sin errores nuevos en un recorrido completo de ORIENTACIÓN (los únicos errores
+  registrados fueron las operaciones rechazadas a propósito).
+- **Datos:** datos de prueba **eliminados**; 17 conteos de tablas del Libro **idénticos** a
+  los previos (p. ej. 233 matrículas, 4 evaluaciones, 151 resultados); quedan solo las 2
+  filas de configuración 2026.
+
+**Decisiones de producto adoptadas (PO):** ORIENTACIÓN y ENLACE = asignaturas propias de
+OCTAVO con Libro propio y población de OCTAVO; presentación "Curso: OCTAVO · Asignatura:
+…"; la matrícula se gestiona solo en OCTAVO; **las plantillas de instrumentos siguen
+compartidas** entre todos los Libros del profesor (no se separan por asignatura).
+
+**Configuración actual (dato):** el vínculo 2026 ORIENTACIÓN/ENLACE → OCTAVO es **un dato
+administrado hoy directamente en Supabase** (`libro_contexto_poblacion`). Cada año nuevo
+requiere su fila; sin ella el contexto vuelve a mostrar el aviso de "no aplica" sin romper
+nada. En el futuro deberá gestionarse desde Producto/UI.
+
+**Deuda conceptual (existente, NO resuelta):** `jefatura` mezcla **rol** del profesor,
+**asignaturas/contextos** y una **relación implícita con un curso** (también cableada en el
+Portal como `esOctavo`). Esta implementación **no la profundiza**: el Libro funciona por la
+población (propia o vinculada), no por el tipo `jefatura`. Revisión definitiva en la
+reintegración (coherente con F6A: "Jefatura" no es tipo de contexto en V1.0).
+
+**NUEVA deuda futura — configuración de Jefatura (NO implementada):** el profesor debería
+poder declarar algo equivalente a: ¿Soy profesor jefe? (Sí/No) → ¿de qué curso? → ¿qué
+asignaturas/contextos complementarios realizo por ser profesor jefe de ese curso?
+(Orientación, Enlace, otras). A partir de eso el sistema establecería las relaciones de
+población **sin modificar código ni configurar Supabase a mano**. La arquitectura quedó
+preparada: esa UI solo tendría que crear/administrar filas de `libro_contexto_poblacion`,
+sin rediseñar el Libro. **Fuera de alcance ahora:** interfaz de configuración de Jefatura,
+perfil docente, creación automática de contextos, rediseño de `jefatura`, cambios generales
+al modelo de contextos.
+
+**Observación de presentación (para el PO):** el nombre visible de ENLACE sale de la
+identidad global `supabase/contextos.js`, donde su etiqueta es **"Enlaces"**; por eso se
+muestra "Asignatura: Enlaces" (no "Enlace"). Cambiarlo toca un archivo compartido por todo
+el ecosistema: queda a decisión del PO.
+**Relación con el Bosquejo:** funcionalidad adelantada; tangencias con F6A (Jefatura como
+posibilidad futura), F6C (Curso: curso/asignatura/población) y F6G (Libro/alumnos).
+**Observaciones para la reintegración:** decidir si la distinción dueño/población y
+`libro_contexto_poblacion` se consolidan en `CLAUDE.md`; revisar el concepto `jefatura`;
+diseñar la configuración de Jefatura en la UI.

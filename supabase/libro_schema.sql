@@ -1270,3 +1270,196 @@ CREATE TRIGGER trg_libro_eval_resultado_bloqueo_cerrada
 -- ============================================================
 -- FIN — Instrumentos de Evaluación · Etapa 5 (estados/cierre/congelado BD)
 -- ============================================================
+
+
+-- ============================================================
+-- LIBRO DE CLASES — DESARROLLO PARALELO: POBLACIÓN VINCULADA
+-- (contextos sin población propia que trabajan con los alumnos de un curso)
+-- ============================================================
+-- Fuente: AUDITORIA/DESARROLLO_PARALELO.md ("Libro de Clases para contextos de
+-- Jefatura con población vinculada"). Autorizado por el PO (2026-09-23).
+--
+-- PRINCIPIO: se separan dos dimensiones que antes eran la misma:
+--   · contexto DUEÑO de los registros → contexto_id de evaluaciones,
+--     participaciones, entregas (y por la evaluación: instrumentos/resultados).
+--     SIN CAMBIOS: cada Libro sigue guardando lo suyo bajo su propio contexto.
+--   · contexto de POBLACIÓN → de qué curso salen los alumnos (libro_matriculas).
+--     Por defecto es el propio contexto; con un vínculo en libro_contexto_poblacion
+--     (por AÑO) es el curso de origen. No se duplican matrículas: libro_matriculas
+--     y su invariante "una matrícula activa por estudiante/año" quedan intactas.
+--
+-- El Libro NO se habilita por ser de tipo 'jefatura': se habilita porque el
+-- contexto tiene una población válida (propia = 'curso', o vinculada = esta tabla).
+-- El vínculo es un DATO (por año): una futura configuración de Jefatura en la UI
+-- podrá crear/administrar estas filas sin rediseñar el Libro.
+--
+-- ALCANCE: 1) tabla libro_contexto_poblacion + trigger de validez + RLS;
+--          2) funciones libro_ctx_poblacion / libro_ctx_vinculado;
+--          3) triggers de contexto de evaluaciones/participaciones/entregas
+--             aceptan además un contexto vinculado (lo válido hoy sigue válido);
+--          4) guard de cierre (Etapa 5) busca pendientes en la población vinculada;
+--          5) datos 2026: ORIENTACIÓN → OCTAVO, ENLACE → OCTAVO.
+-- Aditivo e idempotente. NO modifica datos existentes. Se ejecuta en el SQL
+-- Editor de Supabase (DESPUÉS de las secciones anteriores).
+-- ============================================================
+
+-- ── 1. TABLA ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS libro_contexto_poblacion (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    anio_id           UUID NOT NULL REFERENCES libro_anios(id),
+    contexto_id       UUID NOT NULL REFERENCES contextos(id),   -- dueño de los registros
+    poblacion_ctx_id  UUID NOT NULL REFERENCES contextos(id),   -- curso de origen de los alumnos
+    created_at        TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (anio_id, contexto_id),                              -- un solo origen por contexto/año
+    CHECK (contexto_id <> poblacion_ctx_id)
+);
+CREATE INDEX IF NOT EXISTS idx_libro_ctx_pob_pob ON libro_contexto_poblacion (anio_id, poblacion_ctx_id);
+
+-- Validez: el origen debe ser un 'curso' (tiene matrículas); el vinculado NO puede
+-- ser 'curso' ni 'taller' (esos tienen población propia) → sin cadenas ni ambigüedad.
+CREATE OR REPLACE FUNCTION libro_ctx_pob_valido()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo_ctx TEXT;
+    v_tipo_pob TEXT;
+BEGIN
+    SELECT tipo INTO v_tipo_ctx FROM contextos WHERE id = NEW.contexto_id;
+    SELECT tipo INTO v_tipo_pob FROM contextos WHERE id = NEW.poblacion_ctx_id;
+    IF v_tipo_pob IS DISTINCT FROM 'curso' THEN
+        RAISE EXCEPTION
+            'libro_contexto_poblacion.poblacion_ctx_id debe ser un contexto de tipo ''curso'' (recibido: %)',
+            COALESCE(v_tipo_pob, 'inexistente');
+    END IF;
+    IF v_tipo_ctx IN ('curso', 'taller') THEN
+        RAISE EXCEPTION
+            'libro_contexto_poblacion.contexto_id no puede ser ''curso'' ni ''taller'' (ya tienen población propia; recibido: %)',
+            v_tipo_ctx;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_ctx_pob_valido ON libro_contexto_poblacion;
+CREATE TRIGGER trg_libro_ctx_pob_valido
+    BEFORE INSERT OR UPDATE ON libro_contexto_poblacion
+    FOR EACH ROW EXECUTE FUNCTION libro_ctx_pob_valido();
+
+ALTER TABLE libro_contexto_poblacion ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "acceso_total" ON libro_contexto_poblacion;
+CREATE POLICY "acceso_total" ON libro_contexto_poblacion FOR ALL USING (true) WITH CHECK (true);
+
+-- ── 2. FUNCIONES DE APOYO ───────────────────────────────────
+-- Contexto de población: el curso vinculado para ese año, o el propio contexto.
+CREATE OR REPLACE FUNCTION libro_ctx_poblacion(p_ctx UUID, p_anio UUID)
+RETURNS UUID AS $$
+    SELECT COALESCE(
+        (SELECT poblacion_ctx_id FROM libro_contexto_poblacion
+          WHERE contexto_id = p_ctx AND anio_id = p_anio),
+        p_ctx);
+$$ LANGUAGE sql STABLE;
+
+-- ¿El contexto tiene población vinculada ese año?
+CREATE OR REPLACE FUNCTION libro_ctx_vinculado(p_ctx UUID, p_anio UUID)
+RETURNS BOOLEAN AS $$
+    SELECT EXISTS (SELECT 1 FROM libro_contexto_poblacion
+                    WHERE contexto_id = p_ctx AND anio_id = p_anio);
+$$ LANGUAGE sql STABLE;
+
+-- ── 3. TRIGGERS DE CONTEXTO (reemplazan a los de F4/F6/F7; mismos nombres) ──
+-- Aceptan lo mismo que antes + un contexto con población vinculada en ese año.
+-- Los triggers ya existentes siguen apuntando a estas funciones (no se recrean).
+CREATE OR REPLACE FUNCTION libro_eval_contexto_es_curso()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo TEXT;
+BEGIN
+    SELECT tipo INTO v_tipo FROM contextos WHERE id = NEW.contexto_id;
+    IF v_tipo IS DISTINCT FROM 'curso'
+       AND NOT libro_ctx_vinculado(NEW.contexto_id, NEW.anio_id) THEN
+        RAISE EXCEPTION
+            'libro_evaluaciones.contexto_id debe apuntar a un contexto de tipo ''curso'' o con población vinculada (recibido: %)',
+            COALESCE(v_tipo, 'inexistente');
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION libro_participacion_contexto_valido()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo TEXT;
+BEGIN
+    SELECT tipo INTO v_tipo FROM contextos WHERE id = NEW.contexto_id;
+    IF v_tipo IS DISTINCT FROM 'curso' AND v_tipo IS DISTINCT FROM 'taller'
+       AND NOT libro_ctx_vinculado(NEW.contexto_id, NEW.anio_id) THEN
+        RAISE EXCEPTION
+            'libro_participaciones.contexto_id debe ser de tipo ''curso'' o ''taller'' o con población vinculada (recibido: %)',
+            COALESCE(v_tipo, 'inexistente');
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION libro_entrega_contexto_es_curso()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo TEXT;
+BEGIN
+    SELECT tipo INTO v_tipo FROM contextos WHERE id = NEW.contexto_id;
+    IF v_tipo IS DISTINCT FROM 'curso'
+       AND NOT libro_ctx_vinculado(NEW.contexto_id, NEW.anio_id) THEN
+        RAISE EXCEPTION
+            'libro_entregas.contexto_id debe apuntar a un contexto de tipo ''curso'' o con población vinculada (recibido: %)',
+            COALESCE(v_tipo, 'inexistente');
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ── 4. GUARD DE CIERRE (reemplaza al de Etapa 5; mismo nombre y trigger) ──
+-- Idéntico, salvo que los pendientes se buscan en la matrícula de la POBLACIÓN
+-- (propia o vinculada). Para un curso sin vínculo el resultado es el mismo de hoy.
+CREATE OR REPLACE FUNCTION libro_eval_cierre_guard()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.estado = 'cerrado' AND OLD.estado IS DISTINCT FROM 'cerrado' THEN
+        IF EXISTS (
+            SELECT 1
+              FROM libro_evaluacion_notas en
+              JOIN libro_matriculas m
+                ON m.estudiante_id = en.estudiante_id
+               AND m.anio_id      = NEW.anio_id
+               AND m.contexto_id  = libro_ctx_poblacion(NEW.contexto_id, NEW.anio_id)
+               AND m.estado       = 'activo'
+             WHERE en.evaluacion_id = NEW.id
+               AND en.estado_eval IS DISTINCT FROM 'no_aplica'
+               AND en.nota IS NULL
+        ) THEN
+            RAISE EXCEPTION
+                'No se puede cerrar: hay estudiantes pendientes (sin nota y no marcados No aplica).';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ── 5. DATOS 2026 (idempotente) ─────────────────────────────
+-- Configuración actual de la jefatura: ORIENTACIÓN y ENLACE trabajan con los
+-- alumnos de OCTAVO. Es un DATO: en el futuro deberá administrarse desde la UI.
+INSERT INTO libro_contexto_poblacion (anio_id, contexto_id, poblacion_ctx_id)
+SELECT a.id, c.id, o.id
+  FROM libro_anios a
+  JOIN contextos c ON c.nombre IN ('ORIENTACIÓN', 'ENLACE')
+  JOIN contextos o ON o.nombre = 'OCTAVO'
+ WHERE a.anio = 2026
+ON CONFLICT (anio_id, contexto_id) DO NOTHING;
+
+-- Verificación (opcional):
+-- SELECT a.anio, c.nombre AS contexto, o.nombre AS poblacion
+--   FROM libro_contexto_poblacion p
+--   JOIN libro_anios a ON a.id = p.anio_id
+--   JOIN contextos c ON c.id = p.contexto_id
+--   JOIN contextos o ON o.id = p.poblacion_ctx_id;
+-- ============================================================
+-- FIN — Población vinculada
+-- ============================================================
