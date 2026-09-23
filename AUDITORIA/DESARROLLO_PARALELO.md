@@ -640,6 +640,88 @@ decisión del PO.
 
 ---
 
+### Microiteración de uso real: Informes UTP — ajuste de encabezado e introducción
+
+> Entrada **breve** y **separada**: segunda capa de ajuste visual fino de los dos informes
+> UTP del Libro, **independiente** de la microiteración anterior (cabecera, introducción y
+> tipografía, `a723b8a`, ya cerrada). **No** reabre la Etapa 7.
+
+**Fecha:** 2026-09-23
+**Módulo / archivo:** Libro de Clases → Evaluación → informes PDF — `LIBRO/index.html`.
+**Necesidad:** tras la primera capa, el PO observó que el bloque institucional quedaba
+corrido hacia la derecha, que sobraba espacio entre el encabezado y el título, que el curso
+salía con el nombre técnico en mayúsculas ("SEXTO"), que la fecha salía en formato
+`YYYY-MM-DD` y que los tamaños tipográficos debían ajustarse.
+**Ciclo seguido:** auditoría del encabezado, espaciado, curso y fecha (medición en el
+navegador) → **decisión del PO** → implementación → pruebas → revisión y **aprobación del
+PO** → esta ficha → checkpoint propio → publicación.
+**Decisiones de Producto (PO):**
+- **Encabezado:** los tres elementos (logo SLEP, texto institucional, logo de la escuela)
+  con el **mismo centro vertical**; texto institucional **centrado horizontalmente**; logos
+  sin cambios de posición ni tamaño; sin líneas.
+- **Separación:** reducir claramente el espacio entre encabezado y título, sin eliminarlo.
+- **Curso:** nombre con capitalización normal ("Sexto", "Séptimo"…), usando la fuente que ya
+  tiene el sistema; solo presentación, sin tocar el nombre técnico.
+- **Fecha:** `DD/MM/YYYY`, sin nombres de meses.
+- **Tipografía** (reemplaza la de la microiteración anterior): encabezado Arial **10px**;
+  texto normal Arial **13px**; secciones Arial 13px bold; título Arial 16px bold.
+
+**Auditoría (qué producía cada problema):**
+- **Desplazamiento horizontal:** el texto ocupaba con `flex:1` el espacio entre logos de
+  anchos distintos (SLEP 104px, escuela 42px), por lo que su centro quedaba **31px a la
+  derecha** del centro de la hoja.
+- **Alineación vertical:** en pantalla ya coincidían los centros de las cajas (126,1px) y
+  de la tinta de los logos (diferencia < 0,5px); se reforzó con la nueva grilla.
+- **Espacio encabezado→título:** padding superior del cuerpo (6mm) + margen superior del
+  título (5mm), ~57px entre el borde inferior de los logos y el título.
+- **Curso:** se imprimía `ctxNombre` / `pobCtxNombre` (nombre técnico en mayúsculas).
+- **Fecha:** se imprimía `evalActual.fecha` tal como está guardada.
+
+**Implementación (solo `LIBRO/index.html`, solo presentación de los informes):**
+- `.rep-head` pasa de flex a **grilla `1fr auto 1fr`** con `align-items:center`; logo
+  izquierdo `justify-self:start`, derecho `justify-self:end` (mismas posiciones y tamaños).
+- `.rep-title` margen superior 5mm → 0; `.rep-body` padding superior 6mm → 3mm.
+- **Curso:** `ctxNombreVisible(...)` de la identidad común `supabase/contextos.js` (ya
+  existente), aplicado al contexto propio o al de población en los Libros vinculados.
+- **Fecha:** nueva `informeFecha()` que solo formatea para el informe (`YYYY-MM-DD` →
+  `DD/MM/YYYY`; sin fecha → "—").
+- **Tipografía:** `.rep-head-txt` 8px → 10px; texto común de los informes 12px → 13px
+  (incluye tablas y etiquetas); título 16px bold sin cambios.
+- **Sin cambios:** cálculos, notas, resultados, instrumentos, estructura de tablas y del
+  detalle, asignatura, docente, Supabase, otros archivos.
+
+**Pruebas (2026-09-23, navegador local contra Supabase real, solo lectura):** evaluación
+real "LECTURA RÍTMICA EN 6/8" (SEXTO), en ambos informes; las 14 comprobaciones pedidas,
+OK.
+- **Encabezado:**
+  - Centros verticales: SLEP 126,11 / texto 126,10 / escuela 126,11 px.
+  - Texto centrado en la hoja: 408px, igual al centro de la hoja; antes estaba 31px a la
+    derecha.
+  - Logos en la misma posición (52,9px / 763,1px) y con el mismo alto (60,5px / 56,7px).
+- **Espacio encabezado→título:** 26,5px (antes ~57px).
+- **Curso y fecha:**
+  - Curso "Sexto"; la misma lógica verificada para Primero…Octavo y para los talleres.
+  - ORIENTACIÓN muestra "Curso: Octavo · Asignatura: Orientación".
+  - Fecha "22/09/2026".
+- **Tipografía:** solo Arial; encabezado 10px, texto 13px, título 16px/700.
+- **Se mantienen** los cambios de la microiteración anterior (sin líneas, sin subtítulo,
+  los 5 datos, sin Estado/Año/Piso, sin leyenda final).
+- **Datos evaluativos idénticos:** el contenido es igual carácter por carácter a la versión
+  publicada, comparado en el mismo navegador.
+- Consola sin errores; ningún dato creado ni modificado.
+- Revisión visual en el navegador de ambos informes.
+
+**Fuera de alcance (NO resuelto):** los títulos de columna de las tablas siguen heredando
+del Libro las mayúsculas, el gris y el **corte con "…"**; con 13px el corte en la rúbrica
+es algo mayor ("MEDIANAMENTE LO…", "LOGRADO CON DIST…"). Queda pendiente para una próxima
+iteración, con decisión del PO. Tampoco se tocaron las deudas E (docente) y F (asignatura).
+**Aprobación del PO:** implementación revisada y **aprobada** (2026-09-23).
+**Estado:** aprobada; publicación en curso (ver cierre abajo).
+**Nota de gobernanza:** cambio acotado a `LIBRO/index.html`; sin cambios de Supabase ni de
+`CLAUDE.md`.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
