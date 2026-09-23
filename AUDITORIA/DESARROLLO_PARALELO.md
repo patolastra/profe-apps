@@ -1006,14 +1006,19 @@ base de datos → editable conservando el texto.
   la nota desde el instrumento (comportamiento vigente de la Etapa 4), por lo que la nota
   manual de prueba quedó vacía. No es una regresión.
 
-**Resultado:** implementado y verificado contra Supabase real; **no publicado** (sin push).
-**Checkpoint:** commit "Libro: observación general de la evaluación" (hash en el registro
-de git; se informa al PO).
+**Estado [ACTUALIZADO 2026-09-23]:** **CERRADO Y PUBLICADO.** Implementado y verificado
+contra Supabase real.
+- **Checkpoint:** `8fb5b90` (implementación + SQL + esta ficha).
+- **Publicación:** `git push` fast-forward `29f5f09..8fb5b90` a `origin/master`; verificado a
+  nivel Git: `origin/master` = `8fb5b90` y local/remoto sincronizados (0/0). Esta
+  actualización documental se publica en un commit posterior. No se registró una
+  verificación de la página servida por GitHub Pages.
 **Deudas / pendientes:**
 - Si el profesor recarga o cierra la pestaña **sin salir antes del campo**, lo escrito desde
   el último guardado se pierde (no hay aviso al salir de la página). El PO pidió evitar un
   sistema de borradores complejo.
-- `CLAUDE.md` no se modificó. Registrar en la reintegración que `libro_evaluaciones` tiene
+- `CLAUDE.md` no se modificó. **Pendiente para la reintegración (antes de F6B):** registrar
+  que `libro_evaluaciones` tiene
   una columna nueva protegida por I12.
 
 **Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6H**
