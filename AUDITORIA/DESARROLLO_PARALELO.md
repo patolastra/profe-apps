@@ -716,7 +716,14 @@ del Libro las mayúsculas, el gris y el **corte con "…"**; con 13px el corte e
 es algo mayor ("MEDIANAMENTE LO…", "LOGRADO CON DIST…"). Queda pendiente para una próxima
 iteración, con decisión del PO. Tampoco se tocaron las deudas E (docente) y F (asignatura).
 **Aprobación del PO:** implementación revisada y **aprobada** (2026-09-23).
-**Estado:** aprobada; publicación en curso (ver cierre abajo).
+**Estado [ACTUALIZADO 2026-09-23]:** **CERRADA / PUBLICADA.**
+- **Checkpoint:** `af081eb` (implementación + ficha).
+- **Publicación:** `git push` fast-forward `374fd38..af081eb` a `origin/master`; verificado a
+  nivel Git: `origin/master` = `af081eb` y local/remoto sincronizados (0/0). Este cierre
+  documental se publica en un commit posterior. No se registró una verificación de la
+  página servida por GitHub Pages.
+- El trabajo del Loop (`tabs/index.html`, `LOOP-LAB/`, `.claude/launch.json`) quedó
+  **fuera** de los commits y del push.
 **Nota de gobernanza:** cambio acotado a `LIBRO/index.html`; sin cambios de Supabase ni de
 `CLAUDE.md`.
 
