@@ -1105,12 +1105,22 @@ implementación → pruebas → esta ficha → checkpoint propio.
   12. Consola sin errores.
   13. El diff contiene solo los dos cambios.
 
-**Resultado:** implementada y verificada en el navegador local; **no publicada** (esperando
-autorización del PO).
-**Checkpoint:** commit "Workspace (microiteracion): cierre con clic central + retiro del
-badge Demo" (hash informado al PO al cerrar).
-**Pendiente sugerido:** probar en uso real con un mouse físico (clic central real y
-desplazamiento automático de Windows).
+**Guardado previo de los Planes (aclaración):** `cerrarTab()` pide el guardado a toda
+pestaña con `guardarAlCerrar` (los Planes) **sin importar si está activa o inactiva**. Una
+pestaña inactiva solo está oculta y su Plan sigue vivo, así que puede responder el pedido de
+guardado. Si el Plan no responde en 4 s, se cierra igual (tolerancia existente). Las demás
+apps (Entrenador, Metalófono) no tienen ese paso y se cierran directo, igual que con la ✕.
+Nada de esto cambió en esta microiteración.
+**Validación física con mouse:** el PO informó (2026-09-23) que **realizó la validación
+física pendiente** y autorizó la publicación. No se registraron más detalles de esa prueba.
+**Título del navegador:** "Workspace (demo) — PROFE" **no se modificó**; no formaba parte
+de esta microiteración.
+**Estado [ACTUALIZADO 2026-09-23]:** **CERRADA Y PUBLICADA.**
+- **Checkpoint:** `78f04d5` (implementación + ficha).
+- **Publicación:** `git push` fast-forward `35de1fd..78f04d5` a `origin/master`; verificado a
+  nivel Git: `origin/master` = `78f04d5` y local/remoto sincronizados (0/0). Esta
+  actualización documental se publica en un commit posterior. No se registró una
+  verificación de la página servida por GitHub Pages.
 **Nota de gobernanza:** solo `PC/workspace.html` y esta ficha. Sin cambios de Supabase ni
 de `CLAUDE.md`. El Loop quedó **fuera**.
 
