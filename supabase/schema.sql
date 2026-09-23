@@ -253,3 +253,155 @@ CREATE TABLE IF NOT EXISTS lector_particulares (
 );
 ALTER TABLE lector_particulares ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "acceso_total" ON lector_particulares FOR ALL USING (true) WITH CHECK (true);
+
+-- ════════════════════════════════════════════════════════════
+-- ── 14. GESTIÓN SEMANAL DE PENDIENTES (desarrollo paralelo, 2026-09-23)
+-- ════════════════════════════════════════════════════════════
+-- Decisión del PO: cada JUEVES 18:00 (hora de Chile) los pendientes
+-- `tarea_proxima` NO completados cuya clase ya ocurrió (fecha <= jueves del
+-- cierre) se TRASLADAN a la próxima clase de su mismo contexto según el
+-- horario. Es el MISMO pendiente (solo cambia sesion_id); nunca se crea uno
+-- nuevo. Cada traslado suma 1 a `semanas_pendiente` → la UI muestra "(n sem)"
+-- mientras el pendiente esté activo. Completar/desmarcar NO toca el contador.
+-- Vacaciones y feriados: fuera de alcance (no existen en el sistema).
+--
+-- Garantías:
+--   · sin duplicados   → solo UPDATE de sesion_id (nunca INSERT de pendientes);
+--   · sin cierre doble → pendientes_cierres (PK = fecha del jueves) + candado
+--                        + guardia por fila `ultimo_cierre`;
+--   · sin mover completados → WHERE estado = 'activo' en el mismo UPDATE;
+--   · próxima clase    → primera fecha > jueves del cierre cuyo día de semana
+--                        está en el horario ACTIVO del contexto (genérico para
+--                        cualquier día; dia_semana 0 = lunes); la sesión se
+--                        crea si no existe (UNIQUE contexto_id+fecha).
+--   · contexto sin horario → el pendiente no se mueve (queda contado).
+-- Disparo: pg_cron (bloque 14.4, cada hora; la función solo actúa cuando ya
+-- pasó el jueves 18:00) + respaldo: el Portal llama a la función al abrirse.
+-- Aditivo e idempotente: re-ejecutable.
+
+-- 14.1 Baja de los pendientes antiguos (SRP/ADMIN). Se DESCARTAN, no se
+-- borran (se conserva el histórico de SRP, congelado).
+UPDATE pendientes SET estado = 'descartado'
+ WHERE estado = 'activo' AND categoria <> 'tarea_proxima';
+
+-- 14.2 Estructura
+ALTER TABLE pendientes ADD COLUMN IF NOT EXISTS semanas_pendiente SMALLINT NOT NULL DEFAULT 0;
+ALTER TABLE pendientes ADD COLUMN IF NOT EXISTS ultimo_cierre     DATE;
+
+CREATE TABLE IF NOT EXISTS pendientes_cierres (
+    fecha        DATE PRIMARY KEY,              -- jueves del cierre
+    ejecutado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+    movidos      INTEGER NOT NULL DEFAULT 0,
+    sin_horario  INTEGER NOT NULL DEFAULT 0     -- pendientes no movidos (contexto sin horario)
+);
+ALTER TABLE pendientes_cierres ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "acceso_total" ON pendientes_cierres;
+CREATE POLICY "acceso_total" ON pendientes_cierres FOR ALL USING (true) WITH CHECK (true);
+
+-- 14.3 Funciones
+-- Aplica UN cierre (jueves p_cierre). p_ids = NULL → todos los pendientes
+-- (uso real). p_ids = lista → solo esos pendientes (pruebas); en ese modo NO
+-- se registra el cierre en pendientes_cierres.
+CREATE OR REPLACE FUNCTION public.pendientes_cierre_aplicar(p_cierre DATE, p_ids UUID[] DEFAULT NULL)
+RETURNS JSONB LANGUAGE plpgsql AS $$
+DECLARE
+    r        RECORD;
+    v_fecha  DATE;
+    v_sid    UUID;
+    v_mov    INTEGER := 0;
+    v_sinh   INTEGER := 0;
+BEGIN
+    IF p_ids IS NULL THEN
+        INSERT INTO pendientes_cierres (fecha) VALUES (p_cierre)
+        ON CONFLICT (fecha) DO NOTHING;
+        IF NOT FOUND THEN
+            RETURN jsonb_build_object('cierre', p_cierre, 'ya_ejecutado', true);
+        END IF;
+    END IF;
+
+    FOR r IN
+        SELECT p.id, p.contexto_id
+          FROM pendientes p
+          JOIN sesiones s ON s.id = p.sesion_id
+         WHERE p.categoria = 'tarea_proxima'
+           AND p.estado    = 'activo'
+           AND btrim(p.texto) <> ''
+           AND s.fecha    <= p_cierre
+           AND (p.ultimo_cierre IS NULL OR p.ultimo_cierre < p_cierre)
+           AND (p_ids IS NULL OR p.id = ANY (p_ids))
+         ORDER BY p.created_at
+           FOR UPDATE OF p
+    LOOP
+        SELECT min(p_cierre + k) INTO v_fecha
+          FROM generate_series(1, 7) AS k
+          JOIN horario h ON h.contexto_id = r.contexto_id
+                        AND h.activo
+                        AND h.dia_semana = extract(isodow FROM (p_cierre + k))::int - 1;
+
+        IF v_fecha IS NULL THEN
+            v_sinh := v_sinh + 1;
+            CONTINUE;
+        END IF;
+
+        INSERT INTO sesiones (contexto_id, fecha) VALUES (r.contexto_id, v_fecha)
+        ON CONFLICT (contexto_id, fecha) DO NOTHING;
+        SELECT id INTO v_sid FROM sesiones
+         WHERE contexto_id = r.contexto_id AND fecha = v_fecha;
+
+        UPDATE pendientes
+           SET sesion_id         = v_sid,
+               semanas_pendiente = semanas_pendiente + 1,
+               ultimo_cierre     = p_cierre
+         WHERE id = r.id AND estado = 'activo';
+        IF FOUND THEN v_mov := v_mov + 1; END IF;
+    END LOOP;
+
+    IF p_ids IS NULL THEN
+        UPDATE pendientes_cierres SET movidos = v_mov, sin_horario = v_sinh
+         WHERE fecha = p_cierre;
+    END IF;
+    RETURN jsonb_build_object('cierre', p_cierre, 'movidos', v_mov, 'sin_horario', v_sinh);
+END $$;
+
+-- Punto de entrada (pg_cron y Portal). Ejecuta, en orden, todos los cierres
+-- vencidos (jueves 18:00 hora de Chile ya pasado) desde el PRIMER cierre
+-- (2026-09-24) que aún no se hayan ejecutado. Sin cierres vencidos → no hace
+-- nada. p_ahora / p_ids: solo para pruebas (simular hora / limitar pendientes).
+CREATE OR REPLACE FUNCTION public.pendientes_cierre_semanal(p_ahora TIMESTAMPTZ DEFAULT now(), p_ids UUID[] DEFAULT NULL)
+RETURNS JSONB LANGUAGE plpgsql AS $$
+DECLARE
+    c_primer_cierre CONSTANT DATE := DATE '2026-09-24';   -- jueves
+    c_dia_iso       CONSTANT INT  := 4;                   -- jueves (ISO)
+    c_hora          CONSTANT TIME := TIME '18:00';
+    c_zona          CONSTANT TEXT := 'America/Santiago';
+    v_local   TIMESTAMP := p_ahora AT TIME ZONE c_zona;
+    v_ultimo  DATE;
+    v_cierre  DATE;
+    v_res     JSONB := '[]'::jsonb;
+BEGIN
+    PERFORM pg_advisory_xact_lock(hashtext('pendientes_cierre_semanal'));
+
+    -- último jueves (<= hoy local) y, si es hoy, solo si ya pasaron las 18:00
+    v_ultimo := v_local::date - ((extract(isodow FROM v_local)::int - c_dia_iso + 7) % 7);
+    IF v_ultimo = v_local::date AND v_local::time < c_hora THEN
+        v_ultimo := v_ultimo - 7;
+    END IF;
+
+    FOR v_cierre IN
+        SELECT d::date FROM generate_series(c_primer_cierre, v_ultimo, INTERVAL '7 days') AS d
+    LOOP
+        IF p_ids IS NULL AND EXISTS (SELECT 1 FROM pendientes_cierres WHERE fecha = v_cierre) THEN
+            CONTINUE;
+        END IF;
+        v_res := v_res || pendientes_cierre_aplicar(v_cierre, p_ids);
+    END LOOP;
+    RETURN v_res;
+END $$;
+
+-- 14.4 Reloj (pg_cron): cada hora, minuto 5. La función decide si hay un
+-- cierre vencido; el resto de las horas no hace nada. Si pg_cron no estuviera
+-- disponible, el respaldo del Portal (al abrirse) ejecuta el cierre igual.
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'pendientes-cierre-semanal';
+SELECT cron.schedule('pendientes-cierre-semanal', '5 * * * *',
+                     $$SELECT public.pendientes_cierre_semanal()$$);

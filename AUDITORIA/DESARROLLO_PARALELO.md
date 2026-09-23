@@ -1126,6 +1126,112 @@ de `CLAUDE.md`. El Loop quedó **fuera**.
 
 ---
 
+### Desarrollo paralelo: Gestión semanal de pendientes (Portal)
+
+**Fecha:** 2026-09-23
+**Necesidad profesional que lo origina:** los pendientes no terminados quedaban
+"olvidados" en clases ya pasadas (34 de 63 al momento de la auditoría) y solo se veían en
+el Dashboard. Además, el Dashboard mezclaba 14 pendientes antiguos de SRP/ADMIN (mayo) que
+no aparecían en ningún Plan.
+**Ciclo seguido:** auditoría técnica del flujo de pendientes (solo lectura) → auditoría
+breve + plan técnico → **decisión y autorización del PO** (incluido Supabase) →
+implementación → SQL ejecutado por el PO (dos scripts) → pruebas contra Supabase real →
+esta ficha → checkpoint propio.
+
+**Decisiones de producto (PO):**
+- Se dan de baja los 14 pendientes antiguos de SRP/ADMIN; solo participan los
+  `tarea_proxima`.
+- **Cierre semanal: jueves 18:00.** Cada pendiente no completado se **traslada** a la
+  próxima clase disponible de su mismo contexto. Es el **mismo** pendiente; no se duplica.
+- Antigüedad: primer traslado **"(1 sem)"**, luego "(2 sem)", "(3 sem)"… Los pendientes
+  ya atrasados parten desde "(1 sem)" en el primer cierre.
+- Completar y desmarcar **conserva** la antigüedad; el indicador solo se ve mientras el
+  pendiente está activo.
+- El indicador aparece en **Dashboard, Plan y Bitácora**, fuera del texto editable.
+- Vacaciones y feriados: **fuera de alcance**.
+
+**Solución técnica:**
+- **Supabase** (`supabase/schema.sql` §14, aditivo e idempotente; **ejecutado por el PO**
+  en dos scripts):
+  - baja: `UPDATE pendientes SET estado='descartado'` en los activos que no son
+    `tarea_proxima` (14 filas; **no se borran**, se conserva el histórico de SRP);
+  - columnas `pendientes.semanas_pendiente` (antigüedad, 0 por defecto) y
+    `pendientes.ultimo_cierre` (último cierre que movió la fila);
+  - tabla `pendientes_cierres` (una fila por jueves ejecutado; RLS `acceso_total`);
+  - función `pendientes_cierre_aplicar(p_cierre, p_ids)`: mueve los `tarea_proxima`
+    activos, con texto, cuya clase es ≤ jueves del cierre y que no fueron movidos en ese
+    cierre. El destino es la primera fecha posterior al jueves en el horario activo de su
+    contexto (sirve para cualquier día; `dia_semana` 0 = lunes). Si esa clase no existe,
+    la crea (`UNIQUE contexto_id+fecha`). Un contexto sin horario → no se mueve (queda
+    contado);
+  - función `pendientes_cierre_semanal(p_ahora, p_ids)`: con candado, ejecuta en orden
+    los cierres vencidos (jueves 18:00 **hora de Chile** ya pasado), desde el **primer
+    cierre, 2026-09-24**, que no estén registrados. `p_ahora`/`p_ids` solo sirven para
+    pruebas (en modo prueba no se registra el cierre);
+  - reloj `pg_cron` `pendientes-cierre-semanal`, **cada hora** (`5 * * * *`); la función
+    decide si hay un cierre vencido. Creado OK (job 1).
+- **`PORTAL/index.html`:**
+  - respaldo del reloj: `cierreSemanalPendientes()` llama a la función al abrir el
+    Portal, antes de leer pendientes (idempotente; si falla, el Portal sigue igual);
+  - Dashboard: filtra `categoria='tarea_proxima'`;
+  - Dashboard, Plan ("PENDIENTES DE ESTA CLASE") y Bitácora: indicador "(n sem)" con
+    `semIndicador()`, como elemento aparte del texto. En Plan y Bitácora se oculta por CSS
+    mientras la fila está completada;
+  - `consultaPendientes()`: si la columna nueva no existiera, repite la consulta sin ella
+    (retrocompatible; verificado antes de ejecutar el SQL).
+- **Garantías:**
+  - sin duplicados: solo se cambia `sesion_id` de la misma fila;
+  - sin cierre doble: tabla de cierres + candado + guardia por fila `ultimo_cierre`;
+  - sin mover completados: `estado='activo'` dentro del mismo `UPDATE`.
+- **Sin cambios:** ADMIN, SRP, MEMORIA, Libro, `CLAUDE.md`.
+
+**Pruebas (2026-09-23, navegador local contra Supabase real):**
+- **SQL aplicado:** 0 antiguos activos, 63 `tarea_proxima` activos intactos, registro de
+  cierres vacío. Llamada real con la hora actual (miércoles) → **no hace nada**.
+- **Datos de prueba:** 7 pendientes desechables: pasado CUARTO; OCTAVO en el propio jueves
+  del cierre; completado; clase futura; texto vacío; GENERAL sin horario; categoría
+  antigua. Más 1 clase GENERAL de prueba.
+- **Hora del cierre:** jueves 24/09 17:59 → sin cierre. 18:01 → se movieron **exactamente
+  2** (CUARTO 21/09→28/09, OCTAVO 24/09→01/10), ambos "(1 sem)"; 1 contado sin horario.
+  No se movieron el completado, el de clase futura, el vacío ni el de categoría antigua.
+- **Repetición:** repetir el cierre y **3 llamadas simultáneas** → 0 movidos; mismas filas
+  (sin duplicados).
+- **Cierres acumulados:** simulación al 01/10 18:30 → se ejecutan en orden los dos jueves;
+  CUARTO → 05/10 "(2 sem)", OCTAVO → 08/10 "(2 sem)", el de clase futura → 05/10
+  "(1 sem)". Clases de destino creadas una sola vez.
+- **Completado:** un pendiente completado no se mueve en un cierre posterior; desmarcado
+  conserva "(2 sem)".
+- **Camino real del registro, sin tocar datos:** con un cierre registrado a mano, la
+  función responde "ya ejecutado" y no hace nada; registro eliminado después.
+  **Los 93 `tarea_proxima` reales quedaron idénticos** (clase, estado, antigüedad, texto).
+- **Pantallas:**
+  - Dashboard: "(2 sem)"/"(1 sem)" junto al texto, sin categorías antiguas;
+  - Plan de destino (CUARTO 05/10): ambos con su indicador; completar con clic real lo
+    oculta y desmarcar lo muestra (BD: completado→activo, antigüedad 2); editar el texto
+    con teclado guarda solo el texto;
+  - Bitácora del 28/09: destino "→ lun 5/10" con los mismos pendientes e indicadores.
+- **Consola:** sin solicitudes fallidas en una carga limpia del Dashboard. Los 401 que
+  aparecen al abrir un Plan son de `eventos_uso`, un hallazgo previo (F5).
+- **Datos:** 7 pendientes, 3 clases de prueba (GENERAL 22/09, CUARTO 05/10, OCTAVO 08/10,
+  con su presentación en cascada) y la presentación automática creada al abrir el Plan del
+  28/09 **eliminados**. No quedan filas "PRUEBA-CIERRE"; el registro de cierres quedó
+  vacío.
+- **No verificable desde aquí:** que `pg_cron` efectivamente dispare el jueves (no hay
+  acceso de lectura a `cron.job`). El **primer cierre real es el jueves 24/09 18:00**; se
+  puede confirmar con `select * from pendientes_cierres;`. Si el reloj no corriera, el
+  respaldo del Portal ejecuta el cierre al abrirlo.
+
+**Estado:** implementado y verificado; SQL ejecutado por el PO. **En observación** hasta
+el primer cierre real (24/09).
+**Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6B** (Dashboard:
+pendientes) y **F6D** (Clase/Planificación).
+**Nota de gobernanza:** archivos `PORTAL/index.html`, `supabase/schema.sql` y esta ficha.
+`CLAUDE.md` no se modificó; queda para la reintegración registrar la regla del cierre
+semanal y la baja de los pendientes antiguos. El Loop quedó **fuera**. Deudas asociadas:
+J (ver "Deudas pendientes").
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
@@ -1219,4 +1325,22 @@ de `CLAUDE.md`. El Loop quedó **fuera**.
   - largo del documento (~9 páginas para 36 estudiantes);
   - falta de resumen o estadísticas;
   - títulos de columna en mayúscula gris heredados del Libro.
+- **No resuelto.**
+
+### J. Pendientes semanales — observaciones abiertas
+*Origen: gestión semanal de pendientes (2026-09-23).*
+- **Configuración fija:** "jueves 18:00" y el primer cierre (24/09) están como constantes
+  en `pendientes_cierre_semanal()`. Responden a la semana L–J del Autor; para V1 (varios
+  profesores/horarios) deberán ser configurables (principio F3.1).
+- **Vacaciones y feriados:** no existen en el sistema; en esos períodos los pendientes se
+  seguirán trasladando y sumando semanas (fuera de alcance por decisión del PO).
+- **Pantallas abiertas:** el Dashboard lee los pendientes una sola vez; si queda abierto
+  durante el cierre, muestra el estado anterior hasta recargarlo (comportamiento previo).
+- **Destino de la Bitácora:** la Bitácora elige "la siguiente clase existente", no el
+  horario; en casos raros (clases sueltas fuera del horario) puede diferir del destino del
+  cierre. El cierre siguiente lo corrige.
+- **Pendiente vacío:** "＋ Agregar" crea la fila con texto vacío; si se cierra la pestaña a
+  mitad, queda una fila en blanco visible en el Dashboard. El cierre no la mueve.
+- **ADMIN:** si alguien creara un pendiente de categoría antigua desde ADMIN (sin enlace),
+  no se vería en el Dashboard ni participaría del cierre.
 - **No resuelto.**

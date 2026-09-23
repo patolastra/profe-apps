@@ -205,6 +205,7 @@
             overflow-wrap: anywhere; padding-top: 1px;
         }
         .pend-grupo-vacio { font-size: 0.8rem; color: var(--muted); font-style: italic; font-weight: 400; }
+        .pend-sem { font-size: 0.74rem; font-weight: 700; color: #b45309; white-space: nowrap; }
 
 
         /* ── VISTA SESIÓN ── */
@@ -852,6 +853,12 @@
         .mem-tarea-txt:hover  { border-color: var(--border); }
         .mem-tarea-txt:focus  { border-color: var(--accent, #2563eb); background: #fff; }
         .mem-tarea.done .mem-tarea-txt { text-decoration: line-through; color: var(--muted); }
+        .mem-tarea-sem {
+            flex-shrink: 0; font-size: 0.72rem; font-weight: 700; color: #b45309;
+            white-space: nowrap; padding: 0 2px;
+        }
+        .mem-tarea.done .mem-tarea-sem { display: none; }
+        .mem-tarea.multilinea .mem-tarea-sem { margin-top: 7px; }
         .mem-tarea-del {
             flex-shrink: 0; background: none; border: none; cursor: pointer;
             color: var(--muted); font-size: 0.85rem; line-height: 1; padding: 4px 6px; border-radius: 6px;
@@ -1164,6 +1171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
         await Promise.all([loadContextos(), loadHorario(), cargarAnioActivo()]);
         await crearSesionesPendientes();
+        await cierreSemanalPendientes();  // respaldo del cierre del jueves 18:00 (antes de leer pendientes)
         renderCalSemanas();               // Etapa 3: ventana de 3 semanas visible en #dash-cal
         initCalNav();                     // rueda/touch → ±1 semana
         cargarPendientesDashboard();      // Etapa 4B: panel de pendientes en #dash-pend
@@ -1612,14 +1620,46 @@ function ordenContexto(nombre) {
     return i === -1 ? 999 : i;
 }
 
+// ── Gestión semanal de pendientes ────────────────────────────
+// El cierre (jueves 18:00, hora de Chile) lo ejecuta Supabase: función
+// pendientes_cierre_semanal() (supabase/schema.sql §14), disparada por pg_cron.
+// Aquí solo el RESPALDO: se llama al abrir el Portal; es idempotente (sin cierre
+// vencido no hace nada). Si la función no existe o falla, el Portal sigue igual.
+async function cierreSemanalPendientes() {
+    try { await sb.rpc('pendientes_cierre_semanal'); } catch (_) {}
+}
+
+// Consulta de pendientes que incluye `semanas_pendiente` (antigüedad). Si la
+// columna aún no existe en Supabase, repite la consulta sin ella (retrocompatible).
+async function consultaPendientes(build, cols) {
+    const r = await build(cols + ', semanas_pendiente');
+    if (!r.error) return r;
+    return build(cols);
+}
+
+// Indicador de antigüedad "(n sem)": fuera del texto editable. Solo tiene
+// sentido en un pendiente activo (al completarse se oculta; el valor se conserva).
+function semIndicador(p, clase) {
+    const n = Number(p?.semanas_pendiente) || 0;
+    if (n < 1) return null;
+    const s = document.createElement('span');
+    s.className = clase;
+    s.textContent = `(${n} sem)`;
+    s.title = n === 1 ? 'Trasladado 1 semana' : `Trasladado ${n} semanas`;
+    return s;
+}
+
 async function cargarPendientesDashboard() {
     const body = document.getElementById('dash-pend-body');
     if (!body) return;
     body.innerHTML = '<div class="pend-vacio">Cargando…</div>';
-    const { data, error } = await sb.from('pendientes')
-        .select('id, contexto_id, sesion_id, categoria, texto, estado, fecha_captura')
+    // Solo pendientes actuales (tarea_proxima). Los antiguos de SRP/ADMIN fueron dados de baja.
+    const { data, error } = await consultaPendientes(cols => sb.from('pendientes')
+        .select(cols)
         .eq('estado', 'activo')
-        .order('fecha_captura', { ascending: false });
+        .eq('categoria', TAREA_CAT)
+        .order('fecha_captura', { ascending: false }),
+        'id, contexto_id, sesion_id, categoria, texto, estado, fecha_captura');
     if (error) {
         body.innerHTML = '<div class="pend-vacio">No se pudieron cargar los pendientes.</div>';
         return;
@@ -1701,6 +1741,8 @@ function buildPendItemDash(p) {
     const txt = document.createElement('div');
     txt.className = 'pend-txt';
     txt.textContent = p.texto;
+    const sem = semIndicador(p, 'pend-sem');
+    if (sem) txt.append(' ', sem);
 
     row.appendChild(chk);
     row.appendChild(txt);
@@ -3764,11 +3806,11 @@ async function cargarTareas() {
 
     if (!memNextSid) { renderTareas([]); return; }   // aún no hay sesión → no puede haber pendientes
 
-    const { data, error } = await sb.from('pendientes')
-        .select('id, texto, estado')
+    const { data, error } = await consultaPendientes(cols => sb.from('pendientes')
+        .select(cols)
         .eq('sesion_id', memNextSid).eq('categoria', TAREA_CAT)
         .in('estado', ['activo', 'completado'])
-        .order('created_at');
+        .order('created_at'), 'id, texto, estado');
     if (error) { lista.innerHTML = '<div id="mem-tareas-vacio">No se pudieron cargar los pendientes.</div>'; return; }
     renderTareas(data || []);
 }
@@ -3840,7 +3882,11 @@ function filaTarea(it, multilinea = false) {
     del.title = 'Eliminar';
     del.onclick = () => eliminarTarea(fila);
 
-    fila.append(chk, txt, del);
+    // Antigüedad "(n sem)" junto al texto, nunca dentro de él. Oculta por CSS
+    // mientras la fila está completada (.done); al desmarcar reaparece.
+    const sem = semIndicador(it, 'mem-tarea-sem');
+    if (sem) fila.append(chk, txt, sem, del);
+    else     fila.append(chk, txt, del);
     return fila;
 }
 
@@ -3953,11 +3999,11 @@ async function cargarPendientesSesion() {
         </div>`;
     const lista = document.getElementById('ses-pend-lista');
 
-    const { data, error } = await sb.from('pendientes')
-        .select('id, texto, estado')
+    const { data, error } = await consultaPendientes(cols => sb.from('pendientes')
+        .select(cols)
         .eq('sesion_id', sid).eq('categoria', TAREA_CAT)
         .in('estado', ['activo', 'completado'])
-        .order('created_at');
+        .order('created_at'), 'id, texto, estado');
 
     if (sesionActual?.id !== sid) return;   // cambió de sesión mientras cargaba → descartar
     if (error) { lista.innerHTML = '<div class="vacio">No se pudieron cargar los pendientes.</div>'; return; }
