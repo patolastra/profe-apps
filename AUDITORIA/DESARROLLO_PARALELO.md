@@ -621,8 +621,20 @@ diagnosticado en la auditoría previa y queda para una próxima capa del redise�
 decisión del PO.
 **Deudas registradas:** E — Docente configurable; F — Asignatura configurable (ver
 "Deudas pendientes").
-**Estado:** implementada y verificada en el navegador local; **no publicada** (sin push).
-**Checkpoint:** `a723b8a` (implementación + esta ficha).
+**Estado [ACTUALIZADO 2026-09-23]:** **CERRADA — aprobada por el PO y publicada.**
+- **Aprobación del PO:** implementación aprobada tal como quedó, incluida la regla
+  **provisional** de Asignatura: ORIENTACIÓN → "Orientación"; ENLACE → "Enlaces"; demás
+  cursos y talleres → "Música". Sigue siendo provisional (deuda F); no se implementa
+  ninguna configuración ahora.
+- **Deudas vigentes:** E — Docente configurable; F — Asignatura configurable.
+- **Checkpoint de implementación:** `a723b8a` (implementación + ficha); `af91c67` anota el
+  checkpoint en la ficha.
+- **Publicación:** `git push` fast-forward `5d8cb14..af91c67` a `origin/master`; verificado a
+  nivel Git: `origin/master` = `af91c67` y local/remoto sincronizados (0/0). El cierre
+  documental (esta actualización) se publica en un commit posterior. No se registró una
+  verificación de la página servida por GitHub Pages.
+- El trabajo del Loop (`tabs/index.html`, `LOOP-LAB/`, `.claude/launch.json`) quedó
+  **fuera** de los commits y del push.
 **Nota de gobernanza:** cambio acotado a `LIBRO/index.html`; sin cambios de Supabase ni de
 `CLAUDE.md` (son decisiones provisionales, no reglas permanentes).
 
@@ -688,7 +700,8 @@ decisión del PO.
 *Origen: microiteración de informes UTP (cabecera, introducción y tipografía).*
 - **Hoy:** la asignatura de los informes sale de lo que el sistema ya sabe: un contexto
   **vinculado** usa su nombre visible (Orientación, Enlaces); todo otro contexto muestra
-  **"Música"** (`informeAsignatura()` en `LIBRO/index.html`).
+  **"Música"** (`informeAsignatura()` en `LIBRO/index.html`). Regla **aprobada por el PO
+  como provisional** (2026-09-23).
 - **Deuda futura:** un mecanismo **formal y configurable** para saber qué asignatura
   corresponde a cada contexto (p. ej. Música, Enlaces, Literatura…). Se relaciona con la
   deuda B (jefatura), la C (nomenclatura "Enlaces") y la asignatura por defecto de F6A.
