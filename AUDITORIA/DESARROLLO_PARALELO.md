@@ -892,9 +892,15 @@ El texto de ese informe no cambia; su bloque de datos solo se ve más compacto.
 
 **Aprobación del PO:** estado actual del Informe Previo **aprobado** (2026-09-23), con
 orden de consolidar, documentar, publicar y cerrar.
-**Checkpoint de consolidación:** el commit "Libro: informe UTP previo — cierre del
-desarrollo hasta este punto", único checkpoint de las cuatro microiteraciones. Su hash se
-anota al publicar.
+**Estado [ACTUALIZADO 2026-09-23]:** las cuatro microiteraciones quedan **IMPLEMENTADAS /
+PUBLICADAS / CERRADAS**.
+- **Checkpoint de consolidación:** `01cd292` ("Libro: informe UTP previo — cierre del
+  desarrollo hasta este punto"), único checkpoint de las cuatro; no hay checkpoints
+  individuales.
+- **Publicación:** `git push` fast-forward `21c4527..01cd292` a `origin/master`; verificado
+  a nivel Git: `origin/master` = `01cd292` y local/remoto sincronizados (0/0). Este cierre
+  documental se publica en un commit posterior. No se registró una verificación de la
+  página servida por GitHub Pages.
 **Pendientes derivados (NO resueltos):** deudas G (rúbricas de adecuaciones), H (listas de
 cotejo en el Informe Previo) e I (información del Informe de Resultados). Ver "Deudas
 pendientes".
