@@ -68,6 +68,8 @@
   .adec-list{margin:8px 0 0;padding:0;list-style:none}
   .adec-list li{padding:6px 0;border-top:1px solid var(--line);color:var(--txt)}
   .adec-list li .ix{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.03em;margin-right:8px}
+  .adec-list li.adec-li{display:flex;align-items:flex-start;gap:8px}
+  .adec-list li.adec-li .adec-txt{flex:1}
   .hint{color:var(--mut);font-size:12px}
   .sec-title{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin:0 0 10px}
   .subsec{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
@@ -890,13 +892,15 @@ function renderDetalle(){
         <div><label>Fecha</label><input id="d-fecha" type="date" value="${esc(ev.fecha)}" ${dis}></div>
       </div>
       <div style="margin-top:10px"><label>OA original</label>
-        <textarea id="d-oa" ${dis}>${esc(ev.oa_original)}</textarea></div>
+        <textarea id="d-oa" ${dis}>${esc(ev.oa_original)}</textarea>
+        ${cerrada ? '' : `<div class="row" style="margin-top:6px"><button class="btn mini danger" onclick="eliminarOA()" title="Vacía el texto del OA original y lo deja sin instrumento">Eliminar OA</button></div>`}</div>
       <div class="row" style="margin-top:12px">
         <button class="btn primary" onclick="guardarCabecera()" ${dis}>Guardar cabecera</button>
         ${cerrada
           ? `<button class="btn warn" onclick="reabrirEval()">Reabrir</button>`
           : `<button class="btn" onclick="cerrarEval()">Cerrar</button>`}
-        ${cerrada ? '<span class="hint">Evaluación cerrada: solo lectura. Reábrela para editar.</span>' : ''}
+        ${cerrada ? '<span class="hint">Evaluación cerrada: solo lectura. Reábrela para editar.</span>'
+                  : `<button class="btn danger" onclick="eliminarEval()" style="margin-left:auto">Eliminar evaluación</button>`}
       </div>
       <div class="row" style="margin-top:8px">
         <button class="btn" onclick="abrirInformePrevio()" title="Informe informativo de instrumentos para UTP">🖨 Informe previo (UTP)</button>
@@ -906,7 +910,7 @@ function renderDetalle(){
       <div class="subsec">
         <label style="margin-bottom:8px">Adecuaciones (<span id="d-adecs-count">${adecs.length}</span>)</label>
         <ul class="adec-list" id="d-adecs">${
-          adecs.length ? adecs.map((a,i) => `<li><span class="ix">Adec ${i+1}</span>${esc(a.texto)}</li>`).join('')
+          adecs.length ? adecs.map((a,i) => adecLiHTML(a, i, cerrada)).join('')
                        : '<li class="hint" style="border:none">Sin adecuaciones. Los estudiantes trabajan con el OA original.</li>'
         }</ul>
         ${cerrada ? '' : `
@@ -1058,9 +1062,7 @@ async function agregarAdecuacion(){
     adecs.push(data);
     const ul = document.getElementById('d-adecs');
     const ph = ul.querySelector('li.hint'); if (ph) ph.remove();
-    const li = document.createElement('li');
-    li.innerHTML = `<span class="ix">Adec ${adecs.length}</span>${esc(data.texto)}`;
-    ul.appendChild(li);
+    ul.insertAdjacentHTML('beforeend', adecLiHTML(data, adecs.length - 1, false));
     const cnt = document.getElementById('d-adecs-count'); if (cnt) cnt.textContent = adecs.length;
     // Añadir la opción al dropdown de cada estudiante (conserva su selección).
     document.querySelectorAll('select[data-k="adecuacion_id"]').forEach(sel => {
@@ -1740,6 +1742,162 @@ async function reabrirEval(){
 }
 
 function volverLista(){ limpiarMsg(); renderLista(); }
+
+// ══════════════════════════════════════════════════════════════
+// ELIMINACIONES (desarrollo paralelo, 2026-09-24)
+// · Actividades ABIERTAS (evaluación / participación / entrega): borrado REAL.
+//   La BD borra en cascada todo lo que depende de la actividad (detalle por
+//   estudiante, adecuaciones, grupos, instrumentos aplicados, resultados). Una
+//   actividad CERRADA no se elimina: primero se reabre (UI + trigger en BD).
+// · OA original: "eliminar" = vaciar su texto y desasociar su instrumento (el
+//   instrumento sigue en la lista de la evaluación). No hay múltiples OA.
+// · Adecuación: sus estudiantes y grupos vuelven al OA original (misma regla que
+//   cambiar el objetivo de un estudiante: se recalcula la nota si queda con
+//   instrumento); bloqueada si un grupo TERMINADO depende de ella.
+// Confirmación fuerte: resumen de lo que se pierde + escribir ELIMINAR.
+// ══════════════════════════════════════════════════════════════
+function confirmarEliminacion(titulo, perdidas){
+  const lista = perdidas.filter(Boolean).map(l => '  • ' + l).join('\n');
+  const txt = prompt(`${titulo}\n\nSe eliminará definitivamente:\n${lista}\n\nEsta acción NO se puede deshacer.\nPara confirmar, escribe ELIMINAR:`);
+  if (txt === null) return false;                      // canceló
+  if (txt.trim().toUpperCase() === 'ELIMINAR') return true;
+  toast('No se eliminó: no escribiste ELIMINAR.', 'err');
+  return false;
+}
+const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
+
+// Borra la actividad solo si sigue ABIERTA (la BD también lo exige). 0 filas
+// borradas = ya no estaba abierta (p. ej. se cerró en otra ventana).
+async function borrarActividadAbierta(tabla, id){
+  const { data, error } = await sb.from(tabla).delete().eq('id', id).eq('estado', 'abierto').select('id');
+  if (error) throw error;
+  if (!data || !data.length) throw new Error('la actividad ya no está abierta (reábrela o recarga la página)');
+}
+
+async function eliminarEval(){
+  const ev = evalActual; if (!ev) return;
+  if (ev.estado === 'cerrado') { toast('Una evaluación cerrada no se puede eliminar. Reábrela primero.', 'err'); return; }
+  const conNota = notas.filter(n => n.nota != null).length;
+  const conComent = notas.filter(n => (n.comentario || '').trim()).length;
+  const obs = (obsGenBorrador ?? ev.observacion_general ?? '').trim();
+  const ok = confirmarEliminacion(`¿Eliminar la evaluación "${ev.nombre}" (${ev.fecha})?`, [
+    'la evaluación y su OA original',
+    plural(notas.length, 'estudiante registrado', 'estudiantes registrados') + (conNota ? ` (${plural(conNota, 'con nota', 'con nota')})` : ''),
+    conComent ? plural(conComent, 'comentario individual', 'comentarios individuales') : '',
+    adecs.length ? plural(adecs.length, 'adecuación', 'adecuaciones') : '',
+    grupos.length ? plural(grupos.length, 'grupo', 'grupos') : '',
+    evalInstrumentos.length ? plural(evalInstrumentos.length, 'instrumento aplicado', 'instrumentos aplicados') + ' (las plantillas NO se tocan)' : '',
+    evalResultados.length ? plural(evalResultados.length, 'resultado por criterio/ítem', 'resultados por criterio/ítem') : '',
+    obs ? 'la observación general' : '',
+  ]);
+  if (!ok) return;
+  try {
+    await borrarActividadAbierta('libro_evaluaciones', ev.id);
+    obsGenBorrador = null; evalActual = null;
+    toast('Evaluación eliminada.', 'ok');
+    volverAtras();
+  } catch (e) { toast('No se pudo eliminar: ' + e.message, 'err'); }
+}
+
+async function eliminarPart(){
+  const p = partActual; if (!p) return;
+  if (p.estado === 'cerrado') { toast('Una participación cerrada no se puede eliminar. Reábrela primero.', 'err'); return; }
+  const si = partDet.filter(d => d.participo).length;
+  const ok = confirmarEliminacion(`¿Eliminar la participación "${p.nombre}" (${p.fecha})?`, [
+    'la participación',
+    plural(partDet.length, 'estudiante registrado', 'estudiantes registrados') + (si ? ` (${si} marcados "participó")` : ''),
+  ]);
+  if (!ok) return;
+  try {
+    await borrarActividadAbierta('libro_participaciones', p.id);
+    toast('Participación eliminada.', 'ok');
+    volverAtras();   // también descarta el estado temporal (inhabilitados/preselección)
+  } catch (e) { toast('No se pudo eliminar: ' + e.message, 'err'); }
+}
+
+async function eliminarEntrega(){
+  const e = entregaActual; if (!e) return;
+  if (e.estado === 'cerrado') { toast('Una entrega cerrada no se puede eliminar. Reábrela primero.', 'err'); return; }
+  const aplican = entregaDet.filter(d => d.estado !== 'no_aplica').length;
+  const entregados = entregaDet.filter(d => d.estado === 'entregado').length;
+  const ok = confirmarEliminacion(`¿Eliminar la entrega "${e.nombre}" (${e.fecha})?`, [
+    'la entrega',
+    plural(entregaDet.length, 'estudiante registrado', 'estudiantes registrados') + ` (${aplican} deben entregar, ${entregados} entregaron)`,
+  ]);
+  if (!ok) return;
+  try {
+    await borrarActividadAbierta('libro_entregas', e.id);
+    toast('Entrega eliminada.', 'ok');
+    volverAtras();
+  } catch (err) { toast('No se pudo eliminar: ' + err.message, 'err'); }
+}
+
+// OA original: vaciar texto + desasociar su instrumento (queda en la lista).
+async function eliminarOA(){
+  const ev = evalActual; if (!ev || ev.estado === 'cerrado') return;
+  const txt = (ev.oa_original || '').trim();
+  const iid = ev.instrumento_id || null;
+  if (!txt && !iid) { toast('El OA original ya está vacío y sin instrumento.', 'err'); return; }
+  const instr = iid ? evalInstrumentos.find(i => i.id === iid) : null;
+  const usan = iid ? notas.filter(n => instrEfectivoId(n) === iid && !n.adecuacion_id && !n.instrumento_id).length : 0;
+  const lineas = [txt ? `Se vaciará el texto del OA original: "${txt.length > 120 ? txt.slice(0, 120) + '…' : txt}".` : ''];
+  if (instr) lineas.push(`Se desasociará su instrumento "${instr.nombre}" (seguirá en la lista de instrumentos de la evaluación).`
+    + (usan ? ` ${plural(usan, 'estudiante', 'estudiantes')} con el OA original quedarán sin instrumento.` : ''));
+  if (!confirm('¿Eliminar el OA original?\n\n' + lineas.filter(Boolean).join('\n\n'))) return;
+  try {
+    const { error } = await sb.from('libro_evaluaciones').update({ oa_original: '', instrumento_id: null }).eq('id', ev.id);
+    if (error) throw error;
+    ev.oa_original = ''; ev.instrumento_id = null;
+    await recalcularTodasLasNotas();   // misma regla que al cambiar el instrumento del OA
+    refrescarDetalle();
+    toast('OA original eliminado.', 'ok');
+  } catch (e) { toast('No se pudo eliminar el OA: ' + e.message, 'err'); }
+}
+
+// Fila de la lista de adecuaciones (con ✕ si la evaluación está abierta).
+function adecLiHTML(a, i, cerrada){
+  return `<li class="adec-li"><span class="ix">Adec ${i + 1}</span><span class="adec-txt">${esc(a.texto)}</span>${cerrada ? ''
+    : `<button class="btn mini danger" onclick="eliminarAdecuacion('${a.id}')" title="Eliminar adecuación">✕</button>`}</li>`;
+}
+
+async function eliminarAdecuacion(id){
+  const ev = evalActual; if (!ev || ev.estado === 'cerrado') return;
+  const a = adecs.find(x => x.id === id); if (!a) return;
+  const gAfect = grupos.filter(g => g.adecuacion_grupal_id === id);
+  const nAfect = notas.filter(n => n.adecuacion_id === id);
+  const gTerm = new Set(gAfect.filter(g => g.terminado).map(g => g.nombre));
+  nAfect.forEach(n => { const g = n.grupo_id && grupos.find(x => x.id === n.grupo_id); if (g && g.terminado) gTerm.add(g.nombre); });
+  if (gTerm.size) {
+    alert(`No se puede eliminar esta adecuación: el grupo terminado ${[...gTerm].map(x => '"' + x + '"').join(', ')} depende de ella.\n\nReabre primero ese grupo y vuelve a intentarlo.`);
+    return;
+  }
+  const afect = [];
+  if (nAfect.length) afect.push(plural(nAfect.length, 'estudiante', 'estudiantes') + ' con esta adecuación volverá' + (nAfect.length === 1 ? '' : 'n') + ' al OA original.');
+  if (gAfect.length) afect.push(plural(gAfect.length, 'grupo', 'grupos') + ' con esta adecuación volverá' + (gAfect.length === 1 ? '' : 'n') + ' al OA original.');
+  if (afect.length) afect.push('Si con el OA original usan instrumento, su nota se recalculará.');
+  if (!confirm(`¿Eliminar la adecuación "${a.texto}"?\n\n` + (afect.length ? afect.join('\n') : 'Ningún estudiante ni grupo la usa.'))) return;
+  try {
+    // 1) Grupos y estudiantes vuelven al OA original (antes de borrar: nada queda colgando).
+    for (const g of gAfect) {
+      const { error } = await sb.from('libro_evaluacion_grupos').update({ adecuacion_grupal_id: null }).eq('id', g.id);
+      if (error) throw error;
+      g.adecuacion_grupal_id = null;
+    }
+    nAfect.forEach(n => { n.adecuacion_id = null; });
+    await evalPersistNotasRows(nAfect);
+    // 2) Borrar la adecuación.
+    const { error } = await sb.from('libro_evaluacion_adecuaciones').delete().eq('id', id);
+    if (error) throw error;
+    adecs = adecs.filter(x => x.id !== id);
+    // 3) Recalcular la nota de los afectados que quedan con instrumento (regla de cambio de objetivo).
+    for (const n of nAfect) { if (calcNota(n).instrumento) await persistNotaCalculada(n); }
+    refrescarDetalle();
+    toast('Adecuación eliminada.', 'ok');
+  } catch (e) {
+    toast('No se pudo eliminar la adecuación: ' + e.message, 'err');
+    await abrirDetalle(ev.id);   // recargar el estado real desde la BD
+  }
+}
 
 // ══════════════════════════════════════════════════════════════
 // F5 — TALLERES: pertenencia de estudiantes (contexto tipo='taller')
@@ -3436,7 +3594,8 @@ function renderPartDetalle(){
         ${cerrada ? `<button class="btn warn" onclick="reabrirPart()">Reabrir</button>`
                   : `<button class="btn" onclick="cerrarPart()">Cerrar</button>`}
         ${partDet.length ? `<button class="btn" onclick="abrirProyector()" title="Tablero para proyectar al curso">🎬 Proyector</button>` : ''}
-        ${cerrada ? '<span class="hint">Participación cerrada: solo lectura. Reábrela para editar.</span>' : ''}
+        ${cerrada ? '<span class="hint">Participación cerrada: solo lectura. Reábrela para editar.</span>'
+                  : `<button class="btn danger" onclick="eliminarPart()" style="margin-left:auto">Eliminar participación</button>`}
       </div>
     </div>
     <div class="card">
@@ -4143,7 +4302,8 @@ function renderEntregaDetalle(){
         <button class="btn primary" onclick="guardarEntregaCabecera()" ${dis}>Guardar cabecera</button>
         ${cerrada ? `<button class="btn warn" onclick="reabrirEntrega()">Reabrir</button>`
                   : `<button class="btn" onclick="cerrarEntrega()">Cerrar</button>`}
-        ${cerrada ? '<span class="hint">Entrega cerrada: solo lectura. Reábrela para editar.</span>' : ''}
+        ${cerrada ? '<span class="hint">Entrega cerrada: solo lectura. Reábrela para editar.</span>'
+                  : `<button class="btn danger" onclick="eliminarEntrega()" style="margin-left:auto">Eliminar entrega</button>`}
       </div>
     </div>
     <div class="card">

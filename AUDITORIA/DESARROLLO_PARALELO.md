@@ -1232,6 +1232,96 @@ J (ver "Deudas pendientes").
 
 ---
 
+### Desarrollo paralelo: Eliminar actividades, OA y adecuaciones (Libro de Clases)
+
+**Fecha:** 2026-09-24
+**Necesidad profesional que lo origina:** el profesor no podía eliminar actividades
+abiertas creadas por error (evaluaciones, participaciones, entregas), ni quitar el OA o
+una adecuación de una evaluación.
+**Ciclo seguido:** auditoría técnica breve (solo lectura) → **decisión del PO** (+ una
+aclaración: el instrumento del OA se *desasocia*, no se borra) → implementación → pruebas
+→ SQL de protección ejecutado por el PO → prueba en BD → esta ficha → checkpoint propio.
+
+**Decisiones de producto (PO):**
+- Se pueden eliminar las **tres** actividades abiertas, **aunque tengan datos**: borrado
+  **real**, con confirmación fuerte que muestra lo que se pierde.
+- **Actividades cerradas no se eliminan:** primero se reabren. La protección existe
+  también en la BD.
+- **"Eliminar OA"** (hay un solo OA por evaluación): vaciar su texto y **desasociar** su
+  instrumento, que sigue en la lista de la evaluación. No hay múltiples OA.
+- **Eliminar adecuación**, aunque esté asignada: aviso con estudiantes y grupos afectados.
+  Estos vuelven al OA original y se recalcula la nota cuando corresponde. **Bloqueada** si
+  un grupo **terminado** depende de ella (hay que reabrirlo primero).
+
+**Implementación:**
+- **`LIBRO/index.html`** (nueva sección "ELIMINACIONES"):
+  - **Botones:** "Eliminar evaluación/participación/entrega" en la cabecera (solo
+    abiertas), "Eliminar OA" bajo el OA original y ✕ en cada adecuación (solo con la
+    evaluación abierta).
+  - **Confirmación fuerte** (`confirmarEliminacion`): resumen de lo que se pierde
+    (estudiantes, notas, comentarios, adecuaciones, grupos, instrumentos aplicados,
+    resultados, observación general; o participaron/entregaron) + escribir **ELIMINAR**.
+    Otra palabra o cancelar → no se borra.
+  - **Borrado:** `borrarActividadAbierta` borra con `estado='abierto'`. Si la actividad se
+    cerró en otra ventana, no borra y avisa. Luego vuelve al panel del curso (o a la lista
+    en un taller, con `volverAtras`, que además descarta el estado temporal de
+    Participación). La cascada existente de la BD borra todo lo dependiente; las
+    plantillas no se tocan.
+  - **Eliminar adecuación:** primero pasa los grupos y estudiantes afectados al OA
+    original, luego borra la adecuación y recalcula la nota de los afectados que quedan
+    con instrumento. Es la **misma regla existente** que al cambiar el objetivo de un
+    estudiante.
+  - **Eliminar OA:** `oa_original=''` + `instrumento_id=NULL` y recalcula, con la misma
+    regla que ya usaba el selector "Objetivo → instrumento".
+- **Supabase — `supabase/libro_schema.sql`** (sección nueva "ELIMINACIÓN DE ACTIVIDADES",
+  aditiva e idempotente, **ejecutada por el PO**): trigger `BEFORE DELETE` en
+  `libro_evaluaciones`, `libro_participaciones` y `libro_entregas`
+  (`libro_actividad_bloqueo_borrado_cerrada`) que rechaza borrar una actividad cerrada.
+  Antes la BD solo impedía modificarlas.
+
+**Pruebas (2026-09-24, navegador local contra Supabase real, datos desechables en CUARTO
+y CUERDAS):** todas OK. Las confirmaciones se simularon para poder comprobar el texto
+exacto que ve el profesor.
+- **Borrado en cascada:** una evaluación abierta con un grupo **terminado** se borra
+  completa, sin dejar filas huérfanas (conteos idénticos a los previos).
+- **Eliminar evaluación con datos:** 26 estudiantes, 2 con nota, comentario, adecuación,
+  grupo, 2 instrumentos, 7 resultados; el resumen lo mostró todo. "eliminar no" y
+  cancelar → no se borra; "ELIMINAR" → se borra y vuelve al panel.
+- **Participación** (5 participaron) y **entrega** (10 deben entregar, 3 entregaron): se
+  borran con todo su detalle.
+- **Taller CUERDAS:** tras eliminar vuelve a la lista de participaciones.
+- **Actividad cerrada:** sin botones (evaluación: tampoco "Eliminar OA" ni ✕); la función
+  se niega. Si otra ventana la cerró, la eliminación se rechaza.
+- **Protección en BD (tras el SQL):** borrar directamente una evaluación, una
+  participación y una entrega **cerradas** → rechazado con "reábrela primero".
+- **Adecuación asignada** (3 estudiantes, 2 de ellos en un grupo que la usaba): los 3 y el
+  grupo quedaron en el OA original. Sus notas (7,0 con el instrumento de la adecuación)
+  pasaron a pendientes: el instrumento del OA no tenía resultados. La nota manual de otro
+  estudiante (5,5) y la de un estudiante del OA (7,0) no cambiaron. La lista se renumera y
+  el selector "Objetivo aplicado" se actualiza.
+- **Adecuación sin uso:** cancelar no borra; confirmar borra.
+- **Grupo terminado:** aviso de bloqueo y nada cambia; la BD también rechaza el borrado
+  directo. Tras reabrir el grupo, se elimina.
+- **Eliminar OA:** texto vacío, OA sin instrumento, instrumento todavía en la lista. El
+  aviso indica cuántos estudiantes quedan sin instrumento.
+- **Informes:** el previo ("Objetivo de aprendizaje: (sin texto)") y el de resultados se
+  generan sin errores.
+- **Regresión:** la evaluación real "Lectura rítmica en 6/8" (SEXTO) carga igual
+  (36 estudiantes, 1 instrumento, 99 resultados, informe previo).
+- **Datos:** todo lo de prueba **eliminado**; los conteos de 16 tablas (Libro + sesiones)
+  quedaron **idénticos** a los previos y las 4 evaluaciones reales quedaron **idénticas
+  campo por campo**.
+
+**Estado:** implementado, verificado y con la protección de BD ejecutada.
+**Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6G** (Libro) y
+**F6H** (Evaluaciones).
+**Nota de gobernanza:** archivos `LIBRO/index.html`, `supabase/libro_schema.sql` y esta
+ficha. `CLAUDE.md` no se modificó; queda para la reintegración registrar que las
+actividades abiertas son eliminables y las cerradas están protegidas también contra el
+borrado. El Loop quedó **fuera**. Observaciones: deuda K.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
@@ -1343,4 +1433,18 @@ J (ver "Deudas pendientes").
   mitad, queda una fila en blanco visible en el Dashboard. El cierre no la mueve.
 - **ADMIN:** si alguien creara un pendiente de categoría antigua desde ADMIN (sin enlace),
   no se vería en el Dashboard ni participaría del cierre.
+- **No resuelto.**
+
+### K. Eliminaciones en el Libro — observaciones abiertas
+*Origen: eliminar actividades, OA y adecuaciones (2026-09-24).*
+- **Nota de quien pierde el instrumento:** se sigue la regla existente del Libro. Si un
+  estudiante queda **sin** instrumento (p. ej. al eliminar el OA o una adecuación cuyo
+  destino no tiene instrumento), conserva la nota que tenía, que pasa a verse como nota
+  manual. Si queda **con** instrumento, la nota se recalcula. Observar en uso real si
+  conviene otra cosa.
+- **Resultados del instrumento de una adecuación eliminada:** siguen guardados porque el
+  instrumento sigue en la lista de la evaluación (no quedan huérfanos). Si luego se
+  "Quita" ese instrumento, se borran con él.
+- **No hay papelera:** el borrado es real e irreversible (decisión del PO); la protección
+  es la confirmación con la palabra ELIMINAR.
 - **No resuelto.**

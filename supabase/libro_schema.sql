@@ -1514,3 +1514,38 @@ $$ LANGUAGE plpgsql;
 -- ============================================================
 -- FIN — Observación general de la evaluación
 -- ============================================================
+
+-- ════════════════════════════════════════════════════════════
+-- ELIMINACIÓN DE ACTIVIDADES — protección de las CERRADAS (desarrollo paralelo, 2026-09-24)
+-- ════════════════════════════════════════════════════════════
+-- Decisión del PO: las actividades ABIERTAS (evaluaciones, participaciones,
+-- entregas) se pueden eliminar de verdad (la cascada ya existente borra su
+-- detalle, adecuaciones, grupos, instrumentos aplicados y resultados). Una
+-- actividad CERRADA no se elimina: primero se reabre. Hasta ahora la BD solo
+-- impedía MODIFICAR una cerrada (I12/I13), no BORRARLA; este bloque lo cierra.
+-- Aditivo e idempotente. No cambia ninguna otra regla.
+CREATE OR REPLACE FUNCTION libro_actividad_bloqueo_borrado_cerrada()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.estado = 'cerrado' THEN
+        RAISE EXCEPTION 'No se puede eliminar una actividad cerrada (%, id %): reábrela primero.',
+            TG_TABLE_NAME, OLD.id;
+    END IF;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_libro_eval_borrado_cerrada ON libro_evaluaciones;
+CREATE TRIGGER trg_libro_eval_borrado_cerrada
+    BEFORE DELETE ON libro_evaluaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_actividad_bloqueo_borrado_cerrada();
+
+DROP TRIGGER IF EXISTS trg_libro_part_borrado_cerrada ON libro_participaciones;
+CREATE TRIGGER trg_libro_part_borrado_cerrada
+    BEFORE DELETE ON libro_participaciones
+    FOR EACH ROW EXECUTE FUNCTION libro_actividad_bloqueo_borrado_cerrada();
+
+DROP TRIGGER IF EXISTS trg_libro_entrega_borrado_cerrada ON libro_entregas;
+CREATE TRIGGER trg_libro_entrega_borrado_cerrada
+    BEFORE DELETE ON libro_entregas
+    FOR EACH ROW EXECUTE FUNCTION libro_actividad_bloqueo_borrado_cerrada();
