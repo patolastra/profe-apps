@@ -1312,7 +1312,19 @@ exacto que ve el profesor.
   quedaron **idénticos** a los previos y las 4 evaluaciones reales quedaron **idénticas
   campo por campo**.
 
-**Estado:** implementado, verificado y con la protección de BD ejecutada.
+**Resultado:** las tres actividades abiertas, el OA y las adecuaciones se pueden eliminar
+según las decisiones del PO. Las actividades cerradas quedaron protegidas contra el
+borrado en la interfaz y en la BD. Sin regresiones en las funcionalidades existentes y
+sin datos huérfanos.
+**Estado [ACTUALIZADO 2026-09-24]:** **CERRADO Y PUBLICADO.** Implementado y verificado
+contra Supabase real; SQL de protección ejecutado por el PO.
+- **Checkpoint:** `088d5c9` (implementación + SQL + esta ficha).
+- **Publicación:** `git push` fast-forward `c4bc6bb..088d5c9` a `origin/master`; verificado
+  a nivel Git (`origin/master` = `088d5c9`, local/remoto sincronizados 0/0). **GitHub
+  Pages** reconstruyó ese commit (build `built`); `LIBRO/index.html`,
+  `supabase/libro_schema.sql` y esta ficha servidos online son **idénticos** a los del
+  commit. No se abrió la página en un navegador. El cierre documental se publica en un
+  commit posterior.
 **Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6G** (Libro) y
 **F6H** (Evaluaciones).
 **Nota de gobernanza:** archivos `LIBRO/index.html`, `supabase/libro_schema.sql` y esta
