@@ -1221,8 +1221,28 @@ esta ficha → checkpoint propio.
   puede confirmar con `select * from pendientes_cierres;`. Si el reloj no corriera, el
   respaldo del Portal ejecuta el cierre al abrirlo.
 
-**Estado:** implementado y verificado; SQL ejecutado por el PO. **En observación** hasta
-el primer cierre real (24/09).
+**Resultado:** los pendientes antiguos de SRP/ADMIN quedaron dados de baja (descartados,
+no borrados). Los `tarea_proxima` no completados se trasladan cada jueves 18:00 a la
+próxima clase de su contexto, conservando el mismo pendiente, y muestran su antigüedad
+"(n sem)" en Dashboard, Plan y Bitácora. Verificado sin duplicados, sin cierres
+repetidos, sin mover completados y con los datos reales intactos.
+**Estado [ACTUALIZADO 2026-09-24]:** **CERRADO Y PUBLICADO.** Implementado y verificado
+contra Supabase real; SQL (dos scripts: estructura/función y reloj `pg_cron`) ejecutado
+por el PO.
+- **Checkpoint:** `3127ca0` (implementación + SQL + esta ficha).
+- **Publicación:** `git push` fast-forward `e4d7ea1..3127ca0` a `origin/master`
+  (2026-09-23); verificado a nivel Git (`origin/master` = `3127ca0`, local/remoto
+  sincronizados 0/0). **GitHub Pages** reconstruyó ese commit (build `built`);
+  `PORTAL/index.html` y `supabase/schema.sql` servidos online son **idénticos** a los del
+  commit. No se abrió la página en un navegador.
+- **Primer cierre real: pendiente de confirmar.** Al momento de este cierre documental
+  (2026-09-24, antes de las 18:00 de Chile), `pendientes_cierres` está vacío, como
+  corresponde. El primer cierre real ocurre el jueves 24/09 a las 18:00 y se confirma con
+  `select * from pendientes_cierres;`. Sigue vigente lo anotado arriba: no se puede
+  verificar desde aquí que `pg_cron` dispare; si no lo hiciera, el respaldo del Portal
+  ejecuta el cierre al abrirlo.
+- Registro histórico del hito en `AUDITORIA/HISTORIA_HITOS.md` (ya incluía el commit y la
+  publicación). El cierre documental se publica en un commit posterior.
 **Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6B** (Dashboard:
 pendientes) y **F6D** (Clase/Planificación).
 **Nota de gobernanza:** archivos `PORTAL/index.html`, `supabase/schema.sql` y esta ficha.
