@@ -1390,6 +1390,9 @@ karaokes con exactamente la misma duración y estructura temporal que la melodí
   Karaoke:
   - Amenaza de Ultracumbia: Melodía `mu4g4tvcdqb3`, Karaoke `mu4g5ij9qotq`;
   - Severla god level: Melodía `mu4hl18gz8mo`, Karaoke `mu4hmfw8p9l7`.
+- **Canción que queda solo con Karaoke (confirmado):** si una canción queda
+  temporalmente solo con Karaoke, el Entrenador **reproduce ese Karaoke sin selector**,
+  para que la canción no quede sin audio.
 
 **Plan de implementación aprobado (5 etapas):**
 1. **Estructura y migración (SQL ejecutado por el PO):**
@@ -1425,9 +1428,8 @@ karaokes con exactamente la misma duración y estructura temporal que la melodí
 - borrar los datos y archivos de prueba.
 
 **Pendiente al retomar:**
-- ejecutar las etapas 1–5 (el SQL de la etapa 1 lo ejecuta el PO);
-- **decisión aún abierta:** qué hace el Entrenador si una canción queda **solo con
-  Karaoke**. Claude propuso reproducirlo sin selector; **el PO no lo ha confirmado**.
+- ejecutar las etapas 1–5 (el SQL de la etapa 1 lo ejecuta el PO). No quedan decisiones
+  de producto abiertas.
 
 **Archivos que se modificarán al implementar:** `REPERTORIO/index.html`,
 `REPERTORIO/supabase_schema.sql`, esta ficha. Sin cambios en `PIZARRA/`, el Visor ni
