@@ -1354,6 +1354,89 @@ borrado. El Loop quedó **fuera**. Observaciones: deuda K.
 
 ---
 
+### Desarrollo paralelo: Repertorio — audio Melodía + Karaoke (EN PAUSA)
+
+> **ESTADO: CONGELADA / EN PAUSA — NO CERRADA** (2026-09-29). Decisiones y plan
+> aprobados; **implementación pendiente**. No hay código ni cambios en Supabase de esta
+> iteración (ni commits, ni cambios sin commitear). Se retoma ejecutando el plan de abajo.
+
+**Fecha:** auditoría y plan 2026-09-24/29; pausa 2026-09-29.
+**Necesidad profesional que lo origina:** una canción puede tener varios audios, pero el
+profesor no puede elegir cuál reproducir. Quiere un audio **Melodía** (por defecto) y un
+**Karaoke** seleccionable, reutilizando la misma letra y su sincronización (subirá
+karaokes con exactamente la misma duración y estructura temporal que la melodía).
+
+**Diagnóstico (auditoría técnica, solo lectura):**
+- La sincronización (LRC) vive en el asset `letra` (`synced`), **no** en el audio: es
+  reutilizable para cualquier audio de igual duración.
+- Todos los reproductores eligen el audio con "el primer `tipo='audio'` que aparezca".
+  Con dos audios la elección es **indeterminada**: ya ocurre en 2 canciones.
+- Datos al momento de la auditoría: 51 audios en 49 canciones (47 con 1 audio, 2 con 2);
+  79 letras, 64 con sincronización.
+
+**Decisiones de producto (PO, aprobadas):**
+- Por defecto se reproduce **siempre Melodía**.
+- Máximo **1 Melodía + 1 Karaoke** por canción en esta iteración.
+- Selector **solo en el Entrenador**.
+- **Visor de letras** (en desuso) y **Pizarra** (tendrá una iteración profunda futura):
+  **no se modifican**; se registrarán como deudas al implementar.
+- La sincronización sigue perteneciendo a la letra; **solo se edita con Melodía**
+  seleccionada.
+- Los audios únicos actuales se migran como `melodia`.
+- **Advertencia** si Karaoke y Melodía difieren en más de ~0,5 s.
+- No se implementan relaciones entre subconjuntos de assets ni el modelo futuro de
+  Biblioteca.
+- **Los dos audios dobles existentes (confirmado):** "con voz" = Melodía, "karaoke" =
+  Karaoke:
+  - Amenaza de Ultracumbia: Melodía `mu4g4tvcdqb3`, Karaoke `mu4g5ij9qotq`;
+  - Severla god level: Melodía `mu4hl18gz8mo`, Karaoke `mu4hmfw8p9l7`.
+
+**Plan de implementación aprobado (5 etapas):**
+1. **Estructura y migración (SQL ejecutado por el PO):**
+   - columna `repertorio_assets.rol` (`melodia`|`karaoke`, solo audio);
+   - índice único parcial canción+rol (máx. 1+1);
+   - 47 audios únicos → `melodia`; los 2 dobles por id según la tabla;
+   - verificación: 49 Melodías / 2 Karaokes / 0 sin rol;
+   - documentado en `REPERTORIO/supabase_schema.sql`.
+2. **Selección determinista:** una función única `audioDe(cancion, rol)`. Melodía = rol
+   `melodia`; si no hay, el primer audio no-karaoke por `orden`/fecha. Reemplaza la
+   elección en el Entrenador (`abrirEntrenador`, `abrirEntrenadorConConfig`), el modo
+   pitch (`entActivarPitch`) y las sesiones (`seConfigurarLoops`).
+3. **Subir/editar con tipo:** control Melodía/Karaoke al subir y editar un audio. Se
+   bloquea si el tipo ya existe en la canción. Advertencia de duración (> ~0,5 s) al
+   subir/editar un Karaoke.
+4. **Selector en el Entrenador:** solo si la canción tiene ambos audios; abre siempre en
+   Melodía.
+   - Al cambiar conserva el punto, la reproducción, la velocidad, los loops y el verso.
+   - Con Karaoke, **Sync** desactivado; mientras se edita la sincronización, el selector
+     queda bloqueado en Melodía.
+   - El audio del modo pitch se guarda en memoria por audio, no por canción.
+   - Advertencia de duración al pasar a Karaoke.
+5. **Documentación y deudas:** cierre de esta ficha + deudas **L (Visor de letras)** y
+   **M (Pizarra)**: siguen con "primer audio"; en la Pizarra las 2 canciones dobles
+   pueden seguir sonando en karaoke.
+
+**Pruebas previstas:**
+- foto previa de los datos (conteo de assets, huella de la sincronización de todas las
+  letras, audios de las 2 canciones dobles);
+- canción desechable "PRUEBA-AUDIO" con dos audios generados en el navegador;
+- verificar todo lo anterior;
+- las 64 sincronizaciones reales deben quedar idénticas;
+- borrar los datos y archivos de prueba.
+
+**Pendiente al retomar:**
+- ejecutar las etapas 1–5 (el SQL de la etapa 1 lo ejecuta el PO);
+- **decisión aún abierta:** qué hace el Entrenador si una canción queda **solo con
+  Karaoke**. Claude propuso reproducirlo sin selector; **el PO no lo ha confirmado**.
+
+**Archivos que se modificarán al implementar:** `REPERTORIO/index.html`,
+`REPERTORIO/supabase_schema.sql`, esta ficha. Sin cambios en `PIZARRA/`, el Visor ni
+`CLAUDE.md`.
+**Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6E**
+(Biblioteca/Repertorio/Recursos).
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
