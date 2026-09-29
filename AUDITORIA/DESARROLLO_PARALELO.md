@@ -1515,6 +1515,20 @@ visual; `CLAUDE.md` no describe la apariencia del Dashboard). El Loop quedó **f
 problema posterior de recorte (*clipping*) del calendario **no** forma parte de esta
 iteración; se tratará como un desarrollo aparte.
 
+**Deuda registrada tras el cierre (2026-09-29) — PENDIENTE DE DISEÑO: tratamiento de las
+semanas fuera del horizonte inmediato.**
+- **Qué queda sin definir:** la jerarquía visual se diseñó para el horizonte inmediato
+  (semana pasada, en curso y siguiente). Falta decidir cómo se ven las semanas **más
+  lejanas** al presente cuando el profesor navega hacia ellas: qué jerarquía tienen
+  respecto de la semana en curso y de las semanas inmediatamente anterior y siguiente.
+- **No forma parte** de la implementación cerrada.
+- **No es una decisión:** lo que hoy ocurre al navegar (punto 9: sin semana en curso
+  visible no se atenúa nada) es solo el comportamiento actual.
+- Requiere una **futura decisión de producto/diseño del PO**; su implementación será una
+  iteración posterior.
+- Esta deuda **no reabre** la iteración, que sigue cerrada, implementada, verificada y
+  publicada.
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo
