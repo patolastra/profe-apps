@@ -179,6 +179,37 @@
             text-transform: uppercase; color: var(--muted); margin: 0 0 6px 2px;
         }
         .cal-sem-bloque.actual .cal-sem-label { color: var(--accent); }
+        /* Jerarquía visual: si la semana en curso está visible (#cal-mensual.con-actual),
+           las otras dos quedan en segundo plano (blur muy leve + menos saturación/contraste).
+           Solo apariencia: no cambia tamaños, distribución ni interacción.
+           Jerarquía: semana atenuada → día bajo el cursor recupera normalidad → clase bajo el cursor. */
+        #cal-mensual .cal-celda-fecha,
+        #cal-mensual .cal-clase { transition: filter 0.2s ease, color 0.2s ease, background-color 0.2s ease; }
+        /* Estado atenuado (semanas no actuales) */
+        #cal-mensual.con-actual .cal-sem-bloque:not(.actual) .cal-celda:not(.vacia) { background: #f1f5f9; }
+        #cal-mensual.con-actual .cal-sem-bloque:not(.actual) .cal-celda-fecha,
+        #cal-mensual.con-actual .cal-sem-bloque:not(.actual) .cal-clase { filter: blur(0.9px) saturate(0.6); }
+        #cal-mensual.con-actual .cal-sem-bloque:not(.actual) .cal-clase { color: #536171; background: #e8edf3; }
+        /* Jerarquía cromática cálida de los días: acento ÁMBAR TERROSO #b45309 (el mismo del
+           indicador "(n sem)" del panel de Pendientes), más sobrio que --orange frente al lenguaje
+           azul/gris del Dashboard. Crema y hover = ese mismo ámbar mezclado con blanco (7 % / 3 %).
+           hoy = crema + borde fino + pastilla ámbar; hover de otro día = realce casi imperceptible. */
+        #cal-mensual .cal-celda { transition: background-color 0.2s ease, border-color 0.2s ease; }
+        /* Hover sobre un día (cualquier semana): realce muy sutil (opaco) */
+        #cal-mensual .cal-sem-bloque .cal-celda:not(.vacia):hover { background: #fdfaf8; border-color: #ecd4c2; }
+        /* Hover sobre un día — semana atenuada: SOLO esa card recupera nitidez + el mismo realce */
+        #cal-mensual.con-actual .cal-sem-bloque:not(.actual) .cal-celda:not(.vacia):hover { background: #fdfaf8; border-color: #ecd4c2; }
+        /* Día actual: el ámbar es acento, no relleno. Igual con el cursor encima. */
+        #cal-mensual .cal-celda.hoy,
+        #cal-mensual .cal-sem-bloque .cal-celda.hoy:not(.vacia):hover { background: #faf3ee; border-color: #b45309; }
+        #cal-mensual .cal-celda.hoy .cal-celda-fecha.hoy { background: #b45309; color: #fff; }
+        #cal-mensual.con-actual .cal-sem-bloque:not(.actual) .cal-celda:hover .cal-celda-fecha,
+        #cal-mensual.con-actual .cal-sem-bloque:not(.actual) .cal-celda:hover .cal-clase { filter: none; }
+        #cal-mensual.con-actual .cal-sem-bloque:not(.actual) .cal-celda:hover .cal-clase { color: var(--text); background: #f6f9ff; }
+        /* Hover sobre una clase (igual que antes): nítida, color y borde normales */
+        #cal-mensual.con-actual .cal-sem-bloque:not(.actual) .cal-celda .cal-clase:hover {
+            filter: none; color: var(--text); background: #eef4ff; border-color: var(--accent);
+        }
 
         /* ── DASHBOARD · Etapa 4B: panel de Pendientes ─────────────────────── */
         #dash-pend-body { display: flex; flex-direction: column; gap: 14px; }
@@ -1461,7 +1492,7 @@ function esHoy(str)  { return isoDate(new Date()) === str; }
 const CAL_ANIO     = new Date().getFullYear();
 const CAL_INI      = new Date(CAL_ANIO, 2, 1);     // 1 de marzo
 const CAL_FIN      = new Date(CAL_ANIO, 11, 31);   // 31 de diciembre
-const CAL_DIA_ABBR = ['lu', 'ma', 'mi', 'ju'];     // dia_semana 0..3
+const CAL_DIA_NOMBRE = ['lunes', 'martes', 'miércoles', 'jueves'];   // dia_semana 0..3 (nombre completo en el calendario)
 const CAL_MES_ABBR = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
 // Lunes 00:00 (reusa lunesDeSemana). Límites de la fila SUPERIOR de la ventana:
@@ -1500,6 +1531,7 @@ function renderCalSemanas() {
 
     cont.innerHTML = '';
     const mesesVis = new Set();
+    let hayActual = false;   // ¿la semana en curso está entre las 3 visibles? (jerarquía visual)
 
     for (let i = 0; i < 3; i++) {
         const mon = new Date(dashWinTop); mon.setDate(dashWinTop.getDate() + i * 7);
@@ -1507,6 +1539,7 @@ function renderCalSemanas() {
 
         const bloque = document.createElement('div');
         bloque.className = 'cal-sem-bloque' + (offCur === 0 ? ' actual' : '');
+        if (offCur === 0) hayActual = true;
 
         const lbl = document.createElement('div');
         lbl.className = 'cal-sem-label';
@@ -1527,13 +1560,13 @@ function renderCalSemanas() {
                 fila.appendChild(celda);
                 continue;
             }
-            celda.className = 'cal-celda';
             const dStr = isoDate(d);
+            celda.className = 'cal-celda' + (dStr === hoyStr ? ' hoy' : '');   // hoy: acento ámbar (crema + borde + pastilla)
             mesesVis.add(d.getMonth());
 
             const fechaEl = document.createElement('div');
             fechaEl.className = 'cal-celda-fecha' + (dStr === hoyStr ? ' hoy' : '');
-            fechaEl.textContent = `${CAL_DIA_ABBR[off]} ${String(d.getDate()).padStart(2, '0')}`;
+            fechaEl.textContent = `${CAL_DIA_NOMBRE[off]} ${String(d.getDate()).padStart(2, '0')}`;
             celda.appendChild(fechaEl);
 
             (horarioDia[off] || []).forEach(h => {   // clases reales, identidad icónica, clic → Plan
@@ -1552,6 +1585,7 @@ function renderCalSemanas() {
         bloque.appendChild(fila);
         cont.appendChild(bloque);
     }
+    cont.classList.toggle('con-actual', hayActual);   // sin semana en curso visible → sin atenuación
 
     // Título: mes(es) realmente visibles (in-rango). Uno → "SEPTIEMBRE 2026";
     // dos → "SEP – OCT 2026" (compacto) para no rotular mal el período.

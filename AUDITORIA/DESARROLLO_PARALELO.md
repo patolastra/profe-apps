@@ -1439,6 +1439,84 @@ karaokes con exactamente la misma duración y estructura temporal que la melodí
 
 ---
 
+### Desarrollo paralelo: Dashboard — jerarquía visual del calendario
+
+**Fecha:** 2026-09-29
+**Necesidad:** en el calendario del Dashboard (tres semanas: pasada, en curso y
+siguiente) las tres semanas competían visualmente. El profesor quería que la **semana en
+curso** fuera claramente el foco, con las otras dos en segundo plano pero legibles y
+activas, que el día de hoy se reconociera de inmediato y que los días se leyeran con su
+nombre completo.
+**Ciclo seguido:** auditoría técnica breve (solo lectura) → propuesta visual → decisión
+del PO → implementación en microiteraciones sucesivas, cada una revisada por el PO en el
+navegador → verificación final → esta ficha → checkpoint propio.
+
+**Estado final implementado** (solo se describe lo vigente; las variantes intermedias que
+se probaron y descartaron no forman parte del resultado):
+1. **Semanas no actuales atenuadas** (pasada y siguiente, solo cuando la semana en curso
+   está entre las tres visibles):
+   - días con fondo gris muy claro (`#f1f5f9`);
+   - clases con texto gris (`#536171`) y fondo neutro (`#e8edf3`);
+   - fecha y clases con **desenfoque de 0,9 px** y **saturación al 60 %** (emojis
+     incluidos).
+2. **Semana en curso:** sin atenuación; conserva su tratamiento previo (fondo celeste,
+   borde y título azules).
+3. **Nombres completos de los días** en las tres semanas: "lunes 28", "martes 29",
+   "miércoles 30", "jueves 01" (se mantiene el número con dos cifras).
+4. **Día actual — acento ámbar terroso, no relleno:**
+   - card en crema cálida (`#faf3ee`) con **borde fino ámbar `#b45309`**;
+   - la fecha, en **pastilla ámbar `#b45309`** con texto blanco (contraste 5,0:1), es la
+     principal señal de "hoy";
+   - las clases conservan su aspecto azul/celeste;
+   - con el cursor encima, la card de hoy no cambia.
+5. **Paleta aprobada:** ámbar terroso **`#b45309`**, el mismo tono del indicador
+   "(n sem)" del panel de Pendientes del Dashboard, con dos derivados mezclados con
+   blanco: crema `#faf3ee` (7 %) y hover `#fdfaf8` (3 %). No se usa el naranja
+   `#ea580c`.
+6. **Hover por día:** la card bajo el cursor toma un realce cálido casi imperceptible
+   (`#fdfaf8`, borde `#ecd4c2`), sin afectar a las otras cards. En una semana atenuada,
+   además, **solo esa card recupera nitidez**: sin desenfoque y con color normal; el
+   resto de la semana sigue atenuado.
+7. **Hover por clase** (sin cambios de comportamiento): la clase bajo el cursor queda
+   nítida, con fondo celeste y borde azul.
+8. **No existe hover por semana completa:** pasar el cursor sobre una semana atenuada no
+   la desatenúa.
+9. **Navegación:** si al navegar la semana en curso no está entre las tres visibles, no se
+   aplica la atenuación.
+
+**Implementación:** solo `PORTAL/index.html`.
+- Un bloque de estilos del calendario.
+- En `renderCalSemanas()`, tres líneas nuevas:
+  - `CAL_DIA_NOMBRE` (reemplaza `CAL_DIA_ABBR`);
+  - la clase `hoy` en la card del día actual;
+  - la marca `con-actual` en el calendario cuando la semana en curso está visible.
+- Sin cambios en tamaños, distribución, navegación de semanas, clics hacia el Plan,
+  panel de pendientes, Plan, datos, Supabase ni otras páginas.
+
+**Verificación (navegador local, mouse real):**
+- semana en curso nítida y las otras dos atenuadas (0,9 px / 60 %), legibles;
+- nombres completos sin cortes ("miércoles 30" ocupa 68 px de 148 px, también a 900 px de
+  ancho);
+- día actual con crema, borde y pastilla ámbar, y sin cambio al pasar el cursor;
+- hover de día en la semana en curso y en una semana atenuada (solo esa card recupera
+  nitidez);
+- hover de clase en una semana atenuada y dentro del día actual;
+- el cursor sobre el título de una semana atenuada no la desatenúa;
+- sin atenuación al navegar fuera de la semana en curso; reaparece al volver;
+- un clic en una clase atenuada sigue abriendo su Plan;
+- consola sin errores.
+
+**Estado:** **CERRADA — implementada, verificada y publicada.** El checkpoint es el
+commit de cierre que contiene esta ficha ("Dashboard: cierre de la jerarquía visual del
+calendario"), publicado con `git push` a `origin/master` y servido por GitHub Pages.
+**Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6B** (Dashboard).
+**Nota de gobernanza:** sin cambios de Supabase ni de `CLAUDE.md` (decisión puramente
+visual; `CLAUDE.md` no describe la apariencia del Dashboard). El Loop quedó **fuera**. El
+problema posterior de recorte (*clipping*) del calendario **no** forma parte de esta
+iteración; se tratará como un desarrollo aparte.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los

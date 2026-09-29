@@ -77,7 +77,16 @@
 
 - **Libro — Eliminar actividades abiertas, OA y adecuaciones (HECHO, 2026-09-24).** Desarrollo paralelo, precedido de una auditoría técnica breve. Decisiones del PO: se pueden eliminar las **evaluaciones, participaciones y entregas abiertas**, aunque tengan datos. El borrado es **real**, con confirmación fuerte: un resumen de lo que se pierde y escribir **ELIMINAR**. Las **actividades cerradas no se eliminan**: primero se reabren. **"Eliminar OA"** vacía el texto del único OA y **desasocia** su instrumento, que sigue en la lista. **Eliminar una adecuación** devuelve sus estudiantes y grupos al OA original, recalcula la nota cuando corresponde y queda **bloqueado si un grupo terminado depende de ella**. Implementado en `LIBRO/index.html`. Supabase: nuevo trigger `BEFORE DELETE` que protege las actividades cerradas en `supabase/libro_schema.sql`; antes la BD solo impedía modificarlas (**SQL autorizado y ejecutado por el PO**). Validado contra Supabase real con datos desechables: borrado en cascada sin datos huérfanos, confirmación, bloqueo de las cerradas en UI y BD, reversión al OA y recálculo, bloqueo por grupo terminado, informes y regresión de la evaluación real de SEXTO. Datos reales intactos. Documentado en `DESARROLLO_PARALELO.md` (ficha + deuda K). Checkpoint `088d5c9`, publicado y servido por GitHub Pages.
 
-> **Balance al 2026-09-24:** todo lo anterior está registrado en `AUDITORIA/DESARROLLO_PARALELO.md` (fichas y deudas A–K). **`CLAUDE.md` no se modificó**; la consolidación normativa (estados y cierre de evaluaciones, I13, población vinculada, columna `observacion_general`, cierre semanal de pendientes y baja de los pendientes antiguos, eliminación de actividades abiertas y protección de las cerradas contra el borrado) sigue **pendiente para la reintegración**, antes de F6B. El trabajo del Loop sigue sólo local.
+- **Dashboard — Jerarquía visual del calendario (HECHO, 2026-09-29).** Desarrollo paralelo puramente visual, hecho en microiteraciones revisadas por el PO en el navegador. Resultado final:
+  - la **semana en curso** es el foco; las semanas pasada y siguiente quedan en segundo plano (fondo gris muy claro, **desenfoque de 0,9 px** y **saturación al 60 %**), legibles y activas;
+  - los días muestran su **nombre completo** ("miércoles 30");
+  - el **día actual** se marca con un acento **ámbar terroso `#b45309`** (el mismo del indicador "(n sem)" de Pendientes): crema cálida, borde fino y pastilla en la fecha, sin relleno completo;
+  - el **hover de día** da un realce cálido casi imperceptible y, en una semana atenuada, devuelve la nitidez solo a esa card; el **hover de clase** se mantiene;
+  - **no hay hover de semana completa**.
+
+  Solo `PORTAL/index.html`; sin cambios de datos, Supabase, navegación ni Plan. Documentado en `DESARROLLO_PARALELO.md`; publicado con el commit de cierre y servido por GitHub Pages. El recorte (*clipping*) del calendario queda para un desarrollo aparte.
+
+> **Balance al 2026-09-29:** todo lo anterior está registrado en `AUDITORIA/DESARROLLO_PARALELO.md` (fichas y deudas A–K). **`CLAUDE.md` no se modificó**; la consolidación normativa (estados y cierre de evaluaciones, I13, población vinculada, columna `observacion_general`, cierre semanal de pendientes y baja de los pendientes antiguos, eliminación de actividades abiertas y protección de las cerradas contra el borrado) sigue **pendiente para la reintegración**, antes de F6B. El trabajo del Loop sigue sólo local.
 
 ---
 
