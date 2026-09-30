@@ -1782,9 +1782,10 @@ quedó **fuera** del checkpoint.
 ### Desarrollo paralelo: Metalófono Web — Etapa 2: compartir melodías desde el Repertorio
 
 **Fecha:** 2026-09-30
-**Estado:** **implementada y probada en el navegador de pruebas; guardada en su checkpoint
-Git.** Falta la **prueba física del PO** con una melodía publicada (hoy las 21 están en
-borrador, por lo que el botón aún no aparece: comportamiento esperado).
+**Estado:** **CERRADA — implementada, probada técnicamente, probada físicamente en celular
+y aprobada por el PO (2026-09-30).** La prueba física incluyó abrir una melodía cuyo
+archivo está guardado como `.MID`. Checkpoint de implementación: `093af2a`; cierre
+documental en su propio commit.
 **Objetivo / necesidad:** que el profesor mande a sus alumnos, con un link corto, una
 melodía del Metalófono para practicar en el celular (modo alumno de la Etapa 1).
 **Punto de partida:** checkpoint de la Etapa 1 (`bba8f96`), verificado antes de empezar:
@@ -1847,8 +1848,10 @@ local = remoto y GitHub Pages sirve exactamente ese commit.
 - **No realizadas:** menú nativo de compartir real (el navegador de pruebas no lo tiene) y
   prueba en celular/iPhone → quedan para la **validación física del PO**.
 
-**Pendiente:** validación física del PO (publicar una melodía, compartirla y abrirla en
-un celular).
+**Validación física del PO (2026-09-30):** realizada en celular; funciona correctamente,
+incluida la melodía guardada como `.MID`. **Etapa 2 aprobada.**
+**Deuda derivada (no resuelta):** densidad del menú de acciones de los assets; ver
+"Deudas pendientes", punto **L**.
 **Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6E** y **F6J**.
 **Nota de gobernanza:** el Loop (`tabs/index.html`, `LOOP-LAB/`, `.claude/launch.json`)
 quedó **fuera** del checkpoint.
@@ -1981,3 +1984,16 @@ quedó **fuera** del checkpoint.
 - **No hay papelera:** el borrado es real e irreversible (decisión del PO); la protección
   es la confirmación con la palabra ELIMINAR.
 - **No resuelto.**
+
+### L. Repertorio / Biblioteca — densidad del menú de acciones de los assets
+*Origen: Metalófono Web — Etapa 2 (`093af2a`), observación del PO al aprobarla (2026-09-30).*
+- Cada asset concentra varias acciones y el botón **"🔗 Compartir"** ocupa demasiado
+  espacio visual.
+- A futuro, revisar la organización y presentación de esas acciones para:
+  - aumentar la densidad útil;
+  - liberar espacio vertical;
+  - mejorar especialmente la experiencia en **móvil**;
+  - evitar que la acumulación de botones haga perder espacio y legibilidad.
+- Corresponde al **futuro rediseño del área de Repertorio**, que más adelante se llamará
+  **Biblioteca** (Bosquejo **F6E**).
+- **No resuelto.** No rediseñar ni cambiar el botón Compartir fuera de esa iteración.
