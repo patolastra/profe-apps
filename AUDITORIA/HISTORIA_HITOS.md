@@ -105,7 +105,7 @@
   - **`m/index.html`:** página mínima que solo redirige al modo alumno.
   - **Resguardo:** antes de compartir se verifica que el MIDI tenga **cifra de compás**; si falta, no se comparte y se avisa.
   - **Extensión del archivo (decisión del PO):** el modo alumno prueba `.mid` y, si no existe, `.MID`. El link no cambia y no se renombran archivos. El modo profesor queda igual.
-  - **Cierre:** implementada, probada técnicamente, **probada físicamente en celular** (incluida una melodía `.MID`) y **aprobada por el PO**. Checkpoint `093af2a` + commit de cierre documental. Documentado en `DESARROLLO_PARALELO.md` y `CLAUDE.md`.
+  - **Cierre:** implementada, probada técnicamente, **probada físicamente en celular Android** (incluida una melodía `.MID`; iPhone sin probar) y **aprobada por el PO**. Checkpoint `093af2a` + commit de cierre documental. Documentado en `DESARROLLO_PARALELO.md` y `CLAUDE.md`.
   - **Deuda derivada:** densidad del menú de acciones de los assets en el futuro rediseño de Repertorio/Biblioteca (deuda **L** de `DESARROLLO_PARALELO.md`).
 
 > **Balance al 2026-09-30:** todo lo anterior está registrado en `AUDITORIA/DESARROLLO_PARALELO.md` (fichas y deudas A–L). **`CLAUDE.md` solo se actualizó para el Metalófono Web** (protocolo de links y fila del módulo); la consolidación normativa (estados y cierre de evaluaciones, I13, población vinculada, columna `observacion_general`, cierre semanal de pendientes y baja de los pendientes antiguos, eliminación de actividades abiertas y protección de las cerradas contra el borrado) sigue **pendiente para la reintegración**, antes de F6B. El trabajo del Loop sigue sólo local.

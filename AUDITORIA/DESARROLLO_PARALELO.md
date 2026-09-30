@@ -1782,7 +1782,7 @@ quedó **fuera** del checkpoint.
 ### Desarrollo paralelo: Metalófono Web — Etapa 2: compartir melodías desde el Repertorio
 
 **Fecha:** 2026-09-30
-**Estado:** **CERRADA — implementada, probada técnicamente, probada físicamente en celular
+**Estado:** **CERRADA — implementada, probada técnicamente, probada físicamente en celular Android
 y aprobada por el PO (2026-09-30).** La prueba física incluyó abrir una melodía cuyo
 archivo está guardado como `.MID`. Checkpoint de implementación: `093af2a`; cierre
 documental en su propio commit.
@@ -1848,8 +1848,9 @@ local = remoto y GitHub Pages sirve exactamente ese commit.
 - **No realizadas:** menú nativo de compartir real (el navegador de pruebas no lo tiene) y
   prueba en celular/iPhone → quedan para la **validación física del PO**.
 
-**Validación física del PO (2026-09-30):** realizada en celular; funciona correctamente,
-incluida la melodía guardada como `.MID`. **Etapa 2 aprobada.**
+**Validación física del PO (2026-09-30):** realizada en celular **Android**; funciona correctamente,
+incluida la melodía guardada como `.MID`. **Etapa 2 aprobada.** **iPhone: sin probar**
+(pendiente de validación, igual que en la Etapa 1).
 **Deuda derivada (no resuelta):** densidad del menú de acciones de los assets; ver
 "Deudas pendientes", punto **L**.
 **Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6E** y **F6J**.
