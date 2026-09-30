@@ -326,6 +326,10 @@ function renombrarTab(key, titulo) {
 //   { tipo:'ws-abrir',  key, titulo, ico, src, guardarAlCerrar? } → abre/enfoca
 //   { tipo:'ws-titulo', key, titulo }             → renombra una pestaña existente
 //   { tipo:'ws-guardado', reqId, ok }             → respuesta al handshake de cierre
+//   { tipo:'ws-titulo-ventana', reqId, titulo }   → título temporal de ESTA ventana
+//                                                   (responde 'ws-titulo-ventana-ok')
+//   { tipo:'ws-titulo-ventana-restaurar' }        → vuelve al título original
+let tituloVentanaOriginal = null;   // título guardado mientras hay uno temporal
 window.addEventListener('message', (e) => {
     const esNuestro = tabs.some(t => t.iframeEl && t.iframeEl.contentWindow === e.source);
     if (!esNuestro) return;
@@ -347,6 +351,16 @@ window.addEventListener('message', (e) => {
     } else if (m.tipo === 'ws-guardado') {
         const cb = cierresPendientes.get(m.reqId);
         if (cb) cb(m.ok !== false);
+    } else if (m.tipo === 'ws-titulo-ventana') {
+        // Título TEMPORAL de la ventana principal (p. ej. nombre del PDF al imprimir desde
+        // el Libro: "Guardar como PDF" usa el título de la ventana principal). Confirma
+        // con 'ws-titulo-ventana-ok' para que el iframe imprima recién después.
+        if (typeof m.titulo !== 'string' || typeof m.reqId !== 'string') return;
+        if (tituloVentanaOriginal === null) tituloVentanaOriginal = document.title;
+        document.title = m.titulo.slice(0, 200);
+        try { e.source.postMessage({ tipo: 'ws-titulo-ventana-ok', reqId: m.reqId }, '*'); } catch (_) {}
+    } else if (m.tipo === 'ws-titulo-ventana-restaurar') {
+        if (tituloVentanaOriginal !== null) { document.title = tituloVentanaOriginal; tituloVentanaOriginal = null; }
     }
 });
 

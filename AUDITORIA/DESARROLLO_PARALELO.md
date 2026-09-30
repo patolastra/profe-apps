@@ -1531,6 +1531,95 @@ semanas fuera del horizonte inmediato.**
 
 ---
 
+### Microiteración: Libro de Clases — nombres de PDF UTP
+
+**Fecha:** 2026-09-30
+**Estado:** **CERRADA — implementada, verificada y publicada.**
+**Problema original:** los dos PDF UTP del Libro (Informe Previo "Instrumento de
+Evaluación" e "Informe de Resultados") se guardaban con un nombre genérico, **"Libro de
+Clases.pdf"**. Dentro del Workspace, el cuadro "Guardar como PDF" proponía **"Workspace
+(demo) — PROFE"**.
+**Causa:**
+- "Guardar como PDF" propone el título de la **ventana principal**. Dentro del Workspace
+  esa ventana es el Workspace, no el Libro (que corre en un iframe).
+- Con el sistema abierto como archivo local (`file://`), el navegador trata cada archivo
+  como un sitio distinto y **el Libro no puede modificar el título del Workspace**
+  directamente.
+
+**Ciclo seguido:**
+1. Auditoría y propuesta.
+2. Decisión del PO sobre el formato.
+3. Primera implementación: título temporal del documento.
+4. Prueba física: en el Workspace seguía proponiendo "Workspace (demo) — PROFE".
+5. Auditoría de la causa (`file://`).
+6. Solución por `postMessage` aprobada por el PO.
+7. Implementación y pruebas.
+8. **Verificación física del PO en Brave:** correcta.
+9. Esta ficha y checkpoint propio.
+
+**Formatos finales (todo en MAYÚSCULAS, conservando tildes y Ñ):**
+- `DD-MM-YY - CURSO - ASIGNATURA - RÚBRICA`
+- `DD-MM-YY - CURSO - ASIGNATURA - LISTA DE COTEJO`
+- `DD-MM-YY - CURSO - ASIGNATURA - RESULTADOS`
+- Ejemplo: `22-09-26 - 6TO - MÚSICA - RÚBRICA`.
+
+**Reglas de cada parte:**
+- **Fecha:** la de la **evaluación** (no la de impresión), en formato DD-MM-YY.
+- **Curso:** se normaliza según la tabla implementada: PRIMERO→1RO, SEGUNDO→2DO,
+  TERCERO→3RO, CUARTO→4TO, QUINTO→5TO, SEXTO→6TO, SÉPTIMO→7MO, OCTAVO→8VO.
+  - PREKÍNDER y KÍNDER se conservan; también se reconoce la forma "N° BÁSICO".
+  - Un curso fuera de la tabla conserva su nombre visible en mayúsculas (no se inventan
+    abreviaturas).
+  - En un Libro vinculado (Orientación, Enlaces) el curso es el de la población (8VO).
+- **Asignatura:** la del informe (`informeAsignatura()`), en mayúsculas: MÚSICA,
+  ORIENTACIÓN, ENLACES.
+- **Tipo** (solo Informe Previo): el del instrumento asociado al OA y a las adecuaciones.
+  - Casos que el formato del PO no especificaba, resueltos así en la implementación:
+    - sin instrumento asociado → `INSTRUMENTO DE EVALUACIÓN`;
+    - con ambos tipos → `RÚBRICA Y LISTA DE COTEJO`.
+- **Caracteres no válidos en Windows** (`\ / : * ? " < > |`): se reemplazan por "-".
+
+**Solución implementada:**
+- **`LIBRO/index.html`:** `imprimirInforme()` genera el nombre (`informeNombreArchivo()`)
+  y lo pone como título del Libro. Luego:
+  - **dentro del Workspace:** envía por `postMessage` el pedido `ws-titulo-ventana`,
+    **espera la confirmación** (`ws-titulo-ventana-ok`) y recién entonces llama a
+    `window.print()`. Si no hay respuesta en 1,5 s, imprime igual para no bloquear;
+  - **fuera del Workspace:** imprime de inmediato con su propio título.
+  - Al terminar la impresión, **también al cancelar** (`afterprint`), o al cerrar el
+    informe, restaura el título del Libro y pide `ws-titulo-ventana-restaurar`.
+- **`PC/workspace.html`:** el canal `postMessage` existente (que solo acepta mensajes de
+  sus propios iframes) suma `ws-titulo-ventana` (cambia el título de la ventana, guarda el
+  original y confirma) y `ws-titulo-ventana-restaurar` (vuelve a "Workspace (demo) —
+  PROFE").
+- **Funciona también en `file://`**, porque no depende de acceder a la otra ventana, sino
+  del intercambio de mensajes.
+- **Sin cambios:** contenido y diseño de los informes, cálculos, notas, instrumentos,
+  otras funciones del Libro, Supabase.
+
+**Verificación:**
+- **Navegador de pruebas** (título de la ventana principal en el instante de imprimir):
+  - Workspace: Rúbrica, reimpresión tras cancelar, Lista de cotejo (tipo simulado solo en
+    memoria) y Resultados, todos con el nombre correcto; tras cancelar, el Workspace vuelve
+    a "Workspace (demo) — PROFE";
+  - Libro abierto directamente: nombre correcto e impresión inmediata;
+  - otros cursos: 3RO; Libro vinculado: 8VO · ORIENTACIÓN;
+  - consola sin errores; ningún dato creado ni modificado.
+- **Verificación física del PO en Brave**, con el sistema abierto como archivo local
+  (`file://…/PC/workspace.html` → Libro → Informe → Guardar como PDF): **el cuadro real
+  propone el nombre correcto.**
+
+**Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6H**
+(Evaluaciones/UTP).
+**Nota de gobernanza:** archivos `LIBRO/index.html`, `PC/workspace.html` y esta ficha. Sin
+cambios de Supabase ni de `CLAUDE.md`. **Para la reintegración:** `CLAUDE.md` §3
+enumera los mensajes del canal `postMessage` del Workspace (`ws-abrir`, `ws-titulo`,
+`ws-guardar`/`ws-guardado`); habrá que sumar `ws-titulo-ventana` /
+`ws-titulo-ventana-restaurar`, hoy documentados en el propio `workspace.html`. El Loop
+quedó **fuera**.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los

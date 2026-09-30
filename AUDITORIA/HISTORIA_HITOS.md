@@ -86,7 +86,12 @@
 
   Solo `PORTAL/index.html`; sin cambios de datos, Supabase, navegación ni Plan. Documentado en `DESARROLLO_PARALELO.md`; publicado con el commit de cierre y servido por GitHub Pages. El recorte (*clipping*) del calendario queda para un desarrollo aparte.
 
-> **Balance al 2026-09-29:** todo lo anterior está registrado en `AUDITORIA/DESARROLLO_PARALELO.md` (fichas y deudas A–K). **`CLAUDE.md` no se modificó**; la consolidación normativa (estados y cierre de evaluaciones, I13, población vinculada, columna `observacion_general`, cierre semanal de pendientes y baja de los pendientes antiguos, eliminación de actividades abiertas y protección de las cerradas contra el borrado) sigue **pendiente para la reintegración**, antes de F6B. El trabajo del Loop sigue sólo local.
+- **Libro — Nombres de PDF UTP (HECHO, 2026-09-30).** Microiteración.
+  - **Qué cambia:** los informes UTP se guardan con un nombre útil en lugar de "Libro de Clases.pdf": `DD-MM-YY - CURSO - ASIGNATURA - RÚBRICA / LISTA DE COTEJO / RESULTADOS` (p. ej. `22-09-26 - 6TO - MÚSICA - RÚBRICA`), con el curso normalizado (1RO…8VO) y la fecha de la evaluación.
+  - **Cómo se resolvió dentro del Workspace:** el cuadro "Guardar como PDF" usa el título de la ventana principal, así que el Libro se lo pide al Workspace por `postMessage` (`ws-titulo-ventana`, con confirmación antes de imprimir y restauración al terminar o cancelar). Funciona también con el sistema abierto como archivo local (`file://`).
+  - **Validación y archivos:** verificado físicamente por el PO en Brave. `LIBRO/index.html` + `PC/workspace.html`; sin cambios de Supabase ni del contenido de los informes. Documentado en `DESARROLLO_PARALELO.md`; publicado con su commit y servido por GitHub Pages.
+
+> **Balance al 2026-09-30:** todo lo anterior está registrado en `AUDITORIA/DESARROLLO_PARALELO.md` (fichas y deudas A–K). **`CLAUDE.md` no se modificó**; la consolidación normativa (estados y cierre de evaluaciones, I13, población vinculada, columna `observacion_general`, cierre semanal de pendientes y baja de los pendientes antiguos, eliminación de actividades abiertas y protección de las cerradas contra el borrado) sigue **pendiente para la reintegración**, antes de F6B. El trabajo del Loop sigue sólo local.
 
 ---
 

@@ -415,7 +415,7 @@
 <!-- Etapa 7: vista previa / impresión de informes PDF (Carta) -->
 <div id="informe">
   <div class="rep-toolbar">
-    <button class="btn primary" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+    <button class="btn primary" onclick="imprimirInforme()">🖨 Imprimir / Guardar PDF</button>
     <button class="btn" onclick="cerrarInforme()">Cerrar</button>
     <span class="hint">Elige “Guardar como PDF” · tamaño Carta (Letter).</span>
   </div>
@@ -3027,7 +3027,89 @@ function informeMostrar(bodyHTML){
   document.getElementById('informe').classList.add('show');
   document.getElementById('rep-page').scrollTop = 0;
 }
-function cerrarInforme(){ document.getElementById('informe').classList.remove('show'); document.getElementById('rep-page').innerHTML = ''; }
+function cerrarInforme(){ informeRestaurarTitulo(); document.getElementById('informe').classList.remove('show'); document.getElementById('rep-page').innerHTML = ''; }
+
+// ── Nombre del PDF (microiteración 2026-09-30) ──────────────────────────────
+// "Guardar como PDF" propone como nombre el título de la página. Al imprimir se pone
+// temporalmente un título útil y se restaura al terminar. Formato (PO):
+//   previo     → "DD-MM-YY - CURSO - ASIGNATURA - TIPO DE INSTRUMENTO"
+//   resultados → "DD-MM-YY - CURSO - ASIGNATURA - RESULTADOS"
+// Fecha = la de la evaluación. Todo en MAYÚSCULAS (conserva tildes y Ñ).
+let informeTipo = null;          // 'previo' | 'resultados' (informe visible)
+let informeTitulosPrevios = null; // título original de este documento mientras se imprime
+const INFORME_CURSO_CORTO = {
+  'PREKINDER':'PREKÍNDER', 'PREKÍNDER':'PREKÍNDER', 'KINDER':'KÍNDER', 'KÍNDER':'KÍNDER',
+  'PRIMERO':'1RO', 'SEGUNDO':'2DO', 'TERCERO':'3RO', 'CUARTO':'4TO',
+  'QUINTO':'5TO', 'SEXTO':'6TO', 'SEPTIMO':'7MO', 'SÉPTIMO':'7MO', 'OCTAVO':'8VO',
+};
+const INFORME_ORDINAL = { 1:'1RO', 2:'2DO', 3:'3RO', 4:'4TO', 5:'5TO', 6:'6TO', 7:'7MO', 8:'8VO' };
+// Curso del informe (en un Libro vinculado, el de la población) en formato corto.
+// Sin equivalencia en la tabla → su nombre visible en mayúsculas (no se inventa).
+function informeCursoCorto(){
+  const tec = String(ctxVinculado ? pobCtxNombre : ctxNombre || '').toUpperCase().trim();
+  if (INFORME_CURSO_CORTO[tec]) return INFORME_CURSO_CORTO[tec];
+  const m = tec.match(/^(\d)\s*°?\s*B[AÁ]SICO$/);            // p. ej. "6° BÁSICO"
+  if (m && INFORME_ORDINAL[m[1]]) return INFORME_ORDINAL[m[1]];
+  return ctxNombreVisible(ctxVinculado ? pobCtxNombre : ctxNombre).toUpperCase();
+}
+function informeFechaCorta(f){
+  const p = String(f || '').split('-');
+  return p.length === 3 ? `${p[2]}-${p[1]}-${p[0].slice(2)}` : 'SIN FECHA';
+}
+// Tipo(s) de instrumento asociados al OA y a las adecuaciones de la evaluación.
+function informeTipoInstrumento(){
+  const ids = [evalActual.instrumento_id, ...adecs.map(a => a.instrumento_id)].filter(Boolean);
+  const tipos = new Set(ids.map(id => evalInstrumentos.find(x => x.id === id)?.tipo).filter(Boolean));
+  if (tipos.size === 1) return tipos.has('rubrica') ? 'RÚBRICA' : 'LISTA DE COTEJO';
+  if (tipos.size > 1)  return 'RÚBRICA Y LISTA DE COTEJO';   // evaluación con ambos tipos
+  return 'INSTRUMENTO DE EVALUACIÓN';                         // sin instrumento asociado
+}
+function informeNombreArchivo(){
+  const partes = [informeFechaCorta(evalActual.fecha), informeCursoCorto(), informeAsignatura().toUpperCase(),
+    informeTipo === 'resultados' ? 'RESULTADOS' : informeTipoInstrumento()];
+  return partes.join(' - ')
+    .replace(/[\\/:*?"<>|]/g, '-')   // caracteres no válidos en nombres de archivo de Windows
+    .replace(/\s+/g, ' ').trim().toUpperCase();
+}
+function informeRestaurarTitulo(){
+  if (informeTitulosPrevios) { document.title = informeTitulosPrevios; informeTitulosPrevios = null; }
+  if (informeTituloWs) {          // dentro del Workspace: pedir que restaure el título de su ventana
+    informeTituloWs = false;
+    try { window.parent.postMessage({ tipo: 'ws-titulo-ventana-restaurar' }, '*'); } catch (_) {}
+  }
+}
+let informeTituloWs = false;     // true mientras el Workspace tiene el título temporal
+let informeImprSeq = 0;
+// Imprimir / Guardar PDF con nombre útil. "Guardar como PDF" propone el título de la
+// VENTANA PRINCIPAL: fuera del Workspace es este documento; dentro, es el Workspace, que
+// este iframe no puede modificar (p. ej. abierto como archivo local, file://). Por eso se
+// le pide por el canal postMessage del Workspace ('ws-titulo-ventana') y se imprime
+// recién con su confirmación. afterprint (también al cancelar) restaura ambos títulos.
+function imprimirInforme(){
+  if (!evalActual) { window.print(); return; }
+  informeRestaurarTitulo();
+  const nombre = informeNombreArchivo();
+  informeTitulosPrevios = document.title;
+  document.title = nombre;
+  window.addEventListener('afterprint', informeRestaurarTitulo, { once: true });
+  if (window.parent === window) { window.print(); return; }      // Libro abierto directamente
+  const reqId = 'impr' + (++informeImprSeq);
+  let listo = false;
+  const imprimir = () => {
+    if (listo) return; listo = true;
+    window.removeEventListener('message', onMsg);
+    window.print();
+  };
+  const onMsg = (e) => {
+    const m = e.data;
+    if (e.source === window.parent && m && m.tipo === 'ws-titulo-ventana-ok' && m.reqId === reqId) imprimir();
+  };
+  window.addEventListener('message', onMsg);
+  try { window.parent.postMessage({ tipo: 'ws-titulo-ventana', reqId, titulo: nombre }, '*'); }
+  catch (_) { imprimir(); return; }
+  informeTituloWs = true;   // pedido enviado → al terminar se pide restaurar (aunque la confirmación llegue tarde)
+  setTimeout(imprimir, 1500);   // sin respuesta del Workspace: imprimir igual (no bloquear)
+}
 
 // Asignatura con la información que el sistema ya dispone: un contexto vinculado
 // (Orientación, Enlaces) es su propia asignatura; el resto es el Libro de Música del
@@ -3075,6 +3157,7 @@ function instrEstructuraInforme(instr){
 // adecuación.instrumento_id). Si dos objetivos comparten instrumento, se muestra en ambos.
 function abrirInformePrevio(){
   if (!evalActual) return;
+  informeTipo = 'previo';
   const bloqueInstr = (id, sinInstr) => {
     const instr = id ? evalInstrumentos.find(x => x.id === id) : null;
     if (!instr) return `<div class="rep-obj">${sinInstr}</div>`;
@@ -3096,6 +3179,7 @@ function abrirInformePrevio(){
 // ── (B) Informe de resultados por estudiante ──
 function abrirInformeResultados(){
   if (!evalActual) return;
+  informeTipo = 'resultados';
   const filas = notas.map(n => {
     const est = estadoEfectivo(n);
     const c = calcNota(n);
