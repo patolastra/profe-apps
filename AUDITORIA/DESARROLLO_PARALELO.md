@@ -1620,6 +1620,164 @@ quedó **fuera**.
 
 ---
 
+### Desarrollo paralelo: Metalófono Web — Etapa 1: modo alumno (celular)
+
+**Fecha:** 2026-09-30
+**Estado:** **CERRADA — implementada, validada físicamente por el PO y guardada en su
+checkpoint Git.** La **Etapa 2** (compartir por link) **NO está implementada**; ver el
+final de esta ficha.
+**Objetivo / necesidad:** que un niño pueda abrir desde su celular, en casa, una melodía
+del Metalófono y practicarla sin configurar nada. La Etapa 1 construye el **modo
+alumno**; la Etapa 2 construirá el **link compartible** desde el Repertorio.
+**Punto de partida:** el Metalófono era un solo archivo pensado para PC
+(`METALÓFONO APP/METAL21 (ALPHA).HTML`). Tenía 25 placas, reproducción con luces,
+precuenta configurable, práctica ("Pool de notas" y "Melodía sin ritmo"), cifrado,
+colores y pantalla completa, y abría un MIDI desde un archivo o con `?midi=<url>` (así lo
+abren el Repertorio y el Portal).
+
+**Arquitectura:**
+- **Mismo archivo, dos modos.** `?modo=alumno` activa el modo alumno. Todo lo nuevo
+  depende de la clase `html.modo-alumno` o de `MODO_ALUMNO`. No hay una segunda
+  aplicación ni un segundo motor de audio.
+- **Carga en modo alumno:** `?a=<id del asset metalofono del Repertorio>` → descarga el
+  MIDI **público** `…/storage/v1/object/public/repertorio-assets/midi/<id>.mid` y usa el
+  cargador existente (`cargarMidiBuffer`).
+  - **Sin Supabase:** no carga `supabase/config.js` ni consulta tablas.
+  - El ID solo admite letras y números.
+  - Link incompleto o MIDI inexistente → mensaje en la pantalla de inicio.
+- **Nombre visible:** `?n=<nombre>`; si falta, el nombre guardado dentro del MIDI.
+- **Móvil:** el modo alumno agrega por JS la etiqueta viewport y `color-scheme: only
+  light`. El modo profesor no las recibe.
+
+**Decisiones de producto cerradas (PO) — no reinterpretar:**
+- **Instrumento completo siempre:** 25 placas (15 naturales + 10 sostenidos). **No** se
+  reduce al rango de la melodía.
+- **Orientación horizontal:** en vertical, pantalla "Gira tu celular 🔄".
+- **Inicio:** nombre de la melodía y botón grande **"Tocar"**, que habilita el audio (el
+  celular exige un primer toque).
+- **Barra superior** (una fila, en este orden):
+  - 🎯 Práctica;
+  - nombre de la melodía (secundario; se acorta con "…" si no cabe);
+  - velocidad **− · valor · +**;
+  - ▶ REPRODUCIR / ⏹ DETENER.
+  - **Sin** el badge "¡Listo para tocar!".
+- **Colores:**
+  - Práctica apagada = **gris**; encendida = **naranja** (mismo texto, sin anillo ni
+    brillo);
+  - Reproducir disponible = **naranja**; durante la Práctica = **gris y bloqueado** (no
+    inicia la reproducción); vuelve a naranja al apagar la Práctica;
+  - − y + = **naranjas**;
+  - el **valor de velocidad** no es botón: neutro, no editable, sin foco ni clic; solo −
+    y + lo cambian;
+  - bloqueado = gris; mismo color al tocar (sin el gris de hover del modo profesor).
+- **Precuenta siempre obligatoria**, sin control. No lee ni escribe la preferencia del
+  profesor (`metal_precuenta`).
+  - El velo se mide sobre el **área real del instrumento** (unidades de contenedor
+    `cqh`), así que no desborda en celulares.
+  - Tiene un **retiro garantizado** al entrar la melodía (reloj de audio +
+    temporizador), porque el retiro original (`Tone.Draw`) puede descartarse si el
+    navegador no dibuja a tiempo.
+- **Práctica del alumno ("melodía sin ritmo"):**
+  - **un toque = una posición**: el 1.er toque ilumina la nota 1 y cada toque pasa directo
+    a la siguiente, **sin** el paso "apagar";
+  - nota **repetida** consecutiva: se apaga y se reenciende tras **200 ms fijos**
+    (interno, no configurable); un toque durante esa pausa completa la nota y avanza;
+  - al terminar, a los **2 s** la Práctica se apaga sola y Reproducir queda disponible;
+  - apagar la Práctica durante una pausa cancela todo lo pendiente.
+- **Cifrado y colores del instrumento:** los predeterminados, sin controles.
+- **Ocultos en modo alumno:** Nuevo MIDI, Modo Práctica/Pool de notas, Cifrado, Colores,
+  Precuenta, Pantalla completa y el deslizador de velocidad.
+- **Robustez ante zoom:** todas las medidas del modo alumno usan una unidad proporcional
+  `--u = min(100dvh/390, 100vw/844)` (referencia: celular horizontal 844×390).
+  - Con cualquier zoom se mantiene la misma composición: barra al 11,3 % del alto y los
+    mismos controles en las mismas posiciones.
+  - La altura de las placas se recalcula por JS (`alumnoAjustarPlacas`, con
+    `ResizeObserver`).
+  - No se bloquea el zoom del navegador.
+- **Modo oscuro del sistema:** no altera la apariencia (`color-scheme: only light`).
+
+**Rendimiento (común a ambos modos, sin cambio funcional):**
+- **Diagnóstico:** el motor es liviano (procesar el MIDI ~1 ms; preparar la reproducción
+  ~1 ms). La lentitud venía de la cadena de carga:
+  - librerías pedidas **sin versión**, con una redirección que caducaba a los 60 s y que
+    bloqueaba la página;
+  - el MIDI se pedía recién después.
+- **Cambios:**
+  - librerías con **versión fija**, las mismas que ya se usaban (Tone.js 15.1.22 y
+    @tonejs/midi 2.0.28): caché de un año, sin redirección;
+  - **descarga anticipada del MIDI** en el `<head>`, en paralelo con las librerías y
+    reutilizada por el cargador. Aplica a `?a=` (alumno) y a `?midi=` (profesor); sin
+    melodía no descarga nada.
+  - Resultado: el MIDI se pide a ~15–20 ms en vez de ~474 ms, una sola vez.
+- **Sin tocar a propósito** (cambiaría el aspecto visual o arriesga el primer sonido):
+  - el brillo de las placas al sonar (sombras de hasta 220 px) y el "latido" animado de la
+    Práctica, que son lo más costoso de dibujar;
+  - el momento en que se prepara el motor de audio;
+  - la duración de la precuenta.
+
+**Separación del modo profesor:** sin cambios de comportamiento.
+- Barra de 70 px, todos sus controles, mensaje de estado, precuenta configurable.
+- Su propia "Melodía sin ritmo" con la secuencia antigua (mostrar → apagar → siguiente).
+- **La lógica de Práctica del alumno no se traslada al profesor** sin decisión del PO.
+- Solo recibe las dos mejoras de rendimiento.
+
+**Archivos modificados:** solo `METALÓFONO APP/METAL21 (ALPHA).HTML`, más esta ficha,
+`AUDITORIA/HISTORIA_HITOS.md` y `CLAUDE.md` (protocolo de links y fila del Metalófono).
+Sin cambios de Supabase ni de otros módulos.
+
+**Pruebas:**
+- **Validación física del PO** (celular real): funcionamiento general, composición, zoom,
+  estados de Práctica, Reproducir bloqueado en Práctica, valor de velocidad no editable,
+  nueva secuencia de Práctica y carga inicial mejorada.
+- **Navegador de pruebas** (Claude):
+  - vertical/horizontal;
+  - zoom simulado 50/75/100/125/150/175 % y pantallas de otras proporciones (568×320,
+    640×260, 360×180): sin scroll, cortes ni superposiciones, 25 placas dentro, precuenta
+    contenida;
+  - modo oscuro simulado;
+  - Práctica con una triple repetición real (Sol♯×3) y las 33 notas sonando una vez cada
+    una;
+  - link inválido;
+  - modo profesor sin melodía y con `?midi=`;
+  - mediciones de carga y reproducción.
+- **No realizadas:** prueba en **iPhone** (sin registro); simulación de zoom que agranda
+  **solo el texto**. El zoom se probó como reducción del espacio disponible.
+
+**Limitaciones conocidas:**
+- La dirección del MIDI asume la extensión `.mid`: una melodía está guardada como `.MID`
+  (ver Etapa 2).
+- Un MIDI sin cifra de compás no se reproduce en modo alumno, porque la precuenta es
+  obligatoria y el aviso del estado está oculto. Se resolverá impidiendo compartirlo
+  (Etapa 2).
+
+**Etapa 2 — PENDIENTE, NO IMPLEMENTADA (decisiones ya tomadas por el PO):**
+- **Link permanente:** `https://patolastra.github.io/profe-apps/m/?a=<ID>&n=<nombre>`.
+  - Siempre apunta a la versión en línea.
+  - `n` codificado (espacios, tildes, caracteres especiales).
+- **`m/index.html`:** página mínima que **solo redirige** a
+  `../METALÓFONO APP/METAL21 (ALPHA).HTML?modo=alumno&a=…&n=…`. No es una aplicación.
+- **Botón "Compartir"** en `REPERTORIO/index.html`, en las tarjetas de melodías
+  `metalofono` (zona de `assetItemHTML`), **solo si están PUBLICADAS**.
+  - Usa el menú nativo de compartir (`navigator.share`) o, si no existe, copia el link.
+- **Identificador:** el ID del asset del Repertorio. Sin tablas, permisos ni Supabase
+  nuevos.
+- **Antes de compartir:**
+  - el Repertorio verifica que el MIDI tenga **cifra de compás**, sin cargar el motor de
+    audio; si no la tiene, **no se comparte** y se informa el motivo;
+  - se usa la **extensión real** del archivo del asset, porque existe
+    `midi/mrj8x2fagmcu.MID` ("MELODÍA VOCAL 2 DINOSAURIO ANACLETO"). **No** renombrar
+    archivos del almacenamiento. Esto probablemente exige que el modo alumno acepte la
+    extensión (a definir al implementar).
+- **Datos al cierre de la Etapa 1:** 21 melodías `metalofono`, **todas en borrador**. El
+  botón no aparecerá hasta que el PO publique alguna (esperado).
+
+**Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6E**
+(Biblioteca/Repertorio/Recursos) y **F6J** (Creación de recursos/apps).
+**Nota de gobernanza:** el Loop (`tabs/index.html`, `LOOP-LAB/`, `.claude/launch.json`)
+quedó **fuera** del checkpoint.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los

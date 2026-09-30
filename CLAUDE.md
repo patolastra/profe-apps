@@ -39,7 +39,7 @@ Estado = clasificación oficial de Fase 1.5 (ver §5 para la leyenda). Detalle p
 | **Pizarra** (= Presentador Pedagógico) | Runtime markdown → slides en clase, fullscreen, YouTube. | `PIZARRA/index.html` | 🟢 Activo |
 | **Libro de Clases** | Evaluación/participación (infra base F1 lista). | `LIBRO/index.html` | 🟢 Activo |
 | **Bitácora / Memoria** | Documento narrativo permanente de la clase (móvil). | `MEMORIA/index.html` + tabla `memorias` | 🟢 Activo — **lo visible del móvil hoy** |
-| **Metalófono** | Herramienta pedagógica MIDI. | `METALÓFONO APP/METAL21 (ALPHA).HTML` | 🟢 Activo (estable; el rótulo "alpha" es histórico) |
+| **Metalófono** | Herramienta pedagógica MIDI. Dos modos en el **mismo archivo**: **profesor** (escritorio, completo) y **alumno** (`?modo=alumno&a=<id>`: celular horizontal, instrumento ya configurado, sin Supabase). Ver ficha en `AUDITORIA/DESARROLLO_PARALELO.md`. | `METALÓFONO APP/METAL21 (ALPHA).HTML` | 🟢 Activo (estable; el rótulo "alpha" es histórico) |
 | **ADMIN** | Gestión de pendientes (CRUD, 3 vistas). | `ADMIN/index.html` | 🟡 Activo pero antiguo → **futuro panel de administración** |
 | **CAJÓN (generador de planificación)** | Genera planificaciones `.docx`. | `CAJON/generador-planificacion.html` | 🟡 Activo pero antiguo (en uso) |
 | **ANALIZADOR** | Analítica de uso (`eventos_uso`) + análisis Gemini. | `ANALIZADOR/index.html` | 🟡 Antiguo — **visor congelado**; el logging (`eventos_uso`) **hoy NO persiste** (INSERT → 401, ver §7) |
@@ -80,12 +80,16 @@ Columna vertebral de la interoperabilidad. Toda app nueva debe respetarlo.
 | Parámetro | Descripción | Apps |
 |---|---|---|
 | `?ctx=<NOMBRE>` | Contexto activo — **uppercase, = campo `nombre` en `contextos`** | Portal, Repertorio, Libro |
-| `?modo=<modo>` | `pres`, `remoto`, `catalogo`, `entrenamiento`, `alumno`… | Pizarra, Repertorio |
+| `?modo=<modo>` | `pres`, `remoto`, `catalogo`, `entrenamiento`, `alumno`… | Pizarra, Repertorio, Metalófono (`alumno`) |
+| `?midi=<url>` / `?nombre=` | MIDI a cargar (modo profesor; lo usan Repertorio y Portal) | Metalófono |
+| `?a=<id>` / `?n=<nombre>` | Modo alumno: **ID del asset** `metalofono` del Repertorio → MIDI público `repertorio-assets/midi/<id>.mid` (sin consultar tablas); `n` = nombre visible | Metalófono (`?modo=alumno`) |
 | `?sesion=<uuid>` / `?slide=<n>` | Sesión / slide | Pizarra |
 | `?tab=<path>` | Path relativo a `tabs/TABS/` | Lector |
 | `?cancion=<id>` / `?practicar=` / `?proyeccion=1` / `?vista=sesiones` | Canción / práctica / proyección / Entrenador | Repertorio |
 | `?asset=<uuid>` | Asset en Storage (futuro) | Futuro |
 | `?alumno=<id>` | Alumno | Libro |
+
+**Metalófono — modo alumno (HECHO, Etapa 1):** el modo alumno **no se conecta a Supabase** y no debe cargar `supabase/config.js`; solo descarga el MIDI público. Sus reglas de UX (25 placas siempre, precuenta obligatoria, práctica por toque, colores, escala ante zoom) están cerradas en la ficha de `DESARROLLO_PARALELO.md`; el **modo profesor no se altera**. **PENDIENTE (Etapa 2, no implementada):** página corta `m/?a=<id>&n=<nombre>` que solo redirige al modo alumno, y botón "Compartir" en el Repertorio.
 
 **Codificación de URL (HECHO — cuidado):** al construir `iframe.src` en el Workspace, la query ya viene codificada; se codifica **solo el path** (no reencodear la query), para no romper `?ctx` con caracteres como `%` (bug de doble codificación ya corregido).
 

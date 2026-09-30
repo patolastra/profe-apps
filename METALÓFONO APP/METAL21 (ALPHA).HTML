@@ -3,8 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <title>Metalófono Pro - App Final</title>
-    <script src="https://unpkg.com/tone"></script>
-    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <script>
+        // MODO ALUMNO (?modo=alumno&a=<id>): se marca ANTES de pintar para que el modo
+        // profesor no aparezca ni un instante. Solo en este modo se agrega el viewport móvil;
+        // el modo profesor queda exactamente como antes.
+        // DESCARGA ANTICIPADA DEL MIDI (rendimiento, ambos modos): se pide ya aquí, en
+        // paralelo con las librerías de audio, y el cargador de abajo reutiliza la promesa.
+        // Misma dirección que usa el cargador (?midi= del profesor / ?a= del alumno).
+        window.METAL_ALUMNO_STORAGE = 'https://bfinpxcwcsteintikrtt.supabase.co/storage/v1/object/public/repertorio-assets/midi/';
+        (function () {
+            const q = new URLSearchParams(location.search);
+            const alumno = q.get('modo') === 'alumno';
+            const id = (q.get('a') || '').trim();
+            const url = alumno ? (/^[a-z0-9]{6,40}$/i.test(id) ? window.METAL_ALUMNO_STORAGE + id + '.mid' : null)
+                               : q.get('midi');
+            if (!url) return;
+            window.__midiPrefetchUrl = url;
+            window.__midiPrefetch = fetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); });
+            window.__midiPrefetch.catch(() => {});   // el error se informa en el cargador
+        })();
+        if (new URLSearchParams(location.search).get('modo') === 'alumno') {
+            document.documentElement.classList.add('modo-alumno');
+            const vp = document.createElement('meta');
+            vp.name = 'viewport'; vp.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
+            document.head.appendChild(vp);
+            // Ignorar el modo oscuro del dispositivo (incl. el oscurecimiento automático
+            // de páginas de algunos navegadores): el alumno ve siempre los colores del Metalófono.
+            const cs = document.createElement('meta');
+            cs.name = 'color-scheme'; cs.content = 'only light';
+            document.head.appendChild(cs);
+        }
+    </script>
+    <!-- Versión fija (rendimiento): antes "tone" / "@tonejs/midi" sin versión obligaban a una
+         redirección que caducaba a los 60 s en cada visita. Son exactamente las mismas versiones. -->
+    <script src="https://unpkg.com/tone@15.1.22/build/Tone.js"></script>
+    <script src="https://unpkg.com/@tonejs/midi@2.0.28/build/Midi.js"></script>
     <style>
         :root {
             /* Colores de fondo y acento iniciales */
@@ -261,6 +294,114 @@
             animation: melodyBeat 1s infinite;
         }
 
+        /* ═══ MODO ALUMNO (?modo=alumno) — todo scoped a html.modo-alumno ═══════════
+           Instrumento ya configurado: solo Reproducir/Detener, Velocidad y Práctica.
+           Metalófono COMPLETO (25 placas).
+           COMPOSICIÓN ESTABLE ANTE ZOOM: todas las medidas usan --u, una unidad
+           proporcional al espacio disponible respecto de la pantalla de referencia
+           (celular horizontal 844×390). Con zoom 50 %…175 % (o pantallas más chicas)
+           cambia el espacio en px CSS y todo escala junto: misma barra, mismo orden,
+           misma relación barra/instrumento. Sin tamaños fijos ni mínimos que la rompan. */
+        .solo-alumno { display: none; }
+        html.modo-alumno .solo-alumno { display: revert; }
+        html.modo-alumno #btn-nuevo-midi,
+        html.modo-alumno #btn-practice-wrap,
+        html.modo-alumno #btn-cambiar-cifrado,
+        html.modo-alumno #colores-wrap,
+        html.modo-alumno #btn-precuenta,
+        html.modo-alumno #fullscreen-group,
+        html.modo-alumno #speed-slider { display: none !important; }
+        html.modo-alumno {
+            color-scheme: only light;
+            --u: min(calc(100dvh / 390), calc(100vw / 844));
+        }
+        html.modo-alumno body { height: 100dvh; display: flex; flex-direction: column; touch-action: manipulation; }
+        html.modo-alumno header {
+            height: calc(44 * var(--u)); flex: 0 0 auto; flex-wrap: nowrap;
+            padding: 0 calc(8 * var(--u)); gap: calc(8 * var(--u)); border-bottom-width: calc(2 * var(--u));
+        }
+        html.modo-alumno .ctrl-group { gap: calc(6 * var(--u)); flex-wrap: nowrap; }
+        html.modo-alumno header button {
+            font-size: calc(15 * var(--u)); padding: calc(7 * var(--u)) calc(12 * var(--u));
+            border-radius: calc(8 * var(--u));
+        }
+        html.modo-alumno .btn-play { width: auto; min-width: 0; }
+        html.modo-alumno .tempo-wrapper { padding: 0; gap: calc(6 * var(--u)); background: none; }
+        /* Orden de la especificación: − / valor / + (solo visual; el HTML del profesor no cambia) */
+        html.modo-alumno #btn-tempo-minus { order: 1; }
+        html.modo-alumno #bpm-input { order: 2; }
+        html.modo-alumno #btn-tempo-plus { order: 3; }
+        html.modo-alumno .btn-step {
+            font-size: calc(20 * var(--u)); padding: calc(4 * var(--u)) calc(14 * var(--u)) !important;
+        }
+        /* Colores: botones naranjas; Práctica gris (apagada) / naranja (encendida);
+           bloqueado = gris. Mismo color al tocar (sin el gris de hover del modo profesor). */
+        html.modo-alumno header button,
+        html.modo-alumno header button:hover:not(:disabled) { background: var(--orange); color: #fff; }
+        html.modo-alumno header button:active:not(:disabled) { filter: brightness(0.9); }
+        html.modo-alumno #btn-alumno-practica,
+        html.modo-alumno #btn-alumno-practica:hover { background: #3d3d45; color: #fff; }
+        html.modo-alumno #btn-alumno-practica.on,
+        html.modo-alumno #btn-alumno-practica.on:hover { background: var(--orange); }
+        html.modo-alumno header button:disabled,
+        html.modo-alumno header button:disabled:hover {
+            background: #3d3d45; color: rgba(255,255,255,.5); opacity: 1; cursor: not-allowed;
+        }
+        /* Velocidad: el valor solo MUESTRA (no es botón ni se edita); se cambia con − / + */
+        html.modo-alumno .bpm-display {
+            width: calc(48 * var(--u)); height: auto; padding: 0; font-size: calc(17 * var(--u));
+            background: none; border: none; color: #e5e7eb; font-weight: 800;
+            pointer-events: none; cursor: default; user-select: none;
+        }
+        html.modo-alumno #status { display: none !important; }   /* sin badge "¡Listo para tocar!" */
+        html.modo-alumno #viewport { flex: 1 1 auto; height: auto; min-height: 0; }
+        html.modo-alumno #grupo-centro { flex: 1 1 auto; min-width: 0; justify-content: center; }
+        html.modo-alumno #alumno-titulo {
+            display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+            font-size: calc(13 * var(--u)); font-weight: 700; color: #cfcfd6; text-align: center;
+        }
+        /* Precuenta contenida en el ÁREA REAL del instrumento (unidades del contenedor). */
+        html.modo-alumno #case { container-type: size; padding: calc(8 * var(--u)); }
+        html.modo-alumno #countin-overlay { gap: 3cqh; overflow: hidden; }
+        html.modo-alumno #countin-num { font-size: 62cqh; }
+        html.modo-alumno #countin-dots { gap: 6cqh; }
+        html.modo-alumno .countin-dot { width: 10cqh; height: 10cqh; }
+        html.modo-alumno #case::after { left: calc(8 * var(--u)); right: calc(8 * var(--u)); }
+        html.modo-alumno .row {
+            left: calc(8 * var(--u)); right: calc(8 * var(--u));
+            width: calc(100% - 16 * var(--u)); gap: calc(3 * var(--u));
+        }
+        html.modo-alumno #sharp-row { bottom: calc(50% + 4 * var(--u)); }
+        html.modo-alumno #natural-row { top: calc(50% + 4 * var(--u)); }
+        html.modo-alumno .key { border-radius: calc(6 * var(--u)); }
+        html.modo-alumno .key span { font-size: calc(16 * var(--u)); }
+        html.modo-alumno #natural-row .key span { transform: translateY(calc(-6 * var(--u))); }
+        html.modo-alumno #sharp-row .key span { transform: translateY(calc(6 * var(--u))); }
+        html.modo-alumno #natural-row .key.hit-effect span { --dy: calc(-6 * var(--u)); }
+        html.modo-alumno #sharp-row .key.hit-effect span { --dy: calc(6 * var(--u)); }
+        html.modo-alumno #natural-row .key::before, html.modo-alumno #sharp-row .key::before { top: calc(6 * var(--u)); }
+        html.modo-alumno #natural-row .key::after,  html.modo-alumno #sharp-row .key::after  { bottom: calc(6 * var(--u)); }
+        html.modo-alumno .key::before, html.modo-alumno .key::after { width: calc(8 * var(--u)); height: calc(8 * var(--u)); }
+        /* Pantallas superpuestas del alumno: "Gira tu celular" e inicio ("Tocar") */
+        .alumno-capa {
+            display: none; position: fixed; inset: 0; z-index: 9000; background: var(--dark-bg); color: #fff;
+            flex-direction: column; align-items: center; justify-content: center; gap: calc(22 * var(--u, 1px));
+            text-align: center; padding: 20px;
+        }
+        html.modo-alumno #alumno-inicio { display: flex; }
+        html.modo-alumno #alumno-inicio.oculto { display: none; }
+        #alumno-inicio .alumno-nombre { font-size: calc(22 * var(--u, 1px)); font-weight: 800; color: var(--gold); max-width: 90vw; }
+        #alumno-inicio .alumno-msg { font-size: calc(15 * var(--u, 1px)); opacity: .8; min-height: calc(20 * var(--u, 1px)); }
+        #btn-alumno-tocar {
+            font-size: calc(28 * var(--u, 1px)); padding: calc(20 * var(--u, 1px)) calc(56 * var(--u, 1px));
+            border-radius: calc(16 * var(--u, 1px));
+            background: var(--orange); color: #fff; box-shadow: 0 8px 30px rgba(230,126,34,.45);
+        }
+        #alumno-girar { z-index: 9500; font-size: 26px; font-weight: 800; }
+        #alumno-girar .giro-ico { font-size: 64px; }
+        html.modo-alumno #alumno-girar { display: none; }
+        @media (orientation: portrait) { html.modo-alumno #alumno-girar { display: flex; } }
+
         /* --- PRECUENTA (count-in) --- */
         /* Toggle en el toolbar: estado "on" reutiliza el naranja de acento de la app */
         #btn-precuenta.on { background: var(--orange); color: #fff; }
@@ -301,7 +442,8 @@
     <header>
         <div class="ctrl-group">
             <button id="btn-nuevo-midi">📁 Nuevo MIDI</button>
-            <div style="position: relative; display: inline-block;">
+            <button id="btn-alumno-practica" class="solo-alumno" title="Práctica: melodía sin ritmo">🎯 Práctica</button>
+            <div id="btn-practice-wrap" style="position: relative; display: inline-block;">
                 <button id="btn-practice">🎯 Modo Práctica</button>
                 <div id="practice-panel">
                     <div class="panel-section">
@@ -315,9 +457,10 @@
                 </div>
             </div>
         </div>
-        <div class="ctrl-group">
+        <div class="ctrl-group" id="grupo-centro">
+            <span id="alumno-titulo" class="solo-alumno"></span>
             <button id="btn-cambiar-cifrado">🔤 Cambiar Cifrado</button>
-            <div style="position: relative; display: inline-block;">
+            <div id="colores-wrap" style="position: relative; display: inline-block;">
                 <button id="btn-cambiar-colores">🎨 Cambiar Colores</button>
                 <div id="color-panel">
                     <div class="panel-section">
@@ -351,10 +494,18 @@
             <button id="btn-precuenta" title="Precuenta: 1 compás antes de reproducir">🥁 Precuenta</button>
             <button id="btn-play" class="btn-play" disabled>▶ REPRODUCIR</button>
         </div>
-        <div class="ctrl-group">
+        <div class="ctrl-group" id="fullscreen-group">
             <button id="btn-fullscreen">PANTALLA COMPLETA</button>
         </div>
     </header>
+
+    <!-- Modo alumno: pantallas de giro e inicio (ocultas en modo profesor) -->
+    <div id="alumno-girar" class="alumno-capa"><div class="giro-ico">🔄</div><div>Gira tu celular</div></div>
+    <div id="alumno-inicio" class="alumno-capa">
+        <div class="alumno-nombre" id="alumno-nombre">Metalófono</div>
+        <button id="btn-alumno-tocar" disabled>Tocar</button>
+        <div class="alumno-msg" id="alumno-msg">Cargando melodía…</div>
+    </div>
 
     <div id="status" class="st-none">Carga un archivo MIDI para comenzar</div>
 
@@ -422,7 +573,8 @@
         let globalBPM = 120;
 
         // Precuenta: preferencia persistida (ON por defecto) + flag de bloqueo durante la cuenta
-        let precuentaOn = localStorage.getItem('metal_precuenta') !== 'false';
+        const MODO_ALUMNO = document.documentElement.classList.contains('modo-alumno');
+        let precuentaOn = MODO_ALUMNO ? true : localStorage.getItem('metal_precuenta') !== 'false';
         let countingIn = false;
 
         // Estado modo práctica
@@ -595,6 +747,7 @@
             Tone.Transport.stop(); Tone.Transport.cancel();
 
             if (preroll > 0) agendarPrecuenta(compas);
+            if (preroll > 0 && MODO_ALUMNO) alumnoFinPrecuentaSeguro(compas);
 
             currentMidi.tracks.forEach(track => {
                 track.notes.forEach(note => {
@@ -794,6 +947,7 @@
 
         function advanceManualMelody() {
             if(practiceMode !== 'melody') return;
+            if (MODO_ALUMNO) { alumnoAvanzarMelodia(); return; }   // secuencia del alumno (ver abajo)
             // Ciclo de estudio: cada pulsación alterna mostrar → apagar la MISMA nota.
             // Solo tras apagarla se avanza a la siguiente. Sin temporizadores.
             if(melodyNoteVisible) {
@@ -836,6 +990,7 @@
             statusDiv.className = currentMidi ? "st-ready" : "st-none";
             resetVisuals();
             practicePanel.style.display = 'none';
+            if (MODO_ALUMNO) { alumnoCancelarPracticaPendiente(); alumnoSyncPractica(); }
         }
 
         // Listeners globales para modo manual
@@ -852,19 +1007,144 @@
             }
         });
 
-        // Carga desde URL param ?midi=<url> (llamado desde Repertorio u otras apps)
-        const _urlMidi = new URLSearchParams(location.search).get('midi');
+        // Carga desde URL param ?midi=<url> (llamado desde Repertorio u otras apps).
+        // Modo alumno: ?a=<id del asset del Repertorio> → MIDI PÚBLICO del Storage
+        // (convención midi/<id>.mid). Sin conexión a Supabase ni consultas a tablas.
+        const ALUMNO_STORAGE = window.METAL_ALUMNO_STORAGE;
+        const _alumnoId = MODO_ALUMNO ? (new URLSearchParams(location.search).get('a') || '').trim() : '';
+        const _urlMidi = MODO_ALUMNO
+            ? (/^[a-z0-9]{6,40}$/i.test(_alumnoId) ? ALUMNO_STORAGE + _alumnoId + '.mid' : null)
+            : new URLSearchParams(location.search).get('midi');
+        if (MODO_ALUMNO) alumnoInit(!!_urlMidi);
         if (_urlMidi) {
             btnNuevoMidi.style.display = 'none';
             statusDiv.innerText = "Cargando MIDI…";
             statusDiv.className = "st-none";
             const _nombreMidi = new URLSearchParams(location.search).get('nombre')
+                             || (MODO_ALUMNO ? (new URLSearchParams(location.search).get('n') || 'melodía') : '')
                              || decodeURIComponent(_urlMidi.split('/').pop().split('?')[0])
                              || 'melodía';
-            fetch(_urlMidi)
-                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
-                .then(buf => cargarMidiBuffer(buf, _nombreMidi))
-                .catch(err => { statusDiv.innerText = "Error cargando MIDI: " + err.message; statusDiv.className = "st-error"; });
+            (window.__midiPrefetch && window.__midiPrefetchUrl === _urlMidi
+                ? window.__midiPrefetch
+                : fetch(_urlMidi).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); }))
+                .then(buf => { cargarMidiBuffer(buf, _nombreMidi); if (MODO_ALUMNO) alumnoMidiListo(); })
+                .catch(err => {
+                    statusDiv.innerText = "Error cargando MIDI: " + err.message; statusDiv.className = "st-error";
+                    if (MODO_ALUMNO) alumnoMsg('No se pudo cargar la melodía.');
+                });
+        }
+
+        // ═══ MODO ALUMNO ═══════════════════════════════════════════════════════
+        // Reutiliza el motor existente (carga, reproducción, precuenta, práctica
+        // "melodía sin ritmo"). Solo agrega: pantalla de inicio ("Tocar"), toggle de
+        // Práctica y el tamaño de las placas para el celular en horizontal.
+        function alumnoMsg(t) { document.getElementById('alumno-msg').textContent = t; }
+        function alumnoInit(conMelodia) {
+            if (!conMelodia) { alumnoMsg('Link incompleto: falta la melodía.'); return; }
+            document.getElementById('btn-alumno-tocar').onclick = async () => {
+                await Tone.start();                                   // el celular exige un primer toque
+                document.getElementById('alumno-inicio').classList.add('oculto');
+                alumnoAjustarPlacas();
+            };
+            document.getElementById('btn-alumno-practica').onclick = () => {
+                if (!currentMidi) return;
+                if (practiceMode) stopPractice(); else startPractice('melody');
+                alumnoSyncPractica();
+            };
+            bpmInput.readOnly = true; bpmInput.tabIndex = -1;   // el valor solo se muestra; se cambia con − / +
+            window.addEventListener('resize', alumnoAjustarPlacas);
+            if ('ResizeObserver' in window) new ResizeObserver(alumnoAjustarPlacas).observe(document.getElementById('case'));
+            alumnoAjustarPlacas();
+        }
+        function alumnoMidiListo() {
+            if (!currentMidi) { alumnoMsg('No se pudo cargar la melodía.'); return; }
+            const n = new URLSearchParams(location.search).get('n') || currentMidi.name || '';
+            if (n) {
+                document.getElementById('alumno-nombre').textContent = n;
+                const t = document.getElementById('alumno-titulo'); t.textContent = n; t.title = n;
+            }
+            alumnoMsg('');
+            document.getElementById('btn-alumno-tocar').disabled = false;
+        }
+        // El retiro normal del velo usa Tone.Draw, que DESCARTA el evento si el navegador no
+        // dibuja a tiempo (celulares lentos / pestaña en segundo plano) → el velo quedaba
+        // puesto y bloqueaba las placas. Respaldo: el callback del Transport (reloj de audio,
+        // no depende del dibujo) programa el retiro con un temporizador normal.
+        let alumnoPrecuentaSeq = 0;
+        function alumnoFinPrecuentaSeguro(compas) {
+            const seq = ++alumnoPrecuentaSeq;
+            Tone.Transport.schedule((time) => {
+                const ms = Math.max(0, (time - Tone.immediate()) * 1000);
+                setTimeout(() => {
+                    if (seq !== alumnoPrecuentaSeq || !isPlaying) return;   // se detuvo o se volvió a reproducir
+                    countingIn = false; ocultarOverlayPrecuenta();
+                }, ms);
+            }, compas.barTicks + "i");
+        }
+        // ── Práctica "melodía sin ritmo" del ALUMNO ──────────────────────────────
+        // Cada toque avanza UNA posición: 1er toque ilumina la nota 1; cada toque siguiente
+        // pasa directo a la siguiente (sin el paso intermedio "apagar"). Si la siguiente es la
+        // MISMA nota, se apaga y se vuelve a encender tras una pausa fija (200 ms) para que la
+        // repetición se vea. Un toque durante esa pausa completa el reencendido y avanza (cada
+        // toque sigue siendo un avance). Al terminar: 2 s y la Práctica se apaga sola (como antes).
+        const ALUMNO_PAUSA_REPETICION_MS = 200;
+        let alumnoPausaTimer = null, alumnoFinTimer = null;
+        function alumnoMostrarNota(idx) {
+            const midi = practiceSequence[idx];
+            const el = document.querySelector(`[data-midi="${midi}"]`);
+            if (el) {
+                synth.triggerAttackRelease(Tone.Frequency(midi, "midi").toNote(), "4n");
+                el.classList.add('practice-highlight');
+            }
+            melodyNoteVisible = true;
+        }
+        function alumnoAvanzarMelodia() {
+            if (alumnoFinTimer) return;                                   // melodía ya terminada
+            if (alumnoPausaTimer) {                                       // toque durante la pausa
+                clearTimeout(alumnoPausaTimer); alumnoPausaTimer = null;
+                alumnoMostrarNota(practiceIndex);
+            }
+            if (!melodyNoteVisible) {                                     // primer toque
+                if (practiceIndex < practiceSequence.length) alumnoMostrarNota(practiceIndex);
+                return;
+            }
+            const anterior = practiceSequence[practiceIndex];
+            document.querySelectorAll('.key.practice-highlight').forEach(k => k.classList.remove('practice-highlight'));
+            melodyNoteVisible = false;
+            practiceIndex++;
+            if (practiceIndex >= practiceSequence.length) {              // fin de la melodía
+                alumnoFinTimer = setTimeout(() => { alumnoFinTimer = null; stopPractice(); }, 2000);
+                return;
+            }
+            if (practiceSequence[practiceIndex] === anterior) {         // nota repetida
+                alumnoPausaTimer = setTimeout(() => {
+                    alumnoPausaTimer = null;
+                    if (practiceMode === 'melody') alumnoMostrarNota(practiceIndex);
+                }, ALUMNO_PAUSA_REPETICION_MS);
+            } else {
+                alumnoMostrarNota(practiceIndex);                         // nota distinta: inmediato
+            }
+        }
+        function alumnoCancelarPracticaPendiente() {
+            if (alumnoPausaTimer) { clearTimeout(alumnoPausaTimer); alumnoPausaTimer = null; }
+            if (alumnoFinTimer)   { clearTimeout(alumnoFinTimer);   alumnoFinTimer = null; }
+        }
+        function alumnoSyncPractica() {
+            const b = document.getElementById('btn-alumno-practica');
+            b.classList.toggle('on', !!practiceMode);
+            b.textContent = '🎯 Práctica';
+        }
+        // Placas del metalófono COMPLETO, escaladas a la altura disponible (se mantiene
+        // la proporción original de alturas: naturales 40→19, sostenidos 39.25→19.75).
+        function alumnoAjustarPlacas() {
+            const caseEl = document.getElementById('case');
+            if (!caseEl || !caseEl.clientHeight) return;
+            const u = Math.min(window.innerHeight / 390, window.innerWidth / 844);   // misma unidad que --u
+            const mitad = caseEl.clientHeight / 2 - 12 * u;
+            const k = mitad / 40;
+            document.querySelectorAll('#natural-row .natural').forEach((el, i) => { el.style.height = ((40 - 1.5 * i) * k) + 'px'; });
+            const sost = [39.25, 36.25, 34.75, 31.75, 30.25, 28.75, 25.75, 24.25, 21.25, 19.75];
+            sost.forEach((h, i) => { const el = document.querySelector('#sharp-row .s' + (i + 1)); if (el) el.style.height = (h * k) + 'px'; });
         }
 
         updateLabels();

@@ -91,6 +91,15 @@
   - **Cómo se resolvió dentro del Workspace:** el cuadro "Guardar como PDF" usa el título de la ventana principal, así que el Libro se lo pide al Workspace por `postMessage` (`ws-titulo-ventana`, con confirmación antes de imprimir y restauración al terminar o cancelar). Funciona también con el sistema abierto como archivo local (`file://`).
   - **Validación y archivos:** verificado físicamente por el PO en Brave. `LIBRO/index.html` + `PC/workspace.html`; sin cambios de Supabase ni del contenido de los informes. Documentado en `DESARROLLO_PARALELO.md`; publicado con su commit y servido por GitHub Pages.
 
+- **Metalófono Web — Etapa 1: modo alumno (HECHO, 2026-09-30).** Desarrollo paralelo, hecho en varias microiteraciones con pruebas físicas del PO.
+  - **Qué es:** el mismo archivo del Metalófono gana un **modo alumno** (`?modo=alumno&a=<id>`) para celular horizontal. Muestra el instrumento completo de 25 placas, pide girar el celular en vertical y trae la precuenta obligatoria. Sus controles son mínimos: Práctica gris/naranja; Reproducir naranja, bloqueado en gris durante la Práctica; velocidad solo con − / +.
+  - **Práctica:** avanza una posición por toque y marca las notas repetidas con una pausa de 200 ms.
+  - **Diseño y datos:** la composición es estable ante el zoom y el modo oscuro. Descarga directo el MIDI público, **sin conectarse a Supabase**.
+  - **Modo profesor:** queda **intacto**.
+  - **Rendimiento (ambos modos):** librerías con versión fija y descarga anticipada del MIDI.
+  - **Cierre:** validado físicamente por el PO; cerrado con su checkpoint Git. Documentado en `DESARROLLO_PARALELO.md` y `CLAUDE.md`.
+  - **Pendiente:** la **Etapa 2**, compartir melodías publicadas desde el Repertorio con el link `m/?a=<id>&n=<nombre>`.
+
 > **Balance al 2026-09-30:** todo lo anterior está registrado en `AUDITORIA/DESARROLLO_PARALELO.md` (fichas y deudas A–K). **`CLAUDE.md` no se modificó**; la consolidación normativa (estados y cierre de evaluaciones, I13, población vinculada, columna `observacion_general`, cierre semanal de pendientes y baja de los pendientes antiguos, eliminación de actividades abiertas y protección de las cerradas contra el borrado) sigue **pendiente para la reintegración**, antes de F6B. El trabajo del Loop sigue sólo local.
 
 ---
