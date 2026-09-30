@@ -11,6 +11,15 @@
         // paralelo con las librerías de audio, y el cargador de abajo reutiliza la promesa.
         // Misma dirección que usa el cargador (?midi= del profesor / ?a= del alumno).
         window.METAL_ALUMNO_STORAGE = 'https://bfinpxcwcsteintikrtt.supabase.co/storage/v1/object/public/repertorio-assets/midi/';
+        // El link del alumno no lleva la extensión: se pide <id>.mid y, si no existe, <id>.MID
+        // (extensión real de algunos archivos del Storage). Decisión PO, Etapa 2.
+        window.metalDescargarMidi = function (url) {
+            const pedir = u => fetch(u).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); });
+            const alumno = new URLSearchParams(location.search).get('modo') === 'alumno';
+            return alumno && url.startsWith(window.METAL_ALUMNO_STORAGE) && url.endsWith('.mid')
+                ? pedir(url).catch(() => pedir(url.slice(0, -4) + '.MID'))
+                : pedir(url);
+        };
         (function () {
             const q = new URLSearchParams(location.search);
             const alumno = q.get('modo') === 'alumno';
@@ -19,7 +28,7 @@
                                : q.get('midi');
             if (!url) return;
             window.__midiPrefetchUrl = url;
-            window.__midiPrefetch = fetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); });
+            window.__midiPrefetch = window.metalDescargarMidi(url);
             window.__midiPrefetch.catch(() => {});   // el error se informa en el cargador
         })();
         if (new URLSearchParams(location.search).get('modo') === 'alumno') {
@@ -1026,7 +1035,7 @@
                              || 'melodía';
             (window.__midiPrefetch && window.__midiPrefetchUrl === _urlMidi
                 ? window.__midiPrefetch
-                : fetch(_urlMidi).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); }))
+                : window.metalDescargarMidi(_urlMidi))
                 .then(buf => { cargarMidiBuffer(buf, _nombreMidi); if (MODO_ALUMNO) alumnoMidiListo(); })
                 .catch(err => {
                     statusDiv.innerText = "Error cargando MIDI: " + err.message; statusDiv.className = "st-error";

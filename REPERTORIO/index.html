@@ -3566,6 +3566,7 @@ function assetItemHTML(a, i) {
             <div class="asset-item-actions">
                 ${estadoBadgeHTML(a)}
                 ${isMetal ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${(sublabel || descFile || songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">🎹</button>` : ''}
+                ${isMetal && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirMetalofono('${a.id}')" title="Compartir link para el celular del alumno">🔗 Compartir</button>` : ''}
                 ${isAudio ? '' : `<a class="btn-icon" href="${url}" download="${descFile}" title="Descargar">⬇</a>`}
                 <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>
                 <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}','${a.id}')" title="Eliminar">🗑</button>
@@ -4793,6 +4794,93 @@ function abrirMetalofono(midiUrl, nombre) {
     document.getElementById('metal-header-nombre').textContent = nombre || 'Metalófono';
     document.getElementById('metal-iframe').src = base.toString();
     document.getElementById('metal-overlay').classList.add('visible');
+}
+
+// ── COMPARTIR MELODÍA DE METALÓFONO (modo alumno, Etapa 2) ──────────────────
+// Link permanente a la versión en línea: m/?a=<id del asset>&n=<canción — etiqueta>.
+// m/index.html solo redirige al modo alumno del Metalófono. Solo melodías publicadas.
+const METAL_LINK_ALUMNO = 'https://patolastra.github.io/profe-apps/m/';
+const _metalCifraOk = new Map();   // assetId → true/false (evita volver a descargar)
+
+// ¿El MIDI trae cifra de compás (meta evento FF 58)? Recorre los eventos de cada pista
+// sin cargar el motor de audio. El modo alumno la necesita (precuenta obligatoria).
+function midiTieneCifraCompas(buf) {
+    const d = new DataView(buf);
+    const u8 = new Uint8Array(buf);
+    const txt = p => String.fromCharCode(u8[p], u8[p+1], u8[p+2], u8[p+3]);
+    if (u8.length < 14 || txt(0) !== 'MThd') return false;
+    let p = 8 + d.getUint32(4);
+    while (p + 8 <= u8.length) {
+        const tipo = txt(p), len = d.getUint32(p + 4);
+        let i = p + 8;
+        const fin = Math.min(i + len, u8.length);
+        if (tipo === 'MTrk') {
+            let status = 0;
+            const vlq = () => { let v = 0, b; do { b = u8[i++]; v = (v << 7) | (b & 0x7f); } while ((b & 0x80) && i < fin); return v; };
+            while (i < fin) {
+                vlq();                                    // delta time
+                let b = u8[i];
+                if (b & 0x80) { status = b; i++; }        // si no, running status
+                if (status === 0xFF) {
+                    const meta = u8[i++]; const l = vlq();
+                    if (meta === 0x58) return true;
+                    i += l;
+                } else if (status === 0xF0 || status === 0xF7) {
+                    i += vlq();
+                } else {
+                    const alto = status & 0xF0;
+                    i += (alto === 0xC0 || alto === 0xD0) ? 1 : 2;
+                }
+            }
+        }
+        p += 8 + len;
+    }
+    return false;
+}
+
+async function compartirMetalofono(assetId) {
+    let asset = null, cancion = null;
+    for (const c of canciones) {
+        const a = (c.assets || []).find(x => x.id === assetId);
+        if (a) { asset = a; cancion = c; break; }
+    }
+    if (!asset || !asset.storage_path) return;
+
+    // Verificar la cifra de compás con el archivo real (extensión real del asset).
+    if (!_metalCifraOk.has(assetId)) {
+        try {
+            const r = await fetch(storageUrl(asset.storage_path));
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            _metalCifraOk.set(assetId, midiTieneCifraCompas(await r.arrayBuffer()));
+        } catch (e) {
+            toast('No se pudo revisar el MIDI: ' + e.message);
+            return;
+        }
+    }
+    if (!_metalCifraOk.get(assetId)) {
+        alert('No se puede compartir esta melodía: al MIDI le falta la cifra de compás (por ejemplo 4/4).\n\nAgrégala en el MIDI y vuelve a subirlo.');
+        return;
+    }
+
+    const etiqueta = (asset.etiqueta || '').trim();
+    const nombre = etiqueta ? `${cancion.nombre} — ${etiqueta}` : cancion.nombre;
+    const url = `${METAL_LINK_ALUMNO}?a=${encodeURIComponent(asset.id)}&n=${encodeURIComponent(nombre)}`;
+
+    if (navigator.share) {
+        try {
+            await navigator.share({ title: nombre, url });
+        } catch (e) {
+            if (e.name === 'NotAllowedError') toast('Vuelve a tocar Compartir');   // el navegador exige un toque reciente
+            else if (e.name !== 'AbortError') toast('No se pudo compartir: ' + e.message);
+        }
+    } else {
+        try {
+            await navigator.clipboard.writeText(url);
+            toast('Link copiado');
+        } catch (e) {
+            toast('No se pudo copiar el link');
+        }
+    }
 }
 
 function cerrarMetalofono() {

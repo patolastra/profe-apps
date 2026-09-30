@@ -1750,7 +1750,8 @@ Sin cambios de Supabase ni de otros módulos.
   obligatoria y el aviso del estado está oculto. Se resolverá impidiendo compartirlo
   (Etapa 2).
 
-**Etapa 2 — PENDIENTE, NO IMPLEMENTADA (decisiones ya tomadas por el PO):**
+**Etapa 2 — decisiones tomadas por el PO al cierre de la Etapa 1** (registro histórico;
+la Etapa 2 ya está **implementada**: ver la ficha siguiente, "Metalófono Web — Etapa 2"):
 - **Link permanente:** `https://patolastra.github.io/profe-apps/m/?a=<ID>&n=<nombre>`.
   - Siempre apunta a la versión en línea.
   - `n` codificado (espacios, tildes, caracteres especiales).
@@ -1773,6 +1774,82 @@ Sin cambios de Supabase ni de otros módulos.
 
 **Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6E**
 (Biblioteca/Repertorio/Recursos) y **F6J** (Creación de recursos/apps).
+**Nota de gobernanza:** el Loop (`tabs/index.html`, `LOOP-LAB/`, `.claude/launch.json`)
+quedó **fuera** del checkpoint.
+
+---
+
+### Desarrollo paralelo: Metalófono Web — Etapa 2: compartir melodías desde el Repertorio
+
+**Fecha:** 2026-09-30
+**Estado:** **implementada y probada en el navegador de pruebas; guardada en su checkpoint
+Git.** Falta la **prueba física del PO** con una melodía publicada (hoy las 21 están en
+borrador, por lo que el botón aún no aparece: comportamiento esperado).
+**Objetivo / necesidad:** que el profesor mande a sus alumnos, con un link corto, una
+melodía del Metalófono para practicar en el celular (modo alumno de la Etapa 1).
+**Punto de partida:** checkpoint de la Etapa 1 (`bba8f96`), verificado antes de empezar:
+local = remoto y GitHub Pages sirve exactamente ese commit.
+
+**Qué se implementó:**
+- **Link permanente:** `https://patolastra.github.io/profe-apps/m/?a=<ID>&n=<nombre>`.
+  - `a` = ID del asset `metalofono` del Repertorio.
+  - `n` codificado para URL (`encodeURIComponent`: espacios, tildes, "—", "#"…).
+  - Siempre apunta a la versión en línea, aunque se comparta desde una copia local.
+- **`m/index.html`:** página mínima que solo redirige (`location.replace`) a
+  `../METALÓFONO APP/METAL21 (ALPHA).HTML?modo=alumno&a=…&n=…`. No carga librerías ni
+  consulta nada.
+- **Botón "🔗 Compartir"** en `REPERTORIO/index.html` (`assetItemHTML`), **solo** en assets
+  `metalofono` con estado **publicado**. Aparece o desaparece al cambiar el estado desde el
+  badge P/B/E/A (el panel ya se redibuja).
+- **Al compartir** (`compartirMetalofono`):
+  1. Descarga el MIDI con su **dirección real** (`storage_path`, con la extensión real) y
+     verifica la **cifra de compás** con un lector mínimo de eventos MIDI
+     (`midiTieneCifraCompas`, meta evento `FF 58`), sin cargar el motor de audio. El
+     resultado se recuerda por asset durante la sesión.
+  2. Sin cifra de compás → **no comparte** y avisa: "No se puede compartir esta melodía:
+     al MIDI le falta la cifra de compás…".
+  3. Con `navigator.share` → menú nativo de compartir. Sin él → copia el link al
+     portapapeles ("Link copiado"). Cancelar el menú no muestra error; si el navegador
+     exige un toque reciente, pide volver a tocar Compartir.
+
+**Decisiones del PO tomadas durante la implementación (2026-09-30):**
+- **Extensión del MIDI — "probar ambas".** El link aprobado no lleva extensión y el modo
+  alumno no consulta la base de datos. Por eso el modo alumno pide `<id>.mid` y, **si no
+  existe**, `<id>.MID`. El link queda exactamente como se aprobó y no se renombran
+  archivos del almacenamiento.
+  - Aplica **solo al modo alumno**. El modo profesor (`?midi=`) sigue con una única
+    descarga, sin segundo intento.
+  - Único cambio en el Metalófono: la función de descarga `metalDescargarMidi`, que usan
+    la descarga anticipada y el cargador. La UX aprobada del modo alumno no cambia.
+- **Nombre visible (`n`) — "Canción — etiqueta".** Ej.: "El Crack — Parte 1, en C". Si
+  el asset no tiene etiqueta, solo el nombre de la canción.
+
+**Archivos modificados:** `REPERTORIO/index.html`, `METALÓFONO APP/METAL21 (ALPHA).HTML`,
+`m/index.html` (nuevo), más esta ficha, `AUDITORIA/HISTORIA_HITOS.md` y `CLAUDE.md`
+(protocolo de links). Sin tablas, permisos ni cambios de Supabase.
+
+**Pruebas (navegador de pruebas, Claude):**
+- `m/?a=mrj8x2fagmcu&n=…` (la melodía `.MID`): redirige al modo alumno, `.mid` responde
+  400 y `.MID` 200, la melodía carga (54 notas, 4/4) y el nombre con tildes, "—" y "#"
+  llega intacto.
+- Melodía `.mid` normal: una sola descarga, carga correcta.
+- ID inexistente → "No se pudo cargar la melodía."; `m/` sin `a` → "Link incompleto".
+- Modo profesor con `?midi=`: una sola descarga, carga igual que antes; con un `.mid`
+  inexistente, el mismo error de siempre (sin segundo intento).
+- Lector de cifra de compás: coincide con `@tonejs/midi` (la librería del Metalófono) en
+  las **21 melodías reales** (todas tienen cifra) y en MIDIs sintéticos con y sin cifra
+  (incluye running status) y en un archivo no MIDI.
+- Botón: 0 botones con las 21 en borrador. Con una melodía marcada publicada **solo en la
+  memoria del navegador** (sin escribir en la base): aparece "🔗 Compartir"; con
+  `navigator.share` simulado recibe título y link correctos; sin él copia el link y
+  muestra "Link copiado"; forzando "sin cifra" no comparte y muestra el aviso. Estado
+  restaurado y página recargada al terminar.
+- **No realizadas:** menú nativo de compartir real (el navegador de pruebas no lo tiene) y
+  prueba en celular/iPhone → quedan para la **validación física del PO**.
+
+**Pendiente:** validación física del PO (publicar una melodía, compartirla y abrirla en
+un celular).
+**Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6E** y **F6J**.
 **Nota de gobernanza:** el Loop (`tabs/index.html`, `LOOP-LAB/`, `.claude/launch.json`)
 quedó **fuera** del checkpoint.
 

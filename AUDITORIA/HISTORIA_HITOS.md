@@ -98,9 +98,16 @@
   - **Modo profesor:** queda **intacto**.
   - **Rendimiento (ambos modos):** librerías con versión fija y descarga anticipada del MIDI.
   - **Cierre:** validado físicamente por el PO; cerrado con su checkpoint Git. Documentado en `DESARROLLO_PARALELO.md` y `CLAUDE.md`.
-  - **Pendiente:** la **Etapa 2**, compartir melodías publicadas desde el Repertorio con el link `m/?a=<id>&n=<nombre>`.
+  - **Siguiente paso:** la **Etapa 2** (ver el hito siguiente).
 
-> **Balance al 2026-09-30:** todo lo anterior está registrado en `AUDITORIA/DESARROLLO_PARALELO.md` (fichas y deudas A–K). **`CLAUDE.md` no se modificó**; la consolidación normativa (estados y cierre de evaluaciones, I13, población vinculada, columna `observacion_general`, cierre semanal de pendientes y baja de los pendientes antiguos, eliminación de actividades abiertas y protección de las cerradas contra el borrado) sigue **pendiente para la reintegración**, antes de F6B. El trabajo del Loop sigue sólo local.
+- **Metalófono Web — Etapa 2: compartir desde el Repertorio (HECHO, 2026-09-30).** Desarrollo paralelo.
+  - **Qué es:** botón **"🔗 Compartir"** en el Repertorio, solo para melodías del Metalófono **publicadas**. Genera el link permanente `https://patolastra.github.io/profe-apps/m/?a=<id>&n=<canción — etiqueta>` y lo entrega por el menú de compartir del dispositivo o, si no existe, lo copia.
+  - **`m/index.html`:** página mínima que solo redirige al modo alumno.
+  - **Resguardo:** antes de compartir se verifica que el MIDI tenga **cifra de compás**; si falta, no se comparte y se avisa.
+  - **Extensión del archivo (decisión del PO):** el modo alumno prueba `.mid` y, si no existe, `.MID`. El link no cambia y no se renombran archivos. El modo profesor queda igual.
+  - **Estado:** implementada y probada en el navegador de pruebas; guardada con su checkpoint Git. **Pendiente:** la validación física del PO (hoy las 21 melodías están en borrador, así que el botón aún no aparece). Documentado en `DESARROLLO_PARALELO.md` y `CLAUDE.md`.
+
+> **Balance al 2026-09-30:** todo lo anterior está registrado en `AUDITORIA/DESARROLLO_PARALELO.md` (fichas y deudas A–K). **`CLAUDE.md` solo se actualizó para el Metalófono Web** (protocolo de links y fila del módulo); la consolidación normativa (estados y cierre de evaluaciones, I13, población vinculada, columna `observacion_general`, cierre semanal de pendientes y baja de los pendientes antiguos, eliminación de actividades abiertas y protección de las cerradas contra el borrado) sigue **pendiente para la reintegración**, antes de F6B. El trabajo del Loop sigue sólo local.
 
 ---
 

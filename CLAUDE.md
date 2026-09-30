@@ -82,14 +82,14 @@ Columna vertebral de la interoperabilidad. Toda app nueva debe respetarlo.
 | `?ctx=<NOMBRE>` | Contexto activo — **uppercase, = campo `nombre` en `contextos`** | Portal, Repertorio, Libro |
 | `?modo=<modo>` | `pres`, `remoto`, `catalogo`, `entrenamiento`, `alumno`… | Pizarra, Repertorio, Metalófono (`alumno`) |
 | `?midi=<url>` / `?nombre=` | MIDI a cargar (modo profesor; lo usan Repertorio y Portal) | Metalófono |
-| `?a=<id>` / `?n=<nombre>` | Modo alumno: **ID del asset** `metalofono` del Repertorio → MIDI público `repertorio-assets/midi/<id>.mid` (sin consultar tablas); `n` = nombre visible | Metalófono (`?modo=alumno`) |
+| `?a=<id>` / `?n=<nombre>` | Modo alumno: **ID del asset** `metalofono` del Repertorio → MIDI público `repertorio-assets/midi/<id>.mid` (si no existe, `<id>.MID`; sin consultar tablas); `n` = nombre visible | Metalófono (`?modo=alumno`); link corto `m/?a=&n=` |
 | `?sesion=<uuid>` / `?slide=<n>` | Sesión / slide | Pizarra |
 | `?tab=<path>` | Path relativo a `tabs/TABS/` | Lector |
 | `?cancion=<id>` / `?practicar=` / `?proyeccion=1` / `?vista=sesiones` | Canción / práctica / proyección / Entrenador | Repertorio |
 | `?asset=<uuid>` | Asset en Storage (futuro) | Futuro |
 | `?alumno=<id>` | Alumno | Libro |
 
-**Metalófono — modo alumno (HECHO, Etapa 1):** el modo alumno **no se conecta a Supabase** y no debe cargar `supabase/config.js`; solo descarga el MIDI público. Sus reglas de UX (25 placas siempre, precuenta obligatoria, práctica por toque, colores, escala ante zoom) están cerradas en la ficha de `DESARROLLO_PARALELO.md`; el **modo profesor no se altera**. **PENDIENTE (Etapa 2, no implementada):** página corta `m/?a=<id>&n=<nombre>` que solo redirige al modo alumno, y botón "Compartir" en el Repertorio.
+**Metalófono — modo alumno (HECHO, Etapa 1):** el modo alumno **no se conecta a Supabase** y no debe cargar `supabase/config.js`; solo descarga el MIDI público. Sus reglas de UX (25 placas siempre, precuenta obligatoria, práctica por toque, colores, escala ante zoom) están cerradas en la ficha de `DESARROLLO_PARALELO.md`; el **modo profesor no se altera**. **HECHO (Etapa 2):** link permanente `https://patolastra.github.io/profe-apps/m/?a=<id>&n=<nombre>` — `m/index.html` solo redirige al modo alumno — y botón "Compartir" en el Repertorio, solo para melodías `metalofono` **publicadas** y con **cifra de compás** (si falta, no se comparte). Detalle y validación pendiente del PO en la ficha de `DESARROLLO_PARALELO.md`.
 
 **Codificación de URL (HECHO — cuidado):** al construir `iframe.src` en el Workspace, la query ya viene codificada; se codifica **solo el path** (no reencodear la query), para no romper `?ctx` con caracteres como `%` (bug de doble codificación ya corregido).
 
