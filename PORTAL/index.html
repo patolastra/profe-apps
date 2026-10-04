@@ -74,6 +74,9 @@
         .hdr-btn:hover { color: #fff; }
         .hdr-btn:disabled { opacity: 0.4; cursor: default; }
         #btn-clase { white-space: nowrap; }
+        /* Si la barra no cabe en una línea, los botones quedan solo con su ícono
+           (el nombre sigue en el globo al pasar el mouse). Lo decide ajustarBarra(). */
+        #hdr-ses.compacta .hdr-txt { display: none; }
         .hdr-btn[hidden] { display: none; }
 
         /* ── Modo Clase · Paso 1: temporizadores de la clase en curso ── */
@@ -1060,12 +1063,12 @@
             </span>
         </div>
         <div class="hdr-ses-right">
-            <button class="hdr-btn" onclick="abrirLibro()" title="Abrir el Libro de Clases de este curso">📒 Libro</button>
-            <button class="hdr-btn" onclick="abrirRepertorioCurso()" title="Abrir la sesión de Entrenador de este curso">🏋️ Repertorio</button>
-            <button class="hdr-btn" onclick="abrirMemoria()" title="Bitácora de esta clase (texto y audios)">✍🏼 Bitácora</button>
-            <button class="hdr-btn" onclick="mostrarQRRemoto()" title="Abrir control remoto en celular">📱 Remoto</button>
+            <button class="hdr-btn" onclick="abrirLibro()" title="Abrir el Libro de Clases de este curso">📒<span class="hdr-txt"> Libro</span></button>
+            <button class="hdr-btn" onclick="abrirRepertorioCurso()" title="Abrir la sesión de Entrenador de este curso">🏋️<span class="hdr-txt"> Repertorio</span></button>
+            <button class="hdr-btn" onclick="abrirMemoria()" title="Bitácora de esta clase (texto y audios)">✍🏼<span class="hdr-txt"> Bitácora</span></button>
+            <button class="hdr-btn" onclick="mostrarQRRemoto()" title="Abrir control remoto en celular">📱<span class="hdr-txt"> Remoto</span></button>
             <button class="hdr-btn" id="btn-reabrir-piz" onclick="abrirPizarra()" title="Volver a abrir la Pizarra" hidden>📽️</button>
-            <button class="hdr-btn" id="btn-flip-piz" onclick="Proyeccion.flip()" title="Pasar la Pizarra a la otra pantalla" hidden>↔</button>
+            <button class="hdr-btn" id="btn-flip-piz" onclick="Proyeccion.flip(); Proyeccion.alFrente()" title="Pasar la Pizarra a la otra pantalla" hidden>↔</button>
             <button class="hdr-btn" id="btn-clase" onclick="botonClase()">▶ Comenzar clase</button>
         </div>
     </div>
@@ -2144,12 +2147,31 @@ function renderClase() {
     // ↔ solo si el navegador dio permiso para manejar pantallas (si no, sería un botón muerto).
     const flipBtn = document.getElementById('btn-flip-piz');
     flipBtn.hidden = true;
-    if (esEsta) Proyeccion.permiso().then(p => { flipBtn.hidden = p !== 'granted'; });
+    if (esEsta) Proyeccion.permiso().then(p => { flipBtn.hidden = p !== 'granted'; ajustarBarra(); });
+    ajustarBarra();
     box.hidden  = !st;
     document.getElementById('ct-ctx').textContent = st && !esEsta ? ctxDisplay(st.ctx) : '';
     clearInterval(_claseTick); _claseTick = null;
     if (st) { tickClase(); _claseTick = setInterval(tickClase, 500); }
 }
+
+// Barra en una sola línea: si no cabe, modo compacto (solo íconos en los botones).
+function ajustarBarra() {
+    const hs = document.getElementById('hdr-ses');
+    if (!hs) return;
+    hs.classList.remove('compacta');
+    const titulo = document.getElementById('hdr-ses-titulo');
+    const partida = hs.scrollWidth > hs.clientWidth + 1 || titulo.getBoundingClientRect().height > 34;
+    if (partida) hs.classList.add('compacta');
+}
+// Reajusta cuando cambia el ancho real de la barra (ventana, zoom, panel del Workspace).
+let _barraW = 0;
+document.addEventListener('DOMContentLoaded', () => {
+    new ResizeObserver(([e]) => {
+        const w = Math.round(e.contentRect.width);
+        if (w && w !== _barraW) { _barraW = w; ajustarBarra(); }
+    }).observe(document.getElementById('header'));
+});
 
 function tickClase() {
     const st = ClaseVivo.get();

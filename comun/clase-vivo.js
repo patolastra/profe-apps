@@ -184,6 +184,7 @@
                             availWidth: screen.availWidth, availHeight: screen.availHeight };
         const feats = `popup,left=${r.availLeft},top=${r.availTop},width=${r.availWidth},height=${r.availHeight}`;
         const w = window.open(url, nombre, feats);
+        if (w) ventana = w;
         // Rastro de la última decisión (lo muestra comun/diagnostico-pantallas.html).
         Proyeccion.ultimo = { permiso: perm, enIframe: window !== window.top,
             pantallas: validas(sd).map(s => `${s.label || '(sin nombre)'} ${s.availLeft},${s.availTop} ${s.availWidth}x${s.availHeight}${s.isPrimary ? ' principal' : ''}`),
@@ -196,6 +197,14 @@
     // Planificador → Pizarra: intercambiar pantalla.
     function flip() { poner(CMD_KEY, JSON.stringify({ accion: 'flip', t: Date.now() })); }
 
+    // Traer la Pizarra al frente (usa el gesto del clic del Planificador; si la
+    // ventana se movió a la pantalla del profe, no queda escondida detrás).
+    let ventana = null;
+    function alFrente() {
+        try { if (ventana && !ventana.closed) ventana.focus(); } catch (_) {}
+        setTimeout(() => { try { if (ventana && !ventana.closed) ventana.focus(); } catch (_) {} }, 400);
+    }
+
     async function ejecutarFlip() {
         if (await permiso() !== 'granted') return;
         const sd = await detalles();
@@ -205,6 +214,7 @@
         const i = lista.findIndex(s => misma(s, sd.currentScreen));
         const otra = lista[(i + 1) % lista.length];
         moverA(otra);
+        try { window.focus(); } catch (_) {}
         recordar(otra);
         poner(DEST_KEY, JSON.stringify(rect(otra)));
     }
@@ -224,5 +234,5 @@
         ubicarAlAbrir();
     }
 
-    window.Proyeccion = { hayAPI, permiso, abrir, flip, escucharEnPizarra };
+    window.Proyeccion = { hayAPI, permiso, abrir, flip, alFrente, escucharEnPizarra };
 })();

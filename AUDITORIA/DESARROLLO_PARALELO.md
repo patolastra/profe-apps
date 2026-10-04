@@ -1948,7 +1948,12 @@ aparte, detección de pantallas, asignación manual, Flip, degradación progresi
   Brave con escudos bajos)**. Recomendación al PO: usar siempre la versión en línea.
 - Barra del Planificador: con clase en curso (📽️ y ↔ extra) el título y los botones se
   partían en dos líneas en pantallas de ~1536 px; ahora nunca se parten y los tamaños se
-  ajustan al ancho (probado a 1536 y 1280 px).
+  ajustan al ancho (probado a 1536 y 1280 px). Segundo reporte del PO (seguía partida):
+  red de seguridad — si la barra no cabe en una línea, los botones Libro/Repertorio/
+  Bitácora/Remoto quedan solo con ícono (nombre en el globo); se recalcula al cambiar el
+  ancho real de la barra.
+- ↔: la Pizarra quedaba detrás del navegador al llegar a la pantalla del profe; ahora el
+  Planificador la trae al frente con el mismo clic (y la Pizarra pide foco al moverse).
 - Pruebas (Claude): solo el camino sin permiso (navegador de pruebas de una pantalla):
   la Pizarra abre como antes, ↔ oculto, sin errores. **Dos pantallas reales: sin probar.**
 **Deuda técnica (PO, 2026-10-04):** hoy una misma sesión puede acumular **varios
