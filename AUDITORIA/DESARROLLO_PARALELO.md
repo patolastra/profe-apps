@@ -1906,7 +1906,7 @@ internet; las ventanas se enteran por el evento `storage`), atajo global en fase
 captura (no dispara el Espacio = avanzar/reproducir), cola de registros por subir.
 Incluido en Planificador, Pizarra, Libro, Repertorio/Entrenador y Workspace. Planificador:
 botón Comenzar/Terminar clase, temporizadores en la barra, botón 📽️ para reabrir la
-Pizarra (ventana con nombre fijo `profe-pizarra`), modal con clave, sección DATOS DE LA
+Pizarra (ventana con nombre fijo; desde el Paso 2, `profe-proyeccion`), modal con clave, sección DATOS DE LA
 CLASE en el registro de clase anterior (cerrada por defecto). Pizarra: capa del tiempo
 perdido (parpadeo rojo/verde, no bloquea clics). Tabla nueva `clase_tiempos`
 (sesion_id, inicio, fin, tiempo_clase_seg, tiempo_perdido_seg, episodios_perdido; RLS
@@ -1933,6 +1933,15 @@ aparte, detección de pantallas, asignación manual, Flip, degradación progresi
   vez el navegador pregunta si se autoriza; queda guardado.
 - Código: `comun/clase-vivo.js` (bloque `Proyeccion`), Planificador (`abrirPizarra`,
   botón ↔), Pizarra (escucha ↔ y se ubica al abrir).
+- **Corrección tras la primera prueba física (falló en Brave y Chrome):** diagnóstico con
+  página temporal `comun/diagnostico-pantallas.html`. Chrome entrega datos reales y puede
+  abrir una ventana en el proyector; **Brave con escudos entrega pantallas falsas** (sin
+  nombre, tamaño 0, misma posición). Causas propias corregidas: (1) el Workspace no
+  delegaba `window-management` al iframe del Planificador; (2) la primera apertura era una
+  pestaña normal y al reabrir se reutilizaba (no se puede mover). Ahora la Pizarra se abre
+  siempre como ventana emergente (`profe-proyeccion`), el destino se elige evitando la
+  pantalla del Planificador, se ignoran pantallas de tamaño 0, y la Pizarra se reubica
+  sola al cargar según el destino que dejó el Planificador.
 - Pruebas (Claude): solo el camino sin permiso (navegador de pruebas de una pantalla):
   la Pizarra abre como antes, ↔ oculto, sin errores. **Dos pantallas reales: sin probar.**
 **Deuda técnica (PO, 2026-10-04):** hoy una misma sesión puede acumular **varios

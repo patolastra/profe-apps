@@ -125,15 +125,27 @@
 
 // ── Pantallas de proyección (Modo Clase · Paso 2) ───────────────────────────
 // Ubica la Pizarra en el proyector cuando el navegador lo permite (Window
-// Management API: Chrome/Edge; Brave por confirmar). Sin la API o sin permiso,
-// todo funciona como antes y se mueve a mano (Windows + Shift + flecha).
-// Regla: pantalla recordada en ESTE computador (por nombre); si no está
-// conectada, la primera que no es la principal. ↔ manda la Pizarra a la otra
-// pantalla; si queda en una no principal, ese computador la recuerda.
+// Management API: Chrome/Edge; en Brave, solo con los escudos bajos para el
+// sitio, porque si no entrega datos de pantalla falsos). Sin la API o sin
+// permiso, todo funciona como antes y se mueve a mano (Windows + Shift + flecha).
+//
+// La Pizarra se abre SIEMPRE como ventana emergente (sin barras): solo esas se
+// pueden mover después. Destino: pantalla recordada en ESTE computador (por
+// nombre); si no está, la que no es la del Planificador; si no, la no principal.
+// El Planificador deja el destino en DEST_KEY y la Pizarra, al cargar, se mueve
+// ahí si quedó en otra (cubre reabrir una ventana que ya existía).
+// ↔ manda la Pizarra a la otra pantalla; ese computador recuerda la elección
+// si la pantalla no es la principal.
 (function () {
     const PANT_KEY = 'profe_pantalla_proyeccion';
+    const DEST_KEY = 'profe_pantalla_destino';
     const CMD_KEY  = 'profe_pizarra_cmd';
     const hayAPI   = 'getScreenDetails' in window;
+
+    const leer  = k => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+    const poner = (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} };
+    const misma = (a, b) => !!a && !!b && a.availLeft === b.availLeft && a.availTop === b.availTop
+                          && a.availWidth === b.availWidth && a.availHeight === b.availHeight;
 
     async function permiso() {
         if (!hayAPI) return 'no';
@@ -143,56 +155,60 @@
     async function detalles() {
         try { return await window.getScreenDetails(); } catch (_) { return null; }
     }
+    // Pantallas válidas: Brave con escudos devuelve pantallas de tamaño 0.
+    const validas = sd => (sd ? sd.screens.filter(s => s.availWidth > 0 && s.availHeight > 0) : []);
+
     function elegir(sd) {
-        if (!sd || sd.screens.length < 2) return null;
-        let guardada = null;
-        try { guardada = localStorage.getItem(PANT_KEY); } catch (_) {}
-        return sd.screens.find(s => guardada && s.label === guardada)
-            || sd.screens.find(s => !s.isPrimary) || null;
+        const lista = validas(sd);
+        if (lista.length < 2) return null;
+        const guardada = leer(PANT_KEY);
+        return lista.find(s => guardada && s.label === guardada)
+            || lista.find(s => !misma(s, sd.currentScreen))
+            || lista.find(s => !s.isPrimary) || null;
     }
-    function recordar(s) {
-        if (s && !s.isPrimary && s.label) { try { localStorage.setItem(PANT_KEY, s.label); } catch (_) {} }
-    }
+    function recordar(s) { if (s && !s.isPrimary && s.label) poner(PANT_KEY, s.label); }
     function moverA(s) {
         window.moveTo(s.availLeft, s.availTop);
         window.resizeTo(s.availWidth, s.availHeight);
     }
+    const rect = s => ({ availLeft: s.availLeft, availTop: s.availTop, availWidth: s.availWidth, availHeight: s.availHeight });
 
     // Planificador: abre (o reutiliza) la ventana de proyección, en el proyector
     // si se puede. Las consultas son rápidas y no consumen el gesto del clic.
     async function abrir(url, nombre) {
-        if (await permiso() === 'granted') {
-            const s = elegir(await detalles());
-            if (s) return window.open(url, nombre,
-                `popup,left=${s.availLeft},top=${s.availTop},width=${s.availWidth},height=${s.availHeight}`);
-        }
-        const w = window.open(url, nombre);
-        if (await permiso() === 'prompt') detalles();   // pide permiso para la próxima vez
+        let dest = null;
+        if (await permiso() === 'granted') dest = elegir(await detalles());
+        if (dest) poner(DEST_KEY, JSON.stringify(rect(dest)));
+        const r = dest || { availLeft: screen.availLeft || 0, availTop: screen.availTop || 0,
+                            availWidth: screen.availWidth, availHeight: screen.availHeight };
+        const w = window.open(url, nombre,
+            `popup,left=${r.availLeft},top=${r.availTop},width=${r.availWidth},height=${r.availHeight}`);
+        if (!dest && await permiso() === 'prompt') detalles();   // pide permiso para la próxima vez
         return w;
     }
 
     // Planificador → Pizarra: intercambiar pantalla.
-    function flip() {
-        try { localStorage.setItem(CMD_KEY, JSON.stringify({ accion: 'flip', t: Date.now() })); } catch (_) {}
-    }
+    function flip() { poner(CMD_KEY, JSON.stringify({ accion: 'flip', t: Date.now() })); }
 
-    // Pizarra: obedece ↔ y, al abrir, se ubica sola en el proyector si quedó en
-    // la principal (sólo ventanas abiertas por la app; las pestañas no se mueven).
     async function ejecutarFlip() {
         if (await permiso() !== 'granted') return;
         const sd = await detalles();
-        if (!sd || sd.screens.length < 2) return;
+        const lista = validas(sd);
+        if (lista.length < 2) return;
         if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch (_) {} }
-        const i = sd.screens.indexOf(sd.currentScreen);
-        const otra = sd.screens[(i + 1) % sd.screens.length];
+        const i = lista.findIndex(s => misma(s, sd.currentScreen));
+        const otra = lista[(i + 1) % lista.length];
         moverA(otra);
         recordar(otra);
+        poner(DEST_KEY, JSON.stringify(rect(otra)));
     }
     async function ubicarAlAbrir() {
         if (!window.opener || await permiso() !== 'granted') return;
+        let dest = null;
+        try { dest = JSON.parse(leer(DEST_KEY) || 'null'); } catch (_) {}
+        if (!dest) return;
         const sd = await detalles();
-        const s = elegir(sd);
-        if (s && sd.currentScreen && sd.currentScreen.isPrimary) moverA(s);
+        if (sd && !misma(dest, sd.currentScreen)) moverA(dest);
     }
     function escucharEnPizarra() {
         window.addEventListener('storage', e => {
