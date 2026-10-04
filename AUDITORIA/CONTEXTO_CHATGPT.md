@@ -1,5 +1,9 @@
 # Contexto de entrada — ChatGPT (Profe Apps)
 
+> **EN PAUSA desde 2026-10-04.** El PO prueba trabajar sin ChatGPT (marcha blanca: solo
+> Pato + Claude, con Notion como canal). Este documento se conserva por si se retoma.
+> Ver `CLAUDE.md` §11.
+
 > **Para qué sirve este documento.** Es el **punto de entrada operativo de ChatGPT**
 > al abrir una nueva ventana/contexto. Da el mapa mínimo del proyecto y **apunta a las
 > fuentes** donde está el detalle. No duplica la documentación: la referencia.

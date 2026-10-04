@@ -110,6 +110,8 @@
 
 > **Balance al 2026-09-30:** todo lo anterior está registrado en `AUDITORIA/DESARROLLO_PARALELO.md` (fichas y deudas A–L). **`CLAUDE.md` solo se actualizó para el Metalófono Web** (protocolo de links y fila del módulo); la consolidación normativa (estados y cierre de evaluaciones, I13, población vinculada, columna `observacion_general`, cierre semanal de pendientes y baja de los pendientes antiguos, eliminación de actividades abiertas y protección de las cerradas contra el borrado) sigue **pendiente para la reintegración**, antes de F6B. El trabajo del Loop sigue sólo local.
 
+
+- **Gobernanza — marcha blanca sin ChatGPT (DECISIÓN del PO, 2026-10-04).** Checkpoint importante: se prueba trabajar **solo Pato + Claude**, con **Notion** como canal (Pato anota → Claude lee y presenta plan → Pato aprueba → Claude implementa y registra en el repo y en Notion). El rol de ChatGPT queda **suspendido, no eliminado**. Se fijan reglas permanentes de comunicación hacia el PO: texto mínimo, en humano, español de Chile, con recomendación. Estado al momento: Metalófono Etapas 1 y 2 cerradas (iPhone sin probar); Melodía + Karaoke en pausa con plan aprobado; Loop del Lector sigue solo local. Norma en `CLAUDE.md` §11.
 ---
 
 *Nota: las fechas provienen de la documentación existente (CLAUDE.md previo, notas de trabajo y Git). Los hashes de F4 provienen del historial Git de esta etapa. El detalle fino por commit (más allá de los checkpoints de F4) no se reconstruye aquí a propósito.*

@@ -60,6 +60,11 @@ Bosquejo V1.
 
 ### Participación de ChatGPT en el ciclo
 
+> **SUSPENDIDA desde 2026-10-04 (marcha blanca, DECISIÓN del PO).** Se trabaja solo
+> Pato + Claude con Notion como canal; lo que hacía ChatGPT en el ciclo lo cubre Claude y
+> decide el PO. Lo de abajo se conserva por si se vuelve al esquema anterior. Ver
+> `CLAUDE.md` §11.
+
 ChatGPT (arquitecto y coordinador; opera fuera del repositorio, vía el PO) participa
 así, **sin cambiar** el ciclo ni tomar decisiones:
 

@@ -19,7 +19,7 @@ Ecosistema de aplicaciones pedagógicas para **un profesor de música** en escue
 - **Hoy (HECHO):** lo usa una sola persona (el profesor). Sin equipo, sin multiusuario (salvo modo invitado para sustitutos, aún futuro).
 - **Horizonte (DECISIÓN de dirección):** preparar una **V1 comercial** (~6 meses) usable por **varias escuelas**. Ver §8 y decisiones **#10** y **#11**.
 
-**Idioma:** responder **siempre en español**; código y nombres en español o inglés técnico según claridad.
+**Idioma:** responder **siempre en español de Chile** (latinoamericano, no peninsular); código y nombres en español o inglés técnico según claridad.
 
 ---
 
@@ -249,6 +249,10 @@ Y al finalizar el período paralelo: 9. **Reintegración/auditoría global** · 
 ---
 
 ## 11. Modelo de gobernanza
+
+> **MARCHA BLANCA — trabajo sin ChatGPT (DECISIÓN del PO, 2026-10-04).** Se prueba trabajar **solo Pato + Claude**, con **Notion** como canal de comunicación (página *Profe-Apps* → *Forma de trabajo — Pato + Claude* y *Backlog Profe-Apps*). Flujo: **Pato anota en Notion → Claude lee y presenta un plan → Pato modifica/aprueba → Claude implementa solo lo aprobado → Claude registra en los documentos del repo (`CLAUDE.md`, `HISTORIA_HITOS.md`, `DESARROLLO_PARALELO.md`, etc.) y en Notion.** Durante la prueba, el rol de ChatGPT descrito abajo queda **suspendido, no eliminado** (reversible si la prueba no resulta). El ciclo de 8 pasos del §9 se mantiene; los pasos donde participaba ChatGPT los cubre Claude, y decide el PO.
+>
+> **Reglas de comunicación Claude → PO (permanentes, para todo el desarrollo):** (1) **texto mínimo**, sin frases introductorias ni de cierre; (2) **en humano**, sin tecnicismos; (3) **español de Chile**; (4) siempre con **recomendación explícita**.
 
 Definición **canónica** de roles (las demás fuentes remiten aquí):
 
