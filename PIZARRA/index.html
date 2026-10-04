@@ -10,6 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="../supabase/config.js"></script>
     <script src="../supabase/contextos.js"></script>
+    <script src="../comun/clase-vivo.js"></script>
     <style>
         /* ── Variables de tema (se sobrescriben por JS) ─── */
         :root {
@@ -631,6 +632,21 @@
         }
         #error-msg  { font-size: 1rem; color: rgba(255,255,255,0.5); font-family: system-ui; }
         .error-hint { font-size: 0.82rem; color: rgba(255,255,255,0.2); font-family: system-ui; }
+
+        /* ── Modo Clase · Paso 1: tiempo perdido proyectado (encima de todo) ── */
+        #clase-perdido {
+            position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+            display: none; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.55);
+        }
+        #clase-perdido.show { display: flex; }
+        #clase-perdido-num {
+            font-size: min(34vw, 62vh); font-weight: 800; line-height: 1;
+            font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+            animation: clasePerdidoParpadeo 1s steps(1, end) infinite;
+            text-shadow: 0 0 40px rgba(0,0,0,0.6);
+        }
+        @keyframes clasePerdidoParpadeo { 0% { color: #ef4444; } 50% { color: #22c55e; } }
     </style>
 </head>
 <body>
@@ -2292,5 +2308,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 </script>
 <audio id="rep-audio" preload="auto"></audio>
+<div id="clase-perdido"><span id="clase-perdido-num">00:00</span></div>
+<script>
+// Modo Clase · Paso 1: mientras corre el tiempo perdido (Planificador o atajo
+// Ctrl+Shift+Espacio), se muestra encima de la Pizarra; al detenerlo desaparece
+// y la Pizarra queda exactamente donde estaba (no se toca su estado).
+(function () {
+    const capa = document.getElementById('clase-perdido');
+    const num  = document.getElementById('clase-perdido-num');
+    let tick = null;
+    function pintar() {
+        const st = ClaseVivo.get();
+        const corre = !!(st && st.perdidoDesde);
+        capa.classList.toggle('show', corre);
+        clearInterval(tick); tick = null;
+        if (!corre) return;
+        const upd = () => { num.textContent = ClaseVivo.fmt(ClaseVivo.tiempoPerdidoMs(ClaseVivo.get())); };
+        upd(); tick = setInterval(upd, 250);
+    }
+    ClaseVivo.onCambio(pintar);
+    pintar();
+})();
+</script>
 </body>
 </html>

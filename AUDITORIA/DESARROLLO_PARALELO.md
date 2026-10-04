@@ -1864,6 +1864,66 @@ quedó **fuera** del checkpoint.
 
 ---
 
+### Desarrollo paralelo: Modo Clase — Paso 1: "Comenzar clase" y temporizadores
+
+**Fecha:** 2026-10-04
+**Estado:** **IMPLEMENTADO — probado técnicamente; pendiente: el PO crea la tabla
+`clase_tiempos` en Supabase y valida en clase real.**
+Primer desarrollo bajo la marcha blanca sin ChatGPT (Notion: *Modo live para clases*).
+**Necesidad profesional que lo origina:** un modo "en vivo" para la clase, con el
+Planificador como centro de operaciones del profesor y la Pizarra en el proyector
+(pantallas en **Extender**). Primer paso pequeño: medir el **tiempo de clase** y el
+**tiempo perdido**, y mostrar el tiempo perdido a los alumnos.
+**Funcionalidad aprobada (alcance del Paso 1):**
+1. En el Planificador, el botón "📽️ Presentar" pasa a **"Comenzar clase"**: abre la
+   Pizarra y comienza la clase. **Deja de abrir el Entrenador** en una segunda ventana
+   (el navegador siempre la bloqueaba).
+2. En el Planificador, dos temporizadores siempre visibles mientras dure la clase:
+   - **Tiempo de clase:** parte solo, acumulativo, no se pausa; termina al terminar la clase.
+   - **Tiempo perdido:** parte en 00:00, acumulativo, se inicia/detiene con
+     **Ctrl + Shift + Espacio** (desde el Planificador o la Pizarra), cuantas veces se quiera.
+3. Mientras el tiempo perdido corre, la Pizarra lo muestra **encima, muy grande,
+   parpadeando entre rojo y verde**; al detenerlo desaparece y la Pizarra sigue donde estaba.
+   El tiempo de clase **no** se proyecta.
+4. El botón cambia a **"Terminar clase"**, que pide confirmación con la **clave del
+   sistema** (día del mes; a cambiar en V1).
+5. Al terminar, se guardan ambos tiempos de esa sesión (**nuevo espacio en la base de
+   datos, autorizado por el PO**). Se consultan en una sección plegable nueva
+   **"DATOS DE LA CLASE"** en el panel izquierdo del Planificador (separada de la bitácora).
+6. Si algo se cierra por error y se reabre, los tiempos **siguen donde iban**.
+**Decisiones del PO (2026-10-04):** recorrido del modo = sigue el plan con saltos libres;
+tiempos = "estadísticas de la clase", no bitácora; Pizarra como **ventana aparte**
+(proyector) — indiferente para el PO si existe un "espejo" para operar la proyección
+desde su pantalla (idea futura, fuera de este paso); nombre "Comenzar clase" provisorio;
+"tiempo de juego" (relación con el tiempo perdido) postergado.
+**Relación con la arquitectura actual:** Planificador (`PORTAL/`) + Pizarra (`PIZARRA/`);
+Pizarra ya tiene control remoto por celular y un temporizador de cuenta regresiva, que no
+se tocan.
+**Relación con el Bosquejo Conceptual V1:** adelanta parte de **F6D (Clase)** y **F6F (Pizarra)**.
+**Implementación (técnica):** `comun/clase-vivo.js` (nuevo, compartido): estado de la
+clase en `localStorage` (marcas de tiempo → sobrevive a cierres/recargas y funciona sin
+internet; las ventanas se enteran por el evento `storage`), atajo global en fase de
+captura (no dispara el Espacio = avanzar/reproducir), cola de registros por subir.
+Incluido en Planificador, Pizarra, Libro, Repertorio/Entrenador y Workspace. Planificador:
+botón Comenzar/Terminar clase, temporizadores en la barra, botón 📽️ para reabrir la
+Pizarra (ventana con nombre fijo `profe-pizarra`), modal con clave, sección DATOS DE LA
+CLASE en el registro de clase anterior (cerrada por defecto). Pizarra: capa del tiempo
+perdido (parpadeo rojo/verde, no bloquea clics). Tabla nueva `clase_tiempos`
+(sesion_id, inicio, fin, tiempo_clase_seg, tiempo_perdido_seg, episodios_perdido; RLS
+acceso_total); varias filas por sesión permitidas.
+**Pruebas (Claude, navegador de pruebas):** comenzar → estado creado y Pizarra abierta;
+atajo en la Pizarra muestra/oculta la capa sin mover la diapositiva (Espacio solo sigue
+avanzando); clic en 🎮 desde otro Planificador → la capa aparece en la Pizarra; reabrir el
+Planificador conserva los tiempos; clave errónea no termina, correcta termina y deja el
+registro en cola (tabla aún no creada → aviso correcto). Datos de prueba borrados. No
+probado: dos pantallas reales, ni abriendo desde archivos locales.
+**Pendientes:** futuros: espejo de la proyección, notas
+por diapositiva, proyectar recursos del Libro, invitación a la bitácora al terminar.
+**Observaciones para la reintegración:** primera pieza del "Modo Clase"; nombre definitivo
+pendiente.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los

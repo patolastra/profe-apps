@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
     <script src="../supabase/config.js"></script>
     <script src="../supabase/contextos.js"></script>
+    <script src="../comun/clase-vivo.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -69,6 +70,36 @@
             padding: 0; font-family: inherit;
         }
         .hdr-btn:hover { color: #fff; }
+        .hdr-btn:disabled { opacity: 0.4; cursor: default; }
+        #btn-clase { white-space: nowrap; }
+        .hdr-btn[hidden] { display: none; }
+
+        /* ── Modo Clase · Paso 1: temporizadores de la clase en curso ── */
+        #clase-timers { display: inline-flex; align-items: center; gap: 14px; margin-left: 8px;
+            padding: 4px 12px; border-radius: 8px; background: rgba(255,255,255,0.08); }
+        #clase-timers[hidden] { display: none; }
+        #ct-ctx { font-size: 0.75rem; font-weight: 700; color: #fbbf24; letter-spacing: 0.04em; }
+        #ct-ctx:empty { display: none; }
+        .ct-item { font-size: 1.05rem; color: rgba(255,255,255,0.85); white-space: nowrap; }
+        .ct-item b { font-variant-numeric: tabular-nums; font-weight: 700; }
+        .ct-perdido { cursor: pointer; border-radius: 6px; padding: 1px 6px; }
+        .ct-perdido.corriendo { background: #dc2626; color: #fff; }
+
+        #clase-fin-modal { position: fixed; inset: 0; background: rgba(15,23,42,0.55); z-index: 500;
+            display: none; align-items: center; justify-content: center; }
+        #clase-fin-modal.show { display: flex; }
+        #clase-fin-box { background: #fff; border-radius: 12px; padding: 22px 24px; width: 320px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.3); font-size: 0.9rem; color: #1e293b; }
+        #clase-fin-box h3 { margin: 0 0 6px; font-size: 1.05rem; }
+        #clase-fin-resumen { color: #475569; margin-bottom: 14px; line-height: 1.5; }
+        #clase-fin-clave { width: 100%; box-sizing: border-box; font-size: 1.1rem; padding: 8px 10px;
+            border: 1px solid #cbd5e1; border-radius: 8px; text-align: center; letter-spacing: 0.2em; }
+        #clase-fin-clave.error { border-color: #dc2626; background: #fef2f2; }
+        #clase-fin-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+        #clase-fin-btns button { border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer;
+            font-family: inherit; font-weight: 600; }
+        #clase-fin-cancelar { background: #e2e8f0; color: #1e293b; }
+        #clase-fin-ok { background: #dc2626; color: #fff; }
         #hdr-ses-titulo {
             font-size: 1.27rem; font-weight: 600; color: #fff; letter-spacing: 0.02em;
         }
@@ -1016,13 +1047,20 @@
         <div class="hdr-ses-left">
             <span id="hdr-ses-titulo"></span>
             <span id="sync-label"></span>
+            <span id="clase-timers" hidden>
+                <span id="ct-ctx"></span>
+                <span class="ct-item" title="Tiempo de clase">⏱ <b id="ct-clase">00:00</b></span>
+                <span class="ct-item ct-perdido" id="ct-perdido-wrap" onclick="ClaseVivo.togglePerdido()"
+                      title="Tiempo perdido · Ctrl + Shift + Espacio para iniciar/detener">🎮 <b id="ct-perdido">00:00</b></span>
+            </span>
         </div>
         <div class="hdr-ses-right">
             <button class="hdr-btn" onclick="abrirLibro()" title="Abrir el Libro de Clases de este curso">📒 Libro</button>
             <button class="hdr-btn" onclick="abrirRepertorioCurso()" title="Abrir la sesión de Entrenador de este curso">🏋️ Repertorio</button>
             <button class="hdr-btn" onclick="abrirMemoria()" title="Bitácora de esta clase (texto y audios)">✍🏼 Bitácora</button>
             <button class="hdr-btn" onclick="mostrarQRRemoto()" title="Abrir control remoto en celular">📱 Remoto</button>
-            <button class="hdr-btn" onclick="abrirPizarra()">📽️ Presentar</button>
+            <button class="hdr-btn" id="btn-reabrir-piz" onclick="abrirPizarra()" title="Volver a abrir la Pizarra" hidden>📽️</button>
+            <button class="hdr-btn" id="btn-clase" onclick="botonClase()">▶ Comenzar clase</button>
         </div>
     </div>
 </div>
@@ -1200,6 +1238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setStatus('Conectando...');
     try {
         sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+        ClaseVivo.subirPendientes(sb);    // Modo Clase: registros que quedaron sin subir
         await Promise.all([loadContextos(), loadHorario(), cargarAnioActivo()]);
         await crearSesionesPendientes();
         await cierreSemanalPendientes();  // respaldo del cierre del jueves 18:00 (antes de leer pendientes)
@@ -1826,6 +1865,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
 
     const sesion = await getOrCreate(cid, fechaStr);
     sesionActual = { id: sesion.id, contexto_id: cid, fecha: fechaStr, nombre };
+    renderClase();
     logEvento('abrir_sesion', { contexto_id: cid, sesion_id: sesion.id });
 
     modoTriptico = 'pres';   // vista única: el Portal siempre entra en modo pres
@@ -2052,16 +2092,123 @@ function abrirPizarra() {
     logEvento('abrir_pizarra');
     const activa = document.querySelector('#prev-body .slide-prev.activa');
     const slide = activa ? parseInt(activa.dataset.idx) : 0;
-    // 1) Pizarra de la sesión puntual del Portal (comportamiento existente).
-    const winPizarra = window.open(`../PIZARRA/index.html?sesion=${sesionActual.id}&slide=${slide}`, '_blank');
-    // 2) Entrenador de la sesión de entrenamiento por defecto del curso, en Modo Pizarra.
-    //    SIN await entre ambas aperturas (mismo gesto de clic → minimiza el popup blocker).
-    //    Si el curso no tiene sesión por defecto, no se abre nada (silencioso).
-    if (entrenamientoDefaultId) {
-        window.open(`../REPERTORIO/index.html?practicar=${entrenamientoDefaultId}&proyeccion=1`, '_blank');
-    }
-    // Foco: la Pizarra debe quedar al frente (si el navegador lo permite).
+    // Ventana con nombre fijo: reabrir reutiliza la misma ventana (la del proyector).
+    // Ya no abre el Entrenador en una segunda ventana (el navegador la bloqueaba).
+    const winPizarra = window.open(`../PIZARRA/index.html?sesion=${sesionActual.id}&slide=${slide}`, 'profe-pizarra');
     if (winPizarra) { try { winPizarra.focus(); } catch (_) {} }
+}
+
+// ── Modo Clase · Paso 1: Comenzar / Terminar clase + temporizadores ──────
+// Estado compartido en comun/clase-vivo.js (ClaseVivo). Una sola clase a la vez.
+let _claseTick = null;
+
+function botonClase() {
+    if (!sesionActual) return;
+    const st = ClaseVivo.get();
+    if (!st) {
+        abrirPizarra();   // primero (mismo gesto de clic → evita el bloqueo de ventanas)
+        ClaseVivo.comenzar({
+            sesionId: sesionActual.id,
+            ctx:      contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '',
+            fecha:    sesionActual.fecha,
+        });
+        logEvento('comenzar_clase', { sesion_id: sesionActual.id });
+        return;
+    }
+    if (st.sesionId === sesionActual.id) abrirFinClase();
+}
+
+function renderClase() {
+    const st   = ClaseVivo.get();
+    const btn  = document.getElementById('btn-clase');
+    const reab = document.getElementById('btn-reabrir-piz');
+    const box  = document.getElementById('clase-timers');
+    if (!btn) return;
+    const esEsta = !!(st && sesionActual && st.sesionId === sesionActual.id);
+    if (!st) {
+        btn.textContent = '▶ Comenzar clase'; btn.disabled = false; btn.title = '';
+    } else if (esEsta) {
+        btn.textContent = '⏹ Terminar clase'; btn.disabled = false; btn.title = '';
+    } else {
+        btn.textContent = '▶ Comenzar clase'; btn.disabled = true;
+        btn.title = `Hay una clase en curso (${ctxDisplay(st.ctx)}). Termínala primero.`;
+    }
+    reab.hidden = !esEsta;
+    box.hidden  = !st;
+    document.getElementById('ct-ctx').textContent = st && !esEsta ? ctxDisplay(st.ctx) : '';
+    clearInterval(_claseTick); _claseTick = null;
+    if (st) { tickClase(); _claseTick = setInterval(tickClase, 500); }
+}
+
+function tickClase() {
+    const st = ClaseVivo.get();
+    if (!st) return renderClase();
+    document.getElementById('ct-clase').textContent   = ClaseVivo.fmt(ClaseVivo.tiempoClaseMs(st));
+    document.getElementById('ct-perdido').textContent = ClaseVivo.fmt(ClaseVivo.tiempoPerdidoMs(st));
+    document.getElementById('ct-perdido-wrap').classList.toggle('corriendo', !!st.perdidoDesde);
+}
+
+function abrirFinClase() {
+    const st = ClaseVivo.get();
+    if (!st) return;
+    document.getElementById('clase-fin-resumen').innerHTML =
+        `⏱ Tiempo de clase: <b>${ClaseVivo.fmt(ClaseVivo.tiempoClaseMs(st))}</b><br>` +
+        `🎮 Tiempo perdido: <b>${ClaseVivo.fmt(ClaseVivo.tiempoPerdidoMs(st))}</b>`;
+    const inp = document.getElementById('clase-fin-clave');
+    inp.value = ''; inp.classList.remove('error');
+    document.getElementById('clase-fin-modal').classList.add('show');
+    setTimeout(() => inp.focus(), 30);
+}
+function cerrarFinClase() { document.getElementById('clase-fin-modal').classList.remove('show'); }
+
+async function confirmarFinClase() {
+    const inp = document.getElementById('clase-fin-clave');
+    // Clave simple del sistema (día del mes), igual que el Workspace. A reemplazar en V1.
+    if (inp.value.trim() !== String(new Date().getDate())) {
+        inp.classList.add('error'); inp.select(); return;
+    }
+    cerrarFinClase();
+    const fila = ClaseVivo.terminar();
+    logEvento('terminar_clase', { sesion_id: fila?.sesion_id });
+    const quedan = await ClaseVivo.subirPendientes(sb);
+    if (quedan) alert('No se pudieron guardar los tiempos en internet. Quedaron en este computador y se subirán solos más tarde.');
+    refrescarDatosClase();
+}
+
+ClaseVivo.onCambio(renderClase);
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('clase-fin-clave').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); confirmarFinClase(); }
+        if (e.key === 'Escape') { e.preventDefault(); cerrarFinClase(); }
+    });
+});
+window.addEventListener('online', () => { if (sb) ClaseVivo.subirPendientes(sb); });
+
+// DATOS DE LA CLASE (panel izquierdo, por defecto cerrado). El uso real dirá si se queda aquí.
+async function datosClaseHTML(sesionId) {
+    let filas = [];
+    try {
+        const { data, error } = await sb.from('clase_tiempos')
+            .select('tiempo_clase_seg, tiempo_perdido_seg, episodios_perdido')
+            .eq('sesion_id', sesionId).order('inicio');
+        if (!error) filas = data || [];
+    } catch (_) {}
+    const items = filas.map((f, i) => ({ texto:
+        `${filas.length > 1 ? `<b>Registro ${i + 1}</b><br>` : ''}` +
+        `⏱ Tiempo de clase: <b>${ClaseVivo.fmt(f.tiempo_clase_seg * 1000)}</b><br>` +
+        `🎮 Tiempo perdido: <b>${ClaseVivo.fmt(f.tiempo_perdido_seg * 1000)}</b>` +
+        ` (${f.episodios_perdido} ${f.episodios_perdido === 1 ? 'vez' : 'veces'})` }));
+    return `<div class="datos-clase" data-sesion="${sesionId}">${buildRevSeccion('DATOS DE LA CLASE', items, false)}</div>`;
+}
+async function refrescarDatosClase() {
+    for (const el of document.querySelectorAll('.datos-clase[data-sesion]')) {
+        const abierto = !el.querySelector('.rev-sec-body')?.classList.contains('hidden');
+        const tmp = document.createElement('div');
+        tmp.innerHTML = await datosClaseHTML(el.dataset.sesion);
+        const nuevo = tmp.firstElementChild;
+        if (abierto) toggleRevSec(nuevo.querySelector('.rev-sec-hdr'));
+        el.replaceWith(nuevo);
+    }
 }
 
 function mostrarQRRemoto() {
@@ -2723,10 +2870,12 @@ async function pintarRegistro(panel, ant) {
         sb.from('pendientes').select('texto').eq('sesion_id', ant.id).eq('categoria', 'pendientes_materiales').eq('estado', 'activo'),
         sb.from('memorias').select('contenido, audios').eq('sesion_id', ant.id).maybeSingle(),
     ]);
+    const datosHTML = await datosClaseHTML(ant.id);
     if (myToken !== _regToken) return;           // otra navegación más nueva ganó → descartar
 
     panel.innerHTML = `
         ${buildMemSeccion(memAnt, `CLASE ANTERIOR — ${fechaLbl}`)}
+        ${datosHTML}
         <div class="reg-hist-bloques">
             ${buildRevSeccion('REVISIÓN', rev, true)}
             ${buildRevSeccion('REPERTORIO', rep, false)}
@@ -4286,5 +4435,16 @@ async function guardarMateriales() {
     </div>
 </div>
 
+<div id="clase-fin-modal" onclick="if (event.target === this) cerrarFinClase()">
+    <div id="clase-fin-box">
+        <h3>Terminar clase</h3>
+        <div id="clase-fin-resumen"></div>
+        <input id="clase-fin-clave" type="password" inputmode="numeric" placeholder="Clave" autocomplete="off">
+        <div id="clase-fin-btns">
+            <button id="clase-fin-cancelar" onclick="cerrarFinClase()">Cancelar</button>
+            <button id="clase-fin-ok" onclick="confirmarFinClase()">Terminar</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>
