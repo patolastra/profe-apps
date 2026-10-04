@@ -122,3 +122,85 @@
         tiempoClaseMs, tiempoPerdidoMs, fmt, onCambio,
     };
 })();
+
+// ── Pantallas de proyección (Modo Clase · Paso 2) ───────────────────────────
+// Ubica la Pizarra en el proyector cuando el navegador lo permite (Window
+// Management API: Chrome/Edge; Brave por confirmar). Sin la API o sin permiso,
+// todo funciona como antes y se mueve a mano (Windows + Shift + flecha).
+// Regla: pantalla recordada en ESTE computador (por nombre); si no está
+// conectada, la primera que no es la principal. ↔ manda la Pizarra a la otra
+// pantalla; si queda en una no principal, ese computador la recuerda.
+(function () {
+    const PANT_KEY = 'profe_pantalla_proyeccion';
+    const CMD_KEY  = 'profe_pizarra_cmd';
+    const hayAPI   = 'getScreenDetails' in window;
+
+    async function permiso() {
+        if (!hayAPI) return 'no';
+        try { return (await navigator.permissions.query({ name: 'window-management' })).state; }
+        catch (_) { return 'prompt'; }
+    }
+    async function detalles() {
+        try { return await window.getScreenDetails(); } catch (_) { return null; }
+    }
+    function elegir(sd) {
+        if (!sd || sd.screens.length < 2) return null;
+        let guardada = null;
+        try { guardada = localStorage.getItem(PANT_KEY); } catch (_) {}
+        return sd.screens.find(s => guardada && s.label === guardada)
+            || sd.screens.find(s => !s.isPrimary) || null;
+    }
+    function recordar(s) {
+        if (s && !s.isPrimary && s.label) { try { localStorage.setItem(PANT_KEY, s.label); } catch (_) {} }
+    }
+    function moverA(s) {
+        window.moveTo(s.availLeft, s.availTop);
+        window.resizeTo(s.availWidth, s.availHeight);
+    }
+
+    // Planificador: abre (o reutiliza) la ventana de proyección, en el proyector
+    // si se puede. Las consultas son rápidas y no consumen el gesto del clic.
+    async function abrir(url, nombre) {
+        if (await permiso() === 'granted') {
+            const s = elegir(await detalles());
+            if (s) return window.open(url, nombre,
+                `popup,left=${s.availLeft},top=${s.availTop},width=${s.availWidth},height=${s.availHeight}`);
+        }
+        const w = window.open(url, nombre);
+        if (await permiso() === 'prompt') detalles();   // pide permiso para la próxima vez
+        return w;
+    }
+
+    // Planificador → Pizarra: intercambiar pantalla.
+    function flip() {
+        try { localStorage.setItem(CMD_KEY, JSON.stringify({ accion: 'flip', t: Date.now() })); } catch (_) {}
+    }
+
+    // Pizarra: obedece ↔ y, al abrir, se ubica sola en el proyector si quedó en
+    // la principal (sólo ventanas abiertas por la app; las pestañas no se mueven).
+    async function ejecutarFlip() {
+        if (await permiso() !== 'granted') return;
+        const sd = await detalles();
+        if (!sd || sd.screens.length < 2) return;
+        if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch (_) {} }
+        const i = sd.screens.indexOf(sd.currentScreen);
+        const otra = sd.screens[(i + 1) % sd.screens.length];
+        moverA(otra);
+        recordar(otra);
+    }
+    async function ubicarAlAbrir() {
+        if (!window.opener || await permiso() !== 'granted') return;
+        const sd = await detalles();
+        const s = elegir(sd);
+        if (s && sd.currentScreen && sd.currentScreen.isPrimary) moverA(s);
+    }
+    function escucharEnPizarra() {
+        window.addEventListener('storage', e => {
+            if (e.key !== CMD_KEY || !e.newValue) return;
+            try { if (JSON.parse(e.newValue).accion === 'flip') ejecutarFlip(); } catch (_) {}
+        });
+        ubicarAlAbrir();
+    }
+
+    window.Proyeccion = { hayAPI, permiso, abrir, flip, escucharEnPizarra };
+})();

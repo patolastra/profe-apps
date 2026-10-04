@@ -1917,6 +1917,24 @@ avanzando); clic en 🎮 desde otro Planificador → la capa aparece en la Pizar
 Planificador conserva los tiempos; clave errónea no termina, correcta termina y deja el
 registro en cola (tabla aún no creada → aviso correcto). Datos de prueba borrados. No
 probado: dos pantallas reales, ni abriendo desde archivos locales.
+**Paso 2 — Pizarra en el proyector (2026-10-04, IMPLEMENTADO; falta prueba física del PO):**
+aprobado por el PO tras evaluar la viabilidad de la nota "Modo live" (dos vistas, ventana
+aparte, detección de pantallas, asignación manual, Flip, degradación progresiva).
+- Con permiso del navegador para manejar pantallas (Window Management API: Chrome/Edge;
+  **Brave por probar**), "Comenzar clase"/📽️ abre la Pizarra como ventana sin barras en
+  el proyector. Regla: pantalla recordada **en ese computador** (por nombre); si no está
+  conectada, la primera que **no es la principal**. Al abrirse, la Pizarra también se
+  ubica sola si quedó en la principal.
+- **↔** en el Planificador (solo con permiso y clase en curso) pasa la Pizarra a la otra
+  pantalla; si queda en una no principal, ese computador la recuerda. No mueve la
+  ventana del Planificador (el navegador no lo permite) — aceptado por el PO.
+- Pantalla completa: sigue siendo con F (el navegador exige un gesto) — aceptado por el PO.
+- Sin la función o sin permiso: todo como antes (Windows + Shift + flecha). La primera
+  vez el navegador pregunta si se autoriza; queda guardado.
+- Código: `comun/clase-vivo.js` (bloque `Proyeccion`), Planificador (`abrirPizarra`,
+  botón ↔), Pizarra (escucha ↔ y se ubica al abrir).
+- Pruebas (Claude): solo el camino sin permiso (navegador de pruebas de una pantalla):
+  la Pizarra abre como antes, ↔ oculto, sin errores. **Dos pantallas reales: sin probar.**
 **Deuda técnica (PO, 2026-10-04):** hoy una misma sesión puede acumular **varios
 registros** de tiempos (si se comienza y termina la clase más de una vez en la misma
 fecha). Debe haber **uno solo por clase**; definir cómo se resuelve (impedir comenzar de

@@ -1064,6 +1064,7 @@
             <button class="hdr-btn" onclick="abrirMemoria()" title="Bitácora de esta clase (texto y audios)">✍🏼 Bitácora</button>
             <button class="hdr-btn" onclick="mostrarQRRemoto()" title="Abrir control remoto en celular">📱 Remoto</button>
             <button class="hdr-btn" id="btn-reabrir-piz" onclick="abrirPizarra()" title="Volver a abrir la Pizarra" hidden>📽️</button>
+            <button class="hdr-btn" id="btn-flip-piz" onclick="Proyeccion.flip()" title="Pasar la Pizarra a la otra pantalla" hidden>↔</button>
             <button class="hdr-btn" id="btn-clase" onclick="botonClase()">▶ Comenzar clase</button>
         </div>
     </div>
@@ -2097,9 +2098,10 @@ function abrirPizarra() {
     const activa = document.querySelector('#prev-body .slide-prev.activa');
     const slide = activa ? parseInt(activa.dataset.idx) : 0;
     // Ventana con nombre fijo: reabrir reutiliza la misma ventana (la del proyector).
+    // Si el navegador lo permite, se abre directamente en el proyector (Proyeccion).
     // Ya no abre el Entrenador en una segunda ventana (el navegador la bloqueaba).
-    const winPizarra = window.open(`../PIZARRA/index.html?sesion=${sesionActual.id}&slide=${slide}`, 'profe-pizarra');
-    if (winPizarra) { try { winPizarra.focus(); } catch (_) {} }
+    Proyeccion.abrir(`../PIZARRA/index.html?sesion=${sesionActual.id}&slide=${slide}`, 'profe-pizarra')
+        .then(w => { if (w) { try { w.focus(); } catch (_) {} } });
 }
 
 // ── Modo Clase · Paso 1: Comenzar / Terminar clase + temporizadores ──────
@@ -2138,6 +2140,10 @@ function renderClase() {
         btn.title = `Hay una clase en curso (${ctxDisplay(st.ctx)}). Termínala primero.`;
     }
     reab.hidden = !esEsta;
+    // ↔ solo si el navegador dio permiso para manejar pantallas (si no, sería un botón muerto).
+    const flipBtn = document.getElementById('btn-flip-piz');
+    flipBtn.hidden = true;
+    if (esEsta) Proyeccion.permiso().then(p => { flipBtn.hidden = p !== 'granted'; });
     box.hidden  = !st;
     document.getElementById('ct-ctx').textContent = st && !esEsta ? ctxDisplay(st.ctx) : '';
     clearInterval(_claseTick); _claseTick = null;
