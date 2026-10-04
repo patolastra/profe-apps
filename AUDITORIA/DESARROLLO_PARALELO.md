@@ -1864,11 +1864,13 @@ quedó **fuera** del checkpoint.
 
 ---
 
-### Desarrollo paralelo: Modo Clase — Paso 1: "Comenzar clase" y temporizadores
+### Desarrollo paralelo: Modo Clase — Pasos 1 y 2: "Comenzar clase", temporizadores y Pizarra en el proyector
 
-**Fecha:** 2026-10-04
-**Estado:** **IMPLEMENTADO — probado técnicamente; pendiente: el PO crea la tabla
-`clase_tiempos` en Supabase y valida en clase real.**
+**Fecha:** 2026-10-04 / 05
+**Estado:** **CERRADOS — Paso 1 y Paso 2 implementados, validados físicamente por el PO
+(proyector en "Extender", versión en línea) y publicados.** Tabla `clase_tiempos` creada
+por el PO en Supabase y verificada (lectura/escritura). El Modo Clase como línea sigue
+abierto: próximos pasos y deudas al final de esta ficha.
 Primer desarrollo bajo la marcha blanca sin ChatGPT (Notion: *Modo live para clases*).
 **Necesidad profesional que lo origina:** un modo "en vivo" para la clase, con el
 Planificador como centro de operaciones del profesor y la Pizarra en el proyector
@@ -1963,6 +1965,13 @@ aparte, detección de pantallas, asignación manual, Flip, degradación progresi
 registros** de tiempos (si se comienza y termina la clase más de una vez en la misma
 fecha). Debe haber **uno solo por clase**; definir cómo se resuelve (impedir comenzar de
 nuevo, retomar el registro existente, o reemplazarlo).
+**Deuda (PO, 2026-10-05): botón ↔ propio en la Pizarra**, para devolverla a la pantalla
+de proyección desde la misma Pizarra (hoy ↔ solo está en el Planificador).
+**Notas operativas:** usar la **versión en línea** (`https://patolastra.github.io/profe-apps/`);
+abierta como archivo local (`file://`) el navegador no aplica el permiso de pantallas. En
+Brave hay que bajar los escudos para el sitio. Cada computador acepta el permiso una vez.
+La página temporal `comun/diagnostico-pantallas.html` se conserva por ahora para revisar
+otros computadores; retirarla cuando ya no sea necesaria.
 **Pendientes:** futuros: espejo de la proyección, notas
 por diapositiva, proyectar recursos del Libro, invitación a la bitácora al terminar.
 **Observaciones para la reintegración:** primera pieza del "Modo Clase"; nombre definitivo

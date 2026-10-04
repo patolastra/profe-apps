@@ -112,6 +112,8 @@
 
 
 - **Gobernanza — marcha blanca sin ChatGPT (DECISIÓN del PO, 2026-10-04).** Checkpoint importante: se prueba trabajar **solo Pato + Claude**, con **Notion** como canal (Pato anota → Claude lee y presenta plan → Pato aprueba → Claude implementa y registra en el repo y en Notion). El rol de ChatGPT queda **suspendido, no eliminado**. Se fijan reglas permanentes de comunicación hacia el PO: texto mínimo, en humano, español de Chile, con recomendación. Estado al momento: Metalófono Etapas 1 y 2 cerradas (iPhone sin probar); Melodía + Karaoke en pausa con plan aprobado; Loop del Lector sigue solo local. Norma en `CLAUDE.md` §11.
+
+- **Modo Clase — Pasos 1 y 2 (HECHO, 2026-10-04/05).** Primer desarrollo de la marcha blanca sin ChatGPT. En el Planificador, "Presentar" pasa a **"Comenzar clase"**: abre la Pizarra y mide el **tiempo de clase** y el **tiempo perdido** (Ctrl + Shift + Espacio; en la Pizarra aparece gigante, parpadeando rojo/verde). "Terminar clase" pide la clave y guarda los tiempos (tabla nueva `clase_tiempos`; sección DATOS DE LA CLASE). La Pizarra se abre sola en el **proyector** (pantallas en Extender) y **↔** la cambia de pantalla. Estado compartido entre ventanas en `comun/clase-vivo.js`, funciona sin internet. Validado por el PO en la versión en línea. Deudas: un solo registro de tiempos por clase; botón ↔ propio en la Pizarra.
 ---
 
 *Nota: las fechas provienen de la documentación existente (CLAUDE.md previo, notas de trabajo y Git). Los hashes de F4 provienen del historial Git de esta etapa. El detalle fino por commit (más allá de los checkpoints de F4) no se reconstruye aquí a propósito.*
