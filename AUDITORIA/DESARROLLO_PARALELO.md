@@ -1942,6 +1942,13 @@ aparte, detección de pantallas, asignación manual, Flip, degradación progresi
   siempre como ventana emergente (`profe-proyeccion`), el destino se elige evitando la
   pantalla del Planificador, se ignoran pantallas de tamaño 0, y la Pizarra se reubica
   sola al cargar según el destino que dejó el Planificador.
+- **Causa final del fallo en la prueba física:** el PO abría el Workspace como archivo local
+  (`file://`); el permiso de pantallas estaba concedido solo en la versión en línea. Desde
+  la versión en línea, **funciona: la Pizarra se abre en el proyector (validado por el PO,
+  Brave con escudos bajos)**. Recomendación al PO: usar siempre la versión en línea.
+- Barra del Planificador: con clase en curso (📽️ y ↔ extra) el título y los botones se
+  partían en dos líneas en pantallas de ~1536 px; ahora nunca se parten y los tamaños se
+  ajustan al ancho (probado a 1536 y 1280 px).
 - Pruebas (Claude): solo el camino sin permiso (navegador de pruebas de una pantalla):
   la Pizarra abre como antes, ↔ oculto, sin errores. **Dos pantallas reales: sin probar.**
 **Deuda técnica (PO, 2026-10-04):** hoy una misma sesión puede acumular **varios
