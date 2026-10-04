@@ -1954,6 +1954,9 @@ aparte, detección de pantallas, asignación manual, Flip, degradación progresi
   ancho real de la barra.
 - ↔: la Pizarra quedaba detrás del navegador al llegar a la pantalla del profe; ahora el
   Planificador la trae al frente con el mismo clic (y la Pizarra pide foco al moverse).
+  Segundo reporte (seguía quedando detrás): ahora el **Planificador** mueve la ventana y la
+  trae al frente dentro del mismo clic (obtiene la ventana existente por su nombre, sin
+  recargarla); la Pizarra emite un latido para no abrir una ventana en blanco si no está.
 - Pruebas (Claude): solo el camino sin permiso (navegador de pruebas de una pantalla):
   la Pizarra abre como antes, ↔ oculto, sin errores. **Dos pantallas reales: sin probar.**
 **Deuda técnica (PO, 2026-10-04):** hoy una misma sesión puede acumular **varios

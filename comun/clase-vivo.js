@@ -140,6 +140,7 @@
     const PANT_KEY = 'profe_pantalla_proyeccion';
     const DEST_KEY = 'profe_pantalla_destino';
     const CMD_KEY  = 'profe_pizarra_cmd';
+    const VIVA_KEY = 'profe_pizarra_viva';   // latido de la Pizarra abierta
     const hayAPI   = 'getScreenDetails' in window;
 
     const leer  = k => { try { return localStorage.getItem(k); } catch (_) { return null; } };
@@ -184,7 +185,7 @@
                             availWidth: screen.availWidth, availHeight: screen.availHeight };
         const feats = `popup,left=${r.availLeft},top=${r.availTop},width=${r.availWidth},height=${r.availHeight}`;
         const w = window.open(url, nombre, feats);
-        if (w) ventana = w;
+        nombreVentana = nombre;
         // Rastro de la última decisión (lo muestra comun/diagnostico-pantallas.html).
         Proyeccion.ultimo = { permiso: perm, enIframe: window !== window.top,
             pantallas: validas(sd).map(s => `${s.label || '(sin nombre)'} ${s.availLeft},${s.availTop} ${s.availWidth}x${s.availHeight}${s.isPrimary ? ' principal' : ''}`),
@@ -194,17 +195,38 @@
         return w;
     }
 
-    // Planificador → Pizarra: intercambiar pantalla.
-    function flip() { poner(CMD_KEY, JSON.stringify({ accion: 'flip', t: Date.now() })); }
-
-    // Traer la Pizarra al frente (usa el gesto del clic del Planificador; si la
-    // ventana se movió a la pantalla del profe, no queda escondida detrás).
-    let ventana = null;
-    function alFrente() {
-        try { if (ventana && !ventana.closed) ventana.focus(); } catch (_) {}
-        setTimeout(() => { try { if (ventana && !ventana.closed) ventana.focus(); } catch (_) {} }, 400);
+    // ↔ (Planificador): mueve la Pizarra a la otra pantalla y la trae al frente,
+    // todo dentro del mismo clic. window.open('', nombre) sobre una ventana que ya
+    // existe la devuelve SIN recargarla y la pone al frente (w.focus() solo no
+    // basta en Chrome). Solo se usa si la Pizarra está viva (latido VIVA_KEY),
+    // para no abrir una ventana en blanco. Si no, se le pide a la Pizarra.
+    let nombreVentana = 'profe-proyeccion';
+    async function flip() {
+        let viva = 0;
+        try { viva = Number(leer(VIVA_KEY)) || 0; } catch (_) {}
+        if (Date.now() - viva > 4000) return;              // no hay Pizarra abierta
+        const w = window.open('', nombreVentana);           // gesto del clic: primero
+        if (!w || await permiso() !== 'granted') { pedirFlip(); return; }
+        const sd = await detalles();
+        const lista = validas(sd);
+        if (lista.length < 2) return;
+        try { if (w.document.fullscreenElement) await w.document.exitFullscreen(); } catch (_) {}
+        const cx = w.screenX + w.outerWidth / 2, cy = w.screenY + w.outerHeight / 2;
+        let i = lista.findIndex(s => cx >= s.availLeft && cx < s.availLeft + s.availWidth
+                                    && cy >= s.availTop && cy < s.availTop + s.availHeight);
+        const otra = lista[(Math.max(i, 0) + 1) % lista.length];
+        try {
+            w.moveTo(otra.availLeft, otra.availTop);
+            w.resizeTo(otra.availWidth, otra.availHeight);
+        } catch (_) { pedirFlip(); return; }
+        recordar(otra);
+        poner(DEST_KEY, JSON.stringify(rect(otra)));
+        try { w.focus(); } catch (_) {}
+        setTimeout(() => { try { window.open('', nombreVentana); } catch (_) {} }, 150);
     }
+    function pedirFlip() { poner(CMD_KEY, JSON.stringify({ accion: 'flip', t: Date.now() })); }
 
+    // Pizarra: respaldo cuando el Planificador no pudo mover la ventana.
     async function ejecutarFlip() {
         if (await permiso() !== 'granted') return;
         const sd = await detalles();
@@ -232,7 +254,10 @@
             try { if (JSON.parse(e.newValue).accion === 'flip') ejecutarFlip(); } catch (_) {}
         });
         ubicarAlAbrir();
+        const latir = () => poner(VIVA_KEY, String(Date.now()));
+        latir(); setInterval(latir, 1500);
+        window.addEventListener('pagehide', () => { try { localStorage.removeItem(VIVA_KEY); } catch (_) {} });
     }
 
-    window.Proyeccion = { hayAPI, permiso, abrir, flip, alFrente, escucharEnPizarra };
+    window.Proyeccion = { hayAPI, permiso, abrir, flip, escucharEnPizarra };
 })();
