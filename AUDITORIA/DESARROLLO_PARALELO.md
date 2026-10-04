@@ -1917,6 +1917,10 @@ avanzando); clic en 🎮 desde otro Planificador → la capa aparece en la Pizar
 Planificador conserva los tiempos; clave errónea no termina, correcta termina y deja el
 registro en cola (tabla aún no creada → aviso correcto). Datos de prueba borrados. No
 probado: dos pantallas reales, ni abriendo desde archivos locales.
+**Deuda técnica (PO, 2026-10-04):** hoy una misma sesión puede acumular **varios
+registros** de tiempos (si se comienza y termina la clase más de una vez en la misma
+fecha). Debe haber **uno solo por clase**; definir cómo se resuelve (impedir comenzar de
+nuevo, retomar el registro existente, o reemplazarlo).
 **Pendientes:** futuros: espejo de la proyección, notas
 por diapositiva, proyectar recursos del Libro, invitación a la bitácora al terminar.
 **Observaciones para la reintegración:** primera pieza del "Modo Clase"; nombre definitivo
