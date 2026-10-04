@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagnóstico de pantallas</title>
+<!-- Herramienta TEMPORAL (Modo Clase · Paso 2): ver qué pantallas ve el navegador
+     y si puede abrir una ventana en el proyector. Retirar al cerrar el diagnóstico. -->
+<style>
+    body { font-family: system-ui, sans-serif; background: #f8fafc; color: #1e293b; margin: 0; padding: 24px; }
+    h1 { font-size: 1.3rem; margin: 0 0 16px; }
+    .caja { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; margin-bottom: 14px; }
+    button { font: inherit; font-weight: 600; border: none; border-radius: 8px; padding: 8px 14px;
+             background: #2563eb; color: #fff; cursor: pointer; margin: 4px 6px 4px 0; }
+    button.gris { background: #e2e8f0; color: #1e293b; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+    td, th { border-bottom: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
+    #resultado { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.8rem;
+                 background: #f1f5f9; padding: 10px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<h1>Diagnóstico de pantallas</h1>
+<div class="caja">
+    <b>1.</b> Conecta el proyector en modo <b>Extender</b>.<br>
+    <b>2.</b> Aprieta <b>Revisar</b> (si pregunta por permiso, acepta).<br>
+    <b>3.</b> Prueba los botones <b>Abrir prueba aquí</b> de cada pantalla.<br>
+    <b>4.</b> Aprieta <b>Copiar resultado</b> y pégamelo en el chat.
+</div>
+<div class="caja">
+    <button onclick="revisar()">Revisar</button>
+    <button class="gris" onclick="copiar()">Copiar resultado</button>
+    <div id="tabla" style="margin-top:10px"></div>
+</div>
+<div class="caja"><div id="resultado">Aún sin revisar.</div></div>
+<script>
+const log = [];
+function anotar(t) { log.push(t); document.getElementById('resultado').textContent = log.join('\n'); }
+
+async function revisar() {
+    log.length = 0;
+    anotar('Navegador: ' + navigator.userAgent);
+    anotar('Dirección: ' + location.protocol + '//' + location.host);
+    anotar('Función de pantallas disponible: ' + ('getScreenDetails' in window ? 'sí' : 'NO'));
+    try {
+        const p = await navigator.permissions.query({ name: 'window-management' });
+        anotar('Permiso (antes): ' + p.state);
+    } catch (e) { anotar('Permiso (antes): no se pudo consultar (' + e.message + ')'); }
+    if (!('getScreenDetails' in window)) return;
+    let sd;
+    try { sd = await window.getScreenDetails(); }
+    catch (e) { anotar('Error al leer pantallas: ' + e.message); return; }
+    try {
+        const p = await navigator.permissions.query({ name: 'window-management' });
+        anotar('Permiso (después): ' + p.state);
+    } catch (_) {}
+    anotar('Cantidad de pantallas: ' + sd.screens.length);
+    anotar('Esta ventana está en: ' + (sd.currentScreen?.label || '(sin nombre)'));
+    let html = '<table><tr><th>#</th><th>Nombre</th><th>Principal</th><th>Posición</th><th>Tamaño</th><th></th></tr>';
+    sd.screens.forEach((s, i) => {
+        anotar(`Pantalla ${i + 1}: "${s.label}" · principal: ${s.isPrimary ? 'sí' : 'no'} · interna: ${s.isInternal ? 'sí' : 'no'} · posición ${s.availLeft},${s.availTop} · tamaño ${s.availWidth}x${s.availHeight}`);
+        html += `<tr><td>${i + 1}</td><td>${s.label || '(sin nombre)'}</td><td>${s.isPrimary ? 'sí' : 'no'}</td>` +
+                `<td>${s.availLeft}, ${s.availTop}</td><td>${s.availWidth} × ${s.availHeight}</td>` +
+                `<td><button onclick="probar(${i})">Abrir prueba aquí</button></td></tr>`;
+    });
+    document.getElementById('tabla').innerHTML = html + '</table>';
+    window._sd = sd;
+}
+
+function probar(i) {
+    const s = window._sd.screens[i];
+    const w = window.open('', 'prueba-pantalla-' + i,
+        `popup,left=${s.availLeft},top=${s.availTop},width=${s.availWidth},height=${s.availHeight}`);
+    if (!w) { anotar(`Prueba pantalla ${i + 1}: el navegador BLOQUEÓ la ventana`); return; }
+    w.document.body.innerHTML = `<h1 style="font:700 6vw system-ui;text-align:center;margin-top:30vh">Pantalla ${i + 1}</h1>`;
+    setTimeout(() => {
+        let donde = '?';
+        try { donde = `${w.screenX},${w.screenY} tamaño ${w.outerWidth}x${w.outerHeight}`; } catch (_) {}
+        anotar(`Prueba pantalla ${i + 1}: se pidió ${s.availLeft},${s.availTop} → quedó en ${donde}`);
+    }, 800);
+}
+
+async function copiar() {
+    try { await navigator.clipboard.writeText(log.join('\n')); alert('Copiado. Pégalo en el chat.'); }
+    catch (_) { alert('No se pudo copiar; selecciona el texto gris y cópialo a mano.'); }
+}
+</script>
+</body>
+</html>
