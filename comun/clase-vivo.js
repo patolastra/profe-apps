@@ -176,13 +176,19 @@
     // Planificador: abre (o reutiliza) la ventana de proyección, en el proyector
     // si se puede. Las consultas son rápidas y no consumen el gesto del clic.
     async function abrir(url, nombre) {
-        let dest = null;
-        if (await permiso() === 'granted') dest = elegir(await detalles());
+        let dest = null, sd = null;
+        const perm = await permiso();
+        if (perm === 'granted') { sd = await detalles(); dest = elegir(sd); }
         if (dest) poner(DEST_KEY, JSON.stringify(rect(dest)));
         const r = dest || { availLeft: screen.availLeft || 0, availTop: screen.availTop || 0,
                             availWidth: screen.availWidth, availHeight: screen.availHeight };
-        const w = window.open(url, nombre,
-            `popup,left=${r.availLeft},top=${r.availTop},width=${r.availWidth},height=${r.availHeight}`);
+        const feats = `popup,left=${r.availLeft},top=${r.availTop},width=${r.availWidth},height=${r.availHeight}`;
+        const w = window.open(url, nombre, feats);
+        // Rastro de la última decisión (lo muestra comun/diagnostico-pantallas.html).
+        Proyeccion.ultimo = { permiso: perm, enIframe: window !== window.top,
+            pantallas: validas(sd).map(s => `${s.label || '(sin nombre)'} ${s.availLeft},${s.availTop} ${s.availWidth}x${s.availHeight}${s.isPrimary ? ' principal' : ''}`),
+            actual: sd && sd.currentScreen ? `${sd.currentScreen.availLeft},${sd.currentScreen.availTop}` : null,
+            ventana: feats };
         if (!dest && await permiso() === 'prompt') detalles();   // pide permiso para la próxima vez
         return w;
     }
