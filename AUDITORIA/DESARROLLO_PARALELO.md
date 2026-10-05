@@ -1979,6 +1979,109 @@ pendiente.
 
 ---
 
+> **Nota de trazabilidad (2026-10-05):** las seis fichas siguientes se registraron **de forma
+> retroactiva**, al cierre del día: se implementaron con plan y aprobación del PO en el chat y
+> en Notion, pero **sin crear la ficha antes de implementar** (paso 2 del ciclo, omitido por
+> Claude). Cada una tuvo su propio checkpoint Git. Desde ahora la ficha se crea antes de
+> implementar. Todas quedan **pendientes de comprobación en uso real** (ítem de Notion
+> *"Comprobar en uso real los arreglos del 5 de octubre"*).
+
+### Microiteración: Repertorio — subir y borrar assets sin perder tabs ni sincronización
+
+**Fecha:** 2026-10-05 · **Checkpoint:** `fb3c9b7` · **Estado:** CERRADA (falta uso real).
+**Necesidad:** la tab de bajo y una de ukelele de Baby Shark "desaparecieron". Auditoría con el
+registro de Supabase (DELETE del 2026-10-04, 19:49–19:58): el bajo se había subido **3 veces en
+3 segundos** (Guardar aceptaba varios clics mientras subía) y al limpiar las copias se borraron
+también el bajo bueno y el ukelele del 28-09 (la confirmación no decía qué se borraba). Además:
+el ✏️ (editar datos) y "mover a otra canción" reenviaban el asset completo desde memoria y
+**podían borrar la sincronización** guardada desde el Lector.
+**Decisión del PO:** aprobar los tres arreglos y probar con una canción de prueba.
+**Implementación (`REPERTORIO/index.html`):** Guardar se bloquea ("Subiendo…") al subir tab/
+metalófono/flauta; la confirmación del 🗑 muestra qué se borra; ✏️ y mover actualizan solo sus
+campos (`update` parcial), sin tocar `tab_sync`/estado.
+**Prueba (Claude):** canción "PRUEBA CLAUDE": 3 clics → 1 tab; sync simulada intacta tras editar
+y mover; borrado con nombre visible. Canción, tab y archivo de prueba borrados.
+**Deuda derivada (Notion):** guardar letras y ritmos también reenvía el asset completo (Baja).
+
+### Microiteración: Nombre de cortesía de los assets
+
+**Fecha:** 2026-10-05 · **Checkpoint:** `0765f63` · **Estado:** CERRADA (falta uso real).
+**Necesidad:** el sistema mostraba el nombre del archivo original (p. ej. en la confirmación
+del 🗑) y en "asignar tabs a estudiantes" no se distinguía melodía de armonía.
+**Decisión del PO:** regla **Canción · Instrumento · Descripción · Dificultad**, para los **7
+tipos** de asset (en no-tab, el tipo hace de instrumento); versión corta sin canción donde ya
+se ve. Registrada como regla en `CLAUDE.md` §3.
+**Implementación:** `comun/nombre-asset.js` (`nombreAsset`/`partesAsset`; quita de la etiqueta
+el instrumento/dificultad/tonalidad autogenerados); aplicada en Repertorio, Lector (Biblioteca,
+panel lateral, asignación a estudiantes, Lecciones, cabecera) y Planificador (selector de
+metalófono). Sin columna nueva; el nombre del archivo solo se usa al descargar. Los cambios
+del Loop (en pausa) en `tabs/index.html` se apartaron (stash) y quedaron **fuera** del checkpoint.
+**Prueba (Claude):** regla corrida sobre los 104 assets reales; pantallas revisadas.
+
+### Microiteración: Lector — tab sin sincronización real y "Abrir archivo"
+
+**Fecha:** 2026-10-05 · **Checkpoint:** `cb6db9c` · **Estado:** CERRADA (falta uso real).
+**Necesidad:** el bajo de Doma se quedaba pegado en la primera nota (el audio sonaba). Causa:
+las secciones que el Lector guarda en `tab_sync` al abrir cualquier tab se tomaban como
+"sincronizada" (falso "✓ Tempo map (0 pts)"). Además, "Abrir archivo" desde el computador
+heredaba audio/sincronización/asset de la tab anterior. (El desfase de un compás del bajo de
+Baby Shark resultó ser de una subida que se perdió; resubido, sincroniza bien.)
+**Decisión del PO:** anotar ambos como deuda y luego arreglarlos juntos.
+**Implementación (`tabs/index.html`):** `tieneSyncReal()` (solo grilla o tempo map cuentan);
+abrir archivo local limpia audio, sincronización, asset y sección. Loop apartado del checkpoint.
+**Prueba (Claude):** bajo de Doma avanza ("Sin sincronización"); guitarra de Baby Shark sigue
+"✓ Tempo map (5 pts)" (no se reprodujo); archivo local sin audio heredado.
+
+### Microiteración: Entrenador — versos borrosos, Alt+clic y botón Letra
+
+**Fecha:** 2026-10-05 · **Checkpoint:** `8c456be` · **Estado:** CERRADA (falta uso real).
+**Necesidad:** al esconder versos (doble clic) no gustaba el aspecto (bloques en caja gris);
+el doble clic además movía el audio y la vista.
+**Decisión del PO:** texto muy borroso; **Alt+clic** = verso, **Alt+doble clic** = estrofa,
+sin mover audio ni vista; doble clic simple sin función; vuelve el botón **Letra** (nunca
+desaparece, solo se atenúa).
+**Implementación (`REPERTORIO/index.html`):** clase `.oculta` con `filter: blur`; esconder/
+mostrar por clase sin re-render; atajos y ayuda actualizados.
+**Prueba (Claude):** canción "1313", tema claro y oscuro; estado de la canción restaurado.
+**Deuda derivada (Notion):** los botones Sync, Guardar y Pitch aún aparecen/desaparecen.
+
+### Microiteración: Libro — notas de grupos terminados y "Evaluar individualmente"
+
+**Fecha:** 2026-10-05 · **Checkpoint:** `299dede` · **Estado:** CERRADA (falta uso real).
+**Necesidad:** (1) la nota "congelada" no se recalculaba al cambiar el piso ni al reevaluar
+(caso Stefania Díaz); (2) "Evaluar individualmente" no permitía usar la rúbrica.
+**Causa (1):** el trigger `libro_nota_grupo_terminado_congela` protegía también la columna
+`nota`; la rúbrica sí se guardaba. 10 notas desfasadas en "Repertorio (Chicos y chicas)".
+**Decisión del PO (opción A):** "terminado" congela la organización del grupo, no las cuentas.
+**Cambio en Supabase (corrido por el PO):** `nota` sale del bloqueo del trigger
+(`supabase/libro_schema.sql` actualizado).
+**Implementación (`LIBRO/index.html`):** al abrir una evaluación se corrigen las notas
+calculadas que no coinciden con su instrumento (solo instrumento completo, con aviso); el
+recálculo avisa si falla; nota manual de integrante de grupo terminado bloqueada en la
+pantalla; "Evaluar individualmente" abre la rúbrica si hay instrumento.
+**Prueba (Claude):** 9 notas reales corregidas (Stefania 5,8 → 6,0), verificadas en la base;
+rúbrica abierta para Florencia Astorga sin evaluar. Cambio de piso no probado con datos reales.
+
+### Microiteración: Entrenador — loops, edición protegida y Escape
+
+**Fecha:** 2026-10-05 · **Checkpoint:** `38cafcb` · **Estado:** CERRADA (falta uso real).
+**Necesidad:** "los loops no se guardan como corresponde"; al editar la letra, Diapositiva/
+Scroll borraba lo escrito; Escape cerraba el Entrenador (al editar y al reproducir).
+**Causas (loops):** loops de canción suelta solo en `localStorage` del navegador; en sesión,
+Ctrl+clic y renombrar no se guardaban; cerrar tras una sesión pisaba los loops de la canción.
+**Decisión del PO:** loops en Supabase; bloquear lo que borra la edición; Escape paso a paso.
+**Cambio en Supabase (corrido por el PO):** columna `repertorio_canciones.loops JSONB`
+(`supabase/repertorio_loops.sql`).
+**Implementación (`REPERTORIO/index.html`):** punto único `entGuardarLoops` (sesión → sesión;
+canción → Supabase) + rescate único de loops locales; editar/guardar canción ya no reenvía
+loops; en edición, Vista/Sync/recursos/‹ › atenuados y cerrar guarda antes; Escape: edición →
+Sync (guarda si hubo cambios) → pausar → cerrar.
+**Prueba (Claude):** "1313" y sesión "Pancho Morales": rescate, crear, renombrar, borrar y
+cierre sin pisar; verso de prueba no se pierde con Scroll y Escape guarda sin cerrar; Escape
+pausa. Estado de prueba restaurado.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
