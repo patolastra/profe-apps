@@ -1806,6 +1806,21 @@ async function procesarArchivoLocal(file, handle = null) {
     currentCancionNombre = null;
     currentEtiqueta      = null;
     currentDificultad    = null;
+    // Archivo del computador: sin canción vinculada. No heredar audio, sincronización ni asset de la
+    // tab anterior (quedaba calzada con un audio ajeno y "Configurar sync" escribía en el asset previo).
+    currentStoragePath     = null;
+    currentTabAssetId      = null;
+    currentTabCancionId    = null;
+    currentSeccionAsignada = null;
+    seccionActiva          = null;
+    tabSyncData   = null;
+    tabSyncBuilt  = null;
+    audioSyncMode = false;
+    tabAudioEl.pause();
+    tabAudioEl.src = '';
+    tabAudioEl.volume = 1;
+    mostrarBarraAudio(false);
+    actualizarSyncStatus();
     let xml = '';
     if (file.name.toLowerCase().endsWith('.mxl')) {
         const zip  = await JSZip.loadAsync(file);
@@ -3711,11 +3726,20 @@ function actualizarLimitesBarraAudio() {
     seek.step = hi > lo ? (hi - lo) / 1000 : 0.1;
 }
 
+// Una tab está sincronizada solo si tiene grilla o tempo map de verdad. guardarSecciones() guarda
+// las secciones dentro de tab_sync al abrir cualquier tab: eso solo NO es sincronización (si se
+// tomaba como tal, el cursor quedaba clavado en la primera nota mientras sonaba el audio).
+function tieneSyncReal(d) {
+    if (d?.mode === 'grid')     return d.bpm > 0;
+    if (d?.mode === 'tempomap') return Array.isArray(d.map) && d.map.length > 0;
+    return false;
+}
+
 function actualizarSyncStatus() {
     const lbl = document.getElementById('sync-status-label');
     const btn = document.getElementById('btn-config-sync');
     const nudgeGroup = document.getElementById('nudge-group');
-    if (tabSyncData) {
+    if (tieneSyncReal(tabSyncData)) {
         const modo = tabSyncData.mode === 'grid'
             ? `Grilla ${tabSyncData.bpm} BPM`
             : `Tempo map (${tabSyncData.map?.length || 0} pts)`;
@@ -4130,7 +4154,7 @@ async function cargarDesdeStorage(storagePath, nombreArchivo, meta = {}) {
         tabSyncBuilt = tabSyncData?.mode === 'tempomap'
             ? buildTempoMapMs(tabSyncData.map, tabSyncData.offset_ms)
             : null;
-        audioSyncMode = !!tabSyncData;
+        audioSyncMode = tieneSyncReal(tabSyncData);
 
         if (currentTabCancionId) {
             cargarAudioDeCancion(currentTabCancionId);
@@ -7265,7 +7289,7 @@ function iniciarCifrado(cfg) {
     tabSyncBuilt = tabSyncData?.mode === 'tempomap' ? buildTempoMapMs(tabSyncData.map, tabSyncData.offset_ms) : null;
     if (cfg.audioSrc) {
         tabAudioEl.src = cfg.audioSrc;
-        audioSyncMode  = !!tabSyncData;
+        audioSyncMode  = tieneSyncReal(tabSyncData);
         mostrarBarraAudio(true);
     } else {
         tabAudioEl.src = ''; audioSyncMode = false; mostrarBarraAudio(false);
