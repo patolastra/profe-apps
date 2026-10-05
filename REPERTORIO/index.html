@@ -8,6 +8,7 @@
     <script src="../supabase/config.js"></script>
     <script src="../supabase/contextos.js"></script>
     <script src="../comun/clase-vivo.js"></script>
+    <script src="../comun/nombre-asset.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
     <script src="../ritmo.js"></script>
@@ -3330,7 +3331,7 @@ function tabGroupHTML(tabs, songId) {
         const items = porInst[inst].sort((a,b) => (DIFIC_ORD[a.dificultad] ?? 9) - (DIFIC_ORD[b.dificultad] ?? 9));
         const itemsHTML = items.map(a => {
             const dif  = a.dificultad ? `<span class="tab-dific ${a.dificultad}">${DIFIC_LABEL[a.dificultad] || CAP(a.dificultad)}</span>` : '';
-            const desc = a.etiqueta || a.tonalidad || a.nombre_archivo || 'Sin descripción';
+            const desc = partesAsset(a).descripcion || 'Sin descripción';
             const url  = a.storage_path ? storageUrl(a.storage_path) : null;
             const spJS = (a.storage_path || '').replace(/'/g, "\\'");
             const nfJS = (a.nombre_archivo || a.etiqueta || 'tab').replace(/'/g, "\\'");
@@ -3546,9 +3547,9 @@ async function setEstadoAsset(nuevoEstado) {
 
 function assetItemHTML(a, i) {
     const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo, clase: '' };
-    const sublabel = a.etiqueta
-        || [a.instrumento, a.dificultad, a.tonalidad].filter(Boolean).join(' · ')
-        || '';
+    // Nombre de cortesía (comun/nombre-asset.js): el tipo ya se muestra arriba, aquí descripción · dificultad
+    const pa = partesAsset(a);
+    const sublabel = [pa.descripcion, pa.dificultad].filter(Boolean).join(' · ');
     const etiq = sublabel ? `<div class="asset-item-etiqueta">${sublabel}</div>` : '';
 
     // Audio y binarios con archivo en Storage
@@ -3566,7 +3567,7 @@ function assetItemHTML(a, i) {
             </div>
             <div class="asset-item-actions">
                 ${estadoBadgeHTML(a)}
-                ${isMetal ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${(sublabel || descFile || songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">🎹</button>` : ''}
+                ${isMetal ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${nombreAsset(a, songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">🎹</button>` : ''}
                 ${isMetal && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirMetalofono('${a.id}')" title="Compartir link para el celular del alumno">🔗 Compartir</button>` : ''}
                 ${isAudio ? '' : `<a class="btn-icon" href="${url}" download="${descFile}" title="Descargar">⬇</a>`}
                 <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>
@@ -3909,7 +3910,7 @@ function renderPickerTabs() {
 
     lista.innerHTML = filtrados.map(({ asset: a, cancion: c }) => {
         const dif    = a.dificultad ? `<span class="tab-dific ${a.dificultad}" style="font-size:0.65rem;padding:1px 6px">${DIFIC_LABEL[a.dificultad] || CAP(a.dificultad)}</span>` : '';
-        const desc   = a.etiqueta || [a.instrumento, a.tonalidad].filter(Boolean).join(' · ') || a.nombre_archivo || '';
+        const desc   = partesAsset(a).descripcion;
         const inst   = a.instrumento ? `<span style="font-size:0.72rem;color:var(--muted)">${CAP(a.instrumento)}</span>` : '';
         return `
         <div class="picker-tab-item" onclick="tomarDelCatalogo('${c.id}','${a.id}')">
@@ -4499,12 +4500,8 @@ async function eliminarAsset(songId, assetId) {
     const asset = c.assets[idx];
 
     // Nombre visible en todas las confirmaciones, para no borrar el asset equivocado
-    const tipoLabel = (TIPOS_ASSET[asset.tipo] || { label: asset.tipo }).label;
-    const nombreAsset = asset.nombre_archivo || asset.etiqueta || tipoLabel;
-    const extras = [asset.nombre_archivo && asset.etiqueta ? asset.etiqueta : '', asset.instrumento]
-        .filter(Boolean).join(' · ');
-    const queSeBorra = `"${nombreAsset}"${extras ? ` (${extras})` : ''}\nde la canción "${c.nombre}"`;
-    const preguntaBorrar = `¿Eliminar ${tipoLabel.toLowerCase()}:\n\n${queSeBorra}?`;
+    const queSeBorra = `"${nombreAsset(asset, c.nombre)}"`;
+    const preguntaBorrar = `¿Eliminar\n\n${queSeBorra}?`;
 
     // Si es una tablatura que pertenece a Lecciones, avisar antes de borrar (no CASCADE silencioso).
     if (asset.tipo === 'tab' || asset.tipo === 'cifrado') {
@@ -4540,7 +4537,7 @@ function verAsset(songId, assetId) {
     if (!a) return;
 
     const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo };
-    const titulo = `${info.ico} ${info.label}${a.etiqueta ? ' · ' + a.etiqueta : ''} — ${c.nombre}`;
+    const titulo = `${info.ico} ${nombreAsset(a, c.nombre)}`;
     document.getElementById('modal-ver-titulo').textContent = titulo;
 
     const audioEl     = document.getElementById('modal-ver-audio');
@@ -5712,8 +5709,7 @@ function entRenderChips(preselId) {
 
 function entResEtiqueta(a) {
     const ico = { letra:'🎵', cifrado:'🎸', tab:'📄', metalofono:'🎹', flauta:'🎶', ritmo:'🥁' }[a.tipo] || '📄';
-    const label = a.etiqueta || [a.instrumento, a.dificultad, a.tonalidad].filter(Boolean).join(' ') || a.tipo;
-    return `${ico} ${label}`;
+    return `${ico} ${nombreAsset(a)}`;
 }
 
 function entResToggleMenu(e) {
@@ -5983,9 +5979,7 @@ function entRitmoToggleTimbre() {
 // (abrirMetalofono → overlay METAL21), no un iframe genérico del archivo.
 function entRenderMetalofono(asset, userInitiated) {
     const zona = document.getElementById('ent-zona');
-    const label = asset.etiqueta
-        || [asset.instrumento, asset.dificultad, asset.tonalidad].filter(Boolean).join(' ')
-        || entrenadorSong?.nombre || 'Metalófono';
+    const label = nombreAsset(asset, entrenadorSong?.nombre);
     if (!asset.storage_path) {
         // Metalófono en texto (notas), sin archivo MIDI: mostrar el contenido.
         zona.innerHTML = `<div style="width:100%;max-width:640px"><pre style="white-space:pre-wrap;font-size:1rem;line-height:1.6;color:#cbd5e1">${(asset.contenido || 'Sin contenido')}</pre></div>`;
@@ -6998,7 +6992,7 @@ function renderVistaLecciones() {
     wrap.innerHTML = lecciones.map(l => {
         const n = (l.items || []).length;
         const nombres = (l.items || [])
-            .map(it => tabInfo(it.asset_id)?.etiqueta || tabInfo(it.asset_id)?._cancion || '?')
+            .map(it => { const t = tabInfo(it.asset_id); return t ? nombreAsset(t, t._cancion) : '?'; })
             .join(' · ');
         return `<div class="lec-card">
             <div class="lec-card-info">
@@ -7103,8 +7097,8 @@ function leRenderPool() {
     }
     pool.innerHTML = items.map((it, i) => {
         const t = tabInfo(it.asset_id);
-        const nombre = t ? (t._cancion || t.nombre_archivo || '?') : '⚠ tablatura no encontrada';
-        const meta = t ? [t.etiqueta, t.instrumento, t.dificultad].filter(Boolean).join(' · ') : it.asset_id;
+        const nombre = t ? (t._cancion || '?') : '⚠ tablatura no encontrada';
+        const meta = t ? nombreAsset(t) : it.asset_id;
         return `<div class="le-pool-item" draggable="true" data-idx="${i}"
              ondragstart="leDragStart(event,${i})" ondragover="leDragOver(event,${i})"
              ondrop="leDrop(event,${i})" ondragend="leDragEnd(event)">
@@ -7133,11 +7127,11 @@ function leRenderBuscador(q) {
     const INST = { guitarra:'🎸', ukelele:'🪕', bajo:'🎵', metalofono:'🎹', flauta:'🪈', cifrado:'🎼' };
     list.innerHTML = tabs.map(t => {
         const ya = yaIds.has(t.id);
-        const sub = [t.etiqueta, t.instrumento, t.dificultad].filter(Boolean).join(' · ');
+        const sub = nombreAsset(t);
         return `<div class="se-busq-item">
             <div class="se-busq-thumb">${INST[(t.instrumento || '').toLowerCase()] || '🎸'}</div>
             <div class="se-busq-info">
-                <div class="se-busq-nombre">${escapar(t._cancion || t.nombre_archivo || '?')}</div>
+                <div class="se-busq-nombre">${escapar(t._cancion || '?')}</div>
                 <div class="se-busq-artista">${escapar(sub)}</div>
             </div>
             <button class="se-busq-add ${ya ? 'ya' : ''}" ${ya ? '' : `onclick="leAgregarTab('${t.id}')"`}>

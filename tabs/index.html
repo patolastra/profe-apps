@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/soundfont-player/dist/soundfont-player.min.js"></script>
     <!-- Config declarada de la instancia (define window.LectorInstancia). Antes del script principal. -->
     <script src="lector.config.js"></script>
+    <script src="../comun/nombre-asset.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { font-family: 'Segoe UI', sans-serif; background: #222; color: white;
@@ -3950,7 +3951,7 @@ async function abrirModalRep() {
         }
 
         let url = `${SB_URL}/rest/v1/repertorio_assets` +
-            `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,tab_sync,estado,repertorio_canciones(nombre,artista,categoria)` +
+            `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,tonalidad,tab_sync,estado,repertorio_canciones(nombre,artista,categoria)` +
             `&tipo=in.(tab,cifrado)`;
         if (assetIds) url += `&id=in.(${assetIds.join(',')})`;
 
@@ -4024,7 +4025,7 @@ async function abrirModalRep() {
             const tabsHTML = tabs.map(a => {
                 const inst  = (a.instrumento || '').toLowerCase();
                 const dific = (a.dificultad  || '').toLowerCase();
-                const label = a.etiqueta || a.nombre_archivo || '';
+                const label = descAsset(a);
                 const sp = (a.storage_path  || '').replace(/'/g, "\\'");
                 const nf = (a.nombre_archivo || '').replace(/'/g, "\\'");
                 const baseMeta = { cancion: nombre, etiqueta: label, dificultad: dific, assetId: a.id, cancionId: a.cancion_id, tabSync: a.tab_sync || null };
@@ -4940,6 +4941,16 @@ function nombreCompleto(a) {
 function nombreFormal(a) {
     return a.apellido ? `${a.apellido}, ${a.nombre}` : a.nombre;
 }
+// Descripción de cortesía de una tablatura (regla única en comun/nombre-asset.js); nunca el nombre del archivo.
+// Si el archivo común no está disponible (copia del Lector sin ../comun), cae a la etiqueta tal cual.
+function descAsset(a) {
+    if (typeof partesAsset !== 'function') return a?.etiqueta || '';
+    return partesAsset({ ...a, tipo: a?.tipo || 'tab' }).descripcion;
+}
+function nombreTab(a, cancion) {
+    if (typeof nombreAsset !== 'function') return [cancion, a?.etiqueta].filter(Boolean).join(' · ') || '(tablatura)';
+    return nombreAsset({ ...a, tipo: a?.tipo || 'tab' }, cancion);
+}
 
 // ── Badge ──────────────────────────────────────────────────────────────────
 function actualizarBadge() {
@@ -5357,7 +5368,7 @@ async function renderPanelRepertorio() {
         const tabsHTML = tabs.map(a => {
             const inst  = (a.instrumento || '').toLowerCase();
             const dific = (a.dificultad  || '').toLowerCase();
-            const label = a.etiqueta || a.nombre_archivo || '';
+            const label = descAsset(a);
             const sp = (a.storage_path  || '').replace(/'/g, "\\'");
             const nf = (a.nombre_archivo || '').replace(/'/g, "\\'");
             const meta = { cancion: nombre, etiqueta: label, dificultad: dific, assetId: a.id, cancionId: a.cancion_id, tabSync: a.tab_sync || null };
@@ -5595,7 +5606,7 @@ async function renderPanelAlumnos() {
                     for (const t of assets) {
                         const cid = t.cancion_id || t.id;
                         if (!byCancion[cid]) byCancion[cid] = {
-                            nombre: t.repertorio_canciones?.nombre || t.nombre_archivo || 'Sin nombre',
+                            nombre: t.repertorio_canciones?.nombre || 'Sin nombre',
                             tabs: []
                         };
                         byCancion[cid].tabs.push(t);
@@ -5630,16 +5641,14 @@ async function renderPanelAlumnos() {
                         const tabsHTML = tabs.map(t => {
                             const inst  = (t.instrumento || '').toLowerCase();
                             const dif   = (t.dificultad  || '').toLowerCase();
-                            const ton   = t.tonalidad || '';
-                            const etq   = t.etiqueta  || t.nombre_archivo || '';
+                            const etq   = descAsset(t);
                             const emoji = INST_EMOJI[inst] || '🎸';
                             const color = DIFIC_COLOR[dif] || '#666';
                             const chk   = asigAlumno.has(t.id) ? 'checked' : '';
                             const partes = [
                                 inst ? `<span style="text-transform:capitalize;color:#ccc">${inst}</span>` : '',
+                                etq  ? `<span style="color:#999">${esc(etq)}</span>` : '',
                                 dif  ? `<span style="color:${color};font-weight:700;text-transform:capitalize">${dif}</span>` : '',
-                                ton  ? `<span style="color:#555">${esc(ton)}</span>` : '',
-                                (!inst && !dif && etq) ? `<span style="color:#888">${esc(etq)}</span>` : '',
                             ].filter(Boolean).join('<span style="color:#2a2a2a;margin:0 2px">·</span>');
                             return `<label style="display:flex;align-items:center;gap:6px;padding:5px 8px 5px 10px;cursor:pointer;border-top:1px solid #1c1c1c;background:#0f0f0f">
                                 <input type="checkbox" ${chk} style="accent-color:#27ae60;width:13px;height:13px;cursor:pointer;flex-shrink:0"
@@ -5980,7 +5989,7 @@ function construirAsigPanelHTML(alumnoId) {
         const hasSec = secSet && secSet.size > 0;
         if (!hasTab && !hasSec) continue;
         const cid = t.cancion_id;
-        if (!byCancion[cid]) byCancion[cid] = { nombre: t.repertorio_canciones?.nombre || t.nombre_archivo || '', items: [] };
+        if (!byCancion[cid]) byCancion[cid] = { nombre: t.repertorio_canciones?.nombre || 'Sin nombre', items: [] };
         if (hasSec) {
             for (const sec of secSet) {
                 byCancion[cid].items.push({ inst: t.instrumento || '', dif: t.dificultad || '', sec });
@@ -6072,7 +6081,7 @@ function construirCatalogoAsignacionHTML(alumnoId) {
     const byCancion = {};
     for (const t of asignables) {
         const cid = t.cancion_id || t.id;
-        if (!byCancion[cid]) byCancion[cid] = { nombre: t.repertorio_canciones?.nombre || t.nombre_archivo || 'Sin nombre', tabs: [] };
+        if (!byCancion[cid]) byCancion[cid] = { nombre: t.repertorio_canciones?.nombre || 'Sin nombre', tabs: [] };
         byCancion[cid].tabs.push(t);
     }
     for (const cid of Object.keys(byCancion)) {
@@ -6103,8 +6112,7 @@ function construirCatalogoAsignacionHTML(alumnoId) {
         const tabsHTML = tabs.map(t => {
             const inst  = (t.instrumento || '').toLowerCase();
             const dif   = (t.dificultad  || '').toLowerCase();
-            const ton   = t.tonalidad || '';
-            const etq   = t.etiqueta  || t.nombre_archivo || '';
+            const etq   = descAsset(t);
             const emoji = INST_EMOJI[inst] || '🎸';
             const color = DIFIC_COLOR[dif] || '#666';
             const secciones = t.tab_sync?.secciones || [];
@@ -6114,6 +6122,7 @@ function construirCatalogoAsignacionHTML(alumnoId) {
                 // Tab con secciones — opción "Partitura completa" + sub-checkboxes por sección
                 const partes = [
                     inst ? `<span style="text-transform:capitalize;color:#888">${inst}</span>` : '',
+                    etq  ? `<span style="color:#aaa">${esc(etq)}</span>` : '',
                     dif  ? `<span style="color:${color};text-transform:capitalize">${dif}</span>` : '',
                 ].filter(Boolean).join('<span style="color:#333;margin:0 2px">·</span>');
                 // Partitura completa: reutiliza alumno_tabs vía toggleTabAsignacion.
@@ -6147,9 +6156,8 @@ function construirCatalogoAsignacionHTML(alumnoId) {
             const chk   = asigAlumno.has(t.id) ? 'checked' : '';
             const partes = [
                 inst ? `<span style="text-transform:capitalize;color:#ccc">${inst}</span>` : '',
+                etq  ? `<span style="color:#999">${esc(etq)}</span>` : '',
                 dif  ? `<span style="color:${color};font-weight:700;text-transform:capitalize">${dif}</span>` : '',
-                ton  ? `<span style="color:#555">${esc(ton)}</span>` : '',
-                (!inst && !dif && etq) ? `<span style="color:#888">${esc(etq)}</span>` : '',
             ].filter(Boolean).join('<span style="color:#2a2a2a;margin:0 2px">·</span>');
             return `<label style="display:flex;align-items:center;gap:6px;padding:6px 8px 6px 10px;cursor:pointer;border-top:1px solid #1c1c1c;background:#0f0f0f">
                 <input type="checkbox" ${chk} style="accent-color:#27ae60;width:14px;height:14px;cursor:pointer;flex-shrink:0"
@@ -7357,9 +7365,9 @@ async function abrirLeccion(leccionId) {
         try {
             const ids = tabs.map(it => it.asset_id).join(',');
             const metas = await sbGet(`/rest/v1/repertorio_assets?id=in.(${ids})` +
-                `&select=id,etiqueta,repertorio_canciones(nombre)`);
+                `&select=id,etiqueta,instrumento,dificultad,tonalidad,repertorio_canciones(nombre)`);
             const porId = {};
-            for (const m of (metas || [])) porId[m.id] = m.repertorio_canciones?.nombre || m.etiqueta || '?';
+            for (const m of (metas || [])) porId[m.id] = nombreTab(m, m.repertorio_canciones?.nombre);
             for (const it of tabs) it._nombre = porId[it.asset_id] || '(tablatura)';
         } catch (_) { for (const it of tabs) it._nombre = '(tablatura)'; }
         leccionActual = { id: leccionId, nombre: lec.nombre || 'Lección', items: tabs, idx: 0 };
@@ -7379,12 +7387,12 @@ async function cargarItemLeccion(i) {
     const item = leccionActual.items[i];
     try {
         const rows = await sbGet(`/rest/v1/repertorio_assets?id=eq.${item.asset_id}` +
-            `&select=id,storage_path,nombre_archivo,cancion_id,tab_sync,etiqueta,dificultad,repertorio_canciones(nombre)&limit=1`);
+            `&select=id,storage_path,nombre_archivo,cancion_id,tab_sync,etiqueta,instrumento,dificultad,tonalidad,repertorio_canciones(nombre)&limit=1`);
         const a = rows[0];
         if (!a || !a.storage_path) { alert('La tablatura de este paso no está disponible.'); return; }
         const meta = {
             assetId: a.id, cancionId: a.cancion_id, tabSync: a.tab_sync || null,
-            etiqueta: a.etiqueta || null, dificultad: a.dificultad || null,
+            etiqueta: descAsset(a) || null, dificultad: a.dificultad || null,
             cancion: a.repertorio_canciones?.nombre || null, seccionAsignada: null
         };
         await cargarDesdeStorage(a.storage_path, a.nombre_archivo || 'tab', meta);
@@ -7468,13 +7476,13 @@ function renderLeccionIndice() {
     let meta = { seccionAsignada: seccionParam || null };
     try {
         const rows = await sbGet(`/rest/v1/repertorio_assets?storage_path=eq.${encodeURIComponent(storagePath)}` +
-            `&select=id,cancion_id,tab_sync,etiqueta,dificultad,repertorio_canciones(nombre)&limit=1`);
+            `&select=id,cancion_id,tab_sync,etiqueta,instrumento,dificultad,tonalidad,repertorio_canciones(nombre)&limit=1`);
         const a = rows[0];
         if (a) meta = {
             assetId:    a.id,
             cancionId:  a.cancion_id,
             tabSync:    a.tab_sync || null,
-            etiqueta:   a.etiqueta || null,
+            etiqueta:   descAsset(a) || null,
             dificultad: a.dificultad || null,
             cancion:    a.repertorio_canciones?.nombre || null,
             seccionAsignada: seccionParam || null
