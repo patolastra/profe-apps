@@ -3081,7 +3081,7 @@ function storageUrl(storagePath) {
 
 // Guardar canción (upsert metadata)
 async function sbUpsertCancion(c) {
-    const { contextos, assets, ...data } = c;
+    const { contextos, assets, loops, ...data } = c;   // loops: los guarda solo entGuardarLoops (evita pisarlos con una copia vieja)
     const { error } = await sb.from('repertorio_canciones').upsert(data);
     if (error) throw error;
 }
@@ -5263,12 +5263,15 @@ document.addEventListener('keydown', e => {
             if (e.key === 'L') { e.preventDefault(); entrenadorSkip(5);  return; }
         }
         if (e.key === ' ' && !editando) { e.preventDefault(); entrenadorTogglePlay(); return; }
+        // Escape retrocede UN paso: edición → Sync → pausar → cerrar.
+        if (e.key === 'Escape' && editando) { e.preventDefault(); entSalirEdicion(); return; }
         if (e.key === 'Escape' && !editando) {
             const _pop = document.getElementById('ent-atajos-overlay');
             if (_pop && _pop.style.display === 'flex') { entCerrarAtajos(); return; }
             // En ENT Sync, ESC sale de Sync (con flush de entToggleSync), nunca cierra el
             // Entrenador → no puede dejar cambios de sincronización sin persistir.
             if (entSyncMode) { entToggleSync(); return; }
+            if (entSonando()) { entrenadorTogglePlay(); return; }   // pausa, no cierra
             cerrarEntrenador(); return;
         }
         return;
@@ -5488,6 +5491,7 @@ let entModoEdicion         = false;
 let entViewMode     = 'scroll';
 
 function entSetViewMode(m) {
+    if (entModoEdicion) return;   // borraría el cuadro de edición
     entViewMode = m;
     // El toggle único refleja el modo de renderizado actual (Scroll o Diapositiva).
     const btn = document.getElementById('ent-btn-vista');
@@ -5590,7 +5594,7 @@ function abrirEntrenador(songId) {
 
     let cfg = {};
     try { cfg = JSON.parse(localStorage.getItem(`entrenador_config_${c.id}`) || '{}'); } catch {}
-    try { entrenadorLoops = JSON.parse(localStorage.getItem(`entrenador_loops_${c.id}`) || '[]'); } catch { entrenadorLoops = []; }
+    entrenadorLoops = (c.loops || []).map(l => ({ ...l }));   // se refresca desde Supabase abajo
 
     entrenadorVelocidad     = cfg.velocidad || 1.0;
     entrenadorOcultar       = false;
@@ -5626,6 +5630,7 @@ function abrirEntrenador(songId) {
         const loop = entrenadorLoops.find(l => l.id === cfg.loopActivoId);
         if (loop) entActivarLoop(loop, false);
     }
+    entCargarLoopsCancion(c, cfg.loopActivoId);
 
     // Defaults comunes de apertura: vista Scroll, header visible, panel de loops oculto.
     entViewMode = 'scroll';
@@ -5638,6 +5643,7 @@ function abrirEntrenador(songId) {
 }
 
 function cerrarEntrenador() {
+    if (entModoEdicion) entSalirEdicion();   // guardar la letra en edición antes de cerrar
     // El botón ← y Escape usan esta función también al practicar una sesión: guardar
     // cualquier config pendiente y salir de modo sesión para no contaminar el modo
     // individual (los triggers de pitch/velocidad se guían por estos flags).
@@ -5662,7 +5668,8 @@ function cerrarEntrenador() {
             loopActivoId:  entrenadorLoopActivo?.id
         };
         localStorage.setItem(`entrenador_config_${entrenadorSong.id}`, JSON.stringify(cfg));
-        localStorage.setItem(`entrenador_loops_${entrenadorSong.id}`, JSON.stringify(entrenadorLoops));
+        // Los loops NO se guardan aquí: cada cambio ya se guardó (entGuardarLoops). Escribirlos
+        // al cerrar pisaba los loops propios de la canción con los de una sesión practicada.
     }
     if (document.fullscreenElement) { try { document.exitFullscreen?.(); } catch (_) {} }
     document.getElementById('entrenador-overlay').classList.remove('visible');
@@ -5726,6 +5733,7 @@ function entResCerrarMenu() {
 document.addEventListener('click', entResCerrarMenu);   // clic fuera cierra el menú
 
 function entSelAsset(id) {
+    if (entModoEdicion) return;   // borraría el cuadro de edición
     const asset = (entrenadorSong?.assets || []).find(a => a.id === id);
     if (!asset) return;
     entResCerrarMenu();
@@ -5927,6 +5935,12 @@ function entRitmoSetPlayIcon(playing) {
 }
 
 // Único Play/Stop del ritmo (compartido con el botón de transporte de la canción).
+// ¿Está sonando algo en el Entrenador? (audio de la canción, o el ritmo si es un asset de ritmo)
+function entSonando() {
+    if (entrenadorAssetActivo?.tipo === 'ritmo') return !!entRitmoPlayer?.playing;
+    return !entAudio().paused;
+}
+
 function entRitmoTogglePlay() {
     if (!entRitmoPlayer) return;
     if (entRitmoPlayer.playing) entRitmoPlayer.stop();
@@ -6236,11 +6250,7 @@ function entClickLinea(e, i) {
         const nombre = linea.text.trim() || entNombreAutoLoop();
         const loop = { id: 'loop_' + Date.now(), nombre, inicio, fin, velocidad: entrenadorVelocidad };
         entrenadorLoops.push(loop);
-        localStorage.setItem(`entrenador_loops_${entrenadorSong.id}`, JSON.stringify(entrenadorLoops));
-        if (entModoEditSesion) {
-            entSesionActual.canciones[entSesionCIdx].loops = [...entrenadorLoops];
-            guardarSesion(entSesionActual).catch(() => {});
-        }
+        entGuardarLoops();
         entRenderLoops();
         toast(`Loop "${nombre}" creado`);
         return;
@@ -6703,6 +6713,52 @@ function entDesactivarLoop() {
     entActualizarMarcadores();
 }
 
+// ── Persistencia de loops: PUNTO ÚNICO ──
+// Sesión (practicar o editar) → los loops de esa canción dentro de la sesión (Supabase).
+// Canción suelta → repertorio_canciones.loops (Supabase): mismos loops en todos los
+// computadores y en la versión local y en línea (antes: solo localStorage del navegador).
+let _entLoopsCadena = Promise.resolve();   // guardados en orden (sin carreras)
+function entGuardarLoops() {
+    if (entModoEditSesion || entModoSesion) { entPersistirLoopsSesion(); return; }
+    if (!entrenadorSong) return;
+    const id = entrenadorSong.id;
+    const loops = entrenadorLoops.map(l => ({ ...l }));
+    entrenadorSong.loops = loops;
+    _entLoopsCadena = _entLoopsCadena.then(async () => {
+        const { error } = await sb.from('repertorio_canciones').update({ loops }).eq('id', id);
+        if (error) toast('No se pudieron guardar los loops: ' + error.message);
+    });
+}
+
+// Al abrir una canción suelta: loops frescos desde Supabase + rescate ÚNICO de los que
+// quedaron guardados solo en este navegador (se suben, se juntan sin duplicar y se
+// borra la copia local para que un loop borrado en otro computador no "resucite").
+async function entCargarLoopsCancion(c, loopActivoId) {
+    const iniciales = new Set(entrenadorLoops.map(l => l.id));
+    let legado = [];
+    try { legado = JSON.parse(localStorage.getItem(`entrenador_loops_${c.id}`) || '[]'); } catch {}
+    let base = c.loops || [];
+    try {
+        const { data, error } = await sb.from('repertorio_canciones').select('loops').eq('id', c.id).maybeSingle();
+        if (!error) base = data?.loops || [];
+    } catch (_) {}
+    if (entrenadorSong?.id !== c.id || entModoSesion || entModoEditSesion) return;   // cambió de canción/modo
+    const ids = new Set(base.map(l => l.id));
+    const nuevosAhora = entrenadorLoops.filter(l => !iniciales.has(l.id));   // creados mientras cargaba
+    const extra = [...legado, ...nuevosAhora].filter(l => !ids.has(l.id) && ids.add(l.id));
+    entrenadorLoops = [...base.map(l => ({ ...l })), ...extra];
+    c.loops = entrenadorLoops.map(l => ({ ...l }));
+    if (legado.length) {
+        const { error } = await sb.from('repertorio_canciones').update({ loops: c.loops }).eq('id', c.id);
+        if (!error) localStorage.removeItem(`entrenador_loops_${c.id}`);
+    } else if (extra.length) entGuardarLoops();
+    entRenderLoops();
+    if (loopActivoId && !entrenadorLoopActivo) {
+        const l = entrenadorLoops.find(x => x.id === loopActivoId);
+        if (l) entActivarLoop(l, false);
+    }
+}
+
 function entNombreAutoLoop() {
     return 'Loop ' + (entrenadorLoops.length + 1);
 }
@@ -6717,7 +6773,7 @@ function entrenadorNuevoLoop() {
     const nombre = entNombreAutoLoop();
     const loop = { id: 'loop_' + Date.now(), nombre, inicio, fin, velocidad: entrenadorVelocidad };
     entrenadorLoops.push(loop);
-    localStorage.setItem(`entrenador_loops_${entrenadorSong.id}`, JSON.stringify(entrenadorLoops));
+    entGuardarLoops();
     entActivarLoop(loop);
 }
 
@@ -6764,7 +6820,7 @@ function entEditInline(event, loopId, field) {
             entrenadorLoopActivo = { ...entrenadorLoopActivo, [field]: loop[field] };
             entActualizarMarcadores();
         }
-        localStorage.setItem(`entrenador_loops_${entrenadorSong.id}`, JSON.stringify(entrenadorLoops));
+        entGuardarLoops();
         entRenderLoops();
     };
     const cancel = () => { if (done) return; done = true; entRenderLoops(); };
@@ -6780,7 +6836,7 @@ function entBorrarLoop(id) {
     if (!confirm('¿Eliminar este loop?')) return;
     entrenadorLoops = entrenadorLoops.filter(l => l.id !== id);
     if (entrenadorLoopActivo?.id === id) entDesactivarLoop();
-    localStorage.setItem(`entrenador_loops_${entrenadorSong.id}`, JSON.stringify(entrenadorLoops));
+    entGuardarLoops();
     entRenderLoops();
 }
 
@@ -7503,6 +7559,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
 }
 
 function cerrarEntrenadorModoEdicion() {
+    if (entModoEdicion) entSalirEdicion();   // guardar la letra en edición antes de cerrar
     const audioEl = entAudio();
     audioEl.pause(); audioEl.src = '';
     audioEl.ontimeupdate = null; audioEl.onloadedmetadata = null; audioEl.onended = null;
@@ -7567,7 +7624,7 @@ function entIrACancionSesion(idx) {
 }
 
 function entSesionSiguiente() {
-    if (!entModoSesion) return;
+    if (!entModoSesion || entModoEdicion) return;
     if (entSesionCIdx >= entSesionActual.canciones.length - 1) {
         toast('🎉 Fin de la sesión');
         return;
@@ -7581,7 +7638,7 @@ function entSesionSiguiente() {
 }
 
 function entSesionAnterior() {
-    if (!entModoSesion || entSesionCIdx <= 0) return;
+    if (!entModoSesion || entModoEdicion || entSesionCIdx <= 0) return;
     entFlushConfigSesion();
     entSesionCIdx--;
     const item = entSesionActual.canciones[entSesionCIdx];
@@ -7725,9 +7782,17 @@ function entToggleEdicion() {
     if (entModoEdicion) entSalirEdicion(); else entEntrarEdicion();
 }
 
+// Mientras se edita la letra, lo que re-dibuja la zona borraría el cuadro de edición:
+// esos controles quedan atenuados y sin funcionar (nunca desaparecen).
+const ENT_BLOQUEO_EDICION = ['ent-btn-vista', 'ent-btn-sync', 'ent-asset-chips', 'ent-sesion-nav'];
+function entBloqueoEdicion(on) {
+    ENT_BLOQUEO_EDICION.forEach(id => document.getElementById(id)?.classList.toggle('ent-tools-disabled', on));
+}
+
 function entEntrarEdicion() {
     if (!entrenadorLines.length) { toast('Sin letra cargada'); return; }
     entModoEdicion = true;
+    entBloqueoEdicion(true);
     document.getElementById('ent-btn-editar').classList.add('activo');
 
     const textoCompleto = entrenadorLines.map(l => l.text).join('\n');
@@ -7779,11 +7844,14 @@ function entEntrarEdicion() {
     ta.focus();
     ta.setSelectionRange(cursorOffset, cursorOffset);
     ta.scrollTop = zonaScrollTop;
-    ta.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); entSalirEdicion(); } });
+    // Escape solo sale de la edición (guardando); stopPropagation evita que el mismo
+    // Escape llegue al atajo global y además cierre el Entrenador.
+    ta.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); entSalirEdicion(); } });
 }
 
 function entSalirEdicion() {
     entModoEdicion = false;
+    entBloqueoEdicion(false);
     document.getElementById('ent-btn-editar').classList.remove('activo');
     const zona = document.getElementById('ent-zona');
     zona.style.padding = '';
@@ -7892,6 +7960,7 @@ function entSalirEdicion() {
 }
 
 function entToggleSync() {
+    if (entModoEdicion) return;   // borraría el cuadro de edición
     // Al SALIR de Sync: si hubo cambios de sincronización sin guardar, flush único.
     // (No guardamos en cada tap; el guardado ocurre al terminar la sesión de sync.)
     if (entSyncMode && entSyncDirty) {
