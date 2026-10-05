@@ -796,6 +796,7 @@ async function crearEvaluacion(){
 
 // ── Vista DETALLE ────────────────────────────────────────────
 async function abrirDetalle(evId){
+  let saneo = null;
   limpiarMsg();
   const v = document.getElementById('vista');
   v.innerHTML = '<div class="card">Cargando evaluación…</div>';
@@ -849,6 +850,7 @@ async function abrirDetalle(evId){
     await recargarInstrumentos();   // Etapa 3: instrumentos aplicados (retrocompatible → [])
     await recargarResultados();     // Etapa 4: resultados por criterio/ítem (retrocompatible → [])
     instrVerId = null; instrModalNotaId = null;
+    saneo = await sanearNotasCalculadas();
   } catch (e) {
     v.innerHTML = '<div class="card"></div>';
     msg('No se pudo cargar la evaluación: ' + e.message);
@@ -857,6 +859,8 @@ async function abrirDetalle(evId){
   const btnV = document.getElementById('btn-volver');
   btnV.textContent = '← Curso'; btnV.style.display = '';   // el regreso va al panel del curso
   renderDetalle();
+  if (saneo?.corregidas) toast(`Se ${saneo.corregidas === 1 ? 'corrigió 1 nota que no coincidía' : `corrigieron ${saneo.corregidas} notas que no coincidían`} con su instrumento.`, 'ok');
+  if (saneo?.fallidas) toast(`${plural(saneo.fallidas, 'nota no se pudo', 'notas no se pudieron')} corregir. Vuelve a abrir la evaluación para reintentar.`, 'err');
 }
 
 // Opciones del dropdown "Objetivo aplicado": el texto VISIBLE es directamente
@@ -1362,7 +1366,11 @@ function evalEvaluarIndividualSel(){
   const ids = [...grupoSelIds].filter(id => { const n = notas.find(x => x.id === id); return n && estDisponible(n); });
   if (ids.length !== 1) { toast('Selecciona exactamente un estudiante disponible.', 'err'); return; }
   grupoSelIds.clear();
-  evalAbrirEvalIndividual(ids[0]);
+  // Con instrumento (rúbrica/cotejo) se evalúa con él, igual que "Evaluar" en la tabla;
+  // la nota a mano queda solo para evaluaciones sin instrumento.
+  const n = notas.find(x => x.id === ids[0]);
+  if (n && instrEfectivoId(n)) { renderGruposCard(); abrirInstrEstudiante(n.id); }
+  else evalAbrirEvalIndividual(ids[0]);
 }
 
 // ── Etapa A: drag & drop entre grupos NO evaluados ──
@@ -1595,7 +1603,7 @@ function renderEvalModal(){
     }
     html += `
       <p class="sec-title" style="margin:0 0 8px;padding-right:24px">Evaluar — ${esc(g.nombre)} ${terminado ? '<span class="grupo-badge eval">🔒 Terminada</span>' : ''}</p>
-      ${terminado ? '<p class="hint" style="margin:0 0 8px">Evaluación de este grupo <b>terminada</b> (congelada). Reábrela para volver a editar.</p>' : ''}
+      ${terminado ? '<p class="hint" style="margin:0 0 8px">Evaluación de este grupo <b>terminada</b> (congelada). Reábrela para volver a editar o para evaluar individualmente a un integrante.</p>' : ''}
       ${panelGrupo}
       ${bloqueado ? '' : `<p class="hint" style="margin:10px 0 4px">${conInstr ? 'La evaluación del grupo se aplica a los integrantes que heredan. Cambiar el objetivo/instrumento de un integrante, darle otro instrumento o evaluarlo individualmente crea su excepción.' : 'La nota/objetivo grupal se aplica a los integrantes que heredan. Editar un integrante crea su excepción individual.'}</p>`}
       <div>${miembros.map(n => evalModalMiembroHTML(n, bloqueado, conInstr)).join('') || '<p class="hint">Sin integrantes.</p>'}</div>
@@ -2485,7 +2493,7 @@ function instrCardHTML(cerrada){
       <div class="grid2">
         <div><label>Piso de nota (mínimo)</label>
           <input id="d-nota-min" type="number" min="2.0" max="6.9" step="0.1" value="${piso}" ${dis}></div>
-        <div style="align-self:end"><p class="hint" style="margin:0">Entre 2,0 y 6,9 (por defecto 2,0). El cálculo de la nota con este piso llega en la próxima etapa.</p></div>
+        <div style="align-self:end"><p class="hint" style="margin:0">Entre 2,0 y 6,9 (por defecto 2,0). Al cambiarlo se recalculan todas las notas con instrumento, también las de grupos terminados.</p></div>
       </div>
       <div class="subsec">
         <label style="margin-bottom:8px">Instrumentos de esta evaluación (${evalInstrumentos.length})</label>
@@ -2880,9 +2888,12 @@ function notaCellHTML(n, idx, cerrada){
   }
   const c = calcNota(n);
   if (!c.instrumento) {
+    // Integrante de grupo terminado: su nota manual queda congelada (la BD ya no la
+    // bloquea, para permitir recalcular las notas por instrumento — opción A).
+    const congelada = cerrada || (!!n.grupo_id && grupoTerminado(grupos.find(g => g.id === n.grupo_id)));
     return `<td class="nota"><div class="nota-instr">
-        <input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${cerrada ? 'disabled' : ''} style="max-width:64px">
-        ${badge}${naBtn}<div class="cel-marca">${marcaNotaHTML(n, cerrada)}</div></div></td>`;
+        <input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${congelada ? 'disabled' : ''} style="max-width:64px"${congelada && !cerrada ? ' title="Grupo terminado: reábrelo para editar la nota"' : ''}>
+        ${badge}${naBtn}<div class="cel-marca">${marcaNotaHTML(n, congelada)}</div></div></td>`;
   }
   return `<td class="nota"><div class="nota-instr">
       <span class="nota-val${c.completo ? '' : ' incompleto'}">${c.completo ? fmtNota(c.nota) : '—'}</span>
@@ -2922,13 +2933,39 @@ function actualizarFilaNota(n){
 async function persistNotaCalculada(n){
   const c = calcNota(n);
   const nueva = (c.instrumento && c.completo) ? c.nota : null;
-  if (n.nota === nueva) return;
+  if (n.nota === nueva) return true;
   const { error } = await sb.from('libro_evaluacion_notas').update({ nota: nueva }).eq('id', n.id);
-  if (error) { toast('No se pudo actualizar la nota: ' + error.message, 'err'); return; }
+  if (error) { toast('No se pudo actualizar la nota: ' + error.message, 'err'); return false; }
   n.nota = nueva;
+  return true;
 }
 async function recalcularTodasLasNotas(){
-  for (const n of notas) { if (calcNota(n).instrumento) await persistNotaCalculada(n); }
+  let fallidas = 0;
+  for (const n of notas) {
+    try { if (calcNota(n).instrumento && !(await persistNotaCalculada(n))) fallidas++; }
+    catch (_) { fallidas++; }   // una falla no corta el recálculo del resto
+  }
+  if (fallidas) toast(`${plural(fallidas, 'nota no se pudo', 'notas no se pudieron')} recalcular. Vuelve a abrir la evaluación para reintentar.`, 'err');
+  return fallidas;
+}
+
+// Al abrir una evaluación: toda nota calculada con instrumento debe coincidir con la
+// regla actual (piso, ítems, resultados). Corrige las desfasadas — p. ej. piso cambiado
+// sin que se recalcularan (se vio en grupos terminados: "terminado" congela la
+// organización y la evaluación, no una nota mal calculada). Solo con instrumento
+// COMPLETO: una nota con instrumento incompleto no se toca (puede ser una nota manual
+// previa). Evaluación cerrada = solo lectura: no corrige.
+async function sanearNotasCalculadas(){
+  const r = { corregidas: 0, fallidas: 0 };
+  if (!evalActual || evalActual.estado === 'cerrado') return r;
+  for (const n of notas) {
+    if (n.estado_eval === 'no_aplica') continue;
+    const c = calcNota(n);
+    if (!c.instrumento || !c.completo || n.nota === c.nota) continue;
+    const { error } = await sb.from('libro_evaluacion_notas').update({ nota: c.nota }).eq('id', n.id);
+    if (error) r.fallidas++; else { n.nota = c.nota; r.corregidas++; }
+  }
+  return r;
 }
 
 // Registrar el nivel/valor de un criterio-ítem (upsert) y recalcular en vivo.
@@ -2959,6 +2996,7 @@ function cerrarInstrModal(){
   // Etapa 6: si venía del modal de grupo (evaluación individual de un integrante),
   // refrescar el modal de grupo que quedó detrás.
   if (document.getElementById('eval-modal')?.classList.contains('show')) renderEvalModal();
+  else renderGruposCard();   // evaluado individual con instrumento → sale de Disponibles
 }
 // Render de UN criterio/ítem con sus botones de nivel. `onclickFn(val)` devuelve el
 // string del onclick (permite reusarlo para el modal individual y el de grupo).

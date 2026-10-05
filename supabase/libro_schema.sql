@@ -883,7 +883,11 @@ CREATE TRIGGER trg_libro_grupo_terminado_congela
 -- ── BLINDAJE BD: integrante de un grupo terminado queda CONGELADO ──
 -- Bloquea cualquier UPDATE de libro_evaluacion_notas que intente cambiar, para un
 -- estudiante cuyo grupo (origen o destino) esté terminado, las columnas:
---   grupo_id · nota · adecuacion_id · nota_excepcion · objetivo_excepcion.
+--   grupo_id · adecuacion_id · nota_excepcion · objetivo_excepcion.
+-- La NOTA queda fuera (DECISIÓN del PO 2026-10-05, opción A): "terminado" congela la
+-- organización del grupo, no las cuentas; la nota calculada por instrumento debe
+-- poder recalcularse (cambio de piso, reevaluación). La nota manual de un integrante
+-- de grupo terminado la bloquea la interfaz.
 -- No toca otras columnas (p. ej. comentario). Solo aplica a UPDATE (los INSERT del
 -- snapshot y los DELETE en cascada no se ven afectados).
 CREATE OR REPLACE FUNCTION libro_nota_grupo_terminado_congela()
@@ -894,7 +898,6 @@ DECLARE
 BEGIN
     -- ¿cambió alguna columna protegida? Si no, permitir (p. ej. solo comentario).
     IF NOT ( NEW.grupo_id           IS DISTINCT FROM OLD.grupo_id
-          OR NEW.nota               IS DISTINCT FROM OLD.nota
           OR NEW.adecuacion_id      IS DISTINCT FROM OLD.adecuacion_id
           OR NEW.nota_excepcion     IS DISTINCT FROM OLD.nota_excepcion
           OR NEW.objetivo_excepcion IS DISTINCT FROM OLD.objetivo_excepcion ) THEN
