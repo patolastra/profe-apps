@@ -1980,7 +1980,9 @@
         }
         .ent-lyric-line:hover { color: #94a3b8; }
         .ent-lyric-line.activa { color: #ea580c; }
-        .ent-lyric-line.oculta { color: #1e293b; background: #334155; border-radius: 6px; padding: 2px 8px; }
+        /* Verso escondido: el texto real, muy borroso (ilegible; solo se intuye su largo). Mismo ancho
+           que visible → la vista no salta al esconder/mostrar. */
+        .ent-lyric-line.oculta { filter: blur(0.3em); }
         /* Verso coloreado (marcador de clase): SOLO el glow de PIZARRA — banda tenue que
            recorre el texto (background-clip:text). SIN salto/pop (eso era el "popup", que
            NO queremos). Todos los versos coloreados comparten fase global vía entResyncGlow().
@@ -2936,7 +2938,7 @@
                    style="display:none" onkeydown="entPitchInputKey(event)" onblur="entPitchInputBlur()">
             <span id="ent-vel-label">1.0x</span>
             <div id="ent-mode-btns">
-                <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()" style="display:none">Letra</button>
+                <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()" title="Esconder / mostrar toda la letra">Letra</button>
                 <button id="ent-btn-sync" onclick="entToggleSync()">Sync</button>
                 <button id="ent-btn-sync-save" onclick="entGuardarSyncAsset()" style="display:none">Guardar</button>
                 <button id="ent-btn-editar" onclick="entToggleEdicion()" title="Modo edición de letra (Esc para salir)">Editar</button>
@@ -6009,15 +6011,14 @@ function entParseStanzas() {
 // glow, cursivas, edición rápida y navegación se comportan igual en ambas.
 function entLineSpanHTML(l) {
     const oculta = entrenadorOcultar || entrenadorLineasOcultas.has(l.origIdx);
-    const texto  = oculta ? '█ █ █ █ █ █' : l.text;
+    const texto  = l.text;
     const coloreada = entrenadorLineasColoreadas.has(l.origIdx);
     const revisar   = entrenadorLineasRevisar.has(l.origIdx);
     const cls = `ent-lyric-line${l.origIdx === entrenadorLineIdx ? ' activa' : ''}${oculta ? ' oculta' : ''}${coloreada ? ' coloreado' : ''}${revisar ? ' revisar' : ''}`;
     return `<span class="${cls}" data-orig="${l.origIdx}"
         onclick="entClickLinea(event,${l.origIdx})"
-        ondblclick="entDblClickLinea(event,${l.origIdx})"
         oncontextmenu="entEditLineaContextMenu(event,${l.origIdx})"
-        title="Click: ir al punto · Doble click: ocultar · Shift+click: colorear · Ctrl+Shift+click: colorear estrofa · Ctrl+click: crear loop · Click derecho: editar"
+        title="Click: ir al punto · Alt+click: esconder verso · Alt+doble click: esconder estrofa · Shift+click: colorear · Ctrl+Shift+click: colorear estrofa · Ctrl+click: crear loop · Click derecho: editar"
         ><span class="ent-lyric-text">${texto}</span></span>`;
 }
 function entStanzaHTML(stanza) {
@@ -6203,6 +6204,16 @@ function entClickLinea(e, i) {
     // Con una edición rápida en curso, el click coloca el caret en el contenteditable;
     // no debe además hacer seek ni marcar. El blur del span cerrará la edición.
     if (entVersoEnEdicion) return;
+    if (e.altKey) {
+        // Alt+click: esconder/mostrar el verso. Alt+doble click: la estrofa completa.
+        // Nunca mueve el audio ni la vista. El doble click llega como 2º click (detail 2):
+        // primero se deshace lo que hizo el 1er click y luego se aplica a la estrofa.
+        e.preventDefault();
+        if (entSyncMode || entModoEdicion) return;
+        if (e.detail === 1) entToggleOculta(i);
+        else if (e.detail === 2) { entToggleOculta(i); entToggleOcultaEstrofa(i); }
+        return;
+    }
     if (e.shiftKey) {
         // Shift+click: marcar/desmarcar verso coloreado (referencia visual para clase).
         // Ctrl/⌘+Shift+click: colorear/descolorear la estrofa completa del verso.
@@ -6243,14 +6254,30 @@ function entClickLinea(e, i) {
     entActualizarLinea(i);
 }
 
-function entDblClickLinea(e, i) {
-    // Shift+doble click se maneja a nivel del Entrenador (entDblClickEntrenador),
-    // no acá — así funciona en cualquier zona, no solo sobre un verso.
-    if (e.shiftKey) return;
-    // Doble click: toggle ocultar verso (comportamiento anterior de single click)
+// ── Versos escondidos ─────────────────────────────────────────────────────────
+// Se aplica la clase sobre los spans (sin re-render): el texto no cambia, así que la
+// vista no se desplaza ni se recalcula la Diapositiva.
+function entAplicarOcultas() {
+    document.querySelectorAll('#ent-zona .ent-lyric-line[data-orig]').forEach(el => {
+        const i = +el.dataset.orig;
+        el.classList.toggle('oculta', entrenadorOcultar || entrenadorLineasOcultas.has(i));
+    });
+}
+
+function entToggleOculta(i) {
     if (entrenadorLineasOcultas.has(i)) entrenadorLineasOcultas.delete(i);
     else entrenadorLineasOcultas.add(i);
-    entRenderZona();
+    entAplicarOcultas();
+}
+
+// Estrofa completa del verso i. Sin estado mixto (igual que el coloreado por estrofa):
+// si toda la estrofa está escondida la muestra; si no, la esconde entera.
+function entToggleOcultaEstrofa(i) {
+    const estrofa = entrenadorStanzas.find(st => st.some(l => l.origIdx === i));
+    if (!estrofa) return;
+    const todas = estrofa.every(l => entrenadorLineasOcultas.has(l.origIdx));
+    estrofa.forEach(l => todas ? entrenadorLineasOcultas.delete(l.origIdx) : entrenadorLineasOcultas.add(l.origIdx));
+    entAplicarOcultas();
 }
 
 // Shift+doble click en cualquier parte del Entrenador → quitar todos los coloreados.
@@ -6571,6 +6598,9 @@ const ENT_ATAJOS = [
         { k: 'Shift + clic en un verso', d: 'Marcar / desmarcar verso coloreado (referencia de clase)' },
         { k: 'Ctrl / ⌘ + Shift + clic', d: 'Colorear / descolorear la estrofa completa' },
         { k: 'Shift + doble clic', d: 'Quitar todos los versos coloreados (en cualquier parte)' },
+        { k: 'Alt + clic en un verso', d: 'Esconder / mostrar ese verso (no mueve el audio)' },
+        { k: 'Alt + doble clic', d: 'Esconder / mostrar la estrofa completa' },
+        { k: 'Botón Letra', d: 'Esconder / mostrar toda la letra' },
     ]},
 ];
 function entAbrirAtajos() {
@@ -6597,7 +6627,7 @@ function entrenadorToggleOcultar() {
     const btn = document.getElementById('ent-btn-ocultar');
     btn.textContent = 'Letra';
     btn.classList.toggle('oculto', entrenadorOcultar);
-    entRenderZona();
+    entAplicarOcultas();
 }
 
 // Tema claro/oscuro del Entrenador. Solo alterna la clase .ent-light en el contenedor
