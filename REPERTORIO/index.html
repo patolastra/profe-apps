@@ -3928,9 +3928,11 @@ async function tomarDelCatalogo(origenSongId, assetId) {
     if (idx === -1) return;
 
     const asset = origen.assets[idx];
-    asset.cancion_id = destino.id;
 
-    await sbUpsertAsset(asset);
+    // Solo cambia la canción: no reenviar el asset completo (pisaría tab_sync/estado guardados desde el Lector)
+    const { error } = await sb.from('repertorio_assets').update({ cancion_id: destino.id }).eq('id', asset.id);
+    if (error) { toast('Error al mover: ' + error.message); return; }
+    asset.cancion_id = destino.id;
 
     // Mover en memoria
     origen.assets.splice(idx, 1);
@@ -4372,21 +4374,29 @@ async function guardarAsset() {
     // Archivos binarios (tab, metalofono, flauta) — archivo toma prioridad sobre texto
     if (['tab', 'metalofono', 'flauta'].includes(tipoSeleccionado)) {
         if (!archivoFile && !contenido) { toast('Carga un archivo o escribe el contenido'); return; }
-        const assetId = genId();
-        let storagePath = '', nombreArchivo = '';
-        if (archivoFile) {
-            try {
-                storagePath  = await sbSubirArchivo(tipoSeleccionado, assetId, archivoFile);
-                nombreArchivo = archivoFile.name;
-            } catch (e) { toast('Error al subir archivo: ' + e.message); return; }
+        // Bloquear Guardar mientras sube: cada clic extra creaba una copia duplicada del asset
+        const btnGuardar = document.getElementById('asset-guardar');
+        if (btnGuardar.disabled) return;
+        const textoBtn = btnGuardar.textContent;
+        btnGuardar.disabled = true;
+        btnGuardar.textContent = 'Subiendo…';
+        const asset = { id: genId(), cancion_id: c.id, tipo: tipoSeleccionado, etiqueta, mensaje,
+            contenido: archivoFile ? '' : contenido, synced: '', nombre_archivo: '',
+            storage_path: '', orden: 0, ...metaFields };
+        try {
+            if (archivoFile) {
+                try {
+                    asset.storage_path   = await sbSubirArchivo(tipoSeleccionado, asset.id, archivoFile);
+                    asset.nombre_archivo = archivoFile.name;
+                } catch (e) { toast('Error al subir archivo: ' + e.message); return; }
+            }
+            await sbUpsertAsset(asset);
+        } catch (e) {
+            toast('Error al guardar: ' + e.message); return;
+        } finally {
+            btnGuardar.disabled = false;
+            btnGuardar.textContent = textoBtn;
         }
-        const asset = {
-            id: assetId, cancion_id: c.id, tipo: tipoSeleccionado, etiqueta, mensaje,
-            contenido: archivoFile ? '' : contenido,
-            synced: '', nombre_archivo: nombreArchivo,
-            storage_path: storagePath, orden: 0, ...metaFields,
-        };
-        await sbUpsertAsset(asset);
         if (!c.assets) c.assets = [];
         c.assets.push(asset);
         cerrarModalAsset();
@@ -4463,13 +4473,18 @@ async function guardarEditarAsset() {
     const a = c.assets.find(x => x.id === editAssetId);
     if (!a) return;
 
-    a.instrumento = document.getElementById('edit-instrumento').value.trim();
-    a.dificultad  = document.getElementById('edit-dificultad').value.trim();
-    a.tonalidad   = document.getElementById('edit-tonalidad').value.trim();
-    a.etiqueta    = document.getElementById('edit-etiqueta').value.trim();
-    a.mensaje     = document.getElementById('edit-mensaje').value.trim() || null;
+    const cambios = {
+        instrumento: document.getElementById('edit-instrumento').value.trim(),
+        dificultad:  document.getElementById('edit-dificultad').value.trim(),
+        tonalidad:   document.getElementById('edit-tonalidad').value.trim(),
+        etiqueta:    document.getElementById('edit-etiqueta').value.trim(),
+        mensaje:     document.getElementById('edit-mensaje').value.trim() || null,
+    };
 
-    await sbUpsertAsset(a);
+    // Solo los campos del formulario: reenviar el asset completo pisaba tab_sync/estado guardados desde el Lector
+    const { error } = await sb.from('repertorio_assets').update(cambios).eq('id', a.id);
+    if (error) { toast('Error al guardar: ' + error.message); return; }
+    Object.assign(a, cambios);
     cerrarEditarAsset();
     songActiva = c;
     renderPanel();
@@ -4483,6 +4498,14 @@ async function eliminarAsset(songId, assetId) {
     if (idx === -1) return;
     const asset = c.assets[idx];
 
+    // Nombre visible en todas las confirmaciones, para no borrar el asset equivocado
+    const tipoLabel = (TIPOS_ASSET[asset.tipo] || { label: asset.tipo }).label;
+    const nombreAsset = asset.nombre_archivo || asset.etiqueta || tipoLabel;
+    const extras = [asset.nombre_archivo && asset.etiqueta ? asset.etiqueta : '', asset.instrumento]
+        .filter(Boolean).join(' · ');
+    const queSeBorra = `"${nombreAsset}"${extras ? ` (${extras})` : ''}\nde la canción "${c.nombre}"`;
+    const preguntaBorrar = `¿Eliminar ${tipoLabel.toLowerCase()}:\n\n${queSeBorra}?`;
+
     // Si es una tablatura que pertenece a Lecciones, avisar antes de borrar (no CASCADE silencioso).
     if (asset.tipo === 'tab' || asset.tipo === 'cifrado') {
         try {
@@ -4492,14 +4515,15 @@ async function eliminarAsset(songId, assetId) {
             if (nombres.length) {
                 const lista = nombres.map(n => `  - ${n}`).join('\n');
                 if (!confirm(
-                    `La tablatura que deseas eliminar pertenece actualmente a las siguientes Lecciones:\n\n${lista}\n\n` +
+                    `La tablatura que deseas eliminar:\n\n${queSeBorra}\n\n` +
+                    `pertenece actualmente a las siguientes Lecciones:\n\n${lista}\n\n` +
                     `Si continúas, también será eliminada de esas Lecciones.\n\n¿Deseas continuar?`
                 )) return;
-            } else if (!confirm('¿Eliminar este asset?')) return;
+            } else if (!confirm(preguntaBorrar)) return;
         } catch (e) {
-            if (!confirm('No se pudieron verificar las Lecciones asociadas.\n¿Eliminar este asset de todas formas?')) return;
+            if (!confirm(`No se pudieron verificar las Lecciones asociadas.\n\n${preguntaBorrar}`)) return;
         }
-    } else if (!confirm('¿Eliminar este asset?')) return;
+    } else if (!confirm(preguntaBorrar)) return;
 
     await sbEliminarAsset(c.assets[idx]);
     c.assets.splice(idx, 1);
