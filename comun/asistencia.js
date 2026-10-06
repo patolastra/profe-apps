@@ -82,6 +82,7 @@
         const anioId = an && an[0] && an[0].id;
         if (!anioId) return [];
         let ids = [];
+        const pos = {};   // número de lista (posición en la matrícula del curso); talleres no tienen
         if (ctx.tipo === 'taller') {
             const { data, error } = await _sb.from('libro_pertenencias_taller').select('estudiante_id').eq('anio_id', anioId).eq('contexto_id', ctx.id);
             if (error) throw error;
@@ -92,15 +93,16 @@
                 const { data: vp } = await _sb.from('libro_contexto_poblacion').select('poblacion_ctx_id').eq('contexto_id', ctx.id).eq('anio_id', anioId).limit(1);
                 if (vp && vp[0]) pobId = vp[0].poblacion_ctx_id;
             } catch (_) { /* sin vínculo */ }
-            const { data, error } = await _sb.from('libro_matriculas').select('estudiante_id,fecha_ingreso,fecha_retiro')
+            const { data, error } = await _sb.from('libro_matriculas').select('estudiante_id,posicion,fecha_ingreso,fecha_retiro')
                 .eq('anio_id', anioId).eq('contexto_id', pobId).eq('estado', 'activo');
             if (error) throw error;
             ids = (data || []).filter(m => (!m.fecha_ingreso || m.fecha_ingreso <= fecha) && (!m.fecha_retiro || m.fecha_retiro > fecha))
-                .map(m => m.estudiante_id);
+                .map(m => { pos[m.estudiante_id] = m.posicion; return m.estudiante_id; });
         }
         if (!ids.length) return [];
         const { data: est, error } = await _sb.from('libro_estudiantes').select('id,nombre,apellido').in('id', ids);
         if (error) throw error;
+        (est || []).forEach(e => { e.pos = pos[e.id] ?? null; });
         return (est || []).sort((a, b) => norm(`${a.nombre} ${a.apellido}`).localeCompare(norm(`${b.nombre} ${b.apellido}`)));
     }
 
@@ -131,7 +133,13 @@
     .asis-tile.aus>span{text-decoration:line-through}
     .asis-tile:hover{transform:translateY(-3px);filter:brightness(1.1)}
     .asis-vacio{grid-column:1/-1;text-align:center;color:#7b8592;font-weight:700;padding:6px}
-    .asis-msg{margin:auto;color:#9aa3ad;font-size:20px;text-align:center;padding:20px}`;
+    .asis-msg{margin:auto;color:#9aa3ad;font-size:20px;text-align:center;padding:20px}
+    .asis-res{flex:0 0 auto;display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 18px;padding:10px 20px 12px;
+      background:#161b23;border-top:1px solid #262d38;font-size:clamp(14px,1.4vw,18px);color:#c9d0d8}
+    .asis-res-tit{font-weight:800;color:#ff9d94;text-transform:uppercase;letter-spacing:.04em;font-size:.85em}
+    .asis-res-item b{color:#fff;font-variant-numeric:tabular-nums;margin-right:4px}
+    .asis-res-vacio{color:#7b8592}
+    .asis.espejo .asis-tile{cursor:default}`;
 
     let _ui = null;   // { el, sesionId, lista, ausentes:Set, tomada, resolver, ro }
 
@@ -174,42 +182,105 @@
         const tile = e => `<div class="asis-tile${ausentes.has(e.id) ? ' aus' : ''}" data-id="${e.id}" title="${esc(`${e.nombre} ${e.apellido || ''}`.trim())}"><span>${esc(nombreTile(e, repes))}</span></div>`;
         _ui.el.querySelector('.asis-cont').innerHTML = `<b class="p">${lista.length - nA}</b> presentes · <b class="a">${nA}</b> ausentes`;
         _ui.el.querySelector('.asis-grid.p').innerHTML = lista.map(tile).join('');
+        // Resumen para traspasar al libro (solo en la pantalla del profe): n° de lista + apellido.
+        const res = _ui.el.querySelector('.asis-res');
+        if (res) {
+            const aus = lista.filter(e => ausentes.has(e.id))
+                .sort((a, b) => (a.pos ?? 1e9) - (b.pos ?? 1e9) || norm(a.apellido).localeCompare(norm(b.apellido)));
+            const item = e => e.pos != null
+                ? `<span class="asis-res-item"><b>${e.pos}</b>${esc(e.apellido || e.nombre)}</span>`
+                : `<span class="asis-res-item">${esc(`${e.apellido || ''} ${e.nombre || ''}`.trim())}</span>`;
+            res.innerHTML = `<span class="asis-res-tit">Ausentes</span>`
+                + (aus.length ? aus.map(item).join('') : '<span class="asis-res-vacio">Ninguno</span>');
+        }
         layout();
+        if (!_ui.espejo) emitir();
     }
 
-    function cerrar(resultado) {
-        if (!_ui) return;
-        const { el, resolver, ro } = _ui;
-        if (ro) ro.disconnect();
-        window.removeEventListener('resize', layout);
-        document.removeEventListener('keydown', _ui.onKey, true);
-        el.remove();
-        _ui = null;
-        resolver(resultado);
+    // ── Espejo en la Pizarra (mismo tablero, solo para mirar) ─────────────────
+    // La ventana que pasa lista avisa por BroadcastChannel; la Pizarra (espejo()) lo muestra.
+    const canal = 'BroadcastChannel' in window ? new BroadcastChannel('profe-asistencia') : null;
+    function emitir() {
+        if (!canal || !_ui || _ui.espejo || !_ui.lista.length) return;
+        canal.postMessage({ tipo: 'estado', titulo: _ui.titulo,
+            lista: _ui.lista.map(e => ({ id: e.id, nombre: e.nombre, apellido: e.apellido })),
+            ausentes: [..._ui.ausentes] });
     }
+    if (canal) canal.addEventListener('message', ev => {
+        if (ev.data && ev.data.tipo === 'pedir') emitir();   // una Pizarra recién abierta lo pide
+    });
 
-    // Abre "Pasar lista". Resuelve { guardada, ausentes } al cerrar.
-    async function abrir({ sb, sesionId, ctxNombre, anio, fecha, titulo }) {
-        if (sb) _sb = sb;
-        if (_ui) return { guardada: false };
+    function crearVista({ titulo, espejo }) {
         if (!document.getElementById('asis-css')) {
             const st = document.createElement('style'); st.id = 'asis-css'; st.textContent = CSS; document.head.appendChild(st);
         }
         const el = document.createElement('div');
-        el.className = 'asis';
+        el.className = 'asis' + (espejo ? ' espejo' : '');
         el.innerHTML = `
           <div class="asis-bar">
             <span class="asis-tit">${ICONO} Pasar lista${titulo ? ' — ' + esc(titulo) : ''}</span>
             <span class="asis-cont"></span>
             <span class="asis-sp"></span>
-            <span class="asis-hint">Toca a los AUSENTES</span>
+            ${espejo ? '' : `<span class="asis-hint">Toca a los AUSENTES</span>
             <button class="asis-btn no" data-acc="no">Ahora no</button>
-            <button class="asis-btn listo" data-acc="listo">Listo</button>
+            <button class="asis-btn listo" data-acc="listo">Listo</button>`}
           </div>
-          <div class="asis-board"><div class="asis-msg">Cargando la lista…</div></div>`;
+          <div class="asis-board"><div class="asis-msg">Cargando la lista…</div></div>
+          ${espejo ? '' : '<div class="asis-res"></div>'}`;
         document.body.appendChild(el);
+        return el;
+    }
+    // Deja el tablero listo para pintar (lista ya cargada).
+    function montarTablero() {
+        const board = _ui.el.querySelector('.asis-board');
+        _ui.repes = {};
+        _ui.lista.forEach(e => { const k = norm(e.nombre); _ui.repes[k] = (_ui.repes[k] || 0) + 1; });
+        board.innerHTML = `<div class="asis-zona p"><div class="asis-grid p"></div></div>`;
+        if ('ResizeObserver' in window) { _ui.ro = new ResizeObserver(() => requestAnimationFrame(layout)); _ui.ro.observe(board); }
+        window.addEventListener('resize', layout);
+        return board;
+    }
+
+    function cerrar(resultado) {
+        if (!_ui) return;
+        const { el, resolver, ro, espejo } = _ui;
+        if (ro) ro.disconnect();
+        window.removeEventListener('resize', layout);
+        if (_ui.onKey) document.removeEventListener('keydown', _ui.onKey, true);
+        el.remove();
+        _ui = null;
+        if (!espejo && canal) canal.postMessage({ tipo: 'cerrar' });
+        if (resolver) resolver(resultado);
+    }
+
+    // Pizarra: muestra el tablero mientras otra ventana pasa lista.
+    function espejo() {
+        if (!canal) return;
+        canal.addEventListener('message', ev => {
+            const m = ev.data || {};
+            if (m.tipo === 'cerrar') { if (_ui && _ui.espejo) cerrar(); return; }
+            if (m.tipo !== 'estado' || !Array.isArray(m.lista)) return;
+            if (_ui && !_ui.espejo) return;   // esta ventana está pasando lista ella misma
+            if (!_ui || _ui.titulo !== m.titulo || _ui.lista.length !== m.lista.length) {
+                if (_ui) cerrar();
+                _ui = { el: crearVista({ titulo: m.titulo, espejo: true }), espejo: true, titulo: m.titulo,
+                        lista: m.lista, ausentes: new Set(), repes: {} };
+                montarTablero();
+            }
+            _ui.ausentes = new Set(m.ausentes || []);
+            pintar();
+        });
+        canal.postMessage({ tipo: 'pedir' });
+    }
+
+    // Abre "Pasar lista". Resuelve { guardada, ausentes } al cerrar.
+    async function abrir({ sb, sesionId, ctxNombre, anio, fecha, titulo }) {
+        if (sb) _sb = sb;
+        if (_ui && _ui.espejo) cerrar();
+        if (_ui) return { guardada: false };
+        const el = crearVista({ titulo, espejo: false });
         return new Promise(async resolver => {
-            _ui = { el, sesionId, lista: [], ausentes: new Set(), repes: {}, tomada: false, resolver, cambios: false };
+            _ui = { el, sesionId, titulo, lista: [], ausentes: new Set(), repes: {}, tomada: false, resolver, cambios: false };
             _ui.onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); cerrar({ guardada: _ui.tomada || _ui.cambios, ausentes: [..._ui.ausentes] }); } };
             document.addEventListener('keydown', _ui.onKey, true);
             el.querySelector('[data-acc="no"]').onclick = () => cerrar({ guardada: _ui.tomada || _ui.cambios, ausentes: [..._ui.ausentes] });
@@ -227,10 +298,8 @@
                 _ui.lista = lista;
                 _ui.tomada = prev.tomada;
                 _ui.ausentes = new Set((prev.ausentes || []).filter(id => lista.some(e => e.id === id)));
-                lista.forEach(e => { const k = norm(e.nombre); _ui.repes[k] = (_ui.repes[k] || 0) + 1; });
                 el.querySelector('[data-acc="no"]').textContent = prev.tomada ? 'Cerrar' : 'Ahora no';
-                board.innerHTML = `
-                  <div class="asis-zona p"><div class="asis-grid p"></div></div>`;
+                montarTablero();
                 board.onclick = ev => {
                     const t = ev.target.closest('.asis-tile'); if (!t || !_ui) return;
                     const id = t.dataset.id;
@@ -240,8 +309,6 @@
                     guardar(sesionId, [..._ui.ausentes]);   // cada toque queda guardado (sin conexión: en cola)
                     pintar();
                 };
-                if ('ResizeObserver' in window) { _ui.ro = new ResizeObserver(() => requestAnimationFrame(layout)); _ui.ro.observe(board); }
-                window.addEventListener('resize', layout);
                 pintar();
                 requestAnimationFrame(layout);
             } catch (e) {
@@ -261,5 +328,5 @@
     function iniciar(sb) { if (sb) _sb = sb; subirPendientes(); }
     window.addEventListener('online', () => subirPendientes());
 
-    window.Asistencia = { ICONO, abrir, obtener, guardar, iniciar, onCambio, subirPendientes };
+    window.Asistencia = { ICONO, abrir, espejo, obtener, guardar, iniciar, onCambio, subirPendientes };
 })();

@@ -2227,6 +2227,29 @@ Sin cambios en Supabase.
 el ausente se ve gris y tachado; contador correcto; lista de prueba borrada. El ↔ no se pudo
 probar aquí (computador de prueba con una sola pantalla: el botón queda oculto, como corresponde).
 
+### Microiteración: Pasar lista — resumen de ausentes + tablero en la Pizarra (deudas S y N)
+
+**Fecha:** 2026-10-06 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** traspasar los ausentes al libro oficial sin buscarlos (S) y que los
+estudiantes ayuden a pasar lista leyendo el tablero en el proyector (N).
+**Decisión del PO (2026-10-06):** hacer ambas.
+**Alcance (`comun/asistencia.js`, `PIZARRA/index.html`):**
+- **Resumen:** franja abajo del tablero, solo en la pantalla del profe, con los ausentes
+  ordenados por **número de lista + apellido** (número = posición de la matrícula). En talleres
+  no hay número de lista: se muestra apellido y nombre.
+- **Pizarra:** mientras la lista está abierta (desde el Planificador o el Libro), la Pizarra
+  muestra **el mismo tablero**, solo para mirar (se maneja desde la pantalla del profe), y se
+  actualiza con cada toque; al cerrar la lista, desaparece. Si la Pizarra se abre con la lista
+  ya abierta, la pide y la muestra.
+Sin cambios en Supabase.
+**Implementación:** `poblacion()` trae `posicion` como número de lista; franja `.asis-res`;
+canal `BroadcastChannel('profe-asistencia')` (estado / pedir / cerrar) y `Asistencia.espejo()`
+llamado desde la Pizarra (que ahora carga `comun/asistencia.js`).
+**Pruebas (Claude):** Tercero 26-10 en dos pestañas (Planificador + Pizarra): resumen
+"1 ACIARES · 22 RUBIO"; la Pizarra muestra los 26 nombres con los mismos 2 ausentes, sin botones
+ni resumen; Pizarra recargada con la lista abierta → la vuelve a mostrar; al cerrar la lista
+desaparece de la Pizarra. Lista de prueba borrada.
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo
@@ -2383,7 +2406,7 @@ probar aquí (computador de prueba con una sola pantalla: el botón queda oculto
 - Pasar lista es una acción propia de la clase: el tablero de nombres debe verse **también en
   la Pizarra (proyector)**. El profe controla desde su pantalla; los estudiantes leen la lista y
   le dicen a quién marcar ausente.
-- **No resuelto.**
+- **Resuelto** en la microiteración "Pasar lista — resumen de ausentes + tablero en la Pizarra" (pendiente de uso real).
 
 ### O. Pasar lista — el ausente no cambia de lugar
 *Origen: PO, uso en clases (2026-10-05).*
@@ -2421,4 +2444,4 @@ probar aquí (computador de prueba con una sola pantalla: el botón queda oculto
 - En la parte de abajo del tablero de Pasar lista, un **cuadro resumen** con los ausentes:
   **número de lista y apellido**, para traspasarlos al libro de clases oficial.
 - Uso transitorio: a futuro caerá en desuso.
-- **No resuelto.**
+- **Resuelto** en la microiteración "Pasar lista — resumen de ausentes + tablero en la Pizarra" (pendiente de uso real).
