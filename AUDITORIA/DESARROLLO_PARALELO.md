@@ -2429,6 +2429,12 @@ espejo encendido, la Pizarra lo muestra sin botones; se copian el cambio de nomb
 placas, el color de fondo, una placa encendida y la precuenta; al cerrar el Metalófono la Pizarra
 vuelve al Entrenador. La melodía sonando no se pudo ver avanzar aquí (el navegador de pruebas,
 oculto, frena la animación del propio Metalófono); queda para uso real.
+**Ajuste tras la primera prueba del PO (2026-10-06):** la Pizarra quedaba mostrando el botón
+"Abrir en Metalófono". Ahora el espejo abre el Metalófono si el profe lo abrió **o** si el recurso
+activo es un metalófono (aunque el profe no haya apretado el botón). Probado: con solo el botón en
+la pantalla del profe, la Pizarra muestra las 25 placas; al volver a la letra, vuelve la letra.
+Nota: tras cada actualización, recargar el Workspace (Ctrl+Shift+R) y abrir de nuevo la Pizarra,
+porque las ventanas ya abiertas siguen con la versión anterior.
 
 ---
 
