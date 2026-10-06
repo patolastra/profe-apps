@@ -2407,6 +2407,29 @@ fluidez real se comprueba en clases.)
 **Pendiente del pedido "todos los recursos en la Pizarra":** metalófono (siguiente).
 Tablaturas: postergadas por el PO (deuda V).
 
+### Microiteración: Entrenador en la Pizarra — metalófono
+
+**Fecha:** 2026-10-06 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** proyectar el metalófono que el profe usa desde el Entrenador.
+**Decisión del PO (2026-10-06):** seguir con el metalófono tras el ritmo (orden aprobado).
+Con el espejo encendido y el Metalófono abierto (botón "Abrir en Metalófono" del Entrenador),
+la Pizarra muestra las placas con sus nombres y colores, las notas que se encienden al tocar,
+la práctica (nota destacada) y la precuenta. Sin los botones del Metalófono; suena solo el
+computador del profe. Al cerrar el Metalófono, la Pizarra vuelve a mostrar el Entrenador.
+**Alcance:** `REPERTORIO/index.html` solamente. **No se modifica el Metalófono**
+(`METAL21 (ALPHA).HTML`): el Entrenador del profe observa lo que se ve en su ventana del
+Metalófono (mismo sitio) y la copia en la ventana del Metalófono del espejo.
+**Implementación:** profe: `espejoMetalObservar` (MutationObserver sobre su Metalófono, a cada
+carga) → `espejoMetalFoto` (por placa: clases, estilo y nombre; precuenta; colores) enviada como
+mensaje `metal` (máx. una por cuadro) y también en la emisión periódica. El estado lleva `metal`.
+Espejo: `espejoMetalVista` abre/cierra su Metalófono (sin canción, sin barra de botones) y
+`espejoMetalAplicar` copia solo lo que cambió.
+**Pruebas (Claude):** melodía real ("Aló, Aló") con clase simulada: al abrir el Metalófono con el
+espejo encendido, la Pizarra lo muestra sin botones; se copian el cambio de nombres de las
+placas, el color de fondo, una placa encendida y la precuenta; al cerrar el Metalófono la Pizarra
+vuelve al Entrenador. La melodía sonando no se pudo ver avanzar aquí (el navegador de pruebas,
+oculto, frena la animación del propio Metalófono); queda para uso real.
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo

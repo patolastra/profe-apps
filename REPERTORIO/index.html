@@ -2131,7 +2131,8 @@
         }
         /* Entrenador espejo (?espejo=1, dentro de la Pizarra): solo la letra, sin controles */
         body.espejo { background: #0f172a; overflow: hidden; }
-        body.espejo > *:not(#entrenador-overlay):not(script) { display: none !important; }
+        body.espejo > *:not(#entrenador-overlay):not(#metal-overlay):not(script) { display: none !important; }
+        body.espejo #metal-header { display: none !important; }
         body.espejo #ent-header, body.espejo #ent-progress-wrap, body.espejo #ent-controles,
         body.espejo #ent-loops-panel, body.espejo #ent-sesion-lista,
         body.espejo .ent-ritmo-controls { display: none !important; }
@@ -8142,11 +8143,16 @@ function espejoEstado() {
         ocultas: [...entrenadorLineasOcultas], coloreadas: [...entrenadorLineasColoreadas],
         linea: entrenadorLineIdx,
         ritmoModo: entRitmoModo, ritmoTresillo: entRitmoTresillo,
+        metal: document.getElementById('metal-overlay').classList.contains('visible'),
         t: a.currentTime || 0, sonando: !a.paused && !a.ended, vel: a.playbackRate || 1,
         enviado: Date.now(),
     };
 }
-function espejoEmitir() { if (espejoOn && espejoCanal) espejoCanal.postMessage(espejoEstado()); }
+function espejoEmitir() {
+    if (!espejoOn || !espejoCanal) return;
+    espejoCanal.postMessage(espejoEstado());
+    espejoMetalEmitir();
+}
 
 function entToggleEspejo() {
     if (espejoOn) { espejoApagar(); return; }
@@ -8186,6 +8192,7 @@ function espejoPintarBoton() {
 // ── Lado Pizarra (?espejo=1): aplica el estado recibido ──
 const espejoIgual = (set, arr) => set.size === arr.length && arr.every(x => set.has(x));
 function espejoAplicar(e) {
+    espejoMetalVista(!!e.metal);
     if (!canciones.length) return;   // aún cargando la biblioteca
     const ov = document.getElementById('entrenador-overlay');
     if (!e.songId) { if (ov.classList.contains('visible')) espejoCerrar(); return; }
@@ -8251,6 +8258,94 @@ function espejoRitmo(m) {
         else if (m.op === 'limpiar') entRitmoLayout.limpiarFx();
     } catch (_) {}
 }
+// Metalófono: el del profe se observa (misma página del sitio, sin tocar el Metalófono)
+// y se envía una "foto" de lo visible: cada placa (clases, color, nombre), la precuenta
+// y los colores. El espejo abre su propio Metalófono sin canción, le esconde los
+// botones y le copia la foto; solo cambia lo que cambió (no reinicia animaciones).
+let espejoMetalObs = null, espejoMetalPend = false;
+function espejoMetalVisible() { return document.getElementById('metal-overlay').classList.contains('visible'); }
+function espejoMetalFoto() {
+    let d = null;
+    try { d = document.getElementById('metal-iframe').contentDocument; } catch (_) {}
+    if (!d || !d.getElementById('case')) return null;
+    const keys = {};
+    d.querySelectorAll('#case .key[data-midi]').forEach(k => {
+        keys[k.dataset.midi] = [k.className, k.getAttribute('style') || '', k.querySelector('span')?.innerHTML || ''];
+    });
+    const ci = d.getElementById('countin-overlay');
+    return { tipo: 'metal', keys, countin: ci ? [ci.className, ci.innerHTML] : null,
+             root: d.documentElement.getAttribute('style') || '',
+             bodyCls: d.body.className, bodyStyle: d.body.getAttribute('style') || '' };
+}
+function espejoMetalEmitir() {
+    espejoMetalPend = false;
+    if (!espejoOn || !espejoCanal || !espejoMetalVisible()) return;
+    const f = espejoMetalFoto();
+    if (f) espejoCanal.postMessage(f);
+}
+function espejoMetalProgramar() {
+    if (espejoMetalPend || !espejoOn) return;
+    espejoMetalPend = true;
+    requestAnimationFrame(espejoMetalEmitir);
+}
+// Profe: cada vez que carga su Metalófono, se observa lo que cambia en él.
+function espejoMetalObservar() {
+    if (espejoMetalObs) { espejoMetalObs.disconnect(); espejoMetalObs = null; }
+    let d = null;
+    try { d = document.getElementById('metal-iframe').contentDocument; } catch (_) {}
+    if (!d || !d.documentElement || !d.getElementById('case')) return;
+    espejoMetalObs = new MutationObserver(espejoMetalProgramar);
+    espejoMetalObs.observe(d.documentElement, { subtree: true, attributes: true, childList: true, characterData: true });
+    espejoMetalProgramar();
+}
+
+// Espejo: abre/cierra su Metalófono y le aplica la última foto.
+let espejoMetalUltima = null;
+function espejoMetalVista(abierto) {
+    const ov = document.getElementById('metal-overlay');
+    const fr = document.getElementById('metal-iframe');
+    if (abierto && !ov.classList.contains('visible')) {
+        fr.onload = () => {
+            const d = fr.contentDocument;
+            if (!d || !d.head) return;
+            const st = d.createElement('style');
+            st.textContent = 'header, #status, #alumno-girar, #alumno-inicio { display: none !important; }';
+            d.head.appendChild(st);
+            if (espejoMetalUltima) espejoMetalAplicar(espejoMetalUltima);
+        };
+        fr.src = new URL('../METALÓFONO APP/METAL21 (ALPHA).HTML', location.href).href;
+        ov.classList.add('visible');
+    } else if (!abierto && ov.classList.contains('visible')) {
+        ov.classList.remove('visible');
+        fr.onload = null;
+        fr.src = 'about:blank';
+        espejoMetalUltima = null;
+    }
+}
+function espejoMetalAplicar(f) {
+    espejoMetalUltima = f;
+    let d = null;
+    try { d = document.getElementById('metal-iframe').contentDocument; } catch (_) {}
+    if (!d || !d.getElementById('case')) return;
+    const attr = (el, nombre, v) => { if ((el.getAttribute(nombre) || '') !== v) { if (v) el.setAttribute(nombre, v); else el.removeAttribute(nombre); } };
+    Object.entries(f.keys).forEach(([midi, [cls, sty, html]]) => {
+        const k = d.querySelector(`#case .key[data-midi="${midi}"]`);
+        if (!k) return;
+        if (k.className !== cls) k.className = cls;
+        attr(k, 'style', sty);
+        const sp = k.querySelector('span');
+        if (sp && sp.innerHTML !== html) sp.innerHTML = html;
+    });
+    const ci = d.getElementById('countin-overlay');
+    if (ci && f.countin) {
+        if (ci.className !== f.countin[0]) ci.className = f.countin[0];
+        if (ci.innerHTML !== f.countin[1]) ci.innerHTML = f.countin[1];
+    }
+    attr(d.documentElement, 'style', f.root);
+    if (d.body.className !== f.bodyCls) d.body.className = f.bodyCls;
+    attr(d.body, 'style', f.bodyStyle);
+}
+
 function espejoCerrar() {
     entAudio().pause();
     document.getElementById('entrenador-overlay').classList.remove('visible');
@@ -8263,9 +8358,11 @@ if (ESPEJO) {
         const m = ev.data || {};
         if (m.tipo === 'estado') espejoAplicar(m);
         else if (m.tipo === 'ritmo') espejoRitmo(m);
+        else if (m.tipo === 'metal') espejoMetalAplicar(m);
     };
 } else {
     ['play', 'pause', 'seeked', 'ratechange'].forEach(t => entAudio().addEventListener(t, espejoEmitir));
+    document.getElementById('metal-iframe').addEventListener('load', espejoMetalObservar);
     ClaseVivo.onCambio(espejoPintarBoton);
     espejoPintarBoton();
     window.addEventListener('pagehide', () => { if (espejoOn) espejoApagar(); });
