@@ -2197,6 +2197,11 @@ la apertura automática al comenzar.
 pasar lista (26 estudiantes, ícono en la ventana) → botón sin brillo, "Modificar lista"; lista de
 prueba borrada; tipos: aparece en cursos/talleres/jefaturas/recreo, no en General; Libro muestra
 el nuevo ícono en "Asistencia".
+**Ajuste del PO (2026-10-05, tras ver la primera versión):** barra más alta (título, fecha e
+íconos más grandes); el nombre de cada ícono aparece **arriba, en la barra de pestañas del
+Workspace**, con la letra de la barra (mayúsculas, negrita), no como globo del navegador; ↔
+reemplazado por un ícono de dos pantallas ("Cambiar de pantalla"). Nuevo mensaje del Workspace
+`ws-etiqueta` (`texto`, `x`); con el Planificador suelto, la etiqueta aparece bajo el ícono.
 **Deuda registrada (PO, prueba real en clases 2026-10-05):** el botón ↔ (pasar la Pizarra a la
 otra pantalla) **no apareció** en el computador de la escuela. Ver deuda **M**.
 **Relación con el Bosquejo:** adelanta parte de **F6D (Clase)**.

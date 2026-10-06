@@ -38,8 +38,15 @@
         display: flex; align-items: stretch; gap: 4px;
         padding: 6px 8px; background: var(--surface);
         border-bottom: 1px solid var(--border);
-        flex-shrink: 0; min-height: 46px;
+        flex-shrink: 0; min-height: 46px; position: relative;
     }
+    /* Etiqueta de los íconos de una app (mensaje 'ws-etiqueta'): sobre el ícono, en esta barra. */
+    #ws-etiqueta {
+        position: absolute; top: 50%; transform: translate(-50%, -50%); pointer-events: none;
+        font-family: system-ui, -apple-system, sans-serif; font-weight: 700; letter-spacing: 0.05em;
+        text-transform: uppercase; font-size: 1.15rem; color: #fff; white-space: nowrap; z-index: 40;
+    }
+    #ws-etiqueta[hidden] { display: none; }
     .tab {
         display: flex; align-items: center; gap: 8px;
         padding: 8px 10px 8px 14px; border-radius: 10px;
@@ -139,6 +146,7 @@
         <button id="btn-add" title="Abrir aplicación">+</button>
         <div id="launcher"></div>
     </div>
+    <div id="ws-etiqueta" hidden></div>
 </div>
 
 <div id="stage">
@@ -331,6 +339,8 @@ function renombrarTab(key, titulo) {
 //   { tipo:'ws-titulo-ventana', reqId, titulo }   → título temporal de ESTA ventana
 //                                                   (responde 'ws-titulo-ventana-ok')
 //   { tipo:'ws-titulo-ventana-restaurar' }        → vuelve al título original
+//   { tipo:'ws-etiqueta', texto, x }              → muestra `texto` en esta barra sobre
+//                                                   la posición x del iframe ('' la oculta)
 let tituloVentanaOriginal = null;   // título guardado mientras hay uno temporal
 window.addEventListener('message', (e) => {
     const esNuestro = tabs.some(t => t.iframeEl && t.iframeEl.contentWindow === e.source);
@@ -361,6 +371,16 @@ window.addEventListener('message', (e) => {
         if (tituloVentanaOriginal === null) tituloVentanaOriginal = document.title;
         document.title = m.titulo.slice(0, 200);
         try { e.source.postMessage({ tipo: 'ws-titulo-ventana-ok', reqId: m.reqId }, '*'); } catch (_) {}
+    } else if (m.tipo === 'ws-etiqueta') {
+        const el = document.getElementById('ws-etiqueta');
+        const texto = typeof m.texto === 'string' ? m.texto.slice(0, 60) : '';
+        el.hidden = !texto;
+        if (!texto) return;
+        const t = tabs.find(t => t.iframeEl && t.iframeEl.contentWindow === e.source);
+        const barra = document.getElementById('tabbar').getBoundingClientRect();
+        el.textContent = texto;
+        const x = t.iframeEl.getBoundingClientRect().left + (Number(m.x) || 0) - barra.left;
+        el.style.left = Math.max(el.offsetWidth / 2 + 6, Math.min(x, barra.width - el.offsetWidth / 2 - 6)) + 'px';
     } else if (m.tipo === 'ws-titulo-ventana-restaurar') {
         if (tituloVentanaOriginal !== null) { document.title = tituloVentanaOriginal; tituloVentanaOriginal = null; }
     }
