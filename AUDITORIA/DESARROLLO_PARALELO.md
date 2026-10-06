@@ -2415,3 +2415,10 @@ probar aquí (computador de prueba con una sola pantalla: el botón queda oculto
   **informes de resultados para UTP**), donde va el nombre legal.
 - Implica un cambio en Supabase (dato nuevo del estudiante): requiere autorización del PO.
 - **No resuelto.**
+
+### S. Pasar lista — cuadro resumen de ausentes
+*Origen: PO (2026-10-06).*
+- En la parte de abajo del tablero de Pasar lista, un **cuadro resumen** con los ausentes:
+  **número de lista y apellido**, para traspasarlos al libro de clases oficial.
+- Uso transitorio: a futuro caerá en desuso.
+- **No resuelto.**
