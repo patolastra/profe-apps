@@ -2313,6 +2313,21 @@ abierta "CHICOS" muestra 25, sin Eduardo.
 **Pruebas (Claude):** Cuarto: guardar "PRUEBA" → "Nombre social guardado"; guardar vacío →
 "Nombre social borrado"; el estudiante quedó sin nombre social.
 
+### Microiteración: ↔ visible también con una sola pantalla (deuda Q)
+
+**Fecha:** 2026-10-06 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** que el botón no "desaparezca" sin explicación cuando el proyector
+no está conectado.
+**Decisión del PO (2026-10-05/06):** el ↔ aparece siempre durante la clase; con una sola
+pantalla, al apretarlo dice explícitamente que no hay dos pantallas conectadas; al conectar la
+segunda (sin recargar), funciona normalmente.
+**Alcance:** `comun/clase-vivo.js` (`Proyeccion.flip` devuelve el motivo: 'una-pantalla',
+'sin-api', 'sin-pizarra', 'denegado'), `PORTAL/index.html` (botón visible en la clase en curso
+y aviso según el motivo). Sin cambios en Supabase.
+**Pruebas (Claude):** computador con una pantalla: el ↔ se ve con la clase en curso y se oculta
+sin clase; al apretarlo avisa "No hay dos pantallas conectadas…". Con dos pantallas no se pudo
+probar aquí (queda para uso real con el proyector).
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo
@@ -2490,7 +2505,7 @@ abierta "CHICOS" muestra 25, sin Eduardo.
 - Hoy, con una sola pantalla, el ↔ queda oculto. Se quiere que **aparezca igual** durante la
   clase y, al apretarlo, **diga explícitamente** algo como "No hay dos pantallas conectadas".
 - Una vez conectada la segunda pantalla (sin recargar), el ↔ debe **funcionar normalmente**.
-- **No resuelto.**
+- **Resuelto** en la microiteración "↔ visible también con una sola pantalla" (pendiente de uso real).
 
 ### R. Libro / Matrícula — nombre social
 *Origen: PO (2026-10-05). **Importante.***

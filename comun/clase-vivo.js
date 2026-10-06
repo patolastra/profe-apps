@@ -201,11 +201,15 @@
     // basta en Chrome). Solo se usa si la Pizarra está viva (latido VIVA_KEY),
     // para no abrir una ventana en blanco. Si no, se le pide a la Pizarra.
     let nombreVentana = 'profe-proyeccion';
-    // Devuelve 'denegado' si el permiso de pantallas está bloqueado (el llamador avisa).
+    // Si no se pudo, devuelve el motivo para que el llamador avise: 'sin-api' (navegador sin
+    // la función), 'una-pantalla', 'sin-pizarra' o 'denegado' (permiso bloqueado).
+    // screen.isExtended se lee en cada clic: si se conecta el proyector, funciona sin recargar.
     async function flip() {
+        if (!hayAPI) return 'sin-api';
+        if (window.screen.isExtended === false) return 'una-pantalla';
         let viva = 0;
         try { viva = Number(leer(VIVA_KEY)) || 0; } catch (_) {}
-        if (Date.now() - viva > 4000) return;              // no hay Pizarra abierta
+        if (Date.now() - viva > 4000) return 'sin-pizarra';
         const p = await permiso();
         if (p === 'denied') return 'denegado';
         if (p === 'prompt') {
@@ -219,7 +223,7 @@
         if (!w || await permiso() !== 'granted') { pedirFlip(); return; }
         const sd = await detalles();
         const lista = validas(sd);
-        if (lista.length < 2) return;
+        if (lista.length < 2) return 'una-pantalla';
         try { if (w.document.fullscreenElement) await w.document.exitFullscreen(); } catch (_) {}
         const cx = w.screenX + w.outerWidth / 2, cy = w.screenY + w.outerHeight / 2;
         let i = lista.findIndex(s => cx >= s.availLeft && cx < s.availLeft + s.availWidth
@@ -269,9 +273,5 @@
         window.addEventListener('pagehide', () => { try { localStorage.removeItem(VIVA_KEY); } catch (_) {} });
     }
 
-    // ¿Vale la pena mostrar ↔? Si el navegador puede mover ventanas y hay más de una
-    // pantalla (screen.isExtended no requiere permiso; si no se sabe, se asume que sí).
-    const puedeCambiar = () => hayAPI && window.screen.isExtended !== false;
-
-    window.Proyeccion = { hayAPI, permiso, puedeCambiar, abrir, flip, escucharEnPizarra };
+    window.Proyeccion = { hayAPI, permiso, abrir, flip, escucharEnPizarra };
 })();
