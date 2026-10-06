@@ -14,6 +14,14 @@
     const CACHE_KEY = id => 'profe_asistencia_' + id;  // última lista conocida (lectura offline)
     let _sb = null;
 
+    // Ícono de "Pasar lista": casilla con visto verde (Planificador, Libro y la propia lista).
+    // Toda etiqueta con clase "icono-lista" lo recibe sola al cargar la página.
+    const ICONO = '<svg class="ico-lista" viewBox="0 0 24 24" width="1.1em" height="1.1em" aria-hidden="true" style="vertical-align:-0.18em">'
+        + '<rect x="3" y="3" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>'
+        + '<path d="M7.5 12.5l3 3 6-7" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const ponerIconos = () => document.querySelectorAll('.icono-lista').forEach(el => { el.innerHTML = ICONO; });
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ponerIconos); else ponerIconos();
+
     const leerJSON = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch (_) { return def; } };
     const norm = s => (s == null ? '' : String(s)).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
     const esc  = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -195,7 +203,7 @@
         el.className = 'asis';
         el.innerHTML = `
           <div class="asis-bar">
-            <span class="asis-tit">📋 Pasar lista${titulo ? ' — ' + esc(titulo) : ''}</span>
+            <span class="asis-tit">${ICONO} Pasar lista${titulo ? ' — ' + esc(titulo) : ''}</span>
             <span class="asis-cont"></span>
             <span class="asis-sp"></span>
             <span class="asis-hint">Toca a los AUSENTES</span>
@@ -258,5 +266,5 @@
     function iniciar(sb) { if (sb) _sb = sb; subirPendientes(); }
     window.addEventListener('online', () => subirPendientes());
 
-    window.Asistencia = { abrir, obtener, guardar, iniciar, onCambio, subirPendientes };
+    window.Asistencia = { ICONO, abrir, obtener, guardar, iniciar, onCambio, subirPendientes };
 })();

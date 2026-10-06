@@ -80,6 +80,12 @@
            (el nombre sigue en el globo al pasar el mouse). Lo decide ajustarBarra(). */
         #hdr-ses.compacta .hdr-txt { display: none; }
         .hdr-btn[hidden] { display: none; }
+        /* Pasar lista: brillo discreto mientras no se ha pasado la lista de esta clase. */
+        #btn-lista.cta .ico-lista { animation: lista-cta 2.2s ease-in-out infinite; border-radius: 4px; }
+        @keyframes lista-cta {
+            0%, 100% { filter: drop-shadow(0 0 1px rgba(74,222,128,0.35)); }
+            50%      { filter: drop-shadow(0 0 6px rgba(74,222,128,0.95)); }
+        }
 
         /* ── Modo Clase · Paso 1: temporizadores de la clase en curso ── */
         #clase-timers { display: inline-flex; align-items: center; gap: clamp(12px, 1.5vw, 28px); align-self: stretch;
@@ -1065,10 +1071,11 @@
             </span>
         </div>
         <div class="hdr-ses-right">
-            <button class="hdr-btn" onclick="abrirLibro()" title="Abrir el Libro de Clases de este curso">📒<span class="hdr-txt"> Libro</span></button>
-            <button class="hdr-btn" onclick="abrirRepertorioCurso()" title="Abrir la sesión de Entrenador de este curso">🏋️<span class="hdr-txt"> Repertorio</span></button>
-            <button class="hdr-btn" onclick="abrirMemoria()" title="Bitácora de esta clase (texto y audios)">✍🏼<span class="hdr-txt"> Bitácora</span></button>
-            <button class="hdr-btn" onclick="mostrarQRRemoto()" title="Abrir control remoto en celular">📱<span class="hdr-txt"> Remoto</span></button>
+            <button class="hdr-btn" id="btn-lista" onclick="pasarLista()" title="Pasar lista" hidden><span class="icono-lista"></span></button>
+            <button class="hdr-btn" onclick="abrirLibro()" title="Libro">📒</button>
+            <button class="hdr-btn" onclick="abrirRepertorioCurso()" title="Repertorio">🏋️</button>
+            <button class="hdr-btn" onclick="abrirMemoria()" title="Bitácora">✍🏼</button>
+            <button class="hdr-btn" onclick="mostrarQRRemoto()" title="Remoto (control desde el celular)">📱</button>
             <button class="hdr-btn" id="btn-reabrir-piz" onclick="abrirPizarra()" title="Volver a abrir la Pizarra" hidden>📽️</button>
             <button class="hdr-btn" id="btn-flip-piz" onclick="Proyeccion.flip()" title="Pasar la Pizarra a la otra pantalla" hidden>↔</button>
             <button class="hdr-btn" id="btn-clase" onclick="botonClase()">▶ Comenzar clase</button>
@@ -1878,6 +1885,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
     const sesion = await getOrCreate(cid, fechaStr);
     sesionActual = { id: sesion.id, contexto_id: cid, fecha: fechaStr, nombre };
     renderClase();
+    renderBotonLista();
     logEvento('abrir_sesion', { contexto_id: cid, sesion_id: sesion.id });
 
     modoTriptico = 'pres';   // vista única: el Portal siempre entra en modo pres
@@ -2126,23 +2134,40 @@ function botonClase() {
             fecha:    sesionActual.fecha,
         });
         logEvento('comenzar_clase', { sesion_id: sesionActual.id });
-        pasarListaAlComenzar();
         return;
     }
     if (st.sesionId === sesionActual.id) abrirFinClase();
 }
 
-// Pasar lista al comenzar (comun/asistencia.js): solo en clases con estudiantes
-// (curso, taller, jefatura). Se puede omitir ("Ahora no") y corregir desde el Libro.
-function pasarListaAlComenzar() {
-    const ctx = contextos[sesionActual.contexto_id];
-    if (!ctx || !['curso', 'taller', 'jefatura'].includes(ctx.tipo)) return;
+// Pasar lista (comun/asistencia.js): botón de la barra, cuando el profe decide.
+// Aparece en clases con estudiantes (curso, taller, jefatura) y en recreo; no en General.
+// Sin lista pasada: brillo de llamado; pasada: ícono normal y "Modificar lista".
+const TIPOS_LISTA = ['curso', 'taller', 'jefatura', 'recreo'];
+function pasarLista() {
+    const ctx = contextos[sesionActual?.contexto_id];
+    if (!ctx || !TIPOS_LISTA.includes(ctx.tipo)) return;
     Asistencia.abrir({
         sb, sesionId: sesionActual.id, ctxNombre: ctx.nombre,
         anio: anioActivo || (sesionActual.fecha || '').slice(0, 4),
         fecha: sesionActual.fecha, titulo: ctxDisplay(ctx.nombre),
-    });
+    }).then(() => renderBotonLista());
 }
+async function renderBotonLista() {
+    const btn = document.getElementById('btn-lista');
+    if (!btn) return;
+    const ctx = contextos[sesionActual?.contexto_id];
+    btn.hidden = !ctx || !TIPOS_LISTA.includes(ctx.tipo);
+    if (btn.hidden) return ajustarBarra();
+    const sesionId = sesionActual.id;
+    let tomada = false;
+    try { tomada = (await Asistencia.obtener(sesionId)).tomada; } catch (_) {}
+    if (sesionActual?.id !== sesionId) return;   // se cambió de clase mientras se consultaba
+    btn.classList.toggle('cta', !tomada);
+    btn.title = tomada ? 'Modificar lista' : 'Pasar lista';
+    ajustarBarra();
+}
+// Si la lista se pasa o corrige en otra ventana (p. ej. el Libro), refrescar el botón.
+Asistencia.onCambio(id => { if (sesionActual && id === sesionActual.id) renderBotonLista(); });
 
 function renderClase() {
     const st   = ClaseVivo.get();

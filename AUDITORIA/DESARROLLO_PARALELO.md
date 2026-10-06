@@ -2171,6 +2171,38 @@ Entregas y lista de prueba borradas. **Pendiente de comprobación en uso real.**
 
 ---
 
+### Microiteración: Barra del Planificador solo íconos + botón Pasar lista
+
+**Fecha:** 2026-10-05 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** barra de la clase más limpia y pasar lista **cuando el profe
+decide**, no obligado al comenzar (pedido Alta en Notion).
+**Decisiones del PO (2026-10-05):**
+- Botones de la barra **solo con ícono**; el nombre aparece al pasar el mouse.
+  **"Comenzar / Terminar clase" conserva su texto** (botón principal; evita confusión con 📽️).
+- Nuevo botón **Pasar lista** a la izquierda de Libro, con ícono **casilla con visto verde**
+  (mismo ícono en el botón Asistencia del Libro y en la ventana de la lista).
+- Mientras no se ha pasado lista, el ícono tiene un **brillo discreto** (llamado a la acción);
+  pasada la lista, queda normal y el globo dice **"Modificar lista"** en vez de "Pasar lista".
+- Aparece en curso, taller, jefatura y **recreo**; no en General.
+- **"Comenzar clase" ya no abre la lista sola.**
+**Alcance:** `PORTAL/index.html` (barra, botón, estado de la lista), `comun/asistencia.js`
+(ícono compartido), `LIBRO/index.html` (ícono del botón Asistencia). Sin cambios en Supabase.
+**Nota:** si un recreo no tiene estudiantes vinculados en el Libro, la lista dice que no hay
+estudiantes registrados (comportamiento ya existente).
+**Implementación:** `comun/asistencia.js` exporta `Asistencia.ICONO` y lo pone solo en toda
+etiqueta `.icono-lista`; Planificador: `pasarLista()` + `renderBotonLista()` (consulta
+`Asistencia.obtener`, se refresca al cerrar la lista y cuando otra ventana la cambia); se quitó
+la apertura automática al comenzar.
+**Pruebas (Claude):** Tercero 05-10: botón visible con brillo, "Pasar lista"; Tercero 26-10:
+pasar lista (26 estudiantes, ícono en la ventana) → botón sin brillo, "Modificar lista"; lista de
+prueba borrada; tipos: aparece en cursos/talleres/jefaturas/recreo, no en General; Libro muestra
+el nuevo ícono en "Asistencia".
+**Deuda registrada (PO, prueba real en clases 2026-10-05):** el botón ↔ (pasar la Pizarra a la
+otra pantalla) **no apareció** en el computador de la escuela. Ver deuda **M**.
+**Relación con el Bosquejo:** adelanta parte de **F6D (Clase)**.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
@@ -2310,3 +2342,11 @@ Entregas y lista de prueba borradas. **Pendiente de comprobación en uso real.**
 - Corresponde al **futuro rediseño del área de Repertorio**, que más adelante se llamará
   **Biblioteca** (Bosquejo **F6E**).
 - **No resuelto.** No rediseñar ni cambiar el botón Compartir fuera de esa iteración.
+
+### M. Modo Clase — el botón ↔ no aparece en el computador de la escuela
+*Origen: prueba real en clases (PO, 2026-10-05).*
+- En el computador de la escuela (no el del profe) el botón **↔** para pasar la Pizarra a la
+  otra pantalla **no apareció**. El botón solo se muestra si el navegador dio permiso para
+  manejar pantallas; probablemente ese permiso no se concedió o el navegador no lo ofrece.
+- Auditar: navegador usado, si se abrió la versión en línea, si hubo pedido de permiso.
+- **No resuelto.**
