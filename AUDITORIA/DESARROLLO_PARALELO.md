@@ -2202,6 +2202,9 @@ el nuevo ícono en "Asistencia".
 Workspace**, con la letra de la barra (mayúsculas, negrita), no como globo del navegador; ↔
 reemplazado por un ícono de dos pantallas ("Cambiar de pantalla"). Nuevo mensaje del Workspace
 `ws-etiqueta` (`texto`, `x`); con el Planificador suelto, la etiqueta aparece bajo el ícono.
+**2º ajuste del PO (en uso, 2026-10-05):** la barra quedó muy alta → vuelve a **52 px, igual
+que la barra del Workspace** (nunca más alta), con los tamaños de letra e íconos ya aprobados;
+el botón Pasar lista suma un **saltito** al brillo para llamar más la atención.
 **Deuda registrada (PO, prueba real en clases 2026-10-05):** el botón ↔ (pasar la Pizarra a la
 otra pantalla) **no apareció** en el computador de la escuela. Ver deuda **M**.
 **Relación con el Bosquejo:** adelanta parte de **F6D (Clase)**.
@@ -2354,4 +2357,26 @@ otra pantalla) **no apareció** en el computador de la escuela. Ver deuda **M**.
   otra pantalla **no apareció**. El botón solo se muestra si el navegador dio permiso para
   manejar pantallas; probablemente ese permiso no se concedió o el navegador no lo ofrece.
 - Auditar: navegador usado, si se abrió la versión en línea, si hubo pedido de permiso.
+- 2026-10-05 (tarde): tampoco apareció en el uso del PO probando la barra nueva.
+- **No resuelto.**
+
+### N. Pasar lista — el mismo tablero en las dos pantallas
+*Origen: PO, uso en clases (2026-10-05).*
+- Pasar lista es una acción propia de la clase: el tablero de nombres debe verse **también en
+  la Pizarra (proyector)**. El profe controla desde su pantalla; los estudiantes leen la lista y
+  le dicen a quién marcar ausente.
+- **No resuelto.**
+
+### O. Pasar lista — el ausente no cambia de lugar
+*Origen: PO, uso en clases (2026-10-05).*
+- Hoy el ausente baja a una lista aparte (como en Participación cuando alguien participa).
+  Se quiere que el ausente **se quede en su lugar del tablero**, con aspecto **inhabilitado**
+  (como Shift+clic en Participación).
+- **No resuelto.**
+
+### P. Participación — estudiante retirado sigue apareciendo
+*Origen: PO (2026-10-05).*
+- Eduardo Oyarzún fue retirado de la matrícula hace un tiempo y **sigue saliendo en las
+  participaciones**. Auditar cómo Participación arma su lista (relacionado con
+  "sincronización de población con Matrícula": hoy las listas son una foto del momento de crearlas).
 - **No resuelto.**
