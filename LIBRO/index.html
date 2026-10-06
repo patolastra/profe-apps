@@ -862,6 +862,10 @@ async function abrirDetalle(evId){
     adecs = ca.data || [];
     posMap = {}; (cm.data || []).forEach(m => { posMap[m.estudiante_id] = m.posicion; });
     notas = (cn.data || []).slice();
+    if (evalActual.estado === 'abierto') {   // lista al día: los retirados dejan de aparecer
+      const vig = new Set(await poblacionContexto(hoyLocal()));
+      notas = notas.filter(n => vig.has(n.estudiante_id));
+    }
     ordenarNotas();   // orden según el modo activo (oficial 1–N por defecto)
     await recargarInstrumentos();   // Etapa 3: instrumentos aplicados (retrocompatible → [])
     await recargarResultados();     // Etapa 4: resultados por criterio/ítem (retrocompatible → [])
@@ -3664,6 +3668,25 @@ async function poblacionContexto(fecha){
   return (data || []).map(p => p.estudiante_id);
 }
 
+// Lista AL DÍA (decisión del PO, 2026-10-06): mientras la actividad está ABIERTA, su lista
+// sigue la matrícula de hoy (curso) o la pertenencia actual (taller): agrega a los que faltan
+// (fila según `filaNueva()`) y devuelve el Set de vigentes para OCULTAR a los retirados.
+// No borra filas: lo anotado del retirado queda guardado (si se reintegra, vuelve).
+// Las cerradas son una foto: no se llama para ellas.
+const hoyLocal = () => new Date().toLocaleDateString('sv');   // YYYY-MM-DD en hora local
+async function listaAlDia({ tabla, campo, actividadId, filas, filaNueva, select }){
+  const vig = new Set(await poblacionContexto(hoyLocal()));
+  const pres = new Set(filas.map(r => r.estudiante_id));
+  const faltan = [...vig].filter(id => !pres.has(id));
+  let nuevas = [];
+  if (faltan.length) {
+    const { data, error } = await sb.from(tabla)
+      .insert(faltan.map(id => ({ [campo]: actividadId, estudiante_id: id, ...filaNueva(id) }))).select(select);
+    if (!error) nuevas = data || [];
+  }
+  return { vig, nuevas };
+}
+
 async function renderPartLista(){
   partActual = null; vistaActiva = 'part-lista';
   partLimpiarTemporal();   // salir de la instancia: inhabilitados/preselección se descartan
@@ -3754,6 +3777,12 @@ async function abrirPartDetalle(pid){
       (cm.data || []).forEach(m => { partPos[m.estudiante_id] = m.posicion; });
     }
     partDet = (cd.data || []).slice();
+    if (partActual.estado === 'abierto') {   // lista al día
+      const { vig, nuevas } = await listaAlDia({ tabla: 'libro_participacion_detalle', campo: 'participacion_id',
+        actividadId: pid, filas: partDet, filaNueva: () => ({ participo: false }),
+        select: 'id,participacion_id,estudiante_id,participo,estudiante:libro_estudiantes(nombre,apellido,nombre_social)' });
+      partDet = partDet.concat(nuevas).filter(d => vig.has(d.estudiante_id));
+    }
     ordenarPartDet();   // orden según el modo activo (oficial 1–N por defecto)
     partAplicarAusentes(null);   // asistencia de hoy: ausentes inhabilitados
   } catch (e) {
@@ -4488,6 +4517,14 @@ async function abrirEntregaDetalle(eid){
     entregaActual = ce.data;
     entregaPos = {}; (cm.data || []).forEach(m => { entregaPos[m.estudiante_id] = m.posicion; });
     entregaDet = (cd.data || []).slice();
+    if (entregaActual.estado === 'abierto') {   // lista al día
+      // El nuevo debe entregar solo si la entrega es para todo el curso; si fue para algunos, no aplica.
+      const paraTodos = entregaDet.every(d => d.estado !== 'no_aplica');
+      const { vig, nuevas } = await listaAlDia({ tabla: 'libro_entrega_detalle', campo: 'entrega_id',
+        actividadId: eid, filas: entregaDet, filaNueva: () => ({ estado: paraTodos ? 'pendiente' : 'no_aplica' }),
+        select: 'id,entrega_id,estudiante_id,estado,estudiante:libro_estudiantes(nombre,apellido,nombre_social)' });
+      entregaDet = entregaDet.concat(nuevas).filter(d => vig.has(d.estudiante_id));
+    }
     ordenarEntregaDet();
   } catch (e) {
     v.innerHTML = '<div class="card"></div>';

@@ -2280,6 +2280,29 @@ estudiantes.
 con nombre legal "ACIARES, DARIEL"; lista de Matrícula y tablero de Pasar lista muestran TOMÁS;
 el formato del informe da el nombre legal. Nombre social de prueba borrado y sin lista guardada.
 
+### Desarrollo paralelo: Listas de las actividades según la matrícula al día (deuda P)
+
+**Fecha:** 2026-10-06 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** Eduardo Oyarzún (retirado el 28-09) seguía apareciendo en la
+participación "EL MUSEO" y en una entrega abiertas; lo mismo Laura Oyarzún (retirada el 24-09).
+**Auditoría (Claude):** Participación y Entregas guardan la lista del curso del día en que se
+crean y no se actualizan; Evaluaciones abiertas suman a los nuevos pero no sacan a los retirados.
+**Decisiones del PO (2026-10-06):**
+- Mientras la actividad (participación, entrega, evaluación) está **abierta**, su lista sigue la
+  **matrícula al día**: los nuevos se agregan solos; los **retirados dejan de aparecer** y no
+  cuentan en totales, sorteo ni pendientes — **aunque tengan algo anotado**.
+- **No se borra nada:** lo anotado del retirado queda guardado (ficha); si se reintegra, vuelve.
+- **Cerradas = foto** del momento del cierre (historial); para corregir, se reabre.
+- **Talleres:** igual, según quién pertenece hoy al taller.
+**Alcance:** `LIBRO/index.html`. Sin cambios en Supabase.
+**Implementación:** `listaAlDia()` (con `poblacionContexto(hoy)`) al abrir el detalle de una
+participación o entrega **abierta**: inserta las filas que faltan y oculta a los no vigentes.
+Evaluación abierta: oculta a los no vigentes (los nuevos ya se agregaban). Entrega: el nuevo queda
+"pendiente" si la entrega era para todo el curso; si era para algunos, "no aplica".
+**Pruebas (Claude):** Cuarto: participación "EL MUSEO" (abierta, 26 filas guardadas) muestra 25,
+sin Eduardo; entrega "cuaderno…" muestra 25, sin Eduardo, y su fila sigue guardada; evaluación
+abierta "CHICOS" muestra 25, sin Eduardo.
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo
@@ -2450,7 +2473,7 @@ el formato del informe da el nombre legal. Nombre social de prueba borrado y sin
 - Eduardo Oyarzún fue retirado de la matrícula hace un tiempo y **sigue saliendo en las
   participaciones**. Auditar cómo Participación arma su lista (relacionado con
   "sincronización de población con Matrícula": hoy las listas son una foto del momento de crearlas).
-- **No resuelto.**
+- **Resuelto** en el desarrollo "Listas de las actividades según la matrícula al día" (pendiente de uso real).
 
 ### Q. Modo Clase — ↔ visible también con una sola pantalla
 *Origen: PO (2026-10-05).*
@@ -2475,3 +2498,8 @@ el formato del informe da el nombre legal. Nombre social de prueba borrado y sin
   **número de lista y apellido**, para traspasarlos al libro de clases oficial.
 - Uso transitorio: a futuro caerá en desuso.
 - **Resuelto** en la microiteración "Pasar lista — resumen de ausentes + tablero en la Pizarra" (pendiente de uso real).
+
+### T. Nombre social — aviso al guardar
+*Origen: PO (2026-10-06).*
+- Al guardar un nombre social en la ficha, mostrar un aviso (badge) **"Nombre social guardado"**.
+- **No resuelto.**
