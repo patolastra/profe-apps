@@ -2133,7 +2133,8 @@
         body.espejo { background: #0f172a; overflow: hidden; }
         body.espejo > *:not(#entrenador-overlay):not(script) { display: none !important; }
         body.espejo #ent-header, body.espejo #ent-progress-wrap, body.espejo #ent-controles,
-        body.espejo #ent-loops-panel, body.espejo #ent-sesion-lista { display: none !important; }
+        body.espejo #ent-loops-panel, body.espejo #ent-sesion-lista,
+        body.espejo .ent-ritmo-controls { display: none !important; }
         /* Controles header — mismo estilo que .ent-chip */
         #ent-btn-espejo, #ent-btn-atajos, #ent-btn-pitch, #ent-btn-tema, #ent-vel-label,
         #ent-btn-ocultar, #ent-btn-sync, #ent-btn-sync-save, #ent-btn-editar {
@@ -5869,6 +5870,7 @@ function entRitmoRerender() {
     const canvas = document.getElementById('ent-ritmo-canvas');
     if (!canvas) return;
     entRitmoLayout = RITMO_UI.render(entRitmoObj, canvas, entRitmoObj.modo, { mostrarIndicadorTresillo: entRitmoTresillo });
+    espejoEnvolverLayout(entRitmoLayout);
     if (entRitmoObj.modo === 'infantil') {
         const svg = canvas.querySelector('svg');
         try {
@@ -8139,6 +8141,7 @@ function espejoEstado() {
         vista: entViewMode, claro: entrenadorModoClaro, ocultar: entrenadorOcultar,
         ocultas: [...entrenadorLineasOcultas], coloreadas: [...entrenadorLineasColoreadas],
         linea: entrenadorLineIdx,
+        ritmoModo: entRitmoModo, ritmoTresillo: entRitmoTresillo,
         t: a.currentTime || 0, sonando: !a.paused && !a.ended, vel: a.playbackRate || 1,
         enviado: Date.now(),
     };
@@ -8195,9 +8198,15 @@ function espejoAplicar(e) {
     }
     const a = entAudio();
     a.muted = true; a.volume = 0;   // suena solo el computador del profe
+    const ritmoCambio = entRitmoModo !== e.ritmoModo || entRitmoTresillo !== e.ritmoTresillo;
+    entRitmoModo = e.ritmoModo; entRitmoTresillo = e.ritmoTresillo;
     if (e.assetId && entrenadorAssetActivo?.id !== e.assetId) {
         const as = (entrenadorSong.assets || []).find(x => x.id === e.assetId);
         if (as) entCargarAsset(as);
+    } else if (ritmoCambio && entRitmoObj && entrenadorAssetActivo?.tipo === 'ritmo') {
+        entRitmoObj.modo = entRitmoModo || entRitmoObj.modo;
+        entRitmoRerender();
+        if (entRitmoPlayer) { try { entRitmoPlayer.stop(); } catch (_) {} entRitmoPlayer = null; }
     }
     if (entViewMode !== e.vista) entSetViewMode(e.vista);
     if (entrenadorModoClaro !== e.claro) { entrenadorModoClaro = e.claro; entAplicarTema(); }
@@ -8223,6 +8232,25 @@ function espejoAplicar(e) {
     // Detenido: el verso activo puede cambiar sin audio (clic en un verso, ↑/↓).
     if (!e.sonando && e.linea >= 0 && e.linea !== entrenadorLineIdx) entActualizarLinea(e.linea);
 }
+// Ritmo: el reproductor del profe mueve el cursor y destella los golpes en SU dibujo.
+// Se envuelve ese objeto de dibujo (sin tocar ritmo-render.js) para avisar cada
+// movimiento al espejo, que los repite en su propio dibujo, sin reproductor ni sonido.
+function espejoEnvolverLayout(L) {
+    if (!L || ESPEJO) return;
+    const enviar = (op, v) => { if (espejoOn && espejoCanal) espejoCanal.postMessage({ tipo: 'ritmo', op, v }); };
+    const sc = L.setCursor, fx = L.fx, lf = L.limpiarFx;
+    L.setCursor = function (t) { enviar('cursor', t); return sc.call(this, t); };
+    L.fx        = function (i) { enviar('fx', i);     return fx.call(this, i); };
+    L.limpiarFx = function ()  { enviar('limpiar');   return lf.call(this); };
+}
+function espejoRitmo(m) {
+    if (!entRitmoLayout || entrenadorAssetActivo?.tipo !== 'ritmo') return;
+    try {
+        if (m.op === 'cursor') entRitmoLayout.setCursor(m.v);
+        else if (m.op === 'fx') entRitmoLayout.fx(m.v);
+        else if (m.op === 'limpiar') entRitmoLayout.limpiarFx();
+    } catch (_) {}
+}
 function espejoCerrar() {
     entAudio().pause();
     document.getElementById('entrenador-overlay').classList.remove('visible');
@@ -8231,7 +8259,11 @@ function espejoCerrar() {
 
 if (ESPEJO) {
     document.body.classList.add('espejo');
-    if (espejoCanal) espejoCanal.onmessage = ev => { if (ev.data && ev.data.tipo === 'estado') espejoAplicar(ev.data); };
+    if (espejoCanal) espejoCanal.onmessage = ev => {
+        const m = ev.data || {};
+        if (m.tipo === 'estado') espejoAplicar(m);
+        else if (m.tipo === 'ritmo') espejoRitmo(m);
+    };
 } else {
     ['play', 'pause', 'seeked', 'ratechange'].forEach(t => entAudio().addEventListener(t, espejoEmitir));
     ClaseVivo.onCambio(espejoPintarBoton);

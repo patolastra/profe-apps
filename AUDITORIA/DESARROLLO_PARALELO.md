@@ -2384,6 +2384,29 @@ versos coloreados, Diapositiva y posición; sonando, la copia va a la par (difer
 centésimas); al soltar desaparece la capa; una Pizarra abierta después también lo muestra;
 terminar la clase oculta el botón y suelta el espejo. Con proyector real queda para uso en clases.
 
+### Microiteración: Entrenador en la Pizarra — ritmos
+
+**Fecha:** 2026-10-06 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** que en el Modo Clase se proyecten también los recursos del Entrenador
+que no son letra. Orden aprobado: ritmo → metalófono. **Tablaturas: postergadas por el PO**
+(no las necesita por ahora).
+**Decisión del PO (2026-10-06):** partir por el ritmo: con el espejo encendido, la Pizarra muestra
+el ritmo (Partitura/Infantil, tresillo) y sigue la reproducción del profe (cursor y destellos de
+los golpes). Sin los controles del ritmo en el proyector; suena solo el computador del profe.
+**Alcance:** `REPERTORIO/index.html` solamente. **No se toca `ritmo-render.js`** (protegido): el
+Entrenador del profe envuelve su propio objeto de dibujo para avisar cada movimiento del cursor y
+cada golpe; la copia los repite en su dibujo, sin reproductor ni sonido.
+**Implementación:** `espejoEnvolverLayout` (profe) envuelve `setCursor`/`fx`/`limpiarFx` del dibujo
+del ritmo y avisa cada llamada (mensaje `ritmo`); `espejoRitmo` (copia) las repite. El estado
+lleva `ritmoModo` y `ritmoTresillo`; la copia redibuja si cambian. Controles del ritmo ocultos.
+**Pruebas (Claude):** ritmo real ("Figuras rítmicas en 6/8") con clase simulada: la copia muestra
+el ritmo sin controles; al hacerlo sonar en el Entrenador del profe, la copia recibe el cursor y
+los destellos de los golpes y los dibuja; al terminar se limpia; Partitura→Infantil y Tresillo se
+copian. (En el navegador de pruebas la animación del profe va frenada por estar oculta; la
+fluidez real se comprueba en clases.)
+**Pendiente del pedido "todos los recursos en la Pizarra":** metalófono (siguiente).
+Tablaturas: postergadas por el PO (deuda V).
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo
@@ -2591,3 +2614,9 @@ terminar la clase oculta el botón y suelta el espejo. Con proyector real queda 
 - **Deuda:** formalizarlo como un **juego formativo dentro del Lector Tabs**: se muestra la foto, los estudiantes responden **"sí" o "no"** (¿es correcta?) y luego se revela la respuesta.
 - Hay **más imágenes** que el PO sumará a esta colección.
 - Pendiente de diseño con el PO (dónde vive, quién responde, si se registra algo). **No implementar** sin ficha y aprobación.
+
+### V. Entrenador en la Pizarra — tablaturas (postergada)
+*Origen: PO (2026-10-06).*
+- Hoy el Entrenador **no muestra** las tablaturas/partituras (archivos MXL): intenta abrir el archivo
+  tal cual. Para verlas en la Pizarra habría que mostrar el Lector Tabs dentro del Entrenador y copiarlo.
+- **Postergada por decisión del PO** ("no lo necesito por de pronto"). No implementar sin nueva decisión.
