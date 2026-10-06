@@ -2366,6 +2366,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     Proyeccion.escucharEnPizarra(ordenDelPlanificador);   // ↔, ◀ ▶, clic en la vista previa, texto al día
     Asistencia.espejo();              // Pasar lista: el mismo tablero, solo para mirar
 })();
+
+// Entrenador en la Pizarra: con el botón "📽️ Pizarra" del Entrenador del profe, esta
+// ventana muestra encima una copia de su vista (REPERTORIO/?espejo=1, en silencio). Al
+// soltarlo se quita la capa y la Pizarra queda en la diapositiva donde estaba.
+(function () {
+    if (!('BroadcastChannel' in window)) return;
+    const canal = new BroadcastChannel('profe-espejo-entrenador');
+    const miSesion = new URLSearchParams(location.search).get('sesion');   // corre antes del INIT
+    let capa = null;
+    function mostrar() {
+        if (capa) return;
+        capa = document.createElement('iframe');
+        capa.id = 'espejo-entrenador';
+        capa.src = '../REPERTORIO/index.html?espejo=1';
+        capa.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;z-index:8500;background:#0f172a';
+        document.body.appendChild(capa);
+    }
+    function quitar() { if (capa) { capa.remove(); capa = null; } }
+    canal.onmessage = ev => {
+        const m = ev.data || {};
+        if (m.tipo === 'on' && m.sesionId === miSesion) mostrar();
+        else if (m.tipo === 'off') quitar();
+    };
+    // Pizarra recién abierta por el botón: el espejo ya estaba encendido.
+    try {
+        const e = JSON.parse(localStorage.getItem('profe_espejo_entrenador') || 'null');
+        if (e && e.sesionId === miSesion) mostrar();
+    } catch (_) {}
+})();
 </script>
 </body>
 </html>

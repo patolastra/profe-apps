@@ -2353,6 +2353,37 @@ curso; ▶ ▶ lleva de la 1ª a la 3ª; borrar la 1ª diapositiva deja la Pizar
 editar otra diapositiva no redibuja la actual; clic en la vista previa salta a esa diapositiva
 con el texto actual. Sin guardar nada en la base (textos de prueba solo enviados a la Pizarra).
 
+### Desarrollo paralelo: Entrenador en la Pizarra (espejo)
+
+**Fecha:** 2026-10-06 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** durante la clase, mostrar en el proyector la letra del Entrenador que
+el profe está usando, sin dejar la Pizarra de lado y sin manejar dos ventanas.
+**Decisiones del PO (2026-10-06):**
+- Botón tipo interruptor en el Entrenador, **solo si hay una clase en curso**. Encendido: la
+  Pizarra muestra una copia de la vista del Entrenador (canción, recurso, verso activo, versos
+  coloreados y escondidos, Scroll/Diapositiva, tema, avance). Apagado: la Pizarra se "suelta" y
+  vuelve **exactamente** a la diapositiva donde estaba.
+- **Suena solo el computador del profe;** la copia del proyector va en silencio y sigue el avance.
+- Si la Pizarra no está abierta, el botón la abre en el proyector (igual que "Comenzar clase").
+- Botones y menús del Entrenador no se proyectan: solo la letra.
+**Alcance:** `REPERTORIO/index.html` (botón + emisión del estado; modo `?espejo=1` que obedece),
+`PIZARRA/index.html` (capa a pantalla completa con el Entrenador espejo). Misma computadora, sin
+internet (BroadcastChannel + `localStorage`). Sin cambios en Supabase.
+**Fuera de alcance:** sincronizar la reproducción de ritmos/metalófono (se muestra el recurso, no
+se sincroniza su reproductor), loops como tales (la copia sigue el tiempo del audio).
+**Implementación:** Entrenador: botón `#ent-btn-espejo` ("📽️ Pizarra", naranjo encendido),
+visible según `ClaseVivo`; `entToggleEspejo` abre la Pizarra si no está viva (`Proyeccion.abrir`),
+marca `localStorage.profe_espejo_entrenador` y emite el estado cada 300 ms y al
+reproducir/pausar/saltar (canal `profe-espejo-entrenador`). Con `?espejo=1` el mismo archivo solo
+muestra la letra (`body.espejo`), aplica el estado (`espejoAplicar`) con el audio en silencio y
+corrige el avance si se desfasa más de 0,35 s. Pizarra: capa `#espejo-entrenador` (iframe) bajo el
+tiempo perdido y Pasar lista; se quita al soltar. Terminar la clase o cerrar el Entrenador suelta el espejo.
+**Pruebas (Claude):** Entrenador + Pizarra en dos pestañas con una clase simulada: botón visible
+solo con clase; al encender, la Pizarra muestra la canción sin botones, en silencio; coinciden
+versos coloreados, Diapositiva y posición; sonando, la copia va a la par (diferencia de
+centésimas); al soltar desaparece la capa; una Pizarra abierta después también lo muestra;
+terminar la clase oculta el botón y suelta el espejo. Con proyector real queda para uso en clases.
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo

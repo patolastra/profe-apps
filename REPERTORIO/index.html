@@ -2129,8 +2129,13 @@
         #ent-header-tools {
             display: flex; align-items: center; gap: 6px; flex-shrink: 0;
         }
+        /* Entrenador espejo (?espejo=1, dentro de la Pizarra): solo la letra, sin controles */
+        body.espejo { background: #0f172a; overflow: hidden; }
+        body.espejo > *:not(#entrenador-overlay):not(script) { display: none !important; }
+        body.espejo #ent-header, body.espejo #ent-progress-wrap, body.espejo #ent-controles,
+        body.espejo #ent-loops-panel, body.espejo #ent-sesion-lista { display: none !important; }
         /* Controles header — mismo estilo que .ent-chip */
-        #ent-btn-atajos, #ent-btn-pitch, #ent-btn-tema, #ent-vel-label,
+        #ent-btn-espejo, #ent-btn-atajos, #ent-btn-pitch, #ent-btn-tema, #ent-vel-label,
         #ent-btn-ocultar, #ent-btn-sync, #ent-btn-sync-save, #ent-btn-editar {
             background: #334155; border: 1.5px solid #475569;
             color: #94a3b8; border-radius: 20px; padding: 4px 12px;
@@ -2138,10 +2143,10 @@
             white-space: nowrap; transition: all 0.15s; flex-shrink: 0; line-height: 1;
         }
         #ent-vel-label { cursor: default; font-variant-numeric: tabular-nums; }
-        #ent-btn-atajos:hover, #ent-btn-pitch:hover, #ent-btn-tema:hover, #ent-btn-ocultar:hover,
+        #ent-btn-espejo:hover, #ent-btn-atajos:hover, #ent-btn-pitch:hover, #ent-btn-tema:hover, #ent-btn-ocultar:hover,
         #ent-btn-sync:hover, #ent-btn-editar:hover { border-color: #64748b; color: #cbd5e1; }
         #ent-btn-pitch.activo, #ent-btn-ocultar.oculto,
-        #ent-btn-sync.on, #ent-btn-editar.activo {
+        #ent-btn-sync.on, #ent-btn-editar.activo, #ent-btn-espejo.on {
             background: #ea580c; border-color: #ea580c; color: #fff;
         }
         #ent-pitch-input {
@@ -2336,6 +2341,7 @@
         #entrenador-overlay.ent-light .ent-chip { background: #e2e8f0; border-color: #cbd5e1; color: #475569; }
         #entrenador-overlay.ent-light .ent-chip:hover { border-color: #94a3b8; color: #1e293b; }
         /* Botones tipo pill del header */
+        #entrenador-overlay.ent-light #ent-btn-espejo:not(.on),
         #entrenador-overlay.ent-light #ent-btn-atajos,
         #entrenador-overlay.ent-light #ent-btn-pitch,
         #entrenador-overlay.ent-light #ent-btn-tema,
@@ -2931,6 +2937,7 @@
         </div>
         <div id="ent-asset-chips"></div>
         <div id="ent-header-tools">
+            <button id="ent-btn-espejo" onclick="entToggleEspejo()" style="display:none">📽️ Pizarra</button>
             <button id="ent-btn-tema" onclick="entToggleTema()" title="Modo claro">☀️</button>
             <button id="ent-btn-atajos" onclick="entAbrirAtajos()" title="Atajos de teclado">⌨</button>
             <button id="ent-btn-pitch" onclick="entTogglePitchInput()" title="Cambiar tono (−6 a +6 semitonos)">Pitch</button>
@@ -7477,7 +7484,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     const audioAsset = (song.assets || []).find(a => a.tipo === 'audio');
     // En modo sesión se permite navegar aunque no haya audio (muestra letra)
     // En modo individual o edición sí se requiere audio
-    if (!audioAsset && !entModoSesion) { toast('Sin audio'); return; }
+    if (!audioAsset && !entModoSesion && !ESPEJO) { toast('Sin audio'); return; }
 
     entrenadorSong       = song;
     entrenadorLineIdx    = -1;
@@ -8109,6 +8116,128 @@ function entTapUndo() {
 
 // ── BÚSQUEDA EN TIEMPO REAL ───────────────────────────────────────────────────
 document.getElementById('search').addEventListener('input', render);
+
+// ── ESPEJO: el Entrenador en la Pizarra (Modo Clase) ─────────────────────────
+// Con la clase en curso, el botón "📽️ Pizarra" del header copia esta vista en la
+// Pizarra del proyector; al apretarlo de nuevo la Pizarra vuelve a su diapositiva.
+// El Entrenador del profe emite su estado (BroadcastChannel, misma computadora, sin
+// internet); la Pizarra muestra este mismo archivo con ?espejo=1, que solo obedece,
+// va en silencio y sigue el avance del audio. ESPEJO_KEY avisa a una Pizarra que
+// recién se abre que debe mostrar el espejo.
+const ESPEJO     = new URLSearchParams(location.search).get('espejo') === '1';
+const ESPEJO_KEY = 'profe_espejo_entrenador';
+const espejoCanal = ('BroadcastChannel' in window) ? new BroadcastChannel('profe-espejo-entrenador') : null;
+let espejoOn = false, espejoTimer = null;
+
+function espejoEstado() {
+    const a = entAudio();
+    const abierto = document.getElementById('entrenador-overlay').classList.contains('visible');
+    return {
+        tipo: 'estado',
+        songId:  abierto && entrenadorSong ? entrenadorSong.id : null,
+        assetId: entrenadorAssetActivo?.id || null,
+        vista: entViewMode, claro: entrenadorModoClaro, ocultar: entrenadorOcultar,
+        ocultas: [...entrenadorLineasOcultas], coloreadas: [...entrenadorLineasColoreadas],
+        linea: entrenadorLineIdx,
+        t: a.currentTime || 0, sonando: !a.paused && !a.ended, vel: a.playbackRate || 1,
+        enviado: Date.now(),
+    };
+}
+function espejoEmitir() { if (espejoOn && espejoCanal) espejoCanal.postMessage(espejoEstado()); }
+
+function entToggleEspejo() {
+    if (espejoOn) { espejoApagar(); return; }
+    const st = ClaseVivo.get();
+    if (!st) { toast('No hay una clase en curso'); return; }
+    if (!espejoCanal) { toast('Este navegador no permite proyectar el Entrenador'); return; }
+    // Pizarra cerrada → se abre en el proyector, igual que "Comenzar clase".
+    if (!Proyeccion.pizarraViva())
+        Proyeccion.abrir(`../PIZARRA/index.html?sesion=${encodeURIComponent(st.sesionId)}&slide=0`, 'profe-proyeccion');
+    espejoOn = true;
+    try { localStorage.setItem(ESPEJO_KEY, JSON.stringify({ sesionId: st.sesionId })); } catch (_) {}
+    espejoCanal.postMessage({ tipo: 'on', sesionId: st.sesionId });
+    clearInterval(espejoTimer);
+    espejoTimer = setInterval(espejoEmitir, 300);
+    espejoEmitir();
+    espejoPintarBoton();
+}
+function espejoApagar() {
+    espejoOn = false;
+    clearInterval(espejoTimer); espejoTimer = null;
+    try { localStorage.removeItem(ESPEJO_KEY); } catch (_) {}
+    if (espejoCanal) espejoCanal.postMessage({ tipo: 'off' });
+    espejoPintarBoton();
+}
+// Visible solo con la clase en curso; si la clase termina, el espejo se suelta solo.
+function espejoPintarBoton() {
+    const b = document.getElementById('ent-btn-espejo');
+    if (!b || ESPEJO) return;
+    const hayClase = !!ClaseVivo.get();
+    if (!hayClase && espejoOn) { espejoApagar(); return; }
+    b.style.display = hayClase ? '' : 'none';
+    b.classList.toggle('on', espejoOn);
+    b.title = espejoOn ? 'Dejar de proyectar: la Pizarra vuelve a su diapositiva'
+                       : 'Proyectar esta vista del Entrenador en la Pizarra';
+}
+
+// ── Lado Pizarra (?espejo=1): aplica el estado recibido ──
+const espejoIgual = (set, arr) => set.size === arr.length && arr.every(x => set.has(x));
+function espejoAplicar(e) {
+    if (!canciones.length) return;   // aún cargando la biblioteca
+    const ov = document.getElementById('entrenador-overlay');
+    if (!e.songId) { if (ov.classList.contains('visible')) espejoCerrar(); return; }
+    if (!entrenadorSong || entrenadorSong.id !== e.songId || !ov.classList.contains('visible')) {
+        const song = canciones.find(c => c.id === e.songId);
+        if (!song) return;
+        entModoSesion = false; entModoEditSesion = false;
+        abrirEntrenadorConConfig(song, { loops: [], velocidad: e.vel || 1 });
+        entOcultarHeader(true);
+    }
+    const a = entAudio();
+    a.muted = true; a.volume = 0;   // suena solo el computador del profe
+    if (e.assetId && entrenadorAssetActivo?.id !== e.assetId) {
+        const as = (entrenadorSong.assets || []).find(x => x.id === e.assetId);
+        if (as) entCargarAsset(as);
+    }
+    if (entViewMode !== e.vista) entSetViewMode(e.vista);
+    if (entrenadorModoClaro !== e.claro) { entrenadorModoClaro = e.claro; entAplicarTema(); }
+    if (entrenadorOcultar !== e.ocultar || !espejoIgual(entrenadorLineasOcultas, e.ocultas)) {
+        entrenadorOcultar = e.ocultar;
+        entrenadorLineasOcultas = new Set(e.ocultas);
+        entAplicarOcultas();
+    }
+    if (!espejoIgual(entrenadorLineasColoreadas, e.coloreadas)) {
+        entrenadorLineasColoreadas = new Set(e.coloreadas);
+        document.querySelectorAll('#ent-zona .ent-lyric-line[data-orig]').forEach(el =>
+            el.classList.toggle('coloreado', entrenadorLineasColoreadas.has(+el.dataset.orig)));
+        entResyncGlow();
+    }
+    // Audio en silencio siguiendo al del profe: corrige solo si se desfasa.
+    if (a.readyState >= 1) {
+        if (Math.abs(a.playbackRate - e.vel) > 0.001) a.playbackRate = e.vel;
+        const meta = e.sonando ? e.t + (Date.now() - e.enviado) / 1000 * e.vel : e.t;
+        if (Math.abs(a.currentTime - meta) > (e.sonando ? 0.35 : 0.05)) a.currentTime = meta;
+        if (e.sonando && a.paused) a.play().catch(() => {});
+        else if (!e.sonando && !a.paused) a.pause();
+    }
+    // Detenido: el verso activo puede cambiar sin audio (clic en un verso, ↑/↓).
+    if (!e.sonando && e.linea >= 0 && e.linea !== entrenadorLineIdx) entActualizarLinea(e.linea);
+}
+function espejoCerrar() {
+    entAudio().pause();
+    document.getElementById('entrenador-overlay').classList.remove('visible');
+    entrenadorSong = null;
+}
+
+if (ESPEJO) {
+    document.body.classList.add('espejo');
+    if (espejoCanal) espejoCanal.onmessage = ev => { if (ev.data && ev.data.tipo === 'estado') espejoAplicar(ev.data); };
+} else {
+    ['play', 'pause', 'seeked', 'ratechange'].forEach(t => entAudio().addEventListener(t, espejoEmitir));
+    ClaseVivo.onCambio(espejoPintarBoton);
+    espejoPintarBoton();
+    window.addEventListener('pagehide', () => { if (espejoOn) espejoApagar(); });
+}
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 (async () => {
