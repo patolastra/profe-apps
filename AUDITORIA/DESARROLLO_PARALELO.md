@@ -2122,6 +2122,18 @@ abrió el Libro).
 **Pruebas Paso 1 (Claude):** Tercero (26), Cuerdas (15), Orientación → población de Octavo
 (14); marcar ausente se guarda; sin conexión simulada queda en cola y sube al volver;
 reabrir recuerda los ausentes; "Ahora no" no crea fila. Listas de prueba borradas.
+Checkpoint Paso 1: `c80ca18`.
+**Paso 2 — IMPLEMENTADO (2026-10-05):** Libro carga la lista de la clase (`ausentesHoy`, de
+`ref.sesion`) al abrir y la actualiza al cerrar "Asistencia" o si otra ventana (Planificador)
+la cambia (evento `storage`). Participación: al abrir una instancia, los ausentes entran a
+`partInhab` (inhabilitados, como Shift+clic); los cambios de lista se aplican como diferencia.
+Evaluaciones: marca "ausente hoy" en la tabla y en Disponibles; "Pendientes" excluye a los
+ausentes de hoy. Entregas: marca "ausente hoy".
+**Pruebas Paso 2 (Claude):** Tercero con 2 ausentes de prueba: 2 marcas en la evaluación
+"Repertorio", Pendientes 12 → 10, 2 marcas en Disponibles, 2 inhabilitados en la participación
+abierta. Entregas: sin entregas en Tercero → marca no probada con datos. Lista de prueba borrada
+(tabla vacía).
+**Pendiente de comprobación en uso real.**
 **Deuda anotada en la misma conversación (Notion):** el Libro por defecto en modo
 "Nombre Apellido" (sin coma) y siempre en orden alfabético.
 **Relación con el Bosquejo:** adelanta parte de **F6D (Clase)** y **F6G (Libro/alumnos)**.

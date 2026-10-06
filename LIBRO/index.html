@@ -171,6 +171,7 @@
   .gm-chk.on{background:rgba(76,175,80,.16);border-color:rgba(76,175,80,.5)}
   /* Marcas de herencia/excepción por celda */
   .cel-marca{margin-top:3px;display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+  .exc-tag.aus-hoy{background:rgba(198,40,40,.22);color:#ff9d94;margin-left:6px}
   .exc-tag{font-size:10px;text-transform:uppercase;letter-spacing:.03em;padding:1px 6px;border-radius:999px;white-space:nowrap}
   .exc-tag.hered{background:#20303f;color:var(--mut)}
   .exc-tag.indiv{background:rgba(76,175,80,.18);color:#9ff0a8}
@@ -691,6 +692,8 @@ async function init(){
 
   // Pasar lista (comun/asistencia.js): disponible en toda clase con estudiantes.
   if (ctxTipo === 'taller' || libroModoCurso()) document.getElementById('btn-asistencia').style.display = '';
+  await cargarAusentesHoy();
+  Asistencia.onCambio(id => { if (id === ref.sesion) asistenciaCambio(); });   // p. ej. lista pasada en el Planificador
 
   // Secciones por tipo de contexto:
   //   curso (o población vinculada) → panel: Evaluaciones · Participación · Entregas
@@ -952,7 +955,7 @@ function renderDetalle(){
         <tbody id="tbody-est">${notas.map((n, idx) => `
           <tr data-idx="${idx}" data-nota-id="${n.id}" data-buscar="${esc(normBuscar(nombreEstudiante(n)))}" class="${n.nota != null ? 'fila-ok' : ''}">
             <td class="pos">${posMap[n.estudiante_id] ?? ''}</td>
-            <td class="est-nombre">${esc(nombreEstudiante(n))}${grupoChipHTML(n)}</td>
+            <td class="est-nombre">${esc(nombreEstudiante(n))}${grupoChipHTML(n)}${ausenteHoyHTML(n.estudiante_id)}</td>
             <td class="obj"><select data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select><div class="cel-marca">${marcaObjHTML(n, cerrada)}</div></td>
             ${notaCellHTML(n, idx, cerrada)}
             <td><input data-i="${idx}" data-k="comentario" value="${esc(n.comentario||'')}" placeholder="(opcional)" ${dis}></td>
@@ -1023,7 +1026,7 @@ function filtrarEstudiantes(){
     const hay = tr.dataset.buscar || '';
     const idx = +tr.dataset.idx;
     const coincideTexto = q === '' || hay.includes(q);
-    const esPendiente = notas[idx]?.nota == null;   // null/vacía = sin nota
+    const esPendiente = notas[idx]?.nota == null && !ausentesHoy.has(notas[idx]?.estudiante_id);   // sin nota y presente hoy
     tr.classList.toggle('oculto', !(coincideTexto && (!soloPend || esPendiente)));
   });
 }
@@ -1295,7 +1298,7 @@ function gruposCardBody(){
     ? `<div class="gm-grid">${disponibles.map(n => `
         <label class="gm-chk ${grupoSelIds.has(n.id) ? 'on' : ''}">
           <input type="checkbox" ${grupoSelIds.has(n.id) ? 'checked' : ''} ${cerrada ? 'disabled' : ''} onchange="evalToggleSel('${n.id}',this.checked)">
-          <span>${esc(nombreDe(n.estudiante))}</span>
+          <span>${esc(nombreDe(n.estudiante))}</span>${ausenteHoyHTML(n.estudiante_id)}
         </label>`).join('')}</div>`
     : '<p class="grupo-col-vacio">No hay estudiantes disponibles (todos están agrupados o evaluados).</p>';
 
@@ -1928,9 +1931,40 @@ let estMap = {};
 
 function nombreDe(e){ return nombreFmt(e); }
 
+// ── Asistencia de HOY (Paso 2) ──
+// La lista de la clase con que se abrió el Libro (ref.sesion). Solo esta clase ("solo hoy"):
+//  · Participación: los ausentes quedan inhabilitados (como Shift+clic; Shift+clic los rehabilita).
+//  · Evaluaciones: marca "ausente hoy" y salen de "Pendientes" (se pueden evaluar igual).
+//  · Entregas: marca "ausente hoy" (distinta de "no entregó").
+let ausentesHoy = new Set();
+function ausenteHoyHTML(estId){
+  return ausentesHoy.has(estId) ? '<span class="exc-tag aus-hoy" title="Marcado ausente en la lista de esta clase">ausente hoy</span>' : '';
+}
+async function cargarAusentesHoy(){
+  try { ausentesHoy = new Set((await Asistencia.obtener(ref.sesion)).ausentes || []); } catch (_) { ausentesHoy = new Set(); }
+}
+// Participación: aplica la diferencia (nuevos ausentes → inhabilitados; ya presentes → habilitados).
+function partAplicarAusentes(prev){
+  if (!partActual || partActual.estado === 'cerrado') return;
+  partDet.forEach(d => {
+    const id = d.estudiante_id;
+    if (ausentesHoy.has(id) && !(prev && prev.has(id))) partInhab.add(id);
+    else if (prev && prev.has(id) && !ausentesHoy.has(id)) partInhab.delete(id);
+  });
+  partValidarPresel({ difundir: false });
+}
+// Tras un cambio en la lista (desde esta ventana o desde otra): refrescar lo que se ve.
+async function asistenciaCambio(){
+  const prev = ausentesHoy;
+  await cargarAusentesHoy();
+  if (partEnInstancia()) { partAplicarAusentes(prev); partPintarInhab(); }
+  if (vistaActiva === 'eval-detalle') refrescarDetalle();
+  else if (vistaActiva === 'entrega-detalle') renderEntregaDetalle();
+}
 // Pasar / corregir la lista de ESTA clase (la sesión con la que se abrió el Libro).
 async function abrirAsistencia(){
   await Asistencia.abrir({ sb, sesionId: ref.sesion, ctxNombre, anio: ref.anio, titulo: ctxDisplay(ctxNombre) });
+  await asistenciaCambio();
 }
 
 async function initTalleres(){
@@ -3693,6 +3727,7 @@ async function abrirPartDetalle(pid){
     }
     partDet = (cd.data || []).slice();
     ordenarPartDet();   // orden según el modo activo (oficial 1–N por defecto)
+    partAplicarAusentes(null);   // asistencia de hoy: ausentes inhabilitados
   } catch (e) {
     v.innerHTML = '<div class="card"></div>';
     msg('No se pudo cargar la participación: ' + e.message);
@@ -4456,7 +4491,7 @@ function renderEntregaDetalle(){
           const clickable = !cerrada && !na;   // 'no aplica' no es toggleable ni clickeable
           return `<tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(normBuscar(nombreDe(d.estudiante)))}" class="${clickable?'fila-click':''}${d.estado==='entregado'?' fila-ok':''}">
             <td class="pos">${entregaPos[d.estudiante_id] ?? ''}</td>
-            <td class="est-nombre">${esc(nombreDe(d.estudiante))}</td>
+            <td class="est-nombre">${esc(nombreDe(d.estudiante))}${ausenteHoyHTML(d.estudiante_id)}</td>
             <td class="part">${ na
               ? '<span class="hint">No aplica</span>'
               : `<label style="display:inline-flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;margin:0;cursor:pointer">
