@@ -100,9 +100,10 @@
                 .map(m => { pos[m.estudiante_id] = m.posicion; return m.estudiante_id; });
         }
         if (!ids.length) return [];
-        const { data: est, error } = await _sb.from('libro_estudiantes').select('id,nombre,apellido').in('id', ids);
+        const { data: est, error } = await _sb.from('libro_estudiantes').select('id,nombre,apellido,nombre_social').in('id', ids);
         if (error) throw error;
-        (est || []).forEach(e => { e.pos = pos[e.id] ?? null; });
+        // Nombre social: reemplaza el nombre de pila (sin señal visible); el resumen usa el apellido.
+        (est || []).forEach(e => { e.pos = pos[e.id] ?? null; e.nombre = (e.nombre_social || '').trim() || e.nombre; });
         return (est || []).sort((a, b) => norm(`${a.nombre} ${a.apellido}`).localeCompare(norm(`${b.nombre} ${b.apellido}`)));
     }
 

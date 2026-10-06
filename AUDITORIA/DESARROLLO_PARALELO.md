@@ -2250,6 +2250,36 @@ llamado desde la Pizarra (que ahora carga `comun/asistencia.js`).
 ni resumen; Pizarra recargada con la lista abierta → la vuelve a mostrar; al cerrar la lista
 desaparece de la Pizarra. Lista de prueba borrada.
 
+### Desarrollo paralelo: Nombre social del estudiante (deuda R)
+
+**Fecha:** 2026-10-06 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** hay estudiantes que usan un nombre social distinto del legal; el
+profe debe poder registrarlo y que se use en clases.
+**Decisiones del PO (2026-10-06):**
+- Por ahora reemplaza **solo el nombre de pila**; los apellidos siguen siendo los legales.
+- Se ingresa en la **ficha del estudiante** (Matrícula), campo opcional; en la ficha se ven los
+  dos nombres.
+- Se usa en **todo el Libro y en Pasar lista** (tablero, Pizarra, Participación, Evaluaciones,
+  Entregas, orden alfabético, búsqueda).
+- Van con el **nombre legal**: el **Informe previo** y el **Informe de resultados** (UTP).
+- El **resumen de ausentes** de Pasar lista va con número de lista + **apellido** (no cambia).
+- **Sin ninguna señal** visible en pantallas de clase (el nombre social se ve como cualquier otro).
+**Cambio en Supabase (lo corre el PO):** columna `libro_estudiantes.nombre_social` (texto,
+opcional) — `supabase/libro_nombre_social.sql`.
+**Alcance técnico:** `LIBRO/index.html` (consultas de estudiantes, formato de nombres, ficha,
+informes con nombre legal), `comun/asistencia.js` (tablero y Pizarra).
+**Cambio en Supabase corrido por el PO (2026-10-06).**
+**Implementación:** `nombrePila(est)` (social o legal) usado por `nombreFmt` (con `legal=true`
+para el Informe de resultados), orden alfabético, búsqueda, nombres del proyector de
+Participación; las 10 consultas de estudiantes traen `nombre_social`; ficha con "Nombre legal" +
+campo "Nombre social" (Guardar / Enter; vacío = vuelve al legal) — `matGuardarNombreSocial`.
+`comun/asistencia.js` usa el nombre social en el tablero y la Pizarra. La coincidencia por
+identidad al matricular (`matEstKey`) sigue usando el nombre legal. El Informe previo no lista
+estudiantes.
+**Pruebas (Claude):** Tercero, ACIARES DARIEL con nombre social "TOMÁS": ficha "ACIARES, TOMÁS"
+con nombre legal "ACIARES, DARIEL"; lista de Matrícula y tablero de Pasar lista muestran TOMÁS;
+el formato del informe da el nombre legal. Nombre social de prueba borrado y sin lista guardada.
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo
@@ -2437,7 +2467,7 @@ desaparece de la Pizarra. Lista de prueba borrada.
   tableros, etc.), **excepto en los documentos formales** que se generen (principalmente los
   **informes de resultados para UTP**), donde va el nombre legal.
 - Implica un cambio en Supabase (dato nuevo del estudiante): requiere autorización del PO.
-- **No resuelto.**
+- **Resuelto** en el desarrollo "Nombre social del estudiante" (pendiente de uso real).
 
 ### S. Pasar lista — cuadro resumen de ausentes
 *Origen: PO (2026-10-06).*
