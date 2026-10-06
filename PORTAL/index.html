@@ -10,6 +10,7 @@
     <script src="../supabase/contextos.js"></script>
     <script src="../comun/clase-vivo.js"></script>
     <script src="../comun/nombre-asset.js"></script>
+    <script src="../comun/asistencia.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -1249,6 +1250,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
         ClaseVivo.subirPendientes(sb);    // Modo Clase: registros que quedaron sin subir
+        Asistencia.iniciar(sb);           // Pasar lista: listas que quedaron sin subir
         await Promise.all([loadContextos(), loadHorario(), cargarAnioActivo()]);
         await crearSesionesPendientes();
         await cierreSemanalPendientes();  // respaldo del cierre del jueves 18:00 (antes de leer pendientes)
@@ -2124,9 +2126,22 @@ function botonClase() {
             fecha:    sesionActual.fecha,
         });
         logEvento('comenzar_clase', { sesion_id: sesionActual.id });
+        pasarListaAlComenzar();
         return;
     }
     if (st.sesionId === sesionActual.id) abrirFinClase();
+}
+
+// Pasar lista al comenzar (comun/asistencia.js): solo en clases con estudiantes
+// (curso, taller, jefatura). Se puede omitir ("Ahora no") y corregir desde el Libro.
+function pasarListaAlComenzar() {
+    const ctx = contextos[sesionActual.contexto_id];
+    if (!ctx || !['curso', 'taller', 'jefatura'].includes(ctx.tipo)) return;
+    Asistencia.abrir({
+        sb, sesionId: sesionActual.id, ctxNombre: ctx.nombre,
+        anio: anioActivo || (sesionActual.fecha || '').slice(0, 4),
+        fecha: sesionActual.fecha, titulo: ctxDisplay(ctx.nombre),
+    });
 }
 
 function renderClase() {

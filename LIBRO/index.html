@@ -17,6 +17,7 @@
 <script src="../supabase/config.js"></script>
 <script src="../supabase/contextos.js"></script>
 <script src="../comun/clase-vivo.js"></script>
+<script src="../comun/asistencia.js"></script>
 <style>
   :root{
     --bg:#0f1216; --panel:#171c22; --panel2:#131a21; --line:#2a323c; --txt:#e6edf3;
@@ -397,6 +398,8 @@
   <h1>📒 Libro de Clases</h1>
   <span class="crumbs" id="crumbs"></span>
   <span style="flex:1"></span>
+  <button class="btn" id="btn-asistencia" onclick="abrirAsistencia()" style="display:none"
+          title="Pasar o corregir la lista de esta clase (marca solo a los ausentes)">📋 Asistencia</button>
   <button class="btn" id="btn-orden" onclick="toggleOrden()" style="display:none"
           title="Cambiar el orden de los estudiantes (solo visual)"></button>
   <button class="btn ghost" id="btn-volver" onclick="volverAtras()" style="display:none">←</button>
@@ -648,6 +651,7 @@ async function init(){
   }
   try {
     sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    Asistencia.iniciar(sb);   // Pasar lista: listas que quedaron sin subir
   } catch (e) { msg('No se pudo iniciar Supabase: ' + e.message); return; }
 
   // Resolver contexto (por nombre) y año (por número) a sus ids.
@@ -684,6 +688,9 @@ async function init(){
       }
     }
   } catch (_) { /* sin vínculo */ }
+
+  // Pasar lista (comun/asistencia.js): disponible en toda clase con estudiantes.
+  if (ctxTipo === 'taller' || libroModoCurso()) document.getElementById('btn-asistencia').style.display = '';
 
   // Secciones por tipo de contexto:
   //   curso (o población vinculada) → panel: Evaluaciones · Participación · Entregas
@@ -1920,6 +1927,11 @@ let estElegibles = [];  // estudiantes con matrícula de curso en el año (requi
 let estMap = {};
 
 function nombreDe(e){ return nombreFmt(e); }
+
+// Pasar / corregir la lista de ESTA clase (la sesión con la que se abrió el Libro).
+async function abrirAsistencia(){
+  await Asistencia.abrir({ sb, sesionId: ref.sesion, ctxNombre, anio: ref.anio, titulo: ctxDisplay(ctxNombre) });
+}
 
 async function initTalleres(){
   try {

@@ -2082,6 +2082,52 @@ pausa. Estado de prueba restaurado.
 
 ---
 
+### Desarrollo paralelo: Pasar lista — asistencia de la clase (Libro + Planificador)
+
+**Fecha:** 2026-10-05 · **Estado:** APROBADO, en implementación (2 pasos). Ficha creada
+**antes** de implementar. Notion: *"asistencia… snapshot de la asistencia ligada a la fecha
+de la clase…"* (Alta).
+**Necesidad profesional:** saber en el momento quién está en la sala para que lo que hago en
+el Libro (participación, evaluaciones, entregas) considere a los ausentes: p. ej. saber al
+tiro si puedo evaluar a los pendientes de una evaluación o no, porque están ausentes.
+**Decisiones del PO (2026-10-05):**
+- "Pasar lista" aparece al **Comenzar clase** (Planificador) y también desde el **Libro**
+  (botón "Asistencia de hoy") para pasarla o corregirla; se puede omitir ("Ahora no").
+- Se pasa **en negativo**: solo se marcan los ausentes. Corregible durante la clase
+  (llegó / se fue), sin registrar horas ni estado "atrasado".
+- Una lista por **clase** (sesión = contexto + fecha). Cursos, talleres y jefatura (cada uno
+  con su población: matrícula, integrantes del taller, población vinculada).
+- Visual: el **mismo render del tablero de Participación en modo proyector** (tiles).
+- **Participación:** los ausentes de **hoy** (solo la clase actual) quedan **inhabilitados**
+  como con Shift+clic (fuera del sorteo/tablero; Shift+clic los rehabilita).
+- **Evaluaciones:** marca "ausente hoy"; salen de los pendientes de hoy; se pueden evaluar igual.
+- **Entregas:** marca "ausente hoy" (distinta de "no entregó").
+- Sin internet: se guarda en el computador y se sube sola al volver.
+- Fuera de alcance: historial / % de asistencia (más adelante).
+**Arquitectura prevista:** pieza compartida `comun/asistencia.js` (ventana "Pasar lista",
+población por contexto, guardado con cola sin conexión) usada por Planificador y Libro.
+Tabla nueva `libro_asistencia` (1 fila por sesión: `sesion_id` PK → `sesiones`, `ausentes`
+uuid[] de `libro_estudiantes`, `actualizada_en`; RLS acceso_total), DDL en
+`supabase/libro_asistencia.sql`, a correr por el PO.
+**Pasos:** Paso 1 = pasar lista (Planificador + Libro + sin conexión), checkpoint propio.
+Paso 2 = efectos en Participación / Evaluaciones / Entregas, checkpoint propio.
+**Tabla creada por el PO en Supabase (2026-10-05):** `supabase/libro_asistencia.sql`.
+**Paso 1 — IMPLEMENTADO (2026-10-05):** `comun/asistencia.js` (`Asistencia.abrir/obtener/
+guardar/iniciar/onCambio`): tablero de tiles Presentes/Ausentes (layout sin scroll, nombre o
+nombre+apellido si se repite, orden alfabético), cada toque se guarda (cola sin conexión,
+subidas en serie), "Ahora no"/"Cerrar"/"Listo" ("Listo" sin marcar = todos presentes),
+Escape cierra. Planificador: al "Comenzar clase" abre Pasar lista si el contexto es curso/
+taller/jefatura. Libro: botón "📋 Asistencia" en el encabezado (lista de la sesión con que se
+abrió el Libro).
+**Pruebas Paso 1 (Claude):** Tercero (26), Cuerdas (15), Orientación → población de Octavo
+(14); marcar ausente se guarda; sin conexión simulada queda en cola y sube al volver;
+reabrir recuerda los ausentes; "Ahora no" no crea fila. Listas de prueba borradas.
+**Deuda anotada en la misma conversación (Notion):** el Libro por defecto en modo
+"Nombre Apellido" (sin coma) y siempre en orden alfabético.
+**Relación con el Bosquejo:** adelanta parte de **F6D (Clase)** y **F6G (Libro/alumnos)**.
+
+---
+
 ## Deudas pendientes identificadas durante el desarrollo paralelo
 
 > Registro **agrupado** de las deudas que quedaron **explícitamente identificadas** en los
