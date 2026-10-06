@@ -2209,6 +2209,24 @@ el botón Pasar lista suma un **saltito** al brillo para llamar más la atenció
 otra pantalla) **no apareció** en el computador de la escuela. Ver deuda **M**.
 **Relación con el Bosquejo:** adelanta parte de **F6D (Clase)**.
 
+### Microiteración: ↔ siempre disponible + ausente queda en su lugar (deudas M y O)
+
+**Fecha:** 2026-10-05 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** en clases el ↔ no aparecía (deuda **M**) y en Pasar lista el ausente
+cambiaba de lugar, lo que confunde al leer la lista con los estudiantes (deuda **O**).
+**Decisión del PO (2026-10-05):** arreglar ambas.
+**Alcance:**
+- **↔:** aparece siempre durante la clase en curso si el navegador puede mover ventanas y el
+  computador tiene más de una pantalla (no depende de que el permiso ya esté dado). Al apretarlo,
+  si falta el permiso, lo pide; si el permiso está bloqueado, avisa cómo activarlo.
+  (`comun/clase-vivo.js` `Proyeccion.flip`, `PORTAL/index.html` `renderClase`).
+- **Pasar lista:** un solo tablero; el ausente **se queda en su lugar** con aspecto inhabilitado
+  (gris, borde punteado, tachado, como Shift+clic en Participación). (`comun/asistencia.js`)
+Sin cambios en Supabase.
+**Pruebas (Claude):** Tercero 26-10: marcar/desmarcar ausentes no cambia el orden del tablero;
+el ausente se ve gris y tachado; contador correcto; lista de prueba borrada. El ↔ no se pudo
+probar aquí (computador de prueba con una sola pantalla: el botón queda oculto, como corresponde).
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo
@@ -2358,7 +2376,7 @@ otra pantalla) **no apareció** en el computador de la escuela. Ver deuda **M**.
   manejar pantallas; probablemente ese permiso no se concedió o el navegador no lo ofrece.
 - Auditar: navegador usado, si se abrió la versión en línea, si hubo pedido de permiso.
 - 2026-10-05 (tarde): tampoco apareció en el uso del PO probando la barra nueva.
-- **No resuelto.**
+- **Resuelto** en la microiteración "↔ siempre disponible + ausente queda en su lugar" (pendiente de uso real).
 
 ### N. Pasar lista — el mismo tablero en las dos pantallas
 *Origen: PO, uso en clases (2026-10-05).*
@@ -2372,7 +2390,7 @@ otra pantalla) **no apareció** en el computador de la escuela. Ver deuda **M**.
 - Hoy el ausente baja a una lista aparte (como en Participación cuando alguien participa).
   Se quiere que el ausente **se quede en su lugar del tablero**, con aspecto **inhabilitado**
   (como Shift+clic en Participación).
-- **No resuelto.**
+- **Resuelto** en la microiteración "↔ siempre disponible + ausente queda en su lugar" (pendiente de uso real).
 
 ### P. Participación — estudiante retirado sigue apareciendo
 *Origen: PO (2026-10-05).*

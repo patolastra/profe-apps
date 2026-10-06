@@ -1091,7 +1091,7 @@
             <button class="hdr-btn ico" onclick="abrirMemoria()" data-label="Bitácora" aria-label="Bitácora">✍🏼</button>
             <button class="hdr-btn ico" onclick="mostrarQRRemoto()" data-label="Remoto" aria-label="Remoto">📱</button>
             <button class="hdr-btn ico" id="btn-reabrir-piz" onclick="abrirPizarra()" data-label="Abrir Pizarra" aria-label="Abrir Pizarra" hidden>📽️</button>
-            <button class="hdr-btn ico" id="btn-flip-piz" onclick="Proyeccion.flip()" data-label="Cambiar de pantalla" aria-label="Cambiar de pantalla" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="4" width="8" height="6" rx="1"/><rect x="14.5" y="14" width="8" height="6" rx="1"/><path d="M5.5 13v2a3 3 0 0 0 3 3h3"/><path d="M10 16l1.5 2-1.5 2"/><path d="M18.5 11V9a3 3 0 0 0-3-3h-3"/><path d="M14 8l-1.5-2L14 4"/></svg></button>
+            <button class="hdr-btn ico" id="btn-flip-piz" onclick="cambiarPantalla()" data-label="Cambiar de pantalla" aria-label="Cambiar de pantalla" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="4" width="8" height="6" rx="1"/><rect x="14.5" y="14" width="8" height="6" rx="1"/><path d="M5.5 13v2a3 3 0 0 0 3 3h3"/><path d="M10 16l1.5 2-1.5 2"/><path d="M18.5 11V9a3 3 0 0 0-3-3h-3"/><path d="M14 8l-1.5-2L14 4"/></svg></button>
             <button class="hdr-btn" id="btn-clase" onclick="botonClase()">▶ Comenzar clase</button>
         </div>
     </div>
@@ -2201,10 +2201,9 @@ function renderClase() {
         btn.title = `Hay una clase en curso (${ctxDisplay(st.ctx)}). Termínala primero.`;
     }
     reab.hidden = !esEsta;
-    // ↔ solo si el navegador dio permiso para manejar pantallas (si no, sería un botón muerto).
-    const flipBtn = document.getElementById('btn-flip-piz');
-    flipBtn.hidden = true;
-    if (esEsta) Proyeccion.permiso().then(p => { flipBtn.hidden = p !== 'granted'; ajustarBarra(); });
+    // ↔ durante la clase si el navegador puede mover ventanas y hay más de una pantalla;
+    // si falta el permiso, se pide al apretarlo (cambiarPantalla).
+    document.getElementById('btn-flip-piz').hidden = !(esEsta && Proyeccion.puedeCambiar());
     ajustarBarra();
     box.hidden  = !st;
     document.getElementById('ct-ctx').textContent = st && !esEsta ? ctxDisplay(st.ctx) : '';
@@ -2239,6 +2238,13 @@ document.addEventListener('DOMContentLoaded', () => {
         b.addEventListener('click', () => mostrarEtiqueta(null));
     });
 });
+
+async function cambiarPantalla() {
+    if (await Proyeccion.flip() === 'denegado')
+        alert('El navegador tiene bloqueado el permiso para mover ventanas entre pantallas.\n\n'
+            + 'Para activarlo: haz clic en el ícono a la izquierda de la dirección de la página → '
+            + 'Configuración del sitio → "Administración de ventanas" → Permitir. Luego recarga la página.');
+}
 
 // Barra en una sola línea: si no cabe, modo compacto (solo íconos en los botones).
 function ajustarBarra() {

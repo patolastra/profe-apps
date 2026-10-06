@@ -8,7 +8,8 @@
 //   taller → integrantes del taller.
 // · Sin internet: la lista queda en este computador (cola en localStorage) y se sube
 //   sola al volver la conexión. Otras ventanas se enteran por el evento `storage`.
-// · Visual: el tablero de Participación en modo proyector (tiles, sin scroll).
+// · Visual: el tablero de Participación en modo proyector (tiles, sin scroll). Un solo
+//   tablero: el ausente se queda en su lugar, inhabilitado (como Shift+clic en Participación).
 (function () {
     const COLA_KEY  = 'profe_asistencia_cola';         // { sesionId: { ausentes, ts } }
     const CACHE_KEY = id => 'profe_asistencia_' + id;  // última lista conocida (lectura offline)
@@ -119,18 +120,15 @@
     .asis-btn:hover{filter:brightness(1.12)}
     .asis-board{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:14px 18px}
     .asis-zona{flex:0 0 auto;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.06)}
-    .asis-zona.p{background:linear-gradient(180deg,rgba(46,125,50,.16),rgba(46,125,50,.05))}
-    .asis-zona.a{background:linear-gradient(180deg,rgba(198,40,40,.16),rgba(198,40,40,.05))}
-    .asis-ztit{padding:6px 14px;font-weight:800;letter-spacing:.04em;font-size:14px;text-transform:uppercase}
-    .asis-zona.p .asis-ztit{color:#8ff0a6} .asis-zona.a .asis-ztit{color:#ff9d94}
+    .asis-zona.p{flex:1;min-height:0;justify-content:center;background:linear-gradient(180deg,rgba(46,125,50,.16),rgba(46,125,50,.05))}
     .asis-grid{display:grid;justify-content:center;align-content:center;padding:7px 12px;
       grid-template-columns:repeat(var(--cols,6),var(--cw,120px));grid-auto-rows:var(--ch,48px);gap:var(--cg,10px)}
     .asis-tile{display:flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;cursor:pointer;
       font-weight:800;font-size:var(--cf,20px);padding:0 11px;user-select:none;transition:transform .12s,filter .12s}
     .asis-tile>span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .asis-zona.p .asis-tile{background:linear-gradient(160deg,#2e9c46,#1f7a34);color:#fff}
-    .asis-zona.a .asis-tile{background:#3a414b;color:#c9d0d8}
-    .asis-zona.a .asis-tile>span{text-decoration:line-through}
+    .asis-tile{background:linear-gradient(160deg,#2e9c46,#1f7a34);color:#fff;border:2px solid transparent}
+    .asis-tile.aus{background:#3a414b;color:#9aa3ad;opacity:.6;border:2px dashed rgba(255,255,255,.28)}
+    .asis-tile.aus>span{text-decoration:line-through}
     .asis-tile:hover{transform:translateY(-3px);filter:brightness(1.1)}
     .asis-vacio{grid-column:1/-1;text-align:center;color:#7b8592;font-weight:700;padding:6px}
     .asis-msg{margin:auto;color:#9aa3ad;font-size:20px;text-align:center;padding:20px}`;
@@ -147,9 +145,8 @@
         if (!_ui) return;
         const board = _ui.el.querySelector('.asis-board');
         const lista = _ui.lista;
-        const nA = lista.filter(e => _ui.ausentes.has(e.id)).length, nP = lista.length - nA;
         if (!lista.length || !board.clientHeight) return;
-        const W = board.clientWidth - 36 - 24, H = board.clientHeight - 28 - 12 - 2 * 28 - 2 * 14 - (nA ? 0 : 34) - (nP ? 0 : 34) - 10;
+        const W = board.clientWidth - 36 - 24, H = board.clientHeight - 28 - 14 - 10;
         const ctx = (layout._c ||= document.createElement('canvas').getContext('2d'));
         ctx.font = `800 100px ${getComputedStyle(board).fontFamily}`;
         const repes = _ui.repes;
@@ -157,7 +154,7 @@
         const cg = Math.max(6, Math.min(14, Math.round(W * 0.008)));
         let best = null;
         for (let c = 1; c <= Math.min(lista.length, 40); c++) {
-            const filas = (nP ? Math.ceil(nP / c) : 0) + (nA ? Math.ceil(nA / c) : 0);
+            const filas = Math.ceil(lista.length / c);
             const cw = Math.floor((W - cg * (c - 1)) / c), ch = Math.floor((Math.max(40, H) - cg * filas) / filas);
             if (cw < 54 || ch < 26) continue;
             const f = Math.max(12, Math.min(ch * 0.52, (cw - 22) / (maxW / 100), 110));
@@ -173,11 +170,10 @@
     function pintar() {
         if (!_ui) return;
         const { lista, ausentes, repes } = _ui;
-        const pres = lista.filter(e => !ausentes.has(e.id)), aus = lista.filter(e => ausentes.has(e.id));
-        const tile = e => `<div class="asis-tile" data-id="${e.id}" title="${esc(`${e.nombre} ${e.apellido || ''}`.trim())}"><span>${esc(nombreTile(e, repes))}</span></div>`;
-        _ui.el.querySelector('.asis-cont').innerHTML = `<b class="p">${pres.length}</b> presentes · <b class="a">${aus.length}</b> ausentes`;
-        _ui.el.querySelector('.asis-grid.p').innerHTML = pres.length ? pres.map(tile).join('') : '<div class="asis-vacio">Nadie presente</div>';
-        _ui.el.querySelector('.asis-grid.a').innerHTML = aus.length ? aus.map(tile).join('') : '<div class="asis-vacio">Sin ausentes · toca un nombre para marcarlo ausente</div>';
+        const nA = lista.filter(e => ausentes.has(e.id)).length;
+        const tile = e => `<div class="asis-tile${ausentes.has(e.id) ? ' aus' : ''}" data-id="${e.id}" title="${esc(`${e.nombre} ${e.apellido || ''}`.trim())}"><span>${esc(nombreTile(e, repes))}</span></div>`;
+        _ui.el.querySelector('.asis-cont').innerHTML = `<b class="p">${lista.length - nA}</b> presentes · <b class="a">${nA}</b> ausentes`;
+        _ui.el.querySelector('.asis-grid.p').innerHTML = lista.map(tile).join('');
         layout();
     }
 
@@ -234,8 +230,7 @@
                 lista.forEach(e => { const k = norm(e.nombre); _ui.repes[k] = (_ui.repes[k] || 0) + 1; });
                 el.querySelector('[data-acc="no"]').textContent = prev.tomada ? 'Cerrar' : 'Ahora no';
                 board.innerHTML = `
-                  <div class="asis-zona p"><div class="asis-ztit">Presentes</div><div class="asis-grid p"></div></div>
-                  <div class="asis-zona a"><div class="asis-ztit">Ausentes</div><div class="asis-grid a"></div></div>`;
+                  <div class="asis-zona p"><div class="asis-grid p"></div></div>`;
                 board.onclick = ev => {
                     const t = ev.target.closest('.asis-tile'); if (!t || !_ui) return;
                     const id = t.dataset.id;

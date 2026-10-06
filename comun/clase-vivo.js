@@ -201,10 +201,20 @@
     // basta en Chrome). Solo se usa si la Pizarra está viva (latido VIVA_KEY),
     // para no abrir una ventana en blanco. Si no, se le pide a la Pizarra.
     let nombreVentana = 'profe-proyeccion';
+    // Devuelve 'denegado' si el permiso de pantallas está bloqueado (el llamador avisa).
     async function flip() {
         let viva = 0;
         try { viva = Number(leer(VIVA_KEY)) || 0; } catch (_) {}
         if (Date.now() - viva > 4000) return;              // no hay Pizarra abierta
+        const p = await permiso();
+        if (p === 'denied') return 'denegado';
+        if (p === 'prompt') {
+            // Falta el permiso: se pide con este clic. Si se concede, la Pizarra se mueve
+            // sola (pedirFlip): el gesto del clic ya se gastó en el aviso del navegador.
+            await detalles();
+            if (await permiso() === 'granted') pedirFlip();
+            return;
+        }
         const w = window.open('', nombreVentana);           // gesto del clic: primero
         if (!w || await permiso() !== 'granted') { pedirFlip(); return; }
         const sd = await detalles();
@@ -259,5 +269,9 @@
         window.addEventListener('pagehide', () => { try { localStorage.removeItem(VIVA_KEY); } catch (_) {} });
     }
 
-    window.Proyeccion = { hayAPI, permiso, abrir, flip, escucharEnPizarra };
+    // ¿Vale la pena mostrar ↔? Si el navegador puede mover ventanas y hay más de una
+    // pantalla (screen.isExtended no requiere permiso; si no se sabe, se asume que sí).
+    const puedeCambiar = () => hayAPI && window.screen.isExtended !== false;
+
+    window.Proyeccion = { hayAPI, permiso, puedeCambiar, abrir, flip, escucharEnPizarra };
 })();
