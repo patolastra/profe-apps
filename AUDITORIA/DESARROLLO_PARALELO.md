@@ -2409,6 +2409,14 @@ pocos avisos). Ahora cada aviso trae la hora y el BPM; la copia pone el cursor a
 avisos lo avanza por su cuenta a cada cuadro (`espejoRitmoPintar`), solo si el del profe avanza
 (precuenta quieta) y hasta 1 s sin avisos. Probado simulando 3 avisos/s: 38 posiciones distintas
 en 3 s, avance parejo y vuelta al inicio al terminar la repetición.
+**Ajuste 2 (PO, 2026-10-06):** seguía pegado ("en el primer golpe, y de repente en otro"), aunque
+en la pantalla del profe iba fluido. Causa probable: probando con una sola pantalla, la Pizarra
+tapa al Entrenador y el navegador frena la ventana tapada (deja de mover su cursor y de avisar;
+el sonido sigue). Ahora el espejo no depende de eso: al dar Play, el Entrenador avisa **una vez**
+la hora de inicio del patrón (con la precuenta) y el BPM (`espejoEnvolverPlayer`); la copia
+calcula con su propio reloj el cursor y los destellos (`espejoRitmoPintar`), y Detener avisa
+'stop'. Reemplaza al envoltorio del dibujo y a los avisos por cuadro. Probado: un solo aviso →
+cursor quieto en la precuenta, luego 39 posiciones distintas en 5 s y 12 destellos; Detener lo limpia.
 **Pendiente del pedido "todos los recursos en la Pizarra":** metalófono (siguiente).
 Tablaturas: postergadas por el PO (deuda V).
 

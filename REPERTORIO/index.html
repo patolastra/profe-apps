@@ -5871,7 +5871,6 @@ function entRitmoRerender() {
     const canvas = document.getElementById('ent-ritmo-canvas');
     if (!canvas) return;
     entRitmoLayout = RITMO_UI.render(entRitmoObj, canvas, entRitmoObj.modo, { mostrarIndicadorTresillo: entRitmoTresillo });
-    espejoEnvolverLayout(entRitmoLayout);
     if (entRitmoObj.modo === 'infantil') {
         const svg = canvas.querySelector('svg');
         try {
@@ -5893,7 +5892,7 @@ function entRitmoRerender() {
                 g.style.visibility = entRitmoTresillo ? '' : 'hidden');
         } catch (_) {}
     }
-    entRitmoPlayer = RITMO_UI.crearPlayer(entRitmoObj, entRitmoLayout, entRitmoOpts());
+    entRitmoPlayer = espejoEnvolverPlayer(RITMO_UI.crearPlayer(entRitmoObj, entRitmoLayout, entRitmoOpts()));
     entRitmoActualizarControles();
     entRitmoSetPlayIcon(false);
 }
@@ -5902,7 +5901,7 @@ function entRitmoRerender() {
 function entRitmoRecrearPlayer() {
     if (!entRitmoObj || !entRitmoLayout) return;
     if (entRitmoPlayer) { try { entRitmoPlayer.stop(); } catch (_) {} entRitmoPlayer = null; }
-    entRitmoPlayer = RITMO_UI.crearPlayer(entRitmoObj, entRitmoLayout, entRitmoOpts());
+    entRitmoPlayer = espejoEnvolverPlayer(RITMO_UI.crearPlayer(entRitmoObj, entRitmoLayout, entRitmoOpts()));
     entRitmoActualizarControles();
     entRitmoSetPlayIcon(false);
 }
@@ -8242,53 +8241,66 @@ function espejoAplicar(e) {
     const metalActivo = entrenadorAssetActivo?.tipo === 'metalofono' && !!entrenadorAssetActivo.storage_path;
     espejoMetalVista(!!e.metal || metalActivo);
 }
-// Ritmo: el reproductor del profe mueve el cursor y destella los golpes en SU dibujo.
-// Se envuelve ese objeto de dibujo (sin tocar ritmo-render.js) para avisar cada
-// movimiento al espejo, que los repite en su propio dibujo, sin reproductor ni sonido.
-function espejoEnvolverLayout(L) {
-    if (!L || ESPEJO) return;
-    const enviar = (op, v) => {
-        if (espejoOn && espejoCanal)
-            espejoCanal.postMessage({ tipo: 'ritmo', op, v, at: Date.now(), bpm: entRitmoObj?.bpm });
-    };
-    const sc = L.setCursor, fx = L.fx, lf = L.limpiarFx;
-    L.setCursor = function (t) { enviar('cursor', t); return sc.call(this, t); };
-    L.fx        = function (i) { enviar('fx', i);     return fx.call(this, i); };
-    L.limpiarFx = function ()  { enviar('limpiar');   return lf.call(this); };
-}
-// El cursor no depende de cuántos avisos lleguen: entre aviso y aviso el espejo lo
-// mueve por su cuenta, al BPM del profe (como lo hace el reproductor), y cada aviso lo
-// corrige. Solo avanza si el del profe avanza (en la precuenta queda quieto en 0) y
-// se detiene si deja de recibir avisos por 1 s.
-let espejoRitmoAncla = null, espejoRitmoRaf = null;
-function espejoRitmo(m) {
-    if (!entRitmoLayout || entrenadorAssetActivo?.tipo !== 'ritmo') return;
-    try {
-        if (m.op === 'cursor') {
-            const prev = espejoRitmoAncla;
-            espejoRitmoAncla = { v: m.v, at: m.at || Date.now(), bpm: m.bpm,
-                                 mov: !!prev && m.v != null && prev.v != null && m.v !== prev.v };
-            entRitmoLayout.setCursor(m.v);   // al tiro; entre avisos lo mueve espejoRitmoPintar
-            if (!espejoRitmoRaf) espejoRitmoRaf = requestAnimationFrame(espejoRitmoPintar);
+// Ritmo: el espejo NO depende de que la ventana del profe esté a la vista (si queda
+// tapada, el navegador la frena y deja de mover su cursor, aunque el sonido sigue). Al
+// dar Play, el Entrenador del profe avisa UNA vez cuándo parte el patrón (hora del
+// computador, incluida la precuenta) y a qué BPM; la copia calcula con su propio reloj
+// el cursor y los destellos de los golpes, igual que el reproductor (ritmo-render.js,
+// sin tocarlo). Detener avisa 'stop'; al llegar al final la copia se limpia sola.
+function espejoEnvolverPlayer(P) {
+    if (!P || ESPEJO) return P;
+    const play = P.play, stop = P.stop;
+    P.play = function (sinPrecuenta) {
+        const r = play.call(this, sinPrecuenta);
+        const o = entRitmoObj;
+        if (o && espejoOn && espejoCanal) {
+            const spt = 60 / (o.bpm * o.meter.beatTicks);
+            const pre = (!sinPrecuenta && entRitmoMetronomo) ? (o.meter.group === 'compound' ? 2 : 1) : 0;
+            // El reproductor arranca 0,12 s después del clic (t0) y luego la precuenta.
+            const inicio = Date.now() + 120 + pre * o.meter.capacityTicks * spt * 1000;
+            espejoCanal.postMessage({ tipo: 'ritmo', op: 'play', inicio, bpm: o.bpm, reps: o.reps });
         }
-        else if (m.op === 'fx') entRitmoLayout.fx(m.v);
-        else if (m.op === 'limpiar') { espejoRitmoAncla = null; entRitmoLayout.limpiarFx(); }
-    } catch (_) {}
+        return r;
+    };
+    P.stop = function () {
+        const r = stop.call(this);
+        if (espejoOn && espejoCanal) espejoCanal.postMessage({ tipo: 'ritmo', op: 'stop' });
+        return r;
+    };
+    return P;
+}
+
+let espejoRitmoJuego = null, espejoRitmoRaf = null;
+function espejoRitmo(m) {
+    if (!entRitmoLayout || !entRitmoObj || entrenadorAssetActivo?.tipo !== 'ritmo') return;
+    if (m.op === 'play') {
+        const o = entRitmoObj;
+        const spt = 60 / (m.bpm * o.meter.beatTicks), tpr = o.ticksPorRep;
+        // Golpes de todas las repeticiones (misma cuenta que el reproductor).
+        const rep = [];
+        o.measures.forEach((me, mi) => me.events.forEach(e => rep.push({ abs: mi * me.capacityTicks + e.startTick, ev: e.evIdx })));
+        const golpes = [];
+        for (let r = 0; r < m.reps; r++) for (const a of rep) golpes.push({ t: (a.abs + r * tpr) * spt, ev: a.ev });
+        golpes.sort((a, b) => a.t - b.t);
+        try { entRitmoLayout.limpiarFx(); } catch (_) {}
+        espejoRitmoJuego = { inicio: m.inicio, spt, tpr, fin: tpr * m.reps * spt, golpes, sig: 0 };
+        if (!espejoRitmoRaf) espejoRitmoRaf = requestAnimationFrame(espejoRitmoPintar);
+    } else if (m.op === 'stop') {
+        espejoRitmoJuego = null;
+        try { entRitmoLayout.limpiarFx(); } catch (_) {}
+    }
 }
 function espejoRitmoPintar() {
     espejoRitmoRaf = null;
-    const A = espejoRitmoAncla;
-    if (!A || !entRitmoLayout || !entRitmoObj) return;
-    if (A.v == null) { entRitmoLayout.setCursor(null); return; }
-    const dt = (Date.now() - A.at) / 1000;
-    const sigue = A.mov && dt < 1 && A.bpm > 0;
-    let v = A.v;
-    if (sigue) {
-        const secPorTick = 60 / (A.bpm * entRitmoObj.meter.beatTicks);
-        v = (A.v + dt / secPorTick) % entRitmoObj.ticksPorRep;
-    }
-    try { entRitmoLayout.setCursor(v); } catch (_) {}
-    if (sigue) espejoRitmoRaf = requestAnimationFrame(espejoRitmoPintar);
+    const J = espejoRitmoJuego;
+    if (!J || !entRitmoLayout) return;
+    const el = (Date.now() - J.inicio) / 1000;            // tiempo del patrón
+    if (el >= J.fin) { espejoRitmoJuego = null; try { entRitmoLayout.limpiarFx(); } catch (_) {} return; }
+    try {
+        entRitmoLayout.setCursor(el < 0 ? 0 : (el / J.spt) % J.tpr);   // en la precuenta: quieto al inicio
+        while (J.sig < J.golpes.length && J.golpes[J.sig].t <= el) entRitmoLayout.fx(J.golpes[J.sig++].ev);
+    } catch (_) {}
+    espejoRitmoRaf = requestAnimationFrame(espejoRitmoPintar);
 }
 // Metalófono: el del profe se observa (misma página del sitio, sin tocar el Metalófono)
 // y se envía una "foto" de lo visible: cada placa (clases, color, nombre), la precuenta
