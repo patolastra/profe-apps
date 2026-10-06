@@ -8247,19 +8247,48 @@ function espejoAplicar(e) {
 // movimiento al espejo, que los repite en su propio dibujo, sin reproductor ni sonido.
 function espejoEnvolverLayout(L) {
     if (!L || ESPEJO) return;
-    const enviar = (op, v) => { if (espejoOn && espejoCanal) espejoCanal.postMessage({ tipo: 'ritmo', op, v }); };
+    const enviar = (op, v) => {
+        if (espejoOn && espejoCanal)
+            espejoCanal.postMessage({ tipo: 'ritmo', op, v, at: Date.now(), bpm: entRitmoObj?.bpm });
+    };
     const sc = L.setCursor, fx = L.fx, lf = L.limpiarFx;
     L.setCursor = function (t) { enviar('cursor', t); return sc.call(this, t); };
     L.fx        = function (i) { enviar('fx', i);     return fx.call(this, i); };
     L.limpiarFx = function ()  { enviar('limpiar');   return lf.call(this); };
 }
+// El cursor no depende de cuántos avisos lleguen: entre aviso y aviso el espejo lo
+// mueve por su cuenta, al BPM del profe (como lo hace el reproductor), y cada aviso lo
+// corrige. Solo avanza si el del profe avanza (en la precuenta queda quieto en 0) y
+// se detiene si deja de recibir avisos por 1 s.
+let espejoRitmoAncla = null, espejoRitmoRaf = null;
 function espejoRitmo(m) {
     if (!entRitmoLayout || entrenadorAssetActivo?.tipo !== 'ritmo') return;
     try {
-        if (m.op === 'cursor') entRitmoLayout.setCursor(m.v);
+        if (m.op === 'cursor') {
+            const prev = espejoRitmoAncla;
+            espejoRitmoAncla = { v: m.v, at: m.at || Date.now(), bpm: m.bpm,
+                                 mov: !!prev && m.v != null && prev.v != null && m.v !== prev.v };
+            entRitmoLayout.setCursor(m.v);   // al tiro; entre avisos lo mueve espejoRitmoPintar
+            if (!espejoRitmoRaf) espejoRitmoRaf = requestAnimationFrame(espejoRitmoPintar);
+        }
         else if (m.op === 'fx') entRitmoLayout.fx(m.v);
-        else if (m.op === 'limpiar') entRitmoLayout.limpiarFx();
+        else if (m.op === 'limpiar') { espejoRitmoAncla = null; entRitmoLayout.limpiarFx(); }
     } catch (_) {}
+}
+function espejoRitmoPintar() {
+    espejoRitmoRaf = null;
+    const A = espejoRitmoAncla;
+    if (!A || !entRitmoLayout || !entRitmoObj) return;
+    if (A.v == null) { entRitmoLayout.setCursor(null); return; }
+    const dt = (Date.now() - A.at) / 1000;
+    const sigue = A.mov && dt < 1 && A.bpm > 0;
+    let v = A.v;
+    if (sigue) {
+        const secPorTick = 60 / (A.bpm * entRitmoObj.meter.beatTicks);
+        v = (A.v + dt / secPorTick) % entRitmoObj.ticksPorRep;
+    }
+    try { entRitmoLayout.setCursor(v); } catch (_) {}
+    if (sigue) espejoRitmoRaf = requestAnimationFrame(espejoRitmoPintar);
 }
 // Metalófono: el del profe se observa (misma página del sitio, sin tocar el Metalófono)
 // y se envía una "foto" de lo visible: cada placa (clases, color, nombre), la precuenta

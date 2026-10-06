@@ -2404,6 +2404,11 @@ el ritmo sin controles; al hacerlo sonar en el Entrenador del profe, la copia re
 los destellos de los golpes y los dibuja; al terminar se limpia; Partitura→Infantil y Tresillo se
 copian. (En el navegador de pruebas la animación del profe va frenada por estar oculta; la
 fluidez real se comprueba en clases.)
+**Ajuste (PO, 2026-10-06):** en uso real el cursor del ritmo en la Pizarra no tenía fluidez (llegaban
+pocos avisos). Ahora cada aviso trae la hora y el BPM; la copia pone el cursor al tiro y entre
+avisos lo avanza por su cuenta a cada cuadro (`espejoRitmoPintar`), solo si el del profe avanza
+(precuenta quieta) y hasta 1 s sin avisos. Probado simulando 3 avisos/s: 38 posiciones distintas
+en 3 s, avance parejo y vuelta al inicio al terminar la repetición.
 **Pendiente del pedido "todos los recursos en la Pizarra":** metalófono (siguiente).
 Tablaturas: postergadas por el PO (deuda V).
 
