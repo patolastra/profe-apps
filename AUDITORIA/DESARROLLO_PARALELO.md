@@ -2398,3 +2398,20 @@ probar aquí (computador de prueba con una sola pantalla: el botón queda oculto
   participaciones**. Auditar cómo Participación arma su lista (relacionado con
   "sincronización de población con Matrícula": hoy las listas son una foto del momento de crearlas).
 - **No resuelto.**
+
+### Q. Modo Clase — ↔ visible también con una sola pantalla
+*Origen: PO (2026-10-05).*
+- Hoy, con una sola pantalla, el ↔ queda oculto. Se quiere que **aparezca igual** durante la
+  clase y, al apretarlo, **diga explícitamente** algo como "No hay dos pantallas conectadas".
+- Una vez conectada la segunda pantalla (sin recargar), el ↔ debe **funcionar normalmente**.
+- **No resuelto.**
+
+### R. Libro / Matrícula — nombre social
+*Origen: PO (2026-10-05). **Importante.***
+- Hay estudiantes que usan un **nombre social** distinto del nombre legal. En la **ficha de
+  matrícula** debe poder agregarse ese dato a quien lo necesite.
+- El nombre social se usa **en todo** (Participación, Pasar lista, Evaluaciones, Entregas,
+  tableros, etc.), **excepto en los documentos formales** que se generen (principalmente los
+  **informes de resultados para UTP**), donde va el nombre legal.
+- Implica un cambio en Supabase (dato nuevo del estudiante): requiere autorización del PO.
+- **No resuelto.**
