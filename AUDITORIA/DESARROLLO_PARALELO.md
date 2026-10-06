@@ -2409,7 +2409,7 @@ Tablaturas: postergadas por el PO (deuda V).
 
 ### Microiteración: Entrenador en la Pizarra — metalófono
 
-**Fecha:** 2026-10-06 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Fecha:** 2026-10-06 · **Estado:** CERRADA — comprobada por el PO en uso real (2026-10-06): las placas se encienden al tocar y el instrumento se ve centrado. Ficha creada antes de implementar.
 **Necesidad profesional:** proyectar el metalófono que el profe usa desde el Entrenador.
 **Decisión del PO (2026-10-06):** seguir con el metalófono tras el ritmo (orden aprobado).
 Con el espejo encendido y el Metalófono abierto (botón "Abrir en Metalófono" del Entrenador),
