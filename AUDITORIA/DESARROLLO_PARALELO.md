@@ -2136,6 +2136,37 @@ abierta. Entregas: sin entregas en Tercero → marca no probada con datos. Lista
 **Pendiente de comprobación en uso real.**
 **Deuda anotada en la misma conversación (Notion):** el Libro por defecto en modo
 "Nombre Apellido" (sin coma) y siempre en orden alfabético.
+**Iteración pedida por el PO (Notion, Alta):** barra del Planificador solo con íconos + botón
+Asistencia; Pasar lista **no** se abre solo al comenzar (invasivo), se abre/corrige desde ese botón.
+
+---
+
+### Microiteración: Entregas — sentido de la entrega (Libro de Clases)
+
+**Fecha:** 2026-10-05 · **Estado:** APROBADA, en implementación. Ficha creada antes de implementar.
+**Necesidad profesional:** registrar también lo que el **profe entrega a los estudiantes**
+(guías, fotocopias, partituras: material que se quedan), no solo lo que los estudiantes
+entregan al profe.
+**Decisiones del PO (2026-10-05):** el sentido se elige **al crear** y es **editable mientras
+la entrega esté abierta**; por defecto "Estudiantes → Profe" (las existentes quedan así).
+Préstamos/devoluciones = futuro, como casillero **"con devolución"** dentro de una entrega
+(Notion).
+**Alcance:** formulario de creación con sentido; textos según sentido ("deben entregar /
+entregaron / Entregó" ↔ "deben recibir / recibieron / Recibió"); listas (panel del curso,
+lista de entregas, archivo) distinguen "Material entregado"; cambio de sentido en el detalle
+(abierta); ficha del estudiante: el material recibido **no** cuenta como deuda, línea aparte
+"Material recibido: X de Y"; "ausente hoy" igual en ambos sentidos.
+**Cambio en Supabase (corrido por el PO, 2026-10-05):** columna `libro_entregas.sentido`
+('estudiantes' | 'profe', por defecto 'estudiantes') — `supabase/libro_entregas_sentido.sql`.
+**Implementación (`LIBRO/index.html`):** `entTxt()`/`entEsProfe()` centralizan los textos por
+sentido; selector "Sentido" al crear y en la cabecera del detalle (guardar cabecera; con la
+entrega abierta); lista de entregas con "📤 material entregado por el profe"; panel del curso y
+archivo con etiqueta "Material entregado"; ficha del estudiante con "Material recibido: X de Y"
+aparte de "Entregas".
+**Pruebas (Claude):** Tercero: crear "Profe → Estudiantes" ("¿A quiénes se les entrega?",
+"deben recibir 26", casilla "Recibió"); cambiar a "Estudiantes → Profe" y volver; etiqueta en el
+panel; "ausente hoy" visible en la entrega; ficha: "Entregas 0 · Material recibido 1 de 1".
+Entregas y lista de prueba borradas. **Pendiente de comprobación en uso real.**
 **Relación con el Bosquejo:** adelanta parte de **F6D (Clase)** y **F6G (Libro/alumnos)**.
 
 ---

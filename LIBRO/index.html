@@ -1841,7 +1841,7 @@ async function eliminarEntrega(){
   const entregados = entregaDet.filter(d => d.estado === 'entregado').length;
   const ok = confirmarEliminacion(`¿Eliminar la entrega "${e.nombre}" (${e.fecha})?`, [
     'la entrega',
-    plural(entregaDet.length, 'estudiante registrado', 'estudiantes registrados') + ` (${aplican} deben entregar, ${entregados} entregaron)`,
+    plural(entregaDet.length, 'estudiante registrado', 'estudiantes registrados') + ` (${aplican} ${entTxt(e).deben}, ${entregados} ${entTxt(e).hicieron})`,
   ]);
   if (!ok) return;
   try {
@@ -2169,7 +2169,7 @@ async function renderPanelCurso(){
         .eq('estado','abierto').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
       sb.from('libro_participaciones').select('id,nombre,fecha').eq('anio_id', anioId).eq('contexto_id', ctxId)
         .eq('estado','abierto').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
-      sb.from('libro_entregas').select('id,nombre,fecha').eq('anio_id', anioId).eq('contexto_id', ctxId)
+      sb.from('libro_entregas').select('id,nombre,fecha,sentido').eq('anio_id', anioId).eq('contexto_id', ctxId)
         .eq('estado','abierto').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
     ]);
     if (re.error) throw re.error; if (rp.error) throw rp.error; if (rt.error) throw rt.error;
@@ -2182,7 +2182,7 @@ async function renderPanelCurso(){
   const html =
     evs.map(r   => filaActividad('cat-eval','Evaluación',   'abrirDetalle',       r)).join('') +
     parts.map(r => filaActividad('cat-part','Participación','abrirPartDetalle',   r)).join('') +
-    ents.map(r  => filaActividad('cat-ent', 'Entrega',      'abrirEntregaDetalle',r)).join('');
+    ents.map(r  => filaActividad('cat-ent', entTxt(r).etiqueta, 'abrirEntregaDetalle',r)).join('');
   const cont = document.getElementById('panel-abiertas');
   if (cont) cont.innerHTML = html || '<p class="hint">No hay actividades abiertas.</p>';
 }
@@ -3480,7 +3480,7 @@ async function matAbrirResumen(matriculaId){
     const [nn, pp, ee, oo] = await Promise.all([
       sb.from('libro_evaluacion_notas').select('nota,evaluacion:libro_evaluaciones(nombre,fecha,contexto_id,anio_id)').eq('estudiante_id', estId),
       sb.from('libro_participacion_detalle').select('participo,participacion:libro_participaciones(contexto_id,anio_id)').eq('estudiante_id', estId),
-      sb.from('libro_entrega_detalle').select('estado,entrega:libro_entregas(contexto_id,anio_id)').eq('estudiante_id', estId),
+      sb.from('libro_entrega_detalle').select('estado,entrega:libro_entregas(contexto_id,anio_id,sentido)').eq('estudiante_id', estId),
       sb.from('libro_observaciones').select('fecha').eq('estudiante_id', estId),
     ]);
     const aqui = x => x && x.contexto_id === ctxId && String(x.anio_id) === String(anioId);   // solo este curso/año
@@ -3496,8 +3496,12 @@ function matResumenHTML(m, notas, parts, ents, obs){
   const ret = m.estado === 'retirado';
   const conNota = notas.filter(n => n.nota != null);
   const partSi = parts.filter(p => p.participo).length;
-  const entOk = ents.filter(e => e.estado === 'entregado').length;
-  const entAplican = ents.filter(e => e.estado !== 'no_aplica').length;
+  // Material que el profe entregó NO es deuda del estudiante: va en una línea aparte.
+  const entsEst = ents.filter(e => !entEsProfe(e.entrega)), entsProfe = ents.filter(e => entEsProfe(e.entrega));
+  const entOk = entsEst.filter(e => e.estado === 'entregado').length;
+  const entAplican = entsEst.filter(e => e.estado !== 'no_aplica').length;
+  const matOk = entsProfe.filter(e => e.estado === 'entregado').length;
+  const matAplican = entsProfe.filter(e => e.estado !== 'no_aplica').length;
   const notasList = conNota.length
     ? conNota.map(n => `<div class="mm-row"><span>${esc(n.evaluacion?.nombre || '')}</span><b>${fmtNota(n.nota)}</b></div>`).join('')
     : '<p class="hint" style="border:none;margin:4px 0">Sin notas registradas.</p>';
@@ -3513,6 +3517,7 @@ function matResumenHTML(m, notas, parts, ents, obs){
     <div class="mm-row"><span class="mm-k">Curso · Año</span><span>${esc(ctxNombre)} · ${anioNum}</span></div>
     <div class="mm-row"><span class="mm-k">Participaciones</span><span>${partSi} de ${parts.length}</span></div>
     <div class="mm-row"><span class="mm-k">Entregas</span><span>${entOk} entregó · ${entAplican} debían</span></div>
+    ${matAplican ? `<div class="mm-row"><span class="mm-k">Material recibido</span><span>${matOk} de ${matAplican}</span></div>` : ''}
     <div class="mm-row"><span class="mm-k">Observaciones</span><span>${obs.length}</span></div>
     <p class="sec-title" style="margin:14px 0 6px">Notas (${conNota.length})</p>
     ${notasList}
@@ -3589,7 +3594,7 @@ async function abrirArchivoCurso(){
         .eq('estado','cerrado').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
       sb.from('libro_participaciones').select('id,nombre,fecha').eq('anio_id', anioId).eq('contexto_id', ctxId)
         .eq('estado','cerrado').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
-      sb.from('libro_entregas').select('id,nombre,fecha').eq('anio_id', anioId).eq('contexto_id', ctxId)
+      sb.from('libro_entregas').select('id,nombre,fecha,sentido').eq('anio_id', anioId).eq('contexto_id', ctxId)
         .eq('estado','cerrado').order('fecha',{ascending:true}).order('created_at',{ascending:true}),
     ]);
     if (re.error) throw re.error; if (rp.error) throw rp.error; if (rt.error) throw rt.error;
@@ -3601,11 +3606,11 @@ async function abrirArchivoCurso(){
   }
   const sub = (rows, cat, etiqueta, fn, titulo) =>
     `<p class="sec-title" style="margin:0 0 8px">${titulo}</p>` +
-    (rows.length ? rows.map(r => filaActividad(cat, etiqueta, fn, r)).join('')
+    (rows.length ? rows.map(r => filaActividad(cat, typeof etiqueta === 'function' ? etiqueta(r) : etiqueta, fn, r)).join('')
                  : `<p class="hint" style="border:none">Sin ${titulo.toLowerCase()} cerradas.</p>`);
   const eEval = document.getElementById('arch-eval'); if (eEval) eEval.innerHTML = sub(evs,   'cat-eval','Evaluación',   'abrirDetalle',        'Evaluaciones');
   const ePart = document.getElementById('arch-part'); if (ePart) ePart.innerHTML = sub(parts, 'cat-part','Participación','abrirPartDetalle',    'Participaciones');
-  const eEnt  = document.getElementById('arch-ent');  if (eEnt)  eEnt.innerHTML  = sub(ents,  'cat-ent', 'Entrega',      'abrirEntregaDetalle', 'Entregas');
+  const eEnt  = document.getElementById('arch-ent');  if (eEnt)  eEnt.innerHTML  = sub(ents,  'cat-ent', r => entTxt(r).etiqueta, 'abrirEntregaDetalle', 'Entregas');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -4303,6 +4308,25 @@ let entregaDet    = [];     // filas de detalle (estudiante embebido)
 let entregaPos    = {};     // estudiante_id -> posición (curso)
 let entNuevoSel   = null;   // Set de estudiante_id seleccionados en el form "nueva entrega"
 
+// Sentido de la entrega (columna libro_entregas.sentido):
+//   'estudiantes' → los estudiantes entregan al profe (trabajos) — por defecto
+//   'profe'       → el profe entrega a los estudiantes (guías, fotocopias, partituras)
+// Solo cambian los textos; el estado por estudiante es el mismo (pendiente/entregado/no_aplica).
+function entEsProfe(e){ return e?.sentido === 'profe'; }
+function entTxt(e){
+  return entEsProfe(e)
+    ? { quienes:'¿A quiénes se les entrega?', deben:'deben recibir', hicieron:'recibieron', check:'Recibió', etiqueta:'Material entregado' }
+    : { quienes:'¿Quiénes deben entregar?',   deben:'deben entregar', hicieron:'entregaron', check:'Entregó', etiqueta:'Entrega' };
+}
+function entSentidoOpts(sel){
+  return `<option value="estudiantes"${sel !== 'profe' ? ' selected' : ''}>Estudiantes → Profe (trabajos, tareas)</option>`
+       + `<option value="profe"${sel === 'profe' ? ' selected' : ''}>Profe → Estudiantes (guías, material)</option>`;
+}
+function entSentidoCambio(sel){   // formulario de creación: textos en vivo
+  const t = entTxt({ sentido: sel.value });
+  const q = document.getElementById('ne-quienes'); if (q) q.textContent = t.quienes;
+}
+
 function ordenarEntregaDet(){ entregaDet.sort(cmpEstudiantes(d => d.estudiante, d => entregaPos[d.estudiante_id])); }
 
 // Estudiantes vigentes del curso en una fecha (matrículas activas; fechas NULL = vigente).
@@ -4345,8 +4369,10 @@ async function renderEntregasLista(){
         <div><label>Nombre</label><input id="ne-nombre" placeholder="Ej: Trabajo de investigación"></div>
         <div><label>Fecha</label><input id="ne-fecha" type="date" value="${hoy}"></div>
       </div>
+      <div style="margin-top:12px"><label>Sentido</label>
+        <select id="ne-sentido" onchange="entSentidoCambio(this)">${entSentidoOpts('estudiantes')}</select></div>
       <div style="margin-top:12px">
-        <label>¿Quiénes deben entregar? (<span id="ne-count">${entNuevoSel.size}</span>/${vigentes.length})</label>
+        <label><span id="ne-quienes">¿Quiénes deben entregar?</span> (<span id="ne-count">${entNuevoSel.size}</span>/${vigentes.length})</label>
         <div class="row" style="margin:0 0 8px">
           <button type="button" class="btn" onclick="entSelTodos(true)">Todo el curso</button>
           <button type="button" class="btn" onclick="entSelTodos(false)">Ninguno</button>
@@ -4375,7 +4401,7 @@ async function renderEntregasLista(){
   if (!regs.length) { cont.innerHTML = '<p class="hint">Aún no hay entregas.</p>'; return; }
   cont.innerHTML = regs.map(r => `
     <div class="eval-item" onclick="abrirEntregaDetalle('${r.id}')">
-      <div><div><b>${esc(r.nombre)}</b></div><div class="meta">${esc(r.fecha)}</div></div>
+      <div><div><b>${esc(r.nombre)}</b></div><div class="meta">${esc(r.fecha)}${entEsProfe(r) ? ' · 📤 material entregado por el profe' : ''}</div></div>
       <span class="badge ${r.estado}">${r.estado}</span>
     </div>`).join('');
 }
@@ -4397,6 +4423,7 @@ async function crearEntrega(){
   limpiarMsg();
   const nombre = document.getElementById('ne-nombre').value.trim();
   const fecha  = document.getElementById('ne-fecha').value;
+  const sentido = document.getElementById('ne-sentido')?.value === 'profe' ? 'profe' : 'estudiantes';
   if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
   if (!fecha)  { toast('La fecha es obligatoria.', 'err'); return; }
   try {
@@ -4404,9 +4431,9 @@ async function crearEntrega(){
     if (!vigentes.length) { toast('No hay estudiantes vigentes en la fecha.', 'err'); return; }
     const sel = entNuevoSel || new Set();
     const seleccionadosVig = vigentes.filter(m => sel.has(m.estudiante_id));
-    if (!seleccionadosVig.length) { toast('Selecciona al menos un estudiante que deba entregar.', 'err'); return; }
+    if (!seleccionadosVig.length) { toast('Selecciona al menos un estudiante.', 'err'); return; }
     const { data: ins, error: ee } = await sb.from('libro_entregas')
-      .insert({ anio_id:anioId, contexto_id:ctxId, sesion_creacion_id:ref.sesion, nombre, fecha, estado:'abierto' })
+      .insert({ anio_id:anioId, contexto_id:ctxId, sesion_creacion_id:ref.sesion, nombre, fecha, estado:'abierto', sentido })
       .select('id').single();
     if (ee) throw ee;
     const eid = ins.id;
@@ -4415,7 +4442,7 @@ async function crearEntrega(){
       estado: sel.has(m.estudiante_id) ? 'pendiente' : 'no_aplica' }));
     const { error: ed } = await sb.from('libro_entrega_detalle').insert(filas);
     if (ed) { await sb.from('libro_entregas').delete().eq('id', eid); throw ed; }
-    toast('Entrega creada (' + seleccionadosVig.length + ' deben entregar).', 'ok');
+    toast('Entrega creada (' + seleccionadosVig.length + ' ' + entTxt({ sentido }).deben + ').', 'ok');
     abrirEntregaDetalle(eid);
   } catch (e) { toast(tablaFalta(e) ? 'Faltan tablas del Libro.' : ('No se pudo crear: ' + e.message), 'err'); }
 }
@@ -4468,6 +4495,7 @@ function renderEntregaDetalle(){
         <div><label>Nombre</label><input id="ed-nombre" value="${esc(e.nombre)}" ${dis}></div>
         <div><label>Fecha</label><input id="ed-fecha" type="date" value="${esc(e.fecha)}" ${dis}></div>
       </div>
+      <div style="margin-top:10px"><label>Sentido</label><select id="ed-sentido" ${dis}>${entSentidoOpts(e.sentido)}</select></div>
       <div class="row" style="margin-top:12px">
         <button class="btn primary" onclick="guardarEntregaCabecera()" ${dis}>Guardar cabecera</button>
         ${cerrada ? `<button class="btn warn" onclick="reabrirEntrega()">Reabrir</button>`
@@ -4477,7 +4505,7 @@ function renderEntregaDetalle(){
       </div>
     </div>
     <div class="card">
-      <p class="sec-title">Estudiantes (${entregaDet.length}) · deben entregar: ${aplican} · entregaron: <span id="ed-si">${entregados}</span></p>
+      <p class="sec-title">Estudiantes (${entregaDet.length}) · ${entTxt(e).deben}: ${aplican} · ${entTxt(e).hicieron}: <span id="ed-si">${entregados}</span></p>
       ${entregaDet.length ? `<div class="buscador">
         <input id="buscador-ent" type="text" placeholder="Buscar por nombre o apellido…" oninput="filtrarEntregas()" autocomplete="off">
         <button type="button" id="btn-ent-pendientes" class="btn toggle" aria-pressed="false" onclick="toggleEntPendientes()">Pendientes</button>
@@ -4496,7 +4524,7 @@ function renderEntregaDetalle(){
               ? '<span class="hint">No aplica</span>'
               : `<label style="display:inline-flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;margin:0;cursor:pointer">
                    <input type="checkbox" data-i="${idx}" ${d.estado==='entregado'?'checked':''} ${dis}>
-                   <span>Entregó</span></label>` }</td>
+                   <span>${entTxt(e).check}</span></label>` }</td>
           </tr>`; }).join('')}
         </tbody>
       </table>
@@ -4568,13 +4596,16 @@ function toggleEntPendientes(){
 async function guardarEntregaCabecera(){
   const nombre = document.getElementById('ed-nombre').value.trim();
   const fecha  = document.getElementById('ed-fecha').value;
+  const sentido = document.getElementById('ed-sentido')?.value === 'profe' ? 'profe' : 'estudiantes';
   if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
   if (!fecha)  { toast('La fecha es obligatoria.', 'err'); return; }
   try {
-    const { error } = await sb.from('libro_entregas').update({ nombre, fecha }).eq('id', entregaActual.id);
+    const { error } = await sb.from('libro_entregas').update({ nombre, fecha, sentido }).eq('id', entregaActual.id);
     if (error) throw error;
-    entregaActual.nombre = nombre; entregaActual.fecha = fecha;
+    const cambioSentido = entregaActual.sentido !== sentido;
+    entregaActual.nombre = nombre; entregaActual.fecha = fecha; entregaActual.sentido = sentido;
     toast('Guardado correctamente', 'ok');
+    if (cambioSentido) renderEntregaDetalle();   // textos del nuevo sentido
   } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
 }
 async function guardarEntregaDetalle(){
