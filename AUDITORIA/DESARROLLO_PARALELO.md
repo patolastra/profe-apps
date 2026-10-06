@@ -2303,6 +2303,16 @@ Evaluación abierta: oculta a los no vigentes (los nuevos ya se agregaban). Entr
 sin Eduardo; entrega "cuaderno…" muestra 25, sin Eduardo, y su fila sigue guardada; evaluación
 abierta "CHICOS" muestra 25, sin Eduardo.
 
+### Microiteración: Nombre social — aviso al guardar (deuda T)
+
+**Fecha:** 2026-10-06 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** confirmar a la vista que el nombre social quedó guardado.
+**Decisión del PO (2026-10-06):** al guardar, mostrar un aviso "Nombre social guardado".
+**Alcance:** `LIBRO/index.html` (ficha del estudiante). Si se guarda vacío, el aviso dice
+"Nombre social borrado" (vuelve el nombre legal). Sin cambios en Supabase.
+**Pruebas (Claude):** Cuarto: guardar "PRUEBA" → "Nombre social guardado"; guardar vacío →
+"Nombre social borrado"; el estudiante quedó sin nombre social.
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo
@@ -2502,4 +2512,4 @@ abierta "CHICOS" muestra 25, sin Eduardo.
 ### T. Nombre social — aviso al guardar
 *Origen: PO (2026-10-06).*
 - Al guardar un nombre social en la ficha, mostrar un aviso (badge) **"Nombre social guardado"**.
-- **No resuelto.**
+- **Resuelto** en la microiteración "Nombre social — aviso al guardar" (pendiente de uso real).
