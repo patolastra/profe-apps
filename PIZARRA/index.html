@@ -1810,6 +1810,34 @@ function irA(idx) {
 function avanzar()    { if (slideIdx < slides.length - 1) irA(slideIdx + 1); }
 function retroceder() { if (slideIdx > 0) irA(slideIdx - 1); }
 
+// ── ÓRDENES DEL PLANIFICADOR (comun/clase-vivo.js, misma computadora) ──
+// ◀ ▶ = flechas del teclado; clic en la vista previa = ir a esa diapositiva;
+// texto al día = rehacer las diapositivas con lo que se acaba de escribir.
+function ordenDelPlanificador(o) {
+    if (!o || o.sesionId !== sesionId) return;   // otra clase
+    if (o.accion === 'nav') {
+        if (repActivo && repStanzas.length) { if (o.dir > 0) repAvancar(); else repRetroceder(); }
+        else if (o.dir > 0) avanzar(); else retroceder();
+    } else if (o.accion === 'ir') {
+        if (typeof o.contenido === 'string') textoAlDia(o.contenido);
+        irA(o.idx | 0);
+    } else if (o.accion === 'texto') {
+        textoAlDia(o.contenido || '');
+    }
+}
+// Se queda en la diapositiva que mostraba (aunque cambie de número) y solo la redibuja si
+// su texto cambió: editar otras diapositivas no interrumpe un video.
+function textoAlDia(contenido) {
+    const nuevos = parsearSlides(contenido);
+    const actual = slides[slideIdx];
+    let idx = slideIdx;
+    if (nuevos[idx] !== actual) { const j = nuevos.indexOf(actual); if (j >= 0) idx = j; }
+    idx = Math.max(0, Math.min(idx, nuevos.length - 1));
+    const redibujar = !slides.length || nuevos[idx] !== actual;
+    slides = nuevos; slideIdx = idx;
+    if (redibujar) renderSlide(); else actualizarContadores();
+}
+
 function toggleRepSync() {
     const audio = document.getElementById('rep-audio');
     if (!audio) return;
@@ -2335,7 +2363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     ClaseVivo.onCambio(pintar);
     pintar();
-    Proyeccion.escucharEnPizarra();   // Paso 2: ↔ desde el Planificador + ubicarse en el proyector
+    Proyeccion.escucharEnPizarra(ordenDelPlanificador);   // ↔, ◀ ▶, clic en la vista previa, texto al día
     Asistencia.espejo();              // Pasar lista: el mismo tablero, solo para mirar
 })();
 </script>

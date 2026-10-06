@@ -2328,6 +2328,31 @@ y aviso según el motivo). Sin cambios en Supabase.
 sin clase; al apretarlo avisa "No hay dos pantallas conectadas…". Con dos pantallas no se pudo
 probar aquí (queda para uso real con el proyector).
 
+### Desarrollo paralelo: Control de la Pizarra desde el Planificador
+
+**Fecha:** 2026-10-06 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** manejar la proyección desde la pantalla del profe sin ir a la ventana
+de la Pizarra, y que lo que se escribe en la presentación se vea al tiro en el proyector.
+**Decisiones del PO (2026-10-06):**
+- Botones **◀ ▶** ("Anterior" / "Siguiente") en la barra del Planificador, junto a 📽️ y ↔,
+  solo con la clase en curso; hacen lo mismo que las flechas en la Pizarra (en canción: verso o
+  estrofa según el modo). Con la Pizarra cerrada avisan "La Pizarra no está abierta".
+- **Clic en una diapositiva de la vista previa** con la clase en curso → la Pizarra salta a esa.
+- **Texto al día:** al dejar de escribir (~1 s, con el guardado automático) la Pizarra se rehace
+  con el texto nuevo; se queda en la diapositiva que mostraba (aunque cambie de número) y solo
+  redibuja la actual si su texto cambió (no reinicia un video).
+- Sin contador "3 / 12" por ahora. Todo funciona sin internet (misma computadora).
+**Alcance:** `comun/clase-vivo.js` (canal de órdenes Planificador → Pizarra), `PORTAL/index.html`,
+`PIZARRA/index.html`. Sin cambios en Supabase.
+**Implementación:** `Proyeccion.ordenar(sesionId, orden)` / `Proyeccion.pizarraViva()` (por
+`localStorage`, como ↔); la Pizarra las atiende en `ordenDelPlanificador` (filtra por sesión) y
+`textoAlDia`. Planificador: `navPizarra`, `controlaPizarra`, orden 'ir' en el clic de la vista
+previa (lleva el texto actual) y orden 'texto' en `guardarPres` (antes de subir a internet).
+**Pruebas (Claude):** Planificador + Pizarra en dos pestañas: ◀ ▶ visibles solo con la clase en
+curso; ▶ ▶ lleva de la 1ª a la 3ª; borrar la 1ª diapositiva deja la Pizarra en la misma ("C");
+editar otra diapositiva no redibuja la actual; clic en la vista previa salta a esa diapositiva
+con el texto actual. Sin guardar nada en la base (textos de prueba solo enviados a la Pizarra).
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo

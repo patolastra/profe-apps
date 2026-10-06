@@ -262,10 +262,27 @@
         const sd = await detalles();
         if (sd && !misma(dest, sd.currentScreen)) moverA(dest);
     }
-    function escucharEnPizarra() {
+    // Órdenes del Planificador a la Pizarra de una sesión (misma computadora, sin internet):
+    // { accion:'nav', dir:±1 } · { accion:'ir', idx, contenido? } · { accion:'texto', contenido }.
+    // `n` hace distinto cada mensaje (dos órdenes iguales seguidas igual llegan).
+    let _nOrden = 0;
+    function ordenar(sesionId, orden) {
+        poner(CMD_KEY, JSON.stringify({ ...orden, sesionId, t: Date.now(), n: ++_nOrden }));
+    }
+    function pizarraViva() {
+        let viva = 0;
+        try { viva = Number(leer(VIVA_KEY)) || 0; } catch (_) {}
+        return Date.now() - viva <= 4000;
+    }
+
+    // Pizarra: atiende ↔ y, si se le pasa `alOrden`, las órdenes del Planificador.
+    function escucharEnPizarra(alOrden) {
         window.addEventListener('storage', e => {
             if (e.key !== CMD_KEY || !e.newValue) return;
-            try { if (JSON.parse(e.newValue).accion === 'flip') ejecutarFlip(); } catch (_) {}
+            let cmd = null;
+            try { cmd = JSON.parse(e.newValue); } catch (_) { return; }
+            if (cmd.accion === 'flip') ejecutarFlip();
+            else if (alOrden) alOrden(cmd);
         });
         ubicarAlAbrir();
         const latir = () => poner(VIVA_KEY, String(Date.now()));
@@ -273,5 +290,5 @@
         window.addEventListener('pagehide', () => { try { localStorage.removeItem(VIVA_KEY); } catch (_) {} });
     }
 
-    window.Proyeccion = { hayAPI, permiso, abrir, flip, escucharEnPizarra };
+    window.Proyeccion = { hayAPI, permiso, abrir, flip, escucharEnPizarra, ordenar, pizarraViva };
 })();

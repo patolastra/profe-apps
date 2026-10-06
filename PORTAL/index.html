@@ -1092,6 +1092,8 @@
             <button class="hdr-btn ico" onclick="mostrarQRRemoto()" data-label="Remoto" aria-label="Remoto">📱</button>
             <button class="hdr-btn ico" id="btn-reabrir-piz" onclick="abrirPizarra()" data-label="Abrir Pizarra" aria-label="Abrir Pizarra" hidden>📽️</button>
             <button class="hdr-btn ico" id="btn-flip-piz" onclick="cambiarPantalla()" data-label="Cambiar de pantalla" aria-label="Cambiar de pantalla" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="4" width="8" height="6" rx="1"/><rect x="14.5" y="14" width="8" height="6" rx="1"/><path d="M5.5 13v2a3 3 0 0 0 3 3h3"/><path d="M10 16l1.5 2-1.5 2"/><path d="M18.5 11V9a3 3 0 0 0-3-3h-3"/><path d="M14 8l-1.5-2L14 4"/></svg></button>
+            <button class="hdr-btn ico" id="btn-ant-piz" onclick="navPizarra(-1)" data-label="Anterior" aria-label="Anterior" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+            <button class="hdr-btn ico" id="btn-sig-piz" onclick="navPizarra(1)" data-label="Siguiente" aria-label="Siguiente" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
             <button class="hdr-btn" id="btn-clase" onclick="botonClase()">▶ Comenzar clase</button>
         </div>
     </div>
@@ -1981,6 +1983,8 @@ async function cargarPresentacion(sid) {
 
 async function guardarPres(sid) {
     const contenido = document.getElementById('pres-area').value;
+    // Texto al día en la Pizarra abierta de esta clase (antes de subir: no depende de internet).
+    if (Proyeccion.pizarraViva()) Proyeccion.ordenar(sid, { accion: 'texto', contenido });
     // Empujar undo de slides si el texto cambió desde el último guardado
     if (presAreaTextoGuardado !== null && presAreaTextoGuardado !== contenido) {
         pushUndoSlides(presAreaTextoGuardado);
@@ -2204,6 +2208,8 @@ function renderClase() {
     // ↔ siempre durante la clase en curso; si no se puede (una pantalla, sin permiso…),
     // al apretarlo se explica por qué (cambiarPantalla).
     document.getElementById('btn-flip-piz').hidden = !esEsta;
+    document.getElementById('btn-ant-piz').hidden = !esEsta;   // ◀ ▶: manejar la Pizarra desde aquí
+    document.getElementById('btn-sig-piz').hidden = !esEsta;
     ajustarBarra();
     box.hidden  = !st;
     document.getElementById('ct-ctx').textContent = st && !esEsta ? ctxDisplay(st.ctx) : '';
@@ -2238,6 +2244,18 @@ document.addEventListener('DOMContentLoaded', () => {
         b.addEventListener('click', () => mostrarEtiqueta(null));
     });
 });
+
+// ◀ ▶ de la barra: lo mismo que las flechas del teclado en la Pizarra.
+function navPizarra(dir) {
+    if (!sesionActual) return;
+    if (!Proyeccion.pizarraViva()) { alert('La Pizarra no está abierta.\n\nÁbrela con el botón 📽️.'); return; }
+    Proyeccion.ordenar(sesionActual.id, { accion: 'nav', dir });
+}
+// Con la clase de ESTA sesión en curso y la Pizarra abierta (clic en la vista previa, texto al día).
+function controlaPizarra() {
+    const st = ClaseVivo.get();
+    return !!(st && sesionActual && st.sesionId === sesionActual.id && Proyeccion.pizarraViva());
+}
 
 async function cambiarPantalla() {
     const r = await Proyeccion.flip();
@@ -3452,6 +3470,8 @@ function buildSlideEl(raw, idx) {
         if (!ta || el.dataset.selStart === undefined) return;
         document.querySelectorAll('#prev-body .slide-prev').forEach(s => s.classList.remove('activa'));
         el.classList.add('activa');
+        // En clase: la Pizarra salta a esta diapositiva (con el texto actual, por si aún no se guardó).
+        if (controlaPizarra()) Proyeccion.ordenar(sesionActual.id, { accion: 'ir', idx: parseInt(el.dataset.idx), contenido: ta.value });
         const start = parseInt(el.dataset.selStart);
         const end   = parseInt(el.dataset.selEnd);
         ta.focus();
