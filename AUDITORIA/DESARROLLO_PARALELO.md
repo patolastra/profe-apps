@@ -2438,6 +2438,10 @@ porque las ventanas ya abiertas siguen con la versión anterior.
 **Ajuste (PO, 2026-10-06):** "funciona"; el instrumento quedaba arriba con una franja negra
 abajo. Ahora ocupa toda la Pizarra y las placas quedan centradas (sin la barra, `#viewport` al
 alto completo). Probado: caja 0–768 px, placas 79–695 px.
+**Ajuste (PO, 2026-10-06):** en uso real las placas se encienden al tocar ("todo funciona"), pero
+seguía la franja negra: la Pizarra cargaba una copia guardada (vieja) del Entrenador (el sitio se
+guarda 10 min en el navegador). Ahora la Pizarra carga el espejo con un parámetro `v` distinto cada
+vez (siempre la versión al día) y el estilo del Metalófono proyectado se asegura en cada foto.
 
 ---
 
