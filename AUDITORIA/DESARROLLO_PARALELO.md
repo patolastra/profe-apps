@@ -2553,3 +2553,10 @@ con el texto actual. Sin guardar nada en la base (textos de prueba solo enviados
 *Origen: PO (2026-10-06).*
 - Al guardar un nombre social en la ficha, mostrar un aviso (badge) **"Nombre social guardado"**.
 - **Resuelto** en la microiteración "Nombre social — aviso al guardar" (pendiente de uso real).
+
+### U. Lector Tabs — juego formativo "¿Esta postura es correcta?"
+*Origen: PO (2026-10-06).*
+- Hoy existe como **material de clase en PowerPoint** (`MATERIAL CLASE/Postura mano izquierda - guitarra.pptx`, fuera de las apps): 5 fotos de la mano izquierda en el diapasón; cada foto aparece con "?" y luego con la respuesta (✕ incorrecta; la última ✓ correcta y cierre con "LA PINZA"). Fondo de las fotos difuminado.
+- **Deuda:** formalizarlo como un **juego formativo dentro del Lector Tabs**: se muestra la foto, los estudiantes responden **"sí" o "no"** (¿es correcta?) y luego se revela la respuesta.
+- Hay **más imágenes** que el PO sumará a esta colección.
+- Pendiente de diseño con el PO (dónde vive, quién responde, si se registra algo). **No implementar** sin ficha y aprobación.
