@@ -2435,6 +2435,9 @@ activo es un metalófono (aunque el profe no haya apretado el botón). Probado: 
 la pantalla del profe, la Pizarra muestra las 25 placas; al volver a la letra, vuelve la letra.
 Nota: tras cada actualización, recargar el Workspace (Ctrl+Shift+R) y abrir de nuevo la Pizarra,
 porque las ventanas ya abiertas siguen con la versión anterior.
+**Ajuste (PO, 2026-10-06):** "funciona"; el instrumento quedaba arriba con una franja negra
+abajo. Ahora ocupa toda la Pizarra y las placas quedan centradas (sin la barra, `#viewport` al
+alto completo). Probado: caja 0–768 px, placas 79–695 px.
 
 ---
 
