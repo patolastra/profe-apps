@@ -2669,3 +2669,22 @@ vez (siempre la versión al día) y el estilo del Metalófono proyectado se aseg
 - Hoy el Entrenador **no muestra** las tablaturas/partituras (archivos MXL): intenta abrir el archivo
   tal cual. Para verlas en la Pizarra habría que mostrar el Lector Tabs dentro del Entrenador y copiarlo.
 - **Postergada por decisión del PO** ("no lo necesito por de pronto"). No implementar sin nueva decisión.
+
+### W. PWA móvil — grabar audios de la clase (biblioteca de audios del curso)
+*Origen: PO (2026-10-07). **Diseño propuesto, pendiente de revisión detallada del PO** (pidió que se le presente más adelante). No implementar.*
+- **Necesidad:** con clase en curso, grabar audios desde el celular que queden ligados al día/fecha/curso, formando una biblioteca de audios del curso, consultable desde la sesión de cada curso. Uno de los fines: determinar con exactitud el **tono conveniente** para cantar cada canción del repertorio del curso.
+- **Hallazgos (auditoría):** el móvil hoy solo tiene la Bitácora (`MEMORIA/`); la PWA aún no existe (Backlog, prioridad alta). El celular no sabe si hay clase en curso (`ClaseVivo` vive en el `localStorage` de cada computador). La tabla `horario` sí tiene `hora_inicio`/`hora_fin`. Los audios de `memorias` (bucket `memorias-audio`) son históricos y protegidos: no se reutilizan.
+- **Propuesta (Claude, no decidida):**
+  1. Clase deducida por horario + hora del celular; si no hay clase en ese momento, elegirla a mano.
+  2. Grabar con un toque; datos opcionales después: canción del repertorio del curso, tono usado (semitonos −6..+6 respecto del original, como el Pitch del Entrenador), cómo les acomodó (bien / alto / bajo), nota corta.
+  3. Sin internet: se guarda en el celular y se sube sola al volver la conexión.
+  4. Consulta: sección "Audios del curso" en la sesión del Planificador (por fecha, filtro por canción) y resumen de tonos por curso en la canción (Repertorio/Entrenador).
+  5. Privacidad: almacenamiento privado (voces de menores), sin links para compartir.
+  6. Espacio (por decidir): ~15 MB por hora de audio liviano; el plan gratuito trae 1 GB (~60 h).
+  7. Futuro: detección automática del tono cantado.
+- **Implica:** tabla y almacenamiento nuevos en Supabase (requiere autorización del PO). Sería el primer paso concreto de la PWA móvil.
+
+### X. Entrenador — "Pedido de repertorio" por curso
+*Origen: PO (2026-10-07). Idea registrada; diseño pendiente. No implementar.*
+- **Necesidad:** en las sesiones del Entrenador ligadas a un curso, un botón para anotar una canción pedida (un recordatorio), que después permita agregar la canción de verdad al repertorio/sesión.
+- **Por definir con el PO:** qué se anota (solo nombre/artista, quién la pidió), dónde se ven los pedidos pendientes, y cómo se "convierte" el pedido en canción (buscar en la biblioteca o importar una nueva).
