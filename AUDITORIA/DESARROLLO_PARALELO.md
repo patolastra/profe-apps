@@ -2957,3 +2957,4 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
 - **Prueba (2026-10-07, servidor local, base simulada para las escrituras):** sin la columna no aparece el botón;
   simulada: 14 botones para 14 evaluados; reevaluar (integrante de grupo, 4 respuestas) → Pendiente con "1ª nota: 6,0";
   deshacer → vuelven nota y 4 respuestas. Falta probar con la columna real.
+- **Cierre:** commit `93fb3cc` (2026-10-07).
