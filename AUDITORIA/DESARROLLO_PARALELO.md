@@ -3267,6 +3267,10 @@ presenta en la pantalla del profe". Corrige la Etapa 2 de AI, que dibujaba en la
   - **Prueba:** 3 sorteos con 21 válidos → los 21 parpadean, solo válidos, ~2,9 s; con 3 válidos → 6 pasos (dos
     vueltas), todos vistos, sin repetidos seguidos; profe y Pizarra en 1366×768 con los mismos valores
     (5 · 253 · 78 · 37 px).
+  3. **"Elegir al azar" centrado en la Pizarra** (foto del PO en el proyector: el espacio de "Salir", invisible,
+     lo corría a la izquierda): en la copia "Salir" ya no ocupa lugar; la barra mide lo mismo (su alto lo da el botón
+     grande), así que el tablero sigue idéntico (5 · 253 · 78 · 37 px en ambas). Centro del botón a 3 px del centro
+     del espacio libre.
 
 ### AL. Versión nueva — "Recargar" también renueva la ventana de la Pizarra
 *Origen: PO (2026-10-07): tras AK, "no veo los cambios, se ve la pantalla simplificada antigua, y eso que le di a lo
