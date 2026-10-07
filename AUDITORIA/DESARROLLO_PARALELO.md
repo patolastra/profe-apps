@@ -3256,6 +3256,17 @@ presenta en la pantalla del profe". Corrige la Etapa 2 de AI, que dibujaba en la
   columnas / ancho / alto / letra (5 · 253 · 80 · 37 px), mismos cuadros y contador; 🎲 sorteo: el barajado se ve en la
   Pizarra y termina en el mismo nombre gigante con el mismo tamaño (EMILIANO, 179 px); Pizarra en 1920×1080: mismo
   tablero agrandado (letra 55 px, 5,1 % del alto), sin nombres cortados. Falta probar en clase.
+- **Validado por el PO (2026-10-07):** "ahora sí se ve igual". **Ajustes pedidos:**
+  1. **"🎲 Elegir al azar" visible en la Pizarra y lo más grande que da el espacio** (en ambas pantallas): ocupa todo
+     el espacio libre de la barra, letra como el contador; en la Pizarra se ve (gris mientras sortea, igual que el
+     profe) pero no se aprieta; "Salir" sigue invisible ocupando su lugar. `line-height` fijo en los botones para que
+     ambas pantallas midan igual.
+  2. **El parpadeo del sorteo pasa por TODOS los válidos antes del resultado:** orden al azar sin repetir; con menos de
+     10, una segunda vuelta (nunca el mismo dos veces seguidas); parte rápido y se frena; el último también alcanza a
+     parpadear (antes se borraba al instante). El orden no depende del elegido (la preselección no se delata).
+  - **Prueba:** 3 sorteos con 21 válidos → los 21 parpadean, solo válidos, ~2,9 s; con 3 válidos → 6 pasos (dos
+    vueltas), todos vistos, sin repetidos seguidos; profe y Pizarra en 1366×768 con los mismos valores
+    (5 · 253 · 78 · 37 px).
 
 ### AL. Versión nueva — "Recargar" también renueva la ventana de la Pizarra
 *Origen: PO (2026-10-07): tras AK, "no veo los cambios, se ve la pantalla simplificada antigua, y eso que le di a lo

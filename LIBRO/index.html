@@ -1206,6 +1206,7 @@ function proyTableroFoto(){
     esp: limpio(gE.innerHTML), si: limpio(gS.innerHTML),
     vaciaEsp: gE.classList.contains('vacia'), vaciaSi: gS.classList.contains('vacia'),
     cerrada: el.classList.contains('cerrada'),
+    dadoOff: !!document.getElementById('ppro-dado')?.disabled,
     big: big.classList.contains('show') ? (document.getElementById('ppro-big-nom').textContent || null) : null,
   };
 }
@@ -4646,23 +4647,34 @@ function proyectorSorteo(){
   const presel = partPresel && esperando.find(d => d.estudiante_id === partPresel);
   const elegido = presel || esperando[Math.floor(Math.random() * esperando.length)];
   if (partPresel) { partPresel = null; partDifundir('presel', { estudiante_id: null }); }
-  let pasos = Math.min(24, 10 + esperando.length);
-  let delay = 55;
+  // El parpadeo pasa por TODOS los válidos para el sorteo (PO, 2026-10-07), en orden al azar y
+  // sin repetir; con pocos, da una segunda vuelta (nunca el mismo dos veces seguidas). Al final
+  // no "aterriza" en ningún cuadro: el orden no depende del elegido, así que no delata nada.
+  const mezclar = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const todos = tiles();
+  let orden = mezclar([...todos]);
+  if (todos.length > 1 && orden.length < 10) {
+    const otra = mezclar([...todos]);
+    if (otra[0] === orden[orden.length - 1]) otra.push(otra.shift());
+    orden = orden.concat(otra);
+  }
+  const total = orden.length;
+  let i = 0;
   const paso = () => {
     limpiar();
-    const arr = tiles();
-    if (arr.length) { const t = arr[Math.floor(Math.random() * arr.length)]; t.classList.add('barajando'); }
-    pasos--;
-    if (pasos > 0) {
-      delay = delay < 230 ? delay + 13 : delay;   // desaceleración progresiva
-      setTimeout(paso, delay);
-    } else {
-      limpiar();
-      proySorteando = false;
-      const dd = document.getElementById('ppro-dado');
-      if (dd) dd.disabled = partDet.filter(partEsElegible).length === 0;
-      proyectorMostrarBig(elegido);               // GRAN destacado del elegido
-    }
+    if (orden[i]) orden[i].classList.add('barajando');
+    i++;
+    const avance = i / total;
+    const espera = 55 + Math.round(200 * avance * avance);   // parte rápido y se frena al final
+    if (i < total) setTimeout(paso, espera);
+    else setTimeout(terminar, espera);                       // el último también alcanza a parpadear
+  };
+  const terminar = () => {
+    limpiar();
+    proySorteando = false;
+    const dd = document.getElementById('ppro-dado');
+    if (dd) dd.disabled = partDet.filter(partEsElegible).length === 0;
+    proyectorMostrarBig(elegido);               // GRAN destacado del elegido
   };
   paso();
 }

@@ -241,6 +241,7 @@
             tabBig = null;
         }
         tab.classList.toggle('cerrada', !!t.cerrada);
+        tab.querySelector('.ppro-btn.dado').disabled = !!t.dadoOff;
         tab.querySelector('.ppro-contador').innerHTML = t.contador;
         tab.querySelector('[data-c="esp"]').textContent = t.cntEsp;
         tab.querySelector('[data-c="si"]').textContent = t.cntSi;
