@@ -2706,6 +2706,9 @@ vez (siempre la versión al día) y el estilo del Metalófono proyectado se aseg
   ¿nombre + apellido, o nombre + inicial del apellido?; (b) ¿se elimina el interruptor 1–N o queda como
   opción secundaria? (el n° de lista sirve para traspasar al libro oficial); (c) el resumen de ausentes de
   Pasar lista (n° de lista + apellido) es para el libro oficial: ¿queda igual? (recomendado: sí).
+- **Decisiones del PO (2026-10-07):** (a) nombre repetido o que suena igual → **nombre + apellido**;
+  (b) el orden por n° de lista **queda como opción secundaria**; (c) el resumen de ausentes de Pasar lista
+  **queda igual** en contenido (ver deuda AA para su forma).
 
 ### Z. Libro / Entregas — ocultar a quienes "no aplica" y poder volver a "sí aplica"
 *Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin ficha y aprobación.*
@@ -2719,3 +2722,17 @@ vez (siempre la versión al día) y el estilo del Metalófono proyectado se aseg
 - **Propuesta (Claude, no decidida):** lista solo con los que aplica + un botón "Mostrar no aplica (N)"
   que despliega a los demás con un botón "Aplicar" (y "No aplica" en los que sí aplican), igual que en
   Evaluaciones. Sin cambios en la base de datos (el estado ya existe).
+- **Decisión del PO (2026-10-07):** propuesta aprobada ("ok").
+
+### AA. Pasar lista — resumen de ausentes en vertical
+*Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin aprobación.*
+- **Pedido:** el resumen de ausentes se lee mal porque va en una sola línea horizontal. Debe ir en vertical,
+  uno por línea: `N° - APELLIDO`. Si no cabe en la misma pantalla de pasar/modificar lista, un botón
+  **"Resumen"** que abre una pantalla aparte con la lista de los que faltan.
+- **Estado actual (auditoría):** `comun/asistencia.js` pinta el resumen como una franja al pie del tablero
+  (`.asis-res`, en línea, con salto automático), solo en la pantalla del profe (no en el espejo de la Pizarra).
+  El tablero ocupa toda la pantalla sin scroll, así que una lista vertical al pie le quitaría espacio a los
+  nombres.
+- **Propuesta (Claude, no decidida):** botón "Resumen (N)" en el pie del tablero → pantalla aparte con la
+  lista vertical `N° - APELLIDO` (talleres sin n° de lista: `APELLIDO NOMBRE`), letra grande, y un botón para
+  volver.
