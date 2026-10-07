@@ -2923,7 +2923,7 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
 - **Cierre:** commit `9110394` (2026-10-07). Queda en marcha blanca hasta probarlo en clase.
 
 ### AD. Libro / Evaluaciones — reevaluar a un estudiante ya evaluado
-*Origen: PO (2026-10-07). Ficha armada tras auditoría; **no implementar sin aprobación del plan**.*
+*Origen: PO (2026-10-07). Plan **aprobado por el PO (2026-10-07)** e implementado.*
 - **Necesidad profesional:** a algunos estudiantes les va muy mal en una prueba; ya quedaron evaluados y se necesita
   dejarlos otra vez pendientes para reevaluarlos la semana siguiente, sin perder la primera nota.
 - **Estado actual (auditoría):** "Evaluado" = tener nota (`estadoEfectivo`). Sin instrumento, borrar la nota lo deja
@@ -2947,3 +2947,13 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   `intentos_anteriores JSONB NOT NULL DEFAULT '[]'` — lista de `{ nota, fecha, resultados: [{ item, valor }] }`.
   Versionada en `supabase/libro_reevaluacion.sql` y **corrida por el PO** en Supabase. No cambia datos existentes.
 - **Fuera de alcance:** reevaluar en evaluaciones cerradas (hay que reabrirlas primero); promedios entre intentos.
+- **Implementado (2026-10-07):** `supabase/libro_reevaluacion.sql` (columna `intentos_anteriores`, **pendiente de que
+  el PO la corra en Supabase**). `LIBRO/index.html`: `cargarIntentos()` en consulta aparte (si la columna no existe,
+  la función queda oculta y el Libro sigue igual; la consulta da un 400 esperado); `reevalHTML()` en la celda de nota
+  ("1ª nota: X" / "notas anteriores: X · Y", botones Reevaluar / Deshacer reevaluación); `reevaluar()` guarda el
+  intento (nota, fecha, excepción previa, respuestas) y deja la nota en blanco, luego borra las respuestas (si eso
+  falla, revierte); `deshacerReevaluacion()` repone respuestas, nota y excepción. Integrante de grupo → `nota_excepcion`.
+  El reevaluado no vuelve a "Disponibles" de Grupos ni queda congelado por grupo terminado. Usa el seguro AC-3.
+- **Prueba (2026-10-07, servidor local, base simulada para las escrituras):** sin la columna no aparece el botón;
+  simulada: 14 botones para 14 evaluados; reevaluar (integrante de grupo, 4 respuestas) → Pendiente con "1ª nota: 6,0";
+  deshacer → vuelven nota y 4 respuestas. Falta probar con la columna real.

@@ -214,6 +214,8 @@
   .est-badge.pendiente{background:rgba(224,161,6,.18);color:#f0c040}
   .est-badge.evaluado{background:rgba(76,175,80,.18);color:#7bd88a}
   .est-badge.no_aplica{background:rgba(255,255,255,.10);color:var(--mut)}
+  /* Reevaluación (deuda AD) */
+  .nota-ant{display:block;font-size:11px;color:var(--mut);white-space:nowrap}
   .em-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
   .em-card{position:relative;background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--acc);
     border-radius:14px;max-width:660px;width:100%;max-height:88vh;overflow:auto;padding:18px 20px;box-shadow:0 12px 48px rgba(0,0,0,.5)}
@@ -1002,6 +1004,7 @@ async function abrirDetalle(evId){
       notas = notas.filter(n => vig.has(n.estudiante_id));
     }
     ordenarNotas();   // orden según el modo activo (oficial 1–N por defecto)
+    await cargarIntentos();         // deuda AD: notas anteriores (reevaluación)
     await recargarInstrumentos();   // Etapa 3: instrumentos aplicados (retrocompatible → [])
     await recargarResultados();     // Etapa 4: resultados por criterio/ítem (retrocompatible → [])
     instrVerId = null; instrModalNotaId = null;
@@ -1454,7 +1457,7 @@ function marcaObjHTML(n, cerrada){
 // ── HTML: tarjeta de administración de grupos ──
 // ── Estados derivados (sin columnas nuevas) ──
 // DISPONIBLE = sin grupo y sin nota (pendiente individual, aún no agrupado ni evaluado).
-function estDisponible(n){ return !n.grupo_id && n.nota == null; }
+function estDisponible(n){ return !n.grupo_id && n.nota == null && !intentosDe(n).length; }
 // GRUPO TERMINADO = estado EXPLÍCITO (columna terminado), fijado por el profesor con
 // "Terminar evaluación". NO se deriva de la nota: tener nota NO termina el grupo.
 // Un grupo terminado queda congelado (no se reorganiza, no se elimina, no se edita).
@@ -3125,16 +3128,98 @@ function notaCellHTML(n, idx, cerrada){
   if (!c.instrumento) {
     // Integrante de grupo terminado: su nota manual queda congelada (la BD ya no la
     // bloquea, para permitir recalcular las notas por instrumento — opción A).
-    const congelada = cerrada || (!!n.grupo_id && grupoTerminado(grupos.find(g => g.id === n.grupo_id)));
+    const congelada = cerrada || (!!n.grupo_id && !intentosDe(n).length && grupoTerminado(grupos.find(g => g.id === n.grupo_id)));
     return `<td class="nota"><div class="nota-instr">
         <input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${congelada ? 'disabled' : ''} style="max-width:64px"${congelada && !cerrada ? ' title="Grupo terminado: reábrelo para editar la nota"' : ''}>
-        ${badge}${naBtn}<div class="cel-marca">${marcaNotaHTML(n, congelada)}</div></div></td>`;
+        ${badge}${naBtn}${reevalHTML(n, est, cerrada)}<div class="cel-marca">${marcaNotaHTML(n, congelada)}</div></div></td>`;
   }
   return `<td class="nota"><div class="nota-instr">
       <span class="nota-val${c.completo ? '' : ' incompleto'}">${c.completo ? fmtNota(c.nota) : '—'}</span>
       <span class="nota-sub">${c.answered}/${c.nItems} ${badge}</span>
-      ${cerrada ? '' : `<button class="btn mini" onclick="abrirInstrEstudiante('${n.id}')">Evaluar</button>`}${naBtn}
+      ${cerrada ? '' : `<button class="btn mini" onclick="abrirInstrEstudiante('${n.id}')">Evaluar</button>`}${naBtn}${reevalHTML(n, est, cerrada)}
     </div></td>`;
+}
+
+// ── Reevaluar (deuda AD) ──────────────────────────────────────
+// El estudiante evaluado vuelve a "Pendiente"; su nota (y sus respuestas del instrumento)
+// quedan en libro_evaluacion_notas.intentos_anteriores. La nota nueva reemplaza a la
+// anterior en todo el Libro (informes UTP: solo la final). Integrante de grupo que
+// heredaba: pasa a evaluación individual (nota_excepcion). Deshacer mientras siga pendiente.
+let intentosOk = false;   // la columna existe en Supabase (si no, la función no se muestra)
+function intentosDe(n){ return Array.isArray(n?.intentos_anteriores) ? n.intentos_anteriores : []; }
+async function cargarIntentos(){
+  intentosOk = false;
+  if (!notas.length) return;
+  const r = await sb.from('libro_evaluacion_notas').select('id,intentos_anteriores').eq('evaluacion_id', evalActual.id);
+  if (r.error) return;
+  intentosOk = true;
+  const m = {}; (r.data || []).forEach(x => { m[x.id] = x.intentos_anteriores || []; });
+  notas.forEach(n => { n.intentos_anteriores = m[n.id] || []; });
+}
+function reevalHTML(n, est, cerrada){
+  const ant = intentosDe(n);
+  let h = '';
+  if (ant.length) h += `<span class="nota-ant" title="Nota${ant.length > 1 ? 's' : ''} antes de reevaluar (no cuenta${ant.length > 1 ? 'n' : ''}; manda la nota actual)">${
+    ant.length === 1 ? '1ª nota' : 'notas anteriores'}: ${ant.map(i => i.nota != null ? fmtNota(i.nota) : '—').join(' · ')}</span>`;
+  if (cerrada || !intentosOk) return h;
+  if (est === 'evaluado') h += `<button class="btn mini" onclick="reevaluar('${n.id}', this)" title="Dejarlo pendiente para evaluarlo de nuevo; la nota actual queda guardada">Reevaluar</button>`;
+  else if (est === 'pendiente' && ant.length) h += `<button class="btn mini" onclick="deshacerReevaluacion('${n.id}', this)" title="Vuelve la nota anterior">Deshacer reevaluación</button>`;
+  return h;
+}
+async function reevaluar(notaId, btn){
+  const n = notas.find(x => x.id === notaId); if (!n || n.nota == null) return;
+  if (!confirm(`¿Reevaluar a ${nombreEstudiante(n)}?\n\nQueda "Pendiente" para evaluarlo de nuevo. Su nota actual (${fmtNota(n.nota)}) queda guardada como 1ª nota, y la nota nueva la reemplaza.`)) return;
+  return seguro('reevaluar', btn, 'Guardando…', async () => {
+    const intento = { nota: n.nota, fecha: hoyLocal(), exc: !!n.nota_excepcion,
+      resultados: evalResultados.filter(r => r.nota_id === n.id).map(r => ({ item: r.instrumento_item_id, valor: r.valor })) };
+    const antes = { intentos: intentosDe(n), nota: n.nota, exc: !!n.nota_excepcion };
+    const intentos = [...antes.intentos, intento];
+    const cambios = { intentos_anteriores: intentos, nota: null };
+    if (n.grupo_id) cambios.nota_excepcion = true;   // deja de heredar la nota/respuestas del grupo
+    try {
+      const { error } = await sb.from('libro_evaluacion_notas').update(cambios).eq('id', n.id);
+      if (error) throw error;
+      if (intento.resultados.length) {
+        const { error: ed } = await sb.from('libro_eval_resultados').delete().eq('nota_id', n.id);
+        if (ed) {   // sin borrar las respuestas la nota volvería sola: se deshace el paso anterior
+          await sb.from('libro_evaluacion_notas').update({ intentos_anteriores: antes.intentos, nota: antes.nota, nota_excepcion: antes.exc }).eq('id', n.id);
+          throw ed;
+        }
+        evalResultados = evalResultados.filter(r => r.nota_id !== n.id);
+      }
+      n.intentos_anteriores = intentos; n.nota = null; if (n.grupo_id) n.nota_excepcion = true;
+      refrescarDetalle();
+      toast(`${nombreEstudiante(n)} queda pendiente para reevaluar.`, 'ok');
+    } catch (e) { toast(avisoFallo(e), 'err'); }
+  });
+}
+async function deshacerReevaluacion(notaId, btn){
+  const n = notas.find(x => x.id === notaId); if (!n) return;
+  const ant = intentosDe(n); if (!ant.length || n.nota != null) return;
+  const ultimo = ant[ant.length - 1];
+  if (!confirm(`¿Deshacer la reevaluación de ${nombreEstudiante(n)}?\n\nVuelve su nota anterior (${ultimo.nota != null ? fmtNota(ultimo.nota) : '—'}).`)) return;
+  return seguro('reevaluar', btn, 'Guardando…', async () => {
+    try {
+      // Respuestas: se reemplazan las nuevas (incompletas) por las del intento anterior.
+      const { error: ed } = await sb.from('libro_eval_resultados').delete().eq('nota_id', n.id);
+      if (ed) throw ed;
+      evalResultados = evalResultados.filter(r => r.nota_id !== n.id);
+      if ((ultimo.resultados || []).length) {
+        const { data, error: ei } = await sb.from('libro_eval_resultados')
+          .insert(ultimo.resultados.map(r => ({ nota_id: n.id, instrumento_item_id: r.item, valor: r.valor }))).select('*');
+        if (ei) throw ei;
+        mergeResultados(data);
+      }
+      const resto = ant.slice(0, -1);
+      const cambios = { intentos_anteriores: resto, nota: ultimo.nota ?? null };
+      if (n.grupo_id) cambios.nota_excepcion = !!ultimo.exc;
+      const { error } = await sb.from('libro_evaluacion_notas').update(cambios).eq('id', n.id);
+      if (error) throw error;
+      n.intentos_anteriores = resto; n.nota = ultimo.nota ?? null; if (n.grupo_id) n.nota_excepcion = !!ultimo.exc;
+      refrescarDetalle();
+      toast('Reevaluación deshecha: vuelve la nota anterior.', 'ok');
+    } catch (e) { toast(avisoFallo(e), 'err'); }
+  });
 }
 
 // Marcar / quitar "No aplica" (Etapa 5).
