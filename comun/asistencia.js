@@ -112,12 +112,12 @@
     .asis{position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;background:#0f1218;color:#e8ecf1;
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
     .asis-bar{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:14px 20px;background:#161b23;border-bottom:1px solid #262d38}
-    .asis-tit{font-weight:800;font-size:clamp(18px,2.2vw,28px)}
-    .asis-cont{font-weight:700;font-size:clamp(14px,1.6vw,20px);color:#9aa3ad}
+    .asis-tit{font-weight:800;font-size:clamp(18px,2.2vw,max(28px,2.6vh))}
+    .asis-cont{font-weight:700;font-size:clamp(14px,1.6vw,max(20px,1.85vh));color:#9aa3ad}
     .asis-cont b.p{color:#7ee39a} .asis-cont b.a{color:#ff8a80}
     .asis-sp{flex:1}
-    .asis-hint{color:#7b8592;font-size:clamp(12px,1.2vw,15px)}
-    .asis-btn{border:none;border-radius:12px;font:inherit;font-weight:800;cursor:pointer;padding:10px 18px;font-size:clamp(14px,1.5vw,18px)}
+    .asis-hint{color:#7b8592;font-size:clamp(12px,1.2vw,max(15px,1.4vh))}
+    .asis-btn{border:none;border-radius:12px;font:inherit;font-weight:800;cursor:pointer;padding:10px 18px;font-size:clamp(14px,1.5vw,max(18px,1.67vh))}
     .asis-btn.listo{background:linear-gradient(135deg,#2e9c46,#1f7a34);color:#fff}
     .asis-btn.no{background:rgba(255,255,255,.10);color:#e8ecf1}
     .asis-btn:hover{filter:brightness(1.12)}
@@ -151,6 +151,8 @@
         return ((e.mostrar_apellido || repes[norm(nom)] > 1) && ap) ? `${nom} ${ap}` : nom;   // repetido o "mostrar con apellido"
     }
 
+    // Topes pensados para pantallas de hasta 1080 px de alto; más grandes (4K) crecen en proporción.
+    const escala = () => Math.max(1, window.innerHeight / 1080);
     function layout() {
         if (!_ui) return;
         layoutResumen();
@@ -162,13 +164,13 @@
         ctx.font = `800 100px ${getComputedStyle(board).fontFamily}`;
         const repes = _ui.repes;
         const maxW = Math.max(1, ...lista.map(e => ctx.measureText(nombreTile(e, repes)).width));
-        const cg = Math.max(6, Math.min(14, Math.round(W * 0.008)));
+        const cg = Math.max(6, Math.min(14 * escala(), Math.round(W * 0.008)));
         let best = null;
         for (let c = 1; c <= Math.min(lista.length, 40); c++) {
             const filas = Math.ceil(lista.length / c);
             const cw = Math.floor((W - cg * (c - 1)) / c), ch = Math.floor((Math.max(40, H) - cg * filas) / filas);
             if (cw < 54 || ch < 26) continue;
-            const f = Math.max(12, Math.min(ch * 0.52, (cw - 22) / (maxW / 100), 110));
+            const f = Math.max(12, Math.min(ch * 0.52, (cw - 28) / (maxW / 100), 110 * escala()));
             const score = f * 1000 + cw * ch / 1000;
             if (!best || score > best.score) best = { c, cw, ch, f, score };
         }
@@ -233,7 +235,7 @@
         let best = { c: 1, f: 12 };
         for (let c = 1; c <= Math.min(6, n); c++) {
             const filas = Math.ceil(n / c);
-            const f = Math.min(H / (filas * 1.35), ((W - gap * (c - 1)) / c) / (maxW / 100), 64);
+            const f = Math.min(H / (filas * 1.35), ((W - gap * (c - 1)) / c) / (maxW / 100), 64 * escala());
             if (f > best.f + 0.5) best = { c, f };
         }
         const st = box.style;

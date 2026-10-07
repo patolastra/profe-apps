@@ -3211,3 +3211,18 @@ Plan aprobado por el PO (2026-10-07) en dos etapas; esta ficha cubre la **Etapa 
   Pizarra se libera. Sin errores. **Falta:** probar en clase con el proyector y el Modo Clase real.
 - **Cierre Etapa 2:** commit `9bfad74` (2026-10-07). Probar en clase.
 - **Ajuste: cualquier resolución del proyector (PO, 2026-10-07).** La escala ya no tiene tope fijo: crece con el alto de la pantalla y se busca por bisección el mayor tamaño que entra (también al cambiar el tamaño de la ventana o pasar a pantalla completa). Medido con las 6 vistas + cursos simulados de 40 nombres en 800×600, 1024×768, 1280×800, 1366×768, 1920×1080 y 3840×2160: todo cabe sin scroll, usa el 100 % del alto y la letra queda en la misma proporción de la pantalla en todas (p. ej. nombres de Entregas ≈ 6 % del alto; rúbrica ≈ 3 %).
+- **Ajuste: el resto de lo que se proyecta en la Pizarra (PO, 2026-10-07).** Auditoría con la misma medición (800×600,
+  1024×768, 1366×768, 1920×1080, 3840×2160): todo cabía, pero había **topes fijos de letra** pensados para pantallas
+  de ~1080 px que en un proyector más grande dejaban la letra chica (en 4K, a la mitad de su proporción):
+  - **Diapositivas de la Pizarra** (`PIZARRA/index.html`): texto ≤ 250 px, letra de canción ≤ 220 px, modo pantalla ≤
+    200 px, modo scroll ≤ 46 px. Ahora `topeFuente(base)` (igual hasta 1080 px de alto; más grande, en proporción) y
+    scroll `max(20px, 3.4vh)`; además el ajuste de texto revisa también el ancho (palabras muy largas).
+  - **Pasar lista** (`comun/asistencia.js`): nombres ≤ 110 px, resumen ≤ 64 px, barra superior ≤ 28 px → topes en
+    proporción a la pantalla. Arreglo extra (pasaba en cualquier resolución): el cálculo no descontaba el borde del
+    cuadro y un nombre largo podía salir cortado con "…" por 3 px.
+  - **Entrenador** (`REPERTORIO/index.html`, también su copia en la Pizarra): Scroll ≤ ~60 px y Diapositiva ≤ 96 px →
+    topes en proporción a la pantalla.
+  - **Resultado medido:** en las seis resoluciones todo cabe, sin nombres cortados, y la letra mantiene la misma
+    proporción del alto (p. ej. diapositiva corta ≈ 23 %, Pasar lista con 12 estudiantes ≈ 6,5 %, Entrenador Scroll ≈
+    5,5 %; en 4:3 algo menos porque manda el ancho). Una canción larga en Diapositiva en un proyector de 800×600 queda
+    en letra chica (cabe completa a ~10 px): para esos casos conviene el modo Scroll.
