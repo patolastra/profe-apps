@@ -3189,4 +3189,23 @@ Plan aprobado por el PO (2026-10-07) en dos etapas; esta ficha cubre la **Etapa 
   al instante como "Nuevo grupo…" y sale de "Sin grupo aún"; Pizarra de la misma sesión en otra pestaña: muestra la foto
   encima, se actualiza con el armado y desaparece al soltar; sin errores. **Falta:** probar en clase con el proyector y
   el Modo Clase real.
+- **Decisión del PO para la Etapa 2 (2026-10-07):** **nunca** proyectar las notas del curso. Pestaña **Resultados**
+  en la pantalla del profe: buscar un nombre y ver su nota (grupo, ausente hoy, notas anteriores); proyectada muestra
+  **solo los pendientes de la prueba** (ausentes de hoy aparte). **Entregas:** tablero completo **con énfasis en quienes
+  no han entregado**. **Participación:** con la clase en curso, el Proyector actual además se ve en la Pizarra (nombres,
+  quién participó, contador, 🎲 elegido en grande; la preselección secreta nunca se proyecta).
 - **Cierre Etapa 1:** commit `08440d6` (2026-10-07). Probar en clase. Etapa 2 pendiente (decisión del PO sobre notas).
+- **Implementado (Etapa 2, 2026-10-07):** `LIBRO/index.html`: pestaña **Resultados** (`resPaneHTML`/`resBuscar`:
+  contador evaluados/pendientes, buscador grande, tarjeta con nota —roja bajo 4,0— o Pendiente / No aplica, grupo,
+  ausente hoy y notas anteriores; la búsqueda se conserva al redibujar); `proyFoto` suma `pend` (solo pendientes
+  presentes + ausentes de hoy aparte, sin notas), `entrega` (faltan en grande con borde naranjo, listos chicos en verde
+  con ✓, "no aplica" fuera, textos según el sentido: entregaron / recibieron) y `part` (esperando / participaron /
+  inhabilitados tenues, contador, nombre elegido en grande o "🎲 Eligiendo…"). Botón "📽️ Proyectar" en la cabecera de
+  cada entrega. Participación: con la clase en curso, abrir el Proyector también lo envía a la Pizarra y cerrarlo lo
+  suelta; sin clase, igual que antes. `comun/libro-proyeccion.js`: vistas `pend`, `entrega`, `part`.
+- **Prueba (2026-10-07, servidor local, Tercero, sin guardar nada):** Resultados: "Evaluados 14 de 26 · Pendientes 12";
+  buscar "agus" → AGUSTINA Pendiente / AGUSTÍN Grupo 1 5,8; la foto no contiene ninguna nota; proyectada cabe en
+  1366×768. Entrega "guia con QR…": "3 de 11 recibieron · faltan 8", marcar uno (solo en memoria) → "4 de 11" al
+  instante y vuelta. Participación "EL MUSEO" con clase simulada: el Proyector abre en la pantalla del profe y la
+  Pizarra muestra el tablero (5 participaron · 21 esperando) y el nombre elegido en grande; al cerrar el Proyector la
+  Pizarra se libera. Sin errores. **Falta:** probar en clase con el proyector y el Modo Clase real.
