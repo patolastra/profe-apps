@@ -2844,3 +2844,15 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
 - **Propuesta (Claude, no decidida):** botón "Resumen (N)" en el pie del tablero → pantalla aparte con la
   lista vertical `N° - APELLIDO` (talleres sin n° de lista: `APELLIDO NOMBRE`), letra grande, y un botón para
   volver.
+
+### AB. Workspace — las pestañas siguen con la versión anterior tras una actualización
+*Origen: PO (2026-10-07). Deuda registrada; no implementar sin ficha y aprobación.*
+- **Problema (visto varias veces: espejo de la Pizarra, Metalófono centrado, plan Y):** tras subir un cambio, las
+  pestañas ya abiertas del Workspace (iframes persistentes) y las ventanas abiertas (Pizarra) siguen con la versión
+  vieja; además el navegador guarda el sitio hasta 10 min (GitHub Pages, `max-age=600`). Hay que cerrar pestañas,
+  recargar con Ctrl+Shift+R y reabrir.
+- **Ya aplicado en un caso:** la Pizarra carga el espejo del Entrenador con un parámetro `v` distinto cada vez.
+- **Propuesta (Claude, no decidida):** un archivo pequeño de versión (p. ej. `version.json`, actualizado en cada
+  subida) que el Workspace consulta cada pocos minutos sin usar lo guardado; si cambió, muestra un aviso "Hay una
+  versión nueva — Recargar", que recarga el Workspace y sus pestañas pidiendo los archivos al día. Alternativa
+  mínima: que reabrir una pestaña del Workspace siempre pida la versión al día.
