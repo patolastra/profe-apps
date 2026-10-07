@@ -2947,8 +2947,8 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   `intentos_anteriores JSONB NOT NULL DEFAULT '[]'` — lista de `{ nota, fecha, resultados: [{ item, valor }] }`.
   Versionada en `supabase/libro_reevaluacion.sql` y **corrida por el PO** en Supabase. No cambia datos existentes.
 - **Fuera de alcance:** reevaluar en evaluaciones cerradas (hay que reabrirlas primero); promedios entre intentos.
-- **Implementado (2026-10-07):** `supabase/libro_reevaluacion.sql` (columna `intentos_anteriores`, **pendiente de que
-  el PO la corra en Supabase**). `LIBRO/index.html`: `cargarIntentos()` en consulta aparte (si la columna no existe,
+- **Implementado (2026-10-07):** `supabase/libro_reevaluacion.sql` (columna `intentos_anteriores`, **corrida por el PO
+  en Supabase el 2026-10-07**; verificado: la columna responde y aparecen los 14 botones en Tercero). `LIBRO/index.html`: `cargarIntentos()` en consulta aparte (si la columna no existe,
   la función queda oculta y el Libro sigue igual; la consulta da un 400 esperado); `reevalHTML()` en la celda de nota
   ("1ª nota: X" / "notas anteriores: X · Y", botones Reevaluar / Deshacer reevaluación); `reevaluar()` guarda el
   intento (nota, fecha, excepción previa, respuestas) y deja la nota en blanco, luego borra las respuestas (si eso
