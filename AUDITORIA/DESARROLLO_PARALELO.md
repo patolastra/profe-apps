@@ -3064,6 +3064,7 @@ de notas (diferenciando octavas), PARA ESCRIBIR EN EL CUADERNO" (agrupada). Apro
 - **Prueba (2026-10-07, servidor local):** profesor: cada toque avanza a la nota siguiente (0→1→2→3→4); Zapatero en
   líneas por compás (`Do♯'` agudo); rango 81→`La,` · 83→`Si,` · 84→`Do` · 96→`Do'` · 105→`La'`; Copiar y Esc OK;
   alumno sin cambios y sin el botón. Falta probar en clase.
+- **Cierre n°2 + n°3:** commit `b86a70d` (2026-10-07). Probar en clase.
 
 ### AG. Lector de Tabs — también se pierde el comienzo del audio (como AF n°4)
 *Origen: PO (2026-10-07). Deuda registrada; **arreglar después**, no implementar sin aprobación.*
