@@ -2856,9 +2856,22 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   subida) que el Workspace consulta cada pocos minutos sin usar lo guardado; si cambió, muestra un aviso "Hay una
   versión nueva — Recargar", que recarga el Workspace y sus pestañas pidiendo los archivos al día. Alternativa
   mínima: que reabrir una pestaña del Workspace siempre pida la versión al día.
+- **Decisión del PO (2026-10-07):** propuesta aprobada (aviso de versión nueva).
+- **Implementado (2026-10-07):**
+  - `version.json` en la raíz (`{ "version": "<fecha>" }`). Lo actualiza solo el gancho de Git `.githooks/pre-commit`
+    cuando el commit cambia `.html`/`.js`/`.css` (activado en este repo con `git config core.hooksPath .githooks`;
+    en otro computador hay que repetir ese comando).
+  - `PC/workspace.html`: consulta `version.json` sin usar lo guardado al abrir, cada 3 min y al volver a la ventana.
+    La última versión cargada se recuerda en el computador (`localStorage ws_version_cargada`): si al abrir ya hay
+    otra, el aviso aparece de inmediato. Botón verde "🔄 Hay una versión nueva — Recargar": guarda los Planes abiertos
+    (mismo handshake que al cerrar), pide al servidor las páginas abiertas y sus scripts/estilos (`cache:'reload'`) y
+    recarga las pestañas en su lugar; si cambió el propio Workspace, lo recarga entero. En `file://` no hace nada.
+  - Fuera de alcance: la ventana de la Pizarra ya abierta en el proyector (se recarga a mano).
+- **Prueba (2026-10-07, servidor local):** versión nueva simulada → aparece el aviso; "Recargar" recarga Dashboard y
+  Repertorio sin cerrarlos, el aviso se oculta y la versión queda recordada. Sin errores.
 
 ### AC. Libro — varios (hoja Notion "varios del libro de clases")
-*Origen: PO (2026-10-07). Plan revisado por el PO ("todo ok"), **no aprobado para implementar todavía**.*
+*Origen: PO (2026-10-07). Plan revisado por el PO ("todo ok"). **Aprobado para implementar (PO, 2026-10-07).** En implementación.*
 1. **Evaluación en pestañas.** Hoy una sola página larga: Cabecera (nombre, fecha, OA, adecuaciones) · Instrumentos ·
    Grupos de trabajo · Estudiantes · Observación general. *Plan:* barra de pestañas con esas cinco; se ve solo la
    elegida; se recuerda la última; por defecto Estudiantes. Mismo contenido y guardados.

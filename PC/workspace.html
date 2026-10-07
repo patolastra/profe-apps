@@ -104,6 +104,17 @@
     }
     #empty.hidden { display: none; }
     #empty .big { font-size: 2rem; }
+
+    /* ── AVISO DE VERSIÓN NUEVA (deuda AB) ── */
+    #ws-version {
+        margin-left: auto; align-self: center;
+        display: flex; align-items: center; gap: 8px;
+        padding: 7px 14px; border-radius: 10px; cursor: pointer;
+        background: #14532d; border: 1px solid #22c55e; color: #dcfce7;
+        font-size: 0.85rem; font-weight: 700; white-space: nowrap;
+    }
+    #ws-version:hover { background: #166534; }
+    #ws-version[hidden] { display: none; }
 </style>
 <script src="../comun/clase-vivo.js"></script>
 </head>
@@ -147,6 +158,7 @@
         <div id="launcher"></div>
     </div>
     <div id="ws-etiqueta" hidden></div>
+    <button id="ws-version" hidden title="Se subió una versión nueva de las apps. Recarga el Workspace y sus pestañas con los archivos al día (los Planes abiertos se guardan antes).">🔄 Hay una versión nueva — Recargar</button>
 </div>
 
 <div id="stage">
@@ -385,6 +397,70 @@ window.addEventListener('message', (e) => {
         if (tituloVentanaOriginal !== null) { document.title = tituloVentanaOriginal; tituloVentanaOriginal = null; }
     }
 });
+
+// ── VERSIÓN NUEVA (deuda AB) ───────────────────────────────────────────────
+// `version.json` (raíz del sitio) cambia en cada subida que toca páginas o scripts.
+// El Workspace lo consulta cada pocos minutos sin usar lo guardado; si cambió, ofrece
+// "Recargar": guarda los Planes abiertos, pide al servidor los archivos al día (para no
+// usar la copia que el navegador guarda hasta 10 min) y recarga las pestañas en su lugar.
+// La última versión cargada se recuerda en este computador: si al abrir el Workspace ya hay
+// otra, el aviso aparece de inmediato (el navegador pudo abrirlo con archivos guardados).
+// En file:// no hay nada que consultar: el aviso nunca aparece.
+const VERSION_URL = '../version.json';
+const VERSION_KEY = 'ws_version_cargada';
+let versionCargada = (() => { try { return localStorage.getItem(VERSION_KEY); } catch (_) { return null; } })();
+let versionServidor = null;
+function recordarVersion(v) { versionCargada = v; try { localStorage.setItem(VERSION_KEY, v); } catch (_) {} }
+async function leerSinCache(url, tipo) {
+    try {
+        const r = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) return null;
+        return tipo === 'json' ? await r.json() : await r.text();
+    } catch (_) { return null; }
+}
+async function revisarVersion() {
+    const v = (await leerSinCache(VERSION_URL, 'json'))?.version;
+    if (!v) return;
+    versionServidor = v;
+    if (versionCargada === null) { recordarVersion(v); return; }
+    if (v !== versionCargada) document.getElementById('ws-version').hidden = false;
+}
+async function recargarVersionNueva() {
+    const btn = document.getElementById('ws-version');
+    btn.disabled = true; btn.textContent = '🔄 Recargando…';
+    // 1) Guardar los Planes abiertos (mismo handshake que al cerrar la pestaña).
+    for (const t of tabs.filter(t => t.guardarAlCerrar)) {
+        if (!(await pedirGuardado(t))) {
+            alert('No se pudo guardar un Plan abierto. No se recargó para no perder cambios.');
+            btn.disabled = false; btn.textContent = '🔄 Hay una versión nueva — Recargar';
+            return;
+        }
+    }
+    // 2) Traer del servidor las páginas abiertas y sus scripts/estilos (refresca la copia del navegador).
+    const urls = new Set([location.href.split('#')[0]]);
+    const agregar = (doc) => doc.querySelectorAll('script[src], link[rel="stylesheet"][href]').forEach(el => {
+        const u = el.src || el.href; if (u && u.startsWith(location.origin)) urls.add(u);
+    });
+    agregar(document);
+    tabs.forEach(t => {
+        try { urls.add(t.iframeEl.contentWindow.location.href.split('#')[0]); agregar(t.iframeEl.contentDocument); } catch (_) {}
+    });
+    await Promise.all([...urls].map(u => fetch(u, { cache: 'reload' }).catch(() => {})));
+    // 3) Si cambió el propio Workspace (su código no está tal cual en el archivo nuevo), recargarlo
+    //    entero; si no, solo sus pestañas, que quedan abiertas.
+    if (versionServidor) recordarVersion(versionServidor);
+    const wsNuevo = (await leerSinCache(location.href.split('#')[0].split('?')[0], 'text'))?.replace(/\r\n?/g, '\n') ?? null;
+    const propio = [...document.querySelectorAll('style, script:not([src])')].map(el => el.textContent);
+    if (wsNuevo !== null && !propio.every(txt => wsNuevo.includes(txt))) { location.reload(); return; }
+    tabs.forEach(t => { try { t.iframeEl.contentWindow.location.reload(); } catch (_) {} });
+    btn.hidden = true; btn.disabled = false; btn.textContent = '🔄 Hay una versión nueva — Recargar';
+}
+document.getElementById('ws-version').onclick = recargarVersionNueva;
+if (location.protocol !== 'file:') {
+    revisarVersion();
+    setInterval(revisarVersion, 3 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) revisarVersion(); });
+}
 
 // ── INIT ──────────────────────────────────────────────────────────────────
 renderLauncher();
