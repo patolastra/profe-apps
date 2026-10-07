@@ -3115,3 +3115,5 @@ Alcance ajustado por el PO (2026-10-07).*
   de actividades (panel de abiertas y Archivo), listas de evaluaciones/participaciones/entregas y avisos de eliminar.
 - **Fuera de alcance:** los **informes de UTP** (documento oficial, mantienen DD/MM/AAAA y su nombre de archivo) y los
   campos para elegir fecha (los dibuja el navegador). El dato guardado no cambia.
+- **Prueba (2026-10-07):** fechaCorta('2026-10-07') = '07 OCT', '2026-01-21' = '21 ENE', vacía = '—'; página sin errores.
+- **Cierre:** commit `ac89e8f` (2026-10-07). Probar en clase.
