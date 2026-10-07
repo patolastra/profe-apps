@@ -19,6 +19,7 @@
 <script src="../comun/clase-vivo.js"></script>
 <script src="../comun/asistencia.js"></script>
 <script src="../comun/libro-proyeccion.js"></script>
+<link rel="stylesheet" href="../comun/participacion-tablero.css">
 <style>
   :root{
     --bg:#0f1216; --panel:#171c22; --panel2:#131a21; --line:#2a323c; --txt:#e6edf3;
@@ -253,91 +254,7 @@
     font-size:13.5px;background:#3a2f12;border:1px solid #7a5f1c;color:#ffe9b0;box-shadow:0 6px 24px rgba(0,0,0,.4);cursor:pointer}
   @media(max-width:640px){.grid2{grid-template-columns:1fr}.td.obj{width:auto}}
 
-  /* ══ VISTA PROYECTOR — Participación (scope .ppro-*, aislado del resto) ══ */
-  /* Overlay a viewport completo: no depende del alto de la página ni del scroll
-     del Libro. Reutiliza la identidad cromática (verde=participó · naranjo=espera). */
-  .ppro{position:fixed;inset:0;z-index:80;display:none;flex-direction:column;
-    background:radial-gradient(1200px 800px at 50% -10%,#1a2330 0%,#0d1014 60%,#090b0e 100%);
-    color:var(--txt);font-family:inherit;overflow:hidden}
-  .ppro.show{display:flex}
-  /* Barra superior: contador + controles. Sin curso/año/formalidades. */
-  .ppro-bar{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:14px 20px;
-    border-bottom:1px solid rgba(255,255,255,.07);background:rgba(0,0,0,.18)}
-  .ppro-contador{font-weight:800;letter-spacing:.01em;font-size:clamp(18px,2.4vw,30px);
-    display:flex;align-items:center;gap:12px;white-space:nowrap;flex-wrap:wrap}
-  .ppro-cn-si{color:#7ee39a}
-  .ppro-cn-sep{color:var(--mut);opacity:.6}
-  .ppro-cn-esp{color:#ffb066}
-  .ppro-spacer{flex:1}
-  .ppro-lock{display:none;align-items:center;gap:7px;font-weight:700;font-size:clamp(13px,1.5vw,18px);
-    color:#ffd9a3;background:rgba(232,115,12,.16);border:1px solid rgba(232,115,12,.4);
-    padding:6px 13px;border-radius:999px}
-  .ppro.cerrada .ppro-lock{display:inline-flex}
-  .ppro-btn{border:none;border-radius:12px;font-family:inherit;font-weight:800;cursor:pointer;
-    font-size:clamp(14px,1.6vw,19px);padding:11px 20px;letter-spacing:.01em;transition:filter .15s,transform .08s}
-  .ppro-btn:hover{filter:brightness(1.12)}
-  .ppro-btn:active{transform:scale(.96)}
-  .ppro-btn.dado{background:linear-gradient(135deg,#7b4bd6,#4b73d6);color:#fff;box-shadow:0 4px 18px rgba(90,80,220,.4)}
-  .ppro-btn.dado:disabled{background:#2a2f38;color:#5b6470;cursor:not-allowed;box-shadow:none;filter:none}
-  .ppro-btn.salir{background:rgba(255,255,255,.10);color:var(--txt)}
-  /* Cuerpo: tablero de 2 zonas en UNA composición global sin scroll. El tamaño de
-     celda/columnas/fuente lo calcula JS (proyectorLayout) y llega por variables. */
-  .ppro-board{flex:1;position:relative;display:flex;flex-direction:column;min-height:0;
-    gap:var(--zgap,12px);padding:10px 16px 14px;overflow:hidden}
-  .ppro-zona{flex:0 0 auto;min-height:0;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;
-    border:1px solid rgba(255,255,255,.06)}
-  .ppro-zona.si{background:linear-gradient(180deg,rgba(46,125,50,.16),rgba(46,125,50,.05))}
-  .ppro-zona.esp{background:linear-gradient(180deg,rgba(232,115,12,.14),rgba(232,115,12,.04))}
-  .ppro-zona-tit{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:6px 14px;
-    font-weight:800;text-transform:uppercase;letter-spacing:.07em;font-size:clamp(11px,1.25vw,15px)}
-  .ppro-zona.si  .ppro-zona-tit{color:#8ff0a6}
-  .ppro-zona.esp .ppro-zona-tit{color:#ffb066}
-  .ppro-zona-tit .cnt{opacity:.7;font-weight:700}
-  /* Grilla: filas × columnas EXPLÍCITAS (calculadas por JS). Sin overflow: todo cabe. */
-  .ppro-grid{flex:1;min-height:0;overflow:hidden;display:grid;justify-content:center;align-content:center;
-    gap:var(--cg,10px);padding:4px 12px 10px;
-    grid-template-columns:repeat(var(--cols,4),var(--cw,160px));
-    grid-auto-rows:var(--ch,80px)}
-  .ppro-tile{position:relative;display:flex;align-items:center;justify-content:center;text-align:center;
-    width:var(--cw,160px);height:var(--ch,80px);padding:0 10px;border-radius:14px;cursor:pointer;user-select:none;
-    font-weight:800;line-height:1;font-size:var(--cf,26px);white-space:nowrap;overflow:hidden;
-    border:2px solid transparent;transition:transform .12s,box-shadow .12s,filter .12s;box-sizing:border-box}
-  .ppro-tile>span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .ppro-zona.si  .ppro-tile{background:linear-gradient(160deg,#2e9c46,#1f7a34);color:#fff;
-    box-shadow:0 3px 0 rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.18)}
-  .ppro-zona.esp .ppro-tile{background:linear-gradient(160deg,#f08a25,#d1690c);color:#fff;
-    box-shadow:0 3px 0 rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.18)}
-  .ppro:not(.cerrada) .ppro-tile:hover{transform:translateY(-3px);filter:brightness(1.08);
-    box-shadow:0 8px 22px rgba(0,0,0,.35)}
-  .ppro.cerrada .ppro-tile{cursor:default}
-  /* Zona sin estudiantes: fila natural corta (no usa --ch, que sería enorme). */
-  .ppro-grid.vacia{grid-template-columns:1fr;grid-auto-rows:auto;align-content:center}
-  .ppro-vacio{grid-column:1/-1;align-self:center;text-align:center;color:var(--mut);font-weight:700;
-    font-size:clamp(13px,1.5vw,20px);opacity:.75;padding:4px 0}
-  /* Animación: entrada/cambio de zona (pop + brillo). */
-  @keyframes ppro-pop{0%{transform:scale(.55);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
-  .ppro-tile.entra{animation:ppro-pop .4s cubic-bezier(.2,.9,.3,1.2)}
-  /* Sorteo: barajado (parpadeo de candidatos). */
-  @keyframes ppro-flash{0%,100%{filter:brightness(1)}50%{filter:brightness(1.75)}}
-  .ppro-tile.barajando{outline:4px solid #fff;outline-offset:-4px;animation:ppro-flash .16s linear infinite;z-index:2}
-  /* Inhabilitado temporal (Shift+clic): gris, borde punteado, nombre tachado. Queda
-     en su lugar (no reordena el tablero) y no entra al sorteo. */
-  .ppro-zona .ppro-tile.inhab{background:#3a414b;color:#9aa3ad;box-shadow:none;opacity:.6;
-    border:2px dashed rgba(255,255,255,.28)}
-  .ppro-tile.inhab>span{text-decoration:line-through}
-  /* Destacado GIGANTE del elegido: casillero que "crece" al centro del tablero,
-     dimensionado por JS para caber sin overflow. No es un modal: vive dentro de .ppro-board. */
-  .ppro-big{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.2);
-    display:none;align-items:center;justify-content:center;text-align:center;z-index:20;
-    border-radius:26px;padding:0 6%;box-sizing:border-box;white-space:nowrap;overflow:hidden;
-    font-weight:900;line-height:1;color:#fff;background:linear-gradient(160deg,#f6a13a,#d1690c);
-    box-shadow:0 0 0 8px rgba(255,215,120,.35),0 24px 70px rgba(0,0,0,.6);opacity:0;
-    pointer-events:none}
-  .ppro-big.show{display:flex;animation:ppro-big-in .55s cubic-bezier(.18,.9,.28,1.3) forwards}
-  @keyframes ppro-big-in{0%{opacity:0;transform:translate(-50%,-50%) scale(.2)}
-    70%{opacity:1;transform:translate(-50%,-50%) scale(1.06)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
-  .ppro-big .dado{position:absolute;top:6%;right:8%;font-size:.34em}
-
+  /* Tablero de Participación (proyector): comun/participacion-tablero.css (compartido con la Pizarra). */
   /* ══ ETAPA 7 — INFORMES PDF (Opción 8a: impresión del navegador + CSS) ══ */
   /* Overlay de vista previa en pantalla; en impresión, único contenido visible. */
   #informe{position:fixed;inset:0;z-index:100;display:none;background:#4a4f57;overflow:auto;padding:24px 0}
@@ -1204,16 +1121,9 @@ function proyFoto(){
       faltan: ap.filter(d => d.estado !== 'entregado').map(d => nombreDe(d.estudiante)),
       listos: ap.filter(d => d.estado === 'entregado').map(d => nombreDe(d.estudiante)) };
   }
-  if (vistaActiva === 'part-detalle' && partActual) {   // la preselección (Ctrl+Shift) nunca viaja
-    const repes = mapaNombresRepetidos(), nom = d => nombreProyector(d.estudiante, repes);
-    const esp = partDet.filter(d => !d.participo);
-    const big = document.getElementById('ppro-big');
-    return { tipo: 'part', curso, titulo: partActual.nombre,
-      esperando: esp.map(d => ({ n: nom(d), inhab: partInhab.has(d.estudiante_id) })),
-      participaron: partDet.filter(d => d.participo).map(nom),
-      nEleg: esp.filter(partEsElegible).length,
-      big: big?.classList.contains('show') ? (document.getElementById('ppro-big-nom')?.textContent || null) : null,
-      sorteando: !!proySorteando };
+  if (vistaActiva === 'part-detalle' && partActual) {   // el tablero tal como se ve en la pantalla del profe
+    const tablero = proyTableroFoto();
+    return tablero ? { tipo: 'part', curso, titulo: partActual.nombre, tablero } : { tipo: 'pausa', curso, titulo: partActual.nombre };
   }
   if (vistaActiva !== 'eval-detalle' || !evalActual) return { tipo: 'pausa', curso, titulo: curso };
   const ev = evalActual, b = { curso, titulo: ev.nombre };
@@ -1279,6 +1189,33 @@ function resBuscar(){
     return `<div class="res-card"><div><div class="res-nom">${esc(nombreEstudiante(n))}</div>${meta ? `<div class="hint">${meta}</div>` : ''}</div>${nota}</div>`;
   }).join('') : '<p class="hint">Nadie con ese nombre en esta evaluación.</p>';
 }
+// Participación (deuda AK): la Pizarra muestra EXACTAMENTE el tablero del profe. Se envía su
+// contenido (contador, cuadros con sus clases: inhabilitado, barajando, entra…, y el nombre
+// gigante); la Pizarra lo arma con el mismo diseño (comun/participacion-tablero.css) y el mismo
+// cálculo de tamaños, adaptado a la resolución del proyector. La preselección no tiene marca
+// visual, así que tampoco viaja. Cada cambio del tablero se envía al instante.
+function proyTableroFoto(){
+  const el = document.getElementById('part-proyector');
+  if (!el || !el.classList.contains('show')) return null;
+  const limpio = h => h.replace(/\s(on\w+|title)="[^"]*"/g, '');   // sin clics ni rótulos
+  const gE = document.getElementById('ppro-grid-esp'), gS = document.getElementById('ppro-grid-si');
+  const big = document.getElementById('ppro-big');
+  return {
+    contador: document.getElementById('ppro-contador').innerHTML,
+    cntEsp: document.getElementById('ppro-cnt-esp').textContent, cntSi: document.getElementById('ppro-cnt-si').textContent,
+    esp: limpio(gE.innerHTML), si: limpio(gS.innerHTML),
+    vaciaEsp: gE.classList.contains('vacia'), vaciaSi: gS.classList.contains('vacia'),
+    cerrada: el.classList.contains('cerrada'),
+    big: big.classList.contains('show') ? (document.getElementById('ppro-big-nom').textContent || null) : null,
+  };
+}
+let _proyObsPend = 0;
+try {
+  new MutationObserver(() => {
+    if (proyModo !== 'pizarra' || _proyObsPend) return;
+    _proyObsPend = setTimeout(() => { _proyObsPend = 0; proyTick(); }, 0);
+  }).observe(document.getElementById('part-proyector'), { subtree: true, childList: true, attributes: true, characterData: true });
+} catch (_) {}
 function proyClase(){ try { return ClaseVivo.get(); } catch (_) { return null; } }
 function proyToggle(){
   if (proyOn) { proyApagar(); return; }
@@ -4577,11 +4514,11 @@ function proyectorAbierto(){ return document.getElementById('part-proyector')?.c
 
 let proyBigTimer = null;              // temporizador del destacado gigante
 let _proyRO = null, _proyRaf = 0;     // ResizeObserver + debounce por rAF
-let _proyCanvas = null;               // canvas para medir ancho de nombres
 
 async function abrirProyector(){
   if (!partActual || !partDet.length) return;
   if (proyClase() && !proyOn) proyToggle();   // clase en curso: el mismo tablero también en la Pizarra (deuda AI)
+  document.documentElement.style.overflow = 'hidden';   // sin barra de la página: el tablero usa todo el ancho (igual que en la Pizarra)
   await reconciliarPartDet();                 // partir de un estado fresco
   const el = document.getElementById('part-proyector');
   el.classList.toggle('cerrada', partActual.estado === 'cerrado');
@@ -4598,6 +4535,7 @@ async function abrirProyector(){
 }
 function cerrarProyector(){
   if (proyModo === 'pizarra' && vistaActiva === 'part-detalle') proyApagar();
+  document.documentElement.style.overflow = '';
   const el = document.getElementById('part-proyector');
   if (!el) return;
   el.classList.remove('show');
@@ -4615,90 +4553,14 @@ function proyectorOnResize(){
   _proyRaf = requestAnimationFrame(() => { _proyRaf = 0; if (proyectorAbierto()) proyectorLayout(); });
 }
 
-// Contexto 2D para medir el ancho de un nombre a 100px (misma tipografía del tile).
-function proyectorCanvasCtx(){
-  if (!_proyCanvas) _proyCanvas = document.createElement('canvas').getContext('2d');
-  const board = document.getElementById('ppro-board');
-  const fam = (board ? getComputedStyle(board).fontFamily : '') || 'system-ui, sans-serif';
-  _proyCanvas.font = `800 100px ${fam}`;
-  return _proyCanvas;
-}
-
 // ── LAYOUT GLOBAL SIN SCROLL ──────────────────────────────────
 // Mide el tablero REAL y busca la mejor combinación filas×columnas (compartida por
 // ambas zonas) para que TODOS los tiles quepan sin scroll y cada nombre entre en
 // UNA sola línea. Deriva ancho/alto de celda, gap y tamaño de fuente. Se llama al
 // abrir, tras cada cambio de estado y ante cualquier resize del viewport.
 function proyectorLayout(){
-  const board = document.getElementById('ppro-board');
-  const ppro  = document.getElementById('part-proyector');
-  if (!board || !ppro || !partActual) return;
-  const si  = partDet.filter(d => d.participo).length;
-  const esp = partDet.filter(d => !d.participo).length;
-  const N = si + esp;
-  if (!N || !board.clientHeight) return;
-
-  const cs = getComputedStyle(board);
-  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-  const padY = parseFloat(cs.paddingTop)  + parseFloat(cs.paddingBottom);
-  const zgap = parseFloat(cs.rowGap || cs.gap) || 12;      // gap entre las dos zonas
-  const availW = board.clientWidth  - padX;
-  const availH = board.clientHeight - padY;
-  if (availW <= 20 || availH <= 20) return;
-
-  // Alturas reservadas: títulos de zona (medidos), paddings internos de cada grid
-  // y placeholder de una zona vacía. Todo se descuenta ANTES de repartir filas.
-  let titH = 0;
-  board.querySelectorAll('.ppro-zona-tit').forEach(t => { titH = Math.max(titH, t.offsetHeight || 28); });
-  titH = titH || 28;
-  const gridPadV = 14, gridPadX = 24, emptyPh = 34, zonas = 2;
-  const zoneBorder = 2 * zonas;      // borde 1px arriba+abajo de cada zona
-  const safety = 6;                  // colchón anti-overflow (redondeos)
-  const zonasVacias = (si === 0 ? 1 : 0) + (esp === 0 ? 1 : 0);
-  let hFilas = availH - titH*zonas - zgap*(zonas-1) - gridPadV*zonas - emptyPh*zonasVacias - zoneBorder - safety;
-  if (hFilas < 40) hFilas = 40;
-  const wZona = availW - gridPadX;
-
-  // Ancho del nombre más largo (a 100px) → límite de fuente por ancho de celda.
-  const repes = mapaNombresRepetidos();
-  const ctx2d = proyectorCanvasCtx();
-  let maxNameW100 = 1;
-  partDet.forEach(d => { const w = ctx2d.measureText(nombreProyector(d.estudiante, repes)).width; if (w > maxNameW100) maxNameW100 = w; });
-
-  // Búsqueda explícita: para cada nº de columnas, calcula celda/fuente y puntúa.
-  const cg = Math.max(6, Math.min(16, Math.round(availW * 0.008)));
-  const padTile = 22;
-  let best = null;
-  const maxCols = Math.min(N, 60);
-  for (let c = 1; c <= maxCols; c++){
-    const rSi  = si  ? Math.ceil(si  / c) : 0;
-    const rEsp = esp ? Math.ceil(esp / c) : 0;
-    const filas = rSi + rEsp;
-    if (!filas) continue;
-    const cw = Math.floor((wZona - cg*(c-1)) / c);
-    if (cw < 54) continue;
-    const ch = Math.floor((hFilas - cg*filas) / filas);
-    if (ch < 26) continue;
-    const fByH = ch * 0.52;
-    const fByW = (cw - padTile) / (maxNameW100 / 100);
-    const f = Math.max(12, Math.min(fByH, fByW, 120));
-    const score = f * 1000 + (cw * ch) / 1000;   // prioriza fuente; desempata por área
-    if (!best || score > best.score) best = { c, cw, ch, cg, f, score };
-  }
-  // Fallback (población extrema): nunca romper — sigue sin scroll aunque baje la fuente.
-  if (!best){
-    const c = Math.max(1, Math.ceil(Math.sqrt(N)));
-    const filas = (si?Math.ceil(si/c):0) + (esp?Math.ceil(esp/c):0) || 1;
-    const cw = Math.max(40, Math.floor((wZona - cg*(c-1)) / c));
-    const ch = Math.max(20, Math.floor((hFilas - cg*filas) / filas));
-    const f  = Math.max(11, Math.min(ch*0.5, (cw - 14) / (maxNameW100/100)));
-    best = { c, cw, ch, cg, f };
-  }
-  ppro.style.setProperty('--cols', best.c);
-  ppro.style.setProperty('--cw', best.cw + 'px');
-  ppro.style.setProperty('--ch', best.ch + 'px');
-  ppro.style.setProperty('--cg', best.cg + 'px');
-  ppro.style.setProperty('--cf', Math.floor(best.f) + 'px');
+  if (!partActual) return;
+  LibroProyeccion.layoutTablero(document.getElementById('part-proyector'));   // mismo cálculo que la Pizarra
 }
 
 function proyectorContadorTxt(nSi, nEsp){
@@ -4757,20 +4619,9 @@ async function proyectorClickTile(estudianteId, ev){
 // Destacado GIGANTE del elegido: el casillero "crece" al centro del tablero,
 // dimensionado dinámicamente para caber sin overflow. No marca participación.
 function proyectorMostrarBig(d){
-  const board = document.getElementById('ppro-board');
-  const big = document.getElementById('ppro-big');
-  const nomEl = document.getElementById('ppro-big-nom');
-  if (!board || !big || !nomEl) return;
-  const nom = nombreProyector(d.estudiante, mapaNombresRepetidos());
-  nomEl.textContent = nom;
-  const bw = Math.floor(board.clientWidth  * 0.78);
-  const bh = Math.floor(board.clientHeight * 0.62);
-  big.style.width  = bw + 'px';
-  big.style.height = bh + 'px';
-  // Fuente máxima que quepa en UNA línea dentro de la caja (86% del ancho útil).
-  const w100 = proyectorCanvasCtx().measureText(nom).width;
-  const f = Math.min((bw * 0.86) / (w100 / 100), bh * 0.6);
-  big.style.fontSize = Math.max(28, Math.floor(f)) + 'px';
+  const ppro = document.getElementById('part-proyector'), big = document.getElementById('ppro-big');
+  if (!ppro || !big) return;
+  LibroProyeccion.dimensionarBig(ppro, nombreProyector(d.estudiante, mapaNombresRepetidos()));   // mismo cálculo que la Pizarra
   big.classList.add('show');
   clearTimeout(proyBigTimer);
   proyBigTimer = setTimeout(proyectorOcultarBig, 4200);

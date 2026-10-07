@@ -8,7 +8,8 @@
 //        { tipo:'grupos', curso, titulo, grupos:[{ nombre, miembros:[..], terminado }], armando:[..], sinGrupo:[..] }
 //        { tipo:'pend', curso, titulo, total, evaluados, pendientes:[..], ausentes:[..] }
 //        { tipo:'entrega', curso, titulo, hicieron, deben, faltan:[..], listos:[..] }
-//        { tipo:'part', curso, titulo, esperando:[{ n, inhab }], participaron:[..], nEleg, big, sorteando }
+//        { tipo:'part', curso, titulo, tablero:{ contador, cntEsp, cntSi, esp, si, vaciaEsp, vaciaSi, cerrada, big } }
+//          (Participación: el mismo tablero del profe, con comun/participacion-tablero.css)
 //        { tipo:'pausa', curso, titulo }
 (function () {
     const CANAL = 'profe-espejo-libro';
@@ -61,10 +62,7 @@
     .lpro-t.ok{font-size:calc(17px*var(--k));font-weight:600;background:#14361f;border-color:#166534;color:#bbf7d0}
     .lpro-t.ok::before{content:'✓ '}
     .lpro-t.inhab{opacity:.35}
-    .lpro-t.aus{font-size:calc(18px*var(--k));opacity:.55;font-weight:600}
-    .lpro-big{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.88);z-index:2}
-    .lpro-big div{font-size:min(13vw,24vh);font-weight:900;color:#fb923c;text-align:center;line-height:1.05;padding:0 4vw}
-    .lpro-big div.s{font-size:min(7vw,14vh);color:#e2e8f0}`;
+    .lpro-t.aus{font-size:calc(18px*var(--k));opacity:.55;font-weight:600}`;
     function css() {
         if (document.getElementById('lpro-css')) return;
         const st = document.createElement('style'); st.id = 'lpro-css'; st.textContent = CSS;
@@ -110,15 +108,6 @@
             const listos = f.listos.length ? `<p class="lpro-sub">${esc(f.hicieron)} (${f.listos.length})</p>${tiles(f.listos, 'ok')}` : '';
             return cnt + faltan + listos;
         }
-        if (f.tipo === 'part') {
-            const cnt = `<p class="lpro-cnt"><b>${f.participaron.length}</b> participaron · <b class="o">${f.nEleg}</b> esperando su turno</p>`;
-            const esp = f.esperando.length
-                ? `<p class="lpro-sub o">Esperando (${f.esperando.length})</p><div class="lpro-tiles">${f.esperando.map(e =>
-                    `<span class="lpro-t falta${e.inhab ? ' inhab' : ''}">${esc(e.n)}</span>`).join('')}</div>`
-                : '<div class="lpro-vacio" style="margin-top:4vh">🎉 ¡Todos participaron!</div>';
-            const si = f.participaron.length ? `<p class="lpro-sub">Participaron (${f.participaron.length})</p>${tiles(f.participaron, 'ok')}` : '';
-            return cnt + esp + si;
-        }
         return `<div class="lpro-gen"><h1>${esc(f.titulo || '')}</h1></div>`;
     }
 
@@ -141,14 +130,138 @@
         el.innerHTML = `<div class="lpro-top"><span class="lpro-curso">${esc(f.curso || '')}</span>
             <span class="lpro-titulo">${f.tipo === 'general' || f.tipo === 'pausa' ? '' : esc(f.titulo || '')}</span>
             ${conSalir ? '<button class="lpro-salir" data-salir>✕ Salir</button>' : ''}</div>
-            <div class="lpro-cuerpo">${cuerpoHTML(f)}</div>
-            ${f.tipo === 'part' && (f.big || f.sorteando) ? `<div class="lpro-big"><div class="${f.big ? '' : 's'}">${f.big ? esc(f.big) : '🎲 Eligiendo…'}</div></div>` : ''}`;
+            <div class="lpro-cuerpo">${cuerpoHTML(f)}</div>`;
         ajustar(el);
     }
 
+    // ── Tablero de Participación: mismo diseño y mismo cálculo en el Libro y en la Pizarra ──
+    const CSS_TABLERO = new URL('participacion-tablero.css', (document.currentScript && document.currentScript.src) || location.href).href;
+    let _ctx = null;
+    function medir(board) {
+        if (!_ctx) _ctx = document.createElement('canvas').getContext('2d');
+        _ctx.font = `800 100px ${(board && getComputedStyle(board).fontFamily) || 'system-ui, sans-serif'}`;
+        return _ctx;
+    }
+    // Busca la mejor combinación filas×columnas (compartida por ambas zonas) para que TODOS los
+    // cuadros quepan sin scroll y cada nombre entre en UNA línea. Lee el tablero tal como está.
+    function layoutTablero(ppro) {
+        const board = ppro && ppro.querySelector('.ppro-board');
+        if (!board) return;
+        const gSi = ppro.querySelector('.ppro-zona.si .ppro-grid'), gEsp = ppro.querySelector('.ppro-zona.esp .ppro-grid');
+        const si = gSi.querySelectorAll('.ppro-tile').length, esp = gEsp.querySelectorAll('.ppro-tile').length;
+        const N = si + esp;
+        if (!N || !board.clientHeight) return;
+        const cs = getComputedStyle(board);
+        const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+        const padY = parseFloat(cs.paddingTop)  + parseFloat(cs.paddingBottom);
+        const zgap = parseFloat(cs.rowGap || cs.gap) || 12;
+        const availW = board.clientWidth - padX, availH = board.clientHeight - padY;
+        if (availW <= 20 || availH <= 20) return;
+        let titH = 0;
+        board.querySelectorAll('.ppro-zona-tit').forEach(t => { titH = Math.max(titH, t.offsetHeight || 28); });
+        titH = titH || 28;
+        const gridPadV = 14, gridPadX = 24, emptyPh = 34, zonas = 2, zoneBorder = 2 * zonas, safety = 6;
+        const zonasVacias = (si === 0 ? 1 : 0) + (esp === 0 ? 1 : 0);
+        let hFilas = availH - titH * zonas - zgap * (zonas - 1) - gridPadV * zonas - emptyPh * zonasVacias - zoneBorder - safety;
+        if (hFilas < 40) hFilas = 40;
+        const wZona = availW - gridPadX;
+        const ctx2d = medir(board);
+        let maxNameW100 = 1;
+        ppro.querySelectorAll('.ppro-zona .ppro-tile').forEach(t => { const w = ctx2d.measureText(t.textContent.trim()).width; if (w > maxNameW100) maxNameW100 = w; });
+        const escala = Math.max(1, window.innerHeight / 1080);   // proyector grande (4K): todo en proporción
+        const cg = Math.max(6, Math.min(16 * escala, Math.round(availW * 0.008)));
+        const padTile = 22;
+        let best = null;
+        for (let c = 1; c <= Math.min(N, 60); c++) {
+            const rSi = si ? Math.ceil(si / c) : 0, rEsp = esp ? Math.ceil(esp / c) : 0, filas = rSi + rEsp;
+            if (!filas) continue;
+            const cw = Math.floor((wZona - cg * (c - 1)) / c);
+            if (cw < 54) continue;
+            const ch = Math.floor((hFilas - cg * filas) / filas);
+            if (ch < 26) continue;
+            const f = Math.max(12, Math.min(ch * 0.52, (cw - padTile) / (maxNameW100 / 100), 120 * escala));
+            const score = f * 1000 + (cw * ch) / 1000;
+            if (!best || score > best.score) best = { c, cw, ch, cg, f, score };
+        }
+        if (!best) {
+            const c = Math.max(1, Math.ceil(Math.sqrt(N)));
+            const filas = (si ? Math.ceil(si / c) : 0) + (esp ? Math.ceil(esp / c) : 0) || 1;
+            const cw = Math.max(40, Math.floor((wZona - cg * (c - 1)) / c));
+            const ch = Math.max(20, Math.floor((hFilas - cg * filas) / filas));
+            best = { c, cw, ch, cg, f: Math.max(11, Math.min(ch * 0.5, (cw - 14) / (maxNameW100 / 100))) };
+        }
+        const st = ppro.style;
+        st.setProperty('--cols', best.c); st.setProperty('--cw', best.cw + 'px'); st.setProperty('--ch', best.ch + 'px');
+        st.setProperty('--cg', best.cg + 'px'); st.setProperty('--cf', Math.floor(best.f) + 'px');
+    }
+    // Nombre gigante del elegido (🎲): caja al centro del tablero, la letra más grande que quepa.
+    function dimensionarBig(ppro, nom) {
+        const board = ppro.querySelector('.ppro-board'), big = ppro.querySelector('.ppro-big');
+        if (!board || !big) return;
+        big.firstElementChild.textContent = nom;
+        const bw = Math.floor(board.clientWidth * 0.78), bh = Math.floor(board.clientHeight * 0.62);
+        big.style.width = bw + 'px'; big.style.height = bh + 'px';
+        const w100 = medir(board).measureText(nom).width;
+        const f = Math.min((bw * 0.86) / (w100 / 100), bh * 0.6);
+        big.style.fontSize = Math.max(28, Math.floor(f)) + 'px';
+    }
+
+    // Copia en la Pizarra (solo mirar). Los cuadros se actualizan en su lugar: una animación
+    // (aparecer, barajar) no se reinicia con cada aviso.
+    let tab = null, tabBig = null;
+    function sincronizar(grid, html, vacia) {
+        const tpl = document.createElement('template'); tpl.innerHTML = html;
+        const nuevos = [...tpl.content.children], actuales = [...grid.children];
+        const clave = a => a.map(e => e.dataset.eid || e.className + e.textContent).join('|');
+        if (clave(nuevos) === clave(actuales))
+            nuevos.forEach((n, i) => { if (actuales[i].className !== n.className) actuales[i].className = n.className;
+                                      if (actuales[i].innerHTML !== n.innerHTML) actuales[i].innerHTML = n.innerHTML; });
+        else grid.replaceChildren(...nuevos);
+        grid.classList.toggle('vacia', !!vacia);
+    }
+    function pintarTablero(t) {
+        if (!document.getElementById('ppro-css')) {
+            const l = document.createElement('link'); l.id = 'ppro-css'; l.rel = 'stylesheet'; l.href = CSS_TABLERO;
+            l.onload = () => { if (tab) { layoutTablero(tab); if (tabBig) dimensionarBig(tab, tabBig); } };
+            document.head.appendChild(l);
+        }
+        if (!tab) {
+            tab = document.createElement('div');
+            tab.className = 'ppro show espejo';
+            tab.innerHTML = `<div class="ppro-bar"><div class="ppro-contador"></div>
+                <span class="ppro-lock">🔒 Participación cerrada</span><span class="ppro-spacer"></span>
+                <button class="ppro-btn dado" tabindex="-1">🎲 Elegir al azar</button><button class="ppro-btn salir" tabindex="-1">✕ Salir</button></div>
+              <div class="ppro-board">
+                <div class="ppro-zona esp"><div class="ppro-zona-tit">⏳ Esperando su turno <span class="cnt" data-c="esp"></span></div><div class="ppro-grid" data-g="esp"></div></div>
+                <div class="ppro-zona si"><div class="ppro-zona-tit">✅ Participaron <span class="cnt" data-c="si"></span></div><div class="ppro-grid" data-g="si"></div></div>
+                <div class="ppro-big"><span></span><span class="dado">🎲</span></div>
+              </div>`;
+            document.body.appendChild(tab);
+            window.addEventListener('resize', onResize);
+            tabBig = null;
+        }
+        tab.classList.toggle('cerrada', !!t.cerrada);
+        tab.querySelector('.ppro-contador').innerHTML = t.contador;
+        tab.querySelector('[data-c="esp"]').textContent = t.cntEsp;
+        tab.querySelector('[data-c="si"]').textContent = t.cntSi;
+        sincronizar(tab.querySelector('[data-g="esp"]'), t.esp, t.vaciaEsp);
+        sincronizar(tab.querySelector('[data-g="si"]'), t.si, t.vaciaSi);
+        layoutTablero(tab);
+        const big = tab.querySelector('.ppro-big');
+        if (t.big) {
+            dimensionarBig(tab, t.big);
+            if (t.big !== tabBig) { big.classList.remove('show'); void big.offsetWidth; big.classList.add('show'); }
+        } else big.classList.remove('show');
+        tabBig = t.big;
+    }
+    function quitarTablero() { if (tab) { tab.remove(); tab = null; tabBig = null; } }
+
     // ── Pantalla completa en la misma ventana (sin clase en curso) ──
     let local = null, ultimaLocal = null;
-    function onResize() { if (local) ajustar(local); if (vista) ajustar(vista); }
+    function onResize() {
+        if (local) ajustar(local); if (vista) ajustar(vista);
+        if (tab) { layoutTablero(tab); if (tabBig) dimensionarBig(tab, tabBig); }
+    }
     function abrirLocal(f, alSalir) {
         css();
         if (!local) {
@@ -199,6 +312,12 @@
         if (!canal) return;
         const miSesion = new URLSearchParams(location.search).get('sesion');
         const mostrar = f => {
+            if (f.tipo === 'part' && f.tablero) {   // Participación: el tablero idéntico al del profe
+                if (vista) { vista.remove(); vista = null; }
+                pintarTablero(f.tablero);
+                return;
+            }
+            quitarTablero();
             css();
             if (!vista) {
                 vista = document.createElement('div'); vista.className = 'lpro';
@@ -207,7 +326,7 @@
             }
             pintar(vista, f, false);
         };
-        const quitar = () => { if (vista) { vista.remove(); vista = null; } };
+        const quitar = () => { if (vista) { vista.remove(); vista = null; } quitarTablero(); };
         canal.onmessage = ev => {
             const m = ev.data || {};
             if (m.tipo === 'off') { quitar(); return; }
@@ -220,5 +339,5 @@
     }
 
     window.LibroProyeccion = { abrirLocal, actualizarLocal, cerrarLocal, localAbierta: () => !!local,
-                               encender, emitir, apagar, espejo };
+                               encender, emitir, apagar, espejo, layoutTablero, dimensionarBig };
 })();

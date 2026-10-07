@@ -3239,3 +3239,20 @@ Plan aprobado por el PO (2026-10-07) en dos etapas; esta ficha cubre la **Etapa 
 - **Prueba (2026-10-07, servidor local):** profe en 1366×768 y copia en 1920×1080 con la misma canción: al 60 % de la
   letra, el verso 69 queda al 51,6 % de la altura en ambas; arriba, el verso 13 al 47,5 % en ambas. Falta probar en
   clase.
+
+### AK. Participación en la Pizarra — idéntica al tablero del profe
+*Origen: PO (2026-10-07): "la pantalla de participación que se proyecta en la Pizarra debe ser idéntica a la que se
+presenta en la pantalla del profe". Corrige la Etapa 2 de AI, que dibujaba en la Pizarra una versión simplificada.*
+- **Implementado:** el diseño del tablero pasó del Libro a **`comun/participacion-tablero.css`** (lo usan el Libro y la
+  Pizarra; con sus propias variables, tipografía e interlineado para verse igual en ambas páginas; máximos de letra que
+  crecen con la pantalla). El cálculo de tamaños (`LibroProyeccion.layoutTablero`) y el nombre gigante
+  (`LibroProyeccion.dimensionarBig`) pasaron a `comun/libro-proyeccion.js` y el Libro los usa (`proyectorLayout`,
+  `proyectorMostrarBig`). El Libro envía el tablero tal cual (`proyTableroFoto`: contador, cuadros con sus clases
+  —inhabilitado, barajando, entra—, zonas vacías, cerrada, nombre gigante) y cada cambio sale al instante
+  (`MutationObserver`); la Pizarra lo arma con la misma estructura y actualiza los cuadros en su lugar (las animaciones
+  no se reinician). Botones "Elegir al azar" / "Salir" invisibles en la Pizarra (ocupan su lugar: misma barra). Con el
+  Proyector abierto, la página del Libro oculta su barra de desplazamiento (el tablero usa todo el ancho).
+- **Prueba (2026-10-07, servidor local, "EL MUSEO", clase simulada):** profe y Pizarra en 1366×768: mismos valores de
+  columnas / ancho / alto / letra (5 · 253 · 80 · 37 px), mismos cuadros y contador; 🎲 sorteo: el barajado se ve en la
+  Pizarra y termina en el mismo nombre gigante con el mismo tamaño (EMILIANO, 179 px); Pizarra en 1920×1080: mismo
+  tablero agrandado (letra 55 px, 5,1 % del alto), sin nombres cortados. Falta probar en clase.

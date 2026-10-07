@@ -1,0 +1,93 @@
+/* Tablero de Participación (proyector). Compartido por el Libro (pantalla del profe) y la
+   Pizarra (copia solo para mirar): así ambas pantallas son idénticas. Ver deuda AK en
+   AUDITORIA/DESARROLLO_PARALELO.md. Los tamaños los calcula LibroProyeccion.layoutTablero. */
+/* ══ VISTA PROYECTOR — Participación (scope .ppro-*, aislado del resto) ══ */
+/* Overlay a viewport completo: no depende del alto de la página ni del scroll
+   del Libro. Reutiliza la identidad cromática (verde=participó · naranjo=espera). */
+.ppro{--txt:#e6edf3;--mut:#8b98a5;font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;
+  position:fixed;inset:0;z-index:80;display:none;flex-direction:column;
+  background:radial-gradient(1200px 800px at 50% -10%,#1a2330 0%,#0d1014 60%,#090b0e 100%);
+  color:var(--txt);overflow:hidden}
+.ppro.show{display:flex}
+/* Barra superior: contador + controles. Sin curso/año/formalidades. */
+.ppro-bar{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:14px 20px;
+  border-bottom:1px solid rgba(255,255,255,.07);background:rgba(0,0,0,.18)}
+.ppro-contador{font-weight:800;letter-spacing:.01em;font-size:clamp(18px,2.4vw,max(30px,2.8vh));
+  display:flex;align-items:center;gap:12px;white-space:nowrap;flex-wrap:wrap}
+.ppro-cn-si{color:#7ee39a}
+.ppro-cn-sep{color:var(--mut);opacity:.6}
+.ppro-cn-esp{color:#ffb066}
+.ppro-spacer{flex:1}
+.ppro-lock{display:none;align-items:center;gap:7px;font-weight:700;font-size:clamp(13px,1.5vw,max(18px,1.67vh));
+  color:#ffd9a3;background:rgba(232,115,12,.16);border:1px solid rgba(232,115,12,.4);
+  padding:6px 13px;border-radius:999px}
+.ppro.cerrada .ppro-lock{display:inline-flex}
+.ppro-btn{border:none;border-radius:12px;font-family:inherit;font-weight:800;cursor:pointer;
+  font-size:clamp(14px,1.6vw,max(19px,1.76vh));padding:11px 20px;letter-spacing:.01em;transition:filter .15s,transform .08s}
+.ppro-btn:hover{filter:brightness(1.12)}
+.ppro-btn:active{transform:scale(.96)}
+.ppro-btn.dado{background:linear-gradient(135deg,#7b4bd6,#4b73d6);color:#fff;box-shadow:0 4px 18px rgba(90,80,220,.4)}
+.ppro-btn.dado:disabled{background:#2a2f38;color:#5b6470;cursor:not-allowed;box-shadow:none;filter:none}
+.ppro-btn.salir{background:rgba(255,255,255,.10);color:var(--txt)}
+/* Cuerpo: tablero de 2 zonas en UNA composición global sin scroll. El tamaño de
+   celda/columnas/fuente lo calcula JS (proyectorLayout) y llega por variables. */
+.ppro-board{flex:1;position:relative;display:flex;flex-direction:column;min-height:0;
+  gap:var(--zgap,12px);padding:10px 16px 14px;overflow:hidden}
+.ppro-zona{flex:0 0 auto;min-height:0;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.06)}
+.ppro-zona.si{background:linear-gradient(180deg,rgba(46,125,50,.16),rgba(46,125,50,.05))}
+.ppro-zona.esp{background:linear-gradient(180deg,rgba(232,115,12,.14),rgba(232,115,12,.04))}
+.ppro-zona-tit{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:6px 14px;
+  font-weight:800;text-transform:uppercase;letter-spacing:.07em;font-size:clamp(11px,1.25vw,max(15px,1.4vh))}
+.ppro-zona.si  .ppro-zona-tit{color:#8ff0a6}
+.ppro-zona.esp .ppro-zona-tit{color:#ffb066}
+.ppro-zona-tit .cnt{opacity:.7;font-weight:700}
+/* Grilla: filas × columnas EXPLÍCITAS (calculadas por JS). Sin overflow: todo cabe. */
+.ppro-grid{flex:1;min-height:0;overflow:hidden;display:grid;justify-content:center;align-content:center;
+  gap:var(--cg,10px);padding:4px 12px 10px;
+  grid-template-columns:repeat(var(--cols,4),var(--cw,160px));
+  grid-auto-rows:var(--ch,80px)}
+.ppro-tile{position:relative;display:flex;align-items:center;justify-content:center;text-align:center;
+  width:var(--cw,160px);height:var(--ch,80px);padding:0 10px;border-radius:14px;cursor:pointer;user-select:none;
+  font-weight:800;line-height:1;font-size:var(--cf,26px);white-space:nowrap;overflow:hidden;
+  border:2px solid transparent;transition:transform .12s,box-shadow .12s,filter .12s;box-sizing:border-box}
+.ppro-tile>span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ppro-zona.si  .ppro-tile{background:linear-gradient(160deg,#2e9c46,#1f7a34);color:#fff;
+  box-shadow:0 3px 0 rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.18)}
+.ppro-zona.esp .ppro-tile{background:linear-gradient(160deg,#f08a25,#d1690c);color:#fff;
+  box-shadow:0 3px 0 rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.18)}
+.ppro:not(.cerrada) .ppro-tile:hover{transform:translateY(-3px);filter:brightness(1.08);
+  box-shadow:0 8px 22px rgba(0,0,0,.35)}
+.ppro.cerrada .ppro-tile{cursor:default}
+/* Zona sin estudiantes: fila natural corta (no usa --ch, que sería enorme). */
+.ppro-grid.vacia{grid-template-columns:1fr;grid-auto-rows:auto;align-content:center}
+.ppro-vacio{grid-column:1/-1;align-self:center;text-align:center;color:var(--mut);font-weight:700;
+  font-size:clamp(13px,1.5vw,max(20px,1.85vh));opacity:.75;padding:4px 0}
+/* Animación: entrada/cambio de zona (pop + brillo). */
+@keyframes ppro-pop{0%{transform:scale(.55);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+.ppro-tile.entra{animation:ppro-pop .4s cubic-bezier(.2,.9,.3,1.2)}
+/* Sorteo: barajado (parpadeo de candidatos). */
+@keyframes ppro-flash{0%,100%{filter:brightness(1)}50%{filter:brightness(1.75)}}
+.ppro-tile.barajando{outline:4px solid #fff;outline-offset:-4px;animation:ppro-flash .16s linear infinite;z-index:2}
+/* Inhabilitado temporal (Shift+clic): gris, borde punteado, nombre tachado. Queda
+   en su lugar (no reordena el tablero) y no entra al sorteo. */
+.ppro-zona .ppro-tile.inhab{background:#3a414b;color:#9aa3ad;box-shadow:none;opacity:.6;
+  border:2px dashed rgba(255,255,255,.28)}
+.ppro-tile.inhab>span{text-decoration:line-through}
+/* Destacado GIGANTE del elegido: casillero que "crece" al centro del tablero,
+   dimensionado por JS para caber sin overflow. No es un modal: vive dentro de .ppro-board. */
+.ppro-big{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.2);
+  display:none;align-items:center;justify-content:center;text-align:center;z-index:20;
+  border-radius:26px;padding:0 6%;box-sizing:border-box;white-space:nowrap;overflow:hidden;
+  font-weight:900;line-height:1;color:#fff;background:linear-gradient(160deg,#f6a13a,#d1690c);
+  box-shadow:0 0 0 8px rgba(255,215,120,.35),0 24px 70px rgba(0,0,0,.6);opacity:0;
+  pointer-events:none}
+.ppro-big.show{display:flex;animation:ppro-big-in .55s cubic-bezier(.18,.9,.28,1.3) forwards}
+@keyframes ppro-big-in{0%{opacity:0;transform:translate(-50%,-50%) scale(.2)}
+  70%{opacity:1;transform:translate(-50%,-50%) scale(1.06)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.ppro-big .dado{position:absolute;top:6%;right:8%;font-size:.34em}
+
+/* Copia en la Pizarra: sin botones ni clics, encima de la diapositiva. */
+.ppro.espejo{z-index:8600}
+.ppro.espejo .ppro-btn{visibility:hidden}   /* ocupan su lugar: misma barra, mismos tamaños que el profe */
+.ppro.espejo .ppro-tile{cursor:default;pointer-events:none}
