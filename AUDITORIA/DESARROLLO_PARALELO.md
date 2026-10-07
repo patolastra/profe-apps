@@ -3226,3 +3226,16 @@ Plan aprobado por el PO (2026-10-07) en dos etapas; esta ficha cubre la **Etapa 
     proporción del alto (p. ej. diapositiva corta ≈ 23 %, Pasar lista con 12 estudiantes ≈ 6,5 %, Entrenador Scroll ≈
     5,5 %; en 4:3 algo menos porque manda el ancho). Una canción larga en Diapositiva en un proyector de 800×600 queda
     en letra chica (cabe completa a ~10 px): para esos casos conviene el modo Scroll.
+
+### AJ. Entrenador en la Pizarra — la copia sigue el desplazamiento de la letra del profe (modo Scroll)
+*Origen: PO (2026-10-07), hallazgo en uso. Complementa "Desarrollo paralelo: Entrenador en la Pizarra (espejo)".*
+- **Pedido:** en modo Scroll, el scroll de la Pizarra tiene que copiar el de la pantalla del profe.
+- **Auditoría:** la copia solo seguía el verso activo (se centraba sola al cambiar de verso); el desplazamiento a mano
+  del profe no viajaba. Las pantallas miden distinto, así que copiar la posición en píxeles no sirve.
+- **Implementado (`REPERTORIO/index.html`):** `espejoAnclaScroll()` = verso más cercano al centro de la vista del profe +
+  su altura relativa; va en cada estado y, además, al instante con cada movimiento (`tipo:'scroll'`, una vez por
+  cuadro). `espejoAplicarScroll()` en la copia ubica ese mismo verso a la misma altura. En la copia, modo Scroll, ya no
+  se centra sola en el verso activo (manda el profe; cuando suena, la vista del profe se centra y la copia la sigue).
+- **Prueba (2026-10-07, servidor local):** profe en 1366×768 y copia en 1920×1080 con la misma canción: al 60 % de la
+  letra, el verso 69 queda al 51,6 % de la altura en ambas; arriba, el verso 13 al 47,5 % en ambas. Falta probar en
+  clase.

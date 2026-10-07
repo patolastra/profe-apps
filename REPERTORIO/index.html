@@ -6606,7 +6606,9 @@ function entActualizarLinea(idx) {
         el.classList.toggle('activa', parseInt(el.dataset.orig) === idx);
     });
     const activa = document.querySelector('.ent-lyric-line.activa');
-    if (activa && entViewMode !== 'pantalla') activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // En la copia de la Pizarra (modo Scroll) manda el desplazamiento del profe (espejoAplicarScroll).
+    if (activa && entViewMode !== 'pantalla' && !(ESPEJO && entViewMode === 'scroll'))
+        activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 // Navegación de verso con ↑/↓. Salta al verso anterior/siguiente y posiciona el audio
@@ -8317,8 +8319,33 @@ function espejoEstado() {
         ritmoModo: entRitmoModo, ritmoTresillo: entRitmoTresillo,
         metal: document.getElementById('metal-overlay').classList.contains('visible'),
         t: a.currentTime || 0, sonando: !a.paused && !a.ended, vel: a.playbackRate || 1,
+        scroll: espejoAnclaScroll(),
         enviado: Date.now(),
     };
+}
+// Desplazamiento de la letra en modo Scroll (PO, 2026-10-07): las pantallas miden distinto, así
+// que no se copia la posición en píxeles sino un ancla: el verso más cercano al centro de la vista
+// del profe y a qué altura relativa está. La copia ubica ese mismo verso a la misma altura.
+function espejoAnclaScroll() {
+    if (entViewMode !== 'scroll') return null;
+    const z = document.getElementById('ent-zona');
+    if (!z || !z.clientHeight) return null;
+    const zr = z.getBoundingClientRect(), cy = zr.top + z.clientHeight / 2;
+    let best = null, bd = Infinity;
+    z.querySelectorAll('.ent-lyric-line[data-orig]').forEach(el => {
+        const r = el.getBoundingClientRect(), c = r.top + r.height / 2, d = Math.abs(c - cy);
+        if (d < bd) { bd = d; best = { orig: +el.dataset.orig, rel: (c - zr.top) / z.clientHeight }; }
+    });
+    return best;
+}
+function espejoAplicarScroll(sc) {
+    if (!sc || entViewMode !== 'scroll') return;
+    const z = document.getElementById('ent-zona');
+    const el = z?.querySelector(`.ent-lyric-line[data-orig="${sc.orig}"]`);
+    if (!el || !z.clientHeight) return;
+    const zr = z.getBoundingClientRect(), r = el.getBoundingClientRect();
+    const delta = (r.top + r.height / 2 - zr.top) - sc.rel * z.clientHeight;
+    if (Math.abs(delta) > 2) z.scrollTop += delta;
 }
 function espejoEmitir() {
     if (!espejoOn || !espejoCanal) return;
@@ -8409,6 +8436,7 @@ function espejoAplicar(e) {
     }
     // Detenido: el verso activo puede cambiar sin audio (clic en un verso, ↑/↓).
     if (!e.sonando && e.linea >= 0 && e.linea !== entrenadorLineIdx) entActualizarLinea(e.linea);
+    espejoAplicarScroll(e.scroll);
     // Metalófono: se muestra si el profe lo abrió o si el recurso activo es un metalófono
     // (aunque el profe aún no apriete "Abrir en Metalófono"): nunca queda ese botón proyectado.
     const metalActivo = entrenadorAssetActivo?.tipo === 'metalofono' && !!entrenadorAssetActivo.storage_path;
@@ -8583,11 +8611,21 @@ if (ESPEJO) {
     if (espejoCanal) espejoCanal.onmessage = ev => {
         const m = ev.data || {};
         if (m.tipo === 'estado') espejoAplicar(m);
+        else if (m.tipo === 'scroll') espejoAplicarScroll(m.s);
         else if (m.tipo === 'ritmo') espejoRitmo(m);
         else if (m.tipo === 'metal') espejoMetalAplicar(m);
     };
 } else {
     ['play', 'pause', 'seeked', 'ratechange'].forEach(t => entAudio().addEventListener(t, espejoEmitir));
+    let espejoScrollRaf = 0;
+    document.getElementById('ent-zona').addEventListener('scroll', () => {
+        if (!espejoOn || !espejoCanal || espejoScrollRaf) return;
+        espejoScrollRaf = requestAnimationFrame(() => {
+            espejoScrollRaf = 0;
+            const sc = espejoAnclaScroll();
+            if (sc) espejoCanal.postMessage({ tipo: 'scroll', s: sc });
+        });
+    }, { passive: true });
     document.getElementById('metal-iframe').addEventListener('load', espejoMetalObservar);
     ClaseVivo.onCambio(espejoPintarBoton);
     espejoPintarBoton();
