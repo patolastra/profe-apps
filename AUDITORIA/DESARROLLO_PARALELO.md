@@ -3152,3 +3152,40 @@ Alcance ajustado por el PO (2026-10-07).*
   campos para elegir fecha (los dibuja el navegador). El dato guardado no cambia.
 - **Prueba (2026-10-07):** fechaCorta('2026-10-07') = '07 OCT', '2026-01-21' = '21 ENE', vacía = '—'; página sin errores.
 - **Cierre:** commit `ac89e8f` (2026-10-07). Probar en clase.
+
+### AI. Libro — proyectar evaluaciones, participaciones y entregas (Pizarra o pantalla completa)
+*Origen: Backlog Notion "Proyectar desde el Libro: grupos de trabajo (evaluaciones) y entregas" (prioridad Aprobada).
+Plan aprobado por el PO (2026-10-07) en dos etapas; esta ficha cubre la **Etapa 1**.*
+- **Necesidad:** que el curso vea en el proyector lo que el profe trabaja en el Libro: la evaluación, su instrumento y,
+  sobre todo, el **armado de los grupos de trabajo en vivo** (el profe arma en su pantalla y el curso lo ve).
+- **Decisión del PO:**
+  - Botón **"📽️ Proyectar"**. Con la clase en curso se proyecta en la **Pizarra** (como el Entrenador en la Pizarra:
+    solo mirar, al instante, al soltarlo la Pizarra vuelve a su diapositiva); sin clase, pantalla completa en la misma
+    ventana (como el Proyector de Participación).
+  - Evaluaciones: la pestaña "Cabecera" pasa a llamarse **"General"**; se proyecta la pestaña abierta: General (nombre,
+    fecha, OA), Instrumentos (rúbrica / lista de cotejo en grande), Grupos de trabajo (grupos e integrantes, el grupo que
+    se está armando y quienes aún no tienen grupo). Estudiantes y Observación general **no** se proyectan.
+  - **Etapa 2 (pendiente):** pestaña Resultados (✓ evaluado / pendiente; notas solo con botón "Mostrar notas" —
+    recomendación de Claude, **decisión del PO pendiente**), Entregas (tablero) y Participación hacia la Pizarra.
+- **Auditoría:** ya existen dos patrones: Entrenador en la Pizarra (`profe-espejo-entrenador`: la Pizarra carga una
+  copia del Entrenador en una capa) y Pasar lista (`comun/asistencia.js`: pieza compartida que dibuja el mismo tablero
+  en la Pizarra). Para el Libro conviene el segundo: una pieza liviana **`comun/libro-proyeccion.js`** que recibe una
+  "foto" de lo que se muestra (sin notas ni comentarios) y la dibuja en la Pizarra o a pantalla completa; la Pizarra no
+  necesita cargar el Libro ni Supabase. El Libro arma la foto desde lo que ya tiene en memoria (evaluación, adecuaciones
+  no, instrumentos, grupos, selección en curso). Sin cambios en Supabase.
+- **Privacidad:** la foto no lleva notas, comentarios, adecuaciones ni observaciones; los nombres usan la regla del
+  Libro (nombre, A–Z).
+- **Implementado (Etapa 1, 2026-10-07):** `comun/libro-proyeccion.js` (`LibroProyeccion`: dibuja la foto, se agranda
+  hasta llenar la pantalla sin scroll; `abrirLocal` pantalla completa con ✕ Salir / Esc; `encender`/`emitir`/`apagar`
+  hacia la Pizarra por el canal `profe-espejo-libro` + `localStorage` para una Pizarra recién abierta; `espejo()` en la
+  Pizarra, capa encima de la diapositiva). `LIBRO/index.html`: pestaña "General", botón "📽️ Proyectar" en la barra de
+  pestañas de la evaluación, `proyFoto()` (General / Instrumentos: el abierto con "Ver", si no el del OA, si no el
+  primero / Grupos: grupos con integrantes, "Nuevo grupo…" con la selección en curso y "Sin grupo aún" / otras pestañas:
+  solo el nombre), envío cada 0,3 s solo si cambió; sin clase en curso → pantalla completa; si la clase termina se suelta
+  solo. `PIZARRA/index.html`: carga la pieza y llama `LibroProyeccion.espejo()`.
+- **Prueba (2026-10-07, servidor local, Tercero, "Repertorio (Chicos y chicas)", sin guardar nada):** pestañas
+  General / Instrumentos / Grupos de trabajo / Estudiantes / Observación general; sin clase → pantalla completa; las
+  cuatro vistas caben sin scroll en 1366×768 (rúbrica de 4 niveles completa); seleccionar estudiantes en Grupos aparece
+  al instante como "Nuevo grupo…" y sale de "Sin grupo aún"; Pizarra de la misma sesión en otra pestaña: muestra la foto
+  encima, se actualiza con el armado y desaparece al soltar; sin errores. **Falta:** probar en clase con el proyector y
+  el Modo Clase real.

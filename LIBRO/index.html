@@ -18,6 +18,7 @@
 <script src="../supabase/contextos.js"></script>
 <script src="../comun/clase-vivo.js"></script>
 <script src="../comun/asistencia.js"></script>
+<script src="../comun/libro-proyeccion.js"></script>
 <style>
   :root{
     --bg:#0f1216; --panel:#171c22; --panel2:#131a21; --line:#2a323c; --txt:#e6edf3;
@@ -69,6 +70,7 @@
   .msg.ok{background:#1e3a24;border:1px solid #2c6a3a;color:#d7ffe2}
   .adec-list{margin:8px 0 0;padding:0;list-style:none}
   .adec-list li{padding:6px 0;border-top:1px solid var(--line);color:var(--txt)}
+  #btn-proy.on{background:#7c2d12;border-color:#ea580c;color:#fff}
   .adec-list li .badge-hoy{display:inline-block;background:var(--acc);color:#fff;font-size:10px;font-weight:700;letter-spacing:.04em;border-radius:4px;padding:1px 6px;margin-right:8px;vertical-align:1px}
   .adec-list li .ix{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.03em;margin-right:8px}
   .adec-list li.adec-li{display:flex;align-items:flex-start;gap:8px}
@@ -1049,12 +1051,13 @@ function renderDetalle(){
   v.innerHTML = `
     <div class="ev-tabs" role="tablist">${tabs.map(([k, lab]) =>
       `<button type="button" class="btn seg" data-evtab="${k}" role="tab" onclick="evIrTab('${k}')">${lab}</button>`).join('')}
-      <span class="badge ${ev.estado}" style="margin-left:auto;align-self:center">${ev.estado}</span>
+      <button type="button" class="btn" id="btn-proy" style="margin-left:auto" onclick="proyToggle()">📽️ Proyectar</button>
+      <span class="badge ${ev.estado}" style="align-self:center">${ev.estado}</span>
     </div>
     <div class="ev-pane" data-pane="cab">
     <div class="card">
       <div class="row" style="justify-content:space-between">
-        <p class="sec-title" style="margin:0">Cabecera · ${esc(ev.nombre)}</p>
+        <p class="sec-title" style="margin:0">General · ${esc(ev.nombre)}</p>
       </div>
       <div class="grid2" style="margin-top:10px">
         <div><label>Nombre</label><input id="d-nombre" value="${esc(ev.nombre)}" ${dis}></div>
@@ -1131,6 +1134,7 @@ function renderDetalle(){
     <div class="ev-pane" data-pane="obs">${obsGenCardHTML(cerrada)}</div>`;
 
   evMostrarTab();
+  proyPintarBoton();
   filtrarEstudiantes();   // contador de "Pendientes (N)"
   bindInstrCard();   // Etapa 3: piso + carga de plantilla + asociaciones
   bindObsGen();      // Observación general: borrador + guardado automático al salir
@@ -1175,9 +1179,86 @@ function renderDetalle(){
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// PROYECTAR (deuda AI, Etapa 1). Con la clase en curso, la pestaña abierta de la
+// evaluación se muestra en la Pizarra (solo mirar, al instante); sin clase, a pantalla
+// completa en esta ventana. La "foto" sale de lo que ya está en memoria y NO lleva notas,
+// comentarios, adecuaciones ni observaciones (comun/libro-proyeccion.js la dibuja).
+// ══════════════════════════════════════════════════════════════
+let proyOn = false, proyModo = null, proyTimer = null;   // proyModo: 'pizarra' | 'local'
+function proyFoto(){
+  const curso = ctxNombreVisible(ctxVinculado ? pobCtxNombre : ctxNombre);
+  if (vistaActiva !== 'eval-detalle' || !evalActual) return { tipo: 'pausa', curso, titulo: curso };
+  const ev = evalActual, b = { curso, titulo: ev.nombre };
+  if (evTab === 'cab') return { ...b, tipo: 'general', fecha: fechaCorta(ev.fecha), oa: ev.oa_original || '' };
+  if (evTab === 'instr') {
+    // El instrumento abierto con "Ver"; si no, el del OA original; si no, el primero.
+    const i = evalInstrumentos.find(x => x.id === instrVerId) || evalInstrumentos.find(x => x.id === ev.instrumento_id) || evalInstrumentos[0];
+    return { ...b, tipo: 'instr', instr: i ? {
+      nombre: i.nombre, clase: i.tipo === 'rubrica' ? 'rubrica' : 'cotejo',
+      niveles: PL_NIVELES.map(([, lab, n]) => `${lab} (${n})`),
+      items: instrItemsDe(i.id).map(it => ({ texto: it.texto, desc: PL_NIVELES.map(([k]) => it[k] || '—') })),
+    } : null };
+  }
+  if (evTab === 'grupos') {
+    const ord = cmpEstudiantes(n => n.estudiante, n => posMap[n.estudiante_id]);
+    const nom = n => nombreDe(n.estudiante);
+    const disp = notas.filter(estDisponible).sort(ord);
+    return { ...b, tipo: 'grupos',
+      grupos: grupos.map(g => ({ nombre: g.nombre, terminado: grupoTerminado(g),
+        miembros: notas.filter(n => n.grupo_id === g.id).sort(ord).map(nom) })),
+      armando: disp.filter(n => grupoSelIds.has(n.id)).map(nom),     // el grupo que el profe está armando
+      sinGrupo: disp.filter(n => !grupoSelIds.has(n.id)).map(nom) };
+  }
+  return { ...b, tipo: 'pausa' };   // Estudiantes / Observación general: no se proyectan
+}
+function proyClase(){ try { return ClaseVivo.get(); } catch (_) { return null; } }
+function proyToggle(){
+  if (proyOn) { proyApagar(); return; }
+  const st = proyClase();
+  proyOn = true;
+  if (st) {
+    proyModo = 'pizarra';
+    // Pizarra cerrada → se abre en el proyector, igual que "Comenzar clase".
+    if (!Proyeccion.pizarraViva())
+      Proyeccion.abrir(`../PIZARRA/index.html?sesion=${encodeURIComponent(st.sesionId)}&slide=0`, 'profe-proyeccion');
+    LibroProyeccion.encender(st.sesionId, proyFoto());
+  } else {
+    proyModo = 'local';
+    LibroProyeccion.abrirLocal(proyFoto(), () => { if (proyModo === 'local') proyApagar(); });
+  }
+  clearInterval(proyTimer); proyTimer = setInterval(proyTick, 300);
+  proyPintarBoton();
+}
+function proyTick(){
+  if (!proyOn) return;
+  const f = proyFoto();
+  if (proyModo === 'pizarra') {
+    const st = proyClase();
+    if (!st) { proyApagar(); return; }   // terminó la clase: se suelta solo
+    LibroProyeccion.emitir(st.sesionId, f);
+  } else LibroProyeccion.actualizarLocal(f);
+}
+function proyApagar(){
+  const m = proyModo;
+  clearInterval(proyTimer); proyTimer = null;
+  proyOn = false; proyModo = null;
+  if (m === 'pizarra') LibroProyeccion.apagar();
+  else if (m === 'local') LibroProyeccion.cerrarLocal();
+  proyPintarBoton();
+}
+function proyPintarBoton(){
+  const bt = document.getElementById('btn-proy'); if (!bt) return;
+  bt.classList.toggle('on', proyOn);
+  bt.textContent = proyOn ? '📽️ Proyectando' : '📽️ Proyectar';
+  bt.title = proyOn ? 'Dejar de proyectar'
+                    : (proyClase() ? 'Mostrar esta pestaña en la Pizarra' : 'Mostrar esta pestaña a pantalla completa');
+}
+window.addEventListener('pagehide', () => { if (proyModo === 'pizarra') LibroProyeccion.apagar(); });
+
 // Pestañas de la evaluación (deuda AC-1): se ve solo la elegida; las demás quedan armadas
 // pero ocultas (mismos guardados). Se recuerda la última; por defecto Estudiantes.
-const EV_TABS = [['cab', 'Cabecera'], ['instr', 'Instrumentos'], ['grupos', 'Grupos de trabajo'],
+const EV_TABS = [['cab', 'General'], ['instr', 'Instrumentos'], ['grupos', 'Grupos de trabajo'],
                  ['est', 'Estudiantes'], ['obs', 'Observación general']];
 let evTab = (() => { try { return localStorage.getItem('libro_eval_tab') || 'est'; } catch (_) { return 'est'; } })();
 function evMostrarTab(){
