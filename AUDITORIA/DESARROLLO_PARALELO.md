@@ -3104,3 +3104,14 @@ de notas (diferenciando octavas), PARA ESCRIBIR EN EL CUADERNO" (agrupada). Apro
 - **Cierre parte 2:** commit `7e7a09d` (2026-10-07). Probar en clase (parlantes del computador y del proyector).
 - **Estado (PO, 2026-10-07):** **pendiente de revisión en uso real** (partes 1 y 2). Se cierra cuando el PO lo
   compruebe en clase.
+
+### AH. Libro — fechas cortas "07 OCT" y marca HOY en el historial de observaciones
+*Origen: Backlog Notion "Historial pedagógico: fecha legible, badge HOY, una nota editable por fecha" (2026-09-23).
+Alcance ajustado por el PO (2026-10-07).*
+- **Decisión del PO:** (1) la fecha legible es **el mismo formato en todo el Libro: día + mes, "07 OCT"**; (2) marca
+  **HOY** en el historial pedagógico: sí; (3) "una sola nota por fecha, editable y bloqueada después de una semana":
+  **no se hace**.
+- **Auditoría:** el Libro mostraba las fechas tal como se guardan ("2026-09-21") en: historial de observaciones, filas
+  de actividades (panel de abiertas y Archivo), listas de evaluaciones/participaciones/entregas y avisos de eliminar.
+- **Fuera de alcance:** los **informes de UTP** (documento oficial, mantienen DD/MM/AAAA y su nombre de archivo) y los
+  campos para elegir fecha (los dibuja el navegador). El dato guardado no cambia.

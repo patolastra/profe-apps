@@ -69,6 +69,7 @@
   .msg.ok{background:#1e3a24;border:1px solid #2c6a3a;color:#d7ffe2}
   .adec-list{margin:8px 0 0;padding:0;list-style:none}
   .adec-list li{padding:6px 0;border-top:1px solid var(--line);color:var(--txt)}
+  .adec-list li .badge-hoy{display:inline-block;background:var(--acc);color:#fff;font-size:10px;font-weight:700;letter-spacing:.04em;border-radius:4px;padding:1px 6px;margin-right:8px;vertical-align:1px}
   .adec-list li .ix{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.03em;margin-right:8px}
   .adec-list li.adec-li{display:flex;align-items:flex-start;gap:8px}
   .adec-list li.adec-li .adec-txt{flex:1}
@@ -895,7 +896,7 @@ async function renderLista(){
     <div class="eval-item" onclick="abrirDetalle('${ev.id}')">
       <div>
         <div><b>${esc(ev.nombre)}</b></div>
-        <div class="meta">${esc(ev.fecha)}</div>
+        <div class="meta">${esc(fechaCorta(ev.fecha))}</div>
       </div>
       <span class="badge ${ev.estado}">${ev.estado}</span>
     </div>`).join('');
@@ -1991,7 +1992,7 @@ async function eliminarEval(){
   const conNota = notas.filter(n => n.nota != null).length;
   const conComent = notas.filter(n => (n.comentario || '').trim()).length;
   const obs = (obsGenBorrador ?? ev.observacion_general ?? '').trim();
-  const ok = confirmarEliminacion(`¿Eliminar la evaluación "${ev.nombre}" (${ev.fecha})?`, [
+  const ok = confirmarEliminacion(`¿Eliminar la evaluación "${ev.nombre}" (${fechaCorta(ev.fecha)})?`, [
     'la evaluación y su OA original',
     plural(notas.length, 'estudiante registrado', 'estudiantes registrados') + (conNota ? ` (${plural(conNota, 'con nota', 'con nota')})` : ''),
     conComent ? plural(conComent, 'comentario individual', 'comentarios individuales') : '',
@@ -2014,7 +2015,7 @@ async function eliminarPart(){
   const p = partActual; if (!p) return;
   if (p.estado === 'cerrado') { toast('Una participación cerrada no se puede eliminar. Reábrela primero.', 'err'); return; }
   const si = partDet.filter(d => d.participo).length;
-  const ok = confirmarEliminacion(`¿Eliminar la participación "${p.nombre}" (${p.fecha})?`, [
+  const ok = confirmarEliminacion(`¿Eliminar la participación "${p.nombre}" (${fechaCorta(p.fecha)})?`, [
     'la participación',
     plural(partDet.length, 'estudiante registrado', 'estudiantes registrados') + (si ? ` (${si} marcados "participó")` : ''),
   ]);
@@ -2031,7 +2032,7 @@ async function eliminarEntrega(){
   if (e.estado === 'cerrado') { toast('Una entrega cerrada no se puede eliminar. Reábrela primero.', 'err'); return; }
   const aplican = entregaDet.filter(d => d.estado !== 'no_aplica').length;
   const entregados = entregaDet.filter(d => d.estado === 'entregado').length;
-  const ok = confirmarEliminacion(`¿Eliminar la entrega "${e.nombre}" (${e.fecha})?`, [
+  const ok = confirmarEliminacion(`¿Eliminar la entrega "${e.nombre}" (${fechaCorta(e.fecha)})?`, [
     'la entrega',
     plural(entregaDet.length, 'estudiante registrado', 'estudiantes registrados') + ` (${aplican} ${entTxt(e).deben}, ${entregados} ${entTxt(e).hicieron})`,
   ]);
@@ -2317,7 +2318,7 @@ function backAPanel(){ const b = document.getElementById('btn-volver'); if (b){ 
 // que abre el detalle existente (abrirDetalle / abrirPartDetalle / abrirEntregaDetalle).
 function filaActividad(cat, etiqueta, fn, r){
   return `<div class="eval-item ${cat}" onclick="${fn}('${r.id}')" title="Abrir ${etiqueta.toLowerCase()}">
-      <div><div><b>${esc(r.nombre)}</b></div><div class="meta">${esc(r.fecha)}</div></div>
+      <div><div><b>${esc(r.nombre)}</b></div><div class="meta">${esc(fechaCorta(r.fecha))}</div></div>
       <span class="act-tag">${etiqueta}</span>
     </div>`;
 }
@@ -3994,6 +3995,13 @@ async function poblacionContexto(fecha){
 // No borra filas: lo anotado del retirado queda guardado (si se reintegra, vuelve).
 // Las cerradas son una foto: no se llama para ellas.
 const hoyLocal = () => new Date().toLocaleDateString('sv');   // YYYY-MM-DD en hora local
+// Fecha para mostrar en el Libro (deuda AH): 'YYYY-MM-DD' → '07 OCT'. Los informes de UTP
+// usan su propio formato (informeFecha); el dato guardado no cambia.
+const MESES_CORTOS = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+function fechaCorta(f){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(f || '');
+  return m ? `${m[3]} ${MESES_CORTOS[+m[2] - 1]}` : (f || '—');
+}
 const _listaAlDiaEnCurso = {};   // tabla:actividad → promesa (abrir dos veces seguidas no la corre dos veces)
 function listaAlDia(o){
   const k = o.tabla + ':' + o.actividadId;
@@ -4055,7 +4063,7 @@ async function renderPartLista(){
   if (!regs.length) { cont.innerHTML = '<p class="hint">Aún no hay registros de participación.</p>'; return; }
   cont.innerHTML = regs.map(r => `
     <div class="eval-item" onclick="abrirPartDetalle('${r.id}')">
-      <div><div><b>${esc(r.nombre)}</b></div><div class="meta">${esc(r.fecha)}</div></div>
+      <div><div><b>${esc(r.nombre)}</b></div><div class="meta">${esc(fechaCorta(r.fecha))}</div></div>
       <span class="badge ${r.estado}">${r.estado}</span>
     </div>`).join('');
 }
@@ -4764,7 +4772,7 @@ async function renderEntregasLista(){
   if (!regs.length) { cont.innerHTML = '<p class="hint">Aún no hay entregas.</p>'; return; }
   cont.innerHTML = regs.map(r => `
     <div class="eval-item" onclick="abrirEntregaDetalle('${r.id}')">
-      <div><div><b>${esc(r.nombre)}</b></div><div class="meta">${esc(r.fecha)}${entEsProfe(r) ? ' · 📤 material entregado por el profe' : ''}</div></div>
+      <div><div><b>${esc(r.nombre)}</b></div><div class="meta">${esc(fechaCorta(r.fecha))}${entEsProfe(r) ? ' · 📤 material entregado por el profe' : ''}</div></div>
       <span class="badge ${r.estado}">${r.estado}</span>
     </div>`).join('');
 }
@@ -5102,7 +5110,7 @@ async function renderObservaciones(){
 function renderObsPanel(draft){
   const wrap = document.getElementById('obs-panel'); if (!wrap) return;
   if (!obsEstSel) { wrap.innerHTML = ''; return; }
-  const hoy = new Date().toISOString().slice(0,10);
+  const hoy = hoyLocal();
   wrap.innerHTML = `
     <div class="card">
       <p class="sec-title">Nueva observación · ${esc(nombreDe(obsEstSel))}</p>
@@ -5124,7 +5132,8 @@ function renderObsPanel(draft){
 
 function obsHistHTML(){
   if (!obsHist.length) return '<li class="hint" style="border:none">Sin observaciones anteriores.</li>';
-  return obsHist.map(o => `<li><span class="ix">${esc(o.fecha)}</span>${esc(o.texto)}</li>`).join('');
+  const hoy = hoyLocal();
+  return obsHist.map(o => `<li><span class="ix">${esc(fechaCorta(o.fecha))}</span>${o.fecha === hoy ? '<span class="badge-hoy">HOY</span>' : ''}${esc(o.texto)}</li>`).join('');
 }
 
 async function obsSeleccionar(estId){
