@@ -2511,6 +2511,25 @@
         .ped-item button:hover { border-color: var(--accent); color: var(--accent); }
         .ped-item button.danger:hover { border-color: var(--red); color: var(--red); }
         .ped-vacio { color: var(--muted); font-size: 0.9rem; padding: 30px 0; text-align: center; }
+        .ped-item a.ped-link {
+            border: 1.5px solid var(--border); border-radius: 8px; padding: 5px 12px; font-size: 0.78rem;
+            color: var(--muted); text-decoration: none; white-space: nowrap;
+        }
+        .ped-item a.ped-link:hover { border-color: var(--accent); color: var(--accent); }
+        .esl-link { color: #ea580c; text-decoration: none; font-size: 0.66rem; margin-top: 2px; }
+        .esl-link:hover { text-decoration: underline; }
+        .esl-pedido-btns { display: flex; gap: 8px; align-items: center; }
+        /* Pedidos en el tema claro del Entrenador */
+        #entrenador-overlay.ent-light #ent-btn-pedir { background: #e2e8f0; border-color: #cbd5e1; color: #475569; }
+        #entrenador-overlay.ent-light #ent-btn-pedir:hover { border-color: #ea580c; color: #ea580c; }
+        #entrenador-overlay.ent-light .esl-sep { color: #64748b; border-top-color: #e2e8f0; }
+        #entrenador-overlay.ent-light .esl-item.esl-pedido { border-left-color: #cbd5e1; }
+        #entrenador-overlay.ent-light .esl-item.esl-pedido:hover { background: transparent; }
+        #entrenador-overlay.ent-light .esl-descartar { border-color: #cbd5e1; color: #64748b; }
+        #pedir-overlay.claro #pedir-caja { background: #ffffff; color: #0f172a; border-color: #e2e8f0; }
+        #pedir-overlay.claro #pedir-caja label { color: #64748b; }
+        #pedir-overlay.claro #pedir-caja input { background: #f8fafc; color: #0f172a; border-color: #cbd5e1; }
+        #pedir-overlay.claro #pedir-caja button:not(.primario) { border-color: #cbd5e1; color: #475569; }
     </style>
 </head>
 <body>
@@ -3007,6 +3026,7 @@
     <div id="ped-header">
         <button id="ped-btn-cerrar" onclick="cerrarPedidos()" title="Volver">←</button>
         <h2>Canciones</h2>
+        <button class="se-pool-btn" style="font-size:0.85rem;padding:6px 14px" onclick="cerrarPedidos()" title="Volver a la biblioteca">✕ Volver a la biblioteca</button>
         <button id="ped-btn-nueva" class="se-pool-btn" style="font-size:0.85rem;padding:6px 14px" onclick="cerrarPedidos(); abrirModalNueva()">+ Nueva</button>
     </div>
     <div id="ped-lista"></div>
@@ -3019,6 +3039,7 @@
         <div><label for="pedir-nombre">Canción</label><input id="pedir-nombre" maxlength="120" autocomplete="off"></div>
         <div><label for="pedir-artista">Artista</label><input id="pedir-artista" maxlength="120" autocomplete="off"></div>
         <div><label for="pedir-quien">Quién la pidió (opcional)</label><input id="pedir-quien" maxlength="80" autocomplete="off"></div>
+        <div><label for="pedir-url">Enlace (opcional)</label><input id="pedir-url" type="url" maxlength="500" autocomplete="off" placeholder="https://… (YouTube, Spotify…)"></div>
         <div class="pedir-btns">
             <button onclick="pedirCerrar()">Cancelar</button>
             <button id="pedir-btn-guardar" class="primario" onclick="pedirGuardar()">Anotar</button>
@@ -7739,7 +7760,10 @@ function entPedidosListaHTML() {
             <div class="esl-item-num">⏳ en espera de ser cargada</div>
             <div class="esl-item-nombre">${pedEsc(p.nombre)}</div>
             <div class="esl-item-artista">${pedEsc(p.artista)}${p.pidio ? ' · pidió ' + pedEsc(p.pidio) : ''}</div>
-            <button class="esl-descartar" onclick="pedidoDescartar('${entSesionActual.id}','${p.id}',event)">✕ Descartar</button>
+            <div class="esl-pedido-btns">
+                <button class="esl-descartar" onclick="pedidoDescartar('${entSesionActual.id}','${p.id}',event)">✕ Descartar</button>
+                ${p.url ? `<a class="esl-link" href="${pedEsc(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${pedEsc(p.url)}">🔗 Enlace</a>` : ''}
+            </div>
         </div>`).join('');
 }
 
@@ -8561,6 +8585,13 @@ function pedEsc(t) {
     return String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+// Enlace opcional del pedido: sin "https://" se le agrega; solo http(s).
+function pedNormUrl(u) {
+    u = (u || '').trim();
+    if (!u) return '';
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u;
+    return /^https?:\/\//i.test(u) ? u : '';
+}
 function pedidosAvisoError(e) {
     const m = e?.message || String(e);
     toast(/pedidos/.test(m) ? 'Falta activar los pedidos en Supabase (supabase/repertorio_pedidos.sql)'
@@ -8597,8 +8628,10 @@ async function pedidosModificar(sesionId, fn) {
 // ── Pedir canción (Entrenador, en una sesión) ──
 function pedirAbrir() {
     if (!entModoSesion || !entSesionActual) return;
-    ['pedir-nombre', 'pedir-artista', 'pedir-quien'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('pedir-overlay').classList.add('visible');
+    ['pedir-nombre', 'pedir-artista', 'pedir-quien', 'pedir-url'].forEach(id => document.getElementById(id).value = '');
+    const ov = document.getElementById('pedir-overlay');
+    ov.classList.toggle('claro', !!entrenadorModoClaro);   // mismo tema que el Entrenador
+    ov.classList.add('visible');
     setTimeout(() => document.getElementById('pedir-nombre').focus(), 50);
 }
 function pedirCerrar() { document.getElementById('pedir-overlay').classList.remove('visible'); }
@@ -8613,6 +8646,7 @@ async function pedirGuardar() {
         id: genId(), nombre,
         artista: document.getElementById('pedir-artista').value.trim(),
         pidio:   document.getElementById('pedir-quien').value.trim(),
+        url:     pedNormUrl(document.getElementById('pedir-url').value),
         fecha:   new Date().toLocaleDateString('sv'), estado: 'pendiente',
     };
     try {
@@ -8665,6 +8699,7 @@ function pedidosRender() {
                     <div class="ped-item-nombre">${pedEsc(p.nombre)}</div>
                     <div class="ped-item-meta">${[pedEsc(p.artista), p.pidio ? 'pidió ' + pedEsc(p.pidio) : '', pedFecha(p.fecha)].filter(Boolean).join(' · ')}</div>
                 </div>
+                ${p.url ? `<a class="ped-link" href="${pedEsc(p.url)}" target="_blank" rel="noopener" title="${pedEsc(p.url)}">🔗 Enlace</a>` : ''}
                 <button class="primario" onclick="pedidoCargar('${g.s.id}','${p.id}')">Cargar</button>
                 <button class="danger" onclick="pedidoDescartar('${g.s.id}','${p.id}',event)">Descartar</button>
             </div>`).join('')}

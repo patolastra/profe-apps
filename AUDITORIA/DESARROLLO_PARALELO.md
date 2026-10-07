@@ -2799,6 +2799,7 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   anotar → cargar → canción en la sesión con datos reales.
 - **Implementación:** commit `fb2a8eb` (2026-10-07). Pendiente: SQL del PO + prueba con datos reales.
 - **SQL corrido por el PO (2026-10-07).** Prueba con datos reales en la sesión "Mine" (sin curso): anotar 2 pedidos → guardados en `pedidos` y visibles en el cancionero; descartar uno → `descartada` y sale de la lista; "+ Canción" lo agrupa; Cargar + Guardar → canción creada, agregada al final de la sesión y pedido `cargada` con `cancion_id`; el Entrenador abierto en otra pestaña con la misma sesión mostró la canción nueva al instante y quitó el pedido. Datos de prueba borrados (sesión vuelta a sus 2 canciones, pedidos vacíos, canción eliminada). Probar en clase.
+- **Ajustes del PO (2026-10-07):** (1) el cuadro "Pedir canción", el botón y los pedidos del cancionero siguen el tema claro/oscuro del Entrenador; (2) campo **Enlace (opcional)** en el pedido (`url`; sin "https://" se agrega; solo http/https), visible como "🔗 Enlace" en el cancionero y en la página de pedidos; (3) botón **"✕ Volver a la biblioteca"** junto a "+ Nueva". Probado en el servidor local (ambos temas, enlace, botones).
 
 ### Y. Libro — todo por nombre de pila (sin apellido) y A–Z, salvo los informes
 *Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin ficha y aprobación.*
