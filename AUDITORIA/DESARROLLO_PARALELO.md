@@ -3189,3 +3189,4 @@ Plan aprobado por el PO (2026-10-07) en dos etapas; esta ficha cubre la **Etapa 
   al instante como "Nuevo grupo…" y sale de "Sin grupo aún"; Pizarra de la misma sesión en otra pestaña: muestra la foto
   encima, se actualiza con el armado y desaparece al soltar; sin errores. **Falta:** probar en clase con el proyector y
   el Modo Clase real.
+- **Cierre Etapa 1:** commit `08440d6` (2026-10-07). Probar en clase. Etapa 2 pendiente (decisión del PO sobre notas).
