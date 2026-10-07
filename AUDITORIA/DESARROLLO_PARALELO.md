@@ -2869,6 +2869,7 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   - Fuera de alcance: la ventana de la Pizarra ya abierta en el proyector (se recarga a mano).
 - **Prueba (2026-10-07, servidor local):** versión nueva simulada → aparece el aviso; "Recargar" recarga Dashboard y
   Repertorio sin cerrarlos, el aviso se oculta y la versión queda recordada. Sin errores.
+- **Cierre:** commits `1fb920a` + `1ed9e2b` (2026-10-07).
 
 ### AC. Libro — varios (hoja Notion "varios del libro de clases")
 *Origen: PO (2026-10-07). Plan revisado por el PO ("todo ok"). **Aprobado para implementar (PO, 2026-10-07).** En implementación.*
@@ -2919,3 +2920,4 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
 - **Prueba (2026-10-07, servidor local):** pestañas en una evaluación real de Tercero; duplicados y cola sin conexión
   con base simulada (reintento sin duplicar, 3 clics = 1 acción, marcas subidas al volver). Sin errores. Falta probar
   en clase marcas reales y el Proyector.
+- **Cierre:** commit `9110394` (2026-10-07). Queda en marcha blanca hasta probarlo en clase.
