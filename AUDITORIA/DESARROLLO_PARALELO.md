@@ -3272,3 +3272,11 @@ de hay una nueva versión". Complementa AB.*
   quedó en la diapositiva 4 (`?slide=3`).
 - **Una sola vez:** la Pizarra que estaba abierta antes de esta versión no tiene el aviso; hay que recargarla a mano
   (Ctrl + Shift + R en esa ventana) o cerrarla y volver a abrirla. Desde ahí, "Recargar" la renueva sola.
+- **Segundo hallazgo del PO (2026-10-07, foto de la Pizarra en Sexto):** la Pizarra ya era nueva, pero el **Libro** que
+  proyectaba era una copia anterior (envió la Participación "Director musical" en el formato viejo y la Pizarra solo
+  pudo mostrar el nombre). Causa probable: ese Libro se abrió después del "Recargar" con la misma dirección que uno
+  abierto minutos antes, y el navegador usó su copia guardada (hasta 10 min).
+- **Arreglo 2 (`PC/workspace.html`):** (1) toda pestaña nueva se pide con la versión en su dirección (`wsv=<versión>`):
+  tras una subida, la dirección cambia y el navegador la pide al servidor; (2) al detectar una versión nueva, se piden
+  al día de inmediato las piezas compartidas (`comun/*`, `supabase/config.js`, `contextos.js`), también al "Recargar".
+  Prueba local: pestaña de Libro abierta con `&wsv=…`, carga normal y con el código nuevo; sin errores.

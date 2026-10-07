@@ -228,7 +228,13 @@ function abrirInstancia({ key, titulo, ico, src, fijo = false, guardarAlCerrar =
     // ya viene percent-encoded por el emisor (encodeURIComponent) → NO re-codificarla,
     // porque encodeURI escaparía el '%' (%20→%2520) y corrompería ?ctx= con acentos/espacios.
     const _q = src.indexOf('?');
-    iframe.src = _q < 0 ? encodeURI(src) : encodeURI(src.slice(0, _q)) + src.slice(_q);
+    let _url = _q < 0 ? encodeURI(src) : encodeURI(src.slice(0, _q)) + src.slice(_q);
+    // Versión en la dirección (deuda AL): una pestaña abierta después de una subida se pide al
+    // servidor y no sale de la copia que el navegador guarda hasta 10 min (p. ej. el mismo Libro
+    // abierto un rato antes). Las páginas no usan `wsv`.
+    const _v = location.protocol !== 'file:' ? (versionServidor || versionCargada) : null;
+    if (_v) _url += (_url.includes('?') ? '&' : '?') + 'wsv=' + encodeURIComponent(_v);
+    iframe.src = _url;
     iframe.className = 'hidden';
     // Permisos inofensivos por si la app usa audio/fullscreen. No modifica la app.
     // allowfullscreen (atributo legacy) + allow="fullscreen": algunos motores exigen el
@@ -418,12 +424,23 @@ async function leerSinCache(url, tipo) {
         return tipo === 'json' ? await r.json() : await r.text();
     } catch (_) { return null; }
 }
+// Piezas compartidas por varias apps: al detectar una versión nueva se piden al día de inmediato,
+// para que una app que se abra después (o la Pizarra) no use una copia anterior (deuda AL).
+const COMUNES = ['../comun/clase-vivo.js', '../comun/asistencia.js', '../comun/nombre-asset.js',
+                 '../comun/libro-proyeccion.js', '../comun/participacion-tablero.css',
+                 '../supabase/config.js', '../supabase/contextos.js'];
+let comunesRenovados = null;
+function renovarComunes(v) {
+    if (comunesRenovados === v) return Promise.resolve();
+    comunesRenovados = v;
+    return Promise.all(COMUNES.map(u => fetch(new URL(u, location.href).href, { cache: 'reload' }).catch(() => {})));
+}
 async function revisarVersion() {
     const v = (await leerSinCache(VERSION_URL, 'json'))?.version;
     if (!v) return;
     versionServidor = v;
     if (versionCargada === null) { recordarVersion(v); return; }
-    if (v !== versionCargada) document.getElementById('ws-version').hidden = false;
+    if (v !== versionCargada) { document.getElementById('ws-version').hidden = false; renovarComunes(v); }
 }
 async function recargarVersionNueva() {
     const btn = document.getElementById('ws-version');
@@ -445,6 +462,7 @@ async function recargarVersionNueva() {
     tabs.forEach(t => {
         try { urls.add(t.iframeEl.contentWindow.location.href.split('#')[0]); agregar(t.iframeEl.contentDocument); } catch (_) {}
     });
+    COMUNES.forEach(u => urls.add(new URL(u, location.href).href));
     await Promise.all([...urls].map(u => fetch(u, { cache: 'reload' }).catch(() => {})));
     // La ventana de la Pizarra (proyector) no es una pestaña: se le avisa para que también se
     // renueve y vuelva a su diapositiva (deuda AL).
