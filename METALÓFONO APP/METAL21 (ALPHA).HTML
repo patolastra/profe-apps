@@ -415,6 +415,22 @@
         /* --- PRECUENTA (count-in) --- */
         /* Toggle en el toolbar: estado "on" reutiliza el naranja de acento de la app */
         #btn-precuenta.on { background: var(--orange); color: #fff; }
+        /* Melodía como lista de notas (deuda AF n°2) */
+        #notas-overlay {
+            position: fixed; inset: 0; z-index: 5000; background: rgba(17,17,22,.96); color: #fff;
+            display: flex; flex-direction: column; padding: 2vh 3vw; gap: 1.5vh;
+        }
+        #notas-overlay[hidden] { display: none; }
+        .notas-barra { display: flex; align-items: center; gap: 10px; }
+        #notas-titulo { flex: 1; font-size: 2.6vh; font-weight: 700; color: var(--gold); }
+        #notas-texto {
+            flex: 1; overflow: auto; font-size: clamp(18px, 5vh, 56px); font-weight: 700; line-height: 1.45;
+            white-space: pre-wrap; user-select: text;
+        }
+        #notas-texto .compas { display: flex; gap: .4em; align-items: baseline; }
+        #notas-texto .num { color: #6b7280; font-size: .45em; min-width: 2.2em; }
+        .notas-pie { font-size: 1.8vh; color: #9ca3af; }
+        html.modo-alumno #notas-overlay { display: none !important; }
         /* Repetir +5 (deuda AF n°1, solo modo profesor) */
         #repetir-wrap { display: inline-flex; align-items: center; gap: 6px; }
         #btn-repetir.on { background: var(--orange); color: #fff; }
@@ -466,6 +482,7 @@
                         <div class="panel-options">
                             <button class="panel-btn" onclick="startPractice('pool')">Pool de notas</button>
                             <button class="panel-btn" onclick="startPractice('melody')">Melodía sin ritmo</button>
+                            <button class="panel-btn" onclick="abrirNotas()">📝 Ver notas (para el cuaderno)</button>
                             <button class="panel-btn" onclick="stopPractice()" style="background:#851c1c">Salir modo práctica</button>
                         </div>
                     </div>
@@ -525,6 +542,17 @@
         <div class="alumno-nombre" id="alumno-nombre">Metalófono</div>
         <button id="btn-alumno-tocar" disabled>Tocar</button>
         <div class="alumno-msg" id="alumno-msg">Cargando melodía…</div>
+    </div>
+
+    <!-- Melodía como lista de notas (deuda AF n°2, solo modo profesor) -->
+    <div id="notas-overlay" hidden>
+        <div class="notas-barra">
+            <span id="notas-titulo"></span>
+            <button id="notas-copiar" onclick="copiarNotas()">📋 Copiar</button>
+            <button onclick="cerrarNotas()" title="Cerrar (Esc)">✕</button>
+        </div>
+        <div id="notas-texto"></div>
+        <div class="notas-pie">Graves con coma (La,) · agudas con comilla (Do') · un compás por línea</div>
     </div>
 
     <div id="status" class="st-none">Carga un archivo MIDI para comenzar</div>
@@ -997,6 +1025,53 @@
             });
         });
 
+        // --- MELODÍA COMO LISTA DE NOTAS (deuda AF n°2, solo profesor) ---
+        // Octavas: las graves (bajo el primer Do: La 81 – Si 83) llevan coma; las agudas (desde el
+        // segundo Do, 96) llevan comilla. Un compás por línea según la cifra del MIDI. Usa el
+        // cifrado elegido: latino (Do) salvo cuando se muestra solo el americano (C).
+        function nombreNotaLista(midi) {
+            const n = noteMap[midi]; if (!n) return '?';
+            const base = currentNotation === 2 ? n.a : n.l;
+            return base + (midi < 84 ? ',' : midi >= 96 ? "'" : '');
+        }
+        function notasPorCompas() {
+            const notas = [];
+            currentMidi.tracks.forEach(t => t.notes.forEach(n => notas.push(n)));
+            notas.sort((x, y) => x.ticks - y.ticks || x.midi - y.midi);
+            const compas = getCompas();
+            if (!compas) return [notas.map(n => nombreNotaLista(n.midi))];
+            const lineas = [];
+            notas.forEach(n => { const i = Math.floor(n.ticks / compas.barTicks); (lineas[i] = lineas[i] || []).push(nombreNotaLista(n.midi)); });
+            return lineas.map(l => l || []);   // compases sin notas quedan vacíos (silencio)
+        }
+        function abrirNotas() {
+            practicePanel.style.display = 'none';
+            if (!currentMidi) { alert("Carga un MIDI primero"); return; }
+            const lineas = notasPorCompas();
+            const nombre = (new URLSearchParams(location.search).get('nombre')) || currentMidi.name || 'Melodía';
+            document.getElementById('notas-titulo').textContent = nombre;
+            document.getElementById('notas-texto').innerHTML = lineas.map((l, i) =>
+                `<div class="compas"><span class="num">${i + 1}</span><span>${l.length ? l.join(' - ') : '(silencio)'}</span></div>`).join('');
+            document.getElementById('notas-overlay').hidden = false;
+        }
+        function cerrarNotas() { document.getElementById('notas-overlay').hidden = true; }
+        async function copiarNotas() {
+            const nombre = document.getElementById('notas-titulo').textContent;
+            const texto = nombre + '\n' + notasPorCompas().map(l => l.length ? l.join(' - ') : '(silencio)').join('\n');
+            let ok = false;
+            try { await navigator.clipboard.writeText(texto); ok = true; }
+            catch (_) {
+                const ta = document.createElement('textarea'); ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select(); try { ok = document.execCommand('copy'); } catch (_) {} ta.remove();
+            }
+            const b = document.getElementById('notas-copiar');
+            b.textContent = ok ? '✔ Copiado' : 'No se pudo copiar';
+            clearTimeout(b._t); b._t = setTimeout(() => { b.textContent = '📋 Copiar'; }, 1800);
+        }
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !document.getElementById('notas-overlay').hidden) cerrarNotas();
+        });
+
         // --- MODO PRÁCTICA ---
 
         async function startPractice(type) {
@@ -1057,30 +1132,9 @@
 
         function advanceManualMelody() {
             if(practiceMode !== 'melody') return;
-            if (MODO_ALUMNO) { alumnoAvanzarMelodia(); return; }   // secuencia del alumno (ver abajo)
-            // Ciclo de estudio: cada pulsación alterna mostrar → apagar la MISMA nota.
-            // Solo tras apagarla se avanza a la siguiente. Sin temporizadores.
-            if(melodyNoteVisible) {
-                // Apagar la nota actual (sin sonido) y avanzar el índice.
-                document.querySelectorAll('.key.practice-highlight')
-                        .forEach(k => k.classList.remove('practice-highlight'));
-                melodyNoteVisible = false;
-                practiceIndex++;
-                return;
-            }
-            // Mostrar la nota actual (con sonido); si ya no quedan, finalizar.
-            if(practiceIndex >= practiceSequence.length) {
-                finishPractice();
-                return;
-            }
-            const midi = practiceSequence[practiceIndex];
-            const el = document.querySelector(`[data-midi="${midi}"]`);
-            if(el) {
-                synth.triggerAttackRelease(Tone.Frequency(midi, "midi").toNote(), "4n");
-                el.classList.add('practice-highlight'); // permanece hasta que el alumno la apague
-            }
-            melodyNoteVisible = true;
-            statusDiv.innerText = "Modo Práctica: " + (practiceIndex + 1) + "/" + practiceSequence.length;
+            // Misma práctica en profesor y alumno (decisión del PO 2026-10-07, deuda AF n°3):
+            // cada toque avanza a la nota siguiente (ver alumnoAvanzarMelodia).
+            alumnoAvanzarMelodia();
         }
 
         function finishPractice() {
@@ -1100,7 +1154,8 @@
             statusDiv.className = currentMidi ? "st-ready" : "st-none";
             resetVisuals();
             practicePanel.style.display = 'none';
-            if (MODO_ALUMNO) { alumnoCancelarPracticaPendiente(); alumnoSyncPractica(); }
+            alumnoCancelarPracticaPendiente();
+            if (MODO_ALUMNO) alumnoSyncPractica();
         }
 
         // Listeners globales para modo manual
@@ -1191,7 +1246,7 @@
                 }, ms);
             }, compas.barTicks + "i");
         }
-        // ── Práctica "melodía sin ritmo" del ALUMNO ──────────────────────────────
+        // ── Práctica "melodía sin ritmo" (alumno y, desde 2026-10-07, también profesor) ──
         // Cada toque avanza UNA posición: 1er toque ilumina la nota 1; cada toque siguiente
         // pasa directo a la siguiente (sin el paso intermedio "apagar"). Si la siguiente es la
         // MISMA nota, se apaga y se vuelve a encender tras una pausa fija (200 ms) para que la
@@ -1207,6 +1262,7 @@
                 el.classList.add('practice-highlight');
             }
             melodyNoteVisible = true;
+            statusDiv.innerText = "Modo Práctica: " + (idx + 1) + "/" + practiceSequence.length;
         }
         function alumnoAvanzarMelodia() {
             if (alumnoFinTimer) return;                                   // melodía ya terminada

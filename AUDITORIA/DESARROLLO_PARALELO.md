@@ -3040,7 +3040,7 @@ para después.*
 
 ### AF (cont.). Metalófono — n°2 listado de notas y n°3 práctica del alumno en el modo profesor
 *Origen: PO (2026-10-07), misma tarjeta Notion; n°2 también es la tarjeta "renderizar melodía completa como listado
-de notas (diferenciando octavas), PARA ESCRIBIR EN EL CUADERNO" (agrupada). **Por decidir con el PO.***
+de notas (diferenciando octavas), PARA ESCRIBIR EN EL CUADERNO" (agrupada). Aprobado e implementado (ver abajo).*
 - **Auditoría n°3:** hay dos prácticas "Melodía sin ritmo". *Profesor:* cada toque alterna mostrar → apagar la misma
   nota (2 toques por nota). *Alumno* (Etapa 1): cada toque avanza directo a la nota siguiente; si se repite la nota,
   se apaga 200 ms y vuelve a encender para que se note; al terminar, 2 s y se apaga sola. **Ojo:** la ficha de la
@@ -3052,6 +3052,18 @@ de notas (diferenciando octavas), PARA ESCRIBIR EN EL CUADERNO" (agrupada). **Po
   grande sobre el metalófono, un compás por línea, notas separadas por " - ", en el cifrado elegido (Do/C), con
   botón "📋 Copiar". Por decidir: cómo marcar las octavas; un compás por línea o todo seguido; si también va en el
   modo alumno.
+- **Decisiones del PO (2026-10-07):** n°3 sí, reemplazar la práctica del profesor por la del alumno; octavas con coma
+  (graves) y comilla (agudas); un compás por línea (*"está por probarse; quizá no sea lo mejor pedagógicamente"*);
+  no en el modo alumno.
+- **Implementado (2026-10-07):** n°3: `advanceManualMelody()` usa siempre `alumnoAvanzarMelodia()`; `stopPractice()`
+  cancela sus temporizadores en ambos modos; el estado muestra "Modo Práctica: i/N". n°2: "📝 Ver notas (para el
+  cuaderno)" en el panel de Modo Práctica → capa a pantalla completa con la melodía (título, número de compás, notas
+  con " - "), "📋 Copiar" (texto plano) y ✕/Esc; `nombreNotaLista()`: graves 81–83 con coma, agudas 96–105 con
+  comilla, en el cifrado elegido (latino; americano si se muestra solo el americano). Oculto en modo alumno.
+  `CLAUDE.md` actualizado (excepción a "el modo profesor no se altera").
+- **Prueba (2026-10-07, servidor local):** profesor: cada toque avanza a la nota siguiente (0→1→2→3→4); Zapatero en
+  líneas por compás (`Do♯'` agudo); rango 81→`La,` · 83→`Si,` · 84→`Do` · 96→`Do'` · 105→`La'`; Copiar y Esc OK;
+  alumno sin cambios y sin el botón. Falta probar en clase.
 
 ### AG. Lector de Tabs — también se pierde el comienzo del audio (como AF n°4)
 *Origen: PO (2026-10-07). Deuda registrada; **arreglar después**, no implementar sin aprobación.*
