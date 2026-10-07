@@ -3023,3 +3023,24 @@ para después.*
 - **Plan n°1 (por decidir con el PO):** botón "🔁 Repetir +5" (modo profesor): al terminar la melodía vuelve a empezar
   sola con 5 BPM más, hasta que se detenga. Por decidir: ¿precuenta entre vueltas?, ¿tope de velocidad?, ¿al detener
   vuelve al BPM inicial?, ¿también en el modo alumno?
+- **Decisiones del PO (2026-10-07):** con precuenta entre vueltas; tope configurable; al detener vuelve a la velocidad
+  inicial; solo modo profesor.
+- **Implementado n°1 (2026-10-07):** botón "🔁 +5" (encendido/apagado, se recuerda) + campo "hasta [140]" (tope, se
+  recuerda; visible solo con el botón encendido). `agendarVuelta()`: cada vuelta deja agendada la siguiente al empezar;
+  en el tick final sube +5 hasta el tope (`Tone.Transport.bpm.setValueAtTime`), suena un compás de precuenta
+  (`agendarPrecuenta(compas, offset)`) y repite; sin cifra de compás, repite sin precuenta. Estado "🔁 Vuelta N · BPM
+  (tope)". Al detener: vuelve a la velocidad inicial. Oculto en modo alumno. Pantalla y fin de melodía con temporizador
+  (`alTiempo`) en vez de `Tone.Draw` (que se salta eventos si la página no dibuja; ahora la melodía también termina sola
+  con la pestaña oculta). Para que quepa la barra a 1280 px: "🔤 Cifrado", "🎨 Colores" y "⛶" (antes "Cambiar
+  Cifrado", "Cambiar Colores", "PANTALLA COMPLETA").
+- **Prueba (2026-10-07, servidor local):** Zapatero desde 240 con tope 250: vueltas a 240 → 245 → 250 → 250, cada una
+  con 4 ticks de precuenta a su velocidad; al detener vuelve a 240; apagado: toca una vez y termina solo; Play→Detener→
+  Play sin cortes; modo alumno sin el botón. Falta probar en clase.
+
+### AG. Lector de Tabs — también se pierde el comienzo del audio (como AF n°4)
+*Origen: PO (2026-10-07). Deuda registrada; **arreglar después**, no implementar sin aprobación.*
+- **Pedido:** en el Lector (`tabs/index.html`) ocurre algo parecido a lo del Metalófono: se pierde el comienzo del
+  sonido al reproducir.
+- **Hipótesis (por auditar):** la misma causa de AF n°4 (salida de audio dormida: HDMI del proyector / Bluetooth). El
+  arreglo probable es el mismo: despertar la salida con un tono inaudible y partir medio segundo después.
+- **Ojo:** `tabs/index.html` tiene cambios del Loop sin commitear (pausa controlada); no mezclarlos con este arreglo.
