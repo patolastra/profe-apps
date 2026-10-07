@@ -1205,6 +1205,27 @@ function playClick(accent, when) {
     osc.start(t); osc.stop(t + 0.045);
 }
 
+// Despertar la salida de audio (deuda AG; mismo arreglo que el Metalófono, AF n°4): parlantes
+// por HDMI (proyector) o Bluetooth se apagan con el silencio y se comen el primer sonido al
+// despertar. Al dar Play suena un tono inaudible (40 Hz, −60 dB) y la reproducción parte
+// DESPERTAR_S segundos después. Pausa/Reiniciar durante la espera la cancelan.
+const DESPERTAR_S = 0.5;
+let despertarToken = 0, despertarPendiente = false;
+function despertarSalidaYLuego(fn) {
+    ensureAudio();
+    const tok = ++despertarToken;
+    despertarPendiente = true;
+    try {
+        const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+        osc.frequency.value = 40; g.gain.value = 0.001;
+        osc.connect(g); g.connect(audioCtx.destination);
+        const t = audioCtx.currentTime;
+        osc.start(t); osc.stop(t + DESPERTAR_S + 0.3);
+    } catch (_) { /* sin el tono la reproducción sigue igual */ }
+    setTimeout(() => { if (tok !== despertarToken) return; despertarPendiente = false; fn(); }, DESPERTAR_S * 1000);
+}
+function cancelarDespertar() { despertarToken++; despertarPendiente = false; }
+
 function buildKSBuffer(midi) {
     const sr   = audioCtx.sampleRate;
     const freq = 440 * Math.pow(2, (midi - 69) / 12);
@@ -1463,6 +1484,7 @@ function enModoEdicion() { return editorMode || strumEditorMode; }
 function doRestart() {
     if (enModoEdicion()) return;
     // Detener todo primero
+    cancelarDespertar();
     isPlaying = false;
     if (audioSyncMode) tabAudioEl.pause();
     detenerPractica();
@@ -1483,21 +1505,28 @@ function doRestart() {
 document.getElementById('btnPlay').onclick = () => {
     if (enModoEdicion()) return;
     console.log('[play] audioSyncMode:', audioSyncMode, '| tabSyncData:', tabSyncData?.mode, '| src:', tabAudioEl.src?.slice(0,50));
+    if (despertarPendiente) return;   // ya va a partir
     if (audioSyncMode) {
         if (isPlaying) return; // ya reproduciendo
-        if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = currentTime - 0.001; resetHits(); }
-        startSyncedPlayback();
+        despertarSalidaYLuego(() => {
+            if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = currentTime - 0.001; resetHits(); }
+            startSyncedPlayback();
+        });
         return;
     }
-    ensureAudio();
-    tabEnded = false;
-    if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); }
-    else ajustarInicioSeccion();
-    lastClickBeat = -1; lastScheduledBeat = -1;
-    isPlaying = true;
-    iniciarPractica();
+    const arrancar = () => {
+        tabEnded = false;
+        if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); }
+        else ajustarInicioSeccion();
+        lastClickBeat = -1; lastScheduledBeat = -1;
+        isPlaying = true;
+        iniciarPractica();
+    };
+    if (isPlaying) { ensureAudio(); arrancar(); }   // ya sonando: como antes, sin espera
+    else despertarSalidaYLuego(arrancar);
 };
 document.getElementById('btnPause').onclick = () => {
+    cancelarDespertar();
     if (audioSyncMode) { stopSyncedPlayback(); return; }
     isPlaying = false;
     detenerPractica();
@@ -1705,13 +1734,14 @@ document.addEventListener('keydown', e => {
     if ((!notes.length && !chordEvents.length) || enModoEdicion()) return;
     ensureAudio();
     if (tabEnded) { doRestart(); return; }
+    if (despertarPendiente) { cancelarDespertar(); return; }   // Espacio durante la espera = no partir
     if (isPlaying) { isPlaying = false; if (audioSyncMode) tabAudioEl.pause(); }
-    else {
+    else despertarSalidaYLuego(() => {
         tabEnded = false;
         if (loopActive) { initLoopCycle(); currentTime = loopPassiveInStart; prevTime = loopPassiveInStart - 0.001; resetHits(); }
         else ajustarInicioSeccion();
         lastClickBeat = -1; lastScheduledBeat = -1; isPlaying = true;
-    }
+    });
 });
 
 // ─── LOOP ─────────────────────────────────────────────────────────────────
@@ -3759,8 +3789,9 @@ function actualizarSyncStatus() {
 
 function toggleTabAudio() {
     if (!tabAudioEl.src) return;
+    if (despertarPendiente) { cancelarDespertar(); return; }
     if (tabAudioEl.paused) {
-        startSyncedPlayback();
+        despertarSalidaYLuego(startSyncedPlayback);
     } else {
         stopSyncedPlayback();
     }

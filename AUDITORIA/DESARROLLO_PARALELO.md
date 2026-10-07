@@ -3067,9 +3067,20 @@ de notas (diferenciando octavas), PARA ESCRIBIR EN EL CUADERNO" (agrupada). Apro
 - **Cierre n°2 + n°3:** commit `b86a70d` (2026-10-07). Probar en clase.
 
 ### AG. Lector de Tabs — también se pierde el comienzo del audio (como AF n°4)
-*Origen: PO (2026-10-07). Deuda registrada; **arreglar después**, no implementar sin aprobación.*
+*Origen: PO (2026-10-07). Registrada para después; el PO pidió hacerla el mismo día ("sigue con la deuda AG").*
 - **Pedido:** en el Lector (`tabs/index.html`) ocurre algo parecido a lo del Metalófono: se pierde el comienzo del
   sonido al reproducir.
 - **Hipótesis (por auditar):** la misma causa de AF n°4 (salida de audio dormida: HDMI del proyector / Bluetooth). El
   arreglo probable es el mismo: despertar la salida con un tono inaudible y partir medio segundo después.
 - **Ojo:** `tabs/index.html` tiene cambios del Loop sin commitear (pausa controlada); no mezclarlos con este arreglo.
+- **Auditoría (2026-10-07):** el Lector no usa Tone; avanza con `requestAnimationFrame` desde el Play y agenda la
+  precuenta/metrónomo con `playClick` en un `AudioContext` propio; el audio sincronizado (`<audio>`) entra al mismo
+  contexto. El primer click de la precuenta suena apenas se da Play → mismo problema de salida dormida.
+- **Implementado:** `despertarSalidaYLuego(fn)`: tono 40 Hz a −60 dB y la acción parte 0,5 s después; Pausa,
+  Reiniciar, Espacio o el botón de audio durante la espera la cancelan (`cancelarDespertar`). Aplicado a los 4 inicios:
+  botón ▶ (con y sin audio), Espacio, botón de audio (`toggleTabAudio`) y `doRestart` (cancela). Si ya está sonando, ▶
+  actúa como antes, sin espera.
+- **Separación del Loop:** se commitea solo este arreglo (índice armado desde `HEAD` + el arreglo); los cambios del Loop
+  siguen sin commitear en la copia de trabajo, idénticos (verificado contra un respaldo).
+- **Prueba (2026-10-07, servidor local, "ESCALA DE DO"):** Play → parte a los 0,5 s; Play+Pausa a los 0,2 s → no
+  parte; Espacio parte y pausa; Espacio-Espacio rápido → no parte. Falta probar en clase con el proyector.
