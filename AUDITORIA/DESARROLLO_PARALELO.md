@@ -2962,7 +2962,7 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   reales.
 
 ### AE. Libro — contador en "Pendientes" y botón "Copiar" la nómina
-*Origen: PO (2026-10-07). Ficha armada tras auditoría; **no implementar sin aprobación del plan**.*
+*Origen: PO (2026-10-07). Plan **aprobado por el PO (2026-10-07)** e implementado.*
 - **Necesidad profesional:** saber de un vistazo cuántos faltan, y llevar la lista de pendientes al Planificador para
   la clase siguiente (p. ej. quiénes deben rendir o entregar).
 - **Estado actual (auditoría):** hay dos botones "Pendientes" (filtro), ambos en `LIBRO/index.html`:
@@ -2987,3 +2987,12 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   Nombres como se muestran en el Libro (nombre; nombre + apellido si se repite), en el orden activo.
 - **Por decidir con el PO:** formato de la copia (lista con guiones / una sola línea separada por comas); si los
   ausentes de hoy van en la copia; si se agrega también a Participación ("quiénes no han participado").
+- **Decisiones del PO (2026-10-07):** uno por línea (con guion); los ausentes de hoy **sí** van en la copia;
+  Participación **no**.
+- **Implementado (2026-10-07, `LIBRO/index.html`):** `evalEsPendiente()` (sin nota y no "No aplica") en el filtro de
+  Evaluaciones; el contador "Pendientes (N)" se actualiza en `filtrarEstudiantes()` / `filtrarEntregas()` (cuenta lo que
+  muestra el filtro: en Evaluaciones sin los ausentes de hoy); botón "📋 Copiar" → `copiarNomina()` (portapapeles con
+  respaldo), muestra "✔ Copiado (N)". La copia lleva a todos los pendientes, ausentes de hoy marcados "(ausente hoy)".
+- **Prueba (2026-10-07, servidor local, solo lectura):** Tercero, evaluación "Repertorio (Chicos y chicas)":
+  "Pendientes (12)" y copia de 12 nombres; entrega con "Pendientes (8)" y copia de 8; un "No aplica" simulado baja el
+  contador a 11 y sale del filtro.

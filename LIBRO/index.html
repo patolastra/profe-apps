@@ -1100,6 +1100,7 @@ function renderDetalle(){
       ${notas.length ? `<div class="buscador">
         <input id="buscador-est" type="text" placeholder="Buscar por nombre o apellido…" oninput="filtrarEstudiantes()" autocomplete="off">
         <button type="button" id="btn-pendientes" class="btn toggle" aria-pressed="false" onclick="togglePendientes()">Pendientes</button>
+        <button type="button" class="btn" onclick="copiarPendientesEval(this)" title="Copia la lista de pendientes (incluye ausentes de hoy) para pegarla en el Plan">📋 Copiar</button>
       </div>` : ''}
       <div style="overflow-x:auto">
       <table>
@@ -1129,6 +1130,7 @@ function renderDetalle(){
     <div class="ev-pane" data-pane="obs">${obsGenCardHTML(cerrada)}</div>`;
 
   evMostrarTab();
+  filtrarEstudiantes();   // contador de "Pendientes (N)"
   bindInstrCard();   // Etapa 3: piso + carga de plantilla + asociaciones
   bindObsGen();      // Observación general: borrador + guardado automático al salir
 
@@ -1204,9 +1206,18 @@ function filtrarEstudiantes(){
     const hay = tr.dataset.buscar || '';
     const idx = +tr.dataset.idx;
     const coincideTexto = q === '' || hay.includes(q);
-    const esPendiente = notas[idx]?.nota == null && !ausentesHoy.has(notas[idx]?.estudiante_id);   // sin nota y presente hoy
+    const esPendiente = evalEsPendiente(notas[idx]) && !ausentesHoy.has(notas[idx]?.estudiante_id);   // sin nota y presente hoy
     tr.classList.toggle('oculto', !(coincideTexto && (!soloPend || esPendiente)));
   });
+  const bp = document.getElementById('btn-pendientes');
+  if (bp) bp.textContent = `Pendientes (${notas.filter(n => evalEsPendiente(n) && !ausentesHoy.has(n.estudiante_id)).length})`;
+}
+// Pendiente = sin nota y no marcado "No aplica" (deuda AE: antes contaba también a los "No aplica").
+function evalEsPendiente(n){ return !!n && estadoEfectivo(n) === 'pendiente'; }
+function copiarPendientesEval(btn){
+  const pend = notas.filter(evalEsPendiente);   // la copia incluye a los ausentes de hoy (marcados)
+  copiarNomina(btn, evalActual?.nombre || 'Evaluación',
+    pend.map(n => nombreEstudiante(n) + (ausentesHoy.has(n.estudiante_id) ? ' (ausente hoy)' : '')));
 }
 
 // Toggle "Pendientes": alterna estado y filtra SIN mover la página. La captura y
@@ -4878,6 +4889,7 @@ function renderEntregaDetalle(){
       ${entregaDet.length ? `<div class="buscador">
         <input id="buscador-ent" type="text" placeholder="Buscar por nombre o apellido…" oninput="filtrarEntregas()" autocomplete="off">
         <button type="button" id="btn-ent-pendientes" class="btn toggle" aria-pressed="false" onclick="toggleEntPendientes()">Pendientes</button>
+        <button type="button" class="btn" onclick="copiarPendientesEntrega(this)" title="Copia la lista de pendientes para pegarla en el Plan">📋 Copiar</button>
         ${nNA ? `<button type="button" id="btn-ent-na" class="btn toggle${entMostrarNA ? ' on' : ''}" aria-pressed="${entMostrarNA}" onclick="toggleEntNoAplica()">${entMostrarNA ? 'Ocultar' : 'Mostrar'} no aplica (${nNA})</button>` : ''}
       </div>` : ''}
       <div style="overflow-x:auto">
@@ -4965,6 +4977,34 @@ function filtrarEntregas(){
     const naOculto = entregaDet[idx]?.estado === 'no_aplica' && !entMostrarNA;
     tr.classList.toggle('oculto', naOculto || !(coincide && (!soloPend || esPendiente)));
   });
+  const bp = document.getElementById('btn-ent-pendientes');
+  if (bp) bp.textContent = `Pendientes (${entregaDet.filter(d => d.estado === 'pendiente').length})`;
+}
+function copiarPendientesEntrega(btn){
+  const pend = entregaDet.filter(d => d.estado === 'pendiente');
+  copiarNomina(btn, entregaActual?.nombre || 'Entrega',
+    pend.map(d => nombreDe(d.estudiante) + (ausentesHoy.has(d.estudiante_id) ? ' (ausente hoy)' : '')));
+}
+
+// ── Copiar nómina de pendientes (deuda AE) ────────────────────
+// Texto para pegar en el Plan: título + un nombre por línea, en el orden activo de la lista.
+async function copiarNomina(btn, titulo, nombres){
+  if (!nombres.length) { toast('No hay pendientes.', 'ok'); return; }
+  const texto = `Pendientes · ${titulo} (${nombres.length})\n` + nombres.map(x => '- ' + x).join('\n');
+  let ok = false;
+  try { await navigator.clipboard.writeText(texto); ok = true; }
+  catch (_) {   // respaldo (navegador sin permiso de portapapeles)
+    const ta = document.createElement('textarea');
+    ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand('copy'); } catch (_) {}
+    ta.remove();
+  }
+  if (!ok) { toast('No se pudo copiar.', 'err'); return; }
+  if (btn) {
+    btn.textContent = `✔ Copiado (${nombres.length})`;
+    clearTimeout(btn._t); btn._t = setTimeout(() => { if (btn.isConnected) btn.textContent = '📋 Copiar'; }, 1800);
+  }
 }
 function toggleEntNoAplica(){
   const y = window.scrollY;
