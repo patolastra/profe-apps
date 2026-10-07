@@ -533,18 +533,47 @@ function tablaFalta(e){
 //   'alfa'    → NOMBRE, APELLIDO · A–Z  (alfabético por nombre y luego apellido)
 // El modo cambia la etiqueta y el criterio de orden; nunca cambia posición,
 // matrículas, el snapshot almacenado ni nada en Supabase.
-let ordenModo   = 'oficial';   // 'oficial' | 'alfa'
+let ordenModo   = 'alfa';      // 'alfa' (por defecto: NOMBRE · A–Z) | 'oficial' (APELLIDO, NOMBRE · 1–N)
 let vistaActiva = null;        // 'eval-lista'|'eval-detalle'|'part-lista'|'part-detalle'|'taller'
 
 // Etiqueta del nombre según el modo activo (ambos formatos usan coma, como el toggle).
 // Nombre de pila a mostrar: el NOMBRE SOCIAL si lo tiene (reemplaza solo el nombre; los
 // apellidos son siempre los legales). Sin ninguna señal visible. Los informes de UTP usan
 // el nombre legal: nombreFmt(est, true).
+// Plan Y (2026-10-07): en el modo A–Z (por defecto) se muestra SOLO el nombre (completo, tal
+// como está registrado: los compuestos van enteros), y NOMBRE APELLIDO si ese nombre se repite
+// en el curso/taller (nombresRepes) o si el estudiante tiene "mostrar con apellido" (nombres que
+// suenan igual: Matías/Mathías). El modo 1–N (opción secundaria) sigue con APELLIDO, NOMBRE.
+// Los informes van siempre con el nombre legal: APELLIDO, NOMBRE (sin cambio).
 function nombrePila(est){ return (est?.nombre_social || '').trim() || (est?.nombre || '').trim(); }
+let nombresRepes = {};   // nombre de pila normalizado → cuántos en la población del contexto
+function nombreCorto(est){
+  const no = nombrePila(est), ap = (est?.apellido || '').trim();
+  const conAp = est?.mostrar_apellido || (nombresRepes[normBuscar(no)] || 0) > 1;
+  return (conAp && ap) ? `${no} ${ap}` : (no || ap);
+}
 function nombreFmt(est, legal = false){
   const ap = (est?.apellido || '').trim(), no = legal ? (est?.nombre || '').trim() : nombrePila(est);
-  if (ordenModo === 'alfa') return (no + (no && ap ? ', ' : '') + ap).trim();   // NOMBRE, APELLIDO
+  if (!legal && ordenModo === 'alfa') return nombreCorto(est);                  // Nombre (o Nombre Apellido)
   return (ap + (ap && no ? ', ' : '') + no).trim();                             // APELLIDO, NOMBRE
+}
+// Texto de búsqueda: nombre, nombre social y apellido, se muestre o no el apellido.
+function nombreBuscar(est){ return normBuscar(`${nombrePila(est)} ${est?.nombre || ''} ${est?.apellido || ''}`); }
+// Cuenta los nombres de pila de toda la población del contexto (curso: matrícula del año, con
+// retirados; taller: pertenencias), para saber cuáles se repiten.
+async function cargarNombresRepes(){
+  try {
+    const q = libroModoCurso()
+      ? sb.from('libro_matriculas').select('estudiante:libro_estudiantes(nombre,nombre_social)').eq('anio_id', anioId).eq('contexto_id', pobCtxId)
+      : sb.from('libro_pertenencias_taller').select('estudiante:libro_estudiantes(nombre,nombre_social)').eq('anio_id', anioId).eq('contexto_id', ctxId);
+    const { data, error } = await q;
+    if (error) throw error;
+    const cnt = {};
+    (data || []).forEach(r => {
+      const k = normBuscar(nombrePila(r.estudiante)); cnt[k] = (cnt[k] || 0) + 1;
+    });
+    nombresRepes = cnt;
+  } catch (_) { /* sin conteo: se muestra solo el nombre */ }
 }
 // Clave alfabética A–Z: nombre y luego apellido, sin acentos ni mayúsculas (normBuscar).
 function claveAlfa(est){ return normBuscar(nombrePila(est) + ' ' + (est?.apellido||'')); }
@@ -574,7 +603,7 @@ function ordenarPertenencias(){
 // Botón toggle del header.
 function actualizarBtnOrden(){
   const b = document.getElementById('btn-orden'); if (!b) return;
-  b.textContent = ordenModo === 'alfa' ? 'NOMBRE, APELLIDO · A–Z' : 'APELLIDO, NOMBRE · 1–N';
+  b.textContent = ordenModo === 'alfa' ? 'NOMBRE · A–Z' : 'APELLIDO, NOMBRE · 1–N';
   b.setAttribute('aria-pressed', ordenModo === 'alfa' ? 'true' : 'false');
 }
 function mostrarBtnOrden(){ const b = document.getElementById('btn-orden'); if (b){ b.style.display=''; actualizarBtnOrden(); } }
@@ -699,6 +728,7 @@ async function init(){
   // Pasar lista (comun/asistencia.js): disponible en toda clase con estudiantes.
   if (ctxTipo === 'taller' || libroModoCurso()) document.getElementById('btn-asistencia').style.display = '';
   await cargarAusentesHoy();
+  await cargarNombresRepes();
   Asistencia.onCambio(id => { if (id === ref.sesion) asistenciaCambio(); });   // p. ej. lista pasada en el Planificador
 
   // Secciones por tipo de contexto:
@@ -845,11 +875,11 @@ async function abrirDetalle(evId){
     // Notas + grupos con FALLBACK retrocompatible: si el schema de grupos aún no
     // está aplicado, evaluaciones sigue funcionando como antes (grupos=[]).
     let cn = await sb.from('libro_evaluacion_notas')
-      .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,instrumento_id,estado_eval,grupo_id,nota_excepcion,objetivo_excepcion,estudiante:libro_estudiantes(nombre,apellido,nombre_social)')
+      .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,instrumento_id,estado_eval,grupo_id,nota_excepcion,objetivo_excepcion,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)')
       .eq('evaluacion_id', evId);
     if (cn.error && /grupo_id|nota_excepcion|objetivo_excepcion|does not exist|schema cache/i.test(cn.error.message || '')) {
       cn = await sb.from('libro_evaluacion_notas')
-        .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,estudiante:libro_estudiantes(nombre,apellido,nombre_social)')
+        .select('id,evaluacion_id,estudiante_id,nota,comentario,adecuacion_id,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)')
         .eq('evaluacion_id', evId);
       grupos = [];
     } else {
@@ -963,7 +993,7 @@ function renderDetalle(){
         </colgroup>
         <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="obj">Objetivo aplicado</th><th class="nota">Nota</th><th>Comentario</th></tr></thead>
         <tbody id="tbody-est">${notas.map((n, idx) => `
-          <tr data-idx="${idx}" data-nota-id="${n.id}" data-buscar="${esc(normBuscar(nombreEstudiante(n)))}" class="${n.nota != null ? 'fila-ok' : ''}">
+          <tr data-idx="${idx}" data-nota-id="${n.id}" data-buscar="${esc(nombreBuscar(n.estudiante))}" class="${n.nota != null ? 'fila-ok' : ''}">
             <td class="pos">${posMap[n.estudiante_id] ?? ''}</td>
             <td class="est-nombre">${esc(nombreEstudiante(n))}${grupoChipHTML(n)}${ausenteHoyHTML(n.estudiante_id)}</td>
             <td class="obj"><select data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select><div class="cel-marca">${marcaObjHTML(n, cerrada)}</div></td>
@@ -1985,7 +2015,7 @@ async function initTalleres(){
     tallerSel = ctxId;   // taller del deep-link (ctx de la URL)
     // Elegibles = estudiantes con matrícula de curso en el año (coherente con I6).
     const em = await sb.from('libro_matriculas')
-      .select('estudiante_id,estudiante:libro_estudiantes(nombre,apellido,nombre_social)').eq('anio_id', anioId);
+      .select('estudiante_id,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)').eq('anio_id', anioId);
     if (em.error) throw em.error;
     estMap = {};
     (em.data || []).forEach(m => { if (m.estudiante_id && !estMap[m.estudiante_id]) estMap[m.estudiante_id] = m.estudiante || {nombre:'',apellido:''}; });
@@ -2002,7 +2032,7 @@ async function initTalleres(){
 
 async function cargarPertenencias(){
   const r = await sb.from('libro_pertenencias_taller')
-    .select('id,estudiante_id,estudiante:libro_estudiantes(nombre,apellido,nombre_social)')
+    .select('id,estudiante_id,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)')
     .eq('anio_id', anioId).eq('contexto_id', tallerSel);
   if (r.error) throw r.error;
   pertenencias = (r.data || []).slice().sort(cmpEstudiantes(p => p.estudiante, null));
@@ -2065,7 +2095,7 @@ async function agregarPertenencia(){
   try {
     const { data, error } = await sb.from('libro_pertenencias_taller')
       .insert({ estudiante_id: estId, anio_id: anioId, contexto_id: tallerSel })
-      .select('id,estudiante_id,estudiante:libro_estudiantes(nombre,apellido,nombre_social)').single();
+      .select('id,estudiante_id,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)').single();
     if (error) throw error;
     pertenencias.push(data);
     pertenencias.sort(cmpEstudiantes(p => p.estudiante, null));
@@ -3333,10 +3363,11 @@ const matEstKey = e => normBuscar((e?.nombre || '') + ' ' + (e?.apellido || ''))
 
 async function cargarMatriculas(){
   const { data, error } = await sb.from('libro_matriculas')
-    .select('id,estudiante_id,posicion,estado,fecha_ingreso,fecha_retiro,estudiante:libro_estudiantes(nombre,apellido,nombre_social)')
+    .select('id,estudiante_id,posicion,estado,fecha_ingreso,fecha_retiro,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)')
     .eq('anio_id', anioId).eq('contexto_id', ctxId);
   if (error) throw error;
   matriculas = data || [];
+  await cargarNombresRepes();   // altas/retiros pueden cambiar qué nombres se repiten
   ordenarMatriculas();
 }
 function ordenarMatriculas(){ matriculas.sort(cmpEstudiantes(m => m.estudiante, m => m.posicion)); }
@@ -3402,7 +3433,7 @@ function matListaHTML(){
   if (!matriculas.length) return '<p class="hint">Sin estudiantes matriculados en este curso/año.</p>';
   return matriculas.map(m => {
     const ret = m.estado === 'retirado';
-    return `<div class="eval-item mat-item ${ret ? 'mat-retirado' : 'mat-activo'}" data-buscar="${esc(normBuscar(nombreDe(m.estudiante)))}" onclick="matAbrirResumen('${m.id}')" title="Ver ficha del estudiante">
+    return `<div class="eval-item mat-item ${ret ? 'mat-retirado' : 'mat-activo'}" data-buscar="${esc(nombreBuscar(m.estudiante))}" onclick="matAbrirResumen('${m.id}')" title="Ver ficha del estudiante">
       <div style="display:flex;gap:10px;align-items:center;min-width:0">
         <span class="hint" style="min-width:26px">${m.posicion ?? ''}</span>
         <span class="est-nombre">${esc(nombreDe(m.estudiante))}</span>
@@ -3522,7 +3553,13 @@ function matResumenHTML(m, notas, parts, ents, obs){
   return `
     <button class="mm-close" onclick="matCerrarModal()" title="Cerrar">✕</button>
     <p class="sec-title" style="margin:0 0 8px;padding-right:24px">${esc(nombreDe(m.estudiante))}</p>
-    <div class="mm-row"><span class="mm-k">Nombre legal</span><span>${esc(nombreFmt(m.estudiante, true))}</span></div>
+    <div class="mm-row"><span class="mm-k">Nombre legal</span><span class="mm-ns mm-legal">
+      <input id="mm-lnombre" value="${esc(m.estudiante?.nombre || '')}" placeholder="Nombres" maxlength="80">
+      <input id="mm-lapellido" value="${esc(m.estudiante?.apellido || '')}" placeholder="Apellidos" maxlength="80">
+      <button class="btn" onclick="matGuardarNombreLegal('${m.id}')" title="Corrige el nombre legal (también en los informes de UTP)">Guardar</button></span></div>
+    <div class="mm-row"><span class="mm-k">Mostrar con apellido</span><label class="mm-ns" style="cursor:pointer;text-transform:none;letter-spacing:0;margin:0">
+      <input type="checkbox" id="mm-conap" ${m.estudiante?.mostrar_apellido ? 'checked' : ''} onchange="matGuardarMostrarApellido('${m.id}', this.checked)">
+      <span class="hint">Siempre con apellido (nombres que suenan igual, p. ej. Matías / Mathías)</span></label></div>
     <div class="mm-row"><span class="mm-k">Nombre social</span><span class="mm-ns">
       <input id="mm-nsocial" value="${esc(m.estudiante?.nombre_social || '')}" placeholder="Opcional · solo el nombre" maxlength="60"
              onkeydown="if(event.key==='Enter')matGuardarNombreSocial('${m.id}')">
@@ -3548,11 +3585,40 @@ async function matGuardarNombreSocial(matriculaId){
   const { error } = await sb.from('libro_estudiantes').update({ nombre_social: val }).eq('id', m.estudiante_id);
   if (error) { alert('No se pudo guardar el nombre social: ' + error.message); return; }
   matriculas.filter(x => x.estudiante_id === m.estudiante_id).forEach(x => { if (x.estudiante) x.estudiante.nombre_social = val; });
+  await cargarNombresRepes();
   renderMatricula();
   await matAbrirResumen(matriculaId);
   // Aviso a la vista junto al campo (queda hasta cerrar la ficha).
   const caja = document.querySelector('#mm-card .mm-ns');
   if (caja) caja.insertAdjacentHTML('beforeend', `<span class="badge abierto">${val ? 'Nombre social guardado' : 'Nombre social borrado'}</span>`);
+}
+
+// Nombre legal: corrige nombres/apellidos guardados (p. ej. "JUAN" → "JUAN JOSÉ"). Es el
+// nombre de los informes de UTP. Se guarda en mayúsculas, como el resto de la matrícula.
+async function matGuardarNombreLegal(matriculaId){
+  const m = matriculas.find(x => x.id === matriculaId); if (!m) return;
+  const nombre = (document.getElementById('mm-lnombre').value || '').trim().replace(/\s+/g, ' ').toUpperCase();
+  const apellido = (document.getElementById('mm-lapellido').value || '').trim().replace(/\s+/g, ' ').toUpperCase();
+  if (!nombre || !apellido) { alert('El nombre y el apellido no pueden quedar vacíos.'); return; }
+  if (nombre === (m.estudiante?.nombre || '') && apellido === (m.estudiante?.apellido || '')) return;
+  if (!confirm(`¿Cambiar el nombre legal a "${apellido}, ${nombre}"?\nTambién se verá así en los informes de UTP.`)) return;
+  const { error } = await sb.from('libro_estudiantes').update({ nombre, apellido }).eq('id', m.estudiante_id);
+  if (error) { alert('No se pudo guardar el nombre legal: ' + error.message); return; }
+  matriculas.filter(x => x.estudiante_id === m.estudiante_id).forEach(x => { if (x.estudiante) { x.estudiante.nombre = nombre; x.estudiante.apellido = apellido; } });
+  await cargarNombresRepes();
+  renderMatricula();
+  await matAbrirResumen(matriculaId);
+  const caja = document.querySelector('#mm-card .mm-legal');
+  if (caja) caja.insertAdjacentHTML('beforeend', '<span class="badge abierto">Nombre legal guardado</span>');
+}
+// "Mostrar con apellido": se guarda al marcar/desmarcar.
+async function matGuardarMostrarApellido(matriculaId, on){
+  const m = matriculas.find(x => x.id === matriculaId); if (!m) return;
+  const { error } = await sb.from('libro_estudiantes').update({ mostrar_apellido: !!on }).eq('id', m.estudiante_id);
+  if (error) { alert('No se pudo guardar: ' + error.message); const c = document.getElementById('mm-conap'); if (c) c.checked = !on; return; }
+  matriculas.filter(x => x.estudiante_id === m.estudiante_id).forEach(x => { if (x.estudiante) x.estudiante.mostrar_apellido = !!on; });
+  renderMatricula();
+  await matAbrirResumen(matriculaId);
 }
 
 async function matRetirar(matriculaId){
@@ -3768,7 +3834,7 @@ async function abrirPartDetalle(pid){
     const [cp, cd] = await Promise.all([
       sb.from('libro_participaciones').select('*').eq('id', pid).single(),
       sb.from('libro_participacion_detalle')
-        .select('id,participacion_id,estudiante_id,participo,estudiante:libro_estudiantes(nombre,apellido,nombre_social)')
+        .select('id,participacion_id,estudiante_id,participo,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)')
         .eq('participacion_id', pid),
     ]);
     if (cp.error) throw cp.error;
@@ -3783,7 +3849,7 @@ async function abrirPartDetalle(pid){
     if (partActual.estado === 'abierto') {   // lista al día
       const { vig, nuevas } = await listaAlDia({ tabla: 'libro_participacion_detalle', campo: 'participacion_id',
         actividadId: pid, filas: partDet, filaNueva: () => ({ participo: false }),
-        select: 'id,participacion_id,estudiante_id,participo,estudiante:libro_estudiantes(nombre,apellido,nombre_social)' });
+        select: 'id,participacion_id,estudiante_id,participo,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)' });
       partDet = partDet.concat(nuevas).filter(d => vig.has(d.estudiante_id));
     }
     ordenarPartDet();   // orden según el modo activo (oficial 1–N por defecto)
@@ -3836,7 +3902,7 @@ function renderPartDetalle(){
         <colgroup><col style="width:44px"><col><col style="width:96px"></colgroup>
         <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="part">Participó</th></tr></thead>
         <tbody id="tbody-part">${partDet.map((d, idx) => `
-          <tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(normBuscar(nombreDe(d.estudiante)))}" class="${cerrada?'':'fila-click'}${d.participo?' fila-ok':''}${partInhab.has(d.estudiante_id)?' fila-inhab':''}">
+          <tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(nombreBuscar(d.estudiante))}" class="${cerrada?'':'fila-click'}${d.participo?' fila-ok':''}${partInhab.has(d.estudiante_id)?' fila-inhab':''}">
             <td class="pos">${partPos[d.estudiante_id] ?? ''}</td>
             <td>${esc(nombreDe(d.estudiante))}</td>
             <td class="part"><input type="checkbox" data-i="${idx}" ${d.participo?'checked':''} ${dis}></td>
@@ -4101,7 +4167,7 @@ function mapaNombresRepetidos(){
 function nombreProyector(est, repes){
   const nom = nombrePila(est) || '—';
   const ap  = (est?.apellido || '').trim();
-  const dup = (repes[normBuscar(nom)] || 0) > 1;
+  const dup = est?.mostrar_apellido || (repes[normBuscar(nom)] || 0) > 1;
   return (dup && ap) ? `${nom} ${ap}` : nom;
 }
 
@@ -4387,7 +4453,7 @@ function ordenarEntregaDet(){ entregaDet.sort(cmpEstudiantes(d => d.estudiante, 
 // Estudiantes vigentes del curso en una fecha (matrículas activas; fechas NULL = vigente).
 async function vigentesCursoEnFecha(fecha){
   const { data, error } = await sb.from('libro_matriculas')
-    .select('estudiante_id,posicion,fecha_ingreso,fecha_retiro,estudiante:libro_estudiantes(nombre,apellido,nombre_social)')
+    .select('estudiante_id,posicion,fecha_ingreso,fecha_retiro,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)')
     .eq('anio_id', anioId).eq('contexto_id', pobCtxId).eq('estado', 'activo');   // población (propia o vinculada)
   if (error) throw error;
   return (data || []).filter(m =>
@@ -4510,7 +4576,7 @@ async function abrirEntregaDetalle(eid){
     const [ce, cd, cm] = await Promise.all([
       sb.from('libro_entregas').select('*').eq('id', eid).single(),
       sb.from('libro_entrega_detalle')
-        .select('id,entrega_id,estudiante_id,estado,estudiante:libro_estudiantes(nombre,apellido,nombre_social)')
+        .select('id,entrega_id,estudiante_id,estado,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)')
         .eq('entrega_id', eid),
       sb.from('libro_matriculas').select('estudiante_id,posicion').eq('anio_id', anioId).eq('contexto_id', pobCtxId),   // población
     ]);
@@ -4526,7 +4592,7 @@ async function abrirEntregaDetalle(eid){
       const paraTodos = entregaDet.every(d => d.estado !== 'no_aplica');
       const { vig, nuevas } = await listaAlDia({ tabla: 'libro_entrega_detalle', campo: 'entrega_id',
         actividadId: eid, filas: entregaDet, filaNueva: () => ({ estado: paraTodos ? 'pendiente' : 'no_aplica' }),
-        select: 'id,entrega_id,estudiante_id,estado,estudiante:libro_estudiantes(nombre,apellido,nombre_social)' });
+        select: 'id,entrega_id,estudiante_id,estado,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)' });
       entregaDet = entregaDet.concat(nuevas).filter(d => vig.has(d.estudiante_id));
     }
     ordenarEntregaDet();
@@ -4588,7 +4654,7 @@ function renderEntregaDetalle(){
         <tbody id="tbody-ent">${entregaDet.map((d, idx) => {
           const na = d.estado === 'no_aplica';
           const clickable = !cerrada && !na;   // 'no aplica' no es toggleable ni clickeable
-          return `<tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(normBuscar(nombreDe(d.estudiante)))}" class="${clickable?'fila-click':''}${d.estado==='entregado'?' fila-ok':''}">
+          return `<tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(nombreBuscar(d.estudiante))}" class="${clickable?'fila-click':''}${d.estado==='entregado'?' fila-ok':''}">
             <td class="pos">${entregaPos[d.estudiante_id] ?? ''}</td>
             <td class="est-nombre">${esc(nombreDe(d.estudiante))}${ausenteHoyHTML(d.estudiante_id)}</td>
             <td class="part">${ na
@@ -4742,7 +4808,7 @@ async function renderObservaciones(){
   v.innerHTML = '<div class="card">Cargando observaciones…</div>';
   try {
     const r = await sb.from('libro_pertenencias_taller')
-      .select('estudiante_id,estudiante:libro_estudiantes(nombre,apellido,nombre_social)')
+      .select('estudiante_id,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)')
       .eq('anio_id', anioId).eq('contexto_id', ctxId);
     if (r.error) throw r.error;
     obsTallerEst = (r.data || []).map(p => ({ id:p.estudiante_id, ...(p.estudiante || {nombre:'',apellido:''}) }));

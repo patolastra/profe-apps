@@ -100,7 +100,7 @@
                 .map(m => { pos[m.estudiante_id] = m.posicion; return m.estudiante_id; });
         }
         if (!ids.length) return [];
-        const { data: est, error } = await _sb.from('libro_estudiantes').select('id,nombre,apellido,nombre_social').in('id', ids);
+        const { data: est, error } = await _sb.from('libro_estudiantes').select('id,nombre,apellido,nombre_social,mostrar_apellido').in('id', ids);
         if (error) throw error;
         // Nombre social: reemplaza el nombre de pila (sin señal visible); el resumen usa el apellido.
         (est || []).forEach(e => { e.pos = pos[e.id] ?? null; e.nombre = (e.nombre_social || '').trim() || e.nombre; });
@@ -148,7 +148,7 @@
     function nombreTile(e, repes) {
         const nom = (e.nombre || '').trim() || '—';
         const ap  = (e.apellido || '').trim();
-        return (repes[norm(nom)] > 1 && ap) ? `${nom} ${ap}` : nom;
+        return ((e.mostrar_apellido || repes[norm(nom)] > 1) && ap) ? `${nom} ${ap}` : nom;   // repetido o "mostrar con apellido"
     }
 
     function layout() {
@@ -258,7 +258,7 @@
     function emitir() {
         if (!canal || !_ui || _ui.espejo || !_ui.lista.length) return;
         canal.postMessage({ tipo: 'estado', titulo: _ui.titulo,
-            lista: _ui.lista.map(e => ({ id: e.id, nombre: e.nombre, apellido: e.apellido })),
+            lista: _ui.lista.map(e => ({ id: e.id, nombre: e.nombre, apellido: e.apellido, mostrar_apellido: !!e.mostrar_apellido })),
             ausentes: [..._ui.ausentes] });
     }
     if (canal) canal.addEventListener('message', ev => {

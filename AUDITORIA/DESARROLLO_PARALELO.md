@@ -2504,6 +2504,38 @@ botón Resumen ni barra de abajo; tras marcar → solo "Listo" y "📋 Resumen (
 22 líneas en 3 columnas × 8, letra 47 px, sin desborde ni scroll; a 1024×600 con 26: 3 × 9, 33 px, sin
 desborde. La base no recibió ninguna lista.
 
+### Desarrollo paralelo: Libro por nombre de pila, A–Z (deuda Y)
+
+**Fecha:** 2026-10-07 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** reconocer rápido a cada estudiante en el Libro (por su nombre, en orden alfabético),
+sin confundir nombres repetidos o que suenan igual.
+**Decisión del PO (2026-10-07):** plan Y autorizado completo (ver deuda Y): (1) todo el Libro por nombre de pila
+(o nombre social), A–Z por defecto; (2) nombre + apellido si el nombre se repite en el curso/taller o si el
+estudiante tiene marcada "mostrar con apellido"; (3) orden por n° de lista como opción secundaria (botón
+actual, con APELLIDO, NOMBRE); (4) informes UTP con nombre legal completo (sin cambio); (5) resumen de
+ausentes de Pasar lista sin cambio; (6) opción "mostrar con apellido" en la ficha de Matrícula; (7) el nombre
+mostrado es siempre el nombre completo registrado; (8) la ficha de Matrícula permite corregir el nombre legal.
+**Alcance:** `LIBRO/index.html`, `comun/asistencia.js` (Pasar lista usa la misma regla). Supabase: columna
+nueva `libro_estudiantes.mostrar_apellido` (boolean, por defecto falso) en `supabase/libro_mostrar_apellido.sql`,
+**a correr por el PO**; la corrección del nombre legal escribe el campo `nombre` existente.
+**Columna creada por el PO en Supabase (2026-10-07):** `supabase/libro_mostrar_apellido.sql`.
+**Implementación:** `ordenModo` parte en 'alfa' (botón "NOMBRE · A–Z" / "APELLIDO, NOMBRE · 1–N");
+`nombreCorto` (nombre completo o nombre social; + apellido si se repite en `nombresRepes` o si
+`mostrar_apellido`); `cargarNombresRepes` cuenta la población del contexto (curso: matrícula del año
+con retirados; taller: pertenencias) al iniciar y al recargar la matrícula / cambiar nombres;
+`nombreFmt(est, true)` (informes y ficha) = APELLIDO, NOMBRE fijo; búsquedas con `nombreBuscar`
+(nombre + social + apellido); todas las consultas traen `mostrar_apellido`; Proyector de Participación
+y Pasar lista (`comun/asistencia.js`, también su espejo) respetan la opción. Ficha de Matrícula:
+nombre legal editable (nombres + apellidos, en mayúsculas, con confirmación; aviso "Nombre legal
+guardado") y casilla "Mostrar con apellido" (se guarda al marcar).
+**Pruebas (Claude):** Primero: A–Z por nombre, "TOMAS MARTINEZ / TOMAS SOTO" y "VIOLETA ESPINOZA /
+VIOLETA LOPEZ" con apellido, el resto solo nombre; Pasar lista igual (23). Quinto: "JUAN", "MARÍA
+JESÚS" completa; marcar "mostrar con apellido" → "JUAN VEGA", desmarcar → "JUAN" (revertido en la
+base); buscar "vega" encuentra a JUAN; corregir nombre legal "juan josé" (guardado desconectado) →
+envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Entregas: botón
+"NOMBRE · A–Z" ↔ "APELLIDO, NOMBRE · 1–N" con "ARAUJO, SALVADOR"… Base sin cambios (Juan sigue
+"JUAN", ninguna casilla marcada). Sin errores en consola.
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo
