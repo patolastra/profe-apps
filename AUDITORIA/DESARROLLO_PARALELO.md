@@ -2709,6 +2709,20 @@ vez (siempre la versión al día) y el estilo del Metalófono proyectado se aseg
 - **Decisiones del PO (2026-10-07):** (a) nombre repetido o que suena igual → **nombre + apellido**;
   (b) el orden por n° de lista **queda como opción secundaria**; (c) el resumen de ausentes de Pasar lista
   **queda igual** en contenido (ver deuda AA para su forma).
+- **Complemento del PO (2026-10-07) — "falsos cognados":** nombres que suenan igual pero se escriben
+  distinto (Matías / Mathías) no se detectan como repetidos. Se pide una **opción en la ficha de
+  matrícula** para que ese estudiante se muestre siempre con **nombre completo** (nombre + apellido).
+  Origen: tarjeta Notion "Nombres que suenan igual (Matias/Mathias)".
+  - *Implica (auditoría):* un dato nuevo por estudiante (p. ej. `libro_estudiantes.mostrar_apellido`,
+    sí/no), versionado en un `.sql` y **corrido con autorización del PO**; se edita en la ficha de
+    Matrícula junto al nombre social. Va en el estudiante (sirve todos los años).
+  - *Propuesta complementaria (no decidida):* además, detección automática de parecidos simples
+    (h muda, th/t, y/i, z/s/c, v/b, ll/y, tildes) para sugerir marcar la opción.
+- **Plan Y actualizado (no implementar aún):** (1) todo el Libro por nombre de pila (o nombre social),
+  orden A–Z por defecto; (2) nombre + apellido si el nombre se repite en la lista o si el estudiante
+  tiene marcada la opción "mostrar con apellido"; (3) botón de orden por n° de lista como opción
+  secundaria; (4) informes UTP con nombre legal completo (sin cambio); (5) resumen de ausentes de Pasar
+  lista con n° + apellido (sin cambio de contenido); (6) la opción nueva en la ficha de Matrícula.
 
 ### Z. Libro / Entregas — ocultar a quienes "no aplica" y poder volver a "sí aplica"
 *Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin ficha y aprobación.*
