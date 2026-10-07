@@ -2768,6 +2768,35 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
 *Origen: PO (2026-10-07). Idea registrada; diseño pendiente. No implementar.*
 - **Necesidad:** en las sesiones del Entrenador ligadas a un curso, un botón para anotar una canción pedida (un recordatorio), que después permita agregar la canción de verdad al repertorio/sesión.
 - **Por definir con el PO:** qué se anota (solo nombre/artista, quién la pidió), dónde se ven los pedidos pendientes, y cómo se "convierte" el pedido en canción (buscar en la biblioteca o importar una nueva).
+- **Decisión del PO (2026-10-07):**
+  1. Botón **"Pedir canción"** en el Entrenador, siempre que sea una sesión: canción, artista y (opcional) quién la pidió.
+  2. El pedido aparece en el **cancionero** de la sesión (tecla C), distinguido como **"en espera de ser cargada"**
+     (no se puede abrir), con botón **Descartar**.
+  3. **"+ Canción"** abre una página nueva: botón **"Nueva"** (canción normal) y los **contextos con sus canciones
+     pedidas**; cada pedido se **carga** formalmente (ficha de canción nueva con nombre/artista escritos; letra,
+     carátula, audio como siempre) y queda **de inmediato en la sesión que la pidió**. Botón **Descartar**.
+  4. Autoriza el cambio en Supabase.
+- **Auditoría:** las sesiones viven en `repertorio_sesiones_entrenamiento` (`canciones` JSON + `contexto_id`
+  opcional; una sesión por contexto). `guardarSesion` envía solo nombre/canciones/creada_en/contexto_id, así que una
+  columna aparte no se pisa. El cancionero es `entRenderListaSesion` sobre `entSesionActual` (copia de la sesión).
+- **Supabase:** columna `pedidos` (JSON) en `repertorio_sesiones_entrenamiento`, versionada en
+  `supabase/repertorio_pedidos.sql` (la corre el PO). Sin la columna, el botón avisa y nada más cambia.
+- **Fuera de alcance:** ver pedidos en el Planificador/Dashboard; pedidos hechos por los alumnos.
+- **Implementado (2026-10-07, `REPERTORIO/index.html`):** botón `#ent-btn-pedir` en el header del Entrenador (solo en
+  modo sesión) → cuadro "Pedir canción" (Enter anota, Esc cierra; las teclas no llegan a los atajos del Entrenador).
+  `entPedidosListaHTML()` suma al cancionero la sección "Pedidas" (gris, "⏳ en espera de ser cargada", sin abrir, con
+  "✕ Descartar"). "+ Canción" abre `#pedidos-overlay` (recarga las sesiones; "+ Nueva" = ficha de siempre; grupos por
+  contexto, luego sesiones sin curso; Cargar / Descartar). `pedidoCargar` abre la ficha con nombre/artista escritos y
+  la búsqueda de carátula lanzada; al guardar, `pedidoVincular` lee la sesión fresca, agrega la canción al final y
+  marca el pedido `cargada` (con `cancion_id`). Todo cambio de pedidos lee antes de escribir y se avisa a las otras
+  pestañas (`BroadcastChannel` 'profe-repertorio-pedidos'): el Entrenador abierto en otra pestaña ve la canción nueva.
+  Nada se borra: estados `pendiente` / `cargada` / `descartada`.
+- **Prueba (2026-10-07, servidor local, sin la columna aún):** botón visible solo en sesión y cabe en 1366 px; anotar
+  sin la columna avisa "Falta activar los pedidos en Supabase…" (sin otros errores); pedidos simulados en memoria: el
+  cancionero los muestra en gris al final (texto escapado; los descartados no aparecen); la página de "+ Canción" los
+  agrupa (Cuarto / sesión sin curso, fecha "07 OCT"); "Cargar" abre "Cargar canción pedida" con los datos y la búsqueda
+  de carátula; cerrar la ficha suelta el pedido. **Falta:** que el PO corra `supabase/repertorio_pedidos.sql` y probar
+  anotar → cargar → canción en la sesión con datos reales.
 
 ### Y. Libro — todo por nombre de pila (sin apellido) y A–Z, salvo los informes
 *Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin ficha y aprobación.*
