@@ -2798,6 +2798,7 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   de carátula; cerrar la ficha suelta el pedido. **Falta:** que el PO corra `supabase/repertorio_pedidos.sql` y probar
   anotar → cargar → canción en la sesión con datos reales.
 - **Implementación:** commit `fb2a8eb` (2026-10-07). Pendiente: SQL del PO + prueba con datos reales.
+- **SQL corrido por el PO (2026-10-07).** Prueba con datos reales en la sesión "Mine" (sin curso): anotar 2 pedidos → guardados en `pedidos` y visibles en el cancionero; descartar uno → `descartada` y sale de la lista; "+ Canción" lo agrupa; Cargar + Guardar → canción creada, agregada al final de la sesión y pedido `cargada` con `cancion_id`; el Entrenador abierto en otra pestaña con la misma sesión mostró la canción nueva al instante y quitó el pedido. Datos de prueba borrados (sesión vuelta a sus 2 canciones, pedidos vacíos, canción eliminada). Probar en clase.
 
 ### Y. Libro — todo por nombre de pila (sin apellido) y A–Z, salvo los informes
 *Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin ficha y aprobación.*
