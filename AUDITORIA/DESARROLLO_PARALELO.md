@@ -2782,6 +2782,9 @@ desborde. La base no recibió ninguna lista.
     (todos los nombres registrados), nunca la primera palabra; (8) **por decidir:** permitir corregir el nombre
     legal en la ficha de Matrícula (para casos como "JUAN" → "JUAN JOSÉ"), o corregir esos casos directo en la
     base con autorización del PO.
+  - **Decisión del PO (2026-10-07) sobre (8):** opción **A** — la ficha de Matrícula permitirá **corregir el
+    nombre legal** (también se verá en los informes UTP, por ser el legal). Sin cambios de estructura en
+    Supabase (el campo ya existe); sí escribe datos del estudiante. Sigue dentro del plan Y (no implementar aún).
 
 ### Z. Libro / Entregas — ocultar a quienes "no aplica" y poder volver a "sí aplica"
 *Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin ficha y aprobación.*
