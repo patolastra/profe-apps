@@ -140,6 +140,12 @@
     .asis-res-tit{font-weight:800;color:#ff9d94;text-transform:uppercase;letter-spacing:.04em;font-size:.85em}
     .asis-res-item b{color:#fff;font-variant-numeric:tabular-nums;margin-right:4px}
     .asis-res-vacio{color:#7b8592}
+    .asis-res-btn{margin-left:auto;padding:8px 16px}
+    .asis-resumen{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;background:#0f1218}
+    .asis-resumen-lista{flex:1;min-height:0;overflow:auto;padding:18px 28px;
+      font-size:clamp(22px,3.2vw,40px);font-weight:800;line-height:1.5;font-variant-numeric:tabular-nums}
+    .asis-resumen-lista div{white-space:nowrap}
+    .asis-resumen-lista .vacio{color:#7b8592;font-weight:700}
     .asis.espejo .asis-tile{cursor:default}`;
 
     let _ui = null;   // { el, sesionId, lista, ausentes:Set, tomada, resolver, ro }
@@ -184,19 +190,45 @@
         _ui.el.querySelector('.asis-cont').innerHTML = `<b class="p">${lista.length - nA}</b> presentes · <b class="a">${nA}</b> ausentes`;
         _ui.el.querySelector('.asis-grid.p').innerHTML = lista.map(tile).join('');
         // Resumen para traspasar al libro (solo en la pantalla del profe): n° de lista + apellido.
+        // Pie: cuántos faltan + botón "Resumen (N)", que abre la lista vertical (pantalla aparte).
         const res = _ui.el.querySelector('.asis-res');
         if (res) {
-            const aus = lista.filter(e => ausentes.has(e.id))
-                .sort((a, b) => (a.pos ?? 1e9) - (b.pos ?? 1e9) || norm(a.apellido).localeCompare(norm(b.apellido)));
-            const item = e => e.pos != null
-                ? `<span class="asis-res-item"><b>${e.pos}</b>${esc(e.apellido || e.nombre)}</span>`
-                : `<span class="asis-res-item">${esc(`${e.apellido || ''} ${e.nombre || ''}`.trim())}</span>`;
             res.innerHTML = `<span class="asis-res-tit">Ausentes</span>`
-                + (aus.length ? aus.map(item).join('') : '<span class="asis-res-vacio">Ninguno</span>');
+                + (nA ? `<span class="asis-res-item"><b>${nA}</b></span>` : '<span class="asis-res-vacio">Ninguno</span>')
+                + `<button class="asis-btn no asis-res-btn" data-acc="resumen"${nA ? '' : ' disabled'}>📋 Resumen (${nA})</button>`;
+            res.querySelector('[data-acc="resumen"]').onclick = abrirResumen;
         }
+        if (_ui.el.querySelector('.asis-resumen')) abrirResumen();   // abierto: se mantiene al día
         layout();
         if (!_ui.espejo) emitir();
     }
+
+    // Resumen para traspasar al libro oficial: uno por línea, "N° - APELLIDO", ordenado por
+    // n° de lista (talleres sin n°: "APELLIDO NOMBRE"). Pantalla aparte sobre el tablero.
+    function lineaResumen(e) {
+        return e.pos != null ? `${e.pos} - ${(e.apellido || e.nombre || '').trim()}`
+                             : `${e.apellido || ''} ${e.nombre || ''}`.trim();
+    }
+    function abrirResumen() {
+        if (!_ui) return;
+        const aus = _ui.lista.filter(e => _ui.ausentes.has(e.id))
+            .sort((a, b) => (a.pos ?? 1e9) - (b.pos ?? 1e9) || norm(a.apellido).localeCompare(norm(b.apellido)));
+        let r = _ui.el.querySelector('.asis-resumen');
+        if (!r) {
+            r = document.createElement('div');
+            r.className = 'asis-resumen';
+            r.innerHTML = `<div class="asis-bar"><span class="asis-tit">📋 Ausentes</span><span class="asis-cont"></span>
+                <span class="asis-sp"></span><button class="asis-btn listo" data-acc="volver">Volver</button></div>
+                <div class="asis-resumen-lista"></div>`;
+            r.querySelector('[data-acc="volver"]').onclick = cerrarResumen;
+            _ui.el.appendChild(r);
+        }
+        r.querySelector('.asis-cont').textContent = `${aus.length} ${aus.length === 1 ? 'estudiante' : 'estudiantes'}`;
+        r.querySelector('.asis-resumen-lista').innerHTML = aus.length
+            ? aus.map(e => `<div>${esc(lineaResumen(e))}</div>`).join('')
+            : '<div class="vacio">Ninguno</div>';
+    }
+    function cerrarResumen() { _ui?.el.querySelector('.asis-resumen')?.remove(); }
 
     // ── Espejo en la Pizarra (mismo tablero, solo para mirar) ─────────────────
     // La ventana que pasa lista avisa por BroadcastChannel; la Pizarra (espejo()) lo muestra.
@@ -282,7 +314,8 @@
         const el = crearVista({ titulo, espejo: false });
         return new Promise(async resolver => {
             _ui = { el, sesionId, titulo, lista: [], ausentes: new Set(), repes: {}, tomada: false, resolver, cambios: false };
-            _ui.onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); cerrar({ guardada: _ui.tomada || _ui.cambios, ausentes: [..._ui.ausentes] }); } };
+            _ui.onKey = e => { if (e.key === 'Escape' && _ui.el.querySelector('.asis-resumen')) { e.stopPropagation(); e.preventDefault(); cerrarResumen(); return; }
+                if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); cerrar({ guardada: _ui.tomada || _ui.cambios, ausentes: [..._ui.ausentes] }); } };
             document.addEventListener('keydown', _ui.onKey, true);
             el.querySelector('[data-acc="no"]').onclick = () => cerrar({ guardada: _ui.tomada || _ui.cambios, ausentes: [..._ui.ausentes] });
             el.querySelector('[data-acc="listo"]').onclick = async () => {

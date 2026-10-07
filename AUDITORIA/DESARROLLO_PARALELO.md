@@ -2476,13 +2476,19 @@ se ven 11; "Mostrar no aplica (15)" muestra 26 con 15 "Aplicar" y 8 "No aplica";
 
 ### Microiteración: Pasar lista — resumen de ausentes en vertical (deuda AA)
 
-**Fecha:** 2026-10-07 · **Estado:** EN IMPLEMENTACIÓN. Ficha creada antes de implementar.
+**Fecha:** 2026-10-07 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
 **Necesidad profesional:** traspasar los ausentes al libro oficial sin leer una línea horizontal.
 **Decisión del PO (2026-10-07):** vertical, uno por línea `N° - APELLIDO`; si no cabe, botón "Resumen"
 con pantalla aparte (Claude recomendó la pantalla aparte para no quitar espacio al tablero).
 **Alcance:** `comun/asistencia.js`: el pie del tablero muestra la cantidad de ausentes y el botón
 "Resumen (N)", que abre una pantalla con la lista vertical en letra grande y "Volver" (Esc vuelve al
 tablero). Solo en la pantalla del profe. Sin cambios en Supabase.
+**Implementación:** pie `.asis-res` = "AUSENTES n" + botón "📋 Resumen (n)" (desactivado si no hay);
+`abrirResumen` pinta `.asis-resumen` sobre el tablero (uno por línea, `N° - APELLIDO`, orden por n°;
+talleres: `APELLIDO NOMBRE`) y se mantiene al día si está abierto; "Volver" o Esc vuelven al tablero.
+**Pruebas (Claude):** Tercero (26) con el guardado desconectado (sin tocar la base): 3 ausentes →
+pie "Resumen (3)"; resumen: "7 - ESPINOSA / 10 - MANSILLA / 27 - SCHAAF", "3 estudiantes"; Esc vuelve al
+tablero sin cerrar Pasar lista. La base no recibió ninguna lista.
 
 ---
 
