@@ -2901,3 +2901,21 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
    comparten marca y texto. *Plan:* si está en los ausentes de hoy dice "ausente"; si se inhabilitó a mano, "inhabilitado".
    Mismo comportamiento (fuera del sorteo).
 - *Orden recomendado:* 3 y 4 → 2 → 1. Sin cambios en Supabase.
+- **Implementado (2026-10-07, `LIBRO/index.html`, sin cambios en Supabase):**
+  - *4:* clase `fila-aus` → la fila dice "ausente" si el inhabilitado está en los ausentes de hoy; en el Proyector,
+    el `title` del casillero dice "ausente" / "inhabilitado".
+  - *3:* `seguro(clave, botón, texto, fn)` — una acción a la vez, botón desactivado con "Creando…"/"Guardando…".
+    Creaciones con id fijado en el navegador (`idCreacion` + `insertarUnaVez`): al reintentar con los mismos datos se
+    usa el mismo id; si ya existía, avisa "ya estaba creada" y no duplica. Filas por estudiante con `upsert …
+    ignoreDuplicates`. Aplicado a las 13 creaciones y a Guardar cabecera/Guardar notas/Cerrar/Reabrir. "Lista al día"
+    corre una sola vez a la vez por actividad. Aviso de falla único: `avisoFallo()`.
+  - *2:* `guardarMarca()` con cola `localStorage profe_libro_marcas_cola`, subida en serie, al volver la conexión
+    (`online`) y cada 20 s; lo pendiente se aplica encima al recargar (`marcasSobre`). Aviso amarillo "⏳ N marcas sin
+    subir". Participó (vista normal y Proyector), Entregó/Recibió y Aplicar/No aplica. Se retiraron los botones
+    "Guardar participación" y "Guardar entrega".
+  - *1:* barra de pestañas Cabecera · Instrumentos · Grupos de trabajo · Estudiantes · Observación general; las demás
+    quedan armadas pero ocultas (mismos guardados); última recordada (`localStorage libro_eval_tab`), por defecto
+    Estudiantes; la Observación general se guarda al salir de su pestaña.
+- **Prueba (2026-10-07, servidor local):** pestañas en una evaluación real de Tercero; duplicados y cola sin conexión
+  con base simulada (reintento sin duplicar, 3 clics = 1 acción, marcas subidas al volver). Sin errores. Falta probar
+  en clase marcas reales y el Proyector.

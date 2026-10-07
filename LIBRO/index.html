@@ -101,6 +101,7 @@
   /* Participación: inhabilitado temporal (Shift+clic). Solo visual, no persiste. */
   tr.fila-inhab td{opacity:.4}
   tr.fila-inhab td:nth-child(2)::after{content:' · inhabilitado';font-size:.82em;font-style:italic}
+  tr.fila-inhab.fila-aus td:nth-child(2)::after{content:' · ausente'}   /* ausente en Pasar lista (deuda AC-4) */
 
   /* ── PANEL DE CONTROL DEL CURSO ── */
   /* 5 botones grandes de acción, con color por categoría. Responsive (auto-fit). */
@@ -129,6 +130,9 @@
   .eval-item .act-tag{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);font-weight:600;white-space:nowrap}
   /* Identidad cromática DENTRO de la actividad: acento superior por categoría. */
   #vista[data-cat="eval"] .card{border-top:3px solid var(--acc)}
+  /* Evaluación en pestañas (deuda AC-1) */
+  .ev-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+  .ev-tabs .btn{font-weight:600}
   #vista[data-cat="part"] .card{border-top:3px solid #e8730c}
   #vista[data-cat="ent"]  .card{border-top:3px solid var(--warn)}
   #vista[data-cat="mat"]  .card{border-top:3px solid #3b5bdb}   /* Matrícula · azul */
@@ -232,6 +236,9 @@
   .toast.show{opacity:1;transform:translateY(0)}
   .toast.ok{background:#1e3a24;border:1px solid #2c6a3a;color:#d7ffe2}
   .toast.err{background:#3a1e1e;border:1px solid #6a2c2c;color:#ffd9d9}
+  /* Marcas sin subir (sin conexión) — deuda AC-2 */
+  #marcas-pend{position:fixed;left:18px;bottom:18px;z-index:50;max-width:380px;padding:10px 14px;border-radius:9px;
+    font-size:13.5px;background:#3a2f12;border:1px solid #7a5f1c;color:#ffe9b0;box-shadow:0 6px 24px rgba(0,0,0,.4);cursor:pointer}
   @media(max-width:640px){.grid2{grid-template-columns:1fr}.td.obj{width:auto}}
 
   /* ══ VISTA PROYECTOR — Participación (scope .ppro-*, aislado del resto) ══ */
@@ -526,6 +533,103 @@ function tablaFalta(e){
   return /does not exist|could not find the table|schema cache/i.test(e.message || '');
 }
 
+// ── Seguro de escritura (deuda AC-3) ─────────────────────────
+// Una acción a la vez: mientras trabaja, su botón queda desactivado y dice
+// "Creando…"/"Guardando…"; al terminar (bien o mal) vuelve a activarse.
+const _ocupado = new Set();
+async function seguro(clave, btn, texto, fn){
+  if (_ocupado.has(clave)) return;
+  _ocupado.add(clave);
+  const b = (btn instanceof HTMLElement) ? btn : null;
+  const prev = b ? b.innerHTML : '';
+  if (b) { b.disabled = true; if (texto) b.textContent = texto; }
+  try { return await fn(); }
+  finally {
+    _ocupado.delete(clave);
+    if (b && b.isConnected) { b.disabled = false; b.innerHTML = prev; }
+  }
+}
+// Creaciones sin duplicar: el id se fija en el navegador y se REUSA al reintentar con los
+// mismos datos. Si la primera vez sí se creó (se perdió la respuesta), el reintento lo
+// encuentra y no crea otro. Se olvida al terminar bien.
+const _creacionPend = {};   // clave → { firma, id }
+function nuevoId(){
+  if (window.crypto?.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+}
+function idCreacion(clave, datos){
+  const firma = JSON.stringify(datos);
+  const p = _creacionPend[clave];
+  if (p && p.firma === firma) return p.id;
+  const id = nuevoId();
+  _creacionPend[clave] = { firma, id };
+  return id;
+}
+function creacionHecha(clave){ delete _creacionPend[clave]; }
+// Inserta una fila con id propio. → { data, yaEstaba }  (yaEstaba = existía de un intento anterior)
+async function insertarUnaVez(tabla, fila, select = '*'){
+  const { data, error } = await sb.from(tabla).insert(fila).select(select).single();
+  if (!error) return { data, yaEstaba: false };
+  if (error.code === '23505') {
+    const r = await sb.from(tabla).select(select).eq('id', fila.id).maybeSingle();
+    if (r.data) return { data: r.data, yaEstaba: true };
+  }
+  throw error;
+}
+// ── Marcas al instante con cola sin conexión (deuda AC-2) ──────
+// Participó / Entregó / Aplicar–No aplica se guardan al tocar. Primero quedan en este
+// computador (localStorage) y se suben en serie; sin conexión esperan y se suben solas
+// al volver (como Pasar lista). Un aviso muestra cuántas faltan por subir.
+const MARCAS_COLA = 'profe_libro_marcas_cola';   // { "tabla:id": { tabla, id, campos, ts } }
+function marcasLeer(){ try { return JSON.parse(localStorage.getItem(MARCAS_COLA)) || {}; } catch (_) { return {}; } }
+function marcasEscribir(c){ try { localStorage.setItem(MARCAS_COLA, JSON.stringify(c)); } catch (_) {} }
+function guardarMarca(tabla, id, campos){
+  const c = marcasLeer(), k = tabla + ':' + id;
+  c[k] = { tabla, id, campos: { ...(c[k]?.campos || {}), ...campos }, ts: Date.now() };
+  marcasEscribir(c); marcasAviso();
+  return subirMarcas();
+}
+let _marcasCadena = Promise.resolve();
+function subirMarcas(){ _marcasCadena = _marcasCadena.then(_subirMarcas).catch(() => {}); return _marcasCadena; }
+async function _subirMarcas(){
+  if (!sb) return;
+  for (const [k, it] of Object.entries(marcasLeer())) {
+    const { error } = await sb.from(it.tabla).update(it.campos).eq('id', it.id);
+    if (error) break;   // sin conexión: se reintenta más tarde
+    const act = marcasLeer();
+    if (act[k] && act[k].ts === it.ts) { delete act[k]; marcasEscribir(act); }
+  }
+  marcasAviso();
+}
+// Lo pendiente de subir es más nuevo que lo leído de la base: se aplica encima.
+function marcasSobre(tabla, filas){
+  const c = marcasLeer();
+  filas.forEach(f => { const it = c[tabla + ':' + f.id]; if (it) Object.assign(f, it.campos); });
+}
+function marcasAviso(){
+  const n = Object.keys(marcasLeer()).length;
+  let el = document.getElementById('marcas-pend');
+  if (!el) {
+    if (!n) return;
+    el = document.createElement('div'); el.id = 'marcas-pend';
+    el.title = 'Clic para intentar subirlas ahora';
+    el.onclick = () => subirMarcas();
+    document.body.appendChild(el);
+  }
+  el.hidden = !n;
+  el.textContent = `⏳ ${n === 1 ? '1 marca' : n + ' marcas'} sin subir (sin conexión). Están guardadas en este computador y se suben solas al volver la conexión.`;
+}
+window.addEventListener('online', () => subirMarcas());
+window.addEventListener('storage', e => { if (e.key === MARCAS_COLA) marcasAviso(); });
+setInterval(() => { if (Object.keys(marcasLeer()).length) subirMarcas(); }, 20000);
+
+// Aviso de falla al guardar/crear: claro y en humano.
+function avisoFallo(e){
+  if (tablaFalta(e)) return 'Faltan tablas del Libro.';
+  return 'No se guardó: revisa la conexión e intenta de nuevo.';
+}
+
 // ── Orden/etiqueta de estudiantes (SOLO visual — no toca datos ni Supabase) ──
 // Un único botón toggle en el header alterna dos modos, reutilizados por TODOS
 // los listados del Libro (evaluaciones, participación, talleres):
@@ -775,7 +879,7 @@ async function renderLista(){
       <div style="margin-top:12px"><label>Objetivo de Aprendizaje (OA original)</label>
         <textarea id="nv-oa" placeholder="OA original de la evaluación"></textarea></div>
       <div class="row" style="margin-top:12px">
-        <button class="btn primary" onclick="crearEvaluacion()">Crear evaluación</button>
+        <button class="btn primary" onclick="crearEvaluacion(this)">Crear evaluación</button>
         <span class="hint">La población se materializa con los estudiantes vigentes del curso en la fecha (snapshot).</span>
       </div>
     </div>
@@ -795,7 +899,8 @@ async function renderLista(){
     </div>`).join('');
 }
 
-async function crearEvaluacion(){
+async function crearEvaluacion(btn){ return seguro('crearEvaluacion', btn, 'Creando…', _crearEvaluacion); }
+async function _crearEvaluacion(){
   limpiarMsg();
   const nombre = document.getElementById('nv-nombre').value.trim();
   const fecha  = document.getElementById('nv-fecha').value;
@@ -814,29 +919,28 @@ async function crearEvaluacion(){
       (!m.fecha_ingreso || m.fecha_ingreso <= fecha) &&
       (!m.fecha_retiro  || m.fecha_retiro  >  fecha));
 
-    // Cabecera.
-    const { data: ins, error: ee } = await sb.from('libro_evaluaciones')
-      .insert({ anio_id:anioId, contexto_id:ctxId, sesion_creacion_id:ref.sesion,
-                nombre, fecha, oa_original:oa, estado:'abierto' })
-      .select('id').single();
-    if (ee) throw ee;
-    const evId = ins.id;
+    // Cabecera (id propio: un reintento no la duplica).
+    const evId = idCreacion('evaluacion', { ctxId, nombre, fecha, oa });
+    const { yaEstaba } = await insertarUnaVez('libro_evaluaciones', { id:evId, anio_id:anioId, contexto_id:ctxId,
+      sesion_creacion_id:ref.sesion, nombre, fecha, oa_original:oa, estado:'abierto' }, 'id');
 
-    // Detalle materializado (una fila por estudiante vigente).
+    // Detalle materializado (una fila por estudiante vigente; las que ya estén se respetan).
     if (vigentes.length) {
       const filas = vigentes.map(m => ({ evaluacion_id:evId, estudiante_id:m.estudiante_id,
         nota:null, comentario:null, adecuacion_id:null }));
-      const { error: en } = await sb.from('libro_evaluacion_notas').insert(filas);
+      const { error: en } = await sb.from('libro_evaluacion_notas')
+        .upsert(filas, { onConflict:'evaluacion_id,estudiante_id', ignoreDuplicates:true });
       if (en) {
         // Revertir la cabecera para no dejar una evaluación sin población.
-        await sb.from('libro_evaluaciones').delete().eq('id', evId);
+        if (!yaEstaba) await sb.from('libro_evaluaciones').delete().eq('id', evId);
         throw en;
       }
     }
-    msg('Evaluación creada (' + vigentes.length + ' estudiantes).', 'ok');
+    creacionHecha('evaluacion');
+    msg(yaEstaba ? 'La evaluación ya estaba creada (no se duplicó).' : ('Evaluación creada (' + vigentes.length + ' estudiantes).'), 'ok');
     abrirDetalle(evId);
   } catch (e) {
-    msg(tablaFalta(e) ? 'Faltan tablas del Libro. Ejecuta supabase/libro_schema.sql.' : ('No se pudo crear: ' + e.message));
+    msg(avisoFallo(e));
   }
 }
 
@@ -867,8 +971,9 @@ async function abrirDetalle(evId){
         const pres = new Set((ex.data || []).map(r => r.estudiante_id));
         const faltan = [...matriculaActiva].filter(id => !pres.has(id));
         if (faltan.length) {
-          await sb.from('libro_evaluacion_notas').insert(faltan.map(id =>
-            ({ evaluacion_id: evId, estudiante_id: id, nota: null, estado_eval: 'pendiente' })));
+          await sb.from('libro_evaluacion_notas').upsert(faltan.map(id =>
+            ({ evaluacion_id: evId, estudiante_id: id, nota: null, estado_eval: 'pendiente' })),
+            { onConflict: 'evaluacion_id,estudiante_id', ignoreDuplicates: true });
         }
       }
     }
@@ -936,11 +1041,16 @@ function renderDetalle(){
   const cerrada = ev.estado === 'cerrado';
   const dis = cerrada ? 'disabled' : '';
   const v = document.getElementById('vista');
+  const tabs = EV_TABS.filter(([k]) => k !== 'grupos' || notas.length);
   v.innerHTML = `
+    <div class="ev-tabs" role="tablist">${tabs.map(([k, lab]) =>
+      `<button type="button" class="btn seg" data-evtab="${k}" role="tab" onclick="evIrTab('${k}')">${lab}</button>`).join('')}
+      <span class="badge ${ev.estado}" style="margin-left:auto;align-self:center">${ev.estado}</span>
+    </div>
+    <div class="ev-pane" data-pane="cab">
     <div class="card">
       <div class="row" style="justify-content:space-between">
-        <p class="sec-title" style="margin:0">Cabecera</p>
-        <span class="badge ${ev.estado}">${ev.estado}</span>
+        <p class="sec-title" style="margin:0">Cabecera · ${esc(ev.nombre)}</p>
       </div>
       <div class="grid2" style="margin-top:10px">
         <div><label>Nombre</label><input id="d-nombre" value="${esc(ev.nombre)}" ${dis}></div>
@@ -950,10 +1060,10 @@ function renderDetalle(){
         <textarea id="d-oa" ${dis}>${esc(ev.oa_original)}</textarea>
         ${cerrada ? '' : `<div class="row" style="margin-top:6px"><button class="btn mini danger" onclick="eliminarOA()" title="Vacía el texto del OA original y lo deja sin instrumento">Eliminar OA</button></div>`}</div>
       <div class="row" style="margin-top:12px">
-        <button class="btn primary" onclick="guardarCabecera()" ${dis}>Guardar cabecera</button>
+        <button class="btn primary" onclick="guardarCabecera(this)" ${dis}>Guardar cabecera</button>
         ${cerrada
-          ? `<button class="btn warn" onclick="reabrirEval()">Reabrir</button>`
-          : `<button class="btn" onclick="cerrarEval()">Cerrar</button>`}
+          ? `<button class="btn warn" onclick="reabrirEval(this)">Reabrir</button>`
+          : `<button class="btn" onclick="cerrarEval(this)">Cerrar</button>`}
         ${cerrada ? '<span class="hint">Evaluación cerrada: solo lectura. Reábrela para editar.</span>'
                   : `<button class="btn danger" onclick="eliminarEval()" style="margin-left:auto">Eliminar evaluación</button>`}
       </div>
@@ -971,15 +1081,17 @@ function renderDetalle(){
         ${cerrada ? '' : `
         <div class="row" style="margin-top:10px">
           <input id="d-nueva-adec" placeholder="Texto de la adecuación" style="max-width:520px">
-          <button class="btn" onclick="agregarAdecuacion()">Agregar adecuación</button>
+          <button class="btn" onclick="agregarAdecuacion(this)">Agregar adecuación</button>
         </div>`}
       </div>
     </div>
+    </div>
 
-    ${instrCardHTML(cerrada)}
+    <div class="ev-pane" data-pane="instr">${instrCardHTML(cerrada)}</div>
 
-    ${notas.length ? gruposCardHTML() : ''}
+    <div class="ev-pane" data-pane="grupos">${notas.length ? gruposCardHTML() : ''}</div>
 
+    <div class="ev-pane" data-pane="est">
     <div class="card">
       <p class="sec-title">Estudiantes (${notas.length})</p>
       ${notas.length ? `<div class="buscador">
@@ -1005,13 +1117,15 @@ function renderDetalle(){
       </div>
       ${notas.length ? (cerrada ? '' : `
       <div class="row" style="margin-top:12px">
-        <button class="btn primary" onclick="guardarNotas()">Guardar notas</button>
+        <button class="btn primary" onclick="guardarNotas(this)">Guardar notas</button>
         <span class="hint">Escala 1,0–7,0. "7"→7,0 · "65"→6,5. Vacío = sin nota.</span>
       </div>`) : '<p class="hint">Esta evaluación no materializó estudiantes (no había matrículas activas en la fecha).</p>'}
     </div>
+    </div>
 
-    ${obsGenCardHTML(cerrada)}`;
+    <div class="ev-pane" data-pane="obs">${obsGenCardHTML(cerrada)}</div>`;
 
+  evMostrarTab();
   bindInstrCard();   // Etapa 3: piso + carga de plantilla + asociaciones
   bindObsGen();      // Observación general: borrador + guardado automático al salir
 
@@ -1053,6 +1167,27 @@ function renderDetalle(){
       });
     });
   }
+}
+
+// Pestañas de la evaluación (deuda AC-1): se ve solo la elegida; las demás quedan armadas
+// pero ocultas (mismos guardados). Se recuerda la última; por defecto Estudiantes.
+const EV_TABS = [['cab', 'Cabecera'], ['instr', 'Instrumentos'], ['grupos', 'Grupos de trabajo'],
+                 ['est', 'Estudiantes'], ['obs', 'Observación general']];
+let evTab = (() => { try { return localStorage.getItem('libro_eval_tab') || 'est'; } catch (_) { return 'est'; } })();
+function evMostrarTab(){
+  const panes = document.querySelectorAll('#vista .ev-pane');
+  if (![...panes].some(p => p.dataset.pane === evTab && (p.dataset.pane !== 'grupos' || p.innerHTML.trim()))) evTab = 'est';
+  panes.forEach(p => { p.hidden = p.dataset.pane !== evTab; });
+  document.querySelectorAll('#vista .ev-tabs [data-evtab]').forEach(b => {
+    const on = b.dataset.evtab === evTab;
+    b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+}
+function evIrTab(k){
+  if (obsGenSucia()) guardarObsGeneral(true);   // la Observación general se guarda al salir de su pestaña
+  evTab = k;
+  try { localStorage.setItem('libro_eval_tab', k); } catch (_) {}
+  evMostrarTab();
 }
 
 // Filtro visual en tiempo real (nombre/apellido, sin acentos ni mayúsculas).
@@ -1101,18 +1236,20 @@ async function guardarCabecera(){
       if (sel.options.length) sel.options[0].textContent = optObjetivoOA();
     });
     toast('Guardado correctamente', 'ok');
-  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
-async function agregarAdecuacion(){
+async function agregarAdecuacion(btn){ return seguro('agregarAdecuacion', btn, 'Guardando…', _agregarAdecuacion); }
+async function _agregarAdecuacion(){
   const inp = document.getElementById('d-nueva-adec');
   const texto = inp.value.trim();
   if (!texto) { toast('Escribe el texto de la adecuación.', 'err'); return; }
   const scrollY0 = window.scrollY;   // conservar posición exacta tras el update local
   try {
-    const { data, error } = await sb.from('libro_evaluacion_adecuaciones')
-      .insert({ evaluacion_id: evalActual.id, texto }).select('*').single();
-    if (error) throw error;
+    const id = idCreacion('adecuacion', { ev: evalActual.id, texto });
+    const { data, yaEstaba } = await insertarUnaVez('libro_evaluacion_adecuaciones', { id, evaluacion_id: evalActual.id, texto });
+    creacionHecha('adecuacion');
+    if (adecs.some(a => a.id === data.id)) { inp.value = ''; return; }
     // Actualización local inmediata: sin recarga ni re-render (conserva scroll).
     adecs.push(data);
     const ul = document.getElementById('d-adecs');
@@ -1128,8 +1265,8 @@ async function agregarAdecuacion(){
     inp.value = '';
     renderInstrCard();   // Etapa 3: la nueva adecuación aparece en "Objetivo → instrumento"
     window.scrollTo(0, scrollY0);   // restaurar posición exacta
-    toast('Guardado correctamente', 'ok');
-  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+    toast(yaEstaba ? 'Ya estaba agregada (no se duplicó).' : 'Guardado correctamente', 'ok');
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 async function guardarNotas(){
@@ -1146,7 +1283,7 @@ async function guardarNotas(){
     const { error } = await sb.from('libro_evaluacion_notas').upsert(filas, { onConflict:'id' });
     if (error) throw error;
     toast('Guardado correctamente', 'ok');
-  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1344,7 +1481,7 @@ function gruposCardBody(){
 
   const acciones = (cerrada || disponibles.length === 0) ? '' : `
     <div class="row" style="margin-top:8px;gap:8px">
-      ${selCount >= 1 ? `<button class="btn" onclick="evalCrearGrupoDesdeSeleccion()">＋ Crear grupo (${selCount})</button>` : '<span class="hint">Selecciona estudiantes para crear un grupo.</span>'}
+      ${selCount >= 1 ? `<button class="btn" onclick="evalCrearGrupoDesdeSeleccion(this)">＋ Crear grupo (${selCount})</button>` : '<span class="hint">Selecciona estudiantes para crear un grupo.</span>'}
       ${selCount === 1 ? `<button class="btn primary" onclick="evalEvaluarIndividualSel()">Evaluar individualmente</button>` : ''}
     </div>`;
 
@@ -1393,23 +1530,24 @@ function evalToggleSel(notaId, checked){
 }
 // Crea un grupo con los seleccionados. Heredan por defecto (sin excepción); como los
 // disponibles no tienen nota, su efectivo queda igual (grupo nuevo sin nota grupal).
-async function evalCrearGrupoDesdeSeleccion(){
+async function evalCrearGrupoDesdeSeleccion(btn){ return seguro('crearGrupo', btn, 'Creando…', _evalCrearGrupoDesdeSeleccion); }
+async function _evalCrearGrupoDesdeSeleccion(){
   const ids = [...grupoSelIds].filter(id => { const n = notas.find(x => x.id === id); return n && estDisponible(n); });
   if (!ids.length) { toast('Selecciona al menos un estudiante disponible.', 'err'); return; }
   try {
-    const { data: g, error } = await sb.from('libro_evaluacion_grupos')
-      .insert({ evaluacion_id: evalActual.id, nombre: 'Grupo ' + (grupos.length + 1) }).select('*').single();
-    if (error) throw error;
-    grupos.push(g);
+    const gid = idCreacion('grupo', { ev: evalActual.id, ids: [...ids].sort() });
+    const { data: g } = await insertarUnaVez('libro_evaluacion_grupos', { id: gid, evaluacion_id: evalActual.id, nombre: 'Grupo ' + (grupos.length + 1) });
+    if (!grupos.some(x => x.id === g.id)) grupos.push(g);
     const miembros = ids.map(id => notas.find(n => n.id === id));
     miembros.forEach(n => { n.grupo_id = g.id; n.nota_excepcion = false; n.objetivo_excepcion = false;
       n.instrumento_id = null;   // Etapa 6: sin override → hereda el instrumento del grupo
       n.nota = g.nota_grupal ?? null; n.adecuacion_id = g.adecuacion_grupal_id ?? null; });
     await evalPersistNotasRows(miembros);
+    creacionHecha('grupo');
     grupoSelIds.clear();
     refrescarDetalle();
     toast(`Grupo creado con ${ids.length} integrante(s).`, 'ok');
-  } catch (e) { toast('No se pudo crear el grupo: ' + e.message, 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 // Evaluar individualmente al único seleccionado (no crea grupo).
 function evalEvaluarIndividualSel(){
@@ -1705,7 +1843,7 @@ async function evalReabrirGrupo(gid){
     g.terminado = false;
     evalRefrescar();
     toast('Evaluación del grupo reabierta.', 'ok');
-  } catch (e) { toast('No se pudo reabrir: ' + e.message, 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 // Individual: "terminado" = tener nota (sale de Disponibles). El botón solo confirma y cierra.
 function evalTerminarIndividual(notaId){
@@ -1788,7 +1926,7 @@ async function cerrarEval(){
     if (error) throw error;
     evalActual.estado = 'cerrado'; renderDetalle();
     toast('Evaluación cerrada (solo lectura).', 'ok');
-  } catch (e) { toast('No se pudo cerrar: ' + e.message, 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 async function reabrirEval(){
@@ -1797,7 +1935,7 @@ async function reabrirEval(){
     if (error) throw error;
     toast('Evaluación reabierta (editable).', 'ok');
     await abrirDetalle(evalActual.id);   // Etapa 5: recarga + reconciliación de población
-  } catch (e) { toast('No se pudo reabrir: ' + e.message, 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 function volverLista(){ limpiarMsg(); renderLista(); }
@@ -2289,7 +2427,7 @@ function renderPlantillasLista(){
         </select></div>
       </div>
       <div class="row" style="margin-top:12px">
-        <button class="btn primary" onclick="crearPlantilla()">Crear plantilla</button>
+        <button class="btn primary" onclick="crearPlantilla(this)">Crear plantilla</button>
       </div>
     </div>
     <div class="card">
@@ -2306,25 +2444,26 @@ function renderPlantillasLista(){
       </div>
       <div class="row" style="gap:6px">
         <button class="btn mini" onclick="abrirPlantilla('${p.id}')">Editar</button>
-        <button class="btn mini" onclick="duplicarPlantilla('${p.id}')">Duplicar</button>
+        <button class="btn mini" onclick="duplicarPlantilla('${p.id}', this)">Duplicar</button>
         <button class="btn mini danger" onclick="eliminarPlantilla('${p.id}')">Eliminar</button>
       </div>
     </div>`).join('');
 }
 
-async function crearPlantilla(){
+async function crearPlantilla(btn){ return seguro('crearPlantilla', btn, 'Creando…', _crearPlantilla); }
+async function _crearPlantilla(){
   const nombre = document.getElementById('pl-nombre').value.trim();
   const tipo   = document.getElementById('pl-tipo').value;
   if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
   if (tipo !== 'rubrica' && tipo !== 'cotejo') { toast('Tipo inválido.', 'err'); return; }
   try {
-    const { data, error } = await sb.from('libro_instrumento_plantillas')
-      .insert({ tipo, nombre }).select('*').single();
-    if (error) throw error;
-    plantillas.push(data);
-    toast('Plantilla creada.', 'ok');
+    const id = idCreacion('plantilla', { tipo, nombre });
+    const { data, yaEstaba } = await insertarUnaVez('libro_instrumento_plantillas', { id, tipo, nombre });
+    creacionHecha('plantilla');
+    if (!plantillas.some(x => x.id === data.id)) plantillas.push(data);
+    toast(yaEstaba ? 'La plantilla ya estaba creada (no se duplicó).' : 'Plantilla creada.', 'ok');
     abrirPlantilla(data.id);
-  } catch (e) { toast('No se pudo crear: ' + e.message, 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 async function abrirPlantilla(id){
@@ -2361,7 +2500,7 @@ function renderPlantillaEditor(){
       <div style="margin-top:10px"><label>Nombre</label><input id="ple-nombre" value="${esc(p.nombre)}"></div>
       <div class="row" style="margin-top:12px;gap:6px">
         <button class="btn" onclick="volverPlantillas()">← Plantillas</button>
-        <button class="btn" onclick="duplicarPlantilla('${p.id}')">Duplicar</button>
+        <button class="btn" onclick="duplicarPlantilla('${p.id}', this)">Duplicar</button>
         <button class="btn danger" onclick="eliminarPlantilla('${p.id}')">Eliminar</button>
       </div>
       <p class="hint" style="margin-top:10px">${esRub
@@ -2374,7 +2513,7 @@ function renderPlantillaEditor(){
       <div class="row" style="margin-top:12px">
         <input id="ple-nuevo" placeholder="${esRub ? 'Nuevo criterio' : 'Nuevo ítem'}" style="flex:1"
                onkeydown="if(event.key==='Enter')agregarPlItem()">
-        <button class="btn primary" onclick="agregarPlItem()">Agregar</button>
+        <button class="btn primary" onclick="agregarPlItem(this)">Agregar</button>
       </div>
     </div>`;
   document.getElementById('ple-nombre').addEventListener('change', renombrarPlantilla);
@@ -2416,7 +2555,8 @@ async function renombrarPlantilla(){
 }
 
 let plAdding = false;   // guard de reentrada: evita inserciones concurrentes (doble clic / Enter rápido)
-async function agregarPlItem(){
+async function agregarPlItem(btn){ return seguro('agregarPlItem', btn, 'Guardando…', _agregarPlItem); }
+async function _agregarPlItem(){
   if (plAdding) return;
   const inp = document.getElementById('ple-nuevo');
   const texto = inp.value.trim();
@@ -2425,16 +2565,17 @@ async function agregarPlItem(){
   inp.value = '';   // limpiar de inmediato (antes del await) para no concatenar reentradas rápidas
   try {
     const orden = plItems.length ? Math.max(...plItems.map(i => i.orden || 0)) + 1 : 0;
-    const { data, error } = await sb.from('libro_plantilla_items')
-      .insert({ plantilla_id: plActual.id, orden, texto }).select('*').single();
-    if (error) throw error;
+    const id = idCreacion('plItem', { pl: plActual.id, texto });
+    const { data, yaEstaba } = await insertarUnaVez('libro_plantilla_items', { id, plantilla_id: plActual.id, orden, texto });
+    creacionHecha('plItem');
+    if (yaEstaba && plItems.some(x => x.id === data.id)) return;
     plItems.push(data);
     renderPlItems();
     // refrescar el contador del encabezado sin perder el foco general
     const t = document.querySelector('#vista .card:last-child .sec-title');
     if (t) t.textContent = (plActual.tipo === 'rubrica' ? 'Criterios' : 'Ítems') + ` (${plItems.length})`;
-    toast('Agregado.', 'ok');
-  } catch (e) { inp.value = texto; toast('No se pudo agregar: ' + e.message, 'err'); }
+    toast(yaEstaba ? 'Ya estaba agregado (no se duplicó).' : 'Agregado.', 'ok');
+  } catch (e) { inp.value = texto; toast(avisoFallo(e), 'err'); }
   finally { plAdding = false; }
 }
 
@@ -2464,7 +2605,8 @@ async function eliminarPlItem(id){
   } catch (e) { toast('No se pudo eliminar: ' + e.message, 'err'); }
 }
 
-async function duplicarPlantilla(id){
+async function duplicarPlantilla(id, btn){ return seguro('duplicarPlantilla', btn, 'Creando…', () => _duplicarPlantilla(id)); }
+async function _duplicarPlantilla(id){
   try {
     const [cp, ci] = await Promise.all([
       sb.from('libro_instrumento_plantillas').select('*').eq('id', id).single(),
@@ -2473,21 +2615,23 @@ async function duplicarPlantilla(id){
     ]);
     if (cp.error) throw cp.error;
     if (ci.error) throw ci.error;
-    const { data: nueva, error: en } = await sb.from('libro_instrumento_plantillas')
-      .insert({ tipo: cp.data.tipo, nombre: cp.data.nombre + ' (copia)' }).select('*').single();
-    if (en) throw en;
+    const nid = idCreacion('dupPlantilla', { id });
+    const { data: nueva, yaEstaba } = await insertarUnaVez('libro_instrumento_plantillas',
+      { id: nid, tipo: cp.data.tipo, nombre: cp.data.nombre + ' (copia)' });
     const items = (ci.data || []).map(it => ({
       plantilla_id: nueva.id, orden: it.orden, texto: it.texto,
       desc_n1: it.desc_n1, desc_n2: it.desc_n2, desc_n3: it.desc_n3, desc_n4: it.desc_n4,
     }));
-    if (items.length) {
+    const yaTiene = yaEstaba && ((await sb.from('libro_plantilla_items').select('id').eq('plantilla_id', nueva.id).limit(1)).data || []).length;
+    if (items.length && !yaTiene) {
       const { error: ei } = await sb.from('libro_plantilla_items').insert(items);
-      if (ei) { await sb.from('libro_instrumento_plantillas').delete().eq('id', nueva.id); throw ei; }
+      if (ei) { if (!yaEstaba) await sb.from('libro_instrumento_plantillas').delete().eq('id', nueva.id); throw ei; }
     }
-    toast('Plantilla duplicada.', 'ok');
+    creacionHecha('dupPlantilla');
+    toast(yaEstaba ? 'La copia ya estaba creada (no se duplicó).' : 'Plantilla duplicada.', 'ok');
     await cargarPlantillas();
     renderPlantillasLista();
-  } catch (e) { toast('No se pudo duplicar: ' + e.message, 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 async function eliminarPlantilla(id){
@@ -2590,7 +2734,7 @@ function instrCardHTML(cerrada){
         </div>`}
         ${cerrada ? '' : `<div id="instr-cargar-row" class="row" style="margin-top:10px;gap:8px">
           <select id="instr-plantilla-sel" style="max-width:340px"><option value="">— elegir plantilla —</option></select>
-          <button class="btn" onclick="cargarPlantillaEnEval()">Cargar plantilla</button>
+          <button class="btn" onclick="cargarPlantillaEnEval(this)">Cargar plantilla</button>
         </div>`}
       </div>
       <div class="subsec">
@@ -2671,7 +2815,8 @@ async function asociarInstrAdec(id, val){
   } catch (e) { toast('No se pudo asociar: ' + e.message, 'err'); renderInstrCard(); }
 }
 
-async function cargarPlantillaEnEval(){
+async function cargarPlantillaEnEval(btn){ return seguro('cargarPlantillaEnEval', btn, 'Cargando…', _cargarPlantillaEnEval); }
+async function _cargarPlantillaEnEval(){
   const sel = document.getElementById('instr-plantilla-sel');
   const pid = sel ? sel.value : '';
   if (!pid) { toast('Elige una plantilla.', 'err'); return; }
@@ -2683,22 +2828,23 @@ async function cargarPlantillaEnEval(){
     ]);
     if (cp.error) throw cp.error;
     if (ci.error) throw ci.error;
-    const { data: instr, error: ei } = await sb.from('libro_eval_instrumentos')
-      .insert({ evaluacion_id: evalActual.id, tipo: cp.data.tipo, nombre: cp.data.nombre, origen_plantilla_id: pid })
-      .select('*').single();
-    if (ei) throw ei;
+    const iid = idCreacion('cargarPl', { ev: evalActual.id, pid });
+    const { data: instr, yaEstaba } = await insertarUnaVez('libro_eval_instrumentos',
+      { id: iid, evaluacion_id: evalActual.id, tipo: cp.data.tipo, nombre: cp.data.nombre, origen_plantilla_id: pid });
     const items = (ci.data || []).map(it => ({
       instrumento_id: instr.id, orden: it.orden, texto: it.texto,
       desc_n1: it.desc_n1, desc_n2: it.desc_n2, desc_n3: it.desc_n3, desc_n4: it.desc_n4,
     }));
-    if (items.length) {
+    const yaTiene = yaEstaba && ((await sb.from('libro_eval_instrumento_items').select('id').eq('instrumento_id', instr.id).limit(1)).data || []).length;
+    if (items.length && !yaTiene) {
       const { error: eit } = await sb.from('libro_eval_instrumento_items').insert(items);
-      if (eit) { await sb.from('libro_eval_instrumentos').delete().eq('id', instr.id); throw eit; }
+      if (eit) { if (!yaEstaba) await sb.from('libro_eval_instrumentos').delete().eq('id', instr.id); throw eit; }
     }
-    toast('Instrumento cargado (copia independiente).', 'ok');
+    creacionHecha('cargarPl');
+    toast(yaEstaba ? 'El instrumento ya estaba cargado (no se duplicó).' : 'Instrumento cargado (copia independiente).', 'ok');
     await recargarInstrumentos();
     renderInstrCard();
-  } catch (e) { toast('No se pudo cargar la plantilla: ' + e.message, 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 async function quitarInstrAplicado(id){
@@ -2785,7 +2931,7 @@ function renderInstrEdit(){
       </div>
       <p class="hint" style="margin:8px 0 0">Se crea directamente en esta evaluación (no queda como plantilla).</p>
       <div class="mm-actions">
-        <button class="btn primary" onclick="crearInstrumentoConfirmar()">Crear y configurar</button>
+        <button class="btn primary" onclick="crearInstrumentoConfirmar(this)">Crear y configurar</button>
         <button class="btn" onclick="cerrarInstrEdit()">Cancelar</button>
       </div>`;
     card.innerHTML = html;
@@ -2813,7 +2959,7 @@ function renderInstrEdit(){
     ${bloqueado ? '' : `<div class="row" style="margin-top:10px">
       <input id="ie-nuevo" placeholder="${esRub ? 'Nuevo criterio' : 'Nuevo ítem'}" style="flex:1" autocomplete="off"
              onkeydown="if(event.key==='Enter')instrEditAgregarItem()">
-      <button class="btn primary" onclick="instrEditAgregarItem()">Agregar</button>
+      <button class="btn primary" onclick="instrEditAgregarItem(this)">Agregar</button>
     </div>`}
     <div class="mm-actions"><button class="btn primary" onclick="cerrarInstrEdit()">Listo</button></div>`;
   card.innerHTML = html;
@@ -2822,24 +2968,26 @@ function renderInstrEdit(){
   });
 }
 
-async function crearInstrumentoConfirmar(){
+async function crearInstrumentoConfirmar(btn){ return seguro('crearInstrumento', btn, 'Creando…', _crearInstrumentoConfirmar); }
+async function _crearInstrumentoConfirmar(){
   const nombre = (document.getElementById('ie-nombre').value || '').trim();
   const tipo   = document.getElementById('ie-tipo').value;
   if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
   if (tipo !== 'rubrica' && tipo !== 'cotejo') { toast('Tipo inválido.', 'err'); return; }
   try {
-    const { data, error } = await sb.from('libro_eval_instrumentos')
-      .insert({ evaluacion_id: evalActual.id, tipo, nombre, origen_plantilla_id: null })
-      .select('*').single();
-    if (error) throw error;
+    const id = idCreacion('instr', { ev: evalActual.id, tipo, nombre });
+    const { data, yaEstaba } = await insertarUnaVez('libro_eval_instrumentos',
+      { id, evaluacion_id: evalActual.id, tipo, nombre, origen_plantilla_id: null });
+    creacionHecha('instr');
     await recargarInstrumentos();
     instrEditCtx = { fase: 'editar', instrId: data.id, tipo };
-    toast('Instrumento creado. Agrega sus criterios/ítems.', 'ok');
+    toast(yaEstaba ? 'El instrumento ya estaba creado (no se duplicó).' : 'Instrumento creado. Agrega sus criterios/ítems.', 'ok');
     renderInstrEdit();
-  } catch (e) { toast('No se pudo crear el instrumento: ' + e.message, 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
-async function instrEditAgregarItem(){
+async function instrEditAgregarItem(btn){ return seguro('instrEditAgregarItem', btn, 'Guardando…', _instrEditAgregarItem); }
+async function _instrEditAgregarItem(){
   if (instrEditAdding) return;
   const instr = instrEditCtx && evalInstrumentos.find(x => x.id === instrEditCtx.instrId);
   if (!instr) return;
@@ -2852,12 +3000,13 @@ async function instrEditAgregarItem(){
   try {
     const its = instrItemsDe(instr.id);
     const orden = its.length ? Math.max(...its.map(i => i.orden || 0)) + 1 : 0;
-    const { data, error } = await sb.from('libro_eval_instrumento_items')
-      .insert({ instrumento_id: instr.id, orden, texto }).select('*').single();
-    if (error) throw error;
-    evalInstrItems.push(data);
+    const id = idCreacion('instrItem', { instr: instr.id, texto });
+    const { data, yaEstaba } = await insertarUnaVez('libro_eval_instrumento_items', { id, instrumento_id: instr.id, orden, texto });
+    creacionHecha('instrItem');
+    if (!evalInstrItems.some(x => x.id === data.id)) evalInstrItems.push(data);
     renderInstrEdit();
-  } catch (e) { inp.value = texto; toast('No se pudo agregar: ' + e.message, 'err'); }
+    if (yaEstaba) toast('Ya estaba agregado (no se duplicó).', 'ok');
+  } catch (e) { inp.value = texto; toast(avisoFallo(e), 'err'); }
   finally { instrEditAdding = false; }
 }
 
@@ -3416,7 +3565,7 @@ function renderMatricula(){
           <div><label>Apellido</label><input id="mat-apellido" placeholder="Apellido" autocomplete="off"></div>
         </div>
         <div class="row" style="margin-top:10px">
-          <button class="btn primary" onclick="matCrearEstudiante()">Confirmar ingreso</button>
+          <button class="btn primary" onclick="matCrearEstudiante(this)">Confirmar ingreso</button>
           <button class="btn" onclick="matToggleForm(false)">Cancelar</button>
           <span class="hint">Se matricula en ${esc(ctxNombre)} · ${anioNum}, en la siguiente posición libre.</span>
         </div>
@@ -3465,7 +3614,8 @@ function matToggleForm(show){
 
 // Ingresar Estudiante: crea persona NUEVA + matrícula nueva. Si el nombre coincide
 // con alguien ya en la lista, pregunta si es el MISMO (identidad no derivable sin RUT).
-async function matCrearEstudiante(){
+async function matCrearEstudiante(btn){ return seguro('matCrearEstudiante', btn, 'Guardando…', _matCrearEstudiante); }
+async function _matCrearEstudiante(){
   const nombre = document.getElementById('mat-nombre').value.trim();
   const apellido = document.getElementById('mat-apellido').value.trim();
   if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
@@ -3493,18 +3643,23 @@ async function matCrearEstudiante(){
   }
   // Sin coincidencias → crear estudiante nuevo + matrícula nueva en la siguiente posición.
   try {
-    const { data: est, error: ee } = await sb.from('libro_estudiantes')
-      .insert({ nombre, apellido }).select('id,nombre,apellido').single();
-    if (ee) throw ee;
-    const pos = matNextPos();
-    const hoy = new Date().toISOString().slice(0, 10);
-    const { error: em } = await sb.from('libro_matriculas')
-      .insert({ estudiante_id: est.id, anio_id: anioId, contexto_id: ctxId, posicion: pos, estado: 'activo', fecha_ingreso: hoy });
-    if (em) { await sb.from('libro_estudiantes').delete().eq('id', est.id); throw em; }   // revertir estudiante huérfano
-    toast(`Estudiante ingresado en la posición ${pos}.`, 'ok');
+    const eid = idCreacion('estudiante', { ctxId, nombre, apellido });
+    const { data: est, yaEstaba } = await insertarUnaVez('libro_estudiantes', { id: eid, nombre, apellido }, 'id,nombre,apellido');
+    // Reintento tras una respuesta perdida: si su matrícula ya quedó, no se crea otra.
+    const yaMat = yaEstaba && ((await sb.from('libro_matriculas').select('posicion').eq('estudiante_id', est.id)
+      .eq('anio_id', anioId).eq('contexto_id', ctxId).limit(1)).data || [])[0];
+    const pos = yaMat ? yaMat.posicion : matNextPos();
+    if (!yaMat) {
+      const hoy = new Date().toISOString().slice(0, 10);
+      const { error: em } = await sb.from('libro_matriculas')
+        .insert({ estudiante_id: est.id, anio_id: anioId, contexto_id: ctxId, posicion: pos, estado: 'activo', fecha_ingreso: hoy });
+      if (em) { if (!yaEstaba) await sb.from('libro_estudiantes').delete().eq('id', est.id); throw em; }   // revertir estudiante huérfano
+    }
+    creacionHecha('estudiante');
+    toast(yaMat ? 'Ese estudiante ya estaba ingresado (no se duplicó).' : `Estudiante ingresado en la posición ${pos}.`, 'ok');
     matToggleForm(false);
     await cargarMatriculas(); renderMatricula();
-  } catch (e) { toast(tablaFalta(e) ? 'Faltan tablas del Libro.' : ('No se pudo ingresar: ' + e.message), 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 // ── Ficha/resumen del estudiante (modal). Reutiliza el historial ligado a estudiante_id ──
@@ -3743,14 +3898,20 @@ async function poblacionContexto(fecha){
 // No borra filas: lo anotado del retirado queda guardado (si se reintegra, vuelve).
 // Las cerradas son una foto: no se llama para ellas.
 const hoyLocal = () => new Date().toLocaleDateString('sv');   // YYYY-MM-DD en hora local
-async function listaAlDia({ tabla, campo, actividadId, filas, filaNueva, select }){
+const _listaAlDiaEnCurso = {};   // tabla:actividad → promesa (abrir dos veces seguidas no la corre dos veces)
+function listaAlDia(o){
+  const k = o.tabla + ':' + o.actividadId;
+  return _listaAlDiaEnCurso[k] ||= _listaAlDia(o).finally(() => { delete _listaAlDiaEnCurso[k]; });
+}
+async function _listaAlDia({ tabla, campo, actividadId, filas, filaNueva, select }){
   const vig = new Set(await poblacionContexto(hoyLocal()));
   const pres = new Set(filas.map(r => r.estudiante_id));
   const faltan = [...vig].filter(id => !pres.has(id));
   let nuevas = [];
   if (faltan.length) {
     const { data, error } = await sb.from(tabla)
-      .insert(faltan.map(id => ({ [campo]: actividadId, estudiante_id: id, ...filaNueva(id) }))).select(select);
+      .upsert(faltan.map(id => ({ [campo]: actividadId, estudiante_id: id, ...filaNueva(id) })),
+              { onConflict: campo + ',estudiante_id', ignoreDuplicates: true }).select(select);
     if (!error) nuevas = data || [];
   }
   return { vig, nuevas };
@@ -3786,7 +3947,7 @@ async function renderPartLista(){
         <div><label>Fecha</label><input id="np-fecha" type="date" value="${hoy}"></div>
       </div>
       <div class="row" style="margin-top:12px">
-        <button class="btn primary" onclick="crearParticipacion()">Crear participación</button>
+        <button class="btn primary" onclick="crearParticipacion(this)">Crear participación</button>
         <span class="hint">Se materializan los estudiantes ${ctxTipo==='taller'?'del taller':'del curso'} en la fecha (snapshot).</span>
       </div>
     </div>
@@ -3803,26 +3964,27 @@ async function renderPartLista(){
     </div>`).join('');
 }
 
-async function crearParticipacion(){
+async function crearParticipacion(btn){ return seguro('crearParticipacion', btn, 'Creando…', _crearParticipacion); }
+async function _crearParticipacion(){
   const nombre = document.getElementById('np-nombre').value.trim();
   const fecha  = document.getElementById('np-fecha').value;
   if (!nombre) { toast('El nombre es obligatorio.', 'err'); return; }
   if (!fecha)  { toast('La fecha es obligatoria.', 'err'); return; }
   try {
     const ids = await poblacionContexto(fecha);   // snapshot
-    const { data: ins, error: ee } = await sb.from('libro_participaciones')
-      .insert({ anio_id:anioId, contexto_id:ctxId, sesion_creacion_id:ref.sesion, nombre, fecha, estado:'abierto' })
-      .select('id').single();
-    if (ee) throw ee;
-    const pid = ins.id;
+    const pid = idCreacion('participacion', { ctxId, nombre, fecha });
+    const { yaEstaba } = await insertarUnaVez('libro_participaciones',
+      { id:pid, anio_id:anioId, contexto_id:ctxId, sesion_creacion_id:ref.sesion, nombre, fecha, estado:'abierto' }, 'id');
     if (ids.length) {
       const filas = ids.map(eid => ({ participacion_id:pid, estudiante_id:eid, participo:false }));
-      const { error: ed } = await sb.from('libro_participacion_detalle').insert(filas);
-      if (ed) { await sb.from('libro_participaciones').delete().eq('id', pid); throw ed; }
+      const { error: ed } = await sb.from('libro_participacion_detalle')
+        .upsert(filas, { onConflict:'participacion_id,estudiante_id', ignoreDuplicates:true });
+      if (ed) { if (!yaEstaba) await sb.from('libro_participaciones').delete().eq('id', pid); throw ed; }
     }
-    toast('Participación creada (' + ids.length + ' estudiantes).', 'ok');
+    creacionHecha('participacion');
+    toast(yaEstaba ? 'La participación ya estaba creada (no se duplicó).' : ('Participación creada (' + ids.length + ' estudiantes).'), 'ok');
     abrirPartDetalle(pid);
-  } catch (e) { toast(tablaFalta(e) ? 'Faltan tablas del Libro.' : ('No se pudo crear: ' + e.message), 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 async function abrirPartDetalle(pid){
@@ -3846,6 +4008,7 @@ async function abrirPartDetalle(pid){
       (cm.data || []).forEach(m => { partPos[m.estudiante_id] = m.posicion; });
     }
     partDet = (cd.data || []).slice();
+    marcasSobre('libro_participacion_detalle', partDet);   // marcas aún sin subir
     if (partActual.estado === 'abierto') {   // lista al día
       const { vig, nuevas } = await listaAlDia({ tabla: 'libro_participacion_detalle', campo: 'participacion_id',
         actividadId: pid, filas: partDet, filaNueva: () => ({ participo: false }),
@@ -3886,9 +4049,9 @@ function renderPartDetalle(){
         <div><label>Fecha</label><input id="pd-fecha" type="date" value="${esc(p.fecha)}" ${dis}></div>
       </div>
       <div class="row" style="margin-top:12px">
-        <button class="btn primary" onclick="guardarPartCabecera()" ${dis}>Guardar cabecera</button>
-        ${cerrada ? `<button class="btn warn" onclick="reabrirPart()">Reabrir</button>`
-                  : `<button class="btn" onclick="cerrarPart()">Cerrar</button>`}
+        <button class="btn primary" onclick="guardarPartCabecera(this)" ${dis}>Guardar cabecera</button>
+        ${cerrada ? `<button class="btn warn" onclick="reabrirPart(this)">Reabrir</button>`
+                  : `<button class="btn" onclick="cerrarPart(this)">Cerrar</button>`}
         ${partDet.length ? `<button class="btn" onclick="abrirProyector()" title="Tablero para proyectar al curso">🎬 Proyector</button>` : ''}
         ${cerrada ? '<span class="hint">Participación cerrada: solo lectura. Reábrela para editar.</span>'
                   : `<button class="btn danger" onclick="eliminarPart()" style="margin-left:auto">Eliminar participación</button>`}
@@ -3902,7 +4065,7 @@ function renderPartDetalle(){
         <colgroup><col style="width:44px"><col><col style="width:96px"></colgroup>
         <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="part">Participó</th></tr></thead>
         <tbody id="tbody-part">${partDet.map((d, idx) => `
-          <tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(nombreBuscar(d.estudiante))}" class="${cerrada?'':'fila-click'}${d.participo?' fila-ok':''}${partInhab.has(d.estudiante_id)?' fila-inhab':''}">
+          <tr data-i="${idx}" data-oi="${idx}" data-buscar="${esc(nombreBuscar(d.estudiante))}" class="${cerrada?'':'fila-click'}${d.participo?' fila-ok':''}${partInhab.has(d.estudiante_id)?' fila-inhab':''}${ausentesHoy.has(d.estudiante_id)?' fila-aus':''}">
             <td class="pos">${partPos[d.estudiante_id] ?? ''}</td>
             <td>${esc(nombreDe(d.estudiante))}</td>
             <td class="part"><input type="checkbox" data-i="${idx}" ${d.participo?'checked':''} ${dis}></td>
@@ -3912,8 +4075,7 @@ function renderPartDetalle(){
       </div>
       ${partDet.length ? (cerrada ? '' : `
       <div class="row" style="margin-top:12px">
-        <button class="btn primary" onclick="guardarPartDetalle()">Guardar participación</button>
-        <span class="hint">Marca quién participó. Los pendientes quedan arriba.</span>
+        <span class="hint">Marca quién participó: se guarda al instante. Los pendientes quedan arriba.</span>
       </div>`) : '<p class="hint">Esta participación no materializó estudiantes (población vacía en la fecha).</p>'}
     </div>`;
   ordenarPartFilas();          // orden inicial: pendientes arriba, participantes abajo
@@ -3921,9 +4083,8 @@ function renderPartDetalle(){
     // Fuente única de verdad: fija el estado, refleja el checkbox, la clase de la
     // fila y el contador; reordena grupo. Todo local, sin re-render ni scroll.
     const partSet = (idx, val) => {
-      // Núcleo común (mutación en memoria). La vista normal conserva su guardado
-      // por lotes: sin persistir ni difundir aquí (eso ocurre en guardarPartDetalle).
-      alternarParticipacion(partDet[idx].estudiante_id, val);
+      // Núcleo común: cada marca se guarda al instante (deuda AC-2).
+      alternarParticipacion(partDet[idx].estudiante_id, val, { persistir: true });
       const tr = document.querySelector(`#tbody-part tr[data-i="${idx}"]`);
       if (tr) {
         tr.classList.toggle('fila-ok', val);
@@ -3997,18 +4158,9 @@ async function guardarPartCabecera(){
     if (error) throw error;
     partActual.nombre = nombre; partActual.fecha = fecha;
     toast('Guardado correctamente', 'ok');
-  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
-async function guardarPartDetalle(){
-  try {
-    const filas = partDet.map(d => ({ id:d.id, participacion_id:d.participacion_id, estudiante_id:d.estudiante_id, participo:!!d.participo }));
-    const { error } = await sb.from('libro_participacion_detalle').upsert(filas, { onConflict:'id' });
-    if (error) throw error;
-    partDifundir('reload');   // otras pestañas reconcilian su partDet
-    toast('Guardado correctamente', 'ok');
-  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
-}
 
 async function cerrarPart(){
   try {
@@ -4016,7 +4168,7 @@ async function cerrarPart(){
     if (error) throw error;
     partActual.estado = 'cerrado'; renderPartDetalle();
     toast('Participación cerrada (solo lectura).', 'ok');
-  } catch (e) { toast('No se pudo cerrar', 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 async function reabrirPart(){
   try {
@@ -4024,7 +4176,7 @@ async function reabrirPart(){
     if (error) throw error;
     partActual.estado = 'abierto'; renderPartDetalle();
     toast('Participación reabierta (editable).', 'ok');
-  } catch (e) { toast('No se pudo reabrir', 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -4110,6 +4262,7 @@ function partPintarInhab(){
   document.querySelectorAll('#tbody-part tr[data-i]').forEach(tr => {
     const d = partDet[+tr.dataset.i];
     tr.classList.toggle('fila-inhab', !!d && partInhab.has(d.estudiante_id));
+    tr.classList.toggle('fila-aus', !!d && ausentesHoy.has(d.estudiante_id));
   });
   if (proyectorAbierto()) renderProyector();
 }
@@ -4126,30 +4279,23 @@ async function reconciliarPartDet(){
     const { data, error } = await sb.from('libro_participacion_detalle')
       .select('id,participo').eq('participacion_id', partActual.id);
     if (error) throw error;
+    marcasSobre('libro_participacion_detalle', data || []);   // marcas aún sin subir
     const mapa = {}; (data || []).forEach(r => { mapa[r.id] = r.participo; });
     partDet.forEach(d => { if (d.id in mapa) d.participo = mapa[d.id]; });
     refrescarVistasParticipacion();
   } catch (_) { /* silencioso: reconciliación best-effort */ }
 }
 
-// ÚNICO mutador de participo. Vista normal → persistir:false (guardado por lotes).
-// Proyector → persistir:true (upsert inmediato de la fila afectada) + difusión.
+// ÚNICO mutador de participo. persistir:true (vista normal y proyector) → la marca se
+// guarda al instante (cola sin conexión, deuda AC-2) y se avisa a las otras ventanas.
 async function alternarParticipacion(estudianteId, valor, { persistir = false } = {}){
   const d = partDet.find(x => x.estudiante_id === estudianteId);
   if (!d) return null;
-  const prev = d.participo;
   d.participo = !!valor;                                   // mutación en memoria (síncrona)
   partValidarPresel();                                     // quien pasa a "participó" deja de ser preseleccionable
   if (persistir) {
-    try {
-      const { error } = await sb.from('libro_participacion_detalle')
-        .update({ participo: d.participo }).eq('id', d.id);
-      if (error) throw error;
-      partDifundir('set', { estudiante_id: estudianteId, participo: d.participo });
-    } catch (e) {
-      d.participo = prev;                                  // rollback si falla la escritura
-      throw e;
-    }
+    guardarMarca('libro_participacion_detalle', d.id, { participo: d.participo });
+    partDifundir('set', { estudiante_id: estudianteId, participo: d.participo });
   }
   return d;
 }
@@ -4311,7 +4457,7 @@ function proyectorContadorTxt(nSi, nEsp){
 function tileHTML(d, repes){
   const nom = nombreProyector(d.estudiante, repes);
   // Solo el inhabilitado tiene marca visual; la preselección NUNCA se refleja aquí.
-  return `<div class="ppro-tile${partInhab.has(d.estudiante_id) ? ' inhab' : ''}" data-eid="${d.estudiante_id}" onmousedown="if(event.shiftKey)event.preventDefault()" onclick="proyectorClickTile('${d.estudiante_id}', event)" title="${esc(nom)}"><span>${esc(nom)}</span></div>`;
+  return `<div class="ppro-tile${partInhab.has(d.estudiante_id) ? ' inhab' : ''}" data-eid="${d.estudiante_id}" onmousedown="if(event.shiftKey)event.preventDefault()" onclick="proyectorClickTile('${d.estudiante_id}', event)" title="${esc(nom)}${partInhab.has(d.estudiante_id) ? (ausentesHoy.has(d.estudiante_id) ? ' · ausente' : ' · inhabilitado') : ''}"><span>${esc(nom)}</span></div>`;
 }
 
 function renderProyector(){
@@ -4510,7 +4656,7 @@ async function renderEntregasLista(){
         }</div>
       </div>
       <div class="row" style="margin-top:12px">
-        <button class="btn primary" onclick="crearEntrega()">Crear entrega</button>
+        <button class="btn primary" onclick="crearEntrega(this)">Crear entrega</button>
         <span class="hint">La población se materializa al crear (snapshot).</span>
       </div>
     </div>
@@ -4540,7 +4686,8 @@ function entSelTodos(on){
   const c = document.getElementById('ne-count'); if (c) c.textContent = entNuevoSel.size;
 }
 
-async function crearEntrega(){
+async function crearEntrega(btn){ return seguro('crearEntrega', btn, 'Creando…', _crearEntrega); }
+async function _crearEntrega(){
   limpiarMsg();
   const nombre = document.getElementById('ne-nombre').value.trim();
   const fecha  = document.getElementById('ne-fecha').value;
@@ -4553,19 +4700,19 @@ async function crearEntrega(){
     const sel = entNuevoSel || new Set();
     const seleccionadosVig = vigentes.filter(m => sel.has(m.estudiante_id));
     if (!seleccionadosVig.length) { toast('Selecciona al menos un estudiante.', 'err'); return; }
-    const { data: ins, error: ee } = await sb.from('libro_entregas')
-      .insert({ anio_id:anioId, contexto_id:ctxId, sesion_creacion_id:ref.sesion, nombre, fecha, estado:'abierto', sentido })
-      .select('id').single();
-    if (ee) throw ee;
-    const eid = ins.id;
+    const eid = idCreacion('entrega', { ctxId, nombre, fecha, sentido, sel: [...sel].sort() });
+    const { yaEstaba } = await insertarUnaVez('libro_entregas',
+      { id:eid, anio_id:anioId, contexto_id:ctxId, sesion_creacion_id:ref.sesion, nombre, fecha, estado:'abierto', sentido }, 'id');
     // Materialización: una fila por vigente. Seleccionado → 'pendiente'; resto → 'no_aplica'.
     const filas = vigentes.map(m => ({ entrega_id:eid, estudiante_id:m.estudiante_id,
       estado: sel.has(m.estudiante_id) ? 'pendiente' : 'no_aplica' }));
-    const { error: ed } = await sb.from('libro_entrega_detalle').insert(filas);
-    if (ed) { await sb.from('libro_entregas').delete().eq('id', eid); throw ed; }
-    toast('Entrega creada (' + seleccionadosVig.length + ' ' + entTxt({ sentido }).deben + ').', 'ok');
+    const { error: ed } = await sb.from('libro_entrega_detalle')
+      .upsert(filas, { onConflict:'entrega_id,estudiante_id', ignoreDuplicates:true });
+    if (ed) { if (!yaEstaba) await sb.from('libro_entregas').delete().eq('id', eid); throw ed; }
+    creacionHecha('entrega');
+    toast(yaEstaba ? 'La entrega ya estaba creada (no se duplicó).' : ('Entrega creada (' + seleccionadosVig.length + ' ' + entTxt({ sentido }).deben + ').'), 'ok');
     abrirEntregaDetalle(eid);
-  } catch (e) { toast(tablaFalta(e) ? 'Faltan tablas del Libro.' : ('No se pudo crear: ' + e.message), 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 async function abrirEntregaDetalle(eid){
@@ -4586,6 +4733,7 @@ async function abrirEntregaDetalle(eid){
     entregaActual = ce.data;
     entregaPos = {}; (cm.data || []).forEach(m => { entregaPos[m.estudiante_id] = m.posicion; });
     entregaDet = (cd.data || []).slice();
+    marcasSobre('libro_entrega_detalle', entregaDet);   // marcas aún sin subir
     entMostrarNA = false;
     if (entregaActual.estado === 'abierto') {   // lista al día
       // El nuevo debe entregar solo si la entrega es para todo el curso; si fue para algunos, no aplica.
@@ -4633,9 +4781,9 @@ function renderEntregaDetalle(){
       </div>
       <div style="margin-top:10px"><label>Sentido</label><select id="ed-sentido" ${dis}>${entSentidoOpts(e.sentido)}</select></div>
       <div class="row" style="margin-top:12px">
-        <button class="btn primary" onclick="guardarEntregaCabecera()" ${dis}>Guardar cabecera</button>
-        ${cerrada ? `<button class="btn warn" onclick="reabrirEntrega()">Reabrir</button>`
-                  : `<button class="btn" onclick="cerrarEntrega()">Cerrar</button>`}
+        <button class="btn primary" onclick="guardarEntregaCabecera(this)" ${dis}>Guardar cabecera</button>
+        ${cerrada ? `<button class="btn warn" onclick="reabrirEntrega(this)">Reabrir</button>`
+                  : `<button class="btn" onclick="cerrarEntrega(this)">Cerrar</button>`}
         ${cerrada ? '<span class="hint">Entrega cerrada: solo lectura. Reábrela para editar.</span>'
                   : `<button class="btn danger" onclick="eliminarEntrega()" style="margin-left:auto">Eliminar entrega</button>`}
       </div>
@@ -4668,8 +4816,7 @@ function renderEntregaDetalle(){
       </div>
       ${entregaDet.length ? (cerrada ? '' : `
       <div class="row" style="margin-top:12px">
-        <button class="btn primary" onclick="guardarEntregaDetalle()">Guardar entrega</button>
-        <span class="hint">Marca quién entregó. Sin marcar = sigue Pendiente. “Aplicar” / “No aplica” se guardan con este botón.</span>
+        <span class="hint">Marca quién ${entEsProfe(e) ? 'recibió' : 'entregó'}: cada marca (y “Aplicar” / “No aplica”) se guarda al instante. Sin marcar = sigue Pendiente.</span>
       </div>`) : '<p class="hint">Esta entrega no materializó estudiantes.</p>'}
     </div>`;
   // Agrupación inicial: pendientes/no_aplica arriba, entregados abajo.
@@ -4679,17 +4826,18 @@ function renderEntregaDetalle(){
   if (bp && pendPrev) { bp.classList.add('on'); bp.setAttribute('aria-pressed', 'true'); }
   filtrarEntregas();
   if (!cerrada) {
-    // Aplicar / No aplica: cambio local (se guarda con "Guardar entrega") y se redibuja.
+    // Aplicar / No aplica: se guarda al instante y se redibuja.
+    const entMarcar = (d, estado) => { d.estado = estado; guardarMarca('libro_entrega_detalle', d.id, { estado }); };
     v.querySelectorAll('[data-aplica]').forEach(b => b.addEventListener('click', () => {
-      entregaDet[+b.dataset.aplica].estado = 'pendiente'; renderEntregaDetalle();
+      entMarcar(entregaDet[+b.dataset.aplica], 'pendiente'); renderEntregaDetalle();
     }));
     v.querySelectorAll('[data-noaplica]').forEach(b => b.addEventListener('click', () => {
-      entregaDet[+b.dataset.noaplica].estado = 'no_aplica'; renderEntregaDetalle();
+      entMarcar(entregaDet[+b.dataset.noaplica], 'no_aplica'); renderEntregaDetalle();
     }));
     // Fuente única de verdad para el toggle Pendiente↔Entregó (no toca 'no_aplica').
     const entSet = (idx, entregado) => {
       if (entregaDet[idx].estado === 'no_aplica') return;
-      entregaDet[idx].estado = entregado ? 'entregado' : 'pendiente';
+      entMarcar(entregaDet[idx], entregado ? 'entregado' : 'pendiente');
       const tr = document.querySelector(`#tbody-ent tr[data-i="${idx}"]`);
       if (tr) {
         tr.classList.toggle('fila-ok', entregado);
@@ -4761,15 +4909,7 @@ async function guardarEntregaCabecera(){
     entregaActual.nombre = nombre; entregaActual.fecha = fecha; entregaActual.sentido = sentido;
     toast('Guardado correctamente', 'ok');
     if (cambioSentido) renderEntregaDetalle();   // textos del nuevo sentido
-  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
-}
-async function guardarEntregaDetalle(){
-  try {
-    const filas = entregaDet.map(d => ({ id:d.id, entrega_id:d.entrega_id, estudiante_id:d.estudiante_id, estado:d.estado }));
-    const { error } = await sb.from('libro_entrega_detalle').upsert(filas, { onConflict:'id' });
-    if (error) throw error;
-    toast('Guardado correctamente', 'ok');
-  } catch (e) { toast('No se pudieron guardar los cambios', 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 async function cerrarEntrega(){
   try {
@@ -4777,7 +4917,7 @@ async function cerrarEntrega(){
     if (error) throw error;
     entregaActual.estado = 'cerrado'; renderEntregaDetalle();
     toast('Entrega cerrada (solo lectura).', 'ok');
-  } catch (e) { toast('No se pudo cerrar', 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 async function reabrirEntrega(){
   try {
@@ -4785,7 +4925,7 @@ async function reabrirEntrega(){
     if (error) throw error;
     entregaActual.estado = 'abierto'; renderEntregaDetalle();
     toast('Entrega reabierta (editable).', 'ok');
-  } catch (e) { toast('No se pudo reabrir', 'err'); }
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -4847,7 +4987,7 @@ function renderObsPanel(draft){
       <div style="margin-top:10px"><label>Observación</label>
         <textarea id="obs-texto" placeholder="Escribe la observación pedagógica…">${esc(draft || '')}</textarea></div>
       <div class="row" style="margin-top:12px">
-        <button class="btn primary" onclick="guardarObservacion()">Guardar observación</button>
+        <button class="btn primary" onclick="guardarObservacion(this)">Guardar observación</button>
         <span class="hint">Se agrega al historial; no reemplaza observaciones anteriores.</span>
       </div>
     </div>
@@ -4880,25 +5020,32 @@ async function cargarObsHist(){
   obsHist = data || [];
 }
 
-async function guardarObservacion(){
+async function guardarObservacion(btn){ return seguro('guardarObservacion', btn, 'Guardando…', _guardarObservacion); }
+async function _guardarObservacion(){
   if (!obsEstSel) { toast('Elige un estudiante.', 'err'); return; }
   const fecha = document.getElementById('obs-fecha').value;
   const texto = document.getElementById('obs-texto').value.trim();
   if (!fecha) { toast('La fecha es obligatoria.', 'err'); return; }
   if (!texto) { toast('Escribe la observación.', 'err'); return; }
   try {
-    const { data, error } = await sb.from('libro_observaciones')
-      .insert({ anio_id:anioId, contexto_id:ctxId, estudiante_id:obsEstSel.id,
-                sesion_creacion_id:ref.sesion, fecha, texto })
-      .select('id,fecha,texto,created_at').single();
-    if (error) throw error;
-    obsHist.unshift(data);   // append-only: se suma al historial (más reciente arriba)
+    const id = idCreacion('obs', { est: obsEstSel.id, fecha, texto });
+    const { data, yaEstaba } = await insertarUnaVez('libro_observaciones', { id, anio_id:anioId, contexto_id:ctxId,
+      estudiante_id:obsEstSel.id, sesion_creacion_id:ref.sesion, fecha, texto }, 'id,fecha,texto,created_at');
+    creacionHecha('obs');
+    if (!obsHist.some(o => o.id === data.id)) obsHist.unshift(data);   // append-only: se suma al historial (más reciente arriba)
     renderObsPanel();        // limpia el textarea y refresca el historial
-    toast('Observación guardada', 'ok');
-  } catch (e) { toast(tablaFalta(e) ? 'Faltan tablas del Libro.' : ('No se pudo guardar: ' + e.message), 'err'); }
+    toast(yaEstaba ? 'La observación ya estaba guardada (no se duplicó).' : 'Observación guardada', 'ok');
+  } catch (e) { toast(avisoFallo(e), 'err'); }
 }
 
-init();
+// Botones de guardar/cerrar/reabrir con el mismo seguro (deuda AC-3): uno a la vez.
+['guardarCabecera','guardarNotas','cerrarEval','reabrirEval','guardarPartCabecera','cerrarPart','reabrirPart',
+ 'guardarEntregaCabecera','cerrarEntrega','reabrirEntrega'].forEach(n => {
+  const f = window[n];
+  window[n] = (btn) => seguro(n, btn, 'Guardando…', () => f());
+});
+
+init().then(() => subirMarcas());   // marcas que quedaron sin subir de una vez anterior
 </script>
 </body>
 </html>
