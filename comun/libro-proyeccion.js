@@ -123,11 +123,18 @@
     }
 
     // Escala todo (variable --k): lo más grande posible que quepa sin scroll (para leer desde atrás).
+    // Sirve para cualquier resolución del proyector (800×600 a 4K, 4:3 o 16:9): el tope crece
+    // con el alto de la pantalla y se busca por bisección el mayor --k que entra.
     function ajustar(el) {
         const cu = el.querySelector('.lpro-cuerpo'); if (!cu) return;
-        const cabe = () => cu.scrollHeight <= cu.clientHeight + 1 && cu.scrollWidth <= cu.clientWidth + 1;
-        let k = 2.2; el.style.setProperty('--k', k);
-        while (k > 0.45 && !cabe()) { k -= 0.05; el.style.setProperty('--k', k.toFixed(2)); }
+        const cabe = k => {
+            el.style.setProperty('--k', k.toFixed(3));
+            return cu.scrollHeight <= cu.clientHeight + 1 && cu.scrollWidth <= cu.clientWidth + 1;
+        };
+        let lo = 0.3, hi = Math.max(2.2, window.innerHeight / 300);
+        if (cabe(hi)) return;
+        for (let i = 0; i < 14; i++) { const m = (lo + hi) / 2; if (cabe(m)) lo = m; else hi = m; }
+        cabe(lo);
     }
 
     function pintar(el, f, conSalir) {

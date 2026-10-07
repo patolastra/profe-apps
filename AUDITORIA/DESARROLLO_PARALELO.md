@@ -3210,3 +3210,4 @@ Plan aprobado por el PO (2026-10-07) en dos etapas; esta ficha cubre la **Etapa 
   Pizarra muestra el tablero (5 participaron · 21 esperando) y el nombre elegido en grande; al cerrar el Proyector la
   Pizarra se libera. Sin errores. **Falta:** probar en clase con el proyector y el Modo Clase real.
 - **Cierre Etapa 2:** commit `9bfad74` (2026-10-07). Probar en clase.
+- **Ajuste: cualquier resolución del proyector (PO, 2026-10-07).** La escala ya no tiene tope fijo: crece con el alto de la pantalla y se busca por bisección el mayor tamaño que entra (también al cambiar el tamaño de la ventana o pasar a pantalla completa). Medido con las 6 vistas + cursos simulados de 40 nombres en 800×600, 1024×768, 1280×800, 1366×768, 1920×1080 y 3840×2160: todo cabe sin scroll, usa el 100 % del alto y la letra queda en la misma proporción de la pantalla en todas (p. ej. nombres de Entregas ≈ 6 % del alto; rúbrica ≈ 3 %).
