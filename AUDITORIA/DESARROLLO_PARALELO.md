@@ -3209,3 +3209,4 @@ Plan aprobado por el PO (2026-10-07) en dos etapas; esta ficha cubre la **Etapa 
   instante y vuelta. Participación "EL MUSEO" con clase simulada: el Proyector abre en la pantalla del profe y la
   Pizarra muestra el tablero (5 participaron · 21 esperando) y el nombre elegido en grande; al cerrar el Proyector la
   Pizarra se libera. Sin errores. **Falta:** probar en clase con el proyector y el Modo Clase real.
+- **Cierre Etapa 2:** commit `9bfad74` (2026-10-07). Probar en clase.
