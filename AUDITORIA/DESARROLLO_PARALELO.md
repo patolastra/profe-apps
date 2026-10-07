@@ -2958,3 +2958,32 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   simulada: 14 botones para 14 evaluados; reevaluar (integrante de grupo, 4 respuestas) → Pendiente con "1ª nota: 6,0";
   deshacer → vuelven nota y 4 respuestas. Falta probar con la columna real.
 - **Cierre:** commit `93fb3cc` (2026-10-07).
+- **Estado (PO, 2026-10-07):** **pendiente de validación en uso real.** Se cierra cuando el PO lo use con estudiantes
+  reales.
+
+### AE. Libro — contador en "Pendientes" y botón "Copiar" la nómina
+*Origen: PO (2026-10-07). Ficha armada tras auditoría; **no implementar sin aprobación del plan**.*
+- **Necesidad profesional:** saber de un vistazo cuántos faltan, y llevar la lista de pendientes al Planificador para
+  la clase siguiente (p. ej. quiénes deben rendir o entregar).
+- **Estado actual (auditoría):** hay dos botones "Pendientes" (filtro), ambos en `LIBRO/index.html`:
+  - *Evaluaciones* (pestaña Estudiantes): muestra a los que no tienen nota y no están ausentes hoy.
+    **Hallazgo:** también muestra a los marcados **"No aplica"** (no tienen nota), lo que es un error.
+  - *Entregas*: muestra a los que están "Pendiente" (sin entregar/recibir; "No aplica" no cuenta).
+  Ninguno muestra cuántos son ni permite copiar la lista. Participación no tiene filtro Pendientes.
+- **Propuesta (Claude, por decidir):**
+  1. El botón dice **"Pendientes (N)"** y el número se actualiza al instante al marcar notas o entregas.
+  2. Corregir Evaluaciones: "No aplica" deja de contar como pendiente.
+  3. Botón **"📋 Copiar"** junto a cada filtro: copia la nómina de pendientes como texto para pegar en el Plan,
+     con el formato de abajo, y muestra "Copiado (N)".
+  4. Ausentes de hoy: en Evaluaciones siguen fuera del filtro en pantalla (como hoy), pero **sí van en la copia**,
+     porque para la clase siguiente también deben rendir; marcados "(ausente hoy)".
+- **Formato propuesto de la copia:**
+  ```
+  Pendientes · Prueba unidad 1 (5)
+  - Ana
+  - Benjamín Soto
+  - Camila (ausente hoy)
+  ```
+  Nombres como se muestran en el Libro (nombre; nombre + apellido si se repite), en el orden activo.
+- **Por decidir con el PO:** formato de la copia (lista con guiones / una sola línea separada por comas); si los
+  ausentes de hoy van en la copia; si se agrega también a Participación ("quiénes no han participado").
