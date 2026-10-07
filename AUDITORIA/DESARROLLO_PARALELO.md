@@ -2797,6 +2797,7 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   agrupa (Cuarto / sesión sin curso, fecha "07 OCT"); "Cargar" abre "Cargar canción pedida" con los datos y la búsqueda
   de carátula; cerrar la ficha suelta el pedido. **Falta:** que el PO corra `supabase/repertorio_pedidos.sql` y probar
   anotar → cargar → canción en la sesión con datos reales.
+- **Implementación:** commit `fb2a8eb` (2026-10-07). Pendiente: SQL del PO + prueba con datos reales.
 
 ### Y. Libro — todo por nombre de pila (sin apellido) y A–Z, salvo los informes
 *Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin ficha y aprobación.*
