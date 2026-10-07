@@ -2921,3 +2921,29 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   con base simulada (reintento sin duplicar, 3 clics = 1 acción, marcas subidas al volver). Sin errores. Falta probar
   en clase marcas reales y el Proyector.
 - **Cierre:** commit `9110394` (2026-10-07). Queda en marcha blanca hasta probarlo en clase.
+
+### AD. Libro / Evaluaciones — reevaluar a un estudiante ya evaluado
+*Origen: PO (2026-10-07). Ficha armada tras auditoría; **no implementar sin aprobación del plan**.*
+- **Necesidad profesional:** a algunos estudiantes les va muy mal en una prueba; ya quedaron evaluados y se necesita
+  dejarlos otra vez pendientes para reevaluarlos la semana siguiente, sin perder la primera nota.
+- **Estado actual (auditoría):** "Evaluado" = tener nota (`estadoEfectivo`). Sin instrumento, borrar la nota lo deja
+  "Pendiente" pero la primera nota se pierde. Con rúbrica/lista de cotejo no hay forma: la nota sale de
+  `libro_eval_resultados` y "No aplica → Aplicar" la recupera. Alternativa actual: otra evaluación marcando "No aplica"
+  al resto (lenta y separada de la original).
+- **Decisiones del PO (2026-10-07):** la nota nueva **reemplaza** a la primera (no se promedian); los informes de UTP
+  muestran **solo la nota final**.
+- **Plan (Claude, por aprobar):**
+  1. Botón **"Reevaluar"** en cada estudiante evaluado (pestaña Estudiantes, evaluación abierta), con confirmación.
+  2. El estudiante vuelve a "Pendiente" (entra al filtro Pendientes). La primera nota queda guardada y visible junto a
+     la celda: "1ª nota: 2,8" (si se reevalúa otra vez: "notas anteriores: 2,8 · 3,4").
+  3. Con rúbrica/lista de cotejo: las respuestas actuales se guardan como intento anterior y el instrumento queda en
+     blanco para evaluar de nuevo.
+  4. Integrante de grupo que heredaba la nota del grupo: pasa a evaluación individual (como "Evaluar individual") y su
+     nota/respuestas del grupo quedan como intento anterior; el resto del grupo no cambia.
+  5. La nota nueva es la oficial en todo el Libro (ficha del estudiante, informes UTP). Los informes no muestran las
+     anteriores.
+  6. Opción "Deshacer reevaluación" mientras siga pendiente (vuelve la nota anterior), por si fue un clic equivocado.
+- **Implica (Supabase, requiere autorización del PO):** una columna nueva en `libro_evaluacion_notas`:
+  `intentos_anteriores JSONB NOT NULL DEFAULT '[]'` — lista de `{ nota, fecha, resultados: [{ item, valor }] }`.
+  Versionada en `supabase/libro_reevaluacion.sql` y **corrida por el PO** en Supabase. No cambia datos existentes.
+- **Fuera de alcance:** reevaluar en evaluaciones cerradas (hay que reabrirlas primero); promedios entre intentos.
