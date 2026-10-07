@@ -3084,3 +3084,4 @@ de notas (diferenciando octavas), PARA ESCRIBIR EN EL CUADERNO" (agrupada). Apro
   siguen sin commitear en la copia de trabajo, idénticos (verificado contra un respaldo).
 - **Prueba (2026-10-07, servidor local, "ESCALA DE DO"):** Play → parte a los 0,5 s; Play+Pausa a los 0,2 s → no
   parte; Espacio parte y pausa; Espacio-Espacio rápido → no parte. Falta probar en clase con el proyector.
+- **Cierre:** commit `df9bb48` (2026-10-07). Probar en clase.
