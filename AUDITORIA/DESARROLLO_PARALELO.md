@@ -3101,3 +3101,4 @@ de notas (diferenciando octavas), PARA ESCRIBIR EN EL CUADERNO" (agrupada). Apro
 - **Prueba 2 (2026-10-07, servidor local):** sin tocar nada, sonidos listos al abrir; abrir partitura no recarga; Play
   parte a ~0,58 s; carga lenta simulada (2 s): aviso y parte a los ~2 s con la guitarra; reemplazo 0,26 vs guitarra
   0,27; bajo ↔ guitarra: la vuelta a guitarra es inmediata. Loop sin commitear intacto.
+- **Cierre parte 2:** commit `7e7a09d` (2026-10-07). Probar en clase (parlantes del computador y del proyector).
