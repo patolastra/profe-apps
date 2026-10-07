@@ -2456,6 +2456,34 @@ seguía la franja negra: la Pizarra cargaba una copia guardada (vieja) del Entre
 guarda 10 min en el navegador). Ahora la Pizarra carga el espejo con un parámetro `v` distinto cada
 vez (siempre la versión al día) y el estilo del Metalófono proyectado se asegura en cada foto.
 
+### Microiteración: Entregas — solo los que aplica (deuda Z)
+
+**Fecha:** 2026-10-07 · **Estado:** IMPLEMENTADA, pendiente de comprobación en uso real. Ficha creada antes de implementar.
+**Necesidad profesional:** en una entrega para algunos estudiantes, ver solo a quienes les corresponde
+y poder corregir si alguien quedó mal como "No aplica".
+**Decisión del PO (2026-10-07):** propuesta aprobada: lista solo con los que aplica + botón "Mostrar no
+aplica (N)" que despliega al resto con el botón "Aplicar" (y "No aplica" en los pendientes), como en
+Evaluaciones.
+**Alcance:** `LIBRO/index.html` (detalle de la entrega). El cambio se guarda con "Guardar entrega",
+como las marcas. Sin cambios en Supabase (el estado ya existe).
+**Implementación:** `entMostrarNA` (se reinicia al abrir cada entrega), botón "Mostrar/Ocultar no aplica (N)"
+junto a "Pendientes", `filtrarEntregas` oculta los `no_aplica`, botones "Aplicar" (no aplica → pendiente) y
+"No aplica" (pendiente → no aplica, solo con los no aplica a la vista); la vista se redibuja conservando
+búsqueda y filtro.
+**Pruebas (Claude):** entrega real de Tercero ("guía con QR…": 8 pendientes, 15 no aplica, 3 entregados):
+se ven 11; "Mostrar no aplica (15)" muestra 26 con 15 "Aplicar" y 8 "No aplica"; Aplicar sube "deben" a
+12 y No aplica lo baja a 11; Ocultar vuelve a 11. Sin guardar: la base quedó igual (8/15/3).
+
+### Microiteración: Pasar lista — resumen de ausentes en vertical (deuda AA)
+
+**Fecha:** 2026-10-07 · **Estado:** EN IMPLEMENTACIÓN. Ficha creada antes de implementar.
+**Necesidad profesional:** traspasar los ausentes al libro oficial sin leer una línea horizontal.
+**Decisión del PO (2026-10-07):** vertical, uno por línea `N° - APELLIDO`; si no cabe, botón "Resumen"
+con pantalla aparte (Claude recomendó la pantalla aparte para no quitar espacio al tablero).
+**Alcance:** `comun/asistencia.js`: el pie del tablero muestra la cantidad de ausentes y el botón
+"Resumen (N)", que abre una pantalla con la lista vertical en letra grande y "Volver" (Esc vuelve al
+tablero). Solo en la pantalla del profe. Sin cambios en Supabase.
+
 ---
 
 ## Deudas pendientes identificadas durante el desarrollo paralelo

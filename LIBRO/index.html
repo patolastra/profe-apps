@@ -4520,6 +4520,7 @@ async function abrirEntregaDetalle(eid){
     entregaActual = ce.data;
     entregaPos = {}; (cm.data || []).forEach(m => { entregaPos[m.estudiante_id] = m.posicion; });
     entregaDet = (cd.data || []).slice();
+    entMostrarNA = false;
     if (entregaActual.estado === 'abierto') {   // lista al día
       // El nuevo debe entregar solo si la entrega es para todo el curso; si fue para algunos, no aplica.
       const paraTodos = entregaDet.every(d => d.estado !== 'no_aplica');
@@ -4539,6 +4540,9 @@ async function abrirEntregaDetalle(eid){
   renderEntregaDetalle();
 }
 
+// Entregas para algunos: por defecto la lista muestra solo a los que aplica; el botón
+// "Mostrar no aplica (N)" despliega al resto para poder pasarlos a "Aplicar" (deuda Z).
+let entMostrarNA = false;
 function renderEntregaDetalle(){
   vistaActiva = 'entrega-detalle';
   vistaCat('ent'); mostrarBtnOrden();   // identidad amarilla + toggle de orden
@@ -4547,6 +4551,9 @@ function renderEntregaDetalle(){
   const dis = cerrada ? 'disabled' : '';
   const aplican    = entregaDet.filter(d => d.estado !== 'no_aplica').length;
   const entregados = entregaDet.filter(d => d.estado === 'entregado').length;
+  const nNA        = entregaDet.length - aplican;
+  const busqPrev   = document.getElementById('buscador-ent')?.value || '';
+  const pendPrev   = !!document.getElementById('btn-ent-pendientes')?.classList.contains('on');
   const v = document.getElementById('vista');
   v.innerHTML = `
     <div class="card">
@@ -4572,6 +4579,7 @@ function renderEntregaDetalle(){
       ${entregaDet.length ? `<div class="buscador">
         <input id="buscador-ent" type="text" placeholder="Buscar por nombre o apellido…" oninput="filtrarEntregas()" autocomplete="off">
         <button type="button" id="btn-ent-pendientes" class="btn toggle" aria-pressed="false" onclick="toggleEntPendientes()">Pendientes</button>
+        ${nNA ? `<button type="button" id="btn-ent-na" class="btn toggle${entMostrarNA ? ' on' : ''}" aria-pressed="${entMostrarNA}" onclick="toggleEntNoAplica()">${entMostrarNA ? 'Ocultar' : 'Mostrar'} no aplica (${nNA})</button>` : ''}
       </div>` : ''}
       <div style="overflow-x:auto">
       <table>
@@ -4584,10 +4592,10 @@ function renderEntregaDetalle(){
             <td class="pos">${entregaPos[d.estudiante_id] ?? ''}</td>
             <td class="est-nombre">${esc(nombreDe(d.estudiante))}${ausenteHoyHTML(d.estudiante_id)}</td>
             <td class="part">${ na
-              ? '<span class="hint">No aplica</span>'
+              ? `<span class="hint">No aplica</span>${cerrada ? '' : ` <button type="button" class="btn mini" data-aplica="${idx}" title="Este estudiante sí debe entregar">Aplicar</button>`}`
               : `<label style="display:inline-flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;margin:0;cursor:pointer">
                    <input type="checkbox" data-i="${idx}" ${d.estado==='entregado'?'checked':''} ${dis}>
-                   <span>${entTxt(e).check}</span></label>` }</td>
+                   <span>${entTxt(e).check}</span></label>${(!cerrada && entMostrarNA && d.estado === 'pendiente') ? ` <button type="button" class="btn mini" data-noaplica="${idx}" title="Este estudiante no debe entregar">No aplica</button>` : ''}` }</td>
           </tr>`; }).join('')}
         </tbody>
       </table>
@@ -4595,12 +4603,23 @@ function renderEntregaDetalle(){
       ${entregaDet.length ? (cerrada ? '' : `
       <div class="row" style="margin-top:12px">
         <button class="btn primary" onclick="guardarEntregaDetalle()">Guardar entrega</button>
-        <span class="hint">Marca quién entregó. Sin marcar = sigue Pendiente. “No aplica” no cambia.</span>
+        <span class="hint">Marca quién entregó. Sin marcar = sigue Pendiente. “Aplicar” / “No aplica” se guardan con este botón.</span>
       </div>`) : '<p class="hint">Esta entrega no materializó estudiantes.</p>'}
     </div>`;
   // Agrupación inicial: pendientes/no_aplica arriba, entregados abajo.
   agruparEntregaFilas();
+  const bq = document.getElementById('buscador-ent'); if (bq) bq.value = busqPrev;
+  const bp = document.getElementById('btn-ent-pendientes');
+  if (bp && pendPrev) { bp.classList.add('on'); bp.setAttribute('aria-pressed', 'true'); }
+  filtrarEntregas();
   if (!cerrada) {
+    // Aplicar / No aplica: cambio local (se guarda con "Guardar entrega") y se redibuja.
+    v.querySelectorAll('[data-aplica]').forEach(b => b.addEventListener('click', () => {
+      entregaDet[+b.dataset.aplica].estado = 'pendiente'; renderEntregaDetalle();
+    }));
+    v.querySelectorAll('[data-noaplica]').forEach(b => b.addEventListener('click', () => {
+      entregaDet[+b.dataset.noaplica].estado = 'no_aplica'; renderEntregaDetalle();
+    }));
     // Fuente única de verdad para el toggle Pendiente↔Entregó (no toca 'no_aplica').
     const entSet = (idx, entregado) => {
       if (entregaDet[idx].estado === 'no_aplica') return;
@@ -4644,8 +4663,15 @@ function filtrarEntregas(){
     const idx = +tr.dataset.i;
     const coincide = q === '' || hay.includes(q);
     const esPendiente = entregaDet[idx]?.estado === 'pendiente';
-    tr.classList.toggle('oculto', !(coincide && (!soloPend || esPendiente)));
+    const naOculto = entregaDet[idx]?.estado === 'no_aplica' && !entMostrarNA;
+    tr.classList.toggle('oculto', naOculto || !(coincide && (!soloPend || esPendiente)));
   });
+}
+function toggleEntNoAplica(){
+  const y = window.scrollY;
+  entMostrarNA = !entMostrarNA;
+  renderEntregaDetalle();   // también muestra/oculta los botones "No aplica" de los pendientes
+  window.scrollTo(0, y);
 }
 function toggleEntPendientes(){
   const btn = document.getElementById('btn-ent-pendientes'); if (!btn) return;
