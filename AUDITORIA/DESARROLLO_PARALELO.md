@@ -2819,7 +2819,7 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
     Supabase (el campo ya existe); sí escribe datos del estudiante. Sigue dentro del plan Y (no implementar aún).
 
 ### Z. Libro / Entregas — ocultar a quienes "no aplica" y poder volver a "sí aplica"
-*Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin ficha y aprobación.*
+*Origen: PO (2026-10-07). Aprobada e implementada (ver cierre).*
 - **Pedido:** en una entrega que no es para todo el curso, la lista muestra solo a quienes **sí aplica**;
   los "No aplica" quedan ocultos. Y debe poder cambiarse un "No aplica" a "Sí aplica".
 - **Estado actual (auditoría):** al crear la entrega, los no seleccionados quedan `no_aplica`
@@ -2831,9 +2831,10 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   que despliega a los demás con un botón "Aplicar" (y "No aplica" en los que sí aplican), igual que en
   Evaluaciones. Sin cambios en la base de datos (el estado ya existe).
 - **Decisión del PO (2026-10-07):** propuesta aprobada ("ok").
+- **Cierre:** commit `74ed738` (2026-10-07). Hecho; falta probar en clase. *(Cierre anotado el 2026-10-07 al ordenar el Backlog.)*
 
 ### AA. Pasar lista — resumen de ausentes en vertical
-*Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin aprobación.*
+*Origen: PO (2026-10-07). Aprobada e implementada (ver cierre).*
 - **Pedido:** el resumen de ausentes se lee mal porque va en una sola línea horizontal. Debe ir en vertical,
   uno por línea: `N° - APELLIDO`. Si no cabe en la misma pantalla de pasar/modificar lista, un botón
   **"Resumen"** que abre una pantalla aparte con la lista de los que faltan.
@@ -2844,6 +2845,8 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
 - **Propuesta (Claude, no decidida):** botón "Resumen (N)" en el pie del tablero → pantalla aparte con la
   lista vertical `N° - APELLIDO` (talleres sin n° de lista: `APELLIDO NOMBRE`), letra grande, y un botón para
   volver.
+- **Cierre:** commits `73cb0aa` + `fdd3c69` (2026-10-07): botón "Resumen (N)" en la barra, lista vertical en columnas sin
+  scroll. Hecho; falta probar en clase. *(Cierre anotado el 2026-10-07 al ordenar el Backlog.)*
 
 ### AB. Workspace — las pestañas siguen con la versión anterior tras una actualización
 *Origen: PO (2026-10-07). Deuda registrada; no implementar sin ficha y aprobación.*
