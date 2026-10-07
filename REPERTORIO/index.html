@@ -2511,6 +2511,17 @@
         .ped-item button:hover { border-color: var(--accent); color: var(--accent); }
         .ped-item button.danger:hover { border-color: var(--red); color: var(--red); }
         .ped-vacio { color: var(--muted); font-size: 0.9rem; padding: 30px 0; text-align: center; }
+        /* Enlace de la canción (panel y Entrenador) */
+        .panel-link {
+            display: inline-block; margin-top: 6px; font-size: 0.8rem; font-weight: 600; color: var(--accent);
+            text-decoration: none; border: 1.5px solid var(--accent); border-radius: 8px; padding: 3px 10px;
+        }
+        .panel-link:hover { background: var(--accent); color: #fff; }
+        #ent-link {
+            flex-shrink: 0; font-size: 0.72rem; font-weight: 600; color: #ea580c; text-decoration: none;
+            border: 1.5px solid #ea580c; border-radius: 20px; padding: 3px 10px; white-space: nowrap;
+        }
+        #ent-link:hover { background: #ea580c; color: #fff; }
         .ped-item a.ped-link {
             border: 1.5px solid var(--border); border-radius: 8px; padding: 5px 12px; font-size: 0.78rem;
             color: var(--muted); text-decoration: none; white-space: nowrap;
@@ -2678,6 +2689,10 @@
                     <label class="form-label">Estilo / Género</label>
                     <input id="f-estilo" type="text" class="form-input" placeholder="Rock, Folk, Cumbia…">
                 </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Enlace (opcional)</label>
+                <input id="f-url" type="url" class="form-input" placeholder="https://www.youtube.com/…">
             </div>
             <div class="form-group" id="artwork-group" style="display:none">
                 <div class="import-label">Artwork importado</div>
@@ -3057,6 +3072,7 @@
                 <div id="ent-song-nombre"></div>
                 <div id="ent-song-artista"></div>
             </div>
+            <a id="ent-link" target="_blank" rel="noopener" style="display:none"></a>
             <button id="ent-btn-toggle-loops" class="ent-panel-btn" onclick="entToggleLoopsPanel()" title="Panel de loops">⟳</button>
         </div>
         <div id="ent-asset-chips"></div>
@@ -3568,6 +3584,7 @@ function renderPanel() {
         <div class="panel-meta">
             <div class="panel-nombre">${c.nombre}</div>
             ${c.artista ? `<div class="panel-artista">${c.artista}</div>` : ''}
+            ${enlaceHTML(c, 'panel-link')}
             <div class="panel-tags">${tags}</div>
         </div>
 
@@ -3761,7 +3778,7 @@ function abrirModalNueva() {
     editandoId = null;
     importDatos = null;
     document.getElementById('modal-titulo-h').textContent = 'Nueva canción';
-    ['f-nombre','f-artista','f-año','f-estilo'].forEach(id =>
+    ['f-nombre','f-artista','f-año','f-estilo','f-url'].forEach(id =>
         document.getElementById(id).value = '');
     document.getElementById('f-categoria').value = 'cancion';
     document.querySelectorAll('#f-categoria-ctrl .seg-btn').forEach((b,i) => b.classList.toggle('activo', i===0));
@@ -3786,6 +3803,7 @@ function editarCancion(id) {
     document.getElementById('f-artista').value = c.artista || '';
     document.getElementById('f-año').value     = c.año     || '';
     document.getElementById('f-estilo').value  = c.estilo  || '';
+    document.getElementById('f-url').value     = c.url     || '';
     const cat = c.categoria || 'cancion';
     document.getElementById('f-categoria').value = cat;
     document.querySelectorAll('#f-categoria-ctrl .seg-btn').forEach(b => b.classList.toggle('activo', b.dataset.val === cat));
@@ -3813,6 +3831,9 @@ async function guardarCancion() {
     const nombre  = document.getElementById('f-nombre').value.trim();
     if (!nombre) { toast('Nombre requerido'); return; }
     const artista = document.getElementById('f-artista').value.trim();
+    // Enlace opcional: solo se envía si hay uno (o si la canción ya tenía), así una canción
+    // sin enlace se guarda igual aunque falte la columna url en Supabase.
+    const url = pedNormUrl(document.getElementById('f-url').value);
 
     if (editandoId) {
         const c = canciones.find(x => x.id === editandoId);
@@ -3821,6 +3842,7 @@ async function guardarCancion() {
         c.año        = document.getElementById('f-año').value.trim();
         c.estilo     = document.getElementById('f-estilo').value.trim();
         c.categoria  = document.getElementById('f-categoria').value || 'cancion';
+        if (url || c.url) c.url = url;
         if (importDatos?.artwork_url) c.artwork_url = importDatos.artwork_url;
         await sbUpsertCancion(c);
         songActiva = c;
@@ -3847,6 +3869,7 @@ async function guardarCancion() {
         contextos:   [],
         assets:      [],
         creado:      Date.now(),
+        ...(url ? { url } : {}),
     };
 
     try {
@@ -5742,6 +5765,7 @@ function abrirEntrenador(songId) {
 
     document.getElementById('ent-song-nombre').textContent  = c.nombre;
     document.getElementById('ent-song-artista').textContent = c.artista || '';
+    entPintarEnlace(c);
 
     const audioEl = entAudio();
     audioEl.src          = storageUrl(audioAsset.storage_path);
@@ -7633,6 +7657,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
 
     document.getElementById('ent-song-nombre').textContent  = song.nombre;
     document.getElementById('ent-song-artista').textContent = song.artista || '';
+    entPintarEnlace(song);
 
     const audioEl = entAudio();
     audioEl.src          = audioAsset ? storageUrl(audioAsset.storage_path) : '';
@@ -8592,6 +8617,18 @@ function pedNormUrl(u) {
     if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u;
     return /^https?:\/\//i.test(u) ? u : '';
 }
+// Enlace de la canción: "▶ Ver en YouTube" o "🔗 Abrir enlace" (panel y Entrenador).
+function enlaceTexto(u) { return /(^|\.)(youtube\.com|youtu\.be)$/i.test((() => { try { return new URL(u).hostname; } catch { return ''; } })()) ? '▶ Ver en YouTube' : '🔗 Abrir enlace'; }
+function enlaceHTML(c, clase) {
+    const u = pedNormUrl(c?.url);
+    return u ? `<a class="${clase}" href="${pedEsc(u)}" target="_blank" rel="noopener" title="${pedEsc(u)}">${enlaceTexto(u)}</a>` : '';
+}
+function entPintarEnlace(c) {
+    const a = document.getElementById('ent-link'); if (!a) return;
+    const u = pedNormUrl(c?.url);
+    a.style.display = u ? '' : 'none';
+    if (u) { a.href = u; a.title = u; a.textContent = enlaceTexto(u); }
+}
 function pedidosAvisoError(e) {
     const m = e?.message || String(e);
     toast(/pedidos/.test(m) ? 'Falta activar los pedidos en Supabase (supabase/repertorio_pedidos.sql)'
@@ -8716,6 +8753,7 @@ function pedidoCargar(sesionId, pedidoId) {
     document.getElementById('modal-titulo-h').textContent = 'Cargar canción pedida';
     document.getElementById('f-nombre').value  = p.nombre;
     document.getElementById('f-artista').value = p.artista || '';
+    document.getElementById('f-url').value     = p.url || '';
     document.getElementById('import-q').value = `${p.nombre} ${p.artista || ''}`.trim();
     buscarImport();
 }
