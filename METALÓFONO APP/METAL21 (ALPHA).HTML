@@ -770,7 +770,22 @@
                 });
             });
             Tone.Transport.scheduleOnce(() => Tone.Draw.schedule(stopAudio, Tone.now()), (currentMidi.durationTicks + preroll) + "i");
-            Tone.Transport.start();
+            despertarSalida(DESPERTAR_S);
+            Tone.Transport.start("+" + DESPERTAR_S);
+        }
+
+        // Despertar la salida de audio (deuda AF n°4): parlantes por HDMI (proyector) o Bluetooth
+        // se apagan con el silencio y se comen el primer sonido al despertar → se perdía el 1er
+        // tick de la precuenta. Un tono inaudible (40 Hz, −60 dB) suena desde el clic hasta un poco
+        // después del 1er tick, y la reproducción parte DESPERTAR_S segundos después del clic.
+        const DESPERTAR_S = 0.5;
+        function despertarSalida(seg) {
+            try {
+                const o = new Tone.Oscillator({ frequency: 40, type: 'sine', volume: -60 }).toDestination();
+                const t = Tone.now();
+                o.onstop = () => o.dispose();
+                o.start(t).stop(t + seg + 0.3);
+            } catch (_) { /* sin el tono la reproducción sigue igual */ }
         }
 
         function stopAudio() {

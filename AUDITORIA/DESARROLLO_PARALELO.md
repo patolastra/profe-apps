@@ -3000,3 +3000,26 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   "Pendientes (12)" y copia de 12 nombres; entrega con "Pendientes (8)" y copia de 8; un "No aplica" simulado baja el
   contador a 11 y sale del filtro.
 - **Cierre:** commit `db68735` (2026-10-07).
+
+### AF. Metalófono — se pierde el 1er tick de la precuenta (n°4) y loop que acelera (n°1)
+*Origen: PO (2026-10-07), tarjeta Notion "cuatro deudas en metalófono" (n°4 y n°1, las urgentes). n°2 y n°3 quedan
+para después.*
+- **Necesidad profesional:** la precuenta coordina a los niños; si el 1er tick no suena, se descoordinan (n°4). Para
+  practicar, repetir la melodía subiendo la velocidad de a poco (n°1).
+- **Auditoría n°4 (2026-10-07):** en `METAL21 (ALPHA).HTML` la precuenta va en la misma línea de tiempo del Transport
+  (`agendarPrecuenta`). Medido en el navegador (contexto de audio recién reactivado, como al primer Play): el 1er tick
+  se programa con el mismo margen (~60 ms) que los demás → **la app lo entrega a tiempo**. Causa más probable: la
+  **salida de audio dormida** (parlantes por HDMI del proyector / Bluetooth se apagan con el silencio y se comen el
+  primer sonido al despertar). No reproducible sin ese hardware.
+- **Arreglo n°4 (alcance técnico, dentro de lo pedido):** antes de la precuenta suena un tono **inaudible** que
+  despierta la salida, y la reproducción parte **0,5 s** después del clic. Aplica a profesor y alumno; no cambia la
+  precuenta ni el ritmo.
+- **Implementado n°4 (2026-10-07):** `despertarSalida()` (oscilador 40 Hz a −60 dB desde el clic hasta 0,3 s después
+  del 1er tick, luego se libera) y `Tone.Transport.start("+0.5")` en `startAudio()`. Prueba local: 1er tick a ~0,6 s del
+  clic con el mismo margen que los demás; Play→Detener→Play seguido sin errores; modo alumno: velo, sonido y fin de
+  precuenta OK. **Falta probar en clase con los parlantes del proyector** (Probar en clase).
+- **Auditoría n°1:** hoy no existe repetición en bucle; ▶ toca la melodía una vez (con precuenta opcional). BPM entre
+  40 y 250, botones −/+ de a 5.
+- **Plan n°1 (por decidir con el PO):** botón "🔁 Repetir +5" (modo profesor): al terminar la melodía vuelve a empezar
+  sola con 5 BPM más, hasta que se detenga. Por decidir: ¿precuenta entre vueltas?, ¿tope de velocidad?, ¿al detener
+  vuelve al BPM inicial?, ¿también en el modo alumno?
