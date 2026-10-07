@@ -3256,3 +3256,19 @@ presenta en la pantalla del profe". Corrige la Etapa 2 de AI, que dibujaba en la
   columnas / ancho / alto / letra (5 · 253 · 80 · 37 px), mismos cuadros y contador; 🎲 sorteo: el barajado se ve en la
   Pizarra y termina en el mismo nombre gigante con el mismo tamaño (EMILIANO, 179 px); Pizarra en 1920×1080: mismo
   tablero agrandado (letra 55 px, 5,1 % del alto), sin nombres cortados. Falta probar en clase.
+
+### AL. Versión nueva — "Recargar" también renueva la ventana de la Pizarra
+*Origen: PO (2026-10-07): tras AK, "no veo los cambios, se ve la pantalla simplificada antigua, y eso que le di a lo
+de hay una nueva versión". Complementa AB.*
+- **Auditoría:** la versión estaba publicada (Pages construyó `043026c`; el sitio entregaba el archivo nuevo). El
+  "Recargar" del Workspace (AB) renueva solo sus pestañas; la **Pizarra es una ventana aparte** (proyector) y seguía con
+  el código anterior en memoria: recibía el tablero nuevo, no sabía dibujarlo y dejaba en pantalla la versión
+  simplificada. Además el navegador guarda cada archivo hasta 10 min (`Cache-Control: max-age=600` de GitHub Pages).
+- **Implementado:** `PC/workspace.html`: al "Recargar", tras renovar los archivos, avisa por el canal
+  `profe-version`. `PIZARRA/index.html`: al recibirlo pide al servidor sus archivos al día (incluido
+  `comun/participacion-tablero.css`, que se carga solo al usarlo) y se recarga **en la misma diapositiva**
+  (`?slide=` actual).
+- **Prueba (2026-10-07, servidor local):** Pizarra en la diapositiva 4; aviso desde otra pestaña → se recargó sola y
+  quedó en la diapositiva 4 (`?slide=3`).
+- **Una sola vez:** la Pizarra que estaba abierta antes de esta versión no tiene el aviso; hay que recargarla a mano
+  (Ctrl + Shift + R en esa ventana) o cerrarla y volver a abrirla. Desde ahí, "Recargar" la renueva sola.

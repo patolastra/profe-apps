@@ -2373,6 +2373,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     LibroProyeccion.espejo();         // Libro: evaluación / instrumento / grupos que el profe proyecta
 })();
 
+// Versión nueva (deuda AL): el "Recargar" del Workspace también renueva esta ventana. Pide al
+// servidor sus archivos al día (el navegador guarda copias hasta 10 min; incluye el diseño del
+// tablero de Participación, que se carga solo al usarlo) y se recarga en la misma diapositiva.
+(function () {
+    if (!('BroadcastChannel' in window)) return;
+    new BroadcastChannel('profe-version').onmessage = async ev => {
+        if (!ev.data || ev.data.tipo !== 'recargar') return;
+        const urls = new Set([location.href.split('#')[0], new URL('../comun/participacion-tablero.css', location.href).href]);
+        document.querySelectorAll('script[src], link[rel="stylesheet"][href]').forEach(el => {
+            const u = el.src || el.href; if (u && u.startsWith(location.origin)) urls.add(u);
+        });
+        await Promise.all([...urls].map(u => fetch(u, { cache: 'reload' }).catch(() => {})));
+        const p = new URLSearchParams(location.search);
+        p.set('slide', String(slideIdx || 0));
+        history.replaceState(null, '', location.pathname + '?' + p.toString());
+        location.reload();
+    };
+})();
+
 // Entrenador en la Pizarra: con el botón "📽️ Pizarra" del Entrenador del profe, esta
 // ventana muestra encima una copia de su vista (REPERTORIO/?espejo=1, en silencio). Al
 // soltarlo se quita la capa y la Pizarra queda en la diapositiva donde estaba.
