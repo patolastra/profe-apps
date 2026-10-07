@@ -3038,6 +3038,21 @@ para después.*
   Play sin cortes; modo alumno sin el botón. Falta probar en clase.
 - **Cierre AF (n°4 + n°1):** commits `12bfef9` + `48c4338` (2026-10-07). Probar en clase.
 
+### AF (cont.). Metalófono — n°2 listado de notas y n°3 práctica del alumno en el modo profesor
+*Origen: PO (2026-10-07), misma tarjeta Notion; n°2 también es la tarjeta "renderizar melodía completa como listado
+de notas (diferenciando octavas), PARA ESCRIBIR EN EL CUADERNO" (agrupada). **Por decidir con el PO.***
+- **Auditoría n°3:** hay dos prácticas "Melodía sin ritmo". *Profesor:* cada toque alterna mostrar → apagar la misma
+  nota (2 toques por nota). *Alumno* (Etapa 1): cada toque avanza directo a la nota siguiente; si se repite la nota,
+  se apaga 200 ms y vuelve a encender para que se note; al terminar, 2 s y se apaga sola. **Ojo:** la ficha de la
+  Etapa 1 y `CLAUDE.md` dicen "el modo profesor no se altera"; copiar la práctica del alumno al profesor cambia eso
+  y requiere decisión explícita del PO.
+- **Auditoría n°2:** no existe una vista de la melodía como texto. El MIDI trae las notas (rango La 81 → La 105:
+  tres "La", dos octavas y algo) y la cifra de compás (se puede cortar por compás).
+- **Propuesta (Claude, por decidir):** botón "📝 Notas" (modo profesor) que muestra la melodía completa como texto
+  grande sobre el metalófono, un compás por línea, notas separadas por " - ", en el cifrado elegido (Do/C), con
+  botón "📋 Copiar". Por decidir: cómo marcar las octavas; un compás por línea o todo seguido; si también va en el
+  modo alumno.
+
 ### AG. Lector de Tabs — también se pierde el comienzo del audio (como AF n°4)
 *Origen: PO (2026-10-07). Deuda registrada; **arreglar después**, no implementar sin aprobación.*
 - **Pedido:** en el Lector (`tabs/index.html`) ocurre algo parecido a lo del Metalófono: se pierde el comienzo del
