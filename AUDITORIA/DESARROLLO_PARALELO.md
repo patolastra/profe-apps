@@ -2489,6 +2489,20 @@ talleres: `APELLIDO NOMBRE`) y se mantiene al día si está abierto; "Volver" o 
 **Pruebas (Claude):** Tercero (26) con el guardado desconectado (sin tocar la base): 3 ausentes →
 pie "Resumen (3)"; resumen: "7 - ESPINOSA / 10 - MANSILLA / 27 - SCHAAF", "3 estudiantes"; Esc vuelve al
 tablero sin cerrar Pasar lista. La base no recibió ninguna lista.
+**Iteración 2 (PO, 2026-10-07) — IMPLEMENTADA (pendiente de uso real), aprobada:** (1) el botón "📋 Resumen (N)" va en la
+barra de arriba y se quita la barra de abajo (sin ausentes, el botón no aparece); (2) el resumen nunca se
+desborda: se reparte en columnas y ajusta la letra para que todo quepa, sin scroll (orden por n° de lista,
+de arriba abajo por columna); (3) botones sin redundancia (auditoría: "Cerrar" y "Listo" hacían lo mismo
+salvo con la lista sin tomar y sin ausentes): lista sin tomar y sin toques → "Ahora no" (no registra; el
+botón del Planificador sigue brillando) y "Todos presentes" (guarda la lista vacía); después de un toque o
+con la lista ya tomada → solo "Listo". Esc cierra igual que antes.
+*Implementación:* botón `data-acc="resumen"` en `.asis-bar` (oculto sin ausentes); se eliminó `.asis-res`;
+`layoutResumen` elige 1–6 columnas y la letra más grande que hace caber todo (grid por columnas, sin
+scroll), también al cambiar el tamaño; `botones()` decide "Ahora no" + "Todos presentes" / solo "Listo".
+*Pruebas (Claude), Tercero con guardado desconectado:* al abrir → "Ahora no" + "Todos presentes", sin
+botón Resumen ni barra de abajo; tras marcar → solo "Listo" y "📋 Resumen (22)"; resumen a 1280×720:
+22 líneas en 3 columnas × 8, letra 47 px, sin desborde ni scroll; a 1024×600 con 26: 3 × 9, 33 px, sin
+desborde. La base no recibió ninguna lista.
 
 ---
 

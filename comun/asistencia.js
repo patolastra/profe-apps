@@ -135,16 +135,11 @@
     .asis-tile:hover{transform:translateY(-3px);filter:brightness(1.1)}
     .asis-vacio{grid-column:1/-1;text-align:center;color:#7b8592;font-weight:700;padding:6px}
     .asis-msg{margin:auto;color:#9aa3ad;font-size:20px;text-align:center;padding:20px}
-    .asis-res{flex:0 0 auto;display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 18px;padding:10px 20px 12px;
-      background:#161b23;border-top:1px solid #262d38;font-size:clamp(14px,1.4vw,18px);color:#c9d0d8}
-    .asis-res-tit{font-weight:800;color:#ff9d94;text-transform:uppercase;letter-spacing:.04em;font-size:.85em}
-    .asis-res-item b{color:#fff;font-variant-numeric:tabular-nums;margin-right:4px}
-    .asis-res-vacio{color:#7b8592}
-    .asis-res-btn{margin-left:auto;padding:8px 16px}
     .asis-resumen{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;background:#0f1218}
-    .asis-resumen-lista{flex:1;min-height:0;overflow:auto;padding:18px 28px;
-      font-size:clamp(22px,3.2vw,40px);font-weight:800;line-height:1.5;font-variant-numeric:tabular-nums}
-    .asis-resumen-lista div{white-space:nowrap}
+    .asis-resumen-lista{flex:1;min-height:0;overflow:hidden;padding:18px 28px;display:grid;grid-auto-flow:column;
+      grid-template-columns:repeat(var(--rc,1),1fr);grid-template-rows:repeat(var(--rr,1),auto);
+      align-content:start;column-gap:48px;font-size:var(--rf,32px);font-weight:800;line-height:1.35;font-variant-numeric:tabular-nums}
+    .asis-resumen-lista div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .asis-resumen-lista .vacio{color:#7b8592;font-weight:700}
     .asis.espejo .asis-tile{cursor:default}`;
 
@@ -158,6 +153,7 @@
 
     function layout() {
         if (!_ui) return;
+        layoutResumen();
         const board = _ui.el.querySelector('.asis-board');
         const lista = _ui.lista;
         if (!lista.length || !board.clientHeight) return;
@@ -189,16 +185,11 @@
         const tile = e => `<div class="asis-tile${ausentes.has(e.id) ? ' aus' : ''}" data-id="${e.id}" title="${esc(`${e.nombre} ${e.apellido || ''}`.trim())}"><span>${esc(nombreTile(e, repes))}</span></div>`;
         _ui.el.querySelector('.asis-cont').innerHTML = `<b class="p">${lista.length - nA}</b> presentes · <b class="a">${nA}</b> ausentes`;
         _ui.el.querySelector('.asis-grid.p').innerHTML = lista.map(tile).join('');
-        // Resumen para traspasar al libro (solo en la pantalla del profe): n° de lista + apellido.
-        // Pie: cuántos faltan + botón "Resumen (N)", que abre la lista vertical (pantalla aparte).
-        const res = _ui.el.querySelector('.asis-res');
-        if (res) {
-            res.innerHTML = `<span class="asis-res-tit">Ausentes</span>`
-                + (nA ? `<span class="asis-res-item"><b>${nA}</b></span>` : '<span class="asis-res-vacio">Ninguno</span>')
-                + `<button class="asis-btn no asis-res-btn" data-acc="resumen"${nA ? '' : ' disabled'}>📋 Resumen (${nA})</button>`;
-            res.querySelector('[data-acc="resumen"]').onclick = abrirResumen;
-        }
+        // Resumen para traspasar al libro (solo en la pantalla del profe): botón en la barra.
+        const bRes = _ui.el.querySelector('[data-acc="resumen"]');
+        if (bRes) { bRes.style.display = nA ? '' : 'none'; bRes.textContent = `📋 Resumen (${nA})`; }
         if (_ui.el.querySelector('.asis-resumen')) abrirResumen();   // abierto: se mantiene al día
+        botones();
         layout();
         if (!_ui.espejo) emitir();
     }
@@ -227,8 +218,39 @@
         r.querySelector('.asis-resumen-lista').innerHTML = aus.length
             ? aus.map(e => `<div>${esc(lineaResumen(e))}</div>`).join('')
             : '<div class="vacio">Ninguno</div>';
+        layoutResumen();
+    }
+    // Nunca se desborda: prueba de 1 a 6 columnas y elige la letra más grande con la que
+    // toda la lista cabe en la pantalla (orden de arriba hacia abajo, columna por columna).
+    function layoutResumen() {
+        const box = _ui?.el.querySelector('.asis-resumen-lista');
+        if (!box || !box.clientHeight) return;
+        const items = [...box.children], n = Math.max(1, items.length);
+        const W = box.clientWidth - 56, H = box.clientHeight - 36, gap = 48;
+        const ctx = (layout._c ||= document.createElement('canvas').getContext('2d'));
+        ctx.font = `800 100px ${getComputedStyle(box).fontFamily}`;
+        const maxW = Math.max(1, ...items.map(d => ctx.measureText(d.textContent).width));
+        let best = { c: 1, f: 12 };
+        for (let c = 1; c <= Math.min(6, n); c++) {
+            const filas = Math.ceil(n / c);
+            const f = Math.min(H / (filas * 1.35), ((W - gap * (c - 1)) / c) / (maxW / 100), 64);
+            if (f > best.f + 0.5) best = { c, f };
+        }
+        const st = box.style;
+        st.setProperty('--rc', best.c); st.setProperty('--rr', Math.ceil(n / best.c));
+        st.setProperty('--rf', Math.max(12, Math.floor(best.f)) + 'px');
     }
     function cerrarResumen() { _ui?.el.querySelector('.asis-resumen')?.remove(); }
+
+    // Lista sin tomar y sin toques: "Ahora no" (no registra nada) y "Todos presentes" (guarda la
+    // lista vacía). Después de un toque, o con la lista ya tomada, todo está guardado: solo "Listo".
+    function botones() {
+        if (!_ui || _ui.espejo) return;
+        const sinTomar = !_ui.tomada && !_ui.cambios;
+        const no = _ui.el.querySelector('[data-acc="no"]'), listo = _ui.el.querySelector('[data-acc="listo"]');
+        if (no) no.style.display = sinTomar ? '' : 'none';
+        if (listo) listo.textContent = sinTomar ? 'Todos presentes' : 'Listo';
+    }
 
     // ── Espejo en la Pizarra (mismo tablero, solo para mirar) ─────────────────
     // La ventana que pasa lista avisa por BroadcastChannel; la Pizarra (espejo()) lo muestra.
@@ -255,11 +277,11 @@
             <span class="asis-cont"></span>
             <span class="asis-sp"></span>
             ${espejo ? '' : `<span class="asis-hint">Toca a los AUSENTES</span>
+            <button class="asis-btn no" data-acc="resumen" style="display:none">📋 Resumen</button>
             <button class="asis-btn no" data-acc="no">Ahora no</button>
-            <button class="asis-btn listo" data-acc="listo">Listo</button>`}
+            <button class="asis-btn listo" data-acc="listo">Todos presentes</button>`}
           </div>
-          <div class="asis-board"><div class="asis-msg">Cargando la lista…</div></div>
-          ${espejo ? '' : '<div class="asis-res"></div>'}`;
+          <div class="asis-board"><div class="asis-msg">Cargando la lista…</div></div>`;
         document.body.appendChild(el);
         return el;
     }
@@ -332,14 +354,13 @@
                 _ui.lista = lista;
                 _ui.tomada = prev.tomada;
                 _ui.ausentes = new Set((prev.ausentes || []).filter(id => lista.some(e => e.id === id)));
-                el.querySelector('[data-acc="no"]').textContent = prev.tomada ? 'Cerrar' : 'Ahora no';
+                el.querySelector('[data-acc="resumen"]').onclick = abrirResumen;
                 montarTablero();
                 board.onclick = ev => {
                     const t = ev.target.closest('.asis-tile'); if (!t || !_ui) return;
                     const id = t.dataset.id;
                     if (_ui.ausentes.has(id)) _ui.ausentes.delete(id); else _ui.ausentes.add(id);
                     _ui.cambios = true;
-                    el.querySelector('[data-acc="no"]').textContent = 'Cerrar';
                     guardar(sesionId, [..._ui.ausentes]);   // cada toque queda guardado (sin conexión: en cola)
                     pintar();
                 };
