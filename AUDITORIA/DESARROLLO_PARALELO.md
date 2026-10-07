@@ -2864,7 +2864,9 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
    elegida; se recuerda la última; por defecto Estudiantes. Mismo contenido y guardados.
 2. **Guardar al instante.** Hoy Entregas y Participación (vista normal) guardan solo con "Guardar entrega" /
    "Guardar participación" (el Proyector de Participación sí guarda al tiro). *Plan:* cada marca se guarda al
-   instante (entregó, Aplicar/No aplica, participó), con aviso si falla; los botones de guardar dejan de ser necesarios.
+   instante (entregó, Aplicar/No aplica, participó); los botones de guardar dejan de ser necesarios. *Sin conexión
+   (agregado por el PO, 2026-10-07):* estas marcas quedan guardadas en el computador y se suben solas al volver la
+   conexión (como Pasar lista), con aviso de que hay marcas pendientes de subir.
 3. **Clics repetidos crean duplicados.** *Auditoría de todo el Libro (63 acciones que escriben en la base):*
    - **Pueden duplicar** (crean algo nuevo con cada clic, sin bloqueo ni regla en la base): crear evaluación,
      participación, entrega, plantilla, instrumento; agregar ítem de plantilla y de instrumento; agregar adecuación;
@@ -2878,6 +2880,10 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
    *Plan:* un mismo seguro para todos los botones que escriben: al primer clic el botón se desactiva y dice
    "Creando…" / "Guardando…" hasta que termina (si falla, vuelve a activarse); y la "lista al día" de cada actividad
    corre una sola vez a la vez (evita el aviso de error al abrir dos veces).
+   *Si falla (agregado por el PO, 2026-10-07):* aviso claro "No se guardó: revisa la conexión e intenta de nuevo";
+   lo escrito queda en el formulario; el botón vuelve a activarse para reintentar; antes de reintentar una creación,
+   el Libro revisa si ya quedó creada (respuesta perdida) y, si la encuentra, no la duplica y avisa "ya estaba
+   creado". Sin guardado local en el computador para estas acciones.
 4. **Participación: "ausente" en vez de "inhabilitado".** Hoy ausente (Pasar lista) e inhabilitado a mano (Shift+clic)
    comparten marca y texto. *Plan:* si está en los ausentes de hoy dice "ausente"; si se inhabilitó a mano, "inhabilitado".
    Mismo comportamiento (fuera del sorteo).
