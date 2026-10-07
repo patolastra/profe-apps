@@ -3102,3 +3102,5 @@ de notas (diferenciando octavas), PARA ESCRIBIR EN EL CUADERNO" (agrupada). Apro
   parte a ~0,58 s; carga lenta simulada (2 s): aviso y parte a los ~2 s con la guitarra; reemplazo 0,26 vs guitarra
   0,27; bajo ↔ guitarra: la vuelta a guitarra es inmediata. Loop sin commitear intacto.
 - **Cierre parte 2:** commit `7e7a09d` (2026-10-07). Probar en clase (parlantes del computador y del proyector).
+- **Estado (PO, 2026-10-07):** **pendiente de revisión en uso real** (partes 1 y 2). Se cierra cuando el PO lo
+  compruebe en clase.
