@@ -2771,6 +2771,17 @@ desborde. La base no recibió ninguna lista.
   tiene marcada la opción "mostrar con apellido"; (3) botón de orden por n° de lista como opción
   secundaria; (4) informes UTP con nombre legal completo (sin cambio); (5) resumen de ausentes de Pasar
   lista con n° + apellido (sin cambio de contenido); (6) la opción nueva en la ficha de Matrícula.
+- **Complemento del PO (2026-10-07) — nombres compuestos:** regla general: **si un nombre es compuesto, se
+  muestra completo** (nunca solo la primera palabra).
+  - *Auditoría (Quinto):* las apps **no recortan** nombres: muestran el campo `nombre` tal como está guardado.
+    "MARÍA JESÚS" (n° 21) está guardada completa. El estudiante n° 31 está guardado solo como "JUAN" (apellido
+    VEGA): así venía en la planilla del colegio importada en septiembre (`supabase/import_2026/registros_2026.txt`).
+    Es un tema de **datos**, no de la app.
+  - *Hoy la ficha de Matrícula solo permite editar el nombre social*, no el nombre legal.
+  - *Agregado al plan Y:* (7) regla explícita: el nombre de pila que se muestra es el campo `nombre` completo
+    (todos los nombres registrados), nunca la primera palabra; (8) **por decidir:** permitir corregir el nombre
+    legal en la ficha de Matrícula (para casos como "JUAN" → "JUAN JOSÉ"), o corregir esos casos directo en la
+    base con autorización del PO.
 
 ### Z. Libro / Entregas — ocultar a quienes "no aplica" y poder volver a "sí aplica"
 *Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin ficha y aprobación.*
