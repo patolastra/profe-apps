@@ -3051,8 +3051,9 @@
 <div id="pedir-overlay" onclick="if(event.target===this)pedirCerrar()">
     <div id="pedir-caja" onkeydown="event.stopPropagation(); if(event.key==='Enter')pedirGuardar(); else if(event.key==='Escape')pedirCerrar();">
         <h3>🙋 Pedir canción</h3>
-        <div><label for="pedir-nombre">Canción</label><input id="pedir-nombre" maxlength="120" autocomplete="off"></div>
-        <div><label for="pedir-artista">Artista</label><input id="pedir-artista" maxlength="120" autocomplete="off"></div>
+        <div style="font-size:0.75rem;opacity:0.7;margin-top:-6px">Todo es opcional: anota lo que tengas.</div>
+        <div><label for="pedir-nombre">Canción (opcional)</label><input id="pedir-nombre" maxlength="120" autocomplete="off"></div>
+        <div><label for="pedir-artista">Artista (opcional)</label><input id="pedir-artista" maxlength="120" autocomplete="off"></div>
         <div><label for="pedir-quien">Quién la pidió (opcional)</label><input id="pedir-quien" maxlength="80" autocomplete="off"></div>
         <div><label for="pedir-url">Enlace (opcional)</label><input id="pedir-url" type="url" maxlength="500" autocomplete="off" placeholder="https://… (YouTube, Spotify…)"></div>
         <div class="pedir-btns">
@@ -7783,7 +7784,7 @@ function entPedidosListaHTML() {
     return `<div class="esl-sep">Pedidas</div>` + pend.map(p => `
         <div class="esl-item esl-pedido" title="En espera de ser cargada (se carga desde + Canción)">
             <div class="esl-item-num">⏳ en espera de ser cargada</div>
-            <div class="esl-item-nombre">${pedEsc(p.nombre)}</div>
+            <div class="esl-item-nombre">${pedEsc(pedTitulo(p))}</div>
             <div class="esl-item-artista">${pedEsc(p.artista)}${p.pidio ? ' · pidió ' + pedEsc(p.pidio) : ''}</div>
             <div class="esl-pedido-btns">
                 <button class="esl-descartar" onclick="pedidoDescartar('${entSesionActual.id}','${p.id}',event)">✕ Descartar</button>
@@ -8629,6 +8630,8 @@ function entPintarEnlace(c) {
     a.style.display = u ? '' : 'none';
     if (u) { a.href = u; a.title = u; a.textContent = enlaceTexto(u); }
 }
+// Nombre visible del pedido (todos sus campos son opcionales).
+function pedTitulo(p) { return p?.nombre || (p?.artista ? 'Canción de ' + p.artista : p?.url ? 'Canción del enlace' : 'Canción sin nombre'); }
 function pedidosAvisoError(e) {
     const m = e?.message || String(e);
     toast(/pedidos/.test(m) ? 'Falta activar los pedidos en Supabase (supabase/repertorio_pedidos.sql)'
@@ -8674,18 +8677,21 @@ function pedirAbrir() {
 function pedirCerrar() { document.getElementById('pedir-overlay').classList.remove('visible'); }
 async function pedirGuardar() {
     if (!entSesionActual) return;
-    const nombre = document.getElementById('pedir-nombre').value.trim();
-    if (!nombre) { toast('Escribe el nombre de la canción'); document.getElementById('pedir-nombre').focus(); return; }
-    const btn = document.getElementById('pedir-btn-guardar');
-    if (btn.disabled) return;
-    btn.disabled = true;
+    // Todos los campos son opcionales (PO, 2026-10-07); solo se pide que haya algo anotado.
     const pedido = {
-        id: genId(), nombre,
+        id: genId(),
+        nombre:  document.getElementById('pedir-nombre').value.trim(),
         artista: document.getElementById('pedir-artista').value.trim(),
         pidio:   document.getElementById('pedir-quien').value.trim(),
         url:     pedNormUrl(document.getElementById('pedir-url').value),
         fecha:   new Date().toLocaleDateString('sv'), estado: 'pendiente',
     };
+    if (!pedido.nombre && !pedido.artista && !pedido.pidio && !pedido.url) {
+        toast('Anota al menos un dato del pedido'); document.getElementById('pedir-nombre').focus(); return;
+    }
+    const btn = document.getElementById('pedir-btn-guardar');
+    if (btn.disabled) return;
+    btn.disabled = true;
     try {
         await pedidosModificar(entSesionActual.id, ps => ps.push(pedido));
         pedirCerrar();
@@ -8698,7 +8704,7 @@ async function pedidoDescartar(sesionId, pedidoId, ev) {
     ev?.stopPropagation();
     const s = sesiones.find(x => x.id === sesionId);
     const p = [...(s?.pedidos || []), ...(entSesionActual?.pedidos || [])].find(q => q.id === pedidoId);
-    if (!confirm(`¿Descartar el pedido "${p?.nombre || ''}"?`)) return;
+    if (!confirm(`¿Descartar el pedido "${pedTitulo(p)}"?`)) return;
     try {
         await pedidosModificar(sesionId, ps => { const x = ps.find(q => q.id === pedidoId); if (x) x.estado = 'descartada'; });
         toast('Pedido descartado');
@@ -8733,7 +8739,7 @@ function pedidosRender() {
             ${g.pend.map(p => `
             <div class="ped-item">
                 <div class="ped-item-txt">
-                    <div class="ped-item-nombre">${pedEsc(p.nombre)}</div>
+                    <div class="ped-item-nombre">${pedEsc(pedTitulo(p))}</div>
                     <div class="ped-item-meta">${[pedEsc(p.artista), p.pidio ? 'pidió ' + pedEsc(p.pidio) : '', pedFecha(p.fecha)].filter(Boolean).join(' · ')}</div>
                 </div>
                 ${p.url ? `<a class="ped-link" href="${pedEsc(p.url)}" target="_blank" rel="noopener" title="${pedEsc(p.url)}">🔗 Enlace</a>` : ''}
@@ -8751,11 +8757,12 @@ function pedidoCargar(sesionId, pedidoId) {
     abrirModalNueva();
     pedidoEnCarga = { sesionId, pedidoId };
     document.getElementById('modal-titulo-h').textContent = 'Cargar canción pedida';
-    document.getElementById('f-nombre').value  = p.nombre;
+    document.getElementById('f-nombre').value  = p.nombre || '';
     document.getElementById('f-artista').value = p.artista || '';
     document.getElementById('f-url').value     = p.url || '';
-    document.getElementById('import-q').value = `${p.nombre} ${p.artista || ''}`.trim();
-    buscarImport();
+    const q = `${p.nombre || ''} ${p.artista || ''}`.trim();
+    document.getElementById('import-q').value = q;
+    if (q) buscarImport();   // sin nombre ni artista no hay qué buscar (se completa en la ficha)
 }
 
 // Tras guardar la canción nueva: queda en la sesión que la pidió y el pedido pasa a 'cargada'.
