@@ -2996,3 +2996,4 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
 - **Prueba (2026-10-07, servidor local, solo lectura):** Tercero, evaluación "Repertorio (Chicos y chicas)":
   "Pendientes (12)" y copia de 12 nombres; entrega con "Pendientes (8)" y copia de 8; un "No aplica" simulado baja el
   contador a 11 y sale del filtro.
+- **Cierre:** commit `db68735` (2026-10-07).
