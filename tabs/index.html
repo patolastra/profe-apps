@@ -1176,19 +1176,42 @@ function ensureAudio() {
         reverbGain.connect(masterBus);
         masterBus.connect(audioCtx.destination);
 
-        // Cargar soundfont — KS queda como fallback hasta que cargue
-        if (typeof Soundfont !== 'undefined') {
-            Soundfont.instrument(audioCtx, TIMBRE[currentInstrument].sf, {
-                soundfont: 'MusyngKite',
-                gain: 2,
-                destination: masterBus
-            }).then(instr => {
-                guitarSF = instr;
-                ksCache = new Map();
-            }).catch(() => {});
-        }
+        // Cargar los sonidos de guitarra (soundfont) — ver cargarSoundfont
+        const sfNombre = TIMBRE[currentInstrument].sf;
+        cargarSoundfont(sfNombre).then(instr => {
+            if (TIMBRE[currentInstrument].sf === sfNombre) guitarSF = instr;
+        }).catch(() => {});
     }
     if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+// Sonidos listos ANTES del Play (deuda AG, 2026-10-07): antes se cargaban recién al primer
+// Play y se recargaban al cambiar de partitura/instrumento; mientras tanto sonaba el sonido
+// de reemplazo (Karplus-Strong), distinto ("arcaico") y ~6× más fuerte (saturaba), y la carga
+// trababa el computador justo al partir (audio atrasado). Ahora: se precargan al abrir el
+// Lector, quedan guardados por instrumento y el Play espera a que estén listos.
+const sfCache = {};      // nombre del soundfont → instrumento cargado
+const sfCargando = {};   // nombre → promesa en curso
+function cargarSoundfont(nombre) {
+    if (sfCache[nombre]) return Promise.resolve(sfCache[nombre]);
+    if (typeof Soundfont === 'undefined' || !audioCtx) return Promise.reject(new Error('sin soundfont'));
+    if (!sfCargando[nombre]) {
+        sfCargando[nombre] = Soundfont.instrument(audioCtx, nombre, { soundfont: 'MusyngKite', gain: 2, destination: masterBus })
+            .then(instr => { sfCache[nombre] = instr; return instr; })
+            .finally(() => { delete sfCargando[nombre]; });
+    }
+    return sfCargando[nombre];
+}
+// Espera (máx. `maxMs`) a que estén los sonidos del instrumento actual. Si no llegan, sigue igual
+// (con el sonido de reemplazo, ya sin saturar).
+async function esperarSonidos(maxMs = 8000) {
+    if (guitarSF || !partituraOn || typeof Soundfont === 'undefined') return;
+    const nombre = TIMBRE[currentInstrument].sf;
+    mostrarToast('Cargando sonidos…');
+    try {
+        const instr = await Promise.race([cargarSoundfont(nombre), new Promise(r => setTimeout(() => r(null), maxMs))]);
+        if (instr && TIMBRE[currentInstrument].sf === nombre) guitarSF = instr;
+    } catch (_) { /* sigue con el sonido de reemplazo */ }
 }
 
 function playClick(accent, when) {
@@ -1222,7 +1245,8 @@ function despertarSalidaYLuego(fn) {
         const t = audioCtx.currentTime;
         osc.start(t); osc.stop(t + DESPERTAR_S + 0.3);
     } catch (_) { /* sin el tono la reproducción sigue igual */ }
-    setTimeout(() => { if (tok !== despertarToken) return; despertarPendiente = false; fn(); }, DESPERTAR_S * 1000);
+    Promise.all([esperarSonidos(), new Promise(r => setTimeout(r, DESPERTAR_S * 1000))])
+        .then(() => { if (tok !== despertarToken) return; despertarPendiente = false; fn(); });
 }
 function cancelarDespertar() { despertarToken++; despertarPendiente = false; }
 
@@ -1259,13 +1283,16 @@ function playNote(midi, dur) {
         });
         return;
     }
-    // KS fallback mientras carga el soundfont
+    // Sonido de reemplazo (KS) solo si el soundfont no cargó. KS_NIVEL lo deja al nivel de la
+// guitarra (medido: KS pico 1,65 = satura; guitarra 0,27) — deuda AG.
+const KS_NIVEL = 0.17;
+// KS fallback mientras carga el soundfont
     if (!ksCache.has(midi)) ksCache.set(midi, buildKSBuffer(midi));
     const src = audioCtx.createBufferSource();
     const atk = audioCtx.createGain();
     src.buffer = ksCache.get(midi);
     atk.gain.setValueAtTime(0, now);
-    atk.gain.linearRampToValueAtTime(1, now + 0.014);
+    atk.gain.linearRampToValueAtTime(KS_NIVEL, now + 0.014);
     src.connect(atk);
     atk.connect(bodyFilter);
     src.start();
@@ -1959,11 +1986,8 @@ function aplicarTimbreInstrumento() {
     if (audioCtx) {
         bodyFilter.frequency.value = t.filter;
         reverbGain.gain.value = t.reverb;
-        if (typeof Soundfont !== 'undefined') {
-            guitarSF = null;
-            Soundfont.instrument(audioCtx, t.sf, { soundfont: 'MusyngKite', gain: 2, destination: masterBus })
-                .then(instr => { guitarSF = instr; }).catch(() => {});
-        }
+        guitarSF = sfCache[t.sf] || null;   // ya cargado: sin espera ni sonido de reemplazo
+        if (!guitarSF) cargarSoundfont(t.sf).then(instr => { if (TIMBRE[currentInstrument].sf === t.sf) guitarSF = instr; }).catch(() => {});
     }
 }
 
@@ -7400,6 +7424,9 @@ async function guardarCifrado() {
 }
 
 requestAnimationFrame(animLoop);
+// Precarga de los sonidos (deuda AG): el contexto de audio nace suspendido (sin sonar) y se
+// activa con el primer Play; así los sonidos de guitarra ya están listos al partir.
+if (typeof Soundfont !== 'undefined') { try { ensureAudio(); } catch (_) {} }
 
 // ══ CONTROLADOR DE LECCIÓN ═══════════════════════════════════════════════════
 // Una Lección es una lista ordenada de referencias a tablaturas. Este controlador

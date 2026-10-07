@@ -3085,3 +3085,19 @@ de notas (diferenciando octavas), PARA ESCRIBIR EN EL CUADERNO" (agrupada). Apro
 - **Prueba (2026-10-07, servidor local, "ESCALA DE DO"):** Play → parte a los 0,5 s; Play+Pausa a los 0,2 s → no
   parte; Espacio parte y pausa; Espacio-Espacio rápido → no parte. Falta probar en clase con el proyector.
 - **Cierre:** commit `df9bb48` (2026-10-07). Probar en clase.
+- **Complemento del PO (2026-10-07):** no pasa solo con Bluetooth: también en los parlantes de los computadores. Los
+  primeros sonidos (metrónomo y primeras notas) suenan "arcaicos" y muy fuertes, luego se normaliza; cuando pasa, el
+  audio se atrasa.
+- **Auditoría 2 (2026-10-07):** causa encontrada. Los sonidos de guitarra (soundfont MusyngKite, de internet) se
+  cargaban recién al **primer Play** y se volvían a cargar al cambiar de partitura/instrumento
+  (`aplicarTimbreInstrumento` ponía `guitarSF = null`). Mientras tanto sonaba el **sonido de reemplazo** (Karplus-
+  Strong): otro timbre ("arcaico") y **~6× más fuerte, saturado** (medido: pico 1,65 vs 0,27 de la guitarra; > 1 =
+  distorsión). Y la descarga + decodificación ocurría justo al partir → computador cargado → audio atrasado.
+- **Arreglo 2:** `cargarSoundfont()` con caché por instrumento (`sfCache`); **precarga al abrir el Lector**
+  (`ensureAudio()` al final del script: el contexto nace suspendido y se activa con el primer Play); al cambiar de
+  instrumento se usa lo ya cargado; el Play **espera** a los sonidos (`esperarSonidos`, máx. 8 s, aviso "Cargando
+  sonidos…") en vez de tocar con el reemplazo; el reemplazo queda solo si la carga falla y a nivel de la guitarra
+  (`KS_NIVEL = 0.17`: pico 0,26).
+- **Prueba 2 (2026-10-07, servidor local):** sin tocar nada, sonidos listos al abrir; abrir partitura no recarga; Play
+  parte a ~0,58 s; carga lenta simulada (2 s): aviso y parte a los ~2 s con la guitarra; reemplazo 0,26 vs guitarra
+  0,27; bajo ↔ guitarra: la vuelta a guitarra es inmediata. Loop sin commitear intacto.
