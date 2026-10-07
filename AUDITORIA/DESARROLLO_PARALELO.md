@@ -3036,6 +3036,7 @@ para después.*
 - **Prueba (2026-10-07, servidor local):** Zapatero desde 240 con tope 250: vueltas a 240 → 245 → 250 → 250, cada una
   con 4 ticks de precuenta a su velocidad; al detener vuelve a 240; apagado: toca una vez y termina solo; Play→Detener→
   Play sin cortes; modo alumno sin el botón. Falta probar en clase.
+- **Cierre AF (n°4 + n°1):** commits `12bfef9` + `48c4338` (2026-10-07). Probar en clase.
 
 ### AG. Lector de Tabs — también se pierde el comienzo del audio (como AF n°4)
 *Origen: PO (2026-10-07). Deuda registrada; **arreglar después**, no implementar sin aprobación.*
