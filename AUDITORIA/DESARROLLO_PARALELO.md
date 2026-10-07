@@ -2688,3 +2688,34 @@ vez (siempre la versión al día) y el estilo del Metalófono proyectado se aseg
 *Origen: PO (2026-10-07). Idea registrada; diseño pendiente. No implementar.*
 - **Necesidad:** en las sesiones del Entrenador ligadas a un curso, un botón para anotar una canción pedida (un recordatorio), que después permita agregar la canción de verdad al repertorio/sesión.
 - **Por definir con el PO:** qué se anota (solo nombre/artista, quién la pidió), dónde se ven los pedidos pendientes, y cómo se "convierte" el pedido en canción (buscar en la biblioteca o importar una nueva).
+
+### Y. Libro — todo por nombre de pila (sin apellido) y A–Z, salvo los informes
+*Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin ficha y aprobación.*
+- **Pedido:** en todo el Libro los estudiantes se ven por **nombre** (sin apellido) y en orden **A–Z**,
+  excepto en los **informes** (UTP), que siguen con el nombre legal completo.
+- **Ya estaba pendiente en parte (reemplaza y unifica):** (1) idea de 2026-09-04: en el modo A–Z mostrar
+  solo el nombre salvo nombres repetidos (memoria del proyecto); (2) Notion: "Libro: por defecto modo
+  'Nombre Apellido' (sin coma) y siempre en orden alfabético"; (3) Notion: "Nombres que suenan igual
+  (Matias/Mathias): mostrar apellido".
+- **Estado actual (auditoría):** el Libro tiene un interruptor `ordenModo` 'oficial' (APELLIDO, NOMBRE ·
+  1–N, por defecto, no se recuerda) / 'alfa' (NOMBRE, APELLIDO · A–Z) en `nombreFmt`/`cmpEstudiantes`.
+  "Solo nombre salvo repetidos" ya existe en el Proyector de Participación (`nombreProyector` /
+  `mapaNombresRepetidos`) y en Pasar lista (`comun/asistencia.js`). Los informes usan
+  `nombreFmt(est, true)` (nombre legal). El nombre social ya reemplaza el nombre de pila.
+- **Por decidir con el PO:** (a) dos estudiantes con el mismo nombre o que suenan igual (Matías/Mathías):
+  ¿nombre + apellido, o nombre + inicial del apellido?; (b) ¿se elimina el interruptor 1–N o queda como
+  opción secundaria? (el n° de lista sirve para traspasar al libro oficial); (c) el resumen de ausentes de
+  Pasar lista (n° de lista + apellido) es para el libro oficial: ¿queda igual? (recomendado: sí).
+
+### Z. Libro / Entregas — ocultar a quienes "no aplica" y poder volver a "sí aplica"
+*Origen: PO (2026-10-07). Deuda registrada tras auditoría; no implementar sin ficha y aprobación.*
+- **Pedido:** en una entrega que no es para todo el curso, la lista muestra solo a quienes **sí aplica**;
+  los "No aplica" quedan ocultos. Y debe poder cambiarse un "No aplica" a "Sí aplica".
+- **Estado actual (auditoría):** al crear la entrega, los no seleccionados quedan `no_aplica`
+  (`libro_entregas`… detalle por estudiante); los nuevos de una entrega "para algunos" también entran
+  como `no_aplica`. En el detalle se listan **todos**, con el rótulo "No aplica" sin acción posible: hoy
+  **no se puede** volver a "aplica" en Entregas (en Evaluaciones sí existe el botón "Aplicar",
+  `setNoAplica`). El encabezado ya cuenta aparte "deben: N".
+- **Propuesta (Claude, no decidida):** lista solo con los que aplica + un botón "Mostrar no aplica (N)"
+  que despliega a los demás con un botón "Aplicar" (y "No aplica" en los que sí aplican), igual que en
+  Evaluaciones. Sin cambios en la base de datos (el estado ya existe).
