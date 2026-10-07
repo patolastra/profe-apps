@@ -2856,3 +2856,29 @@ envía "JUAN JOSÉ"/"VEGA", muestra "JUAN JOSÉ" y legal "VEGA, JUAN JOSÉ"; Ent
   subida) que el Workspace consulta cada pocos minutos sin usar lo guardado; si cambió, muestra un aviso "Hay una
   versión nueva — Recargar", que recarga el Workspace y sus pestañas pidiendo los archivos al día. Alternativa
   mínima: que reabrir una pestaña del Workspace siempre pida la versión al día.
+
+### AC. Libro — varios (hoja Notion "varios del libro de clases")
+*Origen: PO (2026-10-07). Plan revisado por el PO ("todo ok"), **no aprobado para implementar todavía**.*
+1. **Evaluación en pestañas.** Hoy una sola página larga: Cabecera (nombre, fecha, OA, adecuaciones) · Instrumentos ·
+   Grupos de trabajo · Estudiantes · Observación general. *Plan:* barra de pestañas con esas cinco; se ve solo la
+   elegida; se recuerda la última; por defecto Estudiantes. Mismo contenido y guardados.
+2. **Guardar al instante.** Hoy Entregas y Participación (vista normal) guardan solo con "Guardar entrega" /
+   "Guardar participación" (el Proyector de Participación sí guarda al tiro). *Plan:* cada marca se guarda al
+   instante (entregó, Aplicar/No aplica, participó), con aviso si falla; los botones de guardar dejan de ser necesarios.
+3. **Clics repetidos crean duplicados.** *Auditoría de todo el Libro (63 acciones que escriben en la base):*
+   - **Pueden duplicar** (crean algo nuevo con cada clic, sin bloqueo ni regla en la base): crear evaluación,
+     participación, entrega, plantilla, instrumento; agregar ítem de plantilla y de instrumento; agregar adecuación;
+     crear grupo de trabajo; crear estudiante nuevo (Matrícula: duplicaría la identidad); guardar observación (taller);
+     duplicar plantilla; cargar plantilla en una evaluación.
+   - **Protegidos por la base** (un segundo clic da error, no duplica): matrícula nueva (1 activa por estudiante/año),
+     pertenencia a taller, filas por estudiante de evaluación/participación/entrega (únicas por actividad y estudiante;
+     incluye la "lista al día" al abrir dos veces seguidas).
+   - **Sin riesgo de duplicar** (cambian o borran algo existente): guardar cabeceras, notas, cerrar/reabrir, retirar/
+     reintegrar, renombrar, eliminar (piden confirmación).
+   *Plan:* un mismo seguro para todos los botones que escriben: al primer clic el botón se desactiva y dice
+   "Creando…" / "Guardando…" hasta que termina (si falla, vuelve a activarse); y la "lista al día" de cada actividad
+   corre una sola vez a la vez (evita el aviso de error al abrir dos veces).
+4. **Participación: "ausente" en vez de "inhabilitado".** Hoy ausente (Pasar lista) e inhabilitado a mano (Shift+clic)
+   comparten marca y texto. *Plan:* si está en los ausentes de hoy dice "ausente"; si se inhabilitó a mano, "inhabilitado".
+   Mismo comportamiento (fuera del sorteo).
+- *Orden recomendado:* 3 y 4 → 2 → 1. Sin cambios en Supabase.
