@@ -3377,5 +3377,21 @@ clases o no, eso incluye al cel". **DECISIÓN del PO** (registrada en `CLAUDE.md
   con copia guardada → tablero al instante con sus toques. Validar en uso real.
 
 ### AO. Workspace — insignia de "clase en curso" en la barra (deuda)
-*Origen: PO (2026-10-08). Anotada; no implementar aún.*
+*Origen: PO (2026-10-08). Anotada; **aprobada el mismo día**.*
 - Con clase en curso, una insignia en la barra del Workspace; al apretarla abre el Planificador de esa clase.
+- **Aprobado (PO 2026-10-08):** insignia a la derecha de todo en la barra: "Hay una clase en curso, ir". Lleva al Plan
+  de esa clase; si ese Plan ya está abierto, va a esa misma pestaña (nunca se abre dos veces). Mientras se está en
+  el Plan de esa clase, la insignia no se ve.
+- **Auditoría:** las pestañas de Plan usan la clave `plan:<contexto_id>|<fecha>` y la dirección
+  `PORTAL/index.html?ctx=<NOMBRE>&fecha=<fecha>`; la clase en curso (`ClaseVivo.enCurso`, AM) trae `ctx` y `fecha`
+  (no el id del contexto). El Workspace no tiene `sb`: se entera por el `localStorage` que escriben sus pestañas.
+- **Implementado (`PC/workspace.html`):** botón `#ws-clase` a la derecha de todo (tras el aviso de versión nueva),
+  rojo; visible con clase en curso salvo cuando la pestaña activa es el Plan de esa clase; `title` con el curso (y "otro
+  equipo" si corresponde). Toda pestaña de Plan guarda su clase (`clasePlan`: "NOMBRE|fecha" de su dirección) y
+  `abrirInstancia` reconoce un Plan ya abierto por su clase aunque la clave sea otra: la insignia y el Dashboard nunca
+  abren el mismo Plan dos veces. Se actualiza con `ClaseVivo.onCambio`, al cambiar de pestaña y cada 30 s.
+  Carga `supabase/contextos.js` (nombre visible del curso).
+- **Prueba (2026-10-08, servidor local, Segundo):** sin clase → no se ve; clase comenzada → "Hay una clase en curso,
+  ir" a la derecha; clic → abre el Plan de Segundo y la insignia se oculta; en Dashboard reaparece; clic → misma
+  pestaña (3 pestañas); el Dashboard pidiendo el mismo Plan con su clave → misma pestaña; al revés (Plan abierto
+  desde el Dashboard, luego la insignia) → misma pestaña; terminar → la insignia desaparece. Sin datos de prueba.

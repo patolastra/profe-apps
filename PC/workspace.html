@@ -115,8 +115,20 @@
     }
     #ws-version:hover { background: #166534; }
     #ws-version[hidden] { display: none; }
+
+    /* ── CLASE EN CURSO (deuda AO): a la derecha de todo; lleva al Plan de esa clase ── */
+    #ws-clase {
+        margin-left: 8px; align-self: center;
+        padding: 7px 14px; border-radius: 10px; cursor: pointer;
+        background: #7f1d1d; border: 1px solid #ef4444; color: #fee2e2;
+        font-size: 0.85rem; font-weight: 700; white-space: nowrap;
+    }
+    #ws-clase:hover { background: #991b1b; }
+    #ws-clase[hidden] { display: none; }
+    #ws-version[hidden] + #ws-clase { margin-left: auto; }
 </style>
 <script src="../comun/clase-vivo.js"></script>
+<script src="../supabase/contextos.js"></script>
 </head>
 <body>
 
@@ -159,6 +171,7 @@
     </div>
     <div id="ws-etiqueta" hidden></div>
     <button id="ws-version" hidden title="Se subió una versión nueva de las apps. Recarga el Workspace y sus pestañas con los archivos al día (los Planes abiertos se guardan antes).">🔄 Hay una versión nueva — Recargar</button>
+    <button id="ws-clase" hidden>Hay una clase en curso, ir</button>
 </div>
 
 <div id="stage">
@@ -219,8 +232,11 @@ document.addEventListener('click', (e) => {
 // `guardarAlCerrar`: al cerrar, pedir al iframe que guarde antes de destruirse
 // (Planes). Ambos por defecto false.
 function abrirInstancia({ key, titulo, ico, src, fijo = false, guardarAlCerrar = false }) {
-    const existente = tabs.find(t => t.key === key);
-    if (existente) { activar(key); return; }
+    // Un Plan también se reconoce por su clase (curso + fecha de la dirección), venga de
+    // donde venga (Dashboard o insignia de clase en curso): nunca se abre dos veces.
+    const clase = clasePlan(src);
+    const existente = tabs.find(t => t.key === key) || (clase && tabs.find(t => t.clase === clase));
+    if (existente) { activar(existente.key); return; }
 
     // iframe persistente: se crea UNA vez y se mantiene vivo en el DOM
     const iframe = document.createElement('iframe');
@@ -264,9 +280,46 @@ function abrirInstancia({ key, titulo, ico, src, fijo = false, guardarAlCerrar =
     }
     tabbar.insertBefore(tabEl, document.getElementById('launcher-wrap'));
 
-    tabs.push({ key, titulo, ico, tabEl, iframeEl: iframe, fijo, guardarAlCerrar });
+    tabs.push({ key, titulo, ico, tabEl, iframeEl: iframe, fijo, guardarAlCerrar, clase });
     activar(key);
 }
+
+// "NOMBRE|fecha" de una pestaña de Plan (PORTAL/index.html?ctx=…&fecha=…); null si no es un Plan.
+function clasePlan(src) {
+    if (!/PORTAL\/index\.html\?/.test(src || '')) return null;
+    const p = new URLSearchParams(src.slice(src.indexOf('?') + 1));
+    const ctx = p.get('ctx'), fecha = p.get('fecha');
+    return ctx && fecha ? `${ctx.toUpperCase()}|${fecha}` : null;
+}
+
+// ── CLASE EN CURSO (deuda AO) ──────────────────────────────────────────────
+// Insignia a la derecha de la barra mientras hay una clase en curso (de cualquier equipo,
+// ClaseVivo.enCurso). Lleva al Plan de esa clase (la misma pestaña si ya está abierta) y no
+// se ve mientras se está en ese Plan. Se entera de los cambios por el localStorage que
+// escriben las pestañas (el Planificador está conectado a internet).
+const btnClase = document.getElementById('ws-clase');
+function claseEnCurso() { try { return ClaseVivo.enCurso(); } catch (_) { return null; } }
+function pintarInsigniaClase() {
+    const st = claseEnCurso();
+    const activa = tabs.find(t => t.key === activeKey);
+    const enSuPlan = !!(st && activa && activa.clase === `${String(st.ctx).toUpperCase()}|${st.fecha}`);
+    btnClase.hidden = !st || !st.fecha || enSuPlan;
+    if (st) btnClase.title = `Clase en curso: ${typeof ctxDisplay === 'function' ? ctxDisplay(st.ctx) : st.ctx}${st.aqui ? '' : ' (comenzada en otro equipo)'}. Ir a su Plan.`;
+}
+btnClase.onclick = () => {
+    const st = claseEnCurso();
+    if (!st || !st.fecha) return;
+    const nombre = String(st.ctx);
+    abrirInstancia({
+        key: `plan:ctx:${nombre.toUpperCase()}|${st.fecha}`,   // si el Dashboard ya lo abrió, se reconoce por su clase
+        titulo: `Plan: ${typeof ctxDisplay === 'function' ? ctxDisplay(nombre) : nombre}`,
+        ico: '📋',
+        src: `../PORTAL/index.html?ctx=${encodeURIComponent(nombre)}&fecha=${encodeURIComponent(st.fecha)}`,
+        guardarAlCerrar: true,
+    });
+};
+ClaseVivo.onCambio(pintarInsigniaClase);
+setInterval(pintarInsigniaClase, 30000);   // clase que vence a las 2 h
 
 // Abre una app del catálogo (launcher +). key = appId. `fijo` para las iniciales.
 function abrirApp(appId, fijo = false) {
@@ -284,6 +337,7 @@ function activar(key) {
         t.iframeEl.classList.toggle('hidden', !on);   // display:none NO recarga el iframe
     });
     empty.classList.toggle('hidden', tabs.length > 0);
+    pintarInsigniaClase();
 }
 
 // ── GUARDADO PREVIO AL CIERRE (handshake con el iframe) ─────────────────────
