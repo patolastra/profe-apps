@@ -3468,3 +3468,7 @@ y atajo; las pedidas no se muestran".*
   Entrenador del profe (`claro` del estado del espejo): claro = fondo #eef2f6 (el del Entrenador claro), tarjetas verde
   claro con texto verde oscuro y la actual en naranjo claro; oscuro = como antes. Prueba: claro → tarjetas claras;
   cambiar el profe a oscuro → la Pizarra pasa a oscuro al instante.
+- **Ajuste del PO (2026-10-08): usar los colores propios del Entrenador.** Oscuro: fondo #0f172a, tarjetas #1e293b
+  con borde #334155 y texto #cbd5e1; la actual #140d06 con naranjo #ea580c (como la canción activa de la lista).
+  Claro: fondo #eef2f6, tarjetas blancas con borde #e2e8f0 y texto #334155; la actual #fff7ed con naranjo #ea580c.
+  Prueba: ambos tonos en la copia, cambio al instante.
