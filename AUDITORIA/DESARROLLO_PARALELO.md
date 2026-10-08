@@ -3498,3 +3498,18 @@ y atajo; las pedidas no se muestran".*
   siguen eligiendo "el primer audio": en las 2 canciones dobles podrían sonar en karaoke. Se corrigen cuando se
   trabaje cada uno (decisión del PO del 29-09: no tocarlos ahora).
 - **Cerrada la implementación; pendiente probar en clase.**
+- **DECISIÓN del PO (2026-10-08), al revisar las deudas de la etapa 5:** el **Visor de letras** y las **diapositivas de
+  canción de la Pizarra** (`@rep:`) están **en desuso** (la sesión de repertorio del curso las reemplazó): no se les
+  corrige el audio. "Todo asset del repertorio (salvo las tablaturas) lo consume el Entrenador: si quiero escuchar la
+  canción o ver la letra, que se abra el Entrenador."
+- **Implementado:** en la Biblioteca, "▶ Ver letra" abre el Entrenador (se quitó el botón 🎯, que quedaba repetido);
+  el Entrenador se abre también sin audio (solo la letra). Prueba: Amenaza de Ultracumbia (con audio, 118 versos) y
+  "Cuando se apaga la PC" (solo letra, 49 versos, sin audio) abren en el Entrenador.
+
+### AS. Retirar el Visor de letras y las diapositivas de canción de la Pizarra (deuda)
+*Origen: DECISIÓN del PO (2026-10-08): ambos en desuso. Pendiente decidir su retiro (regla §4.10: no conservar legacy
+como respaldo).*
+- **Hoy:** el Visor (`abrirVisor` y su pantalla, `REPERTORIO/index.html`) ya no tiene botón; el selector de canciones
+  del Planificador (`@rep:`) y su diapositiva en la Pizarra siguen existiendo y eligen "el primer audio".
+- **Propuesta (Claude, no decidida):** retirar ambos en una limpieza propia (código, botón del selector de canciones
+  del Planificador y soporte `@rep:` en la Pizarra), revisando antes si alguna presentación guardada aún usa `@rep:`.

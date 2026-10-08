@@ -32,11 +32,11 @@ Estado = clasificación oficial de Fase 1.5 (ver §5 para la leyenda). Detalle p
 | **Portal / Planning** | Planificación de sesiones + Dashboard. Profesor. | `PORTAL/index.html` | 🟢 Activo |
 | **Workspace PC** | Entrada PC: pestañas + iframes persistentes. Profesor. | `PC/workspace.html` | 🟢 Activo — **entrada PC actual** |
 | **Dashboard** | Calendario 3 semanas + panel de pendientes (dentro del Portal). | `PORTAL/` | 🟢 Activo |
-| **Repertorio** | Biblioteca de canciones + visor de letras + Entrenador. | `REPERTORIO/index.html` | 🟢 Activo |
+| **Repertorio** | Biblioteca de canciones + Entrenador (todo asset salvo las tablaturas se abre en el Entrenador; el **visor de letras quedó en desuso**, DECISIÓN del PO 2026-10-08). Audio Melodía + Karaoke por canción. | `REPERTORIO/index.html` | 🟢 Activo |
 | **Entrenador** | Editor central de assets (letras/sync/proyección). Vive en Repertorio (`?vista=sesiones`). | `REPERTORIO/` | 🟢 Activo |
 | **Ritmo** | Motor rítmico del Entrenador (`ritmo.js` + `ritmo-render.js`). | `REPERTORIO/` | 🟢 Activo |
 | **Lector de Tablaturas** | Lector MXL/MusicXML, audio sync, secciones, modo cifrado. | `tabs/index.html` | 🟢 Activo |
-| **Pizarra** (= Presentador Pedagógico) | Runtime markdown → slides en clase, fullscreen, YouTube. Ventana de proyección del **Modo Clase** (se abre en el proyector; muestra el tiempo perdido). | `PIZARRA/index.html` | 🟢 Activo |
+| **Pizarra** (= Presentador Pedagógico) | Runtime markdown → slides en clase, fullscreen, YouTube. Ventana de proyección del **Modo Clase** (se abre en el proyector; muestra el tiempo perdido). Las diapositivas de canción (`@rep:`) quedaron **en desuso** (DECISIÓN del PO 2026-10-08: las reemplaza la sesión de repertorio del curso en el Entrenador). | `PIZARRA/index.html` | 🟢 Activo |
 | **Libro de Clases** | Evaluación/participación (infra base F1 lista). | `LIBRO/index.html` | 🟢 Activo |
 | **Bitácora / Memoria** | Documento narrativo permanente de la clase (móvil). | `MEMORIA/index.html` + tabla `memorias` | 🟢 Activo — en el móvil junto a **Evaluar** (`MOVIL/evaluar.html`, por toques) |
 | **Metalófono** | Herramienta pedagógica MIDI. Dos modos en el **mismo archivo**: **profesor** (escritorio, completo) y **alumno** (`?modo=alumno&a=<id>`: celular horizontal, instrumento ya configurado, sin Supabase). Ver ficha en `AUDITORIA/DESARROLLO_PARALELO.md`. | `METALÓFONO APP/METAL21 (ALPHA).HTML` | 🟢 Activo (estable; el rótulo "alpha" es histórico) |
