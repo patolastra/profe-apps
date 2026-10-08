@@ -3464,3 +3464,7 @@ y atajo; las pedidas no se muestran".*
   4 tarjetas (actual en naranjo; 1 columna en 800×755, 2×2 en 1920×1080); lista cerrada → vuelve la letra.
 - **Ojo (uso):** en la sesión la lista suele estar abierta; mientras se proyecte el Entrenador, la Pizarra mostrará
   el cancionero hasta cerrar la lista (☰).
+- **Validado por el PO (2026-10-08): "todo está ok".** Ajuste pedido: las tarjetas respetan el tono claro/oscuro del
+  Entrenador del profe (`claro` del estado del espejo): claro = fondo #eef2f6 (el del Entrenador claro), tarjetas verde
+  claro con texto verde oscuro y la actual en naranjo claro; oscuro = como antes. Prueba: claro → tarjetas claras;
+  cambiar el profe a oscuro → la Pizarra pasa a oscuro al instante.
