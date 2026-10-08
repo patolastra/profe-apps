@@ -3346,7 +3346,7 @@ clases o no, eso incluye al cel". **DECISIÓN del PO** (registrada en `CLAUDE.md
   5. **Libro, Resultados:** toques de cada estudiante y nota que corresponde (7 − toques × descuento, nunca bajo la nota
      mínima); se puede cambiar cualquier nota a mano.
   6. Celular instalable como app (ícono en la pantalla de inicio) y abre sin señal: base de la PWA.
-  7. Por decidir al verlo en el celular: cuántas columnas / tamaño de los nombres.
+  7. Columnas y tamaño de los nombres: **3 columnas y el tamaño actual, aprobados por el PO (2026-10-08)**.
 - **Implementado:**
   - Supabase (`supabase/libro_toques.sql`, corrido por el PO): `libro_evaluaciones.descuento_toque` (NULL = normal) y
     `libro_evaluacion_notas.toques`.
