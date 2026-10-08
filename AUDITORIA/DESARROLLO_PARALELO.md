@@ -3295,3 +3295,57 @@ de hay una nueva versión". Complementa AB.*
   tras una subida, la dirección cambia y el navegador la pide al servidor; (2) al detectar una versión nueva, se piden
   al día de inmediato las piezas compartidas (`comun/*`, `supabase/config.js`, `contextos.js`), también al "Recargar".
   Prueba local: pestaña de Libro abierta con `&wsv=…`, carga normal y con el código nuevo; sin errores.
+
+### AM. Una sola clase en curso, y todo el sistema lo sabe (también el celular)
+*Origen: PO (2026-10-08), al definir AN: "cuando hay una clase en curso no puede haber otra en curso; y cuando hay una
+clase en curso todo el sistema debe poder saberlo, porque el sistema está adaptándose a funcionar distinto estando en
+clases o no, eso incluye al cel". **DECISIÓN del PO** (registrada en `CLAUDE.md` §3).*
+- **Necesidad:** el celular (AN) solo evalúa con una clase en curso; hoy "Comenzar clase" queda guardado solo en el
+  computador donde se apretó (`ClaseVivo`, `localStorage`), así que el celular y otros equipos no lo saben.
+- **Auditoría:** `comun/clase-vivo.js` guarda la clase en `localStorage` (`profe_clase_activa`); la usan Planificador,
+  Pizarra, Libro, Repertorio y Workspace. El Planificador ya impide comenzar otra clase en el mismo computador (botón
+  desactivado), pero no entre equipos. `clase_tiempos` se escribe solo al terminar (no sirve para saber "en curso").
+- **Aprobado (PO 2026-10-08):**
+  1. "Comenzar clase" deja la clase en curso registrada en internet (tabla nueva `clase_en_curso`, una sola fila;
+     `supabase/clase_en_curso.sql`, la corre el PO). Todos los equipos y módulos pueden saber cuál es.
+  2. Con otra clase en curso (en este u otro equipo), "Comenzar clase" avisa "Hay una clase de X en curso" y, con la
+     clave, la termina y comienza la nueva.
+  3. Una clase olvidada se termina sola a las **2 horas**.
+  4. Esta etapa es solo la base; cómo cambia cada módulo "en clase" se ve módulo a módulo (primero el celular, AN).
+- **Implementado:** `comun/clase-vivo.js`: `comenzar` / `terminar` publican la clase en `clase_en_curso` (sin internet
+  queda en `profe_clase_publicar` y sale después; última foto en `profe_clase_remota`); `conectar(sb)` lee la fila al
+  abrir, con avisos al instante (realtime), cada 60 s, al volver a la pestaña y al volver la conexión; si otro equipo
+  comenzó otra clase, la de aquí se termina (sus tiempos se guardan); `enCurso()` = clase en curso de cualquier equipo;
+  vencimiento a las 2 h (los tiempos quedan con fin = inicio + 2 h). Conectan: Planificador, Libro, Repertorio.
+  `PORTAL/index.html`: "Comenzar clase" con otra clase en curso abre el aviso "Hay otra clase en curso" con la clave
+  ("Terminarla y comenzar esta"); la clase de otro equipo se ve en la barra (curso + tiempo, sin tiempo perdido).
+- **Prueba (2026-10-08, servidor local, tabla simulada):** dos "equipos": A comienza → la tabla queda con A; B ve la
+  clase de A; B comienza otra → la tabla queda con B y A termina la suya sola; B termina → tabla vacía y A sin clase.
+  Sin internet → queda pendiente y sale al volver. Planificador con clase de otro equipo: barra "Sexto 25:06", botón
+  activo y aviso con clave. Sin la tabla creada, todo sigue como antes.
+
+### AN. Celular — evaluar por toques (primer paso de la PWA móvil)
+*Origen: PO (2026-10-08). Depende de AM.*
+- **Necesidad:** evaluar en la sala desde el celular: todos los estudiantes a la vista, cada uno parte con 7 y cada
+  toque en su nombre le resta nota.
+- **Auditoría:** las evaluaciones del Libro existen solo en **cursos** (no talleres); ya tienen grupos de trabajo
+  (`libro_evaluacion_grupos`), instrumentos (rúbrica / lista de cotejo), nota mínima por evaluación (`nota_min`, 2,0 por
+  defecto) y reevaluación (AD). El celular hoy solo tiene la Bitácora; no hay PWA (ni manifiesto ni modo sin internet).
+- **Aprobado (PO 2026-10-08):**
+  1. **Libro:** nuevo instrumento **"Por toques"** al crear la evaluación, con "descuento por toque" (0,1 por defecto).
+  2. **Celular:** botón "📝 Evaluar" junto a la Bitácora; requiere **clase en curso** (AM) y muestra las evaluaciones
+     "Por toques" abiertas de ese curso. Con grupos, se elige un grupo; si no, el curso completo. Cuadrícula vertical
+     de nombres; **los ausentes no aparecen**; solo aparecen los **pendientes** (en una segunda clase, los que faltan;
+     un reevaluado vuelve a ser pendiente).
+  3. El celular **solo acumula toques** (la palabra es "toque"). "↩" deshace el último; mantener apretado resta uno.
+     Sin internet guarda en el celular y sube después.
+  4. **"Terminar" en el celular** (por grupo o curso): los que estaban en pantalla quedan evaluados; sin toques = 7.
+     Lo evaluado no se toca más desde el celular.
+  5. **Libro, Resultados:** toques de cada estudiante y nota que corresponde (7 − toques × descuento, nunca bajo la nota
+     mínima); se puede cambiar cualquier nota a mano.
+  6. Celular instalable como app (ícono en la pantalla de inicio) y abre sin señal: base de la PWA.
+  7. Por decidir al verlo en el celular: cuántas columnas / tamaño de los nombres.
+
+### AO. Workspace — insignia de "clase en curso" en la barra (deuda)
+*Origen: PO (2026-10-08). Anotada; no implementar aún.*
+- Con clase en curso, una insignia en la barra del Workspace; al apretarla abre el Planificador de esa clase.

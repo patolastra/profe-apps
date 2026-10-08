@@ -11,10 +11,21 @@
 //
 // Atajo global: Ctrl + Shift + Espacio = iniciar/detener tiempo perdido. Se
 // captura antes que los atajos propios de cada app (Espacio avanza/reproduce).
+//
+// Una sola clase en curso en todo el sistema (deuda AM): además del estado de este
+// computador, la clase en curso se publica en Supabase (`clase_en_curso`, una fila)
+// para que otros equipos (y el celular) la vean. Cada página que tiene `sb` llama
+// ClaseVivo.conectar(sb). La última foto queda en REM_KEY (la ven también las
+// páginas sin `sb` del mismo navegador). Sin internet, la publicación queda en
+// PUB_KEY y sale al volver la conexión. Una clase con más de 2 horas se termina sola.
 (function () {
     const CLASE_KEY = 'profe_clase_activa';
     const PEND_KEY  = 'profe_clase_pendientes';
+    const REM_KEY   = 'profe_clase_remota';
+    const PUB_KEY   = 'profe_clase_publicar';
+    const MAX_MS    = 2 * 3600 * 1000;
     const oyentes   = [];
+    let sbRef = null;
 
     function leer(k, def) {
         try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; }
@@ -30,10 +41,13 @@
 
     function comenzar({ sesionId, ctx, fecha }) {
         if (get()) return get();
-        escribir(CLASE_KEY, {
+        const st = {
             sesionId, ctx: ctx || '', fecha: fecha || '',
             inicio: Date.now(), perdidoAcumMs: 0, perdidoDesde: null, episodios: 0,
-        });
+        };
+        escribir(CLASE_KEY, st);
+        escribir(REM_KEY, { sesionId, ctx: st.ctx, fecha: st.fecha, inicio: st.inicio });
+        publicar({ accion: 'poner', fila: filaRemota(st) });
         avisar();
         return get();
     }
@@ -61,25 +75,132 @@
     }
 
     // Termina la clase: deja la fila en la cola de pendientes y limpia el estado.
-    function terminar() {
+    // `finMs` (opcional): hora de término si no es ahora (clase vencida a las 2 h).
+    function terminar(finMs) {
         const st = get();
         if (!st) return null;
-        const fin = Date.now();
+        const fin = Math.min(Date.now(), finMs || Date.now());
         const fila = {
             sesion_id:          st.sesionId,
             inicio:             new Date(st.inicio).toISOString(),
             fin:                new Date(fin).toISOString(),
             tiempo_clase_seg:   Math.round((fin - st.inicio) / 1000),
-            tiempo_perdido_seg: Math.round((st.perdidoAcumMs + (st.perdidoDesde ? fin - st.perdidoDesde : 0)) / 1000),
+            tiempo_perdido_seg: Math.round((st.perdidoAcumMs + (st.perdidoDesde ? Math.max(0, fin - st.perdidoDesde) : 0)) / 1000),
             episodios_perdido:  st.episodios,
         };
         const pend = leer(PEND_KEY, []);
         pend.push(fila);
         escribir(PEND_KEY, pend);
         escribir(CLASE_KEY, null);
+        const rem = leer(REM_KEY, null);
+        if (rem && rem.sesionId === st.sesionId) {
+            escribir(REM_KEY, null);
+            publicar({ accion: 'quitar', sesionId: st.sesionId });
+        }
         avisar();
         return fila;
     }
+
+    // ── Clase en curso compartida (Supabase `clase_en_curso`) ──
+    const vencida = st => !!st && Date.now() - st.inicio > MAX_MS;
+    function filaRemota(st) {
+        return { id: 1, sesion_id: st.sesionId, ctx: st.ctx || '', fecha: st.fecha || null,
+                 inicio: new Date(st.inicio).toISOString(), updated_at: new Date().toISOString() };
+    }
+    // La última publicación pendiente gana (es una sola fila).
+    function publicar(op) { escribir(PUB_KEY, op); enviar(); }
+    let _enviando = null;
+    function enviar() {
+        if (!sbRef) return Promise.resolve(false);
+        if (_enviando) return _enviando;
+        const p = (async () => {
+            try {
+                // Varias vueltas: si llega otra publicación mientras se envía una (terminar y
+                // comenzar seguidas), también sale.
+                for (let i = 0; i < 4; i++) {
+                    const op = leer(PUB_KEY, null);
+                    if (!op) return true;
+                    const r = op.accion === 'poner'
+                        ? await sbRef.from('clase_en_curso').upsert(op.fila)
+                        : await sbRef.from('clase_en_curso').delete().eq('id', 1).eq('sesion_id', op.sesionId);
+                    if (r.error) return false;
+                    if (JSON.stringify(leer(PUB_KEY, null)) === JSON.stringify(op)) escribir(PUB_KEY, null);
+                }
+                return !leer(PUB_KEY, null);
+            } catch (_) { return false; }
+        })();
+        _enviando = p;
+        p.finally(() => { if (_enviando === p) _enviando = null; });
+        return p;
+    }
+
+    // Trae la clase en curso de internet y concilia este computador con ella.
+    async function leerRemota() {
+        if (!sbRef) return;
+        await enviar();
+        if (leer(PUB_KEY, null)) return;            // sin conexión: queda lo de este equipo
+        let fila = null;
+        try {
+            const { data, error } = await sbRef.from('clase_en_curso').select('*').eq('id', 1).maybeSingle();
+            if (error) return;
+            fila = data;
+        } catch (_) { return; }
+        let rem = fila ? { sesionId: fila.sesion_id, ctx: fila.ctx || '', fecha: fila.fecha || '',
+                           inicio: Date.parse(fila.inicio) } : null;
+        if (vencida(rem)) {
+            try { await sbRef.from('clase_en_curso').delete().eq('id', 1).eq('sesion_id', rem.sesionId); } catch (_) {}
+            rem = null;
+        }
+        const antes = JSON.stringify(leer(REM_KEY, null));
+        const st = get();
+        if (st && rem && rem.sesionId !== st.sesionId && rem.inicio >= st.inicio) {
+            // Otro equipo comenzó otra clase: la de aquí se termina (sus tiempos se guardan).
+            escribir(REM_KEY, rem);
+            terminar();
+            subirPendientes(sbRef);
+            return;
+        }
+        if (st && !rem) {                           // la de aquí aún no estaba publicada
+            escribir(REM_KEY, { sesionId: st.sesionId, ctx: st.ctx, fecha: st.fecha, inicio: st.inicio });
+            publicar({ accion: 'poner', fila: filaRemota(st) });
+        } else {
+            escribir(REM_KEY, rem);
+        }
+        if (JSON.stringify(leer(REM_KEY, null)) !== antes) avisar();
+    }
+
+    // Termina la clase de este computador si pasó las 2 horas.
+    function revisarVencida() {
+        const st = get();
+        if (vencida(st)) { terminar(st.inicio + MAX_MS); if (sbRef) subirPendientes(sbRef); }
+    }
+
+    // La clase en curso de todo el sistema: la de este computador (aqui: true) o la
+    // de otro equipo (aqui: false; sin tiempo perdido, que se lleva donde se comenzó).
+    function enCurso() {
+        const st = get();
+        if (st && !vencida(st)) return { ...st, aqui: true };
+        const rem = leer(REM_KEY, null);
+        if (rem && !vencida(rem)) return { ...rem, perdidoAcumMs: 0, perdidoDesde: null, episodios: 0, aqui: false };
+        return null;
+    }
+
+    function conectar(sb) {
+        if (sbRef || !sb) return;
+        sbRef = sb;
+        revisarVencida();
+        leerRemota();
+        try {
+            sb.channel('profe-clase-en-curso')
+              .on('postgres_changes', { event: '*', schema: 'public', table: 'clase_en_curso' }, () => leerRemota())
+              .subscribe();
+        } catch (_) {}
+        setInterval(leerRemota, 60000);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) leerRemota(); });
+        window.addEventListener('online', () => leerRemota());
+    }
+    setInterval(revisarVencida, 30000);
+    revisarVencida();
 
     // Sube a Supabase los registros pendientes. Devuelve cuántos quedan sin subir.
     async function subirPendientes(sb) {
@@ -106,7 +227,7 @@
     function onCambio(fn) { oyentes.push(fn); }
 
     // Otras ventanas/pestañas (mismo sitio) escriben → `storage` avisa aquí.
-    window.addEventListener('storage', e => { if (e.key === CLASE_KEY) avisar(); });
+    window.addEventListener('storage', e => { if (e.key === CLASE_KEY || e.key === REM_KEY) avisar(); });
 
     // Atajo global en fase de captura: gana a los atajos propios (Espacio = avanzar).
     window.addEventListener('keydown', e => {
@@ -119,7 +240,7 @@
 
     window.ClaseVivo = {
         get, comenzar, togglePerdido, terminar, subirPendientes,
-        tiempoClaseMs, tiempoPerdidoMs, fmt, onCambio,
+        tiempoClaseMs, tiempoPerdidoMs, fmt, onCambio, enCurso, conectar,
     };
 })();
 

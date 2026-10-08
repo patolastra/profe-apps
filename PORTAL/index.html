@@ -1273,6 +1273,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
         ClaseVivo.subirPendientes(sb);    // Modo Clase: registros que quedaron sin subir
+        ClaseVivo.conectar(sb);           // clase en curso compartida con otros equipos (AM)
         Asistencia.iniciar(sb);           // Pasar lista: listas que quedaron sin subir
         await Promise.all([loadContextos(), loadHorario(), cargarAnioActivo()]);
         await crearSesionesPendientes();
@@ -2138,23 +2139,26 @@ function abrirPizarra() {
 }
 
 // ── Modo Clase · Paso 1: Comenzar / Terminar clase + temporizadores ──────
-// Estado compartido en comun/clase-vivo.js (ClaseVivo). Una sola clase a la vez.
+// Estado compartido en comun/clase-vivo.js (ClaseVivo). Una sola clase a la vez en
+// todo el sistema (AM): con otra en curso (aquí u otro equipo), se termina con la clave
+// y se comienza esta.
 let _claseTick = null;
 
 function botonClase() {
     if (!sesionActual) return;
-    const st = ClaseVivo.get();
-    if (!st) {
-        abrirPizarra();   // primero (mismo gesto de clic → evita el bloqueo de ventanas)
-        ClaseVivo.comenzar({
-            sesionId: sesionActual.id,
-            ctx:      contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '',
-            fecha:    sesionActual.fecha,
-        });
-        logEvento('comenzar_clase', { sesion_id: sesionActual.id });
-        return;
-    }
-    if (st.sesionId === sesionActual.id) abrirFinClase();
+    const st = ClaseVivo.enCurso();
+    if (!st) return comenzarClase();
+    if (st.aqui && st.sesionId === sesionActual.id) abrirFinClase();
+    else abrirFinClase(st);
+}
+function comenzarClase() {
+    abrirPizarra();   // primero (mismo gesto de clic → evita el bloqueo de ventanas)
+    ClaseVivo.comenzar({
+        sesionId: sesionActual.id,
+        ctx:      contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '',
+        fecha:    sesionActual.fecha,
+    });
+    logEvento('comenzar_clase', { sesion_id: sesionActual.id });
 }
 
 // Pasar lista (comun/asistencia.js): botón de la barra, cuando el profe decide.
@@ -2190,19 +2194,19 @@ async function renderBotonLista() {
 Asistencia.onCambio(id => { if (sesionActual && id === sesionActual.id) renderBotonLista(); });
 
 function renderClase() {
-    const st   = ClaseVivo.get();
+    const st   = ClaseVivo.enCurso();
     const btn  = document.getElementById('btn-clase');
     const reab = document.getElementById('btn-reabrir-piz');
     const box  = document.getElementById('clase-timers');
     if (!btn) return;
-    const esEsta = !!(st && sesionActual && st.sesionId === sesionActual.id);
+    const esEsta = !!(st && st.aqui && sesionActual && st.sesionId === sesionActual.id);
     if (!st) {
         btn.textContent = '▶ Comenzar clase'; btn.disabled = false; btn.title = '';
     } else if (esEsta) {
         btn.textContent = '⏹ Terminar clase'; btn.disabled = false; btn.title = '';
     } else {
-        btn.textContent = '▶ Comenzar clase'; btn.disabled = true;
-        btn.title = `Hay una clase en curso (${ctxDisplay(st.ctx)}). Termínala primero.`;
+        btn.textContent = '▶ Comenzar clase'; btn.disabled = false;
+        btn.title = `Hay una clase en curso (${ctxDisplay(st.ctx)}${st.aqui ? '' : ', en otro equipo'}). Al comenzar esta, esa se termina.`;
     }
     reab.hidden = !esEsta;
     // ↔ siempre durante la clase en curso; si no se puede (una pantalla, sin permiso…),
@@ -2213,6 +2217,7 @@ function renderClase() {
     ajustarBarra();
     box.hidden  = !st;
     document.getElementById('ct-ctx').textContent = st && !esEsta ? ctxDisplay(st.ctx) : '';
+    document.getElementById('ct-perdido-wrap').hidden = !!(st && !st.aqui);   // se lleva donde se comenzó
     clearInterval(_claseTick); _claseTick = null;
     if (st) { tickClase(); _claseTick = setInterval(tickClase, 500); }
 }
@@ -2289,19 +2294,26 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function tickClase() {
-    const st = ClaseVivo.get();
+    const st = ClaseVivo.enCurso();
     if (!st) return renderClase();
     document.getElementById('ct-clase').textContent   = ClaseVivo.fmt(ClaseVivo.tiempoClaseMs(st));
     document.getElementById('ct-perdido').textContent = ClaseVivo.fmt(ClaseVivo.tiempoPerdidoMs(st));
     document.getElementById('ct-perdido-wrap').classList.toggle('corriendo', !!st.perdidoDesde);
 }
 
-function abrirFinClase() {
-    const st = ClaseVivo.get();
+// `otra`: la clase en curso que hay que terminar para comenzar esta (AM).
+let _finCambiar = null;
+function abrirFinClase(otra) {
+    const st = otra || ClaseVivo.get();
     if (!st) return;
-    document.getElementById('clase-fin-resumen').innerHTML =
-        `⏱ Tiempo de clase: <b>${ClaseVivo.fmt(ClaseVivo.tiempoClaseMs(st))}</b><br>` +
-        `🎮 Tiempo perdido: <b>${ClaseVivo.fmt(ClaseVivo.tiempoPerdidoMs(st))}</b>`;
+    _finCambiar = otra || null;
+    document.getElementById('clase-fin-titulo').textContent = otra ? 'Hay otra clase en curso' : 'Terminar clase';
+    document.getElementById('clase-fin-ok').textContent = otra ? 'Terminarla y comenzar esta' : 'Terminar';
+    document.getElementById('clase-fin-resumen').innerHTML = otra
+        ? `Hay una clase de <b>${esc(ctxDisplay(otra.ctx))}</b> en curso${otra.aqui ? '' : ' en otro equipo'} ` +
+          `(⏱ ${ClaseVivo.fmt(ClaseVivo.tiempoClaseMs(otra))}).<br>Para comenzar esta, se termina esa.`
+        : `⏱ Tiempo de clase: <b>${ClaseVivo.fmt(ClaseVivo.tiempoClaseMs(st))}</b><br>` +
+          `🎮 Tiempo perdido: <b>${ClaseVivo.fmt(ClaseVivo.tiempoPerdidoMs(st))}</b>`;
     const inp = document.getElementById('clase-fin-clave');
     inp.value = ''; inp.classList.remove('error');
     document.getElementById('clase-fin-modal').classList.add('show');
@@ -2316,8 +2328,10 @@ async function confirmarFinClase() {
         inp.classList.add('error'); inp.select(); return;
     }
     cerrarFinClase();
-    const fila = ClaseVivo.terminar();
-    logEvento('terminar_clase', { sesion_id: fila?.sesion_id });
+    const cambiar = _finCambiar;
+    const fila = ClaseVivo.terminar();   // la de este equipo (si la otra es de otro equipo, no hay)
+    if (fila) logEvento('terminar_clase', { sesion_id: fila.sesion_id });
+    if (cambiar) comenzarClase();        // reemplaza en internet la del otro equipo; allá se termina sola
     const quedan = await ClaseVivo.subirPendientes(sb);
     if (quedan) alert('No se pudieron guardar los tiempos en internet. Quedaron en este computador y se subirán solos más tarde.');
     refrescarDatosClase();
@@ -4588,7 +4602,7 @@ async function guardarMateriales() {
 
 <div id="clase-fin-modal" onclick="if (event.target === this) cerrarFinClase()">
     <div id="clase-fin-box">
-        <h3>Terminar clase</h3>
+        <h3 id="clase-fin-titulo">Terminar clase</h3>
         <div id="clase-fin-resumen"></div>
         <input id="clase-fin-clave" type="password" inputmode="numeric" placeholder="Clave" autocomplete="off">
         <div id="clase-fin-btns">
