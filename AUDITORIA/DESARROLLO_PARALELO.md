@@ -3323,6 +3323,8 @@ clases o no, eso incluye al cel". **DECISIÓN del PO** (registrada en `CLAUDE.md
   clase de A; B comienza otra → la tabla queda con B y A termina la suya sola; B termina → tabla vacía y A sin clase.
   Sin internet → queda pendiente y sale al volver. Planificador con clase de otro equipo: barra "Sexto 25:06", botón
   activo y aviso con clave. Sin la tabla creada, todo sigue como antes.
+- **Prueba con la tabla real (PO corrió el SQL):** comenzar → fila en `clase_en_curso`; otro equipo (simulado) comienza
+  otra → el aviso llega al instante y la clase local se termina sola. Datos de prueba borrados. Commit `c40dae0`.
 
 ### AN. Celular — evaluar por toques (primer paso de la PWA móvil)
 *Origen: PO (2026-10-08). Depende de AM.*
@@ -3345,6 +3347,28 @@ clases o no, eso incluye al cel". **DECISIÓN del PO** (registrada en `CLAUDE.md
      mínima); se puede cambiar cualquier nota a mano.
   6. Celular instalable como app (ícono en la pantalla de inicio) y abre sin señal: base de la PWA.
   7. Por decidir al verlo en el celular: cuántas columnas / tamaño de los nombres.
+- **Implementado:**
+  - Supabase (`supabase/libro_toques.sql`, corrido por el PO): `libro_evaluaciones.descuento_toque` (NULL = normal) y
+    `libro_evaluacion_notas.toques`.
+  - `LIBRO/index.html`: casilla "Por toques (desde el celular)" + descuento al crear; "📱 por toques" en la lista;
+    descuento editable en General; Resultados de una evaluación por toques = lista completa (toques · corresponde ·
+    nota editable a mano, "(a mano)" si difiere · estado); Reevaluar guarda los toques en el intento y parte en 0
+    (Deshacer los devuelve). Se implementó como **forma de evaluar de la evaluación** (no como instrumento con ítems).
+  - `MOVIL/evaluar.html` (nueva): clase en curso (`ClaseVivo.enCurso`) → evaluaciones por toques abiertas del curso
+    (si hay una, entra directo) → grupo (si hay grupos; "Sin grupo" para los sueltos) → cuadrícula de 3 columnas con
+    pendientes presentes de matrícula activa; nombres con la regla del Libro (deuda Y). Toque = +1, mantener 0,55 s =
+    −1, "↩" deshace, color según toques (1 / 3 / 5+). "Terminar" escribe 7 − toques × descuento (piso = nota mínima)
+    y `nota_excepcion` si está en un grupo. Cola sin conexión `profe_toques_cola`; copias para abrir sin señal.
+  - `MOVIL/index.html`: botón "📝 EVALUAR"; manifiesto (`MOVIL/manifest.webmanifest`, íconos `icono-192/512.png`) y
+    **`sw-movil.js`** en la raíz: solo atiende las páginas del celular (MOVIL, MEMORIA, `comun/clase-vivo.js`,
+    `comun/asistencia.js`, `supabase/config.js`, `contextos.js`, supabase-js); primero internet, sin señal la copia.
+- **Prueba (2026-10-08, servidor local, Segundo, evaluación "PRUEBA TOQUES (borrar)", descuento 0,5):** creada desde el
+  formulario; clase comenzada → el celular entra directo al tablero (31 de 37: los 6 ausentes reales de hoy no
+  aparecen); 3 toques a uno, ↩, mantener apretado → 2; los toques llegan a Supabase al instante; Terminar → 29 con
+  7,0, 1 toque 6,5, 2 toques 6,0; los 6 ausentes siguen pendientes. Libro/Resultados: lista correcta; nota a mano 5,5
+  → "(a mano)"; Reevaluar → toques 0 y nota vacía; Deshacer → vuelven 2 toques y 5,5. App: el celular registró la
+  pieza sin señal y guardó sus 12 archivos. Todo lo de prueba borrado (evaluación, clase en curso; sin tiempos).
+- **Pendiente:** probar en el celular real (instalar, tamaño de nombres/columnas, sin señal en la sala).
 
 ### AO. Workspace — insignia de "clase en curso" en la barra (deuda)
 *Origen: PO (2026-10-08). Anotada; no implementar aún.*

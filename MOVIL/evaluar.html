@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1120">
+    <title>Evaluar</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icono-192.png">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase/config.js"></script>
+    <script src="../supabase/contextos.js"></script>
+    <script src="../comun/clase-vivo.js"></script>
+    <script src="../comun/asistencia.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        :root {
+            --bg: #0b1120; --surface: #131c2e; --card: #1a2540; --border: #253455;
+            --text: #f1f5f9; --muted: #7a8ba8; --accent: #3b82f6; --green: #22c55e; --red: #ef4444;
+        }
+        html, body { height: 100%; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text);
+            display: flex; flex-direction: column; overscroll-behavior: none;
+            padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+        }
+        #top { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+        #volver { background: none; border: none; color: var(--text); font-size: 1.6rem; line-height: 1; padding: 0 6px 0 0; cursor: pointer; }
+        #titulo { flex: 1; min-width: 0; }
+        #titulo b { display: block; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #titulo span { display: block; font-size: .8rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #red { font-size: .75rem; color: var(--muted); white-space: nowrap; }
+        #red.pend { color: #eab308; }
+        main { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; }
+        .msg { color: var(--muted); text-align: center; padding: 40px 18px; line-height: 1.5; font-size: 1.05rem; }
+        .msg b { color: var(--text); }
+        .opcion {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+            background: var(--card); border: 1px solid var(--border); border-radius: 16px; color: var(--text);
+            padding: 18px; margin-bottom: 12px; font: inherit; font-size: 1.05rem; font-weight: 700; text-align: left; cursor: pointer;
+        }
+        .opcion:active { background: var(--border); }
+        .opcion small { color: var(--muted); font-weight: 600; white-space: nowrap; }
+        /* Tablero */
+        #grid { display: grid; grid-template-columns: repeat(var(--cols, 3), 1fr); gap: 8px; }
+        .est {
+            position: relative; min-height: 64px; border-radius: 14px; border: none; color: #fff;
+            background: linear-gradient(160deg, #2e9c46, #1f7a34);
+            font: inherit; font-weight: 800; font-size: var(--fs, 1rem); line-height: 1.15;
+            padding: 10px 6px; display: flex; align-items: center; justify-content: center; text-align: center;
+            user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+            transition: transform .08s;
+        }
+        .est.t1 { background: linear-gradient(160deg, #b7791f, #975a16); }
+        .est.t2 { background: linear-gradient(160deg, #c05621, #9c4221); }
+        .est.t3 { background: linear-gradient(160deg, #c53030, #9b2c2c); }
+        .est.golpe { transform: scale(.94); }
+        .est .n { word-break: break-word; }
+        .est .t {
+            position: absolute; top: 4px; right: 5px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+            background: rgba(0,0,0,.45); font-size: .75rem; line-height: 20px;
+        }
+        #pie { display: flex; gap: 10px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0)); background: var(--surface); border-top: 1px solid var(--border); }
+        #pie[hidden] { display: none; }
+        #pie button { flex: 1; border: none; border-radius: 14px; padding: 15px; font: inherit; font-weight: 800; font-size: 1rem; cursor: pointer; }
+        #deshacer { background: var(--card); color: var(--text); flex: 0 0 auto !important; padding: 15px 20px !important; }
+        #deshacer:disabled { opacity: .35; }
+        #terminar { background: var(--accent); color: #fff; }
+        .ayuda { color: var(--muted); font-size: .8rem; text-align: center; margin: 12px 0 4px; }
+    </style>
+</head>
+<body>
+<div id="top">
+    <button id="volver" aria-label="Volver">‹</button>
+    <div id="titulo"><b>Evaluar</b><span></span></div>
+    <span id="red"></span>
+</div>
+<main id="main"><div class="msg">Cargando…</div></main>
+<div id="pie" hidden>
+    <button id="deshacer" disabled aria-label="Deshacer el último toque">↩</button>
+    <button id="terminar">Terminar</button>
+</div>
+
+<script>
+// ── Evaluar por toques (deuda AN) ────────────────────────────────────────────
+// Con la clase en curso (ClaseVivo, deuda AM), muestra las evaluaciones "Por toques"
+// abiertas del curso; cada toque en un nombre suma un toque (mantener apretado resta
+// uno). "Terminar" escribe la nota de los que están en pantalla: 7 − toques × descuento,
+// nunca bajo la nota mínima. Solo aparecen los pendientes y nunca los ausentes de hoy.
+// Sin internet todo queda en el celular (COLA_KEY) y se sube al volver la conexión.
+if (sessionStorage.getItem('profe_auth') !== '1') location.replace('index.html');
+
+const COLA_KEY = 'profe_toques_cola';                 // { notaId: { toques, nota?, exc?, ts } }
+const CACHE    = k => 'profe_toques_' + k;            // copias para abrir sin señal
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+ClaseVivo.conectar(sb);
+Asistencia.iniciar(sb);
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const norm = s => (s == null ? '' : String(s)).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const leerJSON = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch (_) { return def; } };
+const guardarJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
+const fmtNota = v => (v == null ? '' : Number(v).toFixed(1).replace('.', ','));
+const redondear1 = x => Math.round((x + 1e-9) * 10) / 10;
+
+let clase = null;        // ClaseVivo.enCurso()
+let ev = null;           // evaluación elegida
+let notas = [];          // filas de la evaluación (con nombre visible)
+let grupos = [];
+let ausentes = new Set();
+let ambito = null;       // { tipo: 'todos' | 'grupo' | 'sin', id?, nombre }
+let historial = [];      // [{ id, delta }] para "↩"
+let pantalla = null;     // 'clase' | 'evs' | 'grupos' | 'tablero'
+
+// ── Cola sin conexión ──
+function encolar(n, extra) {
+    const cola = leerJSON(COLA_KEY, {});
+    cola[n.id] = { ...(cola[n.id] || {}), toques: n.toques, ...extra, ts: Date.now() };
+    guardarJSON(COLA_KEY, cola);
+    guardarCacheEval();
+    subir();
+}
+let _subiendo = null;
+function subir() {
+    if (_subiendo) return _subiendo;
+    _subiendo = (async () => {
+        for (let vuelta = 0; vuelta < 3; vuelta++) {
+            const cola = leerJSON(COLA_KEY, {});
+            const ids = Object.keys(cola);
+            if (!ids.length) break;
+            for (const id of ids) {
+                const it = cola[id];
+                const cambios = { toques: it.toques };
+                if ('nota' in it) cambios.nota = it.nota;
+                if (it.exc) cambios.nota_excepcion = true;
+                try {
+                    const { error } = await sb.from('libro_evaluacion_notas').update(cambios).eq('id', id);
+                    if (error) { pintarRed(); return; }
+                } catch (_) { pintarRed(); return; }
+                const ahora = leerJSON(COLA_KEY, {});
+                if (ahora[id] && ahora[id].ts === it.ts) { delete ahora[id]; guardarJSON(COLA_KEY, ahora); }
+            }
+        }
+        pintarRed();
+    })().finally(() => { _subiendo = null; });
+    return _subiendo;
+}
+function pintarRed() {
+    const n = Object.keys(leerJSON(COLA_KEY, {})).length;
+    const el = $('red');
+    el.textContent = n ? `⏳ ${n} sin subir` : (navigator.onLine ? '' : 'sin señal');
+    el.className = n ? 'pend' : '';
+}
+window.addEventListener('online', () => { subir(); cargar(); });
+window.addEventListener('offline', pintarRed);
+setInterval(subir, 20000);
+
+// ── Nombres (regla del Libro: nombre A–Z; nombre + apellido si se repite o si lo pide la ficha) ──
+function ponerNombres(lista) {
+    const repes = {};
+    lista.forEach(n => { const k = norm(n.nom); repes[k] = (repes[k] || 0) + 1; });
+    lista.forEach(n => { n.visible = ((n.mostrarAp || repes[norm(n.nom)] > 1) && n.ap) ? `${n.nom} ${n.ap}` : n.nom; });
+    lista.sort((a, b) => norm(`${a.nom} ${a.ap}`).localeCompare(norm(`${b.nom} ${b.ap}`)));
+}
+
+// ── Datos ──
+async function ctxId(nombre) {
+    const k = CACHE('ctx_' + nombre);
+    try {
+        const { data, error } = await sb.from('contextos').select('id').eq('nombre', nombre).limit(1);
+        if (error) throw error;
+        const id = data && data[0] ? data[0].id : null;
+        guardarJSON(k, id);
+        return id;
+    } catch (_) { return leerJSON(k, null); }
+}
+async function cargarEvaluaciones() {
+    const id = await ctxId(clase.ctx);
+    const k = CACHE('evs_' + clase.ctx);
+    if (!id) return leerJSON(k, []);
+    try {
+        const { data, error } = await sb.from('libro_evaluaciones')
+            .select('id,nombre,fecha,anio_id,contexto_id,descuento_toque,nota_min,estado')
+            .eq('contexto_id', id).eq('estado', 'abierto').not('descuento_toque', 'is', null)
+            .order('fecha', { ascending: false });
+        if (error) throw error;
+        guardarJSON(k, data || []);
+        return data || [];
+    } catch (_) { return leerJSON(k, []); }
+}
+async function cargarEvaluacion(e) {
+    const k = CACHE('ev_' + e.id);
+    try {
+        const [cn, cg] = await Promise.all([
+            sb.from('libro_evaluacion_notas')
+              .select('id,estudiante_id,nota,estado_eval,grupo_id,toques,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)')
+              .eq('evaluacion_id', e.id),
+            sb.from('libro_evaluacion_grupos').select('id,nombre,created_at').eq('evaluacion_id', e.id).order('created_at'),
+        ]);
+        if (cn.error) throw cn.error;
+        // Lista al día: solo matrícula activa (curso propio o el vinculado).
+        let pobId = e.contexto_id;
+        try {
+            const { data: vp } = await sb.from('libro_contexto_poblacion').select('poblacion_ctx_id')
+                .eq('contexto_id', e.contexto_id).eq('anio_id', e.anio_id).limit(1);
+            if (vp && vp[0]) pobId = vp[0].poblacion_ctx_id;
+        } catch (_) {}
+        const { data: mats, error: em } = await sb.from('libro_matriculas').select('estudiante_id')
+            .eq('anio_id', e.anio_id).eq('contexto_id', pobId).eq('estado', 'activo');
+        if (em) throw em;
+        const activos = new Set((mats || []).map(m => m.estudiante_id));
+        const filas = (cn.data || []).filter(n => activos.has(n.estudiante_id)).map(n => ({
+            id: n.id, estudiante_id: n.estudiante_id, nota: n.nota, estado_eval: n.estado_eval, grupo_id: n.grupo_id,
+            toques: n.toques || 0,
+            nom: ((n.estudiante?.nombre_social || '').trim() || n.estudiante?.nombre || '—').trim(),
+            ap: (n.estudiante?.apellido || '').trim(), mostrarAp: !!n.estudiante?.mostrar_apellido,
+        }));
+        const datos = { notas: filas, grupos: cg.error ? [] : (cg.data || []) };
+        guardarJSON(k, datos);
+        return datos;
+    } catch (_) {
+        return leerJSON(k, null);
+    }
+}
+function guardarCacheEval() {
+    if (!ev) return;
+    guardarJSON(CACHE('ev_' + ev.id), { notas, grupos });
+}
+// Lo pendiente de subir manda sobre lo que trae internet.
+function aplicarCola() {
+    const cola = leerJSON(COLA_KEY, {});
+    notas.forEach(n => {
+        const it = cola[n.id];
+        if (!it) return;
+        n.toques = it.toques;
+        if ('nota' in it) n.nota = it.nota;
+    });
+}
+const pendiente = n => n.nota == null && n.estado_eval !== 'no_aplica';
+const enPantalla = () => notas.filter(n => pendiente(n) && !ausentes.has(n.estudiante_id) && (
+    ambito.tipo === 'todos' || (ambito.tipo === 'grupo' ? n.grupo_id === ambito.id : !n.grupo_id)));
+
+// ── Pantallas ──
+function titulo(t, sub) {
+    $('titulo').innerHTML = `<b>${esc(t)}</b><span>${esc(sub || '')}</span>`;
+}
+function claseTexto() {
+    return clase ? `En clase · ${typeof ctxDisplay === 'function' ? ctxDisplay(clase.ctx) : clase.ctx}` : '';
+}
+
+async function cargar() {
+    clase = ClaseVivo.enCurso();
+    pintarRed();
+    if (!clase) {
+        pantalla = 'clase'; ev = null;
+        titulo('Evaluar', '');
+        $('pie').hidden = true;
+        $('main').innerHTML = `<div class="msg">No hay una clase en curso.<br><br>Apreta <b>▶ Comenzar clase</b> en el computador y vuelve aquí.</div>`;
+        return;
+    }
+    if (ev && pantalla !== 'evs') return;   // ya evaluando: no interrumpir
+    mostrarEvaluaciones();
+}
+
+async function mostrarEvaluaciones() {
+    pantalla = 'evs'; ev = null; ambito = null;
+    $('pie').hidden = true;
+    titulo('Evaluar', claseTexto());
+    $('main').innerHTML = '<div class="msg">Cargando…</div>';
+    const evs = await cargarEvaluaciones();
+    if (pantalla !== 'evs') return;
+    if (!evs.length) {
+        $('main').innerHTML = `<div class="msg">No hay evaluaciones <b>por toques</b> abiertas en este curso.<br><br>
+            Créala en el Libro (computador) marcando "Por toques".</div>`;
+        return;
+    }
+    if (evs.length === 1) return abrirEvaluacion(evs[0]);
+    $('main').innerHTML = evs.map((e, i) => `<button class="opcion" data-i="${i}">${esc(e.nombre)}<small>−${fmtNota(e.descuento_toque)} por toque</small></button>`).join('');
+    $('main').querySelectorAll('.opcion').forEach(b => b.onclick = () => abrirEvaluacion(evs[+b.dataset.i]));
+}
+
+async function abrirEvaluacion(e) {
+    ev = e; pantalla = 'grupos';
+    titulo(e.nombre, claseTexto());
+    $('main').innerHTML = '<div class="msg">Cargando…</div>';
+    const datos = await cargarEvaluacion(e);
+    if (!datos) { $('main').innerHTML = '<div class="msg">No se pudo cargar la evaluación (sin señal y sin copia en el celular).</div>'; return; }
+    notas = datos.notas; grupos = datos.grupos;
+    aplicarCola();
+    ponerNombres(notas);
+    try { ausentes = new Set((await Asistencia.obtener(clase.sesionId)).ausentes || []); } catch (_) { ausentes = new Set(); }
+    mostrarGrupos();
+}
+
+function mostrarGrupos() {
+    pantalla = 'grupos'; ambito = null;
+    $('pie').hidden = true;
+    titulo(ev.nombre, claseTexto());
+    const visibles = notas.filter(n => pendiente(n) && !ausentes.has(n.estudiante_id));
+    if (!visibles.length) {
+        $('main').innerHTML = `<div class="msg">No quedan estudiantes pendientes en esta evaluación${ausentes.size ? ' (sin contar a los ausentes de hoy)' : ''}.</div>`;
+        return;
+    }
+    const conGrupo = grupos.filter(g => visibles.some(n => n.grupo_id === g.id));
+    if (!grupos.length) return abrirTablero({ tipo: 'todos', nombre: 'Curso completo' });
+    const sin = visibles.filter(n => !n.grupo_id).length;
+    const ops = conGrupo.map(g => ({ tipo: 'grupo', id: g.id, nombre: g.nombre, n: visibles.filter(n => n.grupo_id === g.id).length }));
+    if (sin) ops.push({ tipo: 'sin', nombre: 'Sin grupo', n: sin });
+    $('main').innerHTML = '<p class="ayuda" style="margin:0 0 12px">Elige el grupo</p>' +
+        ops.map((o, i) => `<button class="opcion" data-i="${i}">${esc(o.nombre)}<small>${o.n} pendiente${o.n === 1 ? '' : 's'}</small></button>`).join('');
+    $('main').querySelectorAll('.opcion').forEach(b => b.onclick = () => abrirTablero(ops[+b.dataset.i]));
+}
+
+function abrirTablero(a) {
+    ambito = a; pantalla = 'tablero'; historial = [];
+    titulo(ev.nombre, `${a.nombre} · −${fmtNota(ev.descuento_toque)} por toque`);
+    $('pie').hidden = false;
+    pintarTablero();
+}
+
+function claseToques(t) { return t >= 5 ? 't3' : t >= 3 ? 't2' : t >= 1 ? 't1' : ''; }
+function pintarTablero() {
+    const lista = enPantalla();
+    $('deshacer').disabled = !historial.length;
+    if (!lista.length) { $('main').innerHTML = '<div class="msg">No hay estudiantes pendientes aquí.</div>'; $('terminar').disabled = true; return; }
+    $('terminar').disabled = false;
+    $('main').innerHTML = `<div id="grid">${lista.map(n => `
+        <button class="est ${claseToques(n.toques)}" data-id="${n.id}"><span class="n">${esc(n.visible)}</span>${n.toques ? `<span class="t">${n.toques}</span>` : ''}</button>`).join('')}</div>
+        <p class="ayuda">Toca para sumar un toque · mantén apretado para quitar uno</p>`;
+    $('main').querySelectorAll('.est').forEach(prepararToque);
+}
+function pintarUno(n) {
+    const b = document.querySelector(`.est[data-id="${n.id}"]`);
+    if (!b) return;
+    b.className = 'est ' + claseToques(n.toques);
+    b.innerHTML = `<span class="n">${esc(n.visible)}</span>${n.toques ? `<span class="t">${n.toques}</span>` : ''}`;
+    $('deshacer').disabled = !historial.length;
+}
+function cambiar(n, delta, registrar = true) {
+    const nuevo = Math.max(0, (n.toques || 0) + delta);
+    if (nuevo === n.toques) return;
+    n.toques = nuevo;
+    if (registrar) historial.push({ id: n.id, delta });
+    encolar(n);
+    pintarUno(n);
+}
+// Toque corto = +1 · mantener apretado (0,55 s) = −1. Si el dedo se mueve, es desplazamiento.
+function prepararToque(b) {
+    let timer = null, largo = false, x0 = 0, y0 = 0, activo = false;
+    const n = () => notas.find(x => x.id === b.dataset.id);
+    b.addEventListener('pointerdown', e => {
+        activo = true; largo = false; x0 = e.clientX; y0 = e.clientY;
+        b.classList.add('golpe');
+        timer = setTimeout(() => {
+            largo = true; b.classList.remove('golpe');
+            const est = n(); if (est && est.toques > 0) { cambiar(est, -1); try { navigator.vibrate?.([30, 40, 30]); } catch (_) {} }
+        }, 550);
+    });
+    b.addEventListener('pointermove', e => {
+        if (activo && Math.hypot(e.clientX - x0, e.clientY - y0) > 12) { activo = false; clearTimeout(timer); b.classList.remove('golpe'); }
+    });
+    const fin = () => { clearTimeout(timer); b.classList.remove('golpe'); };
+    b.addEventListener('pointerup', () => {
+        fin();
+        if (!activo || largo) { activo = false; return; }
+        activo = false;
+        const est = n(); if (est) { cambiar(est, +1); try { navigator.vibrate?.(15); } catch (_) {} }
+    });
+    b.addEventListener('pointercancel', () => { activo = false; fin(); });
+    b.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+$('deshacer').onclick = () => {
+    const h = historial.pop();
+    if (!h) return;
+    const n = notas.find(x => x.id === h.id);
+    if (n) cambiar(n, -h.delta, false);
+    $('deshacer').disabled = !historial.length;
+};
+
+$('terminar').onclick = () => {
+    const lista = enPantalla();
+    if (!lista.length) return;
+    const piso = ev.nota_min != null ? Number(ev.nota_min) : 2.0;
+    const conToques = lista.filter(n => n.toques > 0).length;
+    if (!confirm(`¿Terminar ${ambito.tipo === 'todos' ? 'la evaluación del curso' : '"' + ambito.nombre + '"'}?\n\n` +
+        `${lista.length} estudiante${lista.length === 1 ? '' : 's'} quedan evaluados` +
+        ` (${conToques} con toques; el resto con 7,0).\nLuego no se pueden cambiar desde el celular.`)) return;
+    lista.forEach(n => {
+        n.nota = Math.max(piso, redondear1(7 - (n.toques || 0) * Number(ev.descuento_toque)));
+        encolar(n, { nota: n.nota, exc: !!n.grupo_id });   // nota propia aunque esté en un grupo
+    });
+    historial = [];
+    mostrarGrupos();
+};
+
+$('volver').onclick = () => {
+    if (pantalla === 'tablero' && grupos.length) return mostrarGrupos();
+    if (pantalla === 'tablero' || pantalla === 'grupos') return mostrarEvaluaciones();
+    location.href = 'index.html';
+};
+
+ClaseVivo.onCambio(() => {
+    const antes = clase && clase.sesionId;
+    const ahora = ClaseVivo.enCurso();
+    if ((ahora && ahora.sesionId) !== antes) { ev = null; cargar(); }
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { subir(); if (!ev) cargar(); } });
+
+// Si ClaseVivo aún no trae la clase de internet, se espera un momento antes de decir que no hay.
+(async () => {
+    subir();
+    for (let i = 0; i < 6 && !ClaseVivo.enCurso() && navigator.onLine; i++) await new Promise(r => setTimeout(r, 500));
+    cargar();
+})();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw-movil.js', { scope: '../' }).catch(() => {});
+</script>
+</body>
+</html>
