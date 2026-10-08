@@ -3513,3 +3513,28 @@ como respaldo).*
   del Planificador (`@rep:`) y su diapositiva en la Pizarra siguen existiendo y eligen "el primer audio".
 - **Propuesta (Claude, no decidida):** retirar ambos en una limpieza propia (código, botón del selector de canciones
   del Planificador y soporte `@rep:` en la Pizarra), revisando antes si alguna presentación guardada aún usa `@rep:`.
+
+### AT. Repertorio pasa a llamarse Biblioteca (en todo el sistema)
+*Origen: DECISIÓN del PO (2026-10-08): "formalizar que Repertorio ahora se llama Biblioteca, en todo el sistema".*
+- **Auditoría:** "Repertorio" aparece como nombre visible en la pestaña del Workspace, el título de la página, el Lector
+  (botones de abrir/elegir tablatura, avisos), avisos del Planificador y el buscador de la Pizarra; y en CLAUDE.md /
+  fichas. Internamente es carpeta `REPERTORIO/`, tablas `repertorio_*`, bucket `repertorio-assets`, clave de pestaña
+  `repertorio` y direcciones que ya circulan (links a alumnos).
+- **DECISIÓN del PO (adopta las 2 recomendaciones de Claude):**
+  1. Cambia **solo el nombre visible**; carpeta, tablas, bucket, claves y direcciones **no se tocan** (romperían links
+     y datos).
+  2. La palabra **"repertorio" se conserva en su sentido pedagógico**: el repertorio **del curso** (sesión del
+     Entrenador) y el **de un alumno** (Lector). Biblioteca = todo lo que hay; repertorio = lo que trabaja un curso o
+     alumno.
+  3. La **"Biblioteca Musical"** del roadmap queda **absorbida por esta Biblioteca** y sale de los módulos futuros.
+- **Implementación (2026-10-08):** título y encabezado de la página (`REPERTORIO/index.html`), pestaña del Workspace
+  (`PC/workspace.html`, ícono 🎵 sin cambio), avisos del Planificador (`PORTAL/`), buscador del selector de la Pizarra
+  ("Buscar canción de la Biblioteca…", "Cargando canciones…") y textos del Lector (`tabs/index.html`: columna
+  "📚 Biblioteca" del panel de asignación, "Desde Biblioteca", "Elegir tablatura de la Biblioteca", avisos y toast).
+  Se conservan, por su sentido pedagógico: botón "Repertorio" del Planificador (repertorio del curso), "Repertorio de
+  <alumno>" en el Lector y la categoría de pendiente "Repertorio" (ADMIN/Portal). CLAUDE.md actualizado (regla en §3;
+  Biblioteca Musical retirada de §2, §8 y §9). Los cambios del Loop en `tabs/index.html` siguen sin guardar: solo se
+  guardaron las líneas de este cambio.
+- **Prueba (servidor local):** Biblioteca con título y encabezado "Biblioteca"; Pizarra y Lector con los textos nuevos;
+  sin errores en consola.
+- **Cerrada; pendiente que el PO la vea en uso.**

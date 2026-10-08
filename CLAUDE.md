@@ -32,8 +32,8 @@ Estado = clasificación oficial de Fase 1.5 (ver §5 para la leyenda). Detalle p
 | **Portal / Planning** | Planificación de sesiones + Dashboard. Profesor. | `PORTAL/index.html` | 🟢 Activo |
 | **Workspace PC** | Entrada PC: pestañas + iframes persistentes. Profesor. | `PC/workspace.html` | 🟢 Activo — **entrada PC actual** |
 | **Dashboard** | Calendario 3 semanas + panel de pendientes (dentro del Portal). | `PORTAL/` | 🟢 Activo |
-| **Repertorio** | Biblioteca de canciones + Entrenador (todo asset salvo las tablaturas se abre en el Entrenador; el **visor de letras quedó en desuso**, DECISIÓN del PO 2026-10-08). Audio Melodía + Karaoke por canción. | `REPERTORIO/index.html` | 🟢 Activo |
-| **Entrenador** | Editor central de assets (letras/sync/proyección). Vive en Repertorio (`?vista=sesiones`). | `REPERTORIO/` | 🟢 Activo |
+| **Biblioteca** (antes "Repertorio") | Biblioteca de canciones y recursos + Entrenador (todo asset salvo las tablaturas se abre en el Entrenador; el **visor de letras quedó en desuso**, DECISIÓN del PO 2026-10-08). Audio Melodía + Karaoke por canción. | `REPERTORIO/index.html` | 🟢 Activo |
+| **Entrenador** | Editor central de assets (letras/sync/proyección). Vive en la Biblioteca (`?vista=sesiones`). | `REPERTORIO/` | 🟢 Activo |
 | **Ritmo** | Motor rítmico del Entrenador (`ritmo.js` + `ritmo-render.js`). | `REPERTORIO/` | 🟢 Activo |
 | **Lector de Tablaturas** | Lector MXL/MusicXML, audio sync, secciones, modo cifrado. | `tabs/index.html` | 🟢 Activo |
 | **Pizarra** (= Presentador Pedagógico) | Runtime markdown → slides en clase, fullscreen, YouTube. Ventana de proyección del **Modo Clase** (se abre en el proyector; muestra el tiempo perdido). Las diapositivas de canción (`@rep:`) quedaron **en desuso** (DECISIÓN del PO 2026-10-08: las reemplaza la sesión de repertorio del curso en el Entrenador). | `PIZARRA/index.html` | 🟢 Activo |
@@ -50,7 +50,7 @@ Estado = clasificación oficial de Fase 1.5 (ver §5 para la leyenda). Detalle p
 - Lector: `tabs/index.html` es el **único** archivo oficial (no crear `index-beta`/`dev`/`2`; todo se desarrolla ahí).
 - Assets pedagógicos reales — **no modificar sin confirmar**: `METALÓFONO APP/MIDI/` (MIDIs reales del profesor), `tabs/TABS/` (partituras MuseScore reales).
 
-**Módulos futuros identificados (no existen aún):** Flauta, Huiro, Cifrado, Chords (Cifrado+Chords a fusionar), Games, Cajón-instrumento (percusión), Cuaderno MIDI, Biblioteca Musical. Ver §9.
+**Módulos futuros identificados (no existen aún):** Flauta, Huiro, Cifrado, Chords (Cifrado+Chords a fusionar), Games, Cajón-instrumento (percusión), Cuaderno MIDI. Ver §9. *(La "Biblioteca Musical" que figuraba aquí quedó absorbida por la Biblioteca, DECISIÓN del PO 2026-10-08.)*
 
 **Pizarra vs Presentador Pedagógico (aclaración):** `PIZARRA/` es el **módulo actual** (Pizarra = Presentador Pedagógico). **No son dos módulos:** `PRESENTADOR PEDAGÓGICO/` es únicamente un **documento histórico de diseño** (el prompt que dio origen a Pizarra), que se **archiva/conserva** como referencia.
 
@@ -79,17 +79,17 @@ Columna vertebral de la interoperabilidad. Toda app nueva debe respetarlo.
 
 | Parámetro | Descripción | Apps |
 |---|---|---|
-| `?ctx=<NOMBRE>` | Contexto activo — **uppercase, = campo `nombre` en `contextos`** | Portal, Repertorio, Libro |
-| `?modo=<modo>` | `pres`, `remoto`, `catalogo`, `entrenamiento`, `alumno`… | Pizarra, Repertorio, Metalófono (`alumno`) |
-| `?midi=<url>` / `?nombre=` | MIDI a cargar (modo profesor; lo usan Repertorio y Portal) | Metalófono |
-| `?a=<id>` / `?n=<nombre>` | Modo alumno: **ID del asset** `metalofono` del Repertorio → MIDI público `repertorio-assets/midi/<id>.mid` (si no existe, `<id>.MID`; sin consultar tablas); `n` = nombre visible | Metalófono (`?modo=alumno`); link corto `m/?a=&n=` |
+| `?ctx=<NOMBRE>` | Contexto activo — **uppercase, = campo `nombre` en `contextos`** | Portal, Biblioteca, Libro |
+| `?modo=<modo>` | `pres`, `remoto`, `catalogo`, `entrenamiento`, `alumno`… | Pizarra, Biblioteca, Metalófono (`alumno`) |
+| `?midi=<url>` / `?nombre=` | MIDI a cargar (modo profesor; lo usan Biblioteca y Portal) | Metalófono |
+| `?a=<id>` / `?n=<nombre>` | Modo alumno: **ID del asset** `metalofono` de la Biblioteca → MIDI público `repertorio-assets/midi/<id>.mid` (si no existe, `<id>.MID`; sin consultar tablas); `n` = nombre visible | Metalófono (`?modo=alumno`); link corto `m/?a=&n=` |
 | `?sesion=<uuid>` / `?slide=<n>` | Sesión / slide | Pizarra |
 | `?tab=<path>` | Path relativo a `tabs/TABS/` | Lector |
-| `?cancion=<id>` / `?practicar=` / `?proyeccion=1` / `?vista=sesiones` | Canción / práctica / proyección / Entrenador | Repertorio |
+| `?cancion=<id>` / `?practicar=` / `?proyeccion=1` / `?vista=sesiones` | Canción / práctica / proyección / Entrenador | Biblioteca |
 | `?asset=<uuid>` | Asset en Storage (futuro) | Futuro |
 | `?alumno=<id>` | Alumno | Libro |
 
-**Modo Clase (HECHO, Pasos 1–2, 2026-10-05):** "Comenzar clase" en el Planificador abre la Pizarra como ventana emergente `profe-proyeccion` (en el proyector si el navegador da permiso de pantallas) y mide tiempo de clase / tiempo perdido. El estado vive en `localStorage` y se comparte entre ventanas mediante **`comun/clase-vivo.js`** (`ClaseVivo` + `Proyeccion`), incluido en Planificador, Pizarra, Libro, Repertorio y Workspace; atajo global Ctrl + Shift + Espacio. Desde el Planificador se maneja la Pizarra de la clase (◀ ▶, clic en la vista previa, texto al día al escribir) con `Proyeccion.ordenar` (misma computadora, sin internet). El Workspace delega `window-management` a sus iframes. **Entrenador en la Pizarra (2026-10-06):** con la clase en curso, el botón "📽️ Pizarra" del Entrenador proyecta una copia de su vista (letra, verso, coloreados, modo) en la Pizarra (`REPERTORIO/?espejo=1` en una capa; suena solo el computador del profe); al soltarlo la Pizarra vuelve a su diapositiva. Requiere la **versión en línea** (en `file://` no aplica el permiso de pantallas). Ficha en `DESARROLLO_PARALELO.md`.
+**Modo Clase (HECHO, Pasos 1–2, 2026-10-05):** "Comenzar clase" en el Planificador abre la Pizarra como ventana emergente `profe-proyeccion` (en el proyector si el navegador da permiso de pantallas) y mide tiempo de clase / tiempo perdido. El estado vive en `localStorage` y se comparte entre ventanas mediante **`comun/clase-vivo.js`** (`ClaseVivo` + `Proyeccion`), incluido en Planificador, Pizarra, Libro, Biblioteca y Workspace; atajo global Ctrl + Shift + Espacio. Desde el Planificador se maneja la Pizarra de la clase (◀ ▶, clic en la vista previa, texto al día al escribir) con `Proyeccion.ordenar` (misma computadora, sin internet). El Workspace delega `window-management` a sus iframes. **Entrenador en la Pizarra (2026-10-06):** con la clase en curso, el botón "📽️ Pizarra" del Entrenador proyecta una copia de su vista (letra, verso, coloreados, modo) en la Pizarra (`REPERTORIO/?espejo=1` en una capa; suena solo el computador del profe); al soltarlo la Pizarra vuelve a su diapositiva. Requiere la **versión en línea** (en `file://` no aplica el permiso de pantallas). Ficha en `DESARROLLO_PARALELO.md`.
 
 **Una sola clase en curso, conocida por todo el sistema (DECISIÓN del PO 2026-10-08, deuda AM):** nunca hay dos clases en curso a la vez, y **todo el sistema —incluido el celular— sabe cuál es**, porque los módulos se adaptan a funcionar distinto en clase o fuera de ella. **HECHO:** `ClaseVivo` publica la clase en curso en Supabase (`clase_en_curso`, una fila; `supabase/clase_en_curso.sql`) y cada página con `sb` llama `ClaseVivo.conectar(sb)`; `ClaseVivo.enCurso()` da la clase en curso de cualquier equipo (`aqui` = este computador). Comenzar otra clase pide la clave y termina la anterior (también la de otro equipo); una clase se termina sola a las **2 horas**. Cómo cambia cada módulo "en clase" se decide módulo a módulo.
 
@@ -101,15 +101,17 @@ Columna vertebral de la interoperabilidad. Toda app nueva debe respetarlo.
 
 **Listas de las actividades del Libro (HECHO, DECISIÓN del PO 2026-10-06):** mientras una participación, entrega o evaluación está **abierta**, su lista sigue la **matrícula al día** (curso) o la pertenencia actual (taller): los nuevos se agregan solos y los retirados se ocultan **sin borrar** lo anotado; las **cerradas son una foto** (historial). Ficha en `DESARROLLO_PARALELO.md`.
 
-**Nombre de cortesía de los assets (HECHO, DECISIÓN del PO 2026-10-05):** todo asset del Repertorio se muestra como **Canción · Instrumento · Descripción · Dificultad** (versión corta sin la canción donde ya se ve). Regla única en **`comun/nombre-asset.js`** (`nombreAsset` / `partesAsset`), usada por Repertorio, Lector y Planificador; en tipos no-tab el instrumento es el propio tipo. Se arma al vuelo (sin columna nueva); el nombre del archivo original solo se usa para descargar. Toda pantalla nueva que nombre assets debe usar esta regla.
+**Biblioteca (ex Repertorio) — DECISIÓN del PO 2026-10-08 (deuda AT):** el módulo `REPERTORIO/` se llama **Biblioteca** en todo lo visible. **No** cambian la carpeta, las tablas `repertorio_*`, el bucket `repertorio-assets`, las claves ni las direcciones (links ya compartidos). La palabra **"repertorio"** queda solo en su sentido pedagógico: el repertorio **de un curso** (su sesión del Entrenador) o **de un alumno** (Lector). Toda pantalla nueva dice "Biblioteca" para el conjunto de canciones y recursos.
+
+**Nombre de cortesía de los assets (HECHO, DECISIÓN del PO 2026-10-05):** todo asset de la Biblioteca se muestra como **Canción · Instrumento · Descripción · Dificultad** (versión corta sin la canción donde ya se ve). Regla única en **`comun/nombre-asset.js`** (`nombreAsset` / `partesAsset`), usada por Biblioteca, Lector y Planificador; en tipos no-tab el instrumento es el propio tipo. Se arma al vuelo (sin columna nueva); el nombre del archivo original solo se usa para descargar. Toda pantalla nueva que nombre assets debe usar esta regla.
 
 **Proyectar desde el Libro (HECHO, deudas AI/AK, 2026-10-07):** botón "📽️ Proyectar" en evaluaciones (pestañas General / Instrumentos / Grupos de trabajo en vivo / Resultados = solo pendientes) y entregas (énfasis en quienes faltan); con la clase en curso va a la Pizarra (canal `profe-espejo-libro`), sin clase a pantalla completa. Pieza compartida **`comun/libro-proyeccion.js`** (`LibroProyeccion`). **DECISIÓN del PO:** nunca se proyectan notas, comentarios ni adecuaciones; las notas se consultan solo en la pantalla del profe (pestaña Resultados, buscador). La Participación en la Pizarra es **idéntica** al Proyector del profe: diseño compartido **`comun/participacion-tablero.css`** y el mismo cálculo de tamaños; el sorteo 🎲 recorre a todos los válidos antes del elegido. Todo lo proyectado (diapositivas, Pasar lista, Entrenador, Libro) se adapta a cualquier resolución del proyector (topes de letra proporcionales al alto de pantalla). Fichas en `DESARROLLO_PARALELO.md`.
 
 **Versión nueva y la Pizarra (HECHO, deuda AL, 2026-10-07):** el "Recargar" del Workspace también renueva la ventana de la Pizarra (canal `profe-version`, vuelve a su diapositiva); las pestañas nuevas se piden con `wsv=<versión>` en la dirección y las piezas `comun/*` se renuevan al detectar una versión (GitHub Pages deja copias hasta 10 min).
 
-**Pedidos de canciones (HECHO, deuda X, 2026-10-07):** "🙋 Pedir canción" en las sesiones del Entrenador (todos los campos opcionales, enlace incluido); los pedidos se ven en gris en el cancionero y "+ Canción" del Repertorio abre la página de pedidos por curso, donde "Cargar" crea la canción (con su enlace) y la deja en la sesión que la pidió.
+**Pedidos de canciones (HECHO, deuda X, 2026-10-07):** "🙋 Pedir canción" en las sesiones del Entrenador (todos los campos opcionales, enlace incluido); los pedidos se ven en gris en el cancionero y "+ Canción" de la Biblioteca abre la página de pedidos por curso, donde "Cargar" crea la canción (con su enlace) y la deja en la sesión que la pidió.
 
-**Metalófono — modo alumno (HECHO, Etapa 1):** el modo alumno **no se conecta a Supabase** y no debe cargar `supabase/config.js`; solo descarga el MIDI público. Sus reglas de UX (25 placas siempre, precuenta obligatoria, práctica por toque, colores, escala ante zoom) están cerradas en la ficha de `DESARROLLO_PARALELO.md`; el **modo profesor no se altera** salvo decisión explícita del PO (2026-10-07, deuda AF: la práctica "Melodía sin ritmo" del alumno se usa también en el profesor; el profesor suma "🔁 +5" y "📝 Ver notas"). **HECHO (Etapa 2):** link permanente `https://patolastra.github.io/profe-apps/m/?a=<id>&n=<nombre>` — `m/index.html` solo redirige al modo alumno — y botón "Compartir" en el Repertorio, solo para melodías `metalofono` **publicadas** y con **cifra de compás** (si falta, no se comparte). Validada físicamente en Android (iPhone sin probar) y **aprobada por el PO** (2026-09-30); detalle en la ficha de `DESARROLLO_PARALELO.md`.
+**Metalófono — modo alumno (HECHO, Etapa 1):** el modo alumno **no se conecta a Supabase** y no debe cargar `supabase/config.js`; solo descarga el MIDI público. Sus reglas de UX (25 placas siempre, precuenta obligatoria, práctica por toque, colores, escala ante zoom) están cerradas en la ficha de `DESARROLLO_PARALELO.md`; el **modo profesor no se altera** salvo decisión explícita del PO (2026-10-07, deuda AF: la práctica "Melodía sin ritmo" del alumno se usa también en el profesor; el profesor suma "🔁 +5" y "📝 Ver notas"). **HECHO (Etapa 2):** link permanente `https://patolastra.github.io/profe-apps/m/?a=<id>&n=<nombre>` — `m/index.html` solo redirige al modo alumno — y botón "Compartir" en la Biblioteca, solo para melodías `metalofono` **publicadas** y con **cifra de compás** (si falta, no se comparte). Validada físicamente en Android (iPhone sin probar) y **aprobada por el PO** (2026-09-30); detalle en la ficha de `DESARROLLO_PARALELO.md`.
 
 **Codificación de URL (HECHO — cuidado):** al construir `iframe.src` en el Workspace, la query ya viene codificada; se codifica **solo el path** (no reencodear la query), para no romper `?ctx` con caracteres como `%` (bug de doble codificación ya corregido).
 
@@ -153,7 +155,7 @@ Estas son **reglas**, no recomendaciones:
 
 Resumen por grupos (detalle completo en el Excel):
 
-- **🟢 Núcleo activo (conservar):** Portal/Dashboard, Workspace PC, Repertorio, Entrenador, Ritmo, Lector, Pizarra, Libro, Bitácora/Memoria, Metalófono, `contextos.js`, config Supabase, CAJÓN (planificación), ADMIN (base del futuro panel de administración), `SHELL_MINIMO` (puente móvil provisional).
+- **🟢 Núcleo activo (conservar):** Portal/Dashboard, Workspace PC, Biblioteca, Entrenador, Ritmo, Lector, Pizarra, Libro, Bitácora/Memoria, Metalófono, `contextos.js`, config Supabase, CAJÓN (planificación), ADMIN (base del futuro panel de administración), `SHELL_MINIMO` (puente móvil provisional).
 - **🔵 Conservar dormido (congelado — no desarrollar, no borrar):** SRP completo (concepto + backend, filas 6a-6e), visor de ANALIZADOR (logging postergado; eventos_uso no persiste actualmente), LOOP-LAB, `import_2026` (respaldo histórico), PRESENTADOR PEDAGÓGICO (`.txt` de diseño, archivar), función **Lecciones**.
 - **🟠 Retirado en F4 (ejecutado):** `modulos.js`, `PC/index.html`, shell móvil antiguo (incluida su **UI de captura SRP-adjacente** e IndexedDB `SRP_VozDB` embebidas en `MOVIL`), FICHAS (`walk-secuencia`), legacy del Portal (dock, dashboard de 8 días, popover/calendario, semáforo, deep-link `?ctx`-solo, `volverAHoy`/`volverDashboard`/`wsTitulo`), experimentos de test (`supabase/test.html`, `ritmo-demo.html`, `vexflow-test.html`, comando `/elementos`), MIDIs de prueba (`METALÓFONO APP/MIDI/PRUEBAS/`), y la rama **`gh-pages`** (local y remota).
 - **⚪/diferido:** módulos futuros que no existen aún (§9).
@@ -211,9 +213,9 @@ Deliberadamente sin resolver (≠ rechazado, ≠ congelado, ≠ futuro):
 
 No convertir posibilidades en compromisos. Estado a hoy:
 
-- **Incluido (Sí):** Portal/Dashboard, Workspace, Repertorio, Entrenador, Ritmo, Lector, Pizarra, Libro, Bitácora/Memoria, Metalófono, `contextos.js`, config Supabase, **CAJÓN** (motor de planificación con formatos por escuela), **ADMIN** (panel de administración), **Cuaderno MIDI** (básico).
+- **Incluido (Sí):** Portal/Dashboard, Workspace, Biblioteca, Entrenador, Ritmo, Lector, Pizarra, Libro, Bitácora/Memoria, Metalófono, `contextos.js`, config Supabase, **CAJÓN** (motor de planificación con formatos por escuela), **ADMIN** (panel de administración), **Cuaderno MIDI** (básico).
 - **Posible:** ANALIZADOR (como métricas de producto) y los módulos de roadmap (Flauta, Huiro, Cifrado+Chords, Games, Cajón-instrumento).
-- **Futuro:** LOOP-LAB, `alumno_repertorio`, Biblioteca Musical, editor de plantillas de planificación por escuela.
+- **Futuro:** LOOP-LAB, `alumno_repertorio`, editor de plantillas de planificación por escuela.
 - **Excluido:** `modulos.js`, `PC/index.html`, shells antiguos, FICHAS, legacy del Portal, experimentos de test, MIDIs de prueba.
 - **Pendiente:** SRP (**congelado**; retomar o retirar = decisión futura del Autor).
 
@@ -230,7 +232,7 @@ En ese escenario futuro **podría** contemplarse un modelo de **cuentas, suscrip
 ## 9. Roadmap / futuro (ideas identificadas, no comprometidas para V1)
 
 - **Módulos musicales nuevos:** Flauta (digitaciones), **Huiro** y **Cajón-instrumento** (evoluciones del Entrenador de ritmos; Cajón más prioritario que Huiro), **Cifrado + Chords fusionados** (un solo módulo de acordes), Games.
-- **Biblioteca Musical:** interfaz navegable sobre Supabase Storage (MIDIs, ejercicios, canciones).
+- *(Biblioteca Musical: **absorbida por la Biblioteca** —ex Repertorio—, DECISIÓN del PO 2026-10-08; ya no es módulo futuro.)*
 - **Editor de plantillas de planificación por escuela** (nivel ambicioso de CAJÓN).
 - **Asignación de repertorio a alumnos** (`alumno_repertorio`, ya con schema listo).
 - **Indicador de pendientes por clase ("semáforo") — POSIBILIDAD FUTURA:** mostrar en el Dashboard actual cuántos pendientes tiene cada clase (de un vistazo). Es una **posibilidad**, no una decisión de implementación. Si se decide, se **reimplementa sobre el Dashboard vigente**; **no** se reutiliza la implementación legacy (que se retira en F4).
