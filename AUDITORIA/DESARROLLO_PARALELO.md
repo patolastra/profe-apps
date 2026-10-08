@@ -3406,3 +3406,11 @@ repertorio del curso, el libro, etc.; ahí el badge no corresponde". Anotada par
   Habría que marcar cada pestaña con su curso al abrirla desde el Plan.
 - **Propuesta (Claude, no decidida):** ocultar la insignia en toda pestaña abierta desde la clase en curso (Plan, Libro,
   Sesión del Entrenador, Pizarra…), y mostrarla solo en Dashboard, Repertorio general y pestañas de otros cursos.
+- **Aprobado e implementado el mismo día (PO: "iterémoslo altiro"; se adoptó la propuesta):** `PC/workspace.html`:
+  cada pestaña guarda su curso al abrirse (`curso`): el de su Plan (`clasePlan`), el `?ctx=` de su dirección (Libro)
+  o, si no lo trae, el de la pestaña que la pidió abrir (`cursoOrigen`, p. ej. la Sesión del Entrenador abierta desde
+  el Plan). La insignia no se ve en el Plan de la clase en curso ni en las demás pestañas de ese curso; sí en el
+  Dashboard, el Repertorio general, el Entrenador del catálogo y los Planes de otros cursos o de otra fecha.
+- **Prueba (2026-10-08, servidor local, clase de Segundo):** Dashboard → se ve; su Plan → no; Libro de Segundo (desde
+  el Plan) → no; Sesión de Segundo (desde el Plan) → no; Repertorio general → se ve; Plan de Octavo → se ve.
+  Clase de prueba terminada sin guardar tiempos.

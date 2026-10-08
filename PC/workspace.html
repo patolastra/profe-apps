@@ -231,7 +231,9 @@ document.addEventListener('click', (e) => {
 // `fijo`: pestaña permanente (Dashboard, Repertorio) → sin botón ×, no cerrable.
 // `guardarAlCerrar`: al cerrar, pedir al iframe que guarde antes de destruirse
 // (Planes). Ambos por defecto false.
-function abrirInstancia({ key, titulo, ico, src, fijo = false, guardarAlCerrar = false }) {
+// `cursoOrigen`: curso de la pestaña que pidió abrir esta (deuda AP: lo que se abre desde un
+// Plan es de ese curso, p. ej. la Sesión del Entrenador, cuya dirección no trae el curso).
+function abrirInstancia({ key, titulo, ico, src, fijo = false, guardarAlCerrar = false, cursoOrigen = null }) {
     // Un Plan también se reconoce por su clase (curso + fecha de la dirección), venga de
     // donde venga (Dashboard o insignia de clase en curso): nunca se abre dos veces.
     const clase = clasePlan(src);
@@ -280,7 +282,8 @@ function abrirInstancia({ key, titulo, ico, src, fijo = false, guardarAlCerrar =
     }
     tabbar.insertBefore(tabEl, document.getElementById('launcher-wrap'));
 
-    tabs.push({ key, titulo, ico, tabEl, iframeEl: iframe, fijo, guardarAlCerrar, clase });
+    const curso = (clase && clase.split('|')[0]) || ctxDeSrc(src) || cursoOrigen || null;
+    tabs.push({ key, titulo, ico, tabEl, iframeEl: iframe, fijo, guardarAlCerrar, clase, curso });
     activar(key);
 }
 
@@ -291,19 +294,29 @@ function clasePlan(src) {
     const ctx = p.get('ctx'), fecha = p.get('fecha');
     return ctx && fecha ? `${ctx.toUpperCase()}|${fecha}` : null;
 }
+// Curso (NOMBRE) de una dirección con ?ctx= (p. ej. el Libro); null si no lo trae.
+function ctxDeSrc(src) {
+    const q = (src || '').indexOf('?');
+    if (q < 0) return null;
+    const ctx = new URLSearchParams(src.slice(q + 1)).get('ctx');
+    return ctx ? ctx.toUpperCase() : null;
+}
 
 // ── CLASE EN CURSO (deuda AO) ──────────────────────────────────────────────
 // Insignia a la derecha de la barra mientras hay una clase en curso (de cualquier equipo,
 // ClaseVivo.enCurso). Lleva al Plan de esa clase (la misma pestaña si ya está abierta) y no
-// se ve mientras se está en ese Plan. Se entera de los cambios por el localStorage que
-// escriben las pestañas (el Planificador está conectado a internet).
+// se ve en las pestañas de esa clase (deuda AP): su Plan y las demás pestañas de ese curso
+// (Libro, Sesión del Entrenador…). Un Plan de otra fecha del mismo curso no es esta clase.
+// Se entera de los cambios por el localStorage que escriben las pestañas (el Planificador
+// está conectado a internet).
 const btnClase = document.getElementById('ws-clase');
 function claseEnCurso() { try { return ClaseVivo.enCurso(); } catch (_) { return null; } }
 function pintarInsigniaClase() {
     const st = claseEnCurso();
     const activa = tabs.find(t => t.key === activeKey);
-    const enSuPlan = !!(st && activa && activa.clase === `${String(st.ctx).toUpperCase()}|${st.fecha}`);
-    btnClase.hidden = !st || !st.fecha || enSuPlan;
+    const ctx = st ? String(st.ctx).toUpperCase() : '';
+    const deEsaClase = !!(st && activa && (activa.clase ? activa.clase === `${ctx}|${st.fecha}` : activa.curso === ctx));
+    btnClase.hidden = !st || !st.fecha || deEsaClase;
     if (st) btnClase.title = `Clase en curso: ${typeof ctxDisplay === 'function' ? ctxDisplay(st.ctx) : st.ctx}${st.aqui ? '' : ' (comenzada en otro equipo)'}. Ir a su Plan.`;
 }
 btnClase.onclick = () => {
@@ -427,6 +440,7 @@ window.addEventListener('message', (e) => {
             ico: String(m.ico || '📄'),
             src: m.src,
             guardarAlCerrar: !!m.guardarAlCerrar,
+            cursoOrigen: (tabs.find(t => t.iframeEl.contentWindow === e.source) || {}).curso || null,
             // `fijo` NO se acepta por postMessage: solo las iniciales locales son fijas.
         });
     } else if (m.tipo === 'ws-titulo') {
