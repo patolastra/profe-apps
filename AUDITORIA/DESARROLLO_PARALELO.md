@@ -3368,7 +3368,7 @@ clases o no, eso incluye al cel". **DECISIÓN del PO** (registrada en `CLAUDE.md
   7,0, 1 toque 6,5, 2 toques 6,0; los 6 ausentes siguen pendientes. Libro/Resultados: lista correcta; nota a mano 5,5
   → "(a mano)"; Reevaluar → toques 0 y nota vacía; Deshacer → vuelven 2 toques y 5,5. App: el celular registró la
   pieza sin señal y guardó sus 12 archivos. Todo lo de prueba borrado (evaluación, clase en curso; sin tiempos).
-- **Pendiente:** probar en el celular real (instalar, tamaño de nombres/columnas, sin señal en la sala).
+- **Pendiente:** probar en el celular real (instalar, tamaño de nombres/columnas, sin señal en la sala). Commit `017ad1b`.
 
 ### AO. Workspace — insignia de "clase en curso" en la barra (deuda)
 *Origen: PO (2026-10-08). Anotada; no implementar aún.*
