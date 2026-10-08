@@ -3369,6 +3369,12 @@ clases o no, eso incluye al cel". **DECISIÓN del PO** (registrada en `CLAUDE.md
   → "(a mano)"; Reevaluar → toques 0 y nota vacía; Deshacer → vuelven 2 toques y 5,5. App: el celular registró la
   pieza sin señal y guardó sus 12 archivos. Todo lo de prueba borrado (evaluación, clase en curso; sin tiempos).
 - **Pendiente:** probar en el celular real (instalar, tamaño de nombres/columnas, sin señal en la sala). Commit `017ad1b`.
+- **Prueba del PO en su celular (2026-10-08):** los toques sin señal quedan "⏳ N sin subir" y suben al volver internet
+  (bien). **Error:** al abrir Evaluar en modo avión quedaba "Cargando…" sin fin (la consulta a internet no respondía y
+  no había límite). **Arreglo:** sin conexión no se consulta internet y se usa la copia del celular al instante; con
+  conexión mala, se espera hasta 5 s y luego la copia; la lista de ausentes también sale de la copia. Sin copia, avisa:
+  "ábrela una vez con internet". Prueba local: conexión que no responde → aviso a los 5 s; sin señal → al instante;
+  con copia guardada → tablero al instante con sus toques. Validar en uso real.
 
 ### AO. Workspace — insignia de "clase en curso" en la barra (deuda)
 *Origen: PO (2026-10-08). Anotada; no implementar aún.*

@@ -165,10 +165,17 @@ function ponerNombres(lista) {
 }
 
 // ── Datos ──
+// Sin señal (o con señal tan mala que no responde) se usa la copia del celular: nunca
+// queda "Cargando…" sin fin. Sin conexión ni se intenta; con conexión, se espera hasta 5 s.
+const ESPERA_MS = 5000;
+function conTiempo(p) {
+    if (!navigator.onLine) return Promise.reject(new Error('sin señal'));
+    return Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('sin respuesta')), ESPERA_MS))]);
+}
 async function ctxId(nombre) {
     const k = CACHE('ctx_' + nombre);
     try {
-        const { data, error } = await sb.from('contextos').select('id').eq('nombre', nombre).limit(1);
+        const { data, error } = await conTiempo(sb.from('contextos').select('id').eq('nombre', nombre).limit(1));
         if (error) throw error;
         const id = data && data[0] ? data[0].id : null;
         guardarJSON(k, id);
@@ -178,20 +185,24 @@ async function ctxId(nombre) {
 async function cargarEvaluaciones() {
     const id = await ctxId(clase.ctx);
     const k = CACHE('evs_' + clase.ctx);
-    if (!id) return leerJSON(k, []);
+    if (!id) return leerJSON(k, null);
     try {
-        const { data, error } = await sb.from('libro_evaluaciones')
+        const { data, error } = await conTiempo(sb.from('libro_evaluaciones')
             .select('id,nombre,fecha,anio_id,contexto_id,descuento_toque,nota_min,estado')
             .eq('contexto_id', id).eq('estado', 'abierto').not('descuento_toque', 'is', null)
-            .order('fecha', { ascending: false });
+            .order('fecha', { ascending: false }));
         if (error) throw error;
         guardarJSON(k, data || []);
         return data || [];
-    } catch (_) { return leerJSON(k, []); }
+    } catch (_) { return leerJSON(k, null); }   // null = sin señal y sin copia
 }
 async function cargarEvaluacion(e) {
     const k = CACHE('ev_' + e.id);
-    try {
+    try { return await conTiempo(traerEvaluacion(e, k)); }
+    catch (_) { return leerJSON(k, null); }
+}
+async function traerEvaluacion(e, k) {
+    {
         const [cn, cg] = await Promise.all([
             sb.from('libro_evaluacion_notas')
               .select('id,estudiante_id,nota,estado_eval,grupo_id,toques,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)')
@@ -219,8 +230,6 @@ async function cargarEvaluacion(e) {
         const datos = { notas: filas, grupos: cg.error ? [] : (cg.data || []) };
         guardarJSON(k, datos);
         return datos;
-    } catch (_) {
-        return leerJSON(k, null);
     }
 }
 function guardarCacheEval() {
@@ -270,6 +279,11 @@ async function mostrarEvaluaciones() {
     $('main').innerHTML = '<div class="msg">Cargando…</div>';
     const evs = await cargarEvaluaciones();
     if (pantalla !== 'evs') return;
+    if (!evs) {
+        $('main').innerHTML = `<div class="msg">Sin señal, y este celular aún no tiene copia de las evaluaciones de este curso.<br><br>
+            Ábrela una vez con internet (basta entrar a Evaluar) y después funciona sin señal.</div>`;
+        return;
+    }
     if (!evs.length) {
         $('main').innerHTML = `<div class="msg">No hay evaluaciones <b>por toques</b> abiertas en este curso.<br><br>
             Créala en el Libro (computador) marcando "Por toques".</div>`;
@@ -289,7 +303,11 @@ async function abrirEvaluacion(e) {
     notas = datos.notas; grupos = datos.grupos;
     aplicarCola();
     ponerNombres(notas);
-    try { ausentes = new Set((await Asistencia.obtener(clase.sesionId)).ausentes || []); } catch (_) { ausentes = new Set(); }
+    try { ausentes = new Set((await conTiempo(Asistencia.obtener(clase.sesionId))).ausentes || []); }
+    catch (_) {   // sin señal: la última lista conocida (la guarda comun/asistencia.js)
+        const c = leerJSON('profe_asistencia_cola', {})[clase.sesionId] || leerJSON('profe_asistencia_' + clase.sesionId, null);
+        ausentes = new Set((c && c.ausentes) || []);
+    }
     mostrarGrupos();
 }
 
