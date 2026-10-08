@@ -128,15 +128,40 @@
             border-bottom: 1px solid var(--border);
             padding: 8px 20px;
             display: flex;
-            flex-direction: column;
-            gap: 8px;
+            align-items: center;
+            gap: 10px;
             flex-shrink: 0;
         }
-        #cat-toggle, #sort-ctrl, #filtros-chips {
+        #cat-toggle, #filtros-chips {
             display: flex;
             align-items: center;
             gap: 6px;
-            flex-wrap: wrap;
+        }
+        #cat-toggle { flex-shrink: 0; }
+        #chips-cursos { display: contents; }
+        #filtros-chips { flex: 1; min-width: 0; }
+        #filtros-sel { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
+        .filtro-sel {
+            padding: 4px 8px; border-radius: 8px; border: 1.5px solid var(--border);
+            font-size: 0.78rem; font-weight: 600; color: #334155; background: #fff;
+            cursor: pointer; font-family: inherit; max-width: 160px;
+        }
+        .filtro-sel:hover { border-color: #64748b; }
+        .filtro-sel.activo { border-color: var(--accent); color: var(--accent); }
+        #btn-practicar {
+            flex-shrink: 0; padding: 5px 12px; border-radius: 20px; border: none;
+            background: #ea580c; color: #fff; font-size: 0.78rem; font-weight: 700;
+            cursor: pointer; white-space: nowrap; font-family: inherit;
+        }
+        #btn-practicar:hover { background: #c2410c; }
+        @media (max-width: 720px) {
+            #filtros-bar { flex-wrap: wrap; padding: 8px 16px; }
+            #filtros-bar > .sep { display: none; }
+            #filtros-chips { flex-basis: 100%; order: 3; }
+            #btn-practicar { order: 4; }
+            #header-count { display: none; }
+            #header { gap: 8px; padding-left: 16px; padding-right: 16px; }
+            #search-wrap { min-width: 0; flex: 1; }
         }
         .cat-btn {
             padding: 4px 12px;
@@ -164,8 +189,7 @@
         }
         .sort-btn:hover { border-color: #64748b; color: #334155; }
         .sort-btn.activo { background: #334155; border-color: #334155; color: #fff; }
-        #filtros-chips { overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
-        #filtros-chips::-webkit-scrollbar { display: none; }
+        #filtros-chips { flex-wrap: wrap; row-gap: 6px; }
         /* ── SEGMENT CONTROL (modal categoria + asset meta) ── */
         .seg-ctrl {
             display: flex;
@@ -1403,7 +1427,8 @@
         }
         #toast.visible { transform: translateX(-50%) translateY(0); }
 
-        /* ── BOTÓN SESIONES EN HEADER ── */
+        /* ── BOTÓN SESIONES EN HEADER ── (oculto: las sesiones viven en el Entrenador, deuda AV) */
+        #btn-sesiones { display: none; }
         #btn-sesiones {
             background: transparent; border: 1.5px solid rgba(255,255,255,0.2);
             color: rgba(255,255,255,0.7); border-radius: 8px;
@@ -2600,25 +2625,23 @@
 <!-- FILTROS -->
 <div id="filtros-bar">
     <div id="cat-toggle">
-        <button class="cat-btn activo" data-cat="todos" onclick="setCategoria(this)">Todos</button>
+        <button class="cat-btn activo" data-cat="todos" onclick="setCategoria(this)">Todo</button>
         <button class="cat-btn" data-cat="cancion" onclick="setCategoria(this)">🎵 Canciones</button>
         <button class="cat-btn" data-cat="material" onclick="setCategoria(this)">📚 Materiales</button>
     </div>
-    <div id="sort-ctrl">
-        <span class="filtro-label">Orden:</span>
-        <button class="sort-btn activo" data-sort="reciente" onclick="setSort(this)">Reciente</button>
-        <button class="sort-btn" data-sort="nombre" onclick="setSort(this)">A–Z nombre</button>
-        <button class="sort-btn" data-sort="artista" onclick="setSort(this)">A–Z artista</button>
-    </div>
+    <div class="sep"></div>
     <div id="filtros-chips">
-        <span class="filtro-label">Filtrar:</span>
-        <button class="chip activo" data-filtro="todos" onclick="setFiltro(this)">Todos</button>
-        <div class="sep"></div>
-        <span class="filtro-label">Curso</span>
+        <button class="chip activo" data-filtro="todos" onclick="setFiltro(this)">Todos los cursos</button>
         <div id="chips-cursos"></div>
-        <div class="sep"></div>
-        <span class="filtro-label">Estilo</span>
-        <div id="chips-estilos"></div>
+    </div>
+    <button id="btn-practicar" onclick="practicarCurso()" title="Practicar la sesión de este curso en el Entrenador" style="display:none">🏋️ Practicar</button>
+    <div id="filtros-sel">
+        <select id="sel-estilo" class="filtro-sel" onchange="setEstilo(this.value)" title="Estilo"></select>
+        <select id="sel-orden" class="filtro-sel" onchange="setSort(this.value)" title="Orden">
+            <option value="reciente">Recientes</option>
+            <option value="nombre">A–Z canción</option>
+            <option value="artista">A–Z artista</option>
+        </select>
     </div>
 </div>
 
@@ -3238,7 +3261,8 @@ function assetSortKey(a) {
 let canciones        = [];
 let songActiva       = null;
 let filtroActivo     = 'todos';
-let filtroExtra      = null;
+let filtroCurso      = null;   // nombre del contexto (o 'PERSONAL')
+let filtroEstilo     = '';
 let filtroCategoria  = 'todos';
 let sortMode         = 'reciente';
 let editandoId       = null;
@@ -3420,11 +3444,20 @@ function setCategoria(btn) {
     render();
 }
 
-function setSort(btn) {
-    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('activo'));
-    btn.classList.add('activo');
-    sortMode = btn.dataset.sort;
+function setSort(valor) {
+    sortMode = valor;
     render();
+}
+
+function setEstilo(valor) {
+    filtroEstilo = valor;
+    render();
+}
+
+// 🏋️ Practicar: abre en el Entrenador la sesión del curso elegido.
+function practicarCurso() {
+    const s = filtroCurso && sesionDelCurso(filtroCurso);
+    if (s) practicarSesion(s.id);
 }
 
 function render() {
@@ -3443,13 +3476,8 @@ function render() {
         );
     }
     // filtro chip
-    if (filtroExtra) {
-        if (filtroExtra.tipo === 'curso') {
-            lista = lista.filter(c => (c.contextos||[]).includes(filtroExtra.valor));
-        } else if (filtroExtra.tipo === 'estilo') {
-            lista = lista.filter(c => (c.estilo||'').toLowerCase() === filtroExtra.valor.toLowerCase());
-        }
-    }
+    if (filtroCurso) lista = lista.filter(c => (c.contextos||[]).includes(filtroCurso));
+    if (filtroEstilo) lista = lista.filter(c => (c.estilo||'').toLowerCase() === filtroEstilo.toLowerCase());
     // ordenación
     if (sortMode === 'nombre')  lista.sort((a,b) => a.nombre.localeCompare(b.nombre));
     if (sortMode === 'artista') lista.sort((a,b) => (a.artista||'').localeCompare(b.artista||''));
@@ -3516,29 +3544,28 @@ function renderChips() {
 
     const wrap = document.getElementById('chips-cursos');
     wrap.innerHTML = cursosUsados.map(c => {
-        const activo = filtroExtra?.tipo === 'curso' && filtroExtra.valor === c ? 'activo' : '';
+        const activo = filtroCurso === c ? 'activo' : '';
         const cls = c === 'PERSONAL' ? 'personal' : 'curso';
-        return `<button class="chip ${cls} ${activo}" data-filtro="curso:${c}" onclick="setFiltro(this)">${ctxLabel(c)}</button>`;
+        return `<button class="chip ${cls} ${activo}" data-filtro="curso:${c}" onclick="setFiltro(this)" title="${ctxLabel(c)}">${ctxLabel(c)}</button>`;
     }).join('');
+    document.querySelector('#filtros-chips .chip[data-filtro="todos"]').classList.toggle('activo', !filtroCurso);
 
-    const wrapE = document.getElementById('chips-estilos');
-    wrapE.innerHTML = estilosUsados.map(e => {
-        const activo = filtroExtra?.tipo === 'estilo' && filtroExtra.valor === e ? 'activo' : '';
-        return `<button class="chip estilo ${activo}" data-filtro="estilo:${e}" onclick="setFiltro(this)">${e}</button>`;
-    }).join('');
+    // 🏋️ Practicar: solo con un curso elegido que tenga canciones en su sesión
+    const sc = filtroCurso && filtroCurso !== 'PERSONAL' ? sesionDelCurso(filtroCurso) : null;
+    document.getElementById('btn-practicar').style.display = sc?.canciones?.length ? '' : 'none';
+
+    const selE = document.getElementById('sel-estilo');
+    if (filtroEstilo && !estilosUsados.some(e => e.toLowerCase() === filtroEstilo.toLowerCase())) filtroEstilo = '';
+    selE.innerHTML = `<option value="">Todos los estilos</option>` +
+        estilosUsados.map(e => `<option value="${e.replace(/"/g, '&quot;')}">${e}</option>`).join('');
+    selE.value = filtroEstilo;
+    selE.classList.toggle('activo', !!filtroEstilo);
+    document.getElementById('sel-orden').value = sortMode;
 }
 
 function setFiltro(btn) {
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('activo'));
-    btn.classList.add('activo');
     const f = btn.dataset.filtro;
-    if (f === 'todos') {
-        filtroExtra = null;
-    } else if (f.startsWith('curso:')) {
-        filtroExtra = { tipo: 'curso', valor: f.slice(6) };
-    } else if (f.startsWith('estilo:')) {
-        filtroExtra = { tipo: 'estilo', valor: f.slice(7) };
-    }
+    filtroCurso = f.startsWith('curso:') ? f.slice(6) : null;
     render();
 }
 
@@ -9285,7 +9312,7 @@ pedidosCanal?.addEventListener('message', ev => {
     // Deep-link de contexto: ?ctx=PERSONAL (u otro) pre-aplica el filtro
     const params  = new URLSearchParams(location.search);
     const ctxParam = params.get('ctx');
-    if (ctxParam) filtroExtra = { tipo: 'curso', valor: ctxParam.toUpperCase() };
+    if (ctxParam) filtroCurso = ctxParam.toUpperCase();
     render();
     // Deep-link Entrenador: ?vista=sesiones abre directo la vista de sesiones
     if (params.get('vista') === 'sesiones' && vistaActual !== 'sesiones') toggleVistaSesiones();

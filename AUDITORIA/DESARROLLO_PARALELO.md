@@ -3576,3 +3576,26 @@ subconjunto de la Biblioteca y debe poder administrarse directamente desde la Bi
   pestaña, sacar "Nunca Me He Sacado un 7" desde la ficha la quitó de su lista al instante y volver a marcarla la
   devolvió al final (Supabase igual); ⭐ Personal marcar/desmarcar sin tocar otras filas. Sin errores.
 - **Cerrada; pendiente probar en clase.**
+
+### AV. Biblioteca — sin pestaña "Sesiones", botón "🏋️ Practicar" y barra ordenada
+*Origen: PO (2026-10-08), tras AU: "la pestaña Sesiones en la Biblioteca está un poco demás"; "ordena el toolbar de la
+Biblioteca, es un desastre".*
+- **Auditoría:** "🎯 Sesiones" abre la misma lista que la pestaña 🏋️ Entrenador del Workspace (`?vista=sesiones`):
+  practicar, crear, renombrar, ordenar, vincular a curso, borrar, y las 4 listas libres (Salsas, Cuecas 2026, Mine,
+  Pancho Morales). Tras AU, lo de cursos ya se maneja en la Biblioteca. La barra de filtros ocupaba 3 filas: tipo, orden
+  (3 botones) y "Filtrar" con cursos en columna angosta + ~30 estilos como botones; curso y estilo se excluían entre sí.
+- **DECISIÓN del PO:** quitar "🎯 Sesiones" de la Biblioteca; al elegir un curso, botón mínimo **"🏋️ Practicar"** que
+  abre la sesión de ese curso; la lista de sesiones (y las listas libres) queda solo en el Entrenador, igual que hoy.
+  Ordenar la barra (diseño a criterio de Claude).
+- **Implementación (2026-10-08, `REPERTORIO/index.html`):**
+  - "🎯 Sesiones" oculto (`#btn-sesiones { display: none }`; la función y `?vista=sesiones` siguen para el Entrenador).
+  - Barra en **una línea**: tipo (Todo · 🎵 Canciones · 📚 Materiales) | cursos ("Todos los cursos", ⭐ Personal y los
+    cursos con sesión; bajan a una 2ª fila si no caben) | **🏋️ Practicar** (solo con un curso con canciones; abre su
+    sesión en el Entrenador sobre la Biblioteca) | a la derecha, **listas desplegables** de estilo y orden.
+  - Curso y estilo ahora **se combinan** (`filtroCurso` + `filtroEstilo`, antes `filtroExtra` excluyente); `?ctx=` sigue
+    preseleccionando el curso.
+  - Celular: la barra se acomoda en filas y el encabezado ya no se sale de la pantalla (se oculta el conteo).
+- **Prueba (servidor local):** 1400 px en 2 filas; Sexto → 11 canciones y Practicar visible; Sexto + Cueca → 3; orden
+  A–Z canción; ⭐ Personal sin Practicar; Practicar abre "Sexto 2026" (11) y al cerrar vuelve a la Biblioteca filtrada;
+  pestaña Entrenador (`?vista=sesiones`) sin cambios; 375 px sin desborde. Sin errores en consola.
+- **Cerrada; pendiente que el PO la vea en uso.**
