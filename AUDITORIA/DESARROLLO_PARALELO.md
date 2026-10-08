@@ -3395,3 +3395,14 @@ clases o no, eso incluye al cel". **DECISIÓN del PO** (registrada en `CLAUDE.md
   ir" a la derecha; clic → abre el Plan de Segundo y la insignia se oculta; en Dashboard reaparece; clic → misma
   pestaña (3 pestañas); el Dashboard pidiendo el mismo Plan con su clave → misma pestaña; al revés (Plan abierto
   desde el Dashboard, luego la insignia) → misma pestaña; terminar → la insignia desaparece. Sin datos de prueba.
+
+### AP. Insignia de clase en curso — no mostrarla en las pestañas de esa misma clase (deuda)
+*Origen: PO (2026-10-08), tras AO en uso: "en clase en curso voy a distintas pestañas que sí son de la clase: el
+repertorio del curso, el libro, etc.; ahí el badge no corresponde". Anotada para iterar después; no implementar aún.*
+- **Necesidad:** la insignia solo debe verse fuera de la clase en curso; en el Libro, la Sesión del Entrenador u otras
+  pestañas de ese mismo curso sobra.
+- **Hallazgo previo (para la auditoría):** esas pestañas usan claves con el id del contexto (`libro:<cid>`,
+  `sesion:<cid>`); el Libro lleva `ctx=<NOMBRE>` en su dirección, la Sesión del Entrenador no (solo `practicar=<id>`).
+  Habría que marcar cada pestaña con su curso al abrirla desde el Plan.
+- **Propuesta (Claude, no decidida):** ocultar la insignia en toda pestaña abierta desde la clase en curso (Plan, Libro,
+  Sesión del Entrenador, Pizarra…), y mostrarla solo en Dashboard, Repertorio general y pestañas de otros cursos.
