@@ -3430,3 +3430,15 @@ el Entrenador mostraba la letra de la canción anterior.*
 - **Propuesta pendiente de decisión del PO:** en el Entrenador, si la canción no tiene letra, recuadro "➕ Agregar
   letra" (🔎 buscar en internet, repetible cambiando nombre/artista · 📋 pegar la letra), y aviso claro y fijo al
   "Cargar" un pedido sin letra.
+- **Aprobado por el PO (2026-10-08, "hazlo altiro") e implementado (`REPERTORIO/index.html`):**
+  - Canción sin ninguna letra → en el Entrenador, recuadro "Esta canción no tiene letra": buscador con nombre + artista
+    (editable, Enter busca) que lista hasta 6 resultados de LRCLIB ("con tiempos" / "solo texto") para elegir, o
+    "📋 Pegar la letra". Al guardar se crea el recurso `letra` de la canción y se abre de inmediato (listo para Sync).
+    Lo que se escribe en el recuadro no activa los atajos del Entrenador. En la copia de la Pizarra solo "Sin letra".
+  - `lrclibBuscar`: si no hay resultados, reintenta **sin tildes** (hallazgo: "Cafuné Micro TDH" no daba resultados y
+    "Cafune Micro TDH" sí). Lo usa también la creación de canciones/pedidos, que además toma el primer resultado
+    **con** letra.
+  - Pedido cargado que queda sin letra → aviso fijo: "quedó en la sesión, pero SIN LETRA… agrégala desde el Entrenador".
+- **Prueba (2026-10-08, sesión "Octavo 2026", Cafuné):** recuadro visible; escribir con espacios no reproduce; con la
+  tilde ahora encuentra 6 resultados; elegir el primero (guardado simulado, sin escribir en Supabase) → 93 versos en
+  pantalla y Sync disponible. Cafuné quedó intacta en Supabase (solo audio): **el PO elige su letra**.

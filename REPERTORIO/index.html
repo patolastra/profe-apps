@@ -1919,6 +1919,22 @@
             min-width: 0;
             overflow: hidden;
         }
+        /* Canción sin letra (deuda AQ): agregarla desde el Entrenador */
+        .ent-sl { width: 100%; max-width: 620px; margin: 24px auto; padding: 22px; border-radius: 16px;
+            border: 1px dashed rgba(148,163,184,.6); background: rgba(148,163,184,.08); color: inherit; }
+        .ent-sl h3 { margin: 0 0 4px; font-size: 1.15rem; }
+        .ent-sl p { margin: 0 0 14px; opacity: .7; font-size: .9rem; }
+        .ent-sl-fila { display: flex; gap: 8px; margin-bottom: 10px; }
+        .ent-sl input, .ent-sl textarea { flex: 1; font: inherit; font-size: .95rem; padding: 8px 10px; border-radius: 8px;
+            border: 1px solid rgba(148,163,184,.7); background: rgba(255,255,255,.9); color: #0f172a; }
+        .ent-sl textarea { width: 100%; box-sizing: border-box; min-height: 220px; resize: vertical; }
+        .ent-sl button { font: inherit; font-size: .9rem; font-weight: 700; padding: 8px 14px; border-radius: 8px;
+            border: 1px solid #3b82f6; background: #3b82f6; color: #fff; cursor: pointer; white-space: nowrap; }
+        .ent-sl button.sec { background: transparent; color: inherit; border-color: rgba(148,163,184,.7); }
+        .ent-sl-res { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 12px; }
+        .ent-sl-res button { text-align: left; background: rgba(59,130,246,.1); color: inherit; border-color: rgba(59,130,246,.5); font-weight: 600; white-space: normal; }
+        .ent-sl-res small { opacity: .65; font-weight: 500; }
+        .ent-sl-msg { font-size: .85rem; opacity: .75; margin: 0 0 10px; }
         #ent-zona {
             flex: 1;
             overflow-y: auto;
@@ -3885,11 +3901,9 @@ async function guardarCancion() {
     // Importar letra desde LRCLIB
     try {
         btn.textContent = 'Buscando letra…';
-        const q = encodeURIComponent(`${nombre} ${artista}`);
-        const res = await fetch(`https://lrclib.net/api/search?q=${q}`);
-        const data = await res.json();
+        const data = await lrclibBuscar(`${nombre} ${artista}`);
         if (data.length) {
-            const hit    = data[0];
+            const hit    = data.find(h => h.plainLyrics || h.syncedLyrics) || data[0];
             const plain  = hit.plainLyrics  || '';
             const synced = hit.syncedLyrics || '';
             if (plain || synced) {
@@ -3917,6 +3931,10 @@ async function guardarCancion() {
     cerrarModalNueva();
     render();
     abrirPanel(nueva.id);
+    // Pedido que quedó sin letra (deuda AQ): aviso que no desaparece solo.
+    if (pedido && !nueva.assets.some(a => a.tipo === 'letra'))
+        alert(`"${nombre}" quedó en la sesión, pero SIN LETRA (no se encontró en internet).\n\n`
+            + 'Agrégala desde el Entrenador: al llegar a la canción aparece "Agregar letra" (buscar o pegar).');
 }
 
 async function eliminarCancion(id) {
@@ -5885,6 +5903,81 @@ function entRenderChips(preselId) {
     if (activo) entCargarAsset(activo);
 }
 
+// ── Canción sin letra: agregarla aquí mismo (deuda AQ) ──
+// Buscar en internet (LRCLIB, se puede repetir cambiando la búsqueda) o pegarla. Al guardar
+// se crea el recurso "letra" de la canción y queda abierto, listo para sincronizar.
+function entSinLetraMostrar(zona) {
+    const s = entrenadorSong || {};
+    const q = [s.nombre, s.artista].filter(Boolean).join(' ');
+    zona.innerHTML = `<div class="ent-sl">
+        <h3>Esta canción no tiene letra</h3>
+        <p>Búscala en internet o pégala. Queda guardada en la canción, lista para sincronizar.</p>
+        <div class="ent-sl-fila"><input id="ent-sl-q" value="${entEsc(q)}" placeholder="Nombre y artista">
+            <button onclick="entSinLetraBuscar()">🔎 Buscar en internet</button></div>
+        <div id="ent-sl-msg" class="ent-sl-msg"></div>
+        <div id="ent-sl-res" class="ent-sl-res"></div>
+        <div id="ent-sl-pegar-zona" hidden>
+            <textarea id="ent-sl-texto" placeholder="Pega aquí la letra (una línea por verso; una línea vacía entre estrofas)"></textarea>
+            <div class="ent-sl-fila" style="margin-top:8px;justify-content:flex-end">
+                <button onclick="entSinLetraGuardar(document.getElementById('ent-sl-texto').value)">Guardar letra</button></div>
+        </div>
+        <button id="ent-sl-btn-pegar" class="sec" onclick="entSinLetraPegar()">📋 Pegar la letra</button>
+    </div>`;
+    // Lo que se escribe aquí no son atajos del Entrenador (Espacio, flechas, letras…).
+    zona.querySelectorAll('input, textarea').forEach(el => el.addEventListener('keydown', e => {
+        e.stopPropagation();
+        if (e.key === 'Enter' && el.id === 'ent-sl-q') { e.preventDefault(); entSinLetraBuscar(); }
+    }));
+}
+// LRCLIB a veces no encuentra con tildes ("Cafuné") y sí sin ellas: si no hay resultados,
+// se reintenta sin tildes.
+async function lrclibBuscar(q) {
+    const pedir = async t => (await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(t)}`)).json();
+    let data = await pedir(q);
+    const sinTildes = q.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (!data.length && sinTildes !== q) data = await pedir(sinTildes);
+    return data;
+}
+const entEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+let entSlResultados = [];
+async function entSinLetraBuscar() {
+    const q = document.getElementById('ent-sl-q')?.value.trim();
+    const msg = document.getElementById('ent-sl-msg'), res = document.getElementById('ent-sl-res');
+    if (!q || !msg) return;
+    msg.textContent = 'Buscando…'; res.innerHTML = '';
+    try {
+        const data = (await lrclibBuscar(q)).filter(h => h.plainLyrics || h.syncedLyrics).slice(0, 6);
+        entSlResultados = data;
+        if (!data.length) { msg.textContent = 'No se encontró. Prueba con otro nombre o solo el artista, o pégala.'; return; }
+        msg.textContent = 'Elige la que corresponde:';
+        res.innerHTML = data.map((h, i) => `<button onclick="entSinLetraUsar(${i})">${entEsc(h.trackName)} — ${entEsc(h.artistName)}
+            <small>${h.syncedLyrics ? '· con tiempos' : '· solo texto'}${h.albumName ? ' · ' + entEsc(h.albumName) : ''}</small></button>`).join('');
+    } catch (_) { msg.textContent = 'Sin conexión para buscar. Puedes pegar la letra.'; }
+}
+function entSinLetraUsar(i) {
+    const h = entSlResultados[i];
+    if (h) entSinLetraGuardar(h.plainLyrics || '', h.syncedLyrics || '', h.id);
+}
+function entSinLetraPegar() {
+    document.getElementById('ent-sl-pegar-zona').hidden = false;
+    document.getElementById('ent-sl-btn-pegar').hidden = true;
+    document.getElementById('ent-sl-texto').focus();
+}
+async function entSinLetraGuardar(texto, synced = '', lrclibId = null) {
+    const song = entrenadorSong;
+    if (!song) return;
+    if (!String(texto).trim() && !synced) { toast('La letra está vacía'); return; }
+    const asset = { id: genId(), cancion_id: song.id, tipo: 'letra', etiqueta: '', contenido: String(texto).replace(/\r\n?/g, '\n'),
+                    synced, nombre_archivo: '', storage_path: '', orden: 0, ...(lrclibId ? { lrclib_id: lrclibId } : {}) };
+    try { await sbUpsertAsset(asset); }
+    catch (e) { toast('⚠ No se pudo guardar la letra — revisa la conexión'); return; }
+    song.assets = [...(song.assets || []), asset];
+    const enLista = canciones.find(c => c.id === song.id);
+    if (enLista && enLista !== song) enLista.assets = [...(enLista.assets || []), asset];
+    toast('Letra guardada ✓');
+    entRenderChips(asset.id);
+}
+
 function entLimpiarLetra() {
     entrenadorLines = [];
     entrenadorStanzas = [];
@@ -6225,6 +6318,8 @@ function entRenderZona(forzarOrigIdx = null) {
     const tipoActivo = entrenadorAssetActivo?.tipo;
     if (tipoActivo && tipoActivo !== 'letra' && tipoActivo !== 'cifrado') return;
     if (!entrenadorStanzas.length) {
+        const sinNinguna = !ESPEJO && !(entrenadorSong?.assets || []).some(a => a.tipo === 'letra');
+        if (sinNinguna) { entSinLetraMostrar(zona); return; }
         zona.innerHTML = '<div style="color:#94a3b8">Sin letra</div>'; return;
     }
 
