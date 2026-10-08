@@ -1439,6 +1439,21 @@ karaokes con exactamente la misma duración y estructura temporal que la melodí
 **Archivos que se modificarán al implementar:** `REPERTORIO/index.html`,
 `REPERTORIO/supabase_schema.sql`, esta ficha. Sin cambios en `PIZARRA/`, el Visor ni
 `CLAUDE.md`.
+
+**REANUDADA (PO, 2026-10-08: "quiero implementar ese doble audio").**
+- **Revisión previa:** datos sin cambios relevantes (53 audios en 51 canciones; las únicas con dos audios siguen siendo
+  Amenaza de Ultracumbia y Severla god level, mismos ids). Columna `rol` aún no existe. Novedad desde la pausa: la
+  copia del Entrenador en la Pizarra (espejo, AJ/AR) es el mismo Entrenador → copia también el audio elegido (en
+  silencio); la Pizarra propiamente tal (`PIZARRA/`) sigue sin tocarse.
+- **Etapa 1:** el SQL quedó en `supabase/repertorio_audio_rol.sql` (convención actual de la carpeta `supabase/`;
+  incluye la verificación: melodia 51 · karaoke 2). Lo corre el PO.
+- **Etapas 2–4 implementadas (`REPERTORIO/index.html`):** `audiosDe` / `audioDe(c, rol)` (elección determinista;
+  solo-karaoke → ese) en `abrirEntrenador`, `abrirEntrenadorConConfig`, `seConfigurarLoops` y el modo pitch (memoria
+  por audio, no por canción); siempre abre en Melodía. Botón "🎤 Melodía / 🎶 Karaoke" en el header (solo con los
+  dos): conserva punto, reproducción, velocidad, loops y verso; aviso si las duraciones difieren > 0,5 s; con Karaoke
+  Sync queda desactivado y no se puede pasar a Karaoke mientras se sincroniza. Subir audio: "Este audio es Melodía /
+  Karaoke" (propone el que falta; bloquea si ya existe; aviso de duración al subir un Karaoke). Editar audio: mismo
+  campo con las mismas reglas. El panel de la canción muestra "Audio · 🎤 Melodía / 🎶 Karaoke".
 **Relación con el Bosquejo:** funcionalidad adelantada; encaja en **F6E**
 (Biblioteca/Repertorio/Recursos).
 
@@ -3472,3 +3487,14 @@ y atajo; las pedidas no se muestran".*
   con borde #334155 y texto #cbd5e1; la actual #140d06 con naranjo #ea580c (como la canción activa de la lista).
   Claro: fondo #eef2f6, tarjetas blancas con borde #e2e8f0 y texto #334155; la actual #fff7ed con naranjo #ea580c.
   Prueba: ambos tonos en la copia, cambio al instante.
+- **SQL corrido por el PO (2026-10-08):** verificación karaoke 2 · melodia 51 (correcta).
+- **Prueba (servidor local, datos reales):** 0 audios sin tipo; canciones con los dos: Amenaza de Ultracumbia y
+  Severla god level. Amenaza abre en Melodía (botón visible "🎤 Melodía"); en 0:42 a 0,75× → Karaoke: mismo punto
+  (42 s) y velocidad, botón "🎶 Karaoke" en naranjo, Sync desactivado y no entra; vuelta a Melodía en 42 s con Sync
+  activo. Duraciones Melodía/Karaoke iguales en ambas canciones (0 s de diferencia). Canción con un solo audio
+  (Cafuné): sin botón. El botón usa el mismo estilo que Pitch (claro y oscuro). No se tocó ninguna letra ni su
+  sincronización (el cambio no escribe en `letra`).
+- **Deudas registradas (etapa 5):** el **Visor de letras** (en desuso) y el modo canción de la **Pizarra** (`PIZARRA/`)
+  siguen eligiendo "el primer audio": en las 2 canciones dobles podrían sonar en karaoke. Se corrigen cuando se
+  trabaje cada uno (decisión del PO del 29-09: no tocarlos ahora).
+- **Cerrada la implementación; pendiente probar en clase.**

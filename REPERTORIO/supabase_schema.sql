@@ -216,3 +216,6 @@ ALTER TABLE repertorio_sesiones_entrenamiento
 CREATE UNIQUE INDEX IF NOT EXISTS uq_sesion_entrenamiento_contexto
     ON repertorio_sesiones_entrenamiento(contexto_id)
     WHERE contexto_id IS NOT NULL;
+
+-- Audio Melodía + Karaoke (2026-10-08): columna repertorio_assets.rol ('melodia' | 'karaoke',
+-- solo audio; máximo 1 + 1 por canción). DDL y migración en supabase/repertorio_audio_rol.sql.
