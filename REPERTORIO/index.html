@@ -1950,6 +1950,22 @@
             width: fit-content;
             max-width: 100%;
         }
+        /* Cancionero en la Pizarra (espejo): tarjetas a pantalla completa, estilo Pasar lista */
+        #espejo-cancionero { position: fixed; inset: 0; z-index: 9500; background: #0f1218; display: flex;
+            align-items: center; justify-content: center; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+        #espejo-cancionero[hidden] { display: none; }
+        #espejo-cancionero .ec-grid { display: grid; justify-content: center; align-content: center; box-sizing: border-box; }
+        #espejo-cancionero .ec-card { display: flex; align-items: center; justify-content: center; text-align: center;
+            overflow: hidden; border-radius: 18px; padding: 0 4%; box-sizing: border-box; color: #fff; font-weight: 800; line-height: 1.12;
+            background: linear-gradient(160deg, #2e9c46, #1f7a34); word-break: normal; overflow-wrap: normal; }
+        #espejo-cancionero .ec-card.activa { background: linear-gradient(160deg, #ea580c, #c2410c); box-shadow: 0 0 0 4px rgba(255,255,255,.35); }
+        /* Portada de la canción (título · artista · año) al comienzo de la letra */
+        .ent-portada { text-align: center; margin: 0 auto 1.1em; }
+        .ent-portada-tit { font-weight: 800; line-height: 1.15; }
+        .ent-portada-sub { font-weight: 600; opacity: .6; margin-top: .3em; }
+        .ent-dia-portada { flex: 0 0 auto; width: 100%; text-align: center; font-weight: 800; line-height: 1.3;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ent-dia-portada span { font-weight: 600; opacity: .6; }
         /* Diapositiva: fila de columnas auto-dimensionadas (width:max-content → cada
            columna se ajusta a su verso más ancho, sin overflow horizontal por verso). */
         .ent-dia-cols {
@@ -2147,7 +2163,7 @@
         }
         /* Entrenador espejo (?espejo=1, dentro de la Pizarra): solo la letra, sin controles */
         body.espejo { background: #0f172a; overflow: hidden; }
-        body.espejo > *:not(#entrenador-overlay):not(#metal-overlay):not(script) { display: none !important; }
+        body.espejo > *:not(#entrenador-overlay):not(#metal-overlay):not(#espejo-cancionero):not(script) { display: none !important; }
         body.espejo #metal-header { display: none !important; }
         body.espejo #ent-header, body.espejo #ent-progress-wrap, body.espejo #ent-controles,
         body.espejo #ent-loops-panel, body.espejo #ent-sesion-lista,
@@ -6330,7 +6346,7 @@ function entRenderZona(forzarOrigIdx = null) {
 
     // Scroll: pila vertical continua de estrofas; el encuadre lo da el tamaño de fuente (ancho).
     zona.style.overflowY = '';
-    zona.innerHTML = `<div class="ent-stanzas-wrapper">${entrenadorStanzas.map((stanza, pos) => {
+    zona.innerHTML = `<div class="ent-stanzas-wrapper">${entPortadaHTML()}${entrenadorStanzas.map((stanza, pos) => {
         const sep = pos > 0 ? `<div class="ent-stanza-sep"></div>` : '';
         return `${sep}${entStanzaHTML(stanza)}`;
     }).join('')}</div>`;
@@ -6361,8 +6377,13 @@ function entRenderDiapositiva() {
     const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
     const padY = parseFloat(cs.paddingTop)  + parseFloat(cs.paddingBottom);
     const W = zona.clientWidth  - padX;
-    const H = zona.clientHeight - padY;
+    let   H = zona.clientHeight - padY;
     if (W <= 0 || H <= 0) return;
+    // Portada en una línea arriba: su alto se descuenta del espacio de la letra.
+    const port = entPortadaPartes();
+    const portFs = port ? Math.round(Math.max(16, Math.min(H * 0.05, 44 * Math.max(1, window.innerHeight / 1080)))) : 0;
+    const portH = port ? Math.ceil(portFs * 1.3 + portFs * 0.6) : 0;
+    H -= portH;
 
     // Ancho de cada verso a un tamaño BASE (el ancho escala lineal con el font-size).
     const BASE = 3.1 * 16;
@@ -6439,7 +6460,9 @@ function entRenderDiapositiva() {
     let { fs, cw, gap, cols, split } = plan;
 
     // Render de columnas de ancho fijo `cw`; los versos largos se envuelven dentro.
-    let html = `<div class="ent-dia-cols" style="gap:${gap}px">`;
+    let html = port ? `<div class="ent-dia-portada" style="font-size:${portFs}px;margin-bottom:${Math.round(portFs * 0.6)}px">${
+        entEsc(port.tit)}${port.sub ? ` <span>· ${entEsc(port.sub)}</span>` : ''}</div>` : '';
+    html += `<div class="ent-dia-cols" style="gap:${gap}px">`;
     if (!split) {
         html += cols.map(col => `<div class="ent-dia-col" style="width:${Math.round(cw)}px">` +
             col.map((st, i) => (i ? `<div class="ent-stanza-sep" style="height:${sepH(fs)}px"></div>` : '') + entStanzaHTML(st.lines)).join('')
@@ -8075,7 +8098,27 @@ function entAjustarFontSize() {
         // Sep igual a la altura de una línea vacía en el textarea
         const sepH = entFontSizeGlobal * 1.35 + 4;
         zona.querySelectorAll('.ent-stanza-sep').forEach(el => el.style.height = sepH + 'px');
+        const port = zona.querySelector('.ent-portada');
+        if (port) {
+            port.querySelector('.ent-portada-tit').style.fontSize = (entFontSizeGlobal * 1.2) + 'px';
+            const sub = port.querySelector('.ent-portada-sub');
+            if (sub) sub.style.fontSize = (entFontSizeGlobal * 0.65) + 'px';
+        }
     }
+}
+
+// Portada de la canción (PO, 2026-10-08): título grande y abajo artista · año (si hay),
+// al comienzo de la letra en Scroll; en Diapositiva, una línea arriba (`linea`).
+function entPortadaPartes() {
+    const s = entrenadorSong;
+    if (!s?.nombre) return null;
+    return { tit: s.nombre, sub: [s.artista, s.año].map(x => String(x || '').trim()).filter(Boolean).join(' · ') };
+}
+function entPortadaHTML() {
+    const p = entPortadaPartes();
+    if (!p) return '';
+    return `<div class="ent-portada"><div class="ent-portada-tit">${entEsc(p.tit)}</div>${
+        p.sub ? `<div class="ent-portada-sub">${entEsc(p.sub)}</div>` : ''}</div>`;
 }
 
 function entToggleEdicion() {
@@ -8436,8 +8479,66 @@ function espejoEstado() {
         metal: document.getElementById('metal-overlay').classList.contains('visible'),
         t: a.currentTime || 0, sonando: !a.paused && !a.ended, vel: a.playbackRate || 1,
         scroll: espejoAnclaScroll(),
+        cancionero: espejoCancioneroDatos(),
         enviado: Date.now(),
     };
+}
+// Cancionero (PO, 2026-10-08): con la lista de la sesión (☰) abierta en el Entrenador del
+// profe, la Pizarra muestra las canciones de la sesión a pantalla completa como tarjetas
+// (solo el título; las pedidas no). Cerrar la lista vuelve a la letra.
+function espejoCancioneroDatos() {
+    if (!entModoSesion || !entSesionActual) return null;
+    const lista = document.getElementById('ent-sesion-lista'), btn = document.getElementById('ent-btn-toggle-lista');
+    if (!lista || lista.style.display === 'none' || (btn && btn.style.display === 'none')) return null;
+    return entSesionActual.canciones.map((it, idx) => ({
+        n: canciones.find(c => c.id === it.cancion_id)?.nombre || '?', a: idx === entSesionCIdx }));
+}
+let espejoCancUltimo = '';
+function espejoCancionero(lista) {
+    let el = document.getElementById('espejo-cancionero');
+    const clave = JSON.stringify(lista || null);
+    if (clave === espejoCancUltimo) return;
+    espejoCancUltimo = clave;
+    if (!lista) { if (el) el.hidden = true; return; }
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'espejo-cancionero';
+        document.body.appendChild(el);
+        window.addEventListener('resize', () => { if (!el.hidden) espejoCancLayout(); });
+    }
+    el.hidden = false;
+    el.innerHTML = `<div class="ec-grid">${lista.map(s =>
+        `<div class="ec-card${s.a ? ' activa' : ''}"><span>${entEsc(s.n)}</span></div>`).join('')}</div>`;
+    espejoCancLayout();
+}
+// Tarjetas lo más grandes posible sin cortar títulos (hasta 2 líneas), como Pasar lista.
+function espejoCancLayout() {
+    const el = document.getElementById('espejo-cancionero');
+    const cards = el ? [...el.querySelectorAll('.ec-card')] : [];
+    if (!cards.length) return;
+    const n = cards.length, W = window.innerWidth, Hh = window.innerHeight;
+    const pad = Math.round(Hh * 0.04), g = Math.max(10, Math.round(Hh * 0.018));
+    const w = W - 2 * pad, h = Hh - 2 * pad;
+    const cv = espejoCancLayout._c || (espejoCancLayout._c = document.createElement('canvas'));
+    const ctx = cv.getContext('2d'), BASE = 100;
+    ctx.font = `800 ${BASE}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+    const textos = cards.map(c => c.textContent);
+    const anchoMax = Math.max(...textos.map(t => ctx.measureText(t).width)) / BASE;
+    const palabraMax = Math.max(...textos.flatMap(t => t.split(/\s+/)).map(p => ctx.measureText(p).width)) / BASE;
+    const tope = 220 * Math.max(1, Hh / 1080);
+    let mejor = null;
+    for (let c = 1; c <= Math.min(n, 8); c++) {
+        const r = Math.ceil(n / c);
+        const cw = (w - (c - 1) * g) / c, ch = (h - (r - 1) * g) / r;
+        const f = Math.min(tope, ch * 0.8 / (2 * 1.12), (cw * 0.86 * 2) / anchoMax, (cw * 0.86) / palabraMax);
+        if (!mejor || f > mejor.f) mejor = { c, r, cw, ch, f };
+    }
+    const grid = el.querySelector('.ec-grid');
+    grid.style.cssText = `padding:${pad}px;gap:${g}px;grid-template-columns:repeat(${mejor.c},${Math.floor(mejor.cw)}px);grid-auto-rows:${Math.floor(mejor.ch)}px`;
+    let f = mejor.f;
+    const aplicar = () => cards.forEach(cd => cd.style.fontSize = f + 'px');
+    aplicar();
+    for (let i = 0; i < 30 && cards.some(cd => cd.scrollHeight > cd.clientHeight + 1 || cd.scrollWidth > cd.clientWidth + 1); i++) { f *= 0.95; aplicar(); }
 }
 // Desplazamiento de la letra en modo Scroll (PO, 2026-10-07): las pantallas miden distinto, así
 // que no se copia la posición en píxeles sino un ancla: el verso más cercano al centro de la vista
@@ -8507,6 +8608,7 @@ function espejoPintarBoton() {
 // ── Lado Pizarra (?espejo=1): aplica el estado recibido ──
 const espejoIgual = (set, arr) => set.size === arr.length && arr.every(x => set.has(x));
 function espejoAplicar(e) {
+    espejoCancionero(e.cancionero);
     if (!canciones.length) { espejoMetalVista(!!e.metal); return; }   // aún cargando la biblioteca
     const ov = document.getElementById('entrenador-overlay');
     if (!e.songId) { espejoMetalVista(!!e.metal); if (ov.classList.contains('visible')) espejoCerrar(); return; }

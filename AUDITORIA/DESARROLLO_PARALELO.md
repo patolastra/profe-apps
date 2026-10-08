@@ -3442,3 +3442,25 @@ el Entrenador mostraba la letra de la canción anterior.*
 - **Prueba (2026-10-08, sesión "Octavo 2026", Cafuné):** recuadro visible; escribir con espacios no reproduce; con la
   tilde ahora encuentra 6 resultados; elegir el primero (guardado simulado, sin escribir en Supabase) → 93 versos en
   pantalla y Sync disponible. Cafuné quedó intacta en Supabase (solo audio): **el PO elige su letra**.
+
+### AR. Entrenador — portada de la canción y cancionero en tarjetas en la Pizarra
+*Origen: PO (2026-10-08): "render del título de la canción, el artista y el año si hay, en todas las canciones del
+Entrenador"; y "al estar abierto el cancionero como lista en el Entrenador del profe, que en la proyección se vean las
+canciones a pantalla completa, como cards, tipo los nombres de Pasar lista pero más grandes, sin artista; mismo botón
+y atajo; las pedidas no se muestran".*
+- **Decisiones del PO:** cancionero = la lista de la sesión (☰, mismo botón y atajo); en la pantalla del profe nada
+  cambia; en la Pizarra se ven las tarjetas mientras la lista esté abierta; sin pedidas. Portada: se adoptó la
+  recomendación (portada al comienzo de la letra; en Diapositiva, una línea arriba).
+- **Implementado (`REPERTORIO/index.html`):**
+  - `entPortadaHTML` / `entPortadaPartes`: título (1,2 × letra) y debajo "artista · año" (campo `año` de la canción, si
+    hay), antes del primer verso en Scroll (se va con la letra). Diapositiva: línea "Título · artista · año" arriba,
+    con su alto descontado del espacio de la letra (sigue sin desbordes). No aparece en Sync ni en Edición.
+  - Espejo: el estado incluye `cancionero` (canciones de la sesión con la actual marcada) solo si la lista ☰ está
+    abierta en modo sesión; la Pizarra lo muestra en `#espejo-cancionero` a pantalla completa, fondo oscuro, tarjetas
+    verdes estilo Pasar lista (la canción actual en naranjo), tamaño máximo sin cortar títulos (mejor nº de columnas,
+    ajuste fino si algo no cabe); se reacomoda al cambiar el tamaño. Al cerrar la lista vuelve la letra.
+- **Prueba (2026-10-08, servidor local, sesión "Octavo 2026", copia en otra pestaña):** portada "Para No Verte Más /
+  La Mosca Tsé-Tsé · 1999" en Scroll; Diapositiva en 1920×1080 con la línea arriba y sin desbordes; lista abierta →
+  4 tarjetas (actual en naranjo; 1 columna en 800×755, 2×2 en 1920×1080); lista cerrada → vuelve la letra.
+- **Ojo (uso):** en la sesión la lista suele estar abierta; mientras se proyecte el Entrenador, la Pizarra mostrará
+  el cancionero hasta cerrar la lista (☰).
