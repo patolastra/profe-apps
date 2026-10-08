@@ -3414,3 +3414,19 @@ repertorio del curso, el libro, etc.; ahí el badge no corresponde". Anotada par
 - **Prueba (2026-10-08, servidor local, clase de Segundo):** Dashboard → se ve; su Plan → no; Libro de Segundo (desde
   el Plan) → no; Sesión de Segundo (desde el Plan) → no; Repertorio general → se ve; Plan de Octavo → se ve.
   Clase de prueba terminada sin guardar tiempos.
+
+### AQ. Entrenador — canción sin letra (error de la letra anterior + agregar letra desde la sesión)
+*Origen: PO (2026-10-08): "Cafuné" (pedido → cargado desde la Biblioteca) quedó en la sesión de Octavo sin letra, y
+el Entrenador mostraba la letra de la canción anterior.*
+- **Auditoría:** al cargar un pedido, la canción se crea y se busca su letra en LRCLIB; si no está, queda solo con
+  audio (aviso breve "sin letra en LRCLIB"). En el Entrenador, `entRenderChips` no cargaba nada cuando la canción no
+  tenía recursos y dejaba vivas las líneas de la canción anterior (`entrenadorLines/Stanzas`): se veían y **se podían
+  editar encima** de la canción nueva. Con recursos sin letra (ritmo, metalófono) las líneas viejas también quedaban.
+- **Arreglo (error, sin esperar decisión):** `entLimpiarLetra()` al abrir una canción sin recursos (muestra "Sin
+  letra", sin Sync) y al cargar un recurso que no es letra; `entRenderZona` ya no dibuja letra sobre un ritmo /
+  metalófono / PDF.
+- **Prueba (2026-10-08, servidor local, sesión "Octavo 2026"):** Para No Verte Más → Doma → Loco → Cafuné: "Sin letra"
+  (0 líneas), Editar no se abre; de vuelta a Loco su letra vuelve bien.
+- **Propuesta pendiente de decisión del PO:** en el Entrenador, si la canción no tiene letra, recuadro "➕ Agregar
+  letra" (🔎 buscar en internet, repetible cambiando nombre/artista · 📋 pegar la letra), y aviso claro y fijo al
+  "Cargar" un pedido sin letra.

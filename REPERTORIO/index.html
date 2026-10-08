@@ -5862,6 +5862,12 @@ function entRenderChips(preselId) {
         wrap.style.display = 'none';
         wrap.innerHTML = '';
         if (activo) entCargarAsset(activo);
+        else {   // canción sin letra ni recursos (p. ej. recién cargada desde un pedido)
+            entrenadorAssetActivo = null;
+            entLimpiarLetra();
+            document.getElementById('ent-btn-sync').classList.remove('visible', 'on');
+            entRenderZona();   // muestra "Sin letra"
+        }
         return;
     }
     wrap.style.display = '';
@@ -5877,6 +5883,13 @@ function entRenderChips(preselId) {
             </div>
         </div>`;
     if (activo) entCargarAsset(activo);
+}
+
+function entLimpiarLetra() {
+    entrenadorLines = [];
+    entrenadorStanzas = [];
+    entrenadorLineIdx = -1;
+    entSyncMode = false;
 }
 
 function entResEtiqueta(a) {
@@ -5916,6 +5929,10 @@ function entCargarAsset(asset, userInitiated = false) {
     if (entRitmoPlayer) { try { entRitmoPlayer.stop(); } catch (_) {} entRitmoPlayer = null; }
     const zona = document.getElementById('ent-zona');
     const ocultarRow = document.getElementById('ent-mode-btns');
+
+    // Recurso sin letra: la letra de la canción anterior no debe quedar viva (se vería o se
+    // podría editar encima de este recurso).
+    if (asset.tipo !== 'letra' && asset.tipo !== 'cifrado') entLimpiarLetra();
 
     if (asset.tipo === 'letra' || asset.tipo === 'cifrado') {
         if (asset.synced) {
@@ -6204,6 +6221,9 @@ function entStanzaHTML(stanza) {
 
 function entRenderZona(forzarOrigIdx = null) {
     const zona = document.getElementById('ent-zona');
+    // Ritmo, metalófono, PDF…: tienen su propio dibujo; la letra no se pinta encima.
+    const tipoActivo = entrenadorAssetActivo?.tipo;
+    if (tipoActivo && tipoActivo !== 'letra' && tipoActivo !== 'cifrado') return;
     if (!entrenadorStanzas.length) {
         zona.innerHTML = '<div style="color:#94a3b8">Sin letra</div>'; return;
     }
