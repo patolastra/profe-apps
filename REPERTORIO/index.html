@@ -3264,15 +3264,37 @@ async function cargarTodo() {
         sb.from('repertorio_assets').select('*').order('orden'),
         sb.from('repertorio_cancion_contextos').select('*'),
     ]);
-    canciones = (songs || []).map(c => ({ ...c, contextos: [], assets: [] }));
+    canciones = (songs || []).map(c => ({ ...c, contextos: [], assets: [], personal: false }));
     for (const a of (assets || [])) {
         const c = canciones.find(x => x.id === a.cancion_id);
         if (c) c.assets.push(a);
     }
+    // De esta tabla solo cuenta ⭐ Personal: los cursos salen de la sesión de cada curso (deuda AU).
     for (const cc of (ctxs || [])) {
         const c = canciones.find(x => x.id === cc.cancion_id);
-        if (c && !c.contextos.includes(cc.contexto)) c.contextos.push(cc.contexto);
+        if (c && cc.contexto === 'PERSONAL') c.personal = true;
     }
+    recalcCursos();
+}
+
+// Cursos de cada canción = sesiones del Entrenador vinculadas a un curso que la incluyen (única verdad, deuda AU).
+// c.contextos queda como lista derivada: ['PERSONAL'?, ...nombres de curso].
+function recalcCursos() {
+    const porCancion = {};
+    for (const s of sesiones) {
+        const ctx = s.contexto_id && contextosDB.find(x => x.id === s.contexto_id);
+        if (!ctx) continue;
+        for (const it of (s.canciones || [])) (porCancion[it.cancion_id] ||= []).push(ctx.nombre);
+    }
+    for (const c of canciones) {
+        c.contextos = [...(c.personal ? ['PERSONAL'] : []), ...(porCancion[c.id] || [])];
+    }
+}
+
+// Sesión del curso (la de su contexto_id), o null.
+function sesionDelCurso(ctxNombre) {
+    const ctx = contextosDB.find(x => x.nombre === ctxNombre);
+    return ctx ? sesiones.find(s => s.contexto_id === ctx.id) || null : null;
 }
 
 // URL pública de un archivo en Storage
@@ -3293,14 +3315,63 @@ async function sbUpsertAsset(a) {
     if (error) throw error;
 }
 
-// Guardar contextos (reemplaza todos)
-async function sbGuardarContextos(cancionId, contextos) {
-    await sb.from('repertorio_cancion_contextos').delete().eq('cancion_id', cancionId);
-    if (contextos.length) {
-        await sb.from('repertorio_cancion_contextos').insert(
-            contextos.map(ctx => ({ cancion_id: cancionId, contexto: ctx }))
-        );
+// ⭐ Personal: marca propia de la canción (no es un curso). Solo toca su fila PERSONAL.
+async function sbGuardarPersonal(cancionId, on) {
+    const q = sb.from('repertorio_cancion_contextos');
+    const { error } = on
+        ? await q.insert({ cancion_id: cancionId, contexto: 'PERSONAL' })
+        : await q.delete().eq('cancion_id', cancionId).eq('contexto', 'PERSONAL');
+    if (error) throw error;
+}
+
+// Agrega o saca una canción de la sesión del curso (lee la versión al día antes de escribir).
+// Si el curso no tiene sesión, la crea ("Recreo 2026"). Avisa a las otras pestañas (Entrenador).
+async function cursoAsignar(ctxNombre, cancionId, on) {
+    const ctx = contextosDB.find(x => x.nombre === ctxNombre);
+    if (!ctx) throw new Error('Curso no encontrado');
+    let s = sesiones.find(x => x.contexto_id === ctx.id);
+    if (!s) {
+        if (!on) return;
+        const nom = ctxNombre.charAt(0) + ctxNombre.slice(1).toLowerCase();
+        s = { id: genId(), nombre: `${nom} ${new Date().getFullYear()}`, canciones: [], creada_en: Date.now(), contexto_id: ctx.id };
+        await guardarSesion(s);
+        sesiones.unshift(s);
     }
+    const { data, error } = await sb.from(PED_TABLA).select('canciones').eq('id', s.id).single();
+    if (error) throw error;
+    let cs = Array.isArray(data?.canciones) ? data.canciones : [];
+    if (on) {
+        if (!cs.some(i => i.cancion_id === cancionId)) cs.push({ cancion_id: cancionId, orden: cs.length, loops: [] });
+    } else {
+        cs = cs.filter(i => i.cancion_id !== cancionId);
+        cs.forEach((i, n) => i.orden = n);
+    }
+    const { error: e2 } = await sb.from(PED_TABLA).update({ canciones: cs }).eq('id', s.id);
+    if (e2) throw e2;
+    cursoAplicar(s.id, cs);
+    pedidosCanal?.postMessage({ tipo: 'curso', sesionId: s.id, canciones: cs, sesion: { ...s, canciones: cs } });
+}
+
+// Aplica en memoria la lista de canciones de una sesión cambiada desde la Biblioteca (aquí o en otra pestaña).
+function cursoAplicar(sesionId, cs, sesionNueva) {
+    let s = sesiones.find(x => x.id === sesionId);
+    if (!s && sesionNueva) { s = pedClon(sesionNueva); sesiones.unshift(s); }
+    if (s) s.canciones = pedClon(cs);
+    if (entSesionActual?.id === sesionId) {
+        const ids = new Set(cs.map(i => i.cancion_id));
+        const actual = entSesionActual.canciones[entSesionCIdx]?.cancion_id;
+        entSesionActual.canciones = entSesionActual.canciones.filter(i => ids.has(i.cancion_id));
+        cs.forEach(it => {
+            if (!entSesionActual.canciones.some(i => i.cancion_id === it.cancion_id)) entSesionActual.canciones.push(pedClon(it));
+        });
+        entSesionActual.canciones.forEach((i, n) => i.orden = n);
+        const j = entSesionActual.canciones.findIndex(i => i.cancion_id === actual);
+        entSesionCIdx = j >= 0 ? j : Math.min(entSesionCIdx, Math.max(0, entSesionActual.canciones.length - 1));
+        entRenderListaSesion();
+    }
+    recalcCursos();
+    render();
+    if (songActiva) renderPanel();
 }
 
 // Subir archivo a Storage con prefijo por tipo
@@ -3434,12 +3505,12 @@ function cardHTML(c) {
 }
 
 function renderChips() {
-    // cursos que tienen canciones asignadas; PERSONAL siempre primero (no entra al sort alfabético)
-    const usados = [...new Set(canciones.flatMap(c => c.contextos||[]))];
-    const tienePersonal = usados.includes('PERSONAL');
+    // cursos = los que tienen sesión del Entrenador (aunque esté vacía); PERSONAL siempre primero
+    const conSesion = sesiones.map(s => s.contexto_id && contextosDB.find(x => x.id === s.contexto_id)?.nombre).filter(Boolean);
+    const tienePersonal = canciones.some(c => c.personal);
     const cursosUsados = [
         ...(tienePersonal ? ['PERSONAL'] : []),
-        ...usados.filter(c => c !== 'PERSONAL').sort()
+        ...[...new Set(conSesion)].sort()
     ];
     const estilosUsados = [...new Set(canciones.map(c => c.estilo).filter(Boolean))].sort();
 
@@ -3801,18 +3872,25 @@ function assetItemHTML(a, i) {
 async function toggleCurso(ctx, btn) {
     if (!songActiva) return;
     const c = canciones.find(x => x.id === songActiva.id);
-    if (!c.contextos) c.contextos = [];
-    const idx = c.contextos.indexOf(ctx);
-    if (idx === -1) {
-        c.contextos.push(ctx);
-        btn.classList.add('asignado');
-    } else {
-        c.contextos.splice(idx, 1);
-        btn.classList.remove('asignado');
+    try {
+        if (ctx === 'PERSONAL') {
+            await sbGuardarPersonal(c.id, !c.personal);
+            c.personal = !c.personal;
+            recalcCursos();
+            render(); renderPanel();
+            toast(c.personal ? 'Marcada como ⭐ Personal' : 'Ya no es ⭐ Personal');
+            return;
+        }
+        const on = !(c.contextos || []).includes(ctx);
+        const s = sesionDelCurso(ctx);
+        if (!on && !confirm(`¿Sacar "${c.nombre}" de ${ctxLabel(ctx)}?\nSale de la sesión del curso "${s?.nombre || ''}" y se pierden sus loops en esa sesión.`)) return;
+        btn.disabled = true;
+        await cursoAsignar(ctx, c.id, on);
+        toast(on ? `Agregada a ${ctxLabel(ctx)}${s ? '' : ' (sesión del curso creada)'}` : `Sacada de ${ctxLabel(ctx)}`);
+    } catch (e) {
+        toast('No se pudo cambiar el curso: ' + (e?.message || e));
+        btn.disabled = false;
     }
-    await sbGuardarContextos(c.id, c.contextos);
-    render();
-    toast('Curso actualizado');
 }
 
 // ── MODAL NUEVA / EDITAR ─────────────────────────────────────────────────────
@@ -9189,6 +9267,7 @@ pedidosCanal?.addEventListener('message', ev => {
         render();
     }
     if (m.tipo === 'pedidos' || m.tipo === 'cargada') pedidosAplicar(m.sesionId, m.pedidos || [], m.canciones);
+    if (m.tipo === 'curso') cursoAplicar(m.sesionId, m.canciones || [], m.sesion);
 });
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -9202,6 +9281,7 @@ pedidosCanal?.addEventListener('message', ev => {
     try { await cargarSesiones(); } catch (e) { /* tabla puede no existir aún */ }
     try { await cargarLecciones(); } catch (e) { /* tabla puede no existir aún */ }
     await cargarContextosDB();
+    recalcCursos();   // los cursos salen de las sesiones (necesita sesiones + contextos)
     // Deep-link de contexto: ?ctx=PERSONAL (u otro) pre-aplica el filtro
     const params  = new URLSearchParams(location.search);
     const ctxParam = params.get('ctx');

@@ -3538,3 +3538,41 @@ como respaldo).*
 - **Prueba (servidor local):** Biblioteca con título y encabezado "Biblioteca"; Pizarra y Lector con los textos nuevos;
   sin errores en consola.
 - **Cerrada; pendiente que el PO la vea en uso.**
+
+### AU. Biblioteca ↔ cursos: una sola verdad (la sesión del curso)
+*Origen: PO (2026-10-08): "quiero conectar más la Biblioteca con los cursos; hoy la vinculación es a través de las
+sesiones, pero la Biblioteca tiene un menú de cursos que debería apuntar a lo mismo y no lo hace; cada curso tiene un
+subconjunto de la Biblioteca y debe poder administrarse directamente desde la Biblioteca, no desde Sesiones".*
+- **Auditoría:** hay dos vínculos canción↔curso que no se hablan: (a) la **sesión del curso** del Entrenador
+  (`repertorio_sesiones_entrenamiento.contexto_id` + `canciones` JSONB, una por curso), que es la que se usa en clase y
+  abre el Planificador; (b) la tabla `repertorio_cancion_contextos` (por **nombre** de contexto), que alimenta los
+  botones "Curso" de la Biblioteca y se marca a mano en la ficha de la canción. Datos (2026-10-08): casi no coinciden
+  (Sexto 3 vs 10, Tercero 1 vs 9; Segundo/Octavo/Castigadas/Kids 0 vs 9/4/4/2; Cuarto y Quinto con 1 canción solo en
+  el botón; Recreo 5 canciones y sin sesión). `PERSONAL` vive en la misma tabla pero no es curso (lo usan Lector y
+  Planificador para excluir). Sesiones sin curso (Salsas, Cuecas 2026, Mine, Pancho Morales) son listas libres.
+- **DECISIÓN del PO (adopta las recomendaciones):**
+  1. La **sesión del curso es la única verdad**; los botones de curso de la Biblioteca la muestran (todos los cursos con
+     sesión, aunque estén vacíos).
+  2. Se **administra desde la Biblioteca**: marcar/desmarcar un curso en la ficha de la canción la agrega (al final) o la
+     saca de la sesión del curso (sacarla pide confirmación: se pierden sus loops en esa sesión).
+  3. Curso sin sesión → se crea sola al marcar su primera canción ("<Curso> <año>").
+  4. **⭐ Personal** sigue como marca aparte (tabla actual).
+  5. Ordenar sigue en el Entrenador.
+  6. Antes del cambio se suman a sus sesiones las canciones que hoy están solo en el botón (Sexto y Quinto: "Si Antes Te
+     Hubiera Conocido"; Cuarto: "Melodía Andina"; Recreo: 5 canciones → sesión nueva). Autorizado por el PO (escritura
+     de datos, sin cambio de tablas).
+  7. Vínculo **por canción** (con todos sus recursos); por recurso suelto, más adelante si hace falta.
+- **Implementación (2026-10-08, `REPERTORIO/index.html`):** `recalcCursos()` arma los cursos de cada canción desde las
+  sesiones con `contexto_id`; de `repertorio_cancion_contextos` solo se lee la fila `PERSONAL`. Botones de curso = cursos
+  con sesión (aunque vacía). En la ficha, `toggleCurso` → `cursoAsignar` lee la sesión al día, agrega al final o saca
+  (con confirmación), crea la sesión si falta y avisa a las otras pestañas por el canal `profe-repertorio-pedidos`
+  (`tipo: 'curso'`, `cursoAplicar` actualiza la lista del Entrenador abierto). ⭐ Personal escribe solo su fila
+  (`sbGuardarPersonal`). Las filas de curso antiguas de la tabla quedan sin uso (no se borraron).
+- **Datos (autorizado por el PO):** sumadas "Si Antes Te Hubiera Conocido" a Sexto 2026 (11) y Quinto 2026 (3),
+  "Melodía Andina, loop inicial" a Cuarto 2026 (4); creada **Recreo 2026** con Las Avispas, Waka Waka, Hakuna Matata,
+  Baianá y Nunca Me He Sacado un 7.
+- **Prueba (servidor local, datos reales):** botones Personal 13 · Castigadas 4 · Cuarto 3 · Kids 2 · Octavo 4 ·
+  Quinto 2 · Segundo 9 · Séptimo 2 · Sexto 10 · Tercero 9 (antes de sumar); con el Entrenador de Recreo abierto en otra
+  pestaña, sacar "Nunca Me He Sacado un 7" desde la ficha la quitó de su lista al instante y volver a marcarla la
+  devolvió al final (Supabase igual); ⭐ Personal marcar/desmarcar sin tocar otras filas. Sin errores.
+- **Cerrada; pendiente probar en clase.**
