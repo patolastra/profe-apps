@@ -3601,4 +3601,7 @@ Biblioteca, es un desastre".*
 - **Ajuste del PO (2026-10-08): orden de los botones de curso.** Fila 1: "📚 Todos", 1°–6°; fila 2: 7°, 8°, talleres
   (Castigadas, Kids, Recreo) y ⭐ Personal, cada uno con su ícono. Alias compactos "Kids" y "Recreo" (regla §4.8, nombre
   completo en `title`). Solo aparecen cursos con sesión (hoy Primero no tiene). Prueba: 1400 px, filas como lo pedido.
+- **Ajuste del PO (2026-10-08): cursos de la ficha de la canción** en filas: 1°–3° | 4°–6° | 7°–8° | Castigadas, Kids,
+  Recreo | ⭐ Personal. Salen de la ficha Orientación, Enlace, Cuerdas y General (no llevan canciones; no tenían sesión).
+  Prueba: filas exactas como lo pedido.
 - **Cerrada; pendiente que el PO la vea en uso.**
