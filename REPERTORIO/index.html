@@ -139,6 +139,7 @@
         }
         #cat-toggle { flex-shrink: 0; }
         #chips-cursos { display: contents; }
+        .chips-salto { flex-basis: 100%; height: 0; }
         #filtros-chips { flex: 1; min-width: 0; }
         #filtros-sel { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
         .filtro-sel {
@@ -2631,7 +2632,7 @@
     </div>
     <div class="sep"></div>
     <div id="filtros-chips">
-        <button class="chip activo" data-filtro="todos" onclick="setFiltro(this)">Todos los cursos</button>
+        <button class="chip activo" data-filtro="todos" onclick="setFiltro(this)" title="Todos los cursos">📚 Todos</button>
         <div id="chips-cursos"></div>
     </div>
     <button id="btn-practicar" onclick="practicarCurso()" title="Practicar la sesión de este curso en el Entrenador" style="display:none">🏋️ Practicar</button>
@@ -3235,6 +3236,9 @@ const CONTEXTOS = [
 // Etiqueta visible de contexto desde la identidad central (contextos.js).
 // PERSONAL conserva su rótulo propio (no es un contexto de la tabla).
 const ctxLabel = ctx => ctx === 'PERSONAL' ? '⭐ Personal' : ctxDisplay(ctx);
+// Alias compacto para los botones de curso (regla §4.8; el title lleva el nombre completo).
+const CTX_CORTO = { 'KIDS CASTIGADAS': 'Kids', 'RECREO': 'Recreo' };
+const ctxCorto = ctx => CTX_CORTO[ctx] ? `${ctxIcono(ctx)} ${CTX_CORTO[ctx]}` : ctxLabel(ctx);
 
 const TIPOS_ASSET = {
     letra:     { ico: '📝', label: 'Letra',      clase: 'letra'   },
@@ -3534,19 +3538,22 @@ function cardHTML(c) {
 
 function renderChips() {
     // cursos = los que tienen sesión del Entrenador (aunque esté vacía); PERSONAL siempre primero
-    const conSesion = sesiones.map(s => s.contexto_id && contextosDB.find(x => x.id === s.contexto_id)?.nombre).filter(Boolean);
-    const tienePersonal = canciones.some(c => c.personal);
+    // Orden pedido por el PO: 1°–6° | 7°, 8°, talleres (Castigadas, Kids, Recreo) y ⭐ Personal; '|' = salto de fila
+    const conSesion = new Set(sesiones.map(s => s.contexto_id && contextosDB.find(x => x.id === s.contexto_id)?.nombre).filter(Boolean));
+    if (canciones.some(c => c.personal)) conSesion.add('PERSONAL');
+    const ORDEN = ['PRIMERO','SEGUNDO','TERCERO','CUARTO','QUINTO','SEXTO','|','SEPTIMO','OCTAVO','CASTIGADAS','KIDS CASTIGADAS','RECREO','PERSONAL'];
     const cursosUsados = [
-        ...(tienePersonal ? ['PERSONAL'] : []),
-        ...[...new Set(conSesion)].sort()
+        ...ORDEN.filter(c => c === '|' || conSesion.has(c)),
+        ...[...conSesion].filter(c => !ORDEN.includes(c)).sort()
     ];
     const estilosUsados = [...new Set(canciones.map(c => c.estilo).filter(Boolean))].sort();
 
     const wrap = document.getElementById('chips-cursos');
     wrap.innerHTML = cursosUsados.map(c => {
+        if (c === '|') return '<span class="chips-salto"></span>';
         const activo = filtroCurso === c ? 'activo' : '';
         const cls = c === 'PERSONAL' ? 'personal' : 'curso';
-        return `<button class="chip ${cls} ${activo}" data-filtro="curso:${c}" onclick="setFiltro(this)" title="${ctxLabel(c)}">${ctxLabel(c)}</button>`;
+        return `<button class="chip ${cls} ${activo}" data-filtro="curso:${c}" onclick="setFiltro(this)" title="${ctxLabel(c)}">${ctxCorto(c)}</button>`;
     }).join('');
     document.querySelector('#filtros-chips .chip[data-filtro="todos"]').classList.toggle('activo', !filtroCurso);
 

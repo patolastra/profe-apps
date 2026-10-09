@@ -3598,4 +3598,7 @@ Biblioteca, es un desastre".*
 - **Prueba (servidor local):** 1400 px en 2 filas; Sexto → 11 canciones y Practicar visible; Sexto + Cueca → 3; orden
   A–Z canción; ⭐ Personal sin Practicar; Practicar abre "Sexto 2026" (11) y al cerrar vuelve a la Biblioteca filtrada;
   pestaña Entrenador (`?vista=sesiones`) sin cambios; 375 px sin desborde. Sin errores en consola.
+- **Ajuste del PO (2026-10-08): orden de los botones de curso.** Fila 1: "📚 Todos", 1°–6°; fila 2: 7°, 8°, talleres
+  (Castigadas, Kids, Recreo) y ⭐ Personal, cada uno con su ícono. Alias compactos "Kids" y "Recreo" (regla §4.8, nombre
+  completo en `title`). Solo aparecen cursos con sesión (hoy Primero no tiene). Prueba: 1400 px, filas como lo pedido.
 - **Cerrada; pendiente que el PO la vea en uso.**
