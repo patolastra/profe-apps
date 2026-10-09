@@ -3604,4 +3604,8 @@ Biblioteca, es un desastre".*
 - **Ajuste del PO (2026-10-08): cursos de la ficha de la canción** en filas: 1°–3° | 4°–6° | 7°–8° | Castigadas, Kids,
   Recreo | ⭐ Personal. Salen de la ficha Orientación, Enlace, Cuerdas y General (no llevan canciones; no tenían sesión).
   Prueba: filas exactas como lo pedido.
+- **Ajuste del PO (2026-10-08): Cuerdas en ambos menús, con los talleres** (Castigadas, Kids, Cuerdas, Recreo). La barra
+  muestra ahora siempre la lista completa (también cursos aún sin sesión, como Primero y Cuerdas; Practicar solo aparece
+  si la sesión tiene canciones). Botones de la ficha sin mayúsculas forzadas, para que los 4 talleres quepan en una fila.
+  Prueba: barra 2 filas y ficha 5 filas como lo pedido; Cuerdas → 0 canciones, sin Practicar.
 - **Cerrada; pendiente que el PO la vea en uso.**
