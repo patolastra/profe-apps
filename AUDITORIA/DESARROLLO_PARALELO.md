@@ -3761,3 +3761,7 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   - **Prueba (servidor local, sin guardar datos reales):** formato y su texto guardado, Enter en medio de una palabra con
     formato (lo cortado conserva negrita y color), separador y Retroceso que lo quita, marco de selección (3 bloques),
     texto→otro bloque (3 bloques), Supr sobre la selección, arrastre de grupo, menú "3 bloques".
+- **Ajustes del PO (2026-10-12):** título de las notas del mismo tamaño que el de las clases; **"🎨 Color"** en el menú ⋮⋮
+  (de un bloque o de los seleccionados): Color 1 (normal) / 2 (naranjo) / 3 (azul) para todo el bloque, reemplazando los
+  colores que tuviera adentro (negrita/cursiva se conservan). Prueba: `hola **mundo** {3:azul}` → color 2 =
+  `{2:hola **mundo** azul}`; color 1 sobre la selección quita los colores.

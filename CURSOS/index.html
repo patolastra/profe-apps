@@ -89,7 +89,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .ent-meta input[type=date]:hover { border-color: var(--linea); color: var(--texto); }
 .ent-menu { padding: 0 6px; border-radius: 6px; font-size: 18px; line-height: 1.2; color: var(--suave); }
 .ent-menu:hover { background: var(--hover); }
-.entrada.nota .ent-tit { font-size: 22px; }
 .ent-audios audio { width: 100%; max-width: 420px; height: 36px; }
 .ent-audios .aud { margin-bottom: 10px; }
 .ent-audios .aud-lbl { font-size: 12px; color: var(--suave); margin-bottom: 2px; }
@@ -1125,7 +1124,7 @@ function elegir(k) {
 }
 function abrirSubmenu(it, el) {
     const s = $('submenu');
-    s.innerHTML = it.sub.map((x, j) => `<button class="m-it" data-j="${j}"><span class="m-ico">${x.ico}</span>
+    s.innerHTML = it.sub.map((x, j) => `<button class="m-it" data-j="${j}"><span class="m-ico">${x.html ? x.ico : esc(x.ico)}</span>
         <span class="m-lbl">${esc(x.lbl)}</span>${x.activo ? '<span class="m-atajo">✓</span>' : ''}</button>`).join('');
     s.style.display = 'block';
     const r = el.getBoundingClientRect();
@@ -1187,6 +1186,7 @@ function menuBloque(id, asa) {
     const palabras = plano ? plano.split(/\s+/).length : 0;
     abrirMenu([
         { ico: '⇄', lbl: 'Convertir en', sub: itemsTipos(id) },
+        ...(b.t === 'hr' ? [] : [{ ico: '🎨', lbl: 'Color', sub: itemsColor([id]) }]),
         { sep: true },
         { ico: '⧉', lbl: 'Duplicar', atajo: 'Ctrl+D', accion: () => duplicar(id) },
         { ico: '🗑', lbl: 'Eliminar', atajo: 'Supr', peligro: true, accion: () => eliminar(id) },
@@ -1201,11 +1201,37 @@ function menuBloque(id, asa) {
 function menuGrupo(ids, asa) {
     abrirMenu([
         { ico: '⇄', lbl: 'Convertir en', sub: TIPOS.filter(x => x.t !== 'hr').map(x => ({ ico: x.ico, lbl: x.lbl, accion: () => convertirGrupo(ids, x.t) })) },
+        { ico: '🎨', lbl: 'Color', sub: itemsColor(ids) },
         { sep: true },
         { ico: '⧉', lbl: 'Duplicar', atajo: 'Ctrl+D', accion: () => duplicar(ids) },
         { ico: '🗑', lbl: 'Eliminar', atajo: 'Supr', peligro: true, accion: () => eliminar(ids) },
     ], asa, { titulo: `${ids.length} bloques`, alCerrar: () => seleccionar(ids) });
     menuBloqueId = ids;
+}
+// Color de todo el bloque (o de los seleccionados): reemplaza los colores que tenga adentro.
+const COLORES = [
+    { c: 1, lbl: 'Color 1 (normal)', ico: '<span style="font-weight:700">A</span>' },
+    { c: 2, lbl: 'Color 2 (naranjo)', ico: '<span style="color:var(--c2);font-weight:700">A</span>' },
+    { c: 3, lbl: 'Color 3 (azul)', ico: '<span style="color:var(--c3);font-weight:700">A</span>' },
+];
+function colorDe(x) { const m = String(x).match(/^\{([23]):[\s\S]*\}$/); return m && mdAHtml(x).startsWith('<font') ? +m[1] : 1; }
+function itemsColor(ids) {
+    const E = entDeBloque(ids[0]);
+    const uno = ids.length === 1 ? E?.bloques[idx(E, ids[0])] : null;
+    return COLORES.map(k => ({ ico: k.ico, html: true, lbl: k.lbl, activo: uno && colorDe(uno.x) === k.c, accion: () => colorear(ids, k.c) }));
+}
+function colorear(ids, c) {
+    const E = entDeBloque(ids[0]); if (!E) return;
+    E.bloques.forEach(b => {
+        if (!ids.includes(b.id) || b.t === 'hr' || !b.x) return;
+        const d = document.createElement('div');
+        d.innerHTML = mdAHtml(b.x);
+        d.querySelectorAll('font').forEach(f => f.replaceWith(...f.childNodes));
+        const md = mdDeDom(d);
+        b.x = c === 1 ? md : `{${c}:${md}}`;
+    });
+    pintarBloques(E); marcarSucio(E);
+    if (ids.length > 1) seleccionar(ids);
 }
 function convertirGrupo(ids, t) {
     const E = entDeBloque(ids[0]); if (!E) return;
