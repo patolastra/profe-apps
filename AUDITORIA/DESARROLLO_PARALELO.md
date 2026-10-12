@@ -3735,3 +3735,14 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   avisa "Falta crear la tabla…".
 - **Tabla creada por el PO (2026-10-12)** (prueba: crear y borrar una subpágina, ok). **Pendiente:** probar página del curso, General y subpáginas con la
   tabla real; paso 2 (imágenes, audio, enlaces a la Biblioteca) y celular.
+- **Ajuste del PO (2026-10-12): "un solo histórico".** Sin colapsables ni página fija del curso. **3 columnas:** cursos |
+  entradas del curso (clases + notas, por mes, lo más nuevo arriba) | **una sola página con todo el histórico** (cada
+  clase y cada nota es un título con su editor). Al recorrer la página se marca la entrada; al tocarla, la página salta
+  ahí. **Todas las clases hasta hoy** (las vacías en gris, se puede escribir en ellas). **Notas** = `bitacora_paginas`
+  con **fecha editable** (por defecto hoy; el mismo día van sobre la clase); "＋ Nota" en la 2ª columna; ⋯ = eliminar.
+  Columna nueva `bitacora_paginas.fecha` (`supabase/bitacora_paginas_fecha.sql`, la ejecuta el PO; mientras no esté, la
+  fecha sale del día de creación y cambiarla avisa). Las filas `tipo='curso'` que existan se muestran como notas.
+- **Prueba (servidor local, sin escribir bitácoras reales):** Tercero: 23 clases en orden, meses en la 2ª columna, clic en
+  "Lun 31 ago" salta y la marca; al bajar se marca la entrada de arriba. General: "＋ Nota" crea la nota arriba con el
+  cursor en su título (nota de prueba borrada). Las 3 notas vacías de General y 1 página vacía de otro curso son de la
+  prueba del PO (no borradas).
