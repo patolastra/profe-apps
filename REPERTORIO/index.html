@@ -1959,6 +1959,28 @@
         .ent-sl-res button { text-align: left; background: rgba(59,130,246,.1); color: inherit; border-color: rgba(59,130,246,.5); font-weight: 600; white-space: normal; }
         .ent-sl-res small { opacity: .65; font-weight: 500; }
         .ent-sl-msg { font-size: .85rem; opacity: .75; margin: 0 0 10px; }
+        /* Buscar letras con tiempos y probarlas contra el audio (deuda AW) */
+        .ent-sl-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px;
+            border: 1px solid rgba(59,130,246,.35); background: rgba(59,130,246,.07); }
+        .ent-sl-item.desc { opacity: .4; }
+        .ent-sl-item .t { flex: 1; min-width: 0; font-weight: 600; font-size: .9rem; }
+        .ent-sl-item .t small { display: block; opacity: .7; font-weight: 500; }
+        .ent-sl-item .ok { color: #16a34a; font-weight: 700; }
+        .ent-sl-item button { padding: 5px 10px; font-size: .82rem; }
+        #ent-busq-modal { position: absolute; inset: 0; z-index: 60; background: rgba(15,23,42,.6);
+            display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; }
+        #ent-busq-modal .ent-sl { background: #1e293b; border-style: solid; position: relative; margin-top: 60px; }
+        .ent-light #ent-busq-modal .ent-sl { background: #fff; }
+        #ent-busq-cerrar { position: absolute; top: 10px; right: 10px; background: transparent !important;
+            border: none !important; color: inherit !important; font-size: 1.1rem; }
+        #ent-prueba-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 14px;
+            background: #1d4ed8; color: #fff; font-size: .88rem; font-weight: 600; flex-shrink: 0; }
+        #ent-prueba-bar[hidden] { display: none; }
+        #ent-prueba-bar .info { flex: 1; min-width: 0; }
+        #ent-prueba-bar .info small { opacity: .8; font-weight: 500; }
+        #ent-prueba-bar button { font: inherit; font-size: .85rem; font-weight: 700; padding: 5px 12px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,.5); background: transparent; color: #fff; cursor: pointer; }
+        #ent-prueba-bar button.usar { background: #16a34a; border-color: #16a34a; }
         #ent-zona {
             flex: 1;
             overflow-y: auto;
@@ -3164,6 +3186,7 @@
                 <button id="ent-btn-sync" onclick="entToggleSync()">Sync</button>
                 <button id="ent-btn-sync-save" onclick="entGuardarSyncAsset()" style="display:none">Guardar</button>
                 <button id="ent-btn-editar" onclick="entToggleEdicion()" title="Modo edición de letra (Esc para salir)">Editar</button>
+                <button id="ent-btn-buscar-letra" onclick="entBusqAbrir()" title="Buscar otra sincronización en internet y probarla con el audio">🔎</button>
                 <!-- Toggle único de vista de la letra: alterna Scroll ↔ Diapositiva (renderizado) -->
                 <button id="ent-btn-vista" class="ent-vm-btn activo" onclick="entToggleVista()" title="Alternar vista de la letra: Scroll / Diapositiva">Scroll</button>
             </div>
@@ -3181,6 +3204,7 @@
             <div id="esl-list"></div>
         </div>
         <div id="ent-left">
+            <div id="ent-prueba-bar" hidden></div>
             <div id="ent-zona"></div>
             <div id="ent-progress-wrap">
                 <div id="ent-progress-bar" onclick="entrenadorSeek(event)">
@@ -6087,6 +6111,8 @@ function abrirEntrenador(songId) {
 
 function cerrarEntrenador() {
     if (entModoEdicion) entSalirEdicion();   // guardar la letra en edición antes de cerrar
+    if (entPrueba) entPruebaFin();
+    entBusqCerrar();
     // El botón ← y Escape usan esta función también al practicar una sesión: guardar
     // cualquier config pendiente y salir de modo sesión para no contaminar el modo
     // individual (los triggers de pitch/velocidad se guían por estos flags).
@@ -6171,10 +6197,10 @@ function entRenderChips(preselId) {
 // se crea el recurso "letra" de la canción y queda abierto, listo para sincronizar.
 function entSinLetraMostrar(zona) {
     const s = entrenadorSong || {};
-    const q = [s.nombre, s.artista].filter(Boolean).join(' ');
+    const q = entBusq.q || [s.nombre, s.artista].filter(Boolean).join(' ');
     zona.innerHTML = `<div class="ent-sl">
         <h3>Esta canción no tiene letra</h3>
-        <p>Búscala en internet o pégala. Queda guardada en la canción, lista para sincronizar.</p>
+        <p>Búscala en internet (▶ Probar la escucha con tu audio antes de usarla) o pégala. Queda guardada en la canción, lista para sincronizar.</p>
         <div class="ent-sl-fila"><input id="ent-sl-q" value="${entEsc(q)}" placeholder="Nombre y artista">
             <button onclick="entSinLetraBuscar()">🔎 Buscar en internet</button></div>
         <div id="ent-sl-msg" class="ent-sl-msg"></div>
@@ -6187,7 +6213,11 @@ function entSinLetraMostrar(zona) {
         <button id="ent-sl-btn-pegar" class="sec" onclick="entSinLetraPegar()">📋 Pegar la letra</button>
     </div>`;
     // Lo que se escribe aquí no son atajos del Entrenador (Espacio, flechas, letras…).
-    zona.querySelectorAll('input, textarea').forEach(el => el.addEventListener('keydown', e => {
+    entBusqTeclas(zona);
+    if (entBusq.lista.length && entBusq.cancionId === s.id) entBusqRender();   // volver de una prueba: la lista sigue
+}
+function entBusqTeclas(raiz) {
+    raiz.querySelectorAll('input, textarea').forEach(el => el.addEventListener('keydown', e => {
         e.stopPropagation();
         if (e.key === 'Enter' && el.id === 'ent-sl-q') { e.preventDefault(); entSinLetraBuscar(); }
     }));
@@ -6195,31 +6225,188 @@ function entSinLetraMostrar(zona) {
 // LRCLIB a veces no encuentra con tildes ("Cafuné") y sí sin ellas: si no hay resultados,
 // se reintenta sin tildes.
 async function lrclibBuscar(q) {
-    const pedir = async t => (await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(t)}`)).json();
+    // Un reintento: LRCLIB a veces no responde a la primera (deuda AW).
+    const pedir1 = async t => {
+        const r = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(t)}`);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    };
+    const pedir = async t => { try { return await pedir1(t); } catch (_) { await new Promise(r => setTimeout(r, 1200)); return pedir1(t); } };
     let data = await pedir(q);
     const sinTildes = q.normalize('NFD').replace(/[̀-ͯ]/g, '');
     if (!data.length && sinTildes !== q) data = await pedir(sinTildes);
     return data;
 }
 const entEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-let entSlResultados = [];
+// ── Buscar letras y probarlas contra el audio (deuda AW) ──
+// entBusq: resultados de la última búsqueda (por canción); entPrueba: la prueba en curso.
+const entBusq = { cancionId: null, q: '', lista: [], descartados: new Set() };
+let entPrueba = null;   // { idx, origenId }
+
+const entFmtDur = seg => isFinite(seg) && seg > 0 ? `${Math.floor(seg / 60)}:${String(Math.round(seg % 60)).padStart(2, '0')}` : '?';
+function entDurAudio() { const d = entAudio()?.duration; return isFinite(d) && d > 0 ? d : null; }
+
+// Letra a guardar desde un resultado: el texto con estrofas si coincide con los versos con tiempos;
+// si no, los versos con tiempos (así la prueba y lo guardado calzan igual).
+function entLetraDeResultado(h) {
+    if (!h.syncedLyrics) return { contenido: h.plainLyrics || '', synced: '' };
+    const conTiempo = parseLRC(h.syncedLyrics).map(l => l.text);
+    const set = new Set(conTiempo);
+    const plain = (h.plainLyrics || '').replace(/\r\n?/g, '\n');
+    const calza = plain.trim() && plain.split('\n').every(l => !l.trim() || set.has(l.trim()));
+    return { contenido: calza ? plain : conTiempo.join('\n'), synced: h.syncedLyrics };
+}
+
 async function entSinLetraBuscar() {
     const q = document.getElementById('ent-sl-q')?.value.trim();
     const msg = document.getElementById('ent-sl-msg'), res = document.getElementById('ent-sl-res');
     if (!q || !msg) return;
     msg.textContent = 'Buscando…'; res.innerHTML = '';
     try {
-        const data = (await lrclibBuscar(q)).filter(h => h.plainLyrics || h.syncedLyrics).slice(0, 6);
-        entSlResultados = data;
-        if (!data.length) { msg.textContent = 'No se encontró. Prueba con otro nombre o solo el artista, o pégala.'; return; }
-        msg.textContent = 'Elige la que corresponde:';
-        res.innerHTML = data.map((h, i) => `<button onclick="entSinLetraUsar(${i})">${entEsc(h.trackName)} — ${entEsc(h.artistName)}
-            <small>${h.syncedLyrics ? '· con tiempos' : '· solo texto'}${h.albumName ? ' · ' + entEsc(h.albumName) : ''}</small></button>`).join('');
-    } catch (_) { msg.textContent = 'Sin conexión para buscar. Puedes pegar la letra.'; }
+        const todos = (await lrclibBuscar(q)).filter(h => h.plainLyrics || h.syncedLyrics);
+        const dur = entDurAudio();
+        const dif = h => dur && h.duration ? Math.abs(h.duration - dur) : 999;
+        const conT = todos.filter(h => h.syncedLyrics).sort((a, b) => dif(a) - dif(b)).slice(0, 10);
+        Object.assign(entBusq, { cancionId: entrenadorSong?.id, q, descartados: new Set(),
+            lista: conT.length ? conT : todos.slice(0, 6) });
+        entBusqRender();
+    } catch (_) {
+        msg.textContent = navigator.onLine
+            ? 'El buscador de letras no respondió. Intenta de nuevo en un rato, o pega la letra.'
+            : 'Sin conexión a internet. Puedes pegar la letra.';
+    }
 }
-function entSinLetraUsar(i) {
-    const h = entSlResultados[i];
-    if (h) entSinLetraGuardar(h.plainLyrics || '', h.syncedLyrics || '', h.id);
+function entBusqRender() {
+    const msg = document.getElementById('ent-sl-msg'), res = document.getElementById('ent-sl-res');
+    if (!msg || !res) return;
+    const L = entBusq.lista, dur = entDurAudio();
+    if (!L.length) { msg.textContent = 'No se encontró. Prueba con otro nombre o solo el artista, o pégala.'; res.innerHTML = ''; return; }
+    msg.textContent = L[0].syncedLyrics
+        ? `Ordenadas por duración${dur ? ` (tu audio dura ${entFmtDur(dur)})` : ''}. Pruébalas con el audio y usa la que calce.`
+        : 'Ninguna trae tiempos; elige la que corresponde:';
+    res.innerHTML = L.map((h, i) => {
+        const d = dur && h.duration ? Math.abs(h.duration - dur) : null;
+        const marca = d == null ? '' : d <= 2 ? ' <span class="ok">✓</span>' : ` (${d < 60 ? Math.round(d) + ' s' : entFmtDur(d)} de diferencia)`;
+        return `<div class="ent-sl-item${entBusq.descartados.has(i) ? ' desc' : ''}">
+            <div class="t">${entEsc(h.trackName)} — ${entEsc(h.artistName)}
+                <small>${h.syncedLyrics ? `⏱ ${entFmtDur(h.duration)}${marca}` : 'solo texto'}${h.albumName ? ' · ' + entEsc(h.albumName) : ''}</small></div>
+            ${h.syncedLyrics ? `<button onclick="entPruebaIr(${i})">▶ Probar</button>` : ''}
+            <button class="sec" onclick="entBusqUsar(${i})">Usar</button></div>`;
+    }).join('');
+}
+
+// Canción con letra: el mismo buscador en una ventana (reemplaza solo al "Usar esta").
+function entBusqAbrir() {
+    if (entModoEdicion || entSyncMode || entPrueba) return;
+    if (entrenadorAssetActivo?.tipo !== 'letra') { toast('Abre la letra de la canción para buscar otra'); return; }
+    const s = entrenadorSong || {};
+    if (entBusq.cancionId !== s.id) Object.assign(entBusq, { cancionId: s.id, q: '', lista: [], descartados: new Set() });
+    const q = entBusq.q || [s.nombre, s.artista].filter(Boolean).join(' ');
+    let m = document.getElementById('ent-busq-modal');
+    if (!m) { m = document.createElement('div'); m.id = 'ent-busq-modal'; document.getElementById('entrenador-overlay').appendChild(m); }
+    m.innerHTML = `<div class="ent-sl" onclick="event.stopPropagation()">
+        <button id="ent-busq-cerrar" onclick="entBusqCerrar()" title="Cerrar">✕</button>
+        <h3>Buscar otra sincronización</h3>
+        <p>Prueba cada resultado con tu audio. La letra actual solo se reemplaza al tocar "Usar esta".</p>
+        <div class="ent-sl-fila"><input id="ent-sl-q" value="${entEsc(q)}" placeholder="Nombre y artista">
+            <button onclick="entSinLetraBuscar()">🔎 Buscar</button></div>
+        <div id="ent-sl-msg" class="ent-sl-msg"></div>
+        <div id="ent-sl-res" class="ent-sl-res"></div></div>`;
+    m.onclick = entBusqCerrar;
+    m.hidden = false;
+    entBusqTeclas(m);
+    if (entBusq.lista.length) entBusqRender(); else entSinLetraBuscar();
+}
+function entBusqCerrar() { const m = document.getElementById('ent-busq-modal'); if (m) { m.hidden = true; m.innerHTML = ''; } }
+
+// ▶ Probar: carga el resultado sin guardar y lo reproduce con el audio desde el comienzo.
+function entPruebaIr(i) {
+    const h = entBusq.lista[i];
+    if (!h?.syncedLyrics) return;
+    const origenId = entPrueba ? entPrueba.origenId
+        : (entrenadorAssetActivo?.tipo === 'letra' ? entrenadorAssetActivo.id : null);
+    entBusqCerrar();
+    const { contenido, synced } = entLetraDeResultado(h);
+    entPrueba = { idx: i, origenId };
+    entCargarAsset({ id: '_prueba', tipo: 'letra', contenido, synced, _prueba: true });
+    ['ent-btn-sync', 'ent-btn-editar', 'ent-asset-chips', 'ent-btn-buscar-letra']
+        .forEach(id => document.getElementById(id)?.classList.add('ent-tools-disabled'));
+    entPruebaBarra();
+    const a = entAudio();
+    if (a?.src) { a.currentTime = 0; a.play().catch(() => {}); }
+}
+function entPruebaBarra() {
+    const bar = document.getElementById('ent-prueba-bar');
+    if (!entPrueba) { bar.hidden = true; bar.innerHTML = ''; return; }
+    const L = entBusq.lista, i = entPrueba.idx, h = L[i], dur = entDurAudio();
+    const conT = L.map((x, j) => j).filter(j => L[j].syncedLyrics);
+    const pos = conT.indexOf(i) + 1;
+    bar.hidden = false;
+    bar.innerHTML = `<div class="info">Probando ${pos} de ${conT.length}: ${entEsc(h.trackName)} — ${entEsc(h.artistName)}
+            <small>· dura ${entFmtDur(h.duration)}${dur ? ` (tu audio ${entFmtDur(dur)})` : ''}${entBusq.descartados.has(i) ? ' · descartada' : ''}</small></div>
+        <button onclick="entPruebaMover(-1)" title="Anterior">◀</button>
+        <button onclick="entPruebaMover(1)" title="Siguiente">▶</button>
+        <button onclick="entPruebaDescartar()">✕ Descartar</button>
+        <button class="usar" onclick="entBusqUsar(${i})">✓ Usar esta</button>
+        <button onclick="entPruebaSalir()" title="Volver a la lista sin cambiar nada">Volver</button>`;
+}
+function entPruebaMover(paso, saltarDescartados = false) {
+    if (!entPrueba) return;
+    const L = entBusq.lista;
+    for (let j = entPrueba.idx + paso; j >= 0 && j < L.length; j += paso) {
+        if (L[j].syncedLyrics && !(saltarDescartados && entBusq.descartados.has(j))) return entPruebaIr(j);
+    }
+    toast(paso > 0 ? 'No hay más resultados' : 'Es el primero');
+}
+function entPruebaDescartar() {
+    if (!entPrueba) return;
+    entBusq.descartados.add(entPrueba.idx);
+    const L = entBusq.lista;
+    const quedan = L.some((h, j) => h.syncedLyrics && !entBusq.descartados.has(j));
+    if (!quedan) { toast('Descartaste todas: busca con otro nombre o pega la letra'); return entPruebaSalir(); }
+    const sig = L.findIndex((h, j) => j > entPrueba.idx && h.syncedLyrics && !entBusq.descartados.has(j));
+    entPruebaIr(sig >= 0 ? sig : L.findIndex((h, j) => h.syncedLyrics && !entBusq.descartados.has(j)));
+}
+// Termina la prueba (sin guardar) y vuelve a la letra de antes y a la lista.
+function entPruebaSalir(abrirLista = true) {
+    if (!entPrueba) return;
+    const origenId = entPrueba.origenId;
+    entPruebaFin();
+    entAudio()?.pause();
+    entRenderChips(origenId);
+    if (abrirLista && origenId) entBusqAbrir();
+}
+function entPruebaFin() {
+    entPrueba = null;
+    entPruebaBarra();
+    ['ent-btn-sync', 'ent-btn-editar', 'ent-asset-chips', 'ent-btn-buscar-letra']
+        .forEach(id => document.getElementById(id)?.classList.remove('ent-tools-disabled'));
+}
+// Usar: canción sin letra → crea la letra; con letra → la reemplaza (con confirmación).
+async function entBusqUsar(i) {
+    const h = entBusq.lista[i];
+    const song = entrenadorSong;
+    if (!h || !song) return;
+    const { contenido, synced } = entLetraDeResultado(h);
+    const origenId = entPrueba?.origenId ?? (entrenadorAssetActivo?.tipo === 'letra' ? entrenadorAssetActivo.id : null);
+    const actual = origenId && (song.assets || []).find(a => a.id === origenId);
+    if (!actual) {
+        if (entPrueba) entPruebaFin();
+        entBusqCerrar();
+        return entSinLetraGuardar(contenido, synced, h.id);
+    }
+    if (!confirm('¿Reemplazar la letra actual de la canción por esta?\nLa sincronización anterior se pierde.')) return;
+    const nuevo = { ...actual, contenido, synced, lrclib_id: h.id };
+    try { await sbUpsertAsset(nuevo); }
+    catch (e) { toast('⚠ No se pudo guardar la letra — revisa la conexión'); return; }
+    for (const lista of [song.assets, canciones.find(c => c.id === song.id)?.assets]) {
+        const a = (lista || []).find(x => x.id === actual.id);
+        if (a) Object.assign(a, { contenido, synced, lrclib_id: h.id });
+    }
+    if (entPrueba) entPruebaFin();
+    entBusqCerrar();
+    toast('Letra reemplazada ✓');
+    entRenderChips(actual.id);
 }
 function entSinLetraPegar() {
     document.getElementById('ent-sl-pegar-zona').hidden = false;
@@ -6279,6 +6466,7 @@ function entSelAsset(id) {
 let entRitmoPlayer = null;
 
 function entCargarAsset(asset, userInitiated = false) {
+    if (entPrueba && !asset._prueba) entPruebaFin();   // otra canción o recurso: termina la prueba sin guardar
     entrenadorAssetActivo = asset;
     entrenadorLineasRevisar = new Set();   // marca temporal: no sobrevive al cambio de asset
     // Detener cualquier ritmo en reproducción al cambiar de asset (evita audio/cursor colgados).
@@ -8382,6 +8570,7 @@ function entBloqueoEdicion(on) {
 }
 
 function entEntrarEdicion() {
+    if (entPrueba) return;   // letra de prueba: no se edita
     if (!entrenadorLines.length) { toast('Sin letra cargada'); return; }
     entModoEdicion = true;
     entBloqueoEdicion(true);
@@ -8552,7 +8741,7 @@ function entSalirEdicion() {
 }
 
 function entToggleSync() {
-    if (entModoEdicion) return;   // borraría el cuadro de edición
+    if (entModoEdicion || entPrueba) return;   // borraría el cuadro de edición / letra de prueba sin guardar
     if (!entSyncMode && entAudioRol === 'karaoke') { toast('La sincronización se edita con la Melodía'); return; }
     // Al SALIR de Sync: si hubo cambios de sincronización sin guardar, flush único.
     // (No guardamos en cada tap; el guardado ocurre al terminar la sesión de sync.)
@@ -8624,7 +8813,7 @@ function entAjustarSync(i, delta) {
 //  · Un fallo NO bloquea los guardados siguientes (la cadena continúa igual).
 let entSaveChain = Promise.resolve();
 function entGuardarAssetActivo(asset) {
-    if (!asset) return entSaveChain;
+    if (!asset || asset._prueba) return entSaveChain;   // la letra en prueba nunca se guarda
     const run = async () => {
         try {
             await sbUpsertAsset(asset);

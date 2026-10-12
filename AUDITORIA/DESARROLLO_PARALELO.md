@@ -3609,3 +3609,32 @@ Biblioteca, es un desastre".*
   si la sesión tiene canciones). Botones de la ficha sin mayúsculas forzadas, para que los 4 talleres quepan en una fila.
   Prueba: barra 2 filas y ficha 5 filas como lo pedido; Cuerdas → 0 canciones, sin Practicar.
 - **Cerrada; pendiente que el PO la vea en uso.**
+
+### AW. Entrenador — buscar letras: aviso honesto y probar sincronizaciones contra el audio
+*Origen: PO (2026-10-12): en el Entrenador, "Mi Buen Amor (feat. Bunbury)" mostraba "Sin conexión para buscar" con
+internet; y "me gustaría ir probando los resultados de la búsqueda para dar con uno con el timing correcto según mi
+audio: escoger, revisar contra el audio y aprobar o descartar, hasta dar con el que se acerque más".*
+- **Auditoría:** `entSinLetraBuscar` mostraba "Sin conexión" ante cualquier falla de LRCLIB; la misma búsqueda, minutos
+  después, dio 20 resultados con tiempos (falla momentánea del buscador, no del internet). Los resultados de LRCLIB traen
+  la duración de su versión: buena pista para elegir el que calza con el audio. Hoy solo se podía elegir a ciegas y solo
+  en canciones sin letra.
+- **DECISIÓN del PO (adopta las recomendaciones):** (1) reintentar 1 vez y avisar "el buscador de letras no respondió"
+  (solo "sin conexión" si de verdad no hay internet); (2) lista (hasta 10 con tiempos) ordenada por cercanía de duración
+  con el audio; (3) "▶ Probar" carga esa letra sin guardar y la reproduce con el audio; barra de prueba "Probando n de
+  N · ✓ Usar esta · ✕ Descartar · ◀ ▶"; (4) también en canciones con letra: "🔎 Buscar otra sincronización", que
+  reemplaza la letra solo al "Usar esta".
+- **Implementación (2026-10-12, `REPERTORIO/index.html`):** `lrclibBuscar` reintenta 1 vez; el aviso distingue "el
+  buscador no respondió" de "sin conexión" (`navigator.onLine`). Resultados (`entBusq`) con tiempos primero, ordenados por
+  diferencia de duración con el audio (✓ si ≤ 2 s), con "▶ Probar" y "Usar". La prueba (`entPrueba`) carga un recurso
+  temporal `_prueba` (nunca se guarda: guarda en `entGuardarAssetActivo`; Sync, Editar, recursos y 🔎 bloqueados) y
+  reproduce desde 0:00; barra azul con ◀ ▶, ✕ Descartar (pasa a la siguiente no descartada), ✓ Usar esta y Volver (vuelve
+  a la letra de antes y a la lista, que se conserva con los descartes). Botón 🔎 junto a Editar: misma búsqueda en una
+  ventana; "Usar esta" reemplaza la letra actual con confirmación (mismo recurso, `contenido` + `synced` + `lrclib_id`).
+  `entLetraDeResultado` usa el texto con estrofas solo si calza con los versos con tiempos. Cambiar de canción/recurso o
+  cerrar el Entrenador termina la prueba sin guardar.
+- **Prueba (servidor local, sin guardar nada):** "Mi Buen Amor" (audio 3:45, sin letra): 10 resultados, el 1° de 3:45 ✓;
+  Probar → 37 versos y suena, Sync bloqueado, en 1:00 resalta "Mi buen amor"; Descartar pasa al 2°, ◀ vuelve al 1°
+  marcado "descartada"; Volver → recuadro con la lista y 1 descartada, la canción sigue sin letra. "Para No Verte Más"
+  (con letra): 🔎 → 10 resultados; Probar y Volver → vuelve su letra (62 versos) y Supabase sin cambios. "Amenaza de
+  Ultracumbia" no está en LRCLIB (aviso "No se encontró"). Sin errores en consola.
+- **Cerrada; pendiente probar en uso (el PO elige la letra de Mi Buen Amor y de Cafuné).**
