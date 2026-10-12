@@ -36,13 +36,13 @@
     function capaEnPizarra(sesionId) {
         const capa = document.createElement('div');
         capa.id = 'recurrente-capa';
-        capa.style.cssText = 'position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;background:#000';
+        capa.style.cssText = 'position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;background:#fff';
         // Título arriba, del ancho de la imagen (4:3): el bloque mide ancho × (0,75 + 0,13) del ancho
         // y cabe entero en la pantalla; la letra se mide en % del ancho del bloque (cqw).
         const caja = document.createElement('div');
         caja.style.cssText = 'width:min(100vw, calc(100vh / 0.88));aspect-ratio:1 / 0.88;display:flex;flex-direction:column;container-type:inline-size';
         const titulo = document.createElement('div');
-        titulo.style.cssText = 'height:13cqw;display:flex;align-items:center;justify-content:center;color:#fff;' +
+        titulo.style.cssText = 'height:13cqw;display:flex;align-items:center;justify-content:center;color:#000;' +
             'font:800 7.9cqw/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.04em;white-space:nowrap';
         const img = document.createElement('img');
         img.alt = '';

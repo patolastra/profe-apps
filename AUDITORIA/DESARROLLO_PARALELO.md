@@ -3701,4 +3701,6 @@ Pizarra; además, la diapo de Silencio y atención que diga arriba de todo, y de
 - **Prueba (servidor local):** 1280×720 y 1024×768: título y imagen del mismo ancho (818 / 873 px), letras ~93 % del
   ancho, todo dentro de la pantalla. Orden "cerrar" a otra sesión: ignorada; a la propia: la Pizarra se cierra (no se
   pudo abrir una ventana emergente real en el panel de pruebas).
+- **Ajuste del PO (2026-10-12):** toda la diapositiva con fondo blanco y el título en negro. Prueba: fondo blanco, texto
+  negro.
 - **Cerrada; pendiente probar en clase.**
