@@ -8,11 +8,12 @@
     const DIAPOS = {
         silencio: { ico: '🤫', titulo: 'Silencio y atención' },
     };
-    // Versión por edad del curso (decisión del PO): 1°–2° infantil, 3°–5° intermedia, el resto adolescente.
+    // Versión por edad del curso (decisión del PO): 1°–3° infantil, 4°–6° intermedia, el resto
+    // (7°, 8°, talleres y Recreo) adolescente.
     function version(ctx) {
         const c = String(ctx || '').toUpperCase();
-        if (['PRIMERO', 'SEGUNDO'].includes(c)) return 'infantil';
-        if (['TERCERO', 'CUARTO', 'QUINTO'].includes(c)) return 'intermedia';
+        if (['PRIMERO', 'SEGUNDO', 'TERCERO'].includes(c)) return 'infantil';
+        if (['CUARTO', 'QUINTO', 'SEXTO'].includes(c)) return 'intermedia';
         return 'adolescente';
     }
     function actual() {
@@ -35,7 +36,7 @@
     function capaEnPizarra(sesionId) {
         const capa = document.createElement('div');
         capa.id = 'recurrente-capa';
-        capa.style.cssText = 'position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;background:#fff';
+        capa.style.cssText = 'position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;background:#000';
         const img = document.createElement('img');
         img.alt = '';
         img.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain';
@@ -43,7 +44,7 @@
         document.body.appendChild(capa);
         const pintar = a => {
             const ver = !!(a && a.sesionId === sesionId && DIAPOS[a.diapo]);
-            if (ver) img.src = new URL(`../comun/diapositivas/${a.diapo}-${a.version}.png`, location.href).href;
+            if (ver) img.src = new URL(`../comun/diapositivas/${a.diapo}-${a.version}.webp`, location.href).href;
             capa.style.display = ver ? 'flex' : 'none';
         };
         onCambio(pintar);

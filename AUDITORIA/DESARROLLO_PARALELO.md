@@ -3666,4 +3666,8 @@ atentos y el profe) en 3 versiones por edad.*
   atención"; elegir pone/quita y el botón se enciende/apaga; versión de Castigadas = adolescente (1°–2° infantil, 3°–5°
   intermedia, resto adolescente). Pizarra en otra pestaña: aparece la imagen a pantalla completa; Esc la quita y el botón
   del Planificador se apaga solo. Sin errores nuevos (solo el 401 conocido de `eventos_uso`).
-- **Cerrada; pendiente probar en clase y reemplazar las imágenes por las 3 versiones a color.**
+- **Imágenes definitivas (PO, 2026-10-12):** 3 versiones a color en 4:3 ("los proyectores muchas veces son más bien
+  cuadrados"), en `.webp` (170–250 KB). **Ajuste del PO de cursos:** 1°–3° infantil, 4°–6° intermedia, 7°–8° (y talleres
+  y Recreo) adolescente. Fondo de la capa negro (bandas a los lados en proyectores 16:9). Prueba: Tercero → infantil,
+  Cuarto y Sexto → intermedia, Séptimo y Castigadas → adolescente; las 3 cargan (1448×1086).
+- **Cerrada; pendiente probar en clase.**
