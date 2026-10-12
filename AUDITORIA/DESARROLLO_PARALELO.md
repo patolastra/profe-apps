@@ -3746,3 +3746,18 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   "Lun 31 ago" salta y la marca; al bajar se marca la entrada de arriba. General: "＋ Nota" crea la nota arriba con el
   cursor en su título (nota de prueba borrada). Las 3 notas vacías de General y 1 página vacía de otro curso son de la
   prueba del PO (no borradas).
+- **PO ejecutó `bitacora_paginas_fecha.sql` (2026-10-12).** Nuevos pedidos del PO, mismo día:
+  - **Separador** `---` (escribirlo en un bloque vacío, o "Separador" en el menú); se guarda como la línea `---`.
+  - **General sin clases:** el PO pidió borrar sus 6 "clases" (11–18 may); **no se borraron** porque tienen **39 pendientes**
+    asociados: Cursos oculta las sesiones de General (solo notas), los datos quedan intactos.
+  - **Barra de formato al seleccionar texto:** negrita, cursiva, subrayado, color 1 (normal), color 2 (naranjo `#ea580c`) y
+    color 3 (azul `#2563eb`); también Ctrl+B/I/U. Se guarda en el mismo texto: `**negrita**`, `*cursiva*`, `__subrayado__`,
+    `{2:…}`, `{3:…}`; "\" solo cuando hace falta, para no alterar enlaces ni textos antiguos (prueba: las 158 bitácoras
+    existentes quedan idénticas al abrir y volver a guardar). Las viñetas conservan su signo (`-`, `*`, `•`).
+  - **Selección de bloques como Notion:** arrastrar desde fuera del texto dibuja un marco y selecciona los bloques que toca;
+    arrastrar desde un texto hacia otro bloque selecciona bloques completos; Esc en un bloque lo selecciona. Con bloques
+    seleccionados: Supr/Retroceso elimina, Ctrl+D duplica, Ctrl+C/Ctrl+X copia/corta como texto, Enter vuelve a escribir,
+    Esc suelta; ⋮⋮ arrastra el grupo y su menú (Convertir en / Duplicar / Eliminar) actúa sobre todos.
+  - **Prueba (servidor local, sin guardar datos reales):** formato y su texto guardado, Enter en medio de una palabra con
+    formato (lo cortado conserva negrita y color), separador y Retroceso que lo quita, marco de selección (3 bloques),
+    texto→otro bloque (3 bloques), Supr sobre la selección, arrastre de grupo, menú "3 bloques".

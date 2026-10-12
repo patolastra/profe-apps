@@ -22,6 +22,8 @@
     --sel:      #dbeafb;
     --menu:     #ffffff;
     --tip:      #2f2f2f;
+    --c2:       #ea580c;   /* color 2 (naranjo, como en la Pizarra) */
+    --c3:       #2563eb;   /* color 3 (azul) */
 }
 html, body { height: 100%; }
 body {
@@ -130,6 +132,27 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .t-todo .txt:empty::before { content: "Por hacer"; }
 .t-p .txt:focus:empty::before { content: "Escribe algo, o pulsa / para elegir un tipo de bloque"; }
 .bloques.solo .t-p .txt:not(:focus):empty::before { content: "Sin bitácora — clic para escribir"; }
+.t-hr { cursor: default; }
+.t-hr .linea { flex: 1; height: 30px; display: flex; align-items: center; }
+.t-hr .linea::after { content: ""; flex: 1; height: 1px; background: #d9d8d4; }
+.txt b, .txt strong { font-weight: 700; }
+.txt font[color="#000001"] { color: inherit; }
+.txt font[color="#ea580c"] { color: var(--c2); }
+.txt font[color="#2563eb"] { color: var(--c3); }
+#marco {
+    position: fixed; z-index: 40; background: rgba(35,131,226,.12); border: 1px solid rgba(35,131,226,.35);
+    pointer-events: none; display: none; border-radius: 2px;
+}
+body.marcando, body.marcando * { user-select: none !important; cursor: default; }
+#formato {
+    position: fixed; z-index: 55; display: none; align-items: center; gap: 2px; padding: 4px;
+    background: var(--menu); border-radius: 8px; font-size: 14px;
+    box-shadow: 0 0 0 1px rgba(15,15,15,.06), 0 6px 18px rgba(15,15,15,.16);
+}
+#formato button { min-width: 30px; height: 28px; border-radius: 5px; padding: 0 6px; }
+#formato button:hover, #formato button.on { background: var(--hover); }
+#formato .sep { width: 1px; height: 18px; background: var(--linea); margin: 0 4px; }
+#formato .col-a { font-weight: 700; text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 3px; }
 .indicador {
     position: absolute; left: 0; right: 0; height: 3px; background: #9ccaf5; border-radius: 2px;
     pointer-events: none; display: none;
@@ -187,6 +210,16 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 </main>
 
 <div id="tip"></div>
+<div id="marco"></div>
+<div id="formato">
+    <button data-f="bold" title="Negrita (Ctrl+B)"><b>B</b></button>
+    <button data-f="italic" title="Cursiva (Ctrl+I)"><i>I</i></button>
+    <button data-f="underline" title="Subrayado (Ctrl+U)"><u>U</u></button>
+    <span class="sep"></span>
+    <button data-c="#000001" class="col-a" title="Color 1 (normal)">A</button>
+    <button data-c="#ea580c" class="col-a" style="color:var(--c2)" title="Color 2">A</button>
+    <button data-c="#2563eb" class="col-a" style="color:var(--c3)" title="Color 3">A</button>
+</div>
 <div class="menu" id="menu"></div>
 <div class="menu" id="submenu"></div>
 
@@ -214,6 +247,7 @@ const TIPOS = [
     { t: 'ul',   ico: '•',  lbl: 'Viñetas' },
     { t: 'ol',   ico: '1.', lbl: 'Lista numerada' },
     { t: 'todo', ico: '☑',  lbl: 'Casilla' },
+    { t: 'hr',   ico: '—',  lbl: 'Separador' },
 ];
 const LISTAS = new Set(['ul', 'ol', 'todo']);
 
@@ -247,11 +281,12 @@ function mesAnio(iso)     { const d = fechaD(iso); return `${MESES[d.getMonth()]
 function aBloques(texto) {
     return String(texto || '').replace(/\r/g, '').split('\n').map(linea => {
         let m;
-        if ((m = linea.match(/^### (.*)$/)))                 return { id: nid(), t: 'h3', x: m[1] };
+        if (linea === '---')                                 return { id: nid(), t: 'hr', x: '' };
+        if ((m = linea.match(/^### (.*)$/)))               return { id: nid(), t: 'h3', x: m[1] };
         if ((m = linea.match(/^## (.*)$/)))                  return { id: nid(), t: 'h2', x: m[1] };
         if ((m = linea.match(/^# (.*)$/)))                   return { id: nid(), t: 'h1', x: m[1] };
         if ((m = linea.match(/^[-*] \[( |x|X)\] ?(.*)$/)))   return { id: nid(), t: 'todo', x: m[2], c: m[1] !== ' ' };
-        if ((m = linea.match(/^[-*•] (.*)$/)))               return { id: nid(), t: 'ul', x: m[1] };
+        if ((m = linea.match(/^([-*•]) (.*)$/)))             return { id: nid(), t: 'ul', x: m[2], m: m[1] };
         if ((m = linea.match(/^\d+[.)] (.*)$/)))             return { id: nid(), t: 'ol', x: m[1] };
         return { id: nid(), t: 'p', x: linea };
     });
@@ -264,14 +299,92 @@ function aTexto(bs) {
             case 'h1': return '# ' + b.x;
             case 'h2': return '## ' + b.x;
             case 'h3': return '### ' + b.x;
-            case 'ul': return '- ' + b.x;
+            case 'ul': return (b.m || '-') + ' ' + b.x;
             case 'ol': return n + '. ' + b.x;
             case 'todo': return (b.c ? '- [x] ' : '- [ ] ') + b.x;
+            case 'hr': return '---';
             default: return b.x;
         }
     }).join('\n');
     return txt.trim() ? txt : '';
 }
+
+// ── Formato dentro del texto ────────────────────────────────────────────
+// En el texto guardado: **negrita**, *cursiva*, __subrayado__, {2:color 2}, {3:color 3};
+// "\" antes de * _ { } \ = el carácter tal cual. Una marca sin su cierre queda como texto.
+const COLOR_HEX = { 2: '#ea580c', 3: '#2563eb' };
+const HEX_COLOR = { '#ea580c': 2, '#2563eb': 3, 'rgb(234, 88, 12)': 2, 'rgb(37, 99, 235)': 3 };
+function mdAHtml(s) {
+    s = String(s || '');
+    let out = '';
+    const abiertos = [];               // pila de marcas abiertas: '**' '__' '*' '}'
+    const cierra = { '**': '</b>', '__': '</u>', '*': '</i>', '}': '</font>' };
+    const hayCierre = (marca, desde) => {
+        for (let j = desde; j < s.length; j++) {
+            if (s[j] === '\\') { j++; continue; }
+            if (s.startsWith(marca, j)) return true;
+        }
+        return false;
+    };
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (ch === '\\' && i + 1 < s.length && '*_{}\\'.includes(s[i + 1])) { out += esc(s[++i]); continue; }
+        let m = null;
+        if (s.startsWith('**', i)) m = '**';
+        else if (s.startsWith('__', i)) m = '__';
+        else if (ch === '*') m = '*';
+        if (m) {
+            if (abiertos.includes(m)) {                       // cerrar (y reabrir las de adentro)
+                const k = abiertos.lastIndexOf(m), dentro = abiertos.splice(k);
+                dentro.slice().reverse().forEach(x => out += cierra[x] || '');
+                dentro.slice(1).forEach(x => { out += x === '**' ? '<b>' : x === '__' ? '<u>' : '<i>'; abiertos.push(x); });
+                i += m.length - 1; continue;
+            }
+            if (hayCierre(m, i + m.length)) {
+                out += m === '**' ? '<b>' : m === '__' ? '<u>' : '<i>';
+                abiertos.push(m); i += m.length - 1; continue;
+            }
+        }
+        const c = s.slice(i).match(/^\{([23]):/);
+        if (c && hayCierre('}', i + 3)) { out += `<font color="${COLOR_HEX[c[1]]}">`; abiertos.push('}'); i += 2; continue; }
+        if (ch === '}' && abiertos.includes('}')) {
+            const k = abiertos.lastIndexOf('}'), dentro = abiertos.splice(k);
+            dentro.slice().reverse().forEach(x => out += cierra[x]);
+            dentro.slice(1).forEach(x => { out += x === '**' ? '<b>' : x === '__' ? '<u>' : '<i>'; abiertos.push(x); });
+            continue;
+        }
+        out += esc(ch);
+    }
+    abiertos.slice().reverse().forEach(x => out += cierra[x]);
+    return out;
+}
+const escMd = t => t.replace(/[\\*_{}]/g, '\\$&');
+// Del bloque en pantalla al texto guardado. Los * _ { } del texto solo se marcan con "\" cuando
+// hace falta (así los enlaces y textos antiguos quedan tal cual).
+function mdDeDom(el) {
+    const libre = domAMd(el, false), seguro = domAMd(el, true);
+    return libre === seguro || mdAHtml(libre) === mdAHtml(seguro) ? libre : seguro;
+}
+function mdDeTexto(t) { return mdAHtml(t) === esc(t) ? t : escMd(t); }
+function domAMd(nodo, escapar = true) {
+    let out = '';
+    nodo.childNodes.forEach(n => {
+        if (n.nodeType === 3) { const v = n.nodeValue.replace(/\n/g, ' '); out += escapar ? escMd(v) : v; return; }
+        if (n.nodeType !== 1) return;
+        if (n.tagName === 'BR') return;
+        let dentro = domAMd(n, escapar);
+        if (!dentro) return;
+        const tag = n.tagName, st = n.style || {};
+        const color = HEX_COLOR[(n.getAttribute('color') || '').toLowerCase()] || HEX_COLOR[st.color];
+        if (color) dentro = `{${color}:${dentro}}`;
+        if (tag === 'U' || /underline/.test(st.textDecoration || st.textDecorationLine || '')) dentro = `__${dentro}__`;
+        if (tag === 'I' || tag === 'EM' || st.fontStyle === 'italic') dentro = `*${dentro}*`;
+        if (tag === 'B' || tag === 'STRONG' || st.fontWeight === 'bold' || +st.fontWeight >= 600) dentro = `**${dentro}**`;
+        out += dentro;
+    });
+    return out;
+}
+function mdAPlano(s) { const d = document.createElement('div'); d.innerHTML = mdAHtml(s); return d.textContent; }
 
 // ── Columna 1: cursos ───────────────────────────────────────────────────
 async function cargarContextos() {
@@ -318,7 +431,9 @@ async function abrirCurso(ctxId) {
 
     entradas = [];
     Object.keys(porK).forEach(k => delete porK[k]);
-    (ses.data || []).forEach(s => {
+    // General no tiene clases: solo notas (sus sesiones antiguas quedan intactas, sin mostrarse).
+    const esGeneral = contextos.find(c => c.id === ctxId)?.nombre === 'GENERAL';
+    (esGeneral ? [] : ses.data || []).forEach(s => {
         const m = Array.isArray(s.memorias) ? s.memorias[0] : s.memorias;
         entradas.push({ k: 'c' + s.id, tipo: 'clase', sesionId: s.id, fecha: s.fecha, titulo: tituloFecha(s.fecha),
             contenido: m?.contenido || '', audios: m?.audios || [], updated: m?.updated_at || null, creado: '' });
@@ -525,11 +640,11 @@ function elBloque(b, num) {
     if (b.t === 'ul')   marca = '<span class="marca">•</span>';
     if (b.t === 'ol')   marca = `<span class="marca">${num}.</span>`;
     if (b.t === 'todo') marca = `<span class="marca"><input type="checkbox"${b.c ? ' checked' : ''}></span>`;
+    const cuerpo = b.t === 'hr' ? '<div class="linea"></div>' : `<div class="txt" contenteditable="true" spellcheck="true">${mdAHtml(b.x)}</div>`;
     d.innerHTML = `<div class="asas">
             <button class="mas" tabindex="-1" data-tip="<b>Haz clic</b> para agregar un bloque debajo<br><b>Alt + clic</b> para agregar un bloque arriba">＋</button>
             <span class="asa" draggable="true" data-tip="<b>Arrastra</b> para mover<br><b>Haz clic</b> para abrir el menú">⋮⋮</span>
-        </div>${marca}<div class="txt" contenteditable="plaintext-only" spellcheck="true"></div>`;
-    d.querySelector('.txt').textContent = b.x;
+        </div>${marca}${cuerpo}`;
     return d;
 }
 
@@ -565,28 +680,64 @@ function enfocar(id, off) {
 function insertar(E, pos, b) { E.bloques.splice(pos, 0, b); pintarBloques(E); marcarSucio(E); return b; }
 function convertir(id, t) {
     const E = entDeBloque(id); if (!E) return;
-    const b = E.bloques[idx(E, id)];
+    const i = idx(E, id), b = E.bloques[i];
+    if (t === 'hr') {                                   // separador: el texto pasa a un bloque debajo
+        const resto = b.t !== 'hr' ? b.x : '';
+        b.t = 'hr'; b.x = '';
+        let sig = E.bloques[i + 1];
+        if (resto || !sig || sig.t === 'hr') { sig = { id: nid(), t: 'p', x: resto }; E.bloques.splice(i + 1, 0, sig); }
+        pintarBloques(E); marcarSucio(E);
+        enfocar(sig.id, 0);
+        return;
+    }
     const off = txtDe(id) ? cursorEn(txtDe(id)) : 0;
     b.t = t;
     if (t === 'todo' && b.c === undefined) b.c = false;
     pintarBloques(E); marcarSucio(E);
-    enfocar(id, Math.min(off, b.x.length));
+    enfocar(id, Math.min(off, mdAPlano(b.x).length));
 }
-function duplicar(id) {
-    const E = entDeBloque(id); if (!E) return;
-    const i = idx(E, id);
-    const copia = { ...E.bloques[i], id: nid() };
-    insertar(E, i + 1, copia);
-    enfocar(copia.id, 'fin');
-}
-function eliminar(id) {
-    const E = entDeBloque(id); if (!E) return;
-    const i = idx(E, id);
-    E.bloques.splice(i, 1);
+function duplicar(ids) {
+    ids = [].concat(ids);
+    const E = entDeBloque(ids[0]); if (!E) return;
+    const orden = ids.map(id => idx(E, id)).filter(i => i >= 0).sort((a, b) => a - b);
+    if (!orden.length) return;
+    const copias = orden.map(i => ({ ...E.bloques[i], id: nid() }));
+    E.bloques.splice(orden[orden.length - 1] + 1, 0, ...copias);
     pintarBloques(E); marcarSucio(E);
-    const vecino = E.bloques[Math.max(0, i - 1)];
+    if (copias.length === 1) enfocar(copias[0].id, 'fin');
+    else seleccionar(copias.map(c => c.id));
+}
+function eliminar(ids) {
+    ids = [].concat(ids);
+    const E = entDeBloque(ids[0]); if (!E) return;
+    const primero = Math.min(...ids.map(id => idx(E, id)).filter(i => i >= 0));
+    E.bloques = E.bloques.filter(b => !ids.includes(b.id));
+    limpiarSeleccion();
+    pintarBloques(E); marcarSucio(E);
+    const vecino = E.bloques[Math.max(0, primero - 1)];
     if (vecino) enfocar(vecino.id, 'fin');
 }
+
+// Quita los primeros n caracteres (visibles) del bloque, conservando el formato del resto.
+function borrarInicio(el, n) {
+    const r = document.createRange(), w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    r.setStart(el, 0);
+    let t, rest = n;
+    while ((t = w.nextNode())) { if (rest <= t.length) { r.setEnd(t, rest); break; } rest -= t.length; }
+    r.deleteContents();
+}
+// Saca lo que hay desde el cursor hasta el final del bloque (con formato) y lo devuelve como texto guardable.
+function cortarDesdeCursor(el) {
+    const s = getSelection();
+    if (!s.rangeCount) return '';
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    r.setStart(s.getRangeAt(0).startContainer, s.getRangeAt(0).startOffset);
+    const div = document.createElement('div');
+    div.appendChild(r.extractContents());
+    return mdDeDom(div);
+}
+function vacioDom(el) { if (!el.textContent) el.innerHTML = ''; }
 
 // ── Escritura ───────────────────────────────────────────────────────────
 document.addEventListener('input', e => {
@@ -594,21 +745,25 @@ document.addEventListener('input', e => {
     if (!txt) return;
     const E = entDe(txt), id = txt.parentElement.dataset.id, b = E?.bloques[idx(E, id)];
     if (!b) return;
-    if (txt.textContent === '') txt.innerHTML = '';
-    b.x = txt.textContent.replace(/\n/g, ' ');
-    // Atajos al comienzo de la línea: "# ", "## ", "### ", "- ", "1. ", "[] "
-    if (e.inputType === 'insertText' && e.data && e.data.includes(' ')) {
-        const reglas = [[/^### /, 'h3'], [/^## /, 'h2'], [/^# /, 'h1'], [/^\[\s?\] /, 'todo'], [/^[-*] /, 'ul'], [/^1[.)] /, 'ol']];
-        const pos = cursorEn(txt);
-        for (const [re, t] of reglas) {
-            const m = b.x.match(re);
-            const recien = m && (pos === m[0].length || (e.data.length > 1 && e.data.startsWith(m[0]) && pos === e.data.length));
-            if (recien && (b.t === 'p' || (b.t === 'ul' && t === 'todo'))) {
-                b.x = b.x.slice(m[0].length);
-                b.t = t; if (t === 'todo') b.c = false;
-                pintarBloques(E); marcarSucio(E);
-                enfocar(id, pos - m[0].length);
-                return;
+    vacioDom(txt);
+    b.x = mdDeDom(txt);
+    // Atajos al comienzo de la línea: "# ", "## ", "### ", "- ", "1. ", "[] ", "---"
+    if (e.inputType === 'insertText' && e.data) {
+        const plano = txt.textContent, pos = cursorEn(txt);
+        if (b.t === 'p' && plano === '---') { b.x = ''; txt.innerHTML = ''; convertir(id, 'hr'); return; }
+        if (e.data.includes(' ')) {
+            const reglas = [[/^### /, 'h3'], [/^## /, 'h2'], [/^# /, 'h1'], [/^\[\s?\] /, 'todo'], [/^[-*] /, 'ul'], [/^1[.)] /, 'ol']];
+            for (const [re, t] of reglas) {
+                const m = plano.match(re);
+                const recien = m && (pos === m[0].length || (e.data.length > 1 && e.data.startsWith(m[0]) && pos === e.data.length));
+                if (recien && (b.t === 'p' || (b.t === 'ul' && t === 'todo'))) {
+                    borrarInicio(txt, m[0].length);
+                    b.x = mdDeDom(txt);
+                    b.t = t; if (t === 'todo') b.c = false;
+                    pintarBloques(E); marcarSucio(E);
+                    enfocar(id, pos - m[0].length);
+                    return;
+                }
             }
         }
     }
@@ -618,6 +773,7 @@ document.addEventListener('input', e => {
 
 document.addEventListener('keydown', e => {
     if (menuAbierto()) { if (teclaMenu(e)) return; }
+    if (seleccion.length && teclaSeleccion(e)) return;
     const txt = e.target.closest?.('.blq .txt');
     if (!txt || e.isComposing) return;
     const E = entDe(txt), id = txt.parentElement.dataset.id, i = idx(E, id), b = E?.bloques[i];
@@ -625,20 +781,21 @@ document.addEventListener('keydown', e => {
     const bs = E.bloques;
     const sel = getSelection(), colapsada = sel.isCollapsed, off = cursorEn(txt), largo = txt.textContent.length;
 
+    if (e.key === 'Escape') { e.preventDefault(); txt.blur(); seleccionar([id]); return; }
     if (e.key === 'Enter') {
         e.preventDefault();
         if (LISTAS.has(b.t) && !b.x) { convertir(id, 'p'); return; }
         if (!colapsada) sel.deleteFromDocument();
-        const o = cursorEn(txt), resto = txt.textContent;
-        const tNuevo = LISTAS.has(b.t) ? b.t : 'p';
-        if (o === 0 && resto.length) {           // al comienzo: el bloque nuevo (vacío) queda arriba
-            b.x = resto;
+        const o = cursorEn(txt), tNuevo = LISTAS.has(b.t) ? b.t : 'p';
+        if (o === 0 && txt.textContent.length) {          // al comienzo: el bloque nuevo (vacío) queda arriba
+            b.x = mdDeDom(txt);
             insertar(E, i, { id: nid(), t: tNuevo, x: '', c: false });
             enfocar(id, 0);
             return;
         }
-        b.x = resto.slice(0, o);
-        const nuevo = insertar(E, i + 1, { id: nid(), t: tNuevo, x: resto.slice(o), c: false });
+        const resto = cortarDesdeCursor(txt);
+        b.x = mdDeDom(txt);
+        const nuevo = insertar(E, i + 1, { id: nid(), t: tNuevo, x: resto, c: false });
         enfocar(nuevo.id, 0);
         return;
     }
@@ -646,7 +803,9 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         if (b.t !== 'p') { convertir(id, 'p'); return; }
         if (i === 0) return;
-        const prev = bs[i - 1], pos = prev.x.length;
+        const prev = bs[i - 1];
+        if (prev.t === 'hr') { bs.splice(i - 1, 1); pintarBloques(E); marcarSucio(E); enfocar(id, 0); return; }
+        const pos = mdAPlano(prev.x).length;
         prev.x += b.x;
         bs.splice(i, 1);
         pintarBloques(E); marcarSucio(E);
@@ -655,17 +814,20 @@ document.addEventListener('keydown', e => {
     }
     if (e.key === 'Delete' && colapsada && off === largo && i < bs.length - 1) {
         e.preventDefault();
-        b.x += bs[i + 1].x;
+        if (bs[i + 1].t !== 'hr') b.x += bs[i + 1].x;
         bs.splice(i + 1, 1);
         pintarBloques(E); marcarSucio(E);
         enfocar(id, largo);
         return;
     }
+    const anteriorTexto = () => { for (let j = i - 1; j >= 0; j--) if (bs[j].t !== 'hr') return bs[j]; };
+    const siguienteTexto = () => { for (let j = i + 1; j < bs.length; j++) if (bs[j].t !== 'hr') return bs[j]; };
     if (e.key === 'ArrowUp' && colapsada && off === 0) {
-        if (i > 0) { e.preventDefault(); enfocar(bs[i - 1].id, 'fin'); return; }
+        const a = anteriorTexto();
+        if (a) { e.preventDefault(); enfocar(a.id, 'fin'); return; }
         if (E.tipo === 'nota') { e.preventDefault(); const t = secDe(E.k).querySelector('.ent-tit'); ponerCursor(t, t.textContent.length); return; }
     }
-    if (e.key === 'ArrowDown' && colapsada && off === largo && i < bs.length - 1) { e.preventDefault(); enfocar(bs[i + 1].id, 0); return; }
+    if (e.key === 'ArrowDown' && colapsada && off === largo) { const s = siguienteTexto(); if (s) { e.preventDefault(); enfocar(s.id, 0); return; } }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); duplicar(id); return; }
     if (e.key === '/' && !b.x) { e.preventDefault(); menuTipos(id); return; }
 });
@@ -677,26 +839,143 @@ document.addEventListener('paste', e => {
     e.preventDefault();
     const texto = (e.clipboardData.getData('text/plain') || '').replace(/\r/g, '');
     if (!texto) return;
+    const lineas = texto.split('\n');
+    const E = entDe(txt), id = txt.parentElement.dataset.id, i = idx(E, id), b = E.bloques[i];
+    if (lineas.length === 1) { document.execCommand('insertText', false, texto); return; }
     const sel = getSelection();
     if (!sel.isCollapsed) sel.deleteFromDocument();
-    const E = entDe(txt), id = txt.parentElement.dataset.id, i = idx(E, id), b = E.bloques[i];
-    const o = cursorEn(txt), actual = txt.textContent;
-    const lineas = texto.split('\n');
-    if (lineas.length === 1) {
-        b.x = actual.slice(0, o) + texto + actual.slice(o);
-        txt.textContent = b.x;
-        marcarSolo(E);
-        enfocar(id, o + texto.length);
-        marcarSucio(E);
-        return;
-    }
-    const nuevos = aBloques(lineas.slice(1).join('\n'));
-    const ultimo = nuevos[nuevos.length - 1], finUltimo = ultimo.x.length;
-    ultimo.x += actual.slice(o);
-    b.x = actual.slice(0, o) + lineas[0];
+    const resto = cortarDesdeCursor(txt);
+    b.x = mdDeDom(txt) + mdDeTexto(lineas[0]);
+    const nuevos = aBloques(lineas.slice(1).map(l => {          // las marcas de línea se respetan; el resto, tal cual
+        const m = l.match(/^(#{1,3} |[-*•] \[[ xX]\] ?|[-*•] |\d+[.)] )?(.*)$/);
+        return (m[1] || '') + mdDeTexto(m[2]);
+    }).join('\n'));
+    const ultimo = nuevos[nuevos.length - 1], finUltimo = mdAPlano(ultimo.x).length;
+    ultimo.x += resto;
     E.bloques.splice(i + 1, 0, ...nuevos);
     pintarBloques(E); marcarSucio(E);
     enfocar(ultimo.id, finUltimo);
+});
+
+// ── Barra de formato (al seleccionar texto) ─────────────────────────────
+function txtDeSeleccion() {
+    const s = getSelection();
+    if (!s.rangeCount || s.isCollapsed) return null;
+    const a = s.anchorNode?.parentElement?.closest?.('.blq .txt') || (s.anchorNode?.closest?.('.blq .txt'));
+    const f = s.focusNode?.parentElement?.closest?.('.blq .txt') || (s.focusNode?.closest?.('.blq .txt'));
+    return a && a === f ? a : null;
+}
+document.addEventListener('selectionchange', () => {
+    const bar = $('formato'), txt = txtDeSeleccion();
+    if (!txt || marcando) { bar.style.display = 'none'; return; }
+    const r = getSelection().getRangeAt(0).getBoundingClientRect();
+    bar.style.display = 'flex';
+    bar.querySelector('[data-f="bold"]').classList.toggle('on', document.queryCommandState('bold'));
+    bar.querySelector('[data-f="italic"]').classList.toggle('on', document.queryCommandState('italic'));
+    bar.querySelector('[data-f="underline"]').classList.toggle('on', document.queryCommandState('underline'));
+    let left = r.left + r.width / 2 - bar.offsetWidth / 2, top = r.top - bar.offsetHeight - 8;
+    if (top < 8) top = r.bottom + 8;
+    bar.style.left = Math.max(8, Math.min(left, innerWidth - bar.offsetWidth - 8)) + 'px';
+    bar.style.top = top + 'px';
+});
+$('formato').addEventListener('mousedown', e => e.preventDefault());   // no perder la selección
+$('formato').addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn || !txtDeSeleccion()) return;
+    document.execCommand('styleWithCSS', false, false);
+    if (btn.dataset.f) document.execCommand(btn.dataset.f);
+    if (btn.dataset.c) document.execCommand('foreColor', false, btn.dataset.c);
+    document.dispatchEvent(new Event('selectionchange'));
+});
+
+// ── Selección de bloques (arrastrar fuera del texto, o de un bloque a otro) ──
+let seleccion = [];                  // ids de bloques seleccionados (de una misma entrada)
+let marcando = null;                 // { x, y, desdeTexto, E, idInicio }
+function seleccionar(ids) {
+    limpiarSeleccion();
+    seleccion = ids.slice();
+    seleccion.forEach(id => elDe(id)?.classList.add('sel'));
+    if (seleccion.length) { document.activeElement?.blur?.(); getSelection().removeAllRanges(); }
+}
+function limpiarSeleccion() {
+    seleccion = [];
+    document.querySelectorAll('.blq.sel').forEach(n => n.classList.remove('sel'));
+}
+function teclaSeleccion(e) {
+    if (document.activeElement?.closest?.('.txt, .ent-tit, input')) return false;
+    const ids = seleccion.slice();
+    if (e.key === 'Escape') { e.preventDefault(); limpiarSeleccion(); return true; }
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); eliminar(ids); return true; }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); duplicar(ids); return true; }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x' || e.key === 'C' || e.key === 'X')) {
+        const E = entDeBloque(ids[0]);
+        const texto = aTexto(E.bloques.filter(b => ids.includes(b.id)));
+        navigator.clipboard?.writeText(mdAPlanoBloques(texto)).catch(() => {});
+        if (e.key.toLowerCase() === 'x') eliminar(ids);
+        e.preventDefault(); return true;
+    }
+    if (e.key === 'Enter') { e.preventDefault(); const u = ids[ids.length - 1]; limpiarSeleccion(); enfocar(u, 'fin'); return true; }
+    return false;
+}
+function mdAPlanoBloques(t) { return t.split('\n').map(l => { const m = l.match(/^(#{1,3} |[-*] \[[ xX]\] |[-*] |\d+\. )?(.*)$/); return (m[1] || '') + mdAPlano(m[2]); }).join('\n'); }
+
+function bloquesEnRango(E, y1, y2) {
+    const ids = [];
+    E.bloques.forEach(b => {
+        const el = elDe(b.id); if (!el) return;
+        const r = el.getBoundingClientRect();
+        if (r.bottom >= y1 && r.top <= y2) ids.push(b.id);
+    });
+    return ids;
+}
+document.addEventListener('mousedown', e => {
+    if (e.button !== 0 || e.target.closest('.menu, #formato, .asas, input, button, .ent-tit, #col-cursos, #col-entradas')) return;
+    if (!e.target.closest('#principal')) return;
+    const txt = e.target.closest('.blq .txt');
+    if (!txt && seleccion.length) limpiarSeleccion();
+    if (txt) { if (seleccion.length) limpiarSeleccion(); marcando = { x: e.clientX, y: e.clientY, desdeTexto: true, idInicio: txt.parentElement.dataset.id, E: entDe(txt) }; return; }
+    marcando = { x: e.clientX, y: e.clientY, desdeTexto: false, activo: false };
+});
+document.addEventListener('mousemove', e => {
+    if (!marcando) return;
+    if (marcando.desdeTexto) {          // de un bloque a otro: pasa a seleccionar bloques completos
+        const sobre = document.elementFromPoint(e.clientX, e.clientY)?.closest('.blq');
+        if (!sobre || sobre.dataset.id === marcando.idInicio || entDe(sobre) !== marcando.E) {
+            if (marcando.activo && sobre?.dataset.id === marcando.idInicio) seleccionar([marcando.idInicio]);
+            return;
+        }
+        marcando.activo = true;
+        document.body.classList.add('marcando');
+        const E = marcando.E, a = idx(E, marcando.idInicio), b = idx(E, sobre.dataset.id);
+        seleccionar(E.bloques.slice(Math.min(a, b), Math.max(a, b) + 1).map(x => x.id));
+        return;
+    }
+    const dx = e.clientX - marcando.x, dy = e.clientY - marcando.y;
+    if (!marcando.activo && Math.hypot(dx, dy) < 5) return;
+    if (!marcando.activo) { marcando.activo = true; document.body.classList.add('marcando'); getSelection().removeAllRanges(); document.activeElement?.blur?.(); }
+    const m = $('marco');
+    const x1 = Math.min(e.clientX, marcando.x), y1 = Math.min(e.clientY, marcando.y);
+    Object.assign(m.style, { display: 'block', left: x1 + 'px', top: y1 + 'px', width: Math.abs(dx) + 'px', height: Math.abs(dy) + 'px' });
+    // La entrada es la del primer bloque tocado por el marco
+    const x2 = x1 + Math.abs(dx), y2 = y1 + Math.abs(dy);
+    let E = marcando.E;
+    if (!E) {
+        for (const el of document.querySelectorAll('.blq')) {
+            const r = el.getBoundingClientRect();
+            if (r.bottom >= y1 && r.top <= y2 && r.right >= x1 && r.left - 60 <= x2) { E = marcando.E = entDe(el); break; }
+        }
+    }
+    if (E) {
+        const cont = secDe(E.k).querySelector('.bloques').getBoundingClientRect();
+        if (cont.right >= x1 && cont.left - 60 <= x2) seleccionar(bloquesEnRango(E, y1, y2));
+        else limpiarSeleccion();
+    }
+});
+document.addEventListener('mouseup', () => {
+    if (!marcando) return;
+    $('marco').style.display = 'none';
+    document.body.classList.remove('marcando');
+    marcando = null;
 });
 
 // Clics: casillas, ＋ y ⋮⋮, final de cada entrada.
@@ -720,6 +999,8 @@ document.addEventListener('click', e => {
     }
     const asa = e.target.closest('.blq .asa');
     if (asa) { ocultarTip(); menuBloque(asa.closest('.blq').dataset.id, asa); return; }
+    const hr = e.target.closest('.blq.t-hr');
+    if (hr && !e.target.closest('.asas')) { seleccionar([hr.dataset.id]); return; }
     const fin = e.target.closest('.ent-fin');
     if (fin) {
         const E = entDe(fin), ult = E.bloques[E.bloques.length - 1];
@@ -734,12 +1015,13 @@ document.addEventListener('dragstart', e => {
     const asa = e.target.closest?.('.blq .asa');
     if (!asa) return;
     const blq = asa.closest('.blq');
-    arrastre = { E: entDe(blq), id: blq.dataset.id };
+    const ids = seleccion.includes(blq.dataset.id) ? seleccion.slice() : [blq.dataset.id];
+    arrastre = { E: entDe(blq), ids };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
     e.dataTransfer.setDragImage(blq, 30, 14);
     ocultarTip(); cerrarMenus();
-    requestAnimationFrame(() => blq.classList.add('arrastrando'));
+    requestAnimationFrame(() => ids.forEach(id => elDe(id)?.classList.add('arrastrando')));
 });
 document.addEventListener('dragover', e => {
     if (!arrastre) return;
@@ -760,13 +1042,17 @@ document.addEventListener('dragover', e => {
 document.addEventListener('drop', e => {
     if (!arrastre) return;
     e.preventDefault();
-    const E = arrastre.E, de = idx(E, arrastre.id);
+    const E = arrastre.E, ids = arrastre.ids;
+    const pos = ids.map(id => idx(E, id)).filter(i => i >= 0).sort((x, y) => x - y);
     let a = destino;
-    if (de >= 0 && a !== null && a !== de && a !== de + 1) {
-        const [b] = E.bloques.splice(de, 1);
-        if (a > de) a--;
-        E.bloques.splice(a, 0, b);
+    const igual = pos.length && a !== null && a >= pos[0] && a <= pos[pos.length - 1] + 1 && pos[pos.length - 1] - pos[0] === pos.length - 1;
+    if (pos.length && a !== null && !igual) {
+        const mover = pos.map(i => E.bloques[i]);
+        a -= pos.filter(i => i < a).length;
+        E.bloques = E.bloques.filter(b => !ids.includes(b.id));
+        E.bloques.splice(a, 0, ...mover);
         pintarBloques(E); marcarSucio(E);
+        if (ids.length > 1) seleccionar(ids);
     }
     finArrastre();
 });
@@ -825,7 +1111,7 @@ function focoMenu(k) {
 function cerrarMenus() {
     const estaba = menuAbierto();
     $('menu').style.display = 'none'; $('submenu').style.display = 'none';
-    document.querySelectorAll('.blq.sel').forEach(n => n.classList.remove('sel'));
+    if (estaba) limpiarSeleccion();
     if (estaba && menuCierre) { const f = menuCierre; menuCierre = null; f(); }
     menuBloqueId = null;
 }
@@ -870,7 +1156,7 @@ function teclaMenu(e) {
     if (e.key === 'ArrowUp')   { e.preventDefault(); focoMenu(menuFoco - 1); return true; }
     if (e.key === 'Enter')     { e.preventDefault(); elegir(menuFoco); return true; }
     if (e.key === 'Escape')    { e.preventDefault(); cerrarMenus(); return true; }
-    if (menuBloqueId) {        // menú del bloque abierto: atajos del bloque
+    if (menuBloqueId) {        // menú del bloque abierto: atajos del bloque (o de los seleccionados)
         const id = menuBloqueId;
         if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); menuCierre = null; cerrarMenus(); eliminar(id); return true; }
         if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); menuCierre = null; cerrarMenus(); duplicar(id); return true; }
@@ -895,7 +1181,10 @@ function menuTipos(id) {
 function menuBloque(id, asa) {
     const E = entDeBloque(id), b = E?.bloques[idx(E, id)];
     if (!b) return;
-    const palabras = b.x.trim() ? b.x.trim().split(/\s+/).length : 0;
+    const grupo = seleccion.includes(id) && seleccion.length > 1 ? seleccion.slice() : null;
+    if (grupo) return menuGrupo(grupo, asa);
+    const plano = mdAPlano(b.x).trim();
+    const palabras = plano ? plano.split(/\s+/).length : 0;
     abrirMenu([
         { ico: '⇄', lbl: 'Convertir en', sub: itemsTipos(id) },
         { sep: true },
@@ -903,11 +1192,26 @@ function menuBloque(id, asa) {
         { ico: '🗑', lbl: 'Eliminar', atajo: 'Supr', peligro: true, accion: () => eliminar(id) },
     ], asa, {
         titulo: TIPOS.find(x => x.t === b.t)?.lbl || 'Texto',
-        pie: `${E.updated ? 'Última edición: ' + cuando(E.updated) + '<br>' : ''}${palabras} palabra${palabras === 1 ? '' : 's'}, ${b.x.length} caractere${b.x.length === 1 ? '' : 's'}`,
+        pie: `${E.updated ? 'Última edición: ' + cuando(E.updated) + '<br>' : ''}${palabras} palabra${palabras === 1 ? '' : 's'}, ${plano.length} caractere${plano.length === 1 ? '' : 's'}`,
     });
     menuBloqueId = id;
     elDe(id)?.classList.add('sel');
     document.activeElement?.blur();
+}
+function menuGrupo(ids, asa) {
+    abrirMenu([
+        { ico: '⇄', lbl: 'Convertir en', sub: TIPOS.filter(x => x.t !== 'hr').map(x => ({ ico: x.ico, lbl: x.lbl, accion: () => convertirGrupo(ids, x.t) })) },
+        { sep: true },
+        { ico: '⧉', lbl: 'Duplicar', atajo: 'Ctrl+D', accion: () => duplicar(ids) },
+        { ico: '🗑', lbl: 'Eliminar', atajo: 'Supr', peligro: true, accion: () => eliminar(ids) },
+    ], asa, { titulo: `${ids.length} bloques`, alCerrar: () => seleccionar(ids) });
+    menuBloqueId = ids;
+}
+function convertirGrupo(ids, t) {
+    const E = entDeBloque(ids[0]); if (!E) return;
+    E.bloques.forEach(b => { if (ids.includes(b.id) && b.t !== 'hr') { b.t = t; if (t === 'todo' && b.c === undefined) b.c = false; } });
+    pintarBloques(E); marcarSucio(E);
+    seleccionar(ids);
 }
 function cuando(iso) {
     const d = new Date(iso), hoy = new Date();
