@@ -3687,3 +3687,18 @@ Planner) se muestre en el Planner con un distintivo visual (puede ser un marco)"
   vista previa, al recibir el aviso y en el reloj de la clase (si la Pizarra se cierra, el marco se va).
 - **Prueba (servidor local, sin guardar):** 3 diapositivas; "ir a la 3" → marco en la 3; "◀" → marco en la 2.
 - **Cerrada; pendiente probar en clase.**
+
+### AZ. Terminar clase cierra la Pizarra · título en "Silencio y atención"
+*Origen: PO (2026-10-12), tras probar AX en uso ("ahora funciona"): "'Terminar clase' tiene que cerrar la ventana de la
+Pizarra; además, la diapo de Silencio y atención que diga arriba de todo, y del ancho de la imagen, SILENCIO Y ATENCIÓN".*
+- **Implementación (alcance pedido explícitamente):**
+  - `PORTAL/index.html` (`confirmarFinClase`): al terminar, quita la recurrente y ordena a la Pizarra de esa sesión
+    `{ accion: 'cerrar' }` (`Proyeccion.ordenar`); si se termina para pasar a otra clase, no se cierra (la ventana se
+    reutiliza para la nueva). `PIZARRA/index.html` (`ordenDelPlanificador`): `cerrar` → `window.close()` (funciona porque
+    la abrió el Planificador).
+  - `comun/recurrentes.js`: bloque título + imagen 4:3 que cabe entero en la pantalla; título en mayúsculas (del catálogo
+    `DIAPOS`), blanco sobre negro, del ancho de la imagen (letra en % del ancho del bloque).
+- **Prueba (servidor local):** 1280×720 y 1024×768: título y imagen del mismo ancho (818 / 873 px), letras ~93 % del
+  ancho, todo dentro de la pantalla. Orden "cerrar" a otra sesión: ignorada; a la propia: la Pizarra se cierra (no se
+  pudo abrir una ventana emergente real en el panel de pruebas).
+- **Cerrada; pendiente probar en clase.**

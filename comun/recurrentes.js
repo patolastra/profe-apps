@@ -37,14 +37,25 @@
         const capa = document.createElement('div');
         capa.id = 'recurrente-capa';
         capa.style.cssText = 'position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;background:#000';
+        // Título arriba, del ancho de la imagen (4:3): el bloque mide ancho × (0,75 + 0,13) del ancho
+        // y cabe entero en la pantalla; la letra se mide en % del ancho del bloque (cqw).
+        const caja = document.createElement('div');
+        caja.style.cssText = 'width:min(100vw, calc(100vh / 0.88));aspect-ratio:1 / 0.88;display:flex;flex-direction:column;container-type:inline-size';
+        const titulo = document.createElement('div');
+        titulo.style.cssText = 'height:13cqw;display:flex;align-items:center;justify-content:center;color:#fff;' +
+            'font:800 7.9cqw/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.04em;white-space:nowrap';
         const img = document.createElement('img');
         img.alt = '';
-        img.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain';
-        capa.appendChild(img);
+        img.style.cssText = 'width:100%;height:75cqw;object-fit:cover;display:block';
+        caja.append(titulo, img);
+        capa.appendChild(caja);
         document.body.appendChild(capa);
         const pintar = a => {
             const ver = !!(a && a.sesionId === sesionId && DIAPOS[a.diapo]);
-            if (ver) img.src = new URL(`../comun/diapositivas/${a.diapo}-${a.version}.webp`, location.href).href;
+            if (ver) {
+                img.src = new URL(`../comun/diapositivas/${a.diapo}-${a.version}.webp`, location.href).href;
+                titulo.textContent = DIAPOS[a.diapo].titulo.toLocaleUpperCase('es');
+            }
             capa.style.display = ver ? 'flex' : 'none';
             // Acuse para el Planificador: esta Pizarra sí la está mostrando.
             if (ver) { try { localStorage.setItem(KEY + '_ok', String(a.t)); } catch (_) {} }
