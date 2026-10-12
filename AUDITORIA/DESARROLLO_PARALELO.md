@@ -3641,3 +3641,29 @@ audio: escoger, revisar contra el audio y aprobar o descartar, hasta dar con el 
 - **Error en uso (PO, 2026-10-12):** al probar desde 🔎 la pantalla quedaba oscura y no respondía: el fondo de la ventana
   de búsqueda seguía encima (su `display: flex` anulaba `hidden`). Arreglo: `#ent-busq-modal[hidden] { display: none }`.
   Prueba: tras ▶ Probar la ventana queda oculta y "Usar esta" es lo que está bajo el puntero.
+
+### AX. Planificador — diapositivas recurrentes en clase (1ª: "Silencio y atención")
+*Origen: PO (2026-10-12): "en el Planificador, con clase en curso, un botón de la barra que me permita disparar
+diapositivas recurrentes; la primera, una que invite al silencio y la atención": una imagen (sala con 5 estudiantes
+atentos y el profe) en 3 versiones por edad.*
+- **Auditoría:** el Planificador ya ordena a la Pizarra de la misma computadora (`Proyeccion.ordenar`, `localStorage`);
+  la Pizarra tiene capas encima de la diapositiva (copia del Entrenador z 8500) y el contador de tiempo perdido encima de
+  todo (`#clase-perdido`, z 9999). Claude no puede generar imágenes: entregó 3 textos para generarlas con IA.
+- **DECISIÓN del PO:** botón en la barra (solo con la clase en curso de este equipo) con menú de recurrentes; la imagen
+  queda en la Pizarra **hasta quitarla** (mismo botón o Esc) y vuelve a la diapositiva; **no** activa el tiempo perdido
+  (se enciende aparte y se ve encima); versiones: 1°–2° infantil, 3°–5° intermedia, 6°–8° + talleres y Recreo
+  adolescente; **por ahora el dibujo en blanco y negro del PO** para las 3 (se reemplazan los archivos cuando lleguen).
+- **Implementación (2026-10-12):** pieza compartida **`comun/recurrentes.js`** (`Recurrentes`: catálogo `DIAPOS`,
+  `version(ctx)`, `poner/quitar/actual/onCambio`, `capaEnPizarra(sesionId)`); estado en `localStorage`
+  (`profe_recurrente` = { sesionId, diapo, version }). Planificador (`PORTAL/index.html`): botón 🔔 "Diapositivas
+  recurrentes" en la barra, visible solo con la clase en curso de este equipo; menú con 🤫 Silencio y atención (tocarla de
+  nuevo = Quitar); el botón se pinta ámbar mientras está puesta. Pizarra (`PIZARRA/index.html`): capa blanca a pantalla
+  completa (z 9000: sobre diapositiva y copias del Entrenador/Libro, bajo el tiempo perdido z 9999) con
+  `comun/diapositivas/<diapo>-<versión>.png`; Esc la quita y el Planificador se entera. Imágenes provisionales: las 3 son
+  el dibujo del PO (`silencio-infantil|intermedia|adolescente.png`); al llegar las definitivas solo se reemplazan esos
+  archivos.
+- **Prueba (servidor local, sesión de Castigadas, sin comenzar clase real):** Planificador: menú con "🤫 Silencio y
+  atención"; elegir pone/quita y el botón se enciende/apaga; versión de Castigadas = adolescente (1°–2° infantil, 3°–5°
+  intermedia, resto adolescente). Pizarra en otra pestaña: aparece la imagen a pantalla completa; Esc la quita y el botón
+  del Planificador se apaga solo. Sin errores nuevos (solo el 401 conocido de `eventos_uso`).
+- **Cerrada; pendiente probar en clase y reemplazar las imágenes por las 3 versiones a color.**

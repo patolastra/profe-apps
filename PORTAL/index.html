@@ -11,6 +11,7 @@
     <script src="../comun/clase-vivo.js"></script>
     <script src="../comun/nombre-asset.js"></script>
     <script src="../comun/asistencia.js"></script>
+    <script src="../comun/recurrentes.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -78,6 +79,20 @@
         /* Botones de solo ícono: más grandes que el texto de la barra. */
         .hdr-btn.ico { font-size: clamp(1.45rem, 1.75vw, 2rem); line-height: 1; display: inline-flex; align-items: center; }
         .hdr-btn.ico:hover { transform: scale(1.08); }
+        /* Diapositivas recurrentes (deuda AX) */
+        #recu-wrap { position: relative; display: inline-flex; }
+        #recu-wrap[hidden] { display: none; }
+        #btn-recu.on { background: #f59e0b; border-radius: 10px; }
+        #recu-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 3000; min-width: 230px;
+            background: #fff; color: #0f172a; border: 1px solid #e2e8f0; border-radius: 10px;
+            box-shadow: 0 10px 28px rgba(0,0,0,.18); padding: 6px; }
+        #recu-menu[hidden] { display: none; }
+        #recu-menu button { display: flex; width: 100%; align-items: center; gap: 8px; padding: 9px 10px; border: 0;
+            border-radius: 8px; background: transparent; font: inherit; font-size: .95rem; font-weight: 600;
+            color: inherit; cursor: pointer; text-align: left; }
+        #recu-menu button:hover { background: #f1f5f9; }
+        #recu-menu button.on { background: #fef3c7; }
+        #recu-menu small { margin-left: auto; color: #b45309; font-weight: 700; }
         /* Etiqueta al pasar el mouse cuando el Planificador está suelto (sin Workspace);
            dentro del Workspace la muestra el Workspace arriba, en su barra de pestañas. */
         #hdr-etiqueta { position: fixed; z-index: 600; pointer-events: none; transform: translateX(-50%);
@@ -1090,6 +1105,10 @@
             <button class="hdr-btn ico" onclick="abrirRepertorioCurso()" data-label="Repertorio" aria-label="Repertorio">🏋️</button>
             <button class="hdr-btn ico" onclick="abrirMemoria()" data-label="Bitácora" aria-label="Bitácora">✍🏼</button>
             <button class="hdr-btn ico" onclick="mostrarQRRemoto()" data-label="Remoto" aria-label="Remoto">📱</button>
+            <span id="recu-wrap" hidden>
+                <button class="hdr-btn ico" id="btn-recu" onclick="recuMenu(event)" data-label="Diapositivas recurrentes" aria-label="Diapositivas recurrentes">🔔</button>
+                <div id="recu-menu" hidden></div>
+            </span>
             <button class="hdr-btn ico" id="btn-reabrir-piz" onclick="abrirPizarra()" data-label="Abrir Pizarra" aria-label="Abrir Pizarra" hidden>📽️</button>
             <button class="hdr-btn ico" id="btn-flip-piz" onclick="cambiarPantalla()" data-label="Cambiar de pantalla" aria-label="Cambiar de pantalla" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="4" width="8" height="6" rx="1"/><rect x="14.5" y="14" width="8" height="6" rx="1"/><path d="M5.5 13v2a3 3 0 0 0 3 3h3"/><path d="M10 16l1.5 2-1.5 2"/><path d="M18.5 11V9a3 3 0 0 0-3-3h-3"/><path d="M14 8l-1.5-2L14 4"/></svg></button>
             <button class="hdr-btn ico" id="btn-ant-piz" onclick="navPizarra(-1)" data-label="Anterior" aria-label="Anterior" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
@@ -2214,6 +2233,9 @@ function renderClase() {
     document.getElementById('btn-flip-piz').hidden = !esEsta;
     document.getElementById('btn-ant-piz').hidden = !esEsta;   // ◀ ▶: manejar la Pizarra desde aquí
     document.getElementById('btn-sig-piz').hidden = !esEsta;
+    document.getElementById('recu-wrap').hidden = !esEsta;   // 🔔 diapositivas recurrentes (deuda AX)
+    if (!esEsta) document.getElementById('recu-menu').hidden = true;
+    recuPintar();
     ajustarBarra();
     box.hidden  = !st;
     document.getElementById('ct-ctx').textContent = st && !esEsta ? ctxDisplay(st.ctx) : '';
@@ -2251,6 +2273,35 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ◀ ▶ de la barra: lo mismo que las flechas del teclado en la Pizarra.
+// ── Diapositivas recurrentes (deuda AX): 🔔 abre el menú; elegir una la muestra en la Pizarra
+// encima de la diapositiva hasta quitarla (aquí mismo o con Esc en la Pizarra).
+function recuMenu(e) {
+    e?.stopPropagation();
+    const menu = document.getElementById('recu-menu');
+    if (!menu.hidden) { menu.hidden = true; return; }
+    const a = Recurrentes.actual();
+    const activa = a && sesionActual && a.sesionId === sesionActual.id ? a.diapo : null;
+    menu.innerHTML = Object.entries(Recurrentes.DIAPOS).map(([id, d]) =>
+        `<button class="${id === activa ? 'on' : ''}" onclick="recuElegir('${id}')">${d.ico} ${d.titulo}${id === activa ? '<small>Quitar</small>' : ''}</button>`).join('');
+    menu.hidden = false;
+}
+function recuElegir(id) {
+    document.getElementById('recu-menu').hidden = true;
+    if (!sesionActual) return;
+    const a = Recurrentes.actual();
+    if (a && a.sesionId === sesionActual.id && a.diapo === id) { Recurrentes.quitar(); return; }
+    Recurrentes.poner(sesionActual.id, id, contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '');
+}
+function recuPintar() {
+    const a = Recurrentes.actual();
+    document.getElementById('btn-recu').classList.toggle('on', !!(a && sesionActual && a.sesionId === sesionActual.id));
+}
+Recurrentes.onCambio(recuPintar);
+document.addEventListener('click', e => {
+    const m = document.getElementById('recu-menu');
+    if (m && !m.hidden && !e.target.closest('#recu-wrap')) m.hidden = true;
+});
+
 function navPizarra(dir) {
     if (!sesionActual) return;
     if (!Proyeccion.pizarraViva()) { alert('La Pizarra no está abierta.\n\nÁbrela con el botón 📽️.'); return; }
