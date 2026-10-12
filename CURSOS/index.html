@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📓 Cursos</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
+<script src="../supabase/contextos.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+    --bg:       #ffffff;
+    --lateral:  #f7f7f5;
+    --hover:    #ececea;
+    --activo:   #e3e3e0;
+    --texto:    #37352f;
+    --suave:    #8f8d88;
+    --linea:    #e6e6e3;
+    --azul:     #2383e2;
+    --sel:      #dbeafb;
+    --menu:     #ffffff;
+    --tip:      #2f2f2f;
+}
+html, body { height: 100%; }
+body {
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg); color: var(--texto);
+    display: flex; overflow: hidden; font-size: 16px;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+/* ── Panel lateral ─────────────────────────────────────────── */
+#lateral {
+    width: 260px; flex-shrink: 0; background: var(--lateral);
+    border-right: 1px solid var(--linea); overflow-y: auto; padding: 14px 8px 40px;
+    font-size: 14px; user-select: none;
+}
+#lateral h1 { font-size: 15px; font-weight: 600; padding: 4px 10px 12px; }
+.fila {
+    display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px;
+    cursor: pointer; min-height: 28px; color: var(--texto);
+}
+.fila:hover { background: var(--hover); }
+.fila.activa { background: var(--activo); font-weight: 600; }
+.fila .chev { width: 14px; color: var(--suave); font-size: 10px; flex-shrink: 0; text-align: center; }
+.fila .ico  { width: 20px; text-align: center; flex-shrink: 0; }
+.fila .nom  { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fila .cuenta { color: var(--suave); font-size: 12px; }
+.hijos { padding-left: 18px; }
+.fila.mas-pag { color: var(--suave); }
+.fila.clase .punto { width: 6px; height: 6px; border-radius: 50%; background: #c9c7c2; flex-shrink: 0; margin: 0 7px; }
+.fila.clase.con .punto { background: var(--azul); }
+.sep-lat { height: 1px; background: var(--linea); margin: 8px 6px; }
+.lat-vacio { color: var(--suave); font-size: 12px; padding: 4px 10px 4px 34px; }
+
+/* ── Página ────────────────────────────────────────────────── */
+#principal { flex: 1; overflow-y: auto; position: relative; }
+#barra {
+    position: sticky; top: 0; z-index: 5; background: var(--bg);
+    display: flex; align-items: center; gap: 10px; padding: 8px 16px; font-size: 13px; color: var(--suave);
+    min-height: 40px;
+}
+#barra .ruta { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#estado.err { color: #c4302b; }
+#btn-pag-menu { padding: 2px 8px; border-radius: 6px; font-size: 18px; line-height: 1; color: var(--suave); }
+#btn-pag-menu:hover { background: var(--hover); }
+#pagina { max-width: 760px; margin: 0 auto; padding: 48px 72px 40vh; }
+#pag-titulo {
+    font-size: 40px; font-weight: 700; line-height: 1.2; outline: none; margin-bottom: 6px;
+    word-break: break-word;
+}
+#pag-titulo[contenteditable]:empty::before { content: "Sin título"; color: #c7c6c3; }
+#pag-sub { color: var(--suave); font-size: 14px; margin-bottom: 22px; }
+#pag-audios audio { width: 100%; max-width: 420px; height: 36px; }
+#pag-audios .aud { margin-bottom: 10px; }
+#pag-audios .aud-lbl { font-size: 12px; color: var(--suave); margin-bottom: 2px; }
+#vacio-ini { color: var(--suave); text-align: center; margin-top: 30vh; font-size: 15px; }
+
+/* ── Bloques ───────────────────────────────────────────────── */
+#bloques { position: relative; }
+.blq { position: relative; display: flex; align-items: flex-start; border-radius: 4px; margin: 1px 0; }
+.blq.sel { background: var(--sel); }
+.blq.arrastrando { opacity: .35; }
+.asas {
+    position: absolute; right: 100%; top: 0; display: flex; align-items: center;
+    padding-right: 4px; opacity: 0; transition: opacity .12s; height: 30px;
+}
+.blq:hover .asas, .blq.sel .asas { opacity: 1; }
+.asas .mas, .asas .asa {
+    width: 22px; height: 24px; display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; color: #b3b1ad; font-size: 18px; line-height: 1;
+}
+.asas .asa { font-size: 15px; letter-spacing: -2px; cursor: grab; width: 18px; }
+.asas .mas:hover, .asas .asa:hover { background: var(--hover); color: var(--suave); }
+.t-h1 .asas { height: 46px; } .t-h2 .asas { height: 38px; } .t-h3 .asas { height: 34px; }
+.marca { flex-shrink: 0; width: 24px; text-align: center; line-height: 30px; user-select: none; }
+.t-ol .marca { width: auto; min-width: 24px; padding-right: 4px; text-align: right; }
+.marca input { width: 16px; height: 16px; margin-top: 7px; cursor: pointer; accent-color: var(--azul); }
+.txt {
+    flex: 1; min-width: 0; outline: none; padding: 3px 2px; line-height: 1.5;
+    white-space: pre-wrap; word-break: break-word; min-height: 30px;
+}
+.t-h1 .txt { font-size: 30px; font-weight: 700; line-height: 1.3; margin-top: 18px; }
+.t-h2 .txt { font-size: 24px; font-weight: 650; line-height: 1.3; margin-top: 12px; }
+.t-h3 .txt { font-size: 20px; font-weight: 600; line-height: 1.3; margin-top: 8px; }
+.t-h1 .asas { top: 18px; } .t-h2 .asas { top: 12px; } .t-h3 .asas { top: 8px; }
+.t-todo.hecho .txt { text-decoration: line-through; color: var(--suave); }
+.txt:empty::before { color: #c7c6c3; pointer-events: none; }
+.t-h1 .txt:empty::before { content: "Título 1"; }
+.t-h2 .txt:empty::before { content: "Título 2"; }
+.t-h3 .txt:empty::before { content: "Título 3"; }
+.t-ul .txt:empty::before, .t-ol .txt:empty::before { content: "Lista"; }
+.t-todo .txt:empty::before { content: "Por hacer"; }
+.t-p .txt:focus:empty::before, #bloques.solo .t-p .txt:empty::before {
+    content: "Escribe algo, o pulsa / para elegir un tipo de bloque";
+}
+#indicador {
+    position: absolute; left: 0; right: 0; height: 3px; background: #9ccaf5; border-radius: 2px;
+    pointer-events: none; display: none;
+}
+#zona-fin { min-height: 120px; cursor: text; }
+
+/* ── Ayudas (tooltip) ──────────────────────────────────────── */
+#tip {
+    position: fixed; z-index: 60; background: var(--tip); color: #cfcfcf; font-size: 12.5px;
+    padding: 7px 10px; border-radius: 7px; text-align: center; line-height: 1.5; pointer-events: none;
+    display: none; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.18);
+}
+#tip b { color: #fff; font-weight: 600; }
+
+/* ── Menús ─────────────────────────────────────────────────── */
+.menu {
+    position: fixed; z-index: 50; background: var(--menu); border-radius: 10px; min-width: 250px;
+    box-shadow: 0 0 0 1px rgba(15,15,15,.06), 0 6px 18px rgba(15,15,15,.14); padding: 6px; font-size: 14px;
+    display: none; max-height: 70vh; overflow-y: auto;
+}
+.menu .m-tit { font-size: 12px; color: var(--suave); padding: 6px 10px 4px; font-weight: 500; }
+.menu .m-it {
+    display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 6px; cursor: pointer;
+    width: 100%; text-align: left;
+}
+.menu .m-it.foco, .menu .m-it:hover { background: var(--hover); }
+.menu .m-ico { width: 22px; text-align: center; color: var(--texto); font-size: 15px; }
+.menu .m-lbl { flex: 1; }
+.menu .m-atajo { color: var(--suave); font-size: 12px; }
+.menu .m-chev { color: var(--suave); }
+.menu .m-sep { height: 1px; background: var(--linea); margin: 6px 4px; }
+.menu .m-pie { font-size: 12px; color: var(--suave); padding: 6px 10px 4px; line-height: 1.6; }
+.menu .m-it.peligro:hover .m-lbl { color: #c4302b; }
+</style>
+</head>
+<body>
+
+<nav id="lateral">
+    <h1>📓 Cursos</h1>
+    <div id="lista-ctx"></div>
+</nav>
+
+<main id="principal">
+    <div id="barra">
+        <span class="ruta" id="ruta"></span>
+        <span id="estado"></span>
+        <button id="btn-pag-menu" title="Opciones de la página" hidden>⋯</button>
+    </div>
+    <div id="pagina">
+        <div id="vacio-ini">Elige un curso a la izquierda.</div>
+    </div>
+</main>
+
+<div id="tip"></div>
+<div class="menu" id="menu"></div>
+<div class="menu" id="submenu"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// CURSOS — bitácoras de cada curso como páginas (deuda BA, 2026-10-12)
+// Por curso: página del curso (bitacora_paginas tipo 'curso'), subpáginas de un
+// nivel (tipo 'sub') y las bitácoras de sus clases (tabla `memorias`, la misma del
+// Planificador y del celular). Editor por bloques; el contenido se guarda como
+// texto con marcas simples, una línea por bloque, para que el Planificador y el
+// celular lo sigan leyendo/escribiendo igual.
+// ═══════════════════════════════════════════════════════════════════════
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// Orden de la lista (General arriba; desconocidos al final).
+const ORDEN_CTX = ['GENERAL', 'PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO', 'SEXTO', 'SEPTIMO', 'OCTAVO',
+    'CASTIGADAS', 'KIDS CASTIGADAS', 'CUERDAS', 'RECREO', 'ORIENTACIÓN', 'ENLACE'];
+
+const TIPOS = [
+    { t: 'p',    ico: 'Aa', lbl: 'Texto' },
+    { t: 'h1',   ico: 'H1', lbl: 'Título 1' },
+    { t: 'h2',   ico: 'H2', lbl: 'Título 2' },
+    { t: 'h3',   ico: 'H3', lbl: 'Título 3' },
+    { t: 'ul',   ico: '•',  lbl: 'Viñetas' },
+    { t: 'ol',   ico: '1.', lbl: 'Lista numerada' },
+    { t: 'todo', ico: '☑',  lbl: 'Casilla' },
+];
+const LISTAS = new Set(['ul', 'ol', 'todo']);
+
+const DIAS  = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+// ── Estado ──────────────────────────────────────────────────────────────
+let contextos = [];          // [{ id, nombre }]
+let ctxAbierto = null;       // id del contexto desplegado
+const datosCtx = {};         // ctxId → { curso, subs:[], clases:[], verClases }
+let pag = null;              // página abierta: { tipo:'curso'|'sub'|'clase', ctxId, id, sesionId, fecha, titulo, audios, updated }
+let bloques = [];            // [{ id, t, x, c }]
+let focoId = null;
+let sucio = false, timerGuardar = null, cadenaGuardado = Promise.resolve();
+
+const $ = id => document.getElementById(id);
+const nid = () => Math.random().toString(36).slice(2, 10);
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function hoyISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function fechaD(iso) { return new Date(iso + 'T12:00:00'); }
+function tituloClase(iso) { const d = fechaD(iso); return `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`; }
+function cortoClase(iso)  { const d = fechaD(iso); return `${DIAS[d.getDay()].slice(0, 3)} ${d.getDate()} ${MESES[d.getMonth()].slice(0, 3)}`; }
+
+// ── Texto ⇄ bloques (una línea por bloque) ──────────────────────────────
+function aBloques(texto) {
+    return String(texto || '').replace(/\r/g, '').split('\n').map(linea => {
+        let m;
+        if ((m = linea.match(/^### (.*)$/)))                 return { id: nid(), t: 'h3', x: m[1] };
+        if ((m = linea.match(/^## (.*)$/)))                  return { id: nid(), t: 'h2', x: m[1] };
+        if ((m = linea.match(/^# (.*)$/)))                   return { id: nid(), t: 'h1', x: m[1] };
+        if ((m = linea.match(/^[-*] \[( |x|X)\] ?(.*)$/)))   return { id: nid(), t: 'todo', x: m[2], c: m[1] !== ' ' };
+        if ((m = linea.match(/^[-*•] (.*)$/)))               return { id: nid(), t: 'ul', x: m[1] };
+        if ((m = linea.match(/^\d+[.)] (.*)$/)))             return { id: nid(), t: 'ol', x: m[1] };
+        return { id: nid(), t: 'p', x: linea };
+    });
+}
+function aTexto(bs) {
+    let n = 0;
+    return bs.map(b => {
+        n = b.t === 'ol' ? n + 1 : 0;
+        switch (b.t) {
+            case 'h1': return '# ' + b.x;
+            case 'h2': return '## ' + b.x;
+            case 'h3': return '### ' + b.x;
+            case 'ul': return '- ' + b.x;
+            case 'ol': return n + '. ' + b.x;
+            case 'todo': return (b.c ? '- [x] ' : '- [ ] ') + b.x;
+            default: return b.x;
+        }
+    }).join('\n');
+}
+
+// ── Lista de cursos (panel lateral) ─────────────────────────────────────
+async function cargarContextos() {
+    const { data, error } = await sb.from('contextos').select('id, nombre, activo');
+    if (error) { estado('No se pudieron cargar los cursos — revisa conexión.', true); return; }
+    const pos = n => { const i = ORDEN_CTX.indexOf(n); return i < 0 ? 99 : i; };
+    contextos = (data || []).filter(c => c.activo !== false)
+        .sort((a, b) => pos(a.nombre) - pos(b.nombre) || a.nombre.localeCompare(b.nombre));
+    pintarLateral();
+}
+
+function pintarLateral() {
+    const cont = $('lista-ctx');
+    let html = '';
+    contextos.forEach((c, i) => {
+        const info = contextoInfo(c.nombre);
+        const abierto = c.id === ctxAbierto;
+        const activa = pag && pag.tipo === 'curso' && pag.ctxId === c.id;
+        html += `<div class="fila${activa ? ' activa' : ''}" data-acc="ctx" data-id="${c.id}" title="${esc(info.label)}">
+            <span class="chev" data-acc="chev" data-id="${c.id}">${abierto ? '▼' : '▶'}</span>
+            <span class="ico">${info.icono || '📁'}</span><span class="nom">${esc(info.label)}</span></div>`;
+        if (abierto) html += `<div class="hijos">${hijosHtml(c.id)}</div>`;
+        if (c.nombre === 'GENERAL' && i < contextos.length - 1) html += '<div class="sep-lat"></div>';
+    });
+    cont.innerHTML = html;
+}
+
+function hijosHtml(ctxId) {
+    const d = datosCtx[ctxId];
+    if (!d) return '<div class="lat-vacio">Cargando…</div>';
+    let h = '';
+    d.subs.forEach(s => {
+        const activa = pag && pag.tipo === 'sub' && pag.id === s.id;
+        h += `<div class="fila${activa ? ' activa' : ''}" data-acc="sub" data-id="${s.id}" title="${esc(s.titulo || 'Sin título')}">
+            <span class="ico">📄</span><span class="nom">${esc(s.titulo || 'Sin título')}</span></div>`;
+    });
+    h += `<div class="fila mas-pag" data-acc="nueva" data-id="${ctxId}"><span class="ico">＋</span><span class="nom">Agregar página</span></div>`;
+    if (d.clases.length) {
+        h += `<div class="fila" data-acc="verclases" data-id="${ctxId}">
+            <span class="chev">${d.verClases ? '▼' : '▶'}</span><span class="ico">🗓</span>
+            <span class="nom">Clases</span><span class="cuenta">${d.clases.length}</span></div>`;
+        if (d.verClases) {
+            h += '<div class="hijos">';
+            d.clases.forEach(cl => {
+                const activa = pag && pag.tipo === 'clase' && pag.sesionId === cl.sesionId;
+                const con = (cl.contenido || '').trim() || (cl.audios || []).length;
+                h += `<div class="fila clase${con ? ' con' : ''}${activa ? ' activa' : ''}" data-acc="clase" data-id="${cl.sesionId}"
+                    title="${esc(tituloClase(cl.fecha))}${con ? '' : ' — sin bitácora'}">
+                    <span class="punto"></span><span class="nom">${esc(cortoClase(cl.fecha))}</span></div>`;
+            });
+            h += '</div>';
+        }
+    }
+    return h;
+}
+
+async function cargarDatosCtx(ctxId) {
+    const [pags, ses] = await Promise.all([
+        sb.from('bitacora_paginas').select('id, tipo, titulo, contenido, audios, orden, updated_at')
+            .eq('contexto_id', ctxId).order('orden').order('created_at'),
+        sb.from('sesiones').select('id, fecha, memorias(contenido, audios, updated_at)')
+            .eq('contexto_id', ctxId).lte('fecha', hoyISO()).order('fecha', { ascending: false }),
+    ]);
+    if (pags.error || ses.error) {
+        estado(pags.error ? 'Falta crear la tabla de páginas en Supabase (bitacora_paginas.sql).' : 'No se pudieron cargar las clases.', true);
+    }
+    const filas = pags.data || [];
+    const previo = datosCtx[ctxId];
+    datosCtx[ctxId] = {
+        curso: filas.find(p => p.tipo === 'curso') || null,
+        subs: filas.filter(p => p.tipo === 'sub'),
+        clases: (ses.data || []).map(s => {
+            const m = Array.isArray(s.memorias) ? s.memorias[0] : s.memorias;
+            return { sesionId: s.id, fecha: s.fecha, contenido: m?.contenido || '', audios: m?.audios || [], updated: m?.updated_at || null, existe: !!m };
+        }),
+        verClases: previo ? previo.verClases : true,
+        error: !!pags.error,
+    };
+}
+
+$('lista-ctx').addEventListener('click', async e => {
+    const el = e.target.closest('[data-acc]');
+    if (!el) return;
+    const acc = el.dataset.acc, id = el.dataset.id;
+    if (acc === 'chev') {
+        e.stopPropagation();
+        ctxAbierto = ctxAbierto === id ? null : id;
+        pintarLateral();
+        if (ctxAbierto && !datosCtx[id]) { await cargarDatosCtx(id); pintarLateral(); }
+        return;
+    }
+    if (acc === 'ctx')       return abrirCurso(id);
+    if (acc === 'sub')       return abrirSub(ctxAbierto, id);
+    if (acc === 'clase')     return abrirClase(ctxAbierto, id);
+    if (acc === 'nueva')     return nuevaSubpagina(id);
+    if (acc === 'verclases') { datosCtx[id].verClases = !datosCtx[id].verClases; pintarLateral(); }
+});
+
+// ── Abrir páginas ───────────────────────────────────────────────────────
+async function prepararCtx(ctxId) {
+    await guardarAhora();
+    ctxAbierto = ctxId;
+    if (!datosCtx[ctxId]) { pintarLateral(); await cargarDatosCtx(ctxId); }
+    try { localStorage.setItem('profe_cursos_ultimo', ctxId); } catch (e) {}
+}
+function nombreCtx(ctxId) { const c = contextos.find(x => x.id === ctxId); return c ? contextoInfo(c.nombre) : { label: '', icono: '' }; }
+
+async function abrirCurso(ctxId) {
+    await prepararCtx(ctxId);
+    const d = datosCtx[ctxId], info = nombreCtx(ctxId);
+    pag = { tipo: 'curso', ctxId, id: d.curso?.id || null, titulo: info.label, audios: d.curso?.audios || [], updated: d.curso?.updated_at };
+    montarPagina(d.curso?.contenido || '', `${info.icono} ${info.label}`, ctxId === idGeneral() ? 'Notas generales (consejos de profesores, reuniones…)' : 'Página del curso');
+}
+async function abrirSub(ctxId, id) {
+    await prepararCtx(ctxId);
+    const s = datosCtx[ctxId].subs.find(x => x.id === id);
+    if (!s) return;
+    pag = { tipo: 'sub', ctxId, id, titulo: s.titulo, audios: s.audios || [], updated: s.updated_at };
+    montarPagina(s.contenido, null, `Página de ${nombreCtx(ctxId).label}`);
+}
+async function abrirClase(ctxId, sesionId) {
+    await prepararCtx(ctxId);
+    const cl = datosCtx[ctxId].clases.find(x => x.sesionId === sesionId);
+    if (!cl) return;
+    pag = { tipo: 'clase', ctxId, sesionId, fecha: cl.fecha, titulo: tituloClase(cl.fecha), audios: cl.audios || [], updated: cl.updated };
+    montarPagina(cl.contenido, tituloClase(cl.fecha), `Bitácora de la clase · ${nombreCtx(ctxId).label} · ${fechaD(cl.fecha).getFullYear()}`);
+}
+function idGeneral() { return contextos.find(c => c.nombre === 'GENERAL')?.id; }
+
+async function nuevaSubpagina(ctxId) {
+    await prepararCtx(ctxId);
+    const d = datosCtx[ctxId];
+    const orden = d.subs.reduce((m, s) => Math.max(m, s.orden || 0), 0) + 1;
+    const { data, error } = await sb.from('bitacora_paginas')
+        .insert({ contexto_id: ctxId, tipo: 'sub', titulo: '', contenido: '', orden }).select().single();
+    if (error) { estado('No se pudo crear la página — revisa conexión.', true); return; }
+    d.subs.push(data);
+    await abrirSub(ctxId, data.id);
+    $('pag-titulo')?.focus();
+}
+
+function montarPagina(texto, tituloFijo, subtitulo) {
+    sucio = false;
+    bloques = aBloques(texto);
+    focoId = null;
+    const info = nombreCtx(pag.ctxId);
+    $('ruta').textContent = pag.tipo === 'curso' ? `${info.icono} ${info.label}` : `${info.icono} ${info.label}  /  ${pag.tipo === 'clase' ? 'Clases  /  ' : ''}${pag.titulo || 'Sin título'}`;
+    $('btn-pag-menu').hidden = false;
+    const editable = pag.tipo === 'sub';
+    $('pagina').innerHTML = `
+        <div id="pag-titulo"${editable ? ' contenteditable="plaintext-only" spellcheck="true"' : ''}></div>
+        <div id="pag-sub">${esc(subtitulo || '')}</div>
+        <div id="pag-audios"></div>
+        <div id="bloques"><div id="indicador"></div></div>
+        <div id="zona-fin" title="Clic para escribir"></div>`;
+    $('pag-titulo').textContent = editable ? (pag.titulo || '') : tituloFijo;
+    pintarAudios();
+    pintarBloques();
+    pintarLateral();
+    if (datosCtx[pag.ctxId]?.error) estado('Falta crear la tabla de páginas en Supabase (bitacora_paginas.sql).', true);
+    else estado('');
+    $('principal').scrollTop = 0;
+}
+
+function pintarAudios() {
+    const a = Array.isArray(pag.audios) ? pag.audios : [];
+    $('pag-audios').innerHTML = a.map((x, i) => {
+        const lbl = x.ts ? new Date(x.ts).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : `Audio ${i + 1}`;
+        const url = sb.storage.from('memorias-audio').getPublicUrl(x.path).data.publicUrl;
+        return `<div class="aud"><div class="aud-lbl">🎙 ${esc(lbl)}</div><audio controls preload="none" src="${esc(url)}"></audio></div>`;
+    }).join('');
+}
+
+// ── Título de las subpáginas ────────────────────────────────────────────
+document.addEventListener('input', e => {
+    if (e.target.id !== 'pag-titulo') return;
+    if (e.target.textContent === '') e.target.innerHTML = '';
+    pag.titulo = e.target.textContent.replace(/\n/g, ' ');
+    const s = datosCtx[pag.ctxId]?.subs.find(x => x.id === pag.id);
+    if (s) s.titulo = pag.titulo;
+    $('ruta').textContent = `${nombreCtx(pag.ctxId).icono} ${nombreCtx(pag.ctxId).label}  /  ${pag.titulo || 'Sin título'}`;
+    pintarLateral();
+    marcarSucio();
+});
+document.addEventListener('keydown', e => {
+    if (e.target.id !== 'pag-titulo') return;
+    if (e.key === 'Enter' || (e.key === 'ArrowDown')) {
+        e.preventDefault();
+        if (bloques.length) enfocar(bloques[0].id, 0);
+    }
+});
+
+// ── Pintar bloques ──────────────────────────────────────────────────────
+function pintarBloques() {
+    const cont = $('bloques');
+    if (!cont) return;
+    if (!bloques.length) bloques = [{ id: nid(), t: 'p', x: '' }];
+    [...cont.querySelectorAll('.blq')].forEach(n => n.remove());
+    let num = 0;
+    bloques.forEach(b => {
+        num = b.t === 'ol' ? num + 1 : 0;
+        cont.appendChild(elBloque(b, num));
+    });
+    cont.classList.toggle('solo', bloques.length === 1 && !bloques[0].x && bloques[0].t === 'p');
+}
+
+function elBloque(b, num) {
+    const d = document.createElement('div');
+    d.className = `blq t-${b.t}${b.t === 'todo' && b.c ? ' hecho' : ''}`;
+    d.dataset.id = b.id;
+    let marca = '';
+    if (b.t === 'ul')   marca = '<span class="marca">•</span>';
+    if (b.t === 'ol')   marca = `<span class="marca">${num}.</span>`;
+    if (b.t === 'todo') marca = `<span class="marca"><input type="checkbox"${b.c ? ' checked' : ''}></span>`;
+    d.innerHTML = `<div class="asas">
+            <button class="mas" tabindex="-1" data-tip="<b>Haz clic</b> para agregar un bloque debajo<br><b>Alt + clic</b> para agregar un bloque arriba">＋</button>
+            <span class="asa" draggable="true" data-tip="<b>Arrastra</b> para mover<br><b>Haz clic</b> para abrir el menú">⋮⋮</span>
+        </div>${marca}<div class="txt" contenteditable="plaintext-only" spellcheck="true"></div>`;
+    d.querySelector('.txt').textContent = b.x;
+    return d;
+}
+
+const idx = id => bloques.findIndex(b => b.id === id);
+const elDe = id => document.querySelector(`.blq[data-id="${id}"]`);
+const txtDe = id => elDe(id)?.querySelector('.txt');
+
+// ── Cursor ──────────────────────────────────────────────────────────────
+function cursorEn(el) {
+    const s = getSelection();
+    if (!s.rangeCount || !el.contains(s.anchorNode)) return 0;
+    const r = s.getRangeAt(0), pre = document.createRange();
+    pre.selectNodeContents(el);
+    pre.setEnd(r.startContainer, r.startOffset);
+    return pre.toString().length;
+}
+function ponerCursor(el, off) {
+    el.focus();
+    const s = getSelection(), r = document.createRange();
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let t, rest = off, ok = false;
+    while ((t = w.nextNode())) {
+        if (rest <= t.length) { r.setStart(t, rest); ok = true; break; }
+        rest -= t.length;
+    }
+    if (!ok) { r.selectNodeContents(el); r.collapse(false); }
+    else r.collapse(true);
+    s.removeAllRanges(); s.addRange(r);
+}
+function enfocar(id, off) {
+    const el = txtDe(id);
+    if (!el) return;
+    ponerCursor(el, off === 'fin' ? el.textContent.length : off);
+}
+
+// ── Operaciones sobre bloques ───────────────────────────────────────────
+function insertar(pos, b) { bloques.splice(pos, 0, b); pintarBloques(); marcarSucio(); return b; }
+function convertir(id, t) {
+    const b = bloques[idx(id)];
+    if (!b) return;
+    const off = txtDe(id) ? cursorEn(txtDe(id)) : 0;
+    b.t = t;
+    if (t === 'todo' && b.c === undefined) b.c = false;
+    pintarBloques(); marcarSucio();
+    enfocar(id, Math.min(off, b.x.length));
+}
+function duplicar(id) {
+    const i = idx(id);
+    if (i < 0) return;
+    const copia = { ...bloques[i], id: nid() };
+    insertar(i + 1, copia);
+    enfocar(copia.id, 'fin');
+}
+function eliminar(id) {
+    const i = idx(id);
+    if (i < 0) return;
+    bloques.splice(i, 1);
+    pintarBloques(); marcarSucio();
+    const vecino = bloques[Math.max(0, i - 1)];
+    if (vecino) enfocar(vecino.id, 'fin');
+}
+
+// ── Escritura ───────────────────────────────────────────────────────────
+const bloquesEl = () => $('bloques');
+document.addEventListener('input', e => {
+    const txt = e.target.closest?.('.blq .txt');
+    if (!txt) return;
+    const id = txt.parentElement.dataset.id, b = bloques[idx(id)];
+    if (!b) return;
+    if (txt.textContent === '') txt.innerHTML = '';
+    b.x = txt.textContent.replace(/\n/g, ' ');
+    // Atajos al comienzo de la línea: "# ", "## ", "### ", "- ", "1. ", "[] "
+    if (e.inputType === 'insertText' && e.data && e.data.includes(' ')) {
+        const reglas = [[/^### /, 'h3'], [/^## /, 'h2'], [/^# /, 'h1'], [/^\[\s?\] /, 'todo'], [/^[-*] /, 'ul'], [/^1[.)] /, 'ol']];
+        const pos = cursorEn(txt);
+        for (const [re, t] of reglas) {
+            const m = b.x.match(re);
+            const recien = m && (pos === m[0].length || (e.data.length > 1 && e.data.startsWith(m[0]) && pos === e.data.length));
+            if (recien && (b.t === 'p' || (b.t === 'ul' && t === 'todo'))) {
+                b.x = b.x.slice(m[0].length);
+                b.t = t; if (t === 'todo') b.c = false;
+                pintarBloques(); marcarSucio();
+                enfocar(id, pos - m[0].length);
+                return;
+            }
+        }
+    }
+    bloquesEl().classList.toggle('solo', bloques.length === 1 && !bloques[0].x && bloques[0].t === 'p');
+    marcarSucio();
+});
+
+document.addEventListener('focusin', e => {
+    const txt = e.target.closest?.('.blq .txt');
+    if (txt) focoId = txt.parentElement.dataset.id;
+});
+
+document.addEventListener('keydown', e => {
+    if (menuAbierto()) { if (teclaMenu(e)) return; }
+    const txt = e.target.closest?.('.blq .txt');
+    if (!txt || e.isComposing) return;
+    const id = txt.parentElement.dataset.id, i = idx(id), b = bloques[i];
+    if (!b) return;
+    const sel = getSelection(), colapsada = sel.isCollapsed, off = cursorEn(txt), largo = txt.textContent.length;
+
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (LISTAS.has(b.t) && !b.x) { convertir(id, 'p'); return; }
+        if (!colapsada) sel.deleteFromDocument();
+        const o = cursorEn(txt), resto = txt.textContent;
+        b.x = resto.slice(0, o);
+        const nuevo = { id: nid(), t: LISTAS.has(b.t) ? b.t : 'p', x: resto.slice(o) };
+        if (nuevo.t === 'todo') nuevo.c = false;
+        if (o === 0 && resto.length) {           // al comienzo: el bloque nuevo (vacío) queda arriba
+            b.x = resto;
+            insertar(i, { ...nuevo, x: '', t: LISTAS.has(b.t) ? b.t : 'p' });
+            enfocar(id, 0);
+            return;
+        }
+        insertar(i + 1, nuevo);
+        enfocar(nuevo.id, 0);
+        return;
+    }
+    if (e.key === 'Backspace' && colapsada && off === 0) {
+        e.preventDefault();
+        if (b.t !== 'p') { convertir(id, 'p'); return; }
+        if (i === 0) return;
+        const prev = bloques[i - 1], pos = prev.x.length;
+        prev.x += b.x;
+        bloques.splice(i, 1);
+        pintarBloques(); marcarSucio();
+        enfocar(prev.id, pos);
+        return;
+    }
+    if (e.key === 'Delete' && colapsada && off === largo && i < bloques.length - 1) {
+        e.preventDefault();
+        const sig = bloques[i + 1];
+        b.x += sig.x;
+        bloques.splice(i + 1, 1);
+        pintarBloques(); marcarSucio();
+        enfocar(id, largo);
+        return;
+    }
+    if (e.key === 'ArrowUp' && colapsada && off === 0 && i > 0) { e.preventDefault(); enfocar(bloques[i - 1].id, 'fin'); return; }
+    if (e.key === 'ArrowDown' && colapsada && off === largo && i < bloques.length - 1) { e.preventDefault(); enfocar(bloques[i + 1].id, 0); return; }
+    if (e.key === 'ArrowUp' && colapsada && off === 0 && i === 0 && pag?.tipo === 'sub') { e.preventDefault(); ponerCursor($('pag-titulo'), $('pag-titulo').textContent.length); return; }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); duplicar(id); return; }
+    if (e.key === '/' && !b.x) { e.preventDefault(); menuTipos(id, 'barra'); return; }
+});
+
+// Pegar: solo texto; cada línea pegada es un bloque.
+document.addEventListener('paste', e => {
+    const txt = e.target.closest?.('.blq .txt');
+    if (!txt) return;
+    e.preventDefault();
+    const texto = (e.clipboardData.getData('text/plain') || '').replace(/\r/g, '');
+    if (!texto) return;
+    const sel = getSelection();
+    if (!sel.isCollapsed) sel.deleteFromDocument();
+    const id = txt.parentElement.dataset.id, i = idx(id), b = bloques[i];
+    const o = cursorEn(txt), actual = txt.textContent;
+    const lineas = texto.split('\n');
+    if (lineas.length === 1) {
+        b.x = actual.slice(0, o) + texto + actual.slice(o);
+        txt.textContent = b.x;
+        bloquesEl().classList.remove('solo');
+        enfocar(id, o + texto.length);
+        marcarSucio();
+        return;
+    }
+    const nuevos = aBloques(lineas.slice(1).join('\n'));
+    const ultimo = nuevos[nuevos.length - 1], finUltimo = ultimo.x.length;
+    ultimo.x += actual.slice(o);
+    b.x = actual.slice(0, o) + lineas[0];
+    bloques.splice(i + 1, 0, ...nuevos);
+    pintarBloques(); marcarSucio();
+    enfocar(ultimo.id, finUltimo);
+});
+
+// Clics: casillas, ＋ y ⋮⋮, zona final.
+document.addEventListener('click', e => {
+    const chk = e.target.closest('.blq .marca input');
+    if (chk) {
+        const b = bloques[idx(chk.closest('.blq').dataset.id)];
+        b.c = chk.checked;
+        chk.closest('.blq').classList.toggle('hecho', b.c);
+        marcarSucio();
+        return;
+    }
+    const mas = e.target.closest('.blq .mas');
+    if (mas) {
+        ocultarTip();
+        const id = mas.closest('.blq').dataset.id, i = idx(id);
+        const nuevo = insertar(e.altKey ? i : i + 1, { id: nid(), t: 'p', x: '' });
+        enfocar(nuevo.id, 0);
+        menuTipos(nuevo.id, 'mas');
+        return;
+    }
+    const asa = e.target.closest('.blq .asa');
+    if (asa) { ocultarTip(); menuBloque(asa.closest('.blq').dataset.id, asa); return; }
+    if (e.target.id === 'zona-fin') {
+        const ult = bloques[bloques.length - 1];
+        if (ult && ult.t === 'p' && !ult.x) enfocar(ult.id, 0);
+        else { const n = insertar(bloques.length, { id: nid(), t: 'p', x: '' }); enfocar(n.id, 0); }
+    }
+});
+
+// ── Arrastrar bloques ───────────────────────────────────────────────────
+let arrastreId = null, destino = null;
+document.addEventListener('dragstart', e => {
+    const asa = e.target.closest?.('.blq .asa');
+    if (!asa) return;
+    const blq = asa.closest('.blq');
+    arrastreId = blq.dataset.id;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    e.dataTransfer.setDragImage(blq, 30, 14);
+    ocultarTip(); cerrarMenus();
+    requestAnimationFrame(() => blq.classList.add('arrastrando'));
+});
+document.addEventListener('dragover', e => {
+    if (!arrastreId || !bloquesEl()) return;
+    e.preventDefault();
+    const cont = bloquesEl(), base = cont.getBoundingClientRect(), els = [...cont.querySelectorAll('.blq')];
+    let pos = els.length, y;
+    for (let k = 0; k < els.length; k++) {
+        const r = els[k].getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) { pos = k; y = r.top - base.top - 2; break; }
+    }
+    if (pos === els.length) { const r = els[els.length - 1].getBoundingClientRect(); y = r.bottom - base.top - 1; }
+    destino = pos;
+    const ind = $('indicador');
+    ind.style.top = y + 'px'; ind.style.display = 'block';
+});
+document.addEventListener('drop', e => {
+    if (!arrastreId) return;
+    e.preventDefault();
+    const de = idx(arrastreId);
+    let a = destino;
+    if (de >= 0 && a !== null && a !== de && a !== de + 1) {
+        const [b] = bloques.splice(de, 1);
+        if (a > de) a--;
+        bloques.splice(a, 0, b);
+        pintarBloques(); marcarSucio();
+    }
+    finArrastre();
+});
+document.addEventListener('dragend', finArrastre);
+function finArrastre() {
+    arrastreId = null; destino = null;
+    const ind = $('indicador'); if (ind) ind.style.display = 'none';
+    document.querySelectorAll('.blq.arrastrando').forEach(n => n.classList.remove('arrastrando'));
+}
+
+// ── Ayudas al pasar el mouse ────────────────────────────────────────────
+document.addEventListener('mouseover', e => {
+    const t = e.target.closest?.('[data-tip]');
+    if (!t || arrastreId || menuAbierto()) return;
+    const tip = $('tip');
+    tip.innerHTML = t.dataset.tip;
+    tip.style.display = 'block';
+    const r = t.getBoundingClientRect();
+    tip.style.left = Math.max(8, r.left + r.width / 2 - tip.offsetWidth / 2) + 'px';
+    tip.style.top = (r.bottom + 8) + 'px';
+});
+document.addEventListener('mouseout', e => { if (e.target.closest?.('[data-tip]')) ocultarTip(); });
+function ocultarTip() { $('tip').style.display = 'none'; }
+
+// ── Menús ───────────────────────────────────────────────────────────────
+// Un menú = lista de ítems { ico, lbl, atajo, accion, sub, activo }; teclado ↑ ↓ Enter Esc.
+let menuItems = [], menuFoco = 0, menuCierre = null, menuBloqueId = null;
+function menuAbierto() { return $('menu').style.display === 'block'; }
+
+function abrirMenu(items, ancla, { titulo = '', pie = '', alCerrar = null } = {}) {
+    cerrarMenus();
+    const m = $('menu');
+    menuItems = items.filter(it => !it.sep);
+    menuFoco = 0; menuCierre = alCerrar;
+    let k = 0, html = titulo ? `<div class="m-tit">${esc(titulo)}</div>` : '';
+    items.forEach(it => {
+        if (it.sep) { html += '<div class="m-sep"></div>'; return; }
+        html += `<button class="m-it${it.peligro ? ' peligro' : ''}" data-k="${k++}">
+            <span class="m-ico">${it.ico || ''}</span><span class="m-lbl">${esc(it.lbl)}${it.activo ? ' ✓' : ''}</span>
+            ${it.atajo ? `<span class="m-atajo">${esc(it.atajo)}</span>` : ''}${it.sub ? '<span class="m-chev">›</span>' : ''}</button>`;
+    });
+    if (pie) html += `<div class="m-sep"></div><div class="m-pie">${pie}</div>`;
+    m.innerHTML = html;
+    m.style.display = 'block';
+    const r = ancla.getBoundingClientRect();
+    let left = r.left, top = r.bottom + 6;
+    if (top + m.offsetHeight > innerHeight - 8) top = Math.max(8, r.top - m.offsetHeight - 6);
+    if (left + m.offsetWidth > innerWidth - 8) left = innerWidth - m.offsetWidth - 8;
+    m.style.left = left + 'px'; m.style.top = top + 'px';
+    focoMenu(0);
+}
+function focoMenu(k) {
+    menuFoco = (k + menuItems.length) % menuItems.length;
+    $('menu').querySelectorAll('.m-it').forEach((n, j) => n.classList.toggle('foco', j === menuFoco));
+}
+function cerrarMenus() {
+    const estaba = menuAbierto();
+    $('menu').style.display = 'none'; $('submenu').style.display = 'none';
+    document.querySelectorAll('.blq.sel').forEach(n => n.classList.remove('sel'));
+    if (estaba && menuCierre) { const f = menuCierre; menuCierre = null; f(); }
+    menuBloqueId = null;
+}
+function elegir(k) {
+    const it = menuItems[k];
+    if (!it) return;
+    if (it.sub) { abrirSubmenu(it, $('menu').querySelectorAll('.m-it')[k]); return; }
+    menuCierre = null;
+    cerrarMenus();
+    it.accion();
+}
+function abrirSubmenu(it, el) {
+    const s = $('submenu');
+    s.innerHTML = it.sub.map((x, j) => `<button class="m-it" data-j="${j}"><span class="m-ico">${x.ico}</span>
+        <span class="m-lbl">${esc(x.lbl)}</span>${x.activo ? '<span class="m-atajo">✓</span>' : ''}</button>`).join('');
+    s.style.display = 'block';
+    const r = el.getBoundingClientRect();
+    let left = r.right + 4;
+    if (left + s.offsetWidth > innerWidth - 8) left = r.left - s.offsetWidth - 4;
+    s.style.left = left + 'px';
+    s.style.top = Math.min(r.top - 6, innerHeight - s.offsetHeight - 8) + 'px';
+    s.onclick = ev => {
+        const b = ev.target.closest('[data-j]');
+        if (!b) return;
+        const x = it.sub[+b.dataset.j];
+        menuCierre = null; cerrarMenus(); x.accion();
+    };
+}
+$('menu').addEventListener('click', e => { const b = e.target.closest('.m-it'); if (b) elegir(+b.dataset.k); });
+$('menu').addEventListener('mouseover', e => {
+    const b = e.target.closest('.m-it');
+    if (!b) return;
+    focoMenu(+b.dataset.k);
+    const it = menuItems[+b.dataset.k];
+    if (it.sub) abrirSubmenu(it, b); else $('submenu').style.display = 'none';
+});
+document.addEventListener('mousedown', e => {
+    if (menuAbierto() && !e.target.closest('.menu') && !e.target.closest('.asa') && !e.target.closest('#btn-pag-menu')) cerrarMenus();
+});
+function teclaMenu(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); focoMenu(menuFoco + 1); return true; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); focoMenu(menuFoco - 1); return true; }
+    if (e.key === 'Enter')     { e.preventDefault(); elegir(menuFoco); return true; }
+    if (e.key === 'Escape')    { e.preventDefault(); cerrarMenus(); return true; }
+    if (menuBloqueId) {        // menú del bloque abierto: atajos del bloque
+        const id = menuBloqueId;
+        if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); menuCierre = null; cerrarMenus(); eliminar(id); return true; }
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); menuCierre = null; cerrarMenus(); duplicar(id); return true; }
+        return false;
+    }
+    if (e.key.length === 1 || e.key === 'Backspace') cerrarMenus();   // seguir escribiendo
+    return false;
+}
+
+function itemsTipos(id) {
+    const b = bloques[idx(id)];
+    return TIPOS.map(x => ({ ico: x.ico, lbl: x.lbl, activo: b && b.t === x.t, accion: () => convertir(id, x.t) }));
+}
+function menuTipos(id, origen) {
+    const el = txtDe(id);
+    if (!el) return;
+    abrirMenu(itemsTipos(id).map(x => ({ ...x, activo: false })), el, {
+        titulo: 'Bloques básicos',
+        alCerrar: () => enfocar(id, 'fin'),
+    });
+}
+function menuBloque(id, asa) {
+    const b = bloques[idx(id)];
+    if (!b) return;
+    const palabras = b.x.trim() ? b.x.trim().split(/\s+/).length : 0;
+    abrirMenu([
+        { ico: '⇄', lbl: 'Convertir en', sub: itemsTipos(id) },
+        { sep: true },
+        { ico: '⧉', lbl: 'Duplicar', atajo: 'Ctrl+D', accion: () => duplicar(id) },
+        { ico: '🗑', lbl: 'Eliminar', atajo: 'Supr', peligro: true, accion: () => eliminar(id) },
+    ], asa, {
+        titulo: TIPOS.find(x => x.t === b.t)?.lbl || 'Texto',
+        pie: `${pag?.updated ? 'Última edición: ' + cuando(pag.updated) + '<br>' : ''}${palabras} palabra${palabras === 1 ? '' : 's'}, ${b.x.length} caractere${b.x.length === 1 ? '' : 's'}`,
+    });
+    menuBloqueId = id;
+    elDe(id)?.classList.add('sel');
+    document.activeElement?.blur();
+}
+function cuando(iso) {
+    const d = new Date(iso), hoy = new Date();
+    const hora = d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === hoy.toDateString()) return 'hoy a las ' + hora;
+    return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }) + ' a las ' + hora;
+}
+
+// Menú de la página (⋯): eliminar subpágina.
+$('btn-pag-menu').addEventListener('click', e => {
+    if (!pag) return;
+    if (menuAbierto()) { cerrarMenus(); return; }
+    const items = [];
+    if (pag.tipo === 'sub') items.push({ ico: '🗑', lbl: 'Eliminar esta página', peligro: true, accion: eliminarSubpagina });
+    else items.push({ ico: 'ℹ️', lbl: pag.tipo === 'clase' ? 'La bitácora de la clase no se elimina' : 'La página del curso no se elimina', accion: () => {} });
+    abrirMenu(items, e.currentTarget, { pie: pag.updated ? 'Última edición: ' + cuando(pag.updated) : '' });
+    const m = $('menu'), r = e.currentTarget.getBoundingClientRect();
+    m.style.left = Math.max(8, r.right - m.offsetWidth) + 'px';
+});
+async function eliminarSubpagina() {
+    if (!confirm(`¿Eliminar la página "${pag.titulo || 'Sin título'}"? No se puede deshacer.`)) return;
+    clearTimeout(timerGuardar); sucio = false;
+    const { error } = await sb.from('bitacora_paginas').delete().eq('id', pag.id);
+    if (error) { estado('No se pudo eliminar — revisa conexión.', true); return; }
+    const d = datosCtx[pag.ctxId];
+    d.subs = d.subs.filter(s => s.id !== pag.id);
+    abrirCurso(pag.ctxId);
+}
+
+// ── Guardado automático ─────────────────────────────────────────────────
+function estado(t, err) { const e = $('estado'); e.textContent = t; e.className = err ? 'err' : ''; }
+function marcarSucio() {
+    if (!pag) return;
+    sucio = true;
+    estado('Sin guardar…');
+    clearTimeout(timerGuardar);
+    timerGuardar = setTimeout(guardarAhora, 800);
+}
+function guardarAhora() {
+    clearTimeout(timerGuardar);
+    if (!sucio || !pag) return cadenaGuardado;
+    sucio = false;
+    const p = pag, contenido = aTexto(bloques), titulo = p.titulo || '';
+    cadenaGuardado = cadenaGuardado.then(() => guardar(p, contenido, titulo)).catch(() => {});
+    return cadenaGuardado;
+}
+async function guardar(p, contenido, titulo) {
+    estado('Guardando…');
+    const ahora = new Date().toISOString();
+    const d = datosCtx[p.ctxId];
+    try {
+        if (p.tipo === 'clase') {
+            const { error } = await sb.from('memorias').upsert(
+                { sesion_id: p.sesionId, contenido, updated_at: ahora }, { onConflict: 'sesion_id' });
+            if (error) throw error;
+            const cl = d?.clases.find(x => x.sesionId === p.sesionId);
+            if (cl) { cl.contenido = contenido; cl.updated = ahora; }
+        } else if (p.tipo === 'curso') {
+            if (!p.id) {
+                const { data, error } = await sb.from('bitacora_paginas')
+                    .insert({ contexto_id: p.ctxId, tipo: 'curso', contenido, updated_at: ahora }).select().single();
+                if (error) throw error;
+                p.id = data.id;
+                if (d) d.curso = data;
+            } else {
+                const { error } = await sb.from('bitacora_paginas').update({ contenido, updated_at: ahora }).eq('id', p.id);
+                if (error) throw error;
+                if (d?.curso) d.curso.contenido = contenido;
+            }
+        } else {
+            const { error } = await sb.from('bitacora_paginas').update({ contenido, titulo, updated_at: ahora }).eq('id', p.id);
+            if (error) throw error;
+            const s = d?.subs.find(x => x.id === p.id);
+            if (s) { s.contenido = contenido; s.titulo = titulo; s.updated_at = ahora; }
+        }
+        p.updated = ahora;
+        if (pag === p && !sucio) { estado('Guardado ✓'); setTimeout(() => { if ($('estado').textContent === 'Guardado ✓') estado(''); }, 2000); }
+        if (p.tipo === 'clase') pintarLateral();
+    } catch (e) {
+        if (pag === p) sucio = true;
+        estado('No se pudo guardar — revisa conexión. Se reintentará al seguir escribiendo.', true);
+    }
+}
+window.addEventListener('beforeunload', e => { if (sucio) { guardarAhora(); e.preventDefault(); e.returnValue = ''; } });
+document.addEventListener('visibilitychange', () => { if (document.hidden) guardarAhora(); });
+
+// Workspace: guardar antes de cerrar la pestaña.
+window.addEventListener('message', async e => {
+    if (e.data?.tipo !== 'ws-guardar') return;
+    await guardarAhora();
+    try { window.parent.postMessage({ tipo: 'ws-guardado', reqId: e.data.reqId, ok: !sucio }, '*'); } catch (_) {}
+});
+
+// ── Inicio ──────────────────────────────────────────────────────────────
+(async function init() {
+    await cargarContextos();
+    const q = new URLSearchParams(location.search).get('ctx');
+    let ultimo = null;
+    try { ultimo = localStorage.getItem('profe_cursos_ultimo'); } catch (e) {}
+    const elegido = (q && contextos.find(c => c.nombre === q.toUpperCase())) || contextos.find(c => c.id === ultimo);
+    if (elegido) abrirCurso(elegido.id);
+})();
+</script>
+</body>
+</html>

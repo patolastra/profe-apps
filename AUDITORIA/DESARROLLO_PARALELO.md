@@ -3704,3 +3704,34 @@ Pizarra; además, la diapo de Silencio y atención que diga arriba de todo, y de
 - **Ajuste del PO (2026-10-12):** toda la diapositiva con fondo blanco y el título en negro. Prueba: fondo blanco, texto
   negro.
 - **Cerrada; pendiente probar en clase.**
+
+### BA. Cursos — bitácoras de cada curso como páginas (estilo Notion)
+*Origen: PO (2026-10-12): "una página en la que pueda seleccionar los contextos e ir viendo sus bitácoras… que las
+bitácoras de los cursos funcionen como páginas de Notion".*
+- **Auditoría:** hoy la bitácora es 1 texto por clase (`memorias.contenido` + `audios`, 1:1 con `sesiones`); la escriben
+  el Planificador (modal ✍🏼, autoguardado) y el celular (`MEMORIA/`). No existe lugar para notas del curso fuera de una
+  clase. El contexto `GENERAL` (virtual) ya existe en `contextos`.
+- **DECISIÓN del PO:** página nueva **"Cursos"** (PC y celular; **primero escritorio**). Por curso: **página del curso**
+  (notas generales), **subpáginas** de un solo nivel y **clases por fecha** (= las bitácoras existentes, título
+  automático). Página **General** para notas de los consejos de profesores. Editor por bloques como Notion: **＋** (clic =
+  bloque abajo, Alt + clic = arriba), **⋮⋮** (arrastrar = mover; clic = menú sencillo: Convertir en, Duplicar,
+  Eliminar); títulos, viñetas, listas numeradas, casillas, imágenes, enlaces a la Biblioteca; **audio en cualquier
+  página**. En dos pasos: **(1)** página + editor por bloques; **(2)** imágenes, audio y enlaces a la Biblioteca.
+- **Diseño técnico:** el contenido se guarda como **texto con marcas simples** (`# `, `- `, `1. `, `- [ ] `), una línea por
+  bloque: el Planificador y el celular siguen leyendo/escribiendo `memorias.contenido` igual. Páginas de curso y
+  subpáginas en tabla nueva **`bitacora_paginas`** (`supabase/bitacora_paginas.sql`, la ejecuta el PO).
+- **Implementación paso 1 (2026-10-12):** `CURSOS/index.html` (pestaña "📓 Cursos" del Workspace, guarda al cerrar).
+  Panel lateral: General arriba y luego cursos, talleres, Recreo y jefaturas; al desplegar uno, sus subpáginas,
+  "＋ Agregar página" y "🗓 Clases" (sesiones hasta hoy, punto azul = con bitácora). Página: título (fijo en curso/clase,
+  editable en subpáginas), audios existentes de la clase (solo escuchar) y editor por bloques: ＋ (abajo / Alt arriba,
+  abre "Bloques básicos"), ⋮⋮ (arrastrar con línea guía; clic = menú Convertir en ▸ / Duplicar Ctrl+D / Eliminar Supr,
+  con última edición y palabras), "/" en un bloque vacío, atajos `#`/`##`/`###`/`-`/`1.`/`[]`, Enter/Retroceso/Supr/
+  flechas entre bloques, pegar varias líneas = varios bloques. Guardado automático (0,8 s; al cambiar de página, al ocultar
+  y al cerrar la pestaña). Menú ⋯ de la página: eliminar subpágina (con confirmación). `?ctx=<NOMBRE>` abre ese curso.
+- **Prueba (servidor local, sin escribir datos reales: guardado reemplazado en la prueba):** Séptimo carga 22 clases; la
+  bitácora del 8 oct se ve completa; en una clase vacía, los atajos y Enter dan título, viñetas, casilla y lista numerada
+  y el texto guardado queda `# … / - … / - [ ] … / 1. … 2. …`; ＋, Alt + ＋, menú de tipos con teclado, ⋮⋮ → Duplicar,
+  Convertir en Casilla, Eliminar; arrastre con línea guía; Retroceso convierte a texto y une. Sin la tabla nueva, la página
+  avisa "Falta crear la tabla…".
+- **Tabla creada por el PO (2026-10-12)** (prueba: crear y borrar una subpágina, ok). **Pendiente:** probar página del curso, General y subpáginas con la
+  tabla real; paso 2 (imágenes, audio, enlaces a la Biblioteca) y celular.
