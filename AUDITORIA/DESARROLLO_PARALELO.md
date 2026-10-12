@@ -3638,3 +3638,6 @@ audio: escoger, revisar contra el audio y aprobar o descartar, hasta dar con el 
   (con letra): 🔎 → 10 resultados; Probar y Volver → vuelve su letra (62 versos) y Supabase sin cambios. "Amenaza de
   Ultracumbia" no está en LRCLIB (aviso "No se encontró"). Sin errores en consola.
 - **Cerrada; pendiente probar en uso (el PO elige la letra de Mi Buen Amor y de Cafuné).**
+- **Error en uso (PO, 2026-10-12):** al probar desde 🔎 la pantalla quedaba oscura y no respondía: el fondo de la ventana
+  de búsqueda seguía encima (su `display: flex` anulaba `hidden`). Arreglo: `#ent-busq-modal[hidden] { display: none }`.
+  Prueba: tras ▶ Probar la ventana queda oculta y "Usar esta" es lo que está bajo el puntero.
