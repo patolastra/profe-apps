@@ -3670,4 +3670,20 @@ atentos y el profe) en 3 versiones por edad.*
   cuadrados"), en `.webp` (170–250 KB). **Ajuste del PO de cursos:** 1°–3° infantil, 4°–6° intermedia, 7°–8° (y talleres
   y Recreo) adolescente. Fondo de la capa negro (bandas a los lados en proyectores 16:9). Prueba: Tercero → infantil,
   Cuarto y Sexto → intermedia, Séptimo y Castigadas → adolescente; las 3 cargan (1448×1086).
+- **Error en uso (PO, 2026-10-12): "selecciono Silencio y no aparece nada en la Pizarra".** En línea funcionaba (prueba con
+  Planificador y Pizarra en pestañas): la ventana de la Pizarra del PO venía de antes de la actualización (sin la capa).
+  Arreglo: la Pizarra acusa recibo (`profe_recurrente_ok`, `Recurrentes.recibida()`); si a los 1,5 s no lo hizo, el
+  Planificador avisa "ciérrala y ábrela de nuevo con 📽️" (o "no está abierta"). Prueba: con la Pizarra al día, acuse ok
+  y sin aviso.
+- **Cerrada; pendiente probar en clase.**
+
+### AY. Planificador — marco en la diapositiva que se está mostrando en la Pizarra
+*Origen: PO (2026-10-12), deuda: "que la diapo que se esté mostrando (si es de las hechas en el cuadro de texto del
+Planner) se muestre en el Planner con un distintivo visual (puede ser un marco)".*
+- **Decisión del PO:** marco simple en la vista previa. Implementado el mismo día (alcance pedido explícitamente).
+- **Implementación:** la Pizarra publica su diapositiva en `localStorage` (`profe_pizarra_slide` = { sesionId, idx }) al
+  cambiar (`actualizarContadores`); el Planificador enmarca en ámbar (`.slide-prev.en-pizarra`, sombra, convive con el
+  contorno de "activa") esa vista previa si es de la misma sesión y la Pizarra está viva; se repinta al redibujar la
+  vista previa, al recibir el aviso y en el reloj de la clase (si la Pizarra se cierra, el marco se va).
+- **Prueba (servidor local, sin guardar):** 3 diapositivas; "ir a la 3" → marco en la 3; "◀" → marco en la 2.
 - **Cerrada; pendiente probar en clase.**

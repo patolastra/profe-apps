@@ -46,6 +46,8 @@
             const ver = !!(a && a.sesionId === sesionId && DIAPOS[a.diapo]);
             if (ver) img.src = new URL(`../comun/diapositivas/${a.diapo}-${a.version}.webp`, location.href).href;
             capa.style.display = ver ? 'flex' : 'none';
+            // Acuse para el Planificador: esta Pizarra sí la está mostrando.
+            if (ver) { try { localStorage.setItem(KEY + '_ok', String(a.t)); } catch (_) {} }
         };
         onCambio(pintar);
         pintar(actual());
@@ -55,5 +57,11 @@
         }, true);
     }
 
-    window.Recurrentes = { DIAPOS, version, actual, poner, quitar, onCambio, capaEnPizarra };
+    // Planificador: ¿la Pizarra acusó recibo de la diapositiva puesta?
+    function recibida() {
+        const a = actual();
+        try { return !!a && localStorage.getItem(KEY + '_ok') === String(a.t); } catch (_) { return false; }
+    }
+
+    window.Recurrentes = { DIAPOS, version, actual, poner, quitar, onCambio, capaEnPizarra, recibida };
 })();

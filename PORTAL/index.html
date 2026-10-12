@@ -581,6 +581,8 @@
             border-radius: 3px; padding: 1px 5px;
         }
         .slide-prev.activa { outline: 2.5px solid #1e293b; outline-offset: 2px; }
+        /* La que se está mostrando en la Pizarra (deuda AY) */
+        .slide-prev.en-pizarra { box-shadow: 0 0 0 4px #f59e0b, 0 0 14px 4px rgba(245,158,11,.45); }
         .slide-prev .slide-content {
             font-size: 8px; /* valor inicial; JS lo sobreescribe con autoFit */
             line-height: 1.2; text-align: center;
@@ -2291,7 +2293,24 @@ function recuElegir(id) {
     const a = Recurrentes.actual();
     if (a && a.sesionId === sesionActual.id && a.diapo === id) { Recurrentes.quitar(); return; }
     Recurrentes.poner(sesionActual.id, id, contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '');
+    // Si la Pizarra no acusa recibo, es que no está abierta o quedó con una versión anterior.
+    setTimeout(() => {
+        if (Recurrentes.actual() && !Recurrentes.recibida())
+            alert(Proyeccion.pizarraViva()
+                ? 'La Pizarra no mostró la diapositiva.\n\nSeguramente se abrió antes de la última actualización: ciérrala y ábrela de nuevo con el botón 📽️.'
+                : 'La Pizarra no está abierta.\n\nÁbrela con el botón 📽️ y la diapositiva aparecerá.');
+    }, 1500);
 }
+
+// ── Diapositiva en la Pizarra (deuda AY): marco en la vista previa de la que se está mostrando ──
+function marcarEnPizarra() {
+    let p = null;
+    try { p = JSON.parse(localStorage.getItem('profe_pizarra_slide') || 'null'); } catch (_) {}
+    const idx = p && sesionActual && p.sesionId === sesionActual.id && Proyeccion.pizarraViva() ? p.idx : -1;
+    document.querySelectorAll('#prev-body .slide-prev').forEach(el =>
+        el.classList.toggle('en-pizarra', parseInt(el.dataset.idx) === idx));
+}
+window.addEventListener('storage', e => { if (e.key === 'profe_pizarra_slide') marcarEnPizarra(); });
 function recuPintar() {
     const a = Recurrentes.actual();
     document.getElementById('btn-recu').classList.toggle('on', !!(a && sesionActual && a.sesionId === sesionActual.id));
@@ -2349,6 +2368,7 @@ function tickClase() {
     if (!st) return renderClase();
     document.getElementById('ct-clase').textContent   = ClaseVivo.fmt(ClaseVivo.tiempoClaseMs(st));
     document.getElementById('ct-perdido').textContent = ClaseVivo.fmt(ClaseVivo.tiempoPerdidoMs(st));
+    marcarEnPizarra();   // si la Pizarra se cierra, el marco se va
     document.getElementById('ct-perdido-wrap').classList.toggle('corriendo', !!st.perdidoDesde);
 }
 
@@ -3448,6 +3468,7 @@ function actualizarPreview() {
     requestAnimationFrame(() => {
         document.querySelectorAll('#prev-body .slide-prev').forEach(autoFitSlide);
     });
+    marcarEnPizarra();
 }
 
 function buildSlideEl(raw, idx) {
