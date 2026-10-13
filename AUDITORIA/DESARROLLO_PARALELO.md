@@ -3851,3 +3851,6 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   Sigue/Archivar; ＋ agrega uno general a Hoy; el selector muestra cuántos hay) y **Todos** (por curso, como antes;
   el grupo HOY de arriba se retiró). Al abrir: Hoy si ya tiene pendientes (pueden venir del celular), si no Todos.
   Probado en servidor local (abre en Hoy con 2 de prueba, en Todos sin ellos; borrados al final).
+- **Ajuste del PO (2026-10-12):** Hoy con letra normal y sin margen a la izquierda (la flecha de plegar queda en el
+  borde); espacio fijo para la barra de desplazamiento (Dashboard y Cursos) para que nada baile; subpendientes con
+  sangría clara en todas las listas (su casilla bajo el texto del pendiente principal). Medido en servidor local.
