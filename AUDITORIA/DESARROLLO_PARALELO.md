@@ -3997,3 +3997,6 @@ permanente del Workspace.*
 - **Prueba (servidor local):** 4 pestañas fijas (Dashboard · Biblioteca · Cursos · Libros); 14 instancias; Tercero →
   su Libro sobre la clase del lun 12/10; el 📒 del Plan (simulado desde una pestaña) llevó a Libros con Cuarto y su
   clase, sin abrir pestañas nuevas; Orientación abre con los alumnos de Octavo.
+- **Ajuste del PO (2026-10-13):** en el Libro de los cursos, **Asistencia** pasa a ser un botón grande del panel, el
+  primero (antes de + Evaluación); los siete caben en una fila. En los talleres (sin panel) sigue arriba. En Libros se
+  quitó el detalle "clase del …" bajo el curso: la lista es siempre igual.
