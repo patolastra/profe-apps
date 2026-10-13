@@ -9,7 +9,9 @@
 //   "---" separador · dentro del texto: **negrita** *cursiva* __subrayado__ {2:…} {3:…}
 //
 // Uso:
-//   const ed = EditorBloques.crear(contenedor, { texto, alCambiar, vacio, alSubir, pie });
+//   const ed = EditorBloques.crear(contenedor, { texto, alCambiar, vacio, alSubir, pie, tactil });
+//   tactil: celular (deuda BM) — sin ＋/⋮⋮ ni arrastrar; barra de formato sobre el teclado y
+//   toque largo (o ⋯ de la barra) = menú del bloque, con Subir / Bajar en vez de arrastrar.
 //   ed.texto() · ed.poner(texto) · ed.tieneAlgo() · ed.enfocar('inicio'|'fin') · ed.guardado(isoFecha)
 //   EditorBloques.zona(elemento)   → ahí se puede arrastrar un marco para seleccionar bloques
 //   EditorBloques.html(texto)      → vista de solo lectura (HTML)
@@ -168,9 +170,11 @@
         const I = { id: nid(), cont, op, bloques: aBloques(op.texto), actualizado: op.actualizado || null };
         instancias[I.id] = I;
         cont.classList.add('eb');
+        cont.classList.toggle('eb-tactil', !!op.tactil);
         cont.dataset.eb = I.id;
         cont.innerHTML = '<div class="eb-bloques"><div class="eb-ind"></div></div><div class="eb-fin"></div>';
         asegurarFlotantes();
+        if (op.tactil) asegurarBarraTactil();
         pintar(I);
         return {
             texto: () => aTexto(I.bloques),
@@ -322,6 +326,7 @@
         b.x = mdDeDom(txt);
         if (e.inputType === 'insertText' && e.data) {
             const plano = txt.textContent, pos = cursorEn(txt);
+            if (I.op.tactil && plano === '/') { txt.innerHTML = ''; b.x = ''; marcarSolo(I); menuTipos(id); return; }
             if (b.t === 'p' && plano === '---') { b.x = ''; txt.innerHTML = ''; convertir(id, 'hr'); return; }
             if (e.data.includes(' ')) {
                 const reglas = [[/^### /, 'h3'], [/^## /, 'h2'], [/^# /, 'h1'], [/^\[\s?\] /, 'todo'], [/^[-*] /, 'ul'], [/^1[.)] /, 'ol']];
@@ -354,36 +359,8 @@
         const sel = getSelection(), colapsada = sel.isCollapsed, off = cursorEn(txt), largo = txt.textContent.length;
 
         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); txt.blur(); seleccionar([id]); return; }
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            if (LISTAS.has(b.t) && !b.x) { convertir(id, 'p'); return; }
-            if (!colapsada) sel.deleteFromDocument();
-            const o = cursorEn(txt), tNuevo = LISTAS.has(b.t) ? b.t : 'p';
-            if (o === 0 && txt.textContent.length) {
-                b.x = mdDeDom(txt);
-                insertar(I, i, { id: nid(), t: tNuevo, x: '', c: false });
-                enfocar(id, 0);
-                return;
-            }
-            const resto = cortarDesdeCursor(txt);
-            b.x = mdDeDom(txt);
-            const nuevo = insertar(I, i + 1, { id: nid(), t: tNuevo, x: resto, c: false, m: b.m });
-            enfocar(nuevo.id, 0);
-            return;
-        }
-        if (e.key === 'Backspace' && colapsada && off === 0) {
-            e.preventDefault();
-            if (b.t !== 'p') { convertir(id, 'p'); return; }
-            if (i === 0) return;
-            const prev = bs[i - 1];
-            if (prev.t === 'hr') { bs.splice(i - 1, 1); pintar(I); cambio(I); enfocar(id, 0); return; }
-            const pos = mdAPlano(prev.x).length;
-            prev.x += b.x;
-            bs.splice(i, 1);
-            pintar(I); cambio(I);
-            enfocar(prev.id, pos);
-            return;
-        }
+        if (e.key === 'Enter') { e.preventDefault(); alEnter(txt); return; }
+        if (e.key === 'Backspace' && colapsada && off === 0) { e.preventDefault(); alBorrarAlInicio(txt); return; }
         if (e.key === 'Delete' && colapsada && off === largo && i < bs.length - 1) {
             e.preventDefault();
             if (bs[i + 1].t !== 'hr') b.x += bs[i + 1].x;
@@ -403,6 +380,49 @@
         if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); duplicar(id); return; }
         if (e.key === '/' && !b.x) { e.preventDefault(); menuTipos(id); return; }
     }, true);
+
+    // Enter: parte el bloque en el cursor (en una lista vacía, vuelve a texto).
+    function alEnter(txt) {
+        const I = insDe(txt), id = txt.parentElement.dataset.id, i = idx(I, id), b = I?.bloques[i];
+        if (!b) return;
+        const sel = getSelection();
+        if (LISTAS.has(b.t) && !b.x) { convertir(id, 'p'); return; }
+        if (!sel.isCollapsed) sel.deleteFromDocument();
+        const o = cursorEn(txt), tNuevo = LISTAS.has(b.t) ? b.t : 'p';
+        if (o === 0 && txt.textContent.length) {
+            b.x = mdDeDom(txt);
+            insertar(I, i, { id: nid(), t: tNuevo, x: '', c: false });
+            enfocar(id, 0);
+            return;
+        }
+        const resto = cortarDesdeCursor(txt);
+        b.x = mdDeDom(txt);
+        const nuevo = insertar(I, i + 1, { id: nid(), t: tNuevo, x: resto, c: false, m: b.m });
+        enfocar(nuevo.id, 0);
+    }
+    // Borrar al inicio del bloque: un título/lista vuelve a texto; un texto se une al anterior.
+    function alBorrarAlInicio(txt) {
+        const I = insDe(txt), id = txt.parentElement.dataset.id, i = idx(I, id), b = I?.bloques[i];
+        if (!b) return;
+        const bs = I.bloques;
+        if (b.t !== 'p') { convertir(id, 'p'); return; }
+        if (i === 0) return;
+        const prev = bs[i - 1];
+        if (prev.t === 'hr') { bs.splice(i - 1, 1); pintar(I); cambio(I); enfocar(id, 0); return; }
+        const pos = mdAPlano(prev.x).length;
+        prev.x += b.x;
+        bs.splice(i, 1);
+        pintar(I); cambio(I);
+        enfocar(prev.id, pos);
+    }
+    // Teclado del celular: Enter y Borrar no siempre llegan como teclas; llegan como "beforeinput".
+    // (En el PC, la tecla ya hizo su trabajo y canceló este paso.)
+    document.addEventListener('beforeinput', e => {
+        const txt = e.target.closest?.('.eb-blq .eb-txt');
+        if (!txt || e.isComposing) return;
+        if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') { e.preventDefault(); alEnter(txt); return; }
+        if (e.inputType === 'deleteContentBackward' && getSelection().isCollapsed && cursorEn(txt) === 0) { e.preventDefault(); alBorrarAlInicio(txt); }
+    });
 
     // Pegar: solo texto; cada línea pegada es un bloque.
     document.addEventListener('paste', e => {
@@ -464,7 +484,8 @@
     // Clic derecho sobre un bloque: su menú (solo en editores que pueden crear pendientes).
     document.addEventListener('contextmenu', e => {
         const blq = e.target.closest?.('.eb[data-eb] .eb-blq');
-        if (!blq || !insDe(blq)?.op.alPendiente) return;
+        const I = insDe(blq);
+        if (!blq || !(I?.op.alPendiente || I?.op.tactil)) return;
         e.preventDefault();
         const x = e.clientX, y = e.clientY;
         menuBloque(blq.dataset.id, { getBoundingClientRect: () => ({ left: x, right: x, top: y, bottom: y }) });
@@ -586,7 +607,7 @@
     function actualizarFormato() {
         if (!F) return;
         const txt = txtDeSeleccion();
-        if (!txt || marcando) { F.formato.style.display = 'none'; return; }
+        if (!txt || marcando || txt.closest('.eb-tactil')) { F.formato.style.display = 'none'; return; }
         const r = getSelection().getRangeAt(0).getBoundingClientRect();
         F.formato.style.display = 'flex';
         ['bold', 'italic', 'underline'].forEach(f => F.formato.querySelector(`[data-f="${f}"]`).classList.toggle('eb-on', document.queryCommandState(f)));
@@ -709,9 +730,12 @@
             { ico: '⇄', lbl: 'Convertir en', sub: itemsTipos(id) },
             ...(b.t === 'hr' ? [] : [{ ico: '🎨', lbl: 'Color', sub: itemsColor([id]) }]),
             ...(I.op.alPendiente && plano ? [{ ico: '☑', lbl: 'Convertir en pendiente', accion: () => aPendiente([id]) }] : []),
+            ...(I.op.tactil ? [{ sep: true },
+                { ico: '↑', lbl: 'Subir', accion: () => mover(id, -1) },
+                { ico: '↓', lbl: 'Bajar', accion: () => mover(id, 1) }] : []),
             { sep: true },
-            { ico: '⧉', lbl: 'Duplicar', atajo: 'Ctrl+D', accion: () => duplicar(id) },
-            { ico: '🗑', lbl: 'Eliminar', atajo: 'Supr', peligro: true, accion: () => eliminar(id) },
+            { ico: '⧉', lbl: 'Duplicar', atajo: I.op.tactil ? '' : 'Ctrl+D', accion: () => duplicar(id) },
+            { ico: '🗑', lbl: 'Eliminar', atajo: I.op.tactil ? '' : 'Supr', peligro: true, accion: () => eliminar(id) },
         ], asa, {
             titulo: TIPOS.find(x => x.t === b.t)?.lbl || 'Texto',
             pie: `${I.actualizado ? 'Última edición: ' + cuando(I.actualizado) + '<br>' : ''}${palabras} palabra${palabras === 1 ? '' : 's'}, ${plano.length} caractere${plano.length === 1 ? '' : 's'}`,
@@ -720,6 +744,17 @@
         elDe(id)?.classList.add('eb-sel');
         document.activeElement?.blur?.();
     }
+    // Celular: mover un bloque un lugar (reemplaza arrastrar).
+    function mover(id, d) {
+        const I = insDeId(id); if (!I) return;
+        const i = idx(I, id), j = i + d;
+        if (i < 0 || j < 0 || j >= I.bloques.length) return;
+        [I.bloques[i], I.bloques[j]] = [I.bloques[j], I.bloques[i]];
+        pintar(I); cambio(I);
+        elDe(id)?.scrollIntoView({ block: 'nearest' });
+        if (txtDe(id)) enfocar(id, 'fin'); else seleccionar([id]);
+    }
+
     // Bloque(s) → pendiente(s): uno por bloque con texto; el texto queda en el editor.
     function aPendiente(ids) {
         const I = insDeId(ids[0]);
@@ -820,6 +855,83 @@
         document.body.classList.remove('eb-marcando');
         marcando = null;
     });
+
+    // ── Celular: barra de formato sobre el teclado (deuda BM) ──────────
+    // Aparece mientras se escribe en un editor táctil: tipo de bloque, viñetas, casilla,
+    // negrita/cursiva/subrayado, 3 colores y ⋯ (menú del bloque). Los botones no le quitan
+    // el foco al texto (el teclado no se cierra). Se ubica justo encima del teclado.
+    let BT = null, btTxt = null;
+    function asegurarBarraTactil() {
+        if (BT) return;
+        BT = document.createElement('div');
+        BT.id = 'eb-barra-tactil';
+        BT.className = 'eb-flot';
+        BT.innerHTML = `<button data-a="tipo" title="Tipo de bloque">Aa</button>
+            <button data-a="ul" title="Viñetas">•</button>
+            <button data-a="todo" title="Casilla">☑</button>
+            <span class="eb-sep"></span>
+            <button data-f="bold" title="Negrita"><b>B</b></button>
+            <button data-f="italic" title="Cursiva"><i>I</i></button>
+            <button data-f="underline" title="Subrayado"><u>U</u></button>
+            <span class="eb-sep"></span>
+            <button data-c="1" class="eb-col-a" title="Color normal">A</button>
+            <button data-c="2" class="eb-col-a" style="color:var(--eb-c2)" title="Naranjo">A</button>
+            <button data-c="3" class="eb-col-a" style="color:var(--eb-c3)" title="Azul">A</button>
+            <span class="eb-sep"></span>
+            <button data-a="menu" title="Más (mover, duplicar, eliminar)">⋯</button>`;
+        document.body.appendChild(BT);
+        // pointerdown sin seguir: el texto no pierde el foco y el teclado se queda abierto
+        BT.addEventListener('pointerdown', e => e.preventDefault());
+        BT.addEventListener('mousedown', e => e.preventDefault());
+        BT.addEventListener('click', e => {
+            const btn = e.target.closest('button');
+            if (!btn || !btTxt || !btTxt.isConnected) return;
+            const id = btTxt.parentElement.dataset.id, I = insDe(btTxt), b = I?.bloques[idx(I, id)];
+            if (!b) return;
+            if (btn.dataset.a === 'tipo') { menuTipos(id); return; }
+            if (btn.dataset.a === 'menu') { menuBloque(id, btn); return; }
+            if (btn.dataset.a) { convertir(id, b.t === btn.dataset.a ? 'p' : btn.dataset.a); return; }
+            if (btn.dataset.f) { document.execCommand('styleWithCSS', false, false); document.execCommand(btn.dataset.f); estadoBarra(); return; }
+            if (btn.dataset.c) {
+                const c = +btn.dataset.c;
+                if (getSelection().isCollapsed) { const off = cursorEn(btTxt); colorear([id], c); enfocar(id, off); }   // sin selección: todo el bloque
+                else { document.execCommand('styleWithCSS', false, false); document.execCommand('foreColor', false, c === 1 ? '#000001' : COLOR_HEX[c]); }
+            }
+        });
+        const ubicar = () => {
+            if (BT.style.display === 'none') return;
+            const vv = window.visualViewport;
+            const abajo = vv ? vv.offsetTop + vv.height : innerHeight;
+            BT.style.top = (abajo - BT.offsetHeight) + 'px';
+            BT.style.left = (vv ? vv.offsetLeft : 0) + 'px';
+            BT.style.width = (vv ? vv.width : innerWidth) + 'px';
+        };
+        BT.ubicar = ubicar;
+        window.visualViewport?.addEventListener('resize', ubicar);
+        window.visualViewport?.addEventListener('scroll', ubicar);
+        document.addEventListener('focusin', e => {
+            const t = e.target.closest?.('.eb-tactil .eb-blq .eb-txt');
+            if (!t) return;
+            btTxt = t;
+            BT.style.display = 'flex';
+            document.body.classList.add('eb-con-barra');
+            ubicar(); estadoBarra();
+        });
+        document.addEventListener('focusout', () => setTimeout(() => {
+            if (document.activeElement?.closest?.('.eb-tactil .eb-txt') || menuAbierto()) return;
+            BT.style.display = 'none'; btTxt = null;
+            document.body.classList.remove('eb-con-barra');
+        }, 120));
+        document.addEventListener('selectionchange', () => { if (btTxt) estadoBarra(); });
+    }
+    function estadoBarra() {
+        if (!BT || !btTxt) return;
+        ['bold', 'italic', 'underline'].forEach(f => BT.querySelector(`[data-f="${f}"]`).classList.toggle('eb-on', document.queryCommandState(f)));
+        const I = insDe(btTxt), b = I?.bloques[idx(I, btTxt.parentElement?.dataset.id)];
+        BT.querySelector('[data-a="ul"]').classList.toggle('eb-on', b?.t === 'ul');
+        BT.querySelector('[data-a="todo"]').classList.toggle('eb-on', b?.t === 'todo');
+        BT.ubicar?.();
+    }
 
     window.EditorBloques = { crear, zona, html, aBloques, aTexto, mdAPlano, menu: abrirMenu, menuAbierto, cerrarMenus };
 })();

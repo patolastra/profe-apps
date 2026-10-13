@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- AUTH: verifica la sesión y rebota al inicio del celular (que tiene el PIN) -->
+<script>if(sessionStorage.getItem('profe_auth')!=='1'){window.location.replace('index.html');}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-visual">
+<meta name="theme-color" content="#ffffff">
+<title>🎓 Cursos</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
+<script src="../supabase/contextos.js"></script>
+<script src="../comun/clase-vivo.js"></script>
+<link rel="stylesheet" href="../comun/editor-bloques.css">
+<script src="../comun/editor-bloques.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+    --bg: #ffffff; --lateral: #f7f7f5; --hover: #ececea; --activo: #e3e3e0;
+    --texto: #37352f; --suave: #8f8d88; --linea: #e6e6e3; --azul: #2383e2; --verde: #16a34a; --amarillo: #b45309; --rojo: #c4302b;
+}
+html, body { background: var(--bg); }
+body { font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif; color: var(--texto); font-size: 16px; min-height: 100vh; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+/* ── Encabezado + cursos (fijos arriba) ── */
+#arriba { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--linea); padding-top: env(safe-area-inset-top, 0px); }
+header { display: flex; align-items: center; gap: 8px; padding: 10px 12px 4px; }
+header .volver { font-size: 26px; line-height: 1; color: var(--suave); text-decoration: none; padding: 2px 8px 4px 2px; }
+header h1 { flex: 1; font-size: 17px; font-weight: 600; }
+#estado { font-size: 12.5px; color: var(--suave); white-space: nowrap; max-width: 55vw; overflow: hidden; text-overflow: ellipsis; }
+#estado.ok { color: var(--verde); } #estado.pend { color: var(--amarillo); } #estado.err { color: var(--rojo); }
+#cursos { display: flex; gap: 6px; overflow-x: auto; padding: 6px 12px 10px; scrollbar-width: none; }
+#cursos::-webkit-scrollbar { display: none; }
+.chip { flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px;
+    background: var(--lateral); border: 1px solid var(--linea); font-size: 14px; white-space: nowrap; position: relative; }
+.chip.activo { background: var(--texto); color: #fff; border-color: var(--texto); }
+.chip .vivo { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 2px #fff; }
+
+/* ── Página del curso ── */
+#pagina { padding: 18px 18px 50vh; max-width: 720px; margin: 0 auto; }
+.pag-cab { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+#pag-titulo { flex: 1; font-size: 28px; font-weight: 700; line-height: 1.2; }
+#btn-nota { font-size: 14px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--linea); color: var(--suave); font-weight: 500; white-space: nowrap; }
+.msg { color: var(--suave); font-size: 15px; line-height: 1.5; padding: 30px 4px; text-align: center; }
+
+.entrada { padding: 18px 0 12px; border-top: 1px solid var(--linea); scroll-margin-top: 110px; }
+.entrada:first-of-type { border-top: 0; padding-top: 4px; }
+.ent-cab { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.ent-tit { font-size: 21px; font-weight: 700; line-height: 1.25; outline: none; word-break: break-word; flex: 1; min-width: 60%; }
+.ent-tit[contenteditable]:empty::before { content: "Sin título"; color: #c7c6c3; }
+.ent-meta { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--suave); white-space: nowrap; }
+.ent-meta .hoy { color: #fff; background: var(--verde); border-radius: 6px; padding: 1px 7px; font-weight: 600; font-size: 12px; }
+.ent-meta input[type=date] { font: inherit; color: var(--suave); border: 1px solid var(--linea); border-radius: 6px; background: none; padding: 2px 4px; }
+.ent-menu { padding: 2px 10px; border-radius: 6px; font-size: 20px; line-height: 1; color: var(--suave); }
+.ent-audios audio { width: 100%; height: 36px; margin: 2px 0 8px; }
+.ent-audios .aud-lbl { font-size: 12px; color: var(--suave); }
+.ent-editor { margin-left: -2px; }
+</style>
+</head>
+<body>
+
+<div id="arriba">
+    <header>
+        <a class="volver" href="index.html" title="Volver">‹</a>
+        <h1>🎓 Cursos</h1>
+        <span id="estado"></span>
+    </header>
+    <nav id="cursos"></nav>
+</div>
+
+<main id="pagina"><div class="msg">Cargando…</div></main>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// CURSOS — versión celular (deuda BM, 2026-10-13). Reemplaza a la Bitácora del celular.
+// Íconos de cursos arriba → la página del curso con su histórico (clases + notas, lo más
+// nuevo arriba), como Cursos del PC, con el mismo editor por bloques en modo táctil.
+// En clase, entra directo al curso en curso (su clase de hoy queda arriba).
+// Sin señal: lo escrito queda en el celular (COLA) y se sube al volver la señal; cada curso
+// abierto queda copiado (COPIA) para poder abrirlo sin señal.
+// Mismas tablas que el PC: `memorias` (bitácora de cada clase) y `bitacora_paginas` (notas).
+// ═══════════════════════════════════════════════════════════════════════
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+ClaseVivo.conectar(sb);
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const leerJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
+const guardarJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
+const CTX_KEY = 'profe_cel_contextos';          // [{ id, nombre }]
+const HORARIO_KEY = 'profe_bitacora_horario';   // el mismo de la Bitácora anterior
+const COPIA_KEY = 'profe_cel_cursos_copia';     // { ctxId: [entradas] }
+const COLA_KEY = 'profe_cel_cursos_cola';       // { k: cambio }  (k = 'c|ctx|fecha' · 'n|id' · 'x|id')
+const COLA_VIEJA = 'profe_bitacora_cola';       // lo que haya quedado de la Bitácora anterior: { "ctx|fecha": { contenido, ts } }
+const ORDEN_CTX = ['GENERAL', 'PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO', 'SEXTO', 'SEPTIMO', 'OCTAVO',
+    'CASTIGADAS', 'KIDS CASTIGADAS', 'CUERDAS', 'RECREO', 'ORIENTACIÓN', 'ENLACE'];
+const DIAS  = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const isoDe = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const hoyISO = () => isoDe(new Date());
+const tituloFecha = iso => { const d = new Date(iso + 'T12:00:00'); return `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`; };
+const nuevoId = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
+
+function estado(t, tipo) { $('estado').textContent = t; $('estado').className = tipo || ''; }
+const ESPERA_MS = 8000;
+function conTiempo(p) {
+    if (!navigator.onLine) return Promise.reject(new Error('sin señal'));
+    return Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('sin respuesta')), ESPERA_MS))]);
+}
+
+// ── Cursos y horario (copias en el celular) ─────────────────────────────
+let contextos = leerJSON(CTX_KEY, []);
+let horario = leerJSON(HORARIO_KEY, []);
+const ordenCtx = n => { const i = ORDEN_CTX.indexOf(n); return i < 0 ? 99 : i; };
+async function cargarBase() {
+    try {
+        const [cx, ho] = await Promise.all([
+            conTiempo(sb.from('contextos').select('id, nombre, activo')),
+            conTiempo(sb.from('horario').select('dia_semana, orden, contexto_id, contextos(nombre)').eq('activo', true).order('orden')),
+        ]);
+        if (!cx.error) {
+            contextos = (cx.data || []).filter(c => c.activo !== false).map(c => ({ id: c.id, nombre: c.nombre }))
+                .sort((a, b) => ordenCtx(a.nombre) - ordenCtx(b.nombre) || a.nombre.localeCompare(b.nombre));
+            guardarJSON(CTX_KEY, contextos);
+        }
+        if (!ho.error) {
+            horario = (ho.data || []).filter(h => h.contextos).map(h => ({ dia_semana: h.dia_semana, orden: h.orden, contexto_id: h.contexto_id, nombre: h.contextos.nombre }));
+            guardarJSON(HORARIO_KEY, horario);
+        }
+    } catch (_) {}
+}
+const ctxDe = id => contextos.find(c => c.id === id);
+const infoCtx = id => { const c = ctxDe(id); return c ? contextoInfo(c.nombre) : { icono: '📁', label: '' }; };
+const esGeneral = id => ctxDe(id)?.nombre === 'GENERAL';
+const diaSB = iso => (new Date(iso + 'T12:00:00').getDay() + 6) % 7;   // 0 = lunes
+const tieneClaseHoy = id => horario.some(h => h.contexto_id === id && Number(h.dia_semana) === diaSB(hoyISO()));
+function vivoId() {
+    const v = ClaseVivo.enCurso();
+    return v ? contextos.find(c => c.nombre === v.ctx)?.id || null : null;
+}
+
+let ctxActual = null;
+function pintarCursos() {
+    const vivo = vivoId();
+    $('cursos').innerHTML = contextos.map(c => {
+        const i = contextoInfo(c.nombre);
+        return `<button class="chip${c.id === ctxActual ? ' activo' : ''}" data-id="${c.id}">${i.icono || '📁'} ${esc(i.label)}${c.id === vivo ? '<span class="vivo" title="En clase"></span>' : ''}</button>`;
+    }).join('') || '<span class="msg" style="padding:6px 0">Sin señal y sin copia de los cursos: abre esta página una vez con internet.</span>';
+    $('cursos').querySelector('.chip.activo')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+$('cursos').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) abrirCurso(b.dataset.id); });
+
+// ── Abrir un curso ──────────────────────────────────────────────────────
+let entradas = [];        // { k, tipo:'clase'|'nota', fecha, id?, titulo, contenido, audios, actualizado, ed }
+const claveCola = E => E.tipo === 'clase' ? `c|${ctxActual}|${E.fecha}` : `n|${E.id}`;
+
+async function abrirCurso(id) {
+    if (!id) return;
+    await subir();
+    entradas.forEach(E => E.ed?.destruir());
+    ctxActual = id;
+    try { localStorage.setItem('profe_cel_cursos_ultimo', id); } catch (_) {}
+    pintarCursos();
+    const copia = leerJSON(COPIA_KEY, {})[id];
+    if (copia) { armar(copia); pintarPagina(); } else $('pagina').innerHTML = '<div class="msg">Cargando…</div>';
+    try {
+        const [ses, pags] = await Promise.all([
+            esGeneral(id) ? Promise.resolve({ data: [] }) : conTiempo(sb.from('sesiones').select('id, fecha, memorias(contenido, audios, updated_at)').eq('contexto_id', id).lte('fecha', hoyISO())),
+            conTiempo(sb.from('bitacora_paginas').select('id, titulo, contenido, fecha, audios, created_at, updated_at').eq('contexto_id', id)),
+        ]);
+        if (ses.error || pags.error) throw ses.error || pags.error;
+        if (ctxActual !== id) return;
+        const lista = [];
+        (ses.data || []).forEach(s => {
+            const m = Array.isArray(s.memorias) ? s.memorias[0] : s.memorias;
+            lista.push({ tipo: 'clase', fecha: s.fecha, contenido: m?.contenido || '', audios: m?.audios || [], actualizado: m?.updated_at || null });
+        });
+        (pags.data || []).forEach(p => lista.push({ tipo: 'nota', id: p.id, fecha: p.fecha || isoDe(new Date(p.created_at)), titulo: p.titulo || '',
+            contenido: p.contenido || '', audios: p.audios || [], actualizado: p.updated_at, creado: p.created_at }));
+        const c = leerJSON(COPIA_KEY, {}); c[id] = lista; guardarJSON(COPIA_KEY, c);
+        // Si se está escribiendo, no se repinta (lo escrito manda; lo nuevo llega al volver a abrir).
+        if (document.activeElement?.closest?.('#pagina [contenteditable], #pagina input')) return;
+        const y = scrollY;
+        armar(lista); pintarPagina();
+        scrollTo(0, y);
+        if (!Object.keys(leerJSON(COLA_KEY, {})).length) estado('');
+    } catch (_) {
+        if (ctxActual !== id) return;
+        if (!copia) $('pagina').innerHTML = `<div class="msg">${navigator.onLine ? 'No se pudo cargar el curso.' : 'Sin señal, y este curso no se ha abierto antes en el celular.'}</div>`;
+        estado(navigator.onLine ? 'No se pudo cargar' : 'sin señal · copia del celular', navigator.onLine ? 'err' : 'pend');
+    }
+}
+
+// Arma las entradas: lo que viene de internet (o la copia) + lo que está en la cola (manda),
+// + la clase de hoy si el curso tiene clase hoy (aunque aún no exista en la base).
+function armar(lista) {
+    const cola = leerJSON(COLA_KEY, {}), vieja = leerJSON(COLA_VIEJA, {});
+    entradas = lista.map(x => ({ ...x }));
+    entradas.forEach(E => { E.k = E.tipo === 'clase' ? 'c' + E.fecha : 'n' + E.id; });
+    if (!esGeneral(ctxActual)) {
+        const hoy = hoyISO();
+        if ((tieneClaseHoy(ctxActual) || vivoId() === ctxActual) && !entradas.some(E => E.tipo === 'clase' && E.fecha === hoy))
+            entradas.push({ k: 'c' + hoy, tipo: 'clase', fecha: hoy, contenido: '', audios: [] });
+    }
+    Object.entries(cola).forEach(([k, it]) => {
+        if (it.tipo === 'clase' && it.ctx === ctxActual) {
+            let E = entradas.find(x => x.tipo === 'clase' && x.fecha === it.fecha);
+            if (!E) entradas.push(E = { k: 'c' + it.fecha, tipo: 'clase', fecha: it.fecha, audios: [] });
+            E.contenido = it.contenido; E.pendiente = true;
+        }
+        if (it.tipo === 'nota' && it.ctx === ctxActual) {
+            let E = entradas.find(x => x.tipo === 'nota' && x.id === it.id);
+            if (!E) entradas.push(E = { k: 'n' + it.id, tipo: 'nota', id: it.id, audios: [], creado: new Date(it.ts).toISOString() });
+            Object.assign(E, { fecha: it.fecha, titulo: it.titulo, contenido: it.contenido, pendiente: true });
+        }
+        if (it.tipo === 'borrar') entradas = entradas.filter(x => !(x.tipo === 'nota' && x.id === it.id));
+    });
+    Object.entries(vieja).forEach(([k, it]) => {
+        const [cx, f] = k.split('|');
+        if (cx !== ctxActual) return;
+        const E = entradas.find(x => x.tipo === 'clase' && x.fecha === f);
+        if (E && !cola[`c|${cx}|${f}`]) { E.contenido = it.contenido; E.pendiente = true; }
+    });
+    entradas.sort((a, b) => b.fecha.localeCompare(a.fecha)
+        || (a.tipo === b.tipo ? 0 : a.tipo === 'nota' ? -1 : 1)
+        || String(b.creado || '').localeCompare(String(a.creado || '')));
+}
+
+function pintarPagina() {
+    entradas.forEach(E => E.ed?.destruir());
+    const info = infoCtx(ctxActual), hoy = hoyISO();
+    let h = `<div class="pag-cab"><div id="pag-titulo">${esc((info.icono || '') + ' ' + info.label)}</div><button id="btn-nota">＋ Nota</button></div>`;
+    if (!entradas.length) h += '<div class="msg">Todavía no hay clases ni notas. Crea una con ＋ Nota.</div>';
+    entradas.forEach(E => {
+        const cab = E.tipo === 'clase'
+            ? `<div class="ent-tit">${esc(tituloFecha(E.fecha))}</div><div class="ent-meta">${E.fecha === hoy ? '<span class="hoy">Hoy</span>' : 'Clase'}</div>`
+            : `<div class="ent-tit" contenteditable="plaintext-only" spellcheck="true"></div>
+               <div class="ent-meta">📝 <input type="date" value="${E.fecha}" max="${hoy}"><button class="ent-menu" title="Opciones de la nota">⋯</button></div>`;
+        h += `<section class="entrada ${E.tipo}" data-k="${E.k}"><div class="ent-cab">${cab}</div><div class="ent-audios"></div><div class="ent-editor"></div></section>`;
+    });
+    $('pagina').innerHTML = h;
+    entradas.forEach(E => {
+        const sec = secDe(E.k);
+        if (E.tipo === 'nota') sec.querySelector('.ent-tit').textContent = E.titulo || '';
+        const a = Array.isArray(E.audios) ? E.audios : [];
+        sec.querySelector('.ent-audios').innerHTML = a.map((x, i) => {
+            const lbl = x.ts ? new Date(x.ts).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : `Audio ${i + 1}`;
+            return `<div class="aud-lbl">🎙 ${esc(lbl)}</div><audio controls preload="none" src="${esc(sb.storage.from('memorias-audio').getPublicUrl(x.path).data.publicUrl)}"></audio>`;
+        }).join('');
+        E.ed = EditorBloques.crear(sec.querySelector('.ent-editor'), {
+            texto: E.contenido, actualizado: E.actualizado, tactil: true,
+            vacio: E.tipo === 'clase' ? 'Sin bitácora — toca para escribir' : 'Escribe la nota…',
+            alCambiar: () => cambio(E),
+        });
+    });
+    $('btn-nota').onclick = nuevaNota;
+}
+const secDe = k => document.querySelector(`.entrada[data-k="${k}"]`);
+const entDe = el => entradas.find(E => E.k === el.closest('.entrada')?.dataset.k);
+
+// ── Notas ───────────────────────────────────────────────────────────────
+function nuevaNota() {
+    if (!ctxActual) return;
+    const E = { tipo: 'nota', id: nuevoId(), fecha: hoyISO(), titulo: '', contenido: '', audios: [], creado: new Date().toISOString(), nueva: true };
+    E.k = 'n' + E.id;
+    entradas.forEach(x => { if (x.ed) x.contenido = x.ed.texto(); });
+    entradas.push(E);
+    armarOrden(); pintarPagina();
+    encolar(E);
+    const t = secDe(E.k).querySelector('.ent-tit');
+    secDe(E.k).scrollIntoView({ block: 'start' });
+    t.focus();
+}
+function armarOrden() {
+    entradas.sort((a, b) => b.fecha.localeCompare(a.fecha) || (a.tipo === b.tipo ? 0 : a.tipo === 'nota' ? -1 : 1) || String(b.creado || '').localeCompare(String(a.creado || '')));
+}
+document.addEventListener('input', e => {
+    const t = e.target.closest?.('.entrada.nota .ent-tit');
+    if (!t) return;
+    const E = entDe(t);
+    if (t.textContent === '') t.innerHTML = '';
+    E.titulo = t.textContent.replace(/\n/g, ' ');
+    cambio(E);
+});
+document.addEventListener('keydown', e => {
+    const t = e.target.closest?.('.entrada.nota .ent-tit');
+    if (t && e.key === 'Enter') { e.preventDefault(); entDe(t).ed.enfocar('inicio'); }
+});
+document.addEventListener('change', e => {
+    const inp = e.target.closest?.('.entrada.nota input[type=date]');
+    if (!inp || !inp.value) return;
+    const E = entDe(inp);
+    E.fecha = inp.value;
+    cambio(E);
+    entradas.forEach(x => { if (x.ed) x.contenido = x.ed.texto(); });
+    armarOrden(); pintarPagina();
+    secDe(E.k)?.scrollIntoView({ block: 'start' });
+});
+document.addEventListener('click', e => {
+    const b = e.target.closest('.entrada.nota .ent-menu');
+    if (!b) return;
+    const E = entDe(b);
+    if (EditorBloques.menuAbierto()) { EditorBloques.cerrarMenus(); return; }
+    EditorBloques.menu([{ ico: '🗑', lbl: 'Eliminar esta nota', peligro: true, accion: () => eliminarNota(E) }], b, { alDerecha: true });
+});
+function eliminarNota(E) {
+    if (!confirm(`¿Eliminar la nota "${E.titulo || 'Sin título'}"? No se puede deshacer.`)) return;
+    const cola = leerJSON(COLA_KEY, {});
+    const eraNueva = cola[`n|${E.id}`]?.nueva;
+    delete cola[`n|${E.id}`];
+    if (!eraNueva) cola[`x|${E.id}`] = { tipo: 'borrar', id: E.id, ts: Date.now() };
+    guardarJSON(COLA_KEY, cola);
+    E.ed?.destruir();
+    entradas = entradas.filter(x => x !== E);
+    const c = leerJSON(COPIA_KEY, {}); if (c[ctxActual]) { c[ctxActual] = c[ctxActual].filter(x => !(x.tipo === 'nota' && x.id === E.id)); guardarJSON(COPIA_KEY, c); }
+    const y = scrollY; pintarPagina(); scrollTo(0, y);
+    subir();
+}
+
+// ── Guardado: todo pasa por la cola del celular ─────────────────────────
+let timer = null;
+function encolar(E) {
+    const cola = leerJSON(COLA_KEY, {});
+    const k = claveCola(E);
+    const antes = cola[k];
+    cola[k] = E.tipo === 'clase'
+        ? { tipo: 'clase', ctx: ctxActual, fecha: E.fecha, contenido: E.ed ? E.ed.texto() : E.contenido, ts: Date.now() }
+        : { tipo: 'nota', ctx: ctxActual, id: E.id, fecha: E.fecha, titulo: E.titulo || '', contenido: E.ed ? E.ed.texto() : E.contenido, nueva: !!(E.nueva || antes?.nueva), ts: Date.now() };
+    guardarJSON(COLA_KEY, cola);
+}
+function cambio(E) {
+    encolar(E);
+    estado('Sin guardar…', 'pend');
+    clearTimeout(timer);
+    timer = setTimeout(subir, 1200);
+}
+
+async function sesionDe(ctx, fecha) {
+    let { data: s, error } = await sb.from('sesiones').select('id').eq('contexto_id', ctx).eq('fecha', fecha).maybeSingle();
+    if (error) throw error;
+    if (!s) {
+        const r = await sb.from('sesiones').insert({ contexto_id: ctx, fecha }).select('id').single();
+        if (r.error) {      // otro equipo la creó recién
+            ({ data: s, error } = await sb.from('sesiones').select('id').eq('contexto_id', ctx).eq('fecha', fecha).maybeSingle());
+            if (error || !s) throw r.error;
+        } else s = r.data;
+    }
+    return s.id;
+}
+async function subirUno(it) {
+    const ahora = new Date().toISOString();
+    if (it.tipo === 'clase') {
+        const sid = await conTiempo(sesionDe(it.ctx, it.fecha));
+        const { error } = await conTiempo(sb.from('memorias').upsert({ sesion_id: sid, contenido: it.contenido, updated_at: ahora }, { onConflict: 'sesion_id' }));
+        if (error) throw error;
+    } else if (it.tipo === 'nota') {
+        const fila = { id: it.id, contexto_id: it.ctx, titulo: it.titulo, contenido: it.contenido, fecha: it.fecha, updated_at: ahora };
+        if (it.nueva) fila.tipo = 'sub';
+        const { error } = await conTiempo(sb.from('bitacora_paginas').upsert(fila, { onConflict: 'id' }));
+        if (error) throw error;
+    } else if (it.tipo === 'borrar') {
+        const { error } = await conTiempo(sb.from('bitacora_paginas').delete().eq('id', it.id));
+        if (error) throw error;
+    }
+}
+let subiendo = null;
+function subir() {
+    clearTimeout(timer);
+    if (subiendo) return subiendo.then(() => (Object.keys(leerJSON(COLA_KEY, {})).length ? subir() : null));
+    subiendo = (async () => {
+        // Lo que haya quedado sin subir de la Bitácora anterior se sube igual.
+        const vieja = leerJSON(COLA_VIEJA, {});
+        const cola = leerJSON(COLA_KEY, {});
+        const items = [...Object.entries(vieja).map(([k, it]) => ({ origen: COLA_VIEJA, k, it: { tipo: 'clase', ctx: k.split('|')[0], fecha: k.split('|')[1], contenido: it.contenido, ts: it.ts } })),
+                       ...Object.entries(cola).map(([k, it]) => ({ origen: COLA_KEY, k, it }))];
+        if (!items.length) return;
+        if (!navigator.onLine) { estado('⏳ sin señal · guardado en el celular', 'pend'); return; }
+        estado('Guardando…');
+        for (const { origen, k, it } of items) {
+            try { await subirUno(it); }
+            catch (_) { estado('⏳ sin subir · se reintenta', 'pend'); return; }
+            const ahora = leerJSON(origen, {});
+            if (ahora[k] && ahora[k].ts === it.ts) { delete ahora[k]; guardarJSON(origen, ahora); }
+            else if (ahora[k] && origen === COLA_KEY && it.nueva) { ahora[k].nueva = false; guardarJSON(origen, ahora); }   // ya existe: lo que sigue es una edición
+            // La copia del curso queda al día con lo subido.
+            if (it.tipo === 'clase' || it.tipo === 'nota') {
+                const c = leerJSON(COPIA_KEY, {}), l = c[it.ctx];
+                if (l) {
+                    const x = it.tipo === 'clase' ? l.find(y => y.tipo === 'clase' && y.fecha === it.fecha) : l.find(y => y.tipo === 'nota' && y.id === it.id);
+                    if (x) Object.assign(x, { contenido: it.contenido, ...(it.tipo === 'nota' ? { titulo: it.titulo, fecha: it.fecha } : {}) });
+                    else l.push(it.tipo === 'clase' ? { tipo: 'clase', fecha: it.fecha, contenido: it.contenido, audios: [] }
+                                                    : { tipo: 'nota', id: it.id, fecha: it.fecha, titulo: it.titulo, contenido: it.contenido, audios: [], creado: new Date(it.ts).toISOString() });
+                    guardarJSON(COPIA_KEY, c);
+                }
+            }
+        }
+        const quedan = Object.keys(leerJSON(COLA_KEY, {})).length + Object.keys(leerJSON(COLA_VIEJA, {})).length;
+        if (quedan) estado('Sin guardar…', 'pend');
+        else { estado('Guardado ✓', 'ok'); setTimeout(() => { if ($('estado').textContent === 'Guardado ✓') estado(''); }, 2500); }
+    })().finally(() => { subiendo = null; });
+    return subiendo;
+}
+window.addEventListener('online', () => subir());
+window.addEventListener('offline', () => { if (Object.keys(leerJSON(COLA_KEY, {})).length) estado('⏳ sin señal · guardado en el celular', 'pend'); });
+setInterval(() => { if (Object.keys(leerJSON(COLA_KEY, {})).length) subir(); }, 20000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) subir(); });
+window.addEventListener('pagehide', () => { subir(); });
+
+// ── Inicio: en clase, el curso en curso; si no, el último abierto ───────
+let entroSolo = false;
+function entrarClaseEnCurso() {
+    if (entroSolo) return;
+    const id = vivoId();
+    if (!id) return;
+    entroSolo = true;
+    if (id !== ctxActual) abrirCurso(id); else pintarCursos();
+}
+ClaseVivo.onCambio(() => { pintarCursos(); entrarClaseEnCurso(); });
+
+function ultimoCurso() { try { return localStorage.getItem('profe_cel_cursos_ultimo'); } catch (_) { return null; } }
+(async function init() {
+    const q = new URLSearchParams(location.search).get('ctx');
+    const elegir = () => (q && contextos.find(c => c.nombre === q.toUpperCase())?.id) || vivoId()
+        || contextos.find(c => c.id === ultimoCurso())?.id || ultimoCurso();
+    if (contextos.length) { pintarCursos(); const id = elegir(); if (id) { entroSolo = !!vivoId(); abrirCurso(id); } }
+    await cargarBase();
+    pintarCursos();
+    if (!ctxActual) { const id = elegir() || contextos.find(c => c.nombre !== 'GENERAL')?.id; entroSolo = !!vivoId(); abrirCurso(id); }
+    setTimeout(entrarClaseEnCurso, 1500);   // la clase en curso puede tardar en llegar de internet
+    subir();
+})();
+</script>
+</body>
+</html>

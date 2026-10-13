@@ -4086,3 +4086,35 @@ en la Pizarra, en letra ligada y/o imprenta, activable desde el Planificador con
 - **Ajuste del PO (2026-10-13): menú limpio.** El menú 🔔 solo lista las recurrentes (🤫 Silencio y atención, 📅 Fecha
   — esta dice "Visible" cuando se ve —). "📅 Fecha ‹" abre **su propio menú** al lado, con un **interruptor
   Visible / Oculta** y debajo formato, letra y lado; cambiar opciones ya no la muestra sola (solo el interruptor).
+
+### BM. Celular — la Bitácora pasa a ser Cursos (estilo Notion, versión celular)
+*Origen: pedido del PO (2026-10-13): que la Bitácora del celular sea en realidad la página Cursos, con su estilo
+Notion, en versión para el celular.*
+- **Auditoría (2026-10-13):** la Bitácora del celular (`MEMORIA/index.html`, BF) es texto plano: día → curso → clase,
+  guardado automático y funciona sin señal (cola + copia en el celular). Cursos (`CURSOS/index.html`, BA) usa el editor
+  por bloques (`comun/editor-bloques.js`), que hoy no tiene soporte táctil (arrastrar y ⋮⋮ solo con mouse) y no
+  funciona sin señal.
+- **DECISIÓN del PO (2026-10-13):**
+  1. Navegación **curso → su página**: íconos de cursos arriba; la página del curso muestra su histórico (clases +
+     notas, la más reciente arriba). En clase, entra directo al curso en curso, en la clase de hoy.
+  2. Editor: **escribir + formato por toque** (títulos, listas, casillas, colores) con barra de formato sobre el
+     teclado; mover/convertir bloques con **toque largo → menú**; sin arrastrar.
+  3. Extras: **＋ Nota** (notas del curso con fecha). Sin cuadros de pendientes ni apoderados en el celular.
+  4. **Reemplaza** a la Bitácora actual (✍🏼 abre la nueva); la vieja se retira cuando el PO la valide en uso. Se
+     mantiene el funcionamiento **sin señal**.
+- **Implementación (2026-10-13):** `MOVIL/cursos.html` (página nueva del celular, estilo Notion claro): cursos como
+  chips arriba (● verde = en clase); la página del curso con su histórico (clases hasta hoy + notas, lo más nuevo
+  arriba; si el curso tiene clase hoy o está en clase, aparece su clase de hoy aunque aún no exista) y ＋ Nota (título,
+  fecha, ⋯ Eliminar). En clase entra directo al curso en curso. **Sin señal:** todo cambio pasa por una cola en el
+  celular (`profe_cel_cursos_cola`; notas nuevas con su id creado en el celular) y se sube al volver la señal; cada
+  curso abierto queda copiado (`profe_cel_cursos_copia`); lo pendiente de la Bitácora anterior (`profe_bitacora_cola`)
+  también se sube. `comun/editor-bloques.js` gana la opción **`tactil`**: sin ＋/⋮⋮, barra de formato sobre el teclado
+  (Aa tipo · • · ☑ · B I U · 3 colores · ⋯ menú del bloque con Subir/Bajar), toque largo = menú del bloque, Enter y
+  Borrar del teclado del celular (llegan como "beforeinput"), "/" abre los tipos. El PC no cambia. Los botones ✍🏼
+  BITÁCORA del celular abren la página nueva; `sw-movil.js` (v4) la suma junto al editor. `MEMORIA/` queda sin
+  enlaces hasta que el PO valide (después se retira).
+- **Prueba (servidor local, tamaño celular; nota de prueba borrada):** Tercero con 23 entradas; ＋ Nota con título y
+  texto → "Guardado ✓" en la base; sin señal simulada → "⏳ sin señal · guardado en el celular" (cola) y al volver la
+  señal se subió; barra táctil sobre el teclado (cabe en 375 px), "•" convierte en viñetas, Enter del teclado del
+  celular crea el siguiente ítem, ⋯ muestra Subir/Bajar/Duplicar/Eliminar; eliminar la nota la borra de la base. En el
+  PC el editor sigue igual (＋/⋮⋮ visibles, Enter parte el bloque). Falta probar en el celular real (teclado, toque largo).
