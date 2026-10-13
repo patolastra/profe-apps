@@ -3519,6 +3519,9 @@ como respaldo).*
   diapositiva de canción de la Pizarra (letra, audio, modos, coloreado). Las `@rep:` guardadas se muestran como una
   diapositiva de texto simple con "🎵 Nombre" (Pizarra y vista previa del Planificador). **No se tocan los datos.** La
   tecla T de la Pizarra (abrir el Entrenador) se conserva.
+- **Implementación (2026-10-13, `d416d43`):** ~1.800 líneas fuera (Pizarra, Planificador, Biblioteca). Probado en local:
+  la clase del 24-08 de Tercero muestra sus 7 canciones como "🎵 Nombre" en la Pizarra y en la vista previa; el menú
+  Insertar queda en Metalófono / YouTube / Imagen; el Entrenador abre y cierra igual. **Cerrada.**
 
 ### AT. Repertorio pasa a llamarse Biblioteca (en todo el sistema)
 *Origen: DECISIÓN del PO (2026-10-08): "formalizar que Repertorio ahora se llama Biblioteca, en todo el sistema".*
