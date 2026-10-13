@@ -3908,6 +3908,10 @@ los pendientes como en el Dashboard.*
   Hoy (y sus sugerencias) del Dashboard y del celular. **Arreglo:** el celular podía mezclar piezas nuevas con viejas
   (copias del navegador de hasta 10 min) → `sw-movil.js` v3 pregunta siempre al servidor (`cache: 'no-cache'`) y la
   página tolera un `contextos.js` viejo. Probablemente por eso la etiqueta "☀ Hoy" aún no se veía en el celular.
+- **Ajuste (2026-10-13, pedido del PO con captura): subpendientes en el celular.** En ☀ Hoy, los pendientes con
+  subpendientes quedaban corridos a la derecha por su flecha y los subpendientes no quedaban bajo el texto. Ahora la
+  flecha va al margen (todas las casillas alineadas) y la casilla del subpendiente queda justo bajo el texto del
+  pendiente, en Hoy y en Todos (`MOVIL/index.html`, solo estilos).
 
 ### BE. Tiempo real en toda la app — DEUDA (anotada, sin diseñar)
 *Origen: PO (2026-10-12): "todo debería ser con actualización en tiempo real, en general en toda la app y
