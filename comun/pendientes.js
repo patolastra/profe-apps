@@ -16,7 +16,8 @@
 //                                      vacio, alCambiar, todosCompletados, completadosAbiertos,
 //                                      sugerencias (filas con Aceptar / Rechazar para Hoy),
 //                                      tactil (celular: el texto se edita al tocarlo),
-//                                      sinMarcaHoy (la lista Hoy no repite la marca "☀️ Hoy") })
+//                                      marcaHoy (etiqueta "☀️ Hoy" en los que están en Hoy; para el celular,
+//                                      donde no hay botón ☀️ a la vista) })
 //   l.agregar() · l.repintar()
 //   Pendientes.crear({ contexto_id, sesion_id, fecha, texto, hoy })
 //   Pendientes.proximaClase(contexto_id)   → destino { contexto_id, sesion_id, fecha }
@@ -432,7 +433,7 @@
                 <span class="pd-meta"></span>
                 <span class="pd-acc">
                     <button class="pd-sol" type="button" tabindex="-1" title="Agregar a HOY">☀️</button>
-                    <button class="pd-sub" type="button" tabindex="-1" title="Agregar un subpendiente">↳</button>
+                    <button class="pd-sub" type="button" tabindex="-1" title="Agregar un subpendiente"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M4 2.5v5.5a3 3 0 0 0 3 3h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M10.5 8.5 13 11l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                     <button class="pd-del" type="button" tabindex="-1" title="Borrar">✕</button>
                     <button class="pd-aceptar" type="button" title="Queda para hoy">Aceptar</button>
                     <button class="pd-rechazar" type="button" title="Sale de Hoy; sigue como pendiente de su curso">Rechazar</button>
@@ -526,7 +527,7 @@
         const partes = [];
         if (plegado) partes.push(`<span class="pd-cuenta" title="Subpendientes hechos">${hijos.filter(h => h.estado === 'completado').length}/${hijos.length}</span>`);
         if (!esHijo && !hecho && sem > 0) partes.push(`<span class="pd-sem" title="${sem === 1 ? 'Trasladado 1 semana' : `Trasladado ${sem} semanas`}">(${sem} sem)</span>`);
-        if (!esHijo && !L.op.sinMarcaHoy && p.hoy === hoyISO()) partes.push('<span class="pd-marca-hoy" title="Está en Hoy">☀️ Hoy</span>');
+        if (!esHijo && L.op.marcaHoy && p.hoy === hoyISO()) partes.push('<span class="pd-marca-hoy" title="Está en Hoy">☀️ Hoy</span>');
         if (!esHijo && L.op.mostrarCurso) {
             const c = L.op.mostrarCurso(p);                       // texto, o { texto, titulo }
             const tx = c && typeof c === 'object' ? c.texto : c, ti = c && typeof c === 'object' ? c.titulo : 'Curso';
