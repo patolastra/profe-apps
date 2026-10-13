@@ -4057,3 +4057,24 @@ acuerdos y acciones —, que se pueda crear desde el Dashboard, el Plan y Cursos
   PO ejecutó el SQL (2026-10-13). Prueba en Cursos (Tercero, cita de prueba borrada): 📞 Llamar → "📞 mié 14/10 ·
   15:00" con "No contestó" → vuelve a Por citar → 📅 Citar → "No vino". La sección "Citados" pasa a "Agendados" y el
   cuadro del Dashboard a "Llamadas y citas de hoy".
+
+### BL. Pizarra — la fecha arriba, para copiarla en el cuaderno
+*Origen: pedido del PO (2026-10-13): los cursos pequeños tienen la costumbre de anotar la fecha en el cuaderno; mostrarla
+en la Pizarra, en letra ligada y/o imprenta, activable desde el Planificador con la clase en curso.*
+- **DECISIÓN del PO (2026-10-13):**
+  1. Formatos: **Lunes 13/10/26** o **Lunes 13 - 10 - 26**.
+  2. Letra: **ligada** (Playwrite CL, modelo de letra escolar chileno), **imprenta** (Andika, a y g de niño) o
+     **ambas**, una bajo la otra (ligada arriba).
+  3. En el extremo superior de la Pizarra, a la **izquierda o a la derecha**. **Le hace espacio** a la diapositiva
+     (franja propia, nunca tapa texto).
+  4. Se maneja desde el Planificador con la clase en curso y **se recuerda por curso** (la próxima clase del curso
+     parte igual).
+- **Implementación (2026-10-13):** fuentes guardadas en la app (`comun/fuentes/`, sin internet). Pieza compartida
+  `comun/fecha-pizarra.js` (`FechaPizarra`): opciones por curso en el equipo (`localStorage`, como las recurrentes:
+  Planificador y Pizarra van en el mismo computador). Planificador: botón 📅 en la barra (con la clase en curso) con
+  mostrar/ocultar, formato, letra y lado. Pizarra: franja arriba con la fecha de la clase; la diapositiva se reajusta.
+- **Prueba (servidor local):** Pizarra de Primero (mié 14/10): ambas letras a la izquierda ("Miércoles 14/10/26" ligada
+  y bajo ella imprenta) y ligada a la derecha con guiones ("Miércoles 14 - 10 - 26"); la diapositiva se achica y no
+  queda tapada. Menú 📅 del Planificador: mostrar/ocultar, formato con el ejemplo de la fecha de la clase, letra
+  (muestra cada fuente), lado; elegir una opción la muestra y se recuerda para el curso. Letra agrandada para leerse
+  desde el fondo de la sala (ligada 8,5 % del alto; con ambas, 7 % y 6,5 %).

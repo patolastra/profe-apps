@@ -12,6 +12,7 @@
     <script src="../comun/nombre-asset.js"></script>
     <script src="../comun/asistencia.js"></script>
     <script src="../comun/recurrentes.js"></script>
+    <script src="../comun/fecha-pizarra.js"></script>
     <link rel="stylesheet" href="../comun/editor-bloques.css">
     <script src="../comun/editor-bloques.js"></script>
     <link rel="stylesheet" href="../comun/pendientes.css">
@@ -98,6 +99,26 @@
             color: inherit; cursor: pointer; text-align: left; }
         #recu-menu button:hover { background: #f1f5f9; }
         #recu-menu button.on { background: #fef3c7; }
+        /* Fecha en la Pizarra (deuda BL) */
+        #fecha-wrap { position: relative; display: inline-flex; }
+        #fecha-wrap[hidden] { display: none; }
+        #btn-fecha.on { background: #f59e0b; border-radius: 10px; }
+        #fecha-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 3000; width: 330px;
+            background: #fff; color: #0f172a; border: 1px solid #e2e8f0; border-radius: 10px;
+            box-shadow: 0 10px 28px rgba(0,0,0,.18); padding: 10px; display: flex; flex-direction: column; gap: 10px;
+            text-transform: none; letter-spacing: 0; font-weight: 400; }
+        #fecha-menu[hidden] { display: none; }
+        #fecha-menu .fm-tit { font-size: .72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+        #fecha-menu .fm-ops { display: flex; gap: 6px; }
+        #fecha-menu .fm-ops button { flex: 1; padding: 7px 6px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;
+            font: inherit; font-size: .85rem; color: inherit; cursor: pointer; white-space: nowrap; }
+        #fecha-menu .fm-ops button:hover { background: #f1f5f9; }
+        #fecha-menu .fm-ops button.on { border-color: #2563eb; background: #dbeafe; font-weight: 600; }
+        #fecha-menu .fm-ver { width: 100%; padding: 9px; border: 0; border-radius: 8px; font: inherit; font-size: .95rem;
+            font-weight: 700; cursor: pointer; background: #2563eb; color: #fff; }
+        #fecha-menu .fm-ver.on { background: #f1f5f9; color: #0f172a; }
+        #fecha-menu .fm-ligada { font-family: 'Fecha Ligada', cursive; font-size: .95rem; }
+        #fecha-menu .fm-imprenta { font-family: 'Fecha Imprenta', sans-serif; font-size: 1.05rem; }
         #recu-menu small { margin-left: auto; color: #b45309; font-weight: 700; }
         /* Etiqueta al pasar el mouse cuando el Planificador está suelto (sin Workspace);
            dentro del Workspace la muestra el Workspace arriba, en su barra de pestañas. */
@@ -1125,6 +1146,10 @@
             <button class="hdr-btn ico" onclick="abrirRepertorioCurso()" data-label="Repertorio" aria-label="Repertorio">🎵</button>
             <button class="hdr-btn ico" onclick="abrirMemoria()" data-label="Bitácora" aria-label="Bitácora">✍🏼</button>
             <button class="hdr-btn ico" onclick="mostrarQRRemoto()" data-label="Remoto" aria-label="Remoto">📱</button>
+            <span id="fecha-wrap" hidden>
+                <button class="hdr-btn ico" id="btn-fecha" onclick="fechaMenu(event)" data-label="Fecha en la Pizarra" aria-label="Fecha en la Pizarra">📅</button>
+                <div id="fecha-menu" hidden></div>
+            </span>
             <span id="recu-wrap" hidden>
                 <button class="hdr-btn ico" id="btn-recu" onclick="recuMenu(event)" data-label="Diapositivas recurrentes" aria-label="Diapositivas recurrentes">🔔</button>
                 <div id="recu-menu" hidden></div>
@@ -2253,6 +2278,9 @@ function renderClase() {
     document.getElementById('btn-sig-piz').hidden = !esEsta;
     document.getElementById('recu-wrap').hidden = !esEsta;   // 🔔 diapositivas recurrentes (deuda AX)
     if (!esEsta) document.getElementById('recu-menu').hidden = true;
+    document.getElementById('fecha-wrap').hidden = !esEsta;   // 📅 fecha en la Pizarra (deuda BL)
+    if (!esEsta) document.getElementById('fecha-menu').hidden = true;
+    fechaPintar();
     recuPintar();
     ajustarBarra();
     box.hidden  = !st;
@@ -2327,6 +2355,37 @@ function marcarEnPizarra() {
         el.classList.toggle('en-pizarra', parseInt(el.dataset.idx) === idx));
 }
 window.addEventListener('storage', e => { if (e.key === 'profe_pizarra_slide') marcarEnPizarra(); });
+// ── Fecha en la Pizarra (deuda BL): 📅 muestra/oculta la fecha de la clase arriba de la Pizarra,
+// con formato, letra (ligada / imprenta / ambas) y lado. Se recuerda por curso (FechaPizarra).
+function fechaCtx() { return contextos[sesionActual?.contexto_id]?.nombre || sesionActual?.nombre || ''; }
+function fechaMenu(e) {
+    e?.stopPropagation();
+    const menu = document.getElementById('fecha-menu');
+    if (!menu.hidden && e) { menu.hidden = true; return; }
+    if (!sesionActual) return;
+    const c = FechaPizarra.config(fechaCtx());
+    const ej = f => FechaPizarra.texto(sesionActual.fecha, f);
+    const op = (campo, valor, html) => `<button class="${c[campo] === valor ? 'on' : ''}" onclick="fechaCambiar('${campo}','${valor}')">${html}</button>`;
+    menu.innerHTML = `
+        <button class="fm-ver ${c.on ? 'on' : ''}" onclick="fechaCambiar('on', ${!c.on})">${c.on ? 'Ocultar la fecha' : '📅 Mostrar la fecha en la Pizarra'}</button>
+        <div><div class="fm-tit">Formato</div><div class="fm-ops">${op('formato', 'barra', esc(ej('barra')))}${op('formato', 'guion', esc(ej('guion')))}</div></div>
+        <div><div class="fm-tit">Letra</div><div class="fm-ops">${op('letra', 'ligada', '<span class="fm-ligada">Ligada</span>')}${op('letra', 'imprenta', '<span class="fm-imprenta">Imprenta</span>')}${op('letra', 'ambas', 'Ambas')}</div></div>
+        <div><div class="fm-tit">Lado</div><div class="fm-ops">${op('lado', 'izq', '⬉ Izquierda')}${op('lado', 'der', 'Derecha ⬈')}</div></div>`;
+    menu.onclick = ev => ev.stopPropagation();   // el menú se repinta al elegir: que no se cierre
+    menu.hidden = false;
+}
+function fechaCambiar(campo, valor) {
+    FechaPizarra.guardar(fechaCtx(), { [campo]: valor, ...(campo !== 'on' ? { on: true } : {}) });
+    fechaMenu();   // repintar el menú abierto
+}
+function fechaPintar() {
+    document.getElementById('btn-fecha').classList.toggle('on', !!(sesionActual && FechaPizarra.config(fechaCtx()).on));
+}
+FechaPizarra.onCambio(fechaPintar);
+document.addEventListener('click', e => {
+    const m = document.getElementById('fecha-menu');
+    if (m && !m.hidden && !e.target.closest('#fecha-wrap')) m.hidden = true;
+});
 function recuPintar() {
     const a = Recurrentes.actual();
     document.getElementById('btn-recu').classList.toggle('on', !!(a && sesionActual && a.sesionId === sesionActual.id));
