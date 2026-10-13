@@ -3789,6 +3789,7 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   diapositiva inicial automática de esa clase pasada; se borró.
 - **DEUDA A FUTURO (PO, 2026-10-12):** controlar el aspecto de **toda la app con un solo interruptor central de tema
   claro/oscuro**. No implementado.
+- **Ajuste del PO (2026-10-13):** el ícono de Cursos pasa de 📓 a 🎓 (pestaña del Workspace y la página).
 
 ### BB. Pendientes — una sola lista en todo el sistema (paso 1)
 *Origen: PO (2026-10-12), tras el informe de pendientes; tarjeta Notion "Pendientes: Dashboard ↔ sesiones de clase
