@@ -3894,7 +3894,7 @@ los pendientes como en el Dashboard.*
   desaparece solo. Hoy solo pendientes y clase en curso tienen tiempo real en todo el sistema (PEDIDO del PO: tiempo
   real en toda la app → auditoría aparte, ver BE).
 - **DECISIÓN del PO (2026-10-12) — nombre mínimo del curso:** solo su ícono (2️⃣, 💼 General, 🎸 Cuerdas…), con el
-  nombre completo al pasar el mouse. Regla única `ctxCorto(nombre)` en `supabase/contextos.js`. Por ahora en las listas
+  nombre completo al pasar el mouse. Regla única `ctxMinimo(nombre)` en `supabase/contextos.js`. Por ahora en las listas
   Hoy (y sus sugerencias) del Dashboard y del celular. **Arreglo:** el celular podía mezclar piezas nuevas con viejas
   (copias del navegador de hasta 10 min) → `sw-movil.js` v3 pregunta siempre al servidor (`cache: 'no-cache'`) y la
   página tolera un `contextos.js` viejo. Probablemente por eso la etiqueta "☀ Hoy" aún no se veía en el celular.
@@ -3934,3 +3934,8 @@ específicamente en el celular".*
   (● en clase: había una clase real en curso), Cuarto, Cuerdas, y entró sola a Tercero; escribir → "Sin guardar…" →
   "Guardado ✓" y quedó en la base; sin señal (simulada) en Cuarto → "⏳ sin señal · guardado en el celular" y al volver
   la señal se subió solo. Las dos bitácoras de prueba (Tercero y Cuarto de hoy, que estaban vacías) se borraron.
+- **BUG causado por BD y corregido (2026-10-12, reportado por el PO):** la función nueva `ctxCorto` de
+  `supabase/contextos.js` (71b484c) tenía el mismo nombre que una constante propia de la Biblioteca
+  (`REPERTORIO/index.html`), y el choque detenía toda la Biblioteca/Entrenador (p. ej. "Sesión" desde el Plan se
+  quedaba a medio camino). Renombrada a **`ctxMinimo`**. Verificado: `?practicar=<sesión de Tercero>` abre la sesión
+  con sus canciones. **Lección:** antes de agregar un nombre global a una pieza compartida, buscarlo en todo el repo.
