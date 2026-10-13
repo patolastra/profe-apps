@@ -3973,3 +3973,6 @@ búsqueda más corta y los cursos con su nombre corto.*
   canciones…"; se corrigió "canciónes" también en la lista de una sesión). Se quitó el botón **Lecciones**:
   **CONGELADO — futura evaluación: dar de baja o seguir desarrollando** (la función queda intacta; anotado en
   CLAUDE.md §5).
+- **Ajuste del PO (2026-10-13):** Todo / Canciones / Materiales es **un solo botón** que va pasando con cada clic (azul
+  cuando filtra); sin separador y selectores más angostos. Medido: con "Practicar" visible cabe en una línea a 1900 px
+  (sobran ~500 px) y a 1400 px (justo).
