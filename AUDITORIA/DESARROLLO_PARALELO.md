@@ -3917,3 +3917,20 @@ específicamente en el celular".*
   el texto sin editar no recibe el dedo (`.pd-tactil .pd-txt[readonly] { pointer-events: none }`): lo recibe la fila;
   toque corto = editar, mantener = arrastrar. Simulado en servidor local (el dedo cae en la fila; arrastre → subpendiente
   sin abrir edición; toque corto → edita). Falta confirmarlo en el celular real.
+
+### BF. Bitácora del celular — cursos como botones, guardado automático, sin señal
+*Origen: PO (2026-10-12): en la Bitácora del celular hay que elegir fecha y curso (mucho trabajo); ¿se guarda sola?
+(No: había que apretar "GUARDAR BITÁCORA").*
+- **DECISIÓN del PO (2026-10-12):** (1) al elegir la fecha, los cursos de ese día aparecen como botones (ícono +
+  nombre); un toque abre su bitácora; si hay clase en curso, entra directo a ese curso. (2) Guardado automático
+  mientras se escribe ("Guardando… / Guardado ✓"), sin botón Guardar. (3) Sin señal, lo escrito queda en el celular y
+  se sube al volver la señal.
+- **Implementación (2026-10-12):** `MEMORIA/index.html` rehecho: las fechas y los cursos salen del **horario** (copia en
+  el celular, `profe_bitacora_horario`; ya no lun–jue fijo, regla F3.1); cursos del día = botones (el de la clase en
+  curso dice "● en clase" y se abre solo al entrar); guardado automático 1,2 s después de escribir, al cambiar de
+  curso/fecha y al salir; cola en el celular (`profe_bitacora_cola`) + copia de lo último visto (`profe_bitacora_copias`);
+  lo que está en la cola manda sobre lo que trae internet. Misma tabla `memorias` (texto) que el Planificador y Cursos.
+- **Prueba (servidor local, tamaño celular):** fechas = días con horario (hoy primero); hoy muestra Orientación, Tercero
+  (● en clase: había una clase real en curso), Cuarto, Cuerdas, y entró sola a Tercero; escribir → "Sin guardar…" →
+  "Guardado ✓" y quedó en la base; sin señal (simulada) en Cuarto → "⏳ sin señal · guardado en el celular" y al volver
+  la señal se subió solo. Las dos bitácoras de prueba (Tercero y Cuarto de hoy, que estaban vacías) se borraron.

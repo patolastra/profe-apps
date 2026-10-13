@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="../supabase/config.js"></script>
     <script src="../supabase/contextos.js"></script>
+    <script src="../comun/clase-vivo.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
         :root {
@@ -20,6 +21,7 @@
             --muted:   #7a8ba8;
             --accent:  #3b82f6;
             --green:   #22c55e;
+            --yellow:  #eab308;
             --red:     #ef4444;
         }
         body {
@@ -40,48 +42,46 @@
             font-size: 22px; color: var(--muted); text-decoration: none;
             line-height: 1; padding: 4px 6px; margin-left: -6px;
         }
-        header h1 { font-size: 19px; font-weight: 700; }
+        header h1 { flex: 1; font-size: 19px; font-weight: 700; }
+        #estado { font-size: 13px; color: var(--muted); white-space: nowrap; }
+        #estado.ok   { color: var(--green); }
+        #estado.pend { color: var(--yellow); }
+        #estado.err  { color: var(--red); }
 
         /* ── Formulario ── */
-        main { padding: 20px 18px; display: flex; flex-direction: column; gap: 20px; max-width: 640px; margin: 0 auto; }
+        main { padding: 18px 18px; display: flex; flex-direction: column; gap: 18px; max-width: 640px; margin: 0 auto; }
         .campo { display: flex; flex-direction: column; gap: 8px; }
-        .campo label {
+        .campo > label {
             font-size: 13px; font-weight: 600; letter-spacing: .04em;
             text-transform: uppercase; color: var(--muted);
         }
-        select, input[type="date"], textarea {
+        select, textarea {
             width: 100%; font-family: inherit; font-size: 16px; color: var(--text);
             background: var(--card); border: 1px solid var(--border); border-radius: 12px;
             padding: 14px; outline: none; -webkit-appearance: none; appearance: none;
         }
-        select:focus, input[type="date"]:focus, textarea:focus { border-color: var(--accent); }
+        select:focus, textarea:focus { border-color: var(--accent); }
         select { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a8ba8' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 40px; }
-        input[type="date"] { min-height: 50px; }
-        textarea { min-height: 42vh; resize: vertical; line-height: 1.5; }
+        textarea { min-height: 50vh; resize: vertical; line-height: 1.5; }
+        textarea:disabled { opacity: .45; }
 
-        /* ── Botón guardar ── */
-        #guardar {
-            width: 100%; font-family: inherit; font-size: 17px; font-weight: 700;
-            color: #fff; background: var(--accent); border: none; border-radius: 12px;
-            padding: 16px; cursor: pointer; transition: opacity .15s, background .15s;
+        /* ── Cursos del día: botones ── */
+        #cursos { display: flex; flex-wrap: wrap; gap: 8px; }
+        .curso {
+            display: flex; align-items: center; gap: 8px; padding: 11px 14px;
+            font: inherit; font-size: 15px; font-weight: 600; color: var(--text);
+            background: var(--card); border: 1px solid var(--border); border-radius: 12px;
         }
-        #guardar:disabled { opacity: .45; cursor: default; }
-        #guardar:active:not(:disabled) { opacity: .85; }
-
-        /* ── Estado / confirmación ── */
-        #estado {
-            font-size: 14px; text-align: center; min-height: 20px;
-            transition: opacity .2s;
-        }
-        #estado.ok  { color: var(--green); }
-        #estado.err { color: var(--red); }
-        #estado.info { color: var(--muted); }
+        .curso.activo { background: #1e3a8a; border-color: var(--accent); }
+        .curso .vivo { font-size: 10px; font-weight: 700; color: #86efac; letter-spacing: .05em; text-transform: uppercase; }
+        .msg { font-size: 14px; color: var(--muted); }
     </style>
 </head>
 <body>
     <header>
         <a class="back" href="../MOVIL/index.html" title="Volver">‹</a>
-        <h1>✍🏼 Bitácora de clase</h1>
+        <h1>✍🏼 Bitácora</h1>
+        <span id="estado"></span>
     </header>
 
     <main>
@@ -91,186 +91,229 @@
         </div>
 
         <div class="campo">
-            <label for="curso">Clase</label>
-            <select id="curso">
-                <option value="" disabled selected>Elige una clase…</option>
-            </select>
+            <label>Clase</label>
+            <div id="cursos"><span class="msg">Cargando…</span></div>
         </div>
 
         <div class="campo">
-            <label for="memoria">Bitácora</label>
-            <textarea id="memoria" placeholder="¿Qué ocurrió en esta clase? Observaciones, reflexiones, contexto…&#10;&#10;Se guarda como bitácora permanente de la sesión. No genera pendientes."></textarea>
+            <label for="memoria" id="memoria-lbl">Bitácora</label>
+            <textarea id="memoria" disabled placeholder="¿Qué ocurrió en esta clase? Observaciones, reflexiones, contexto…&#10;&#10;Se guarda sola mientras escribes."></textarea>
         </div>
-
-        <button id="guardar" disabled>GUARDAR BITÁCORA</button>
-        <div id="estado"></div>
     </main>
 
     <script>
     // ═══════════════════════════════════════════════════════════════════════
-    // MEMORIA MÓVIL — MVP
-    // Registro rápido de la memoria de una clase desde el celular.
-    // Relación: curso/contexto + fecha → sesión → memoria (tabla `memorias`).
-    // Reutiliza EXACTAMENTE el formato de guardado del Portal (mismo upsert,
-    // mismo campo `contenido`, misma tabla). No crea almacenamiento nuevo.
+    // BITÁCORA MÓVIL (deuda BF, 2026-10-12)
+    // Fecha → los cursos de ese día como botones (si hay clase en curso, entra directo a
+    // ella) → bitácora. Se guarda sola mientras se escribe, en la misma tabla `memorias`
+    // del Planificador y de Cursos (curso + fecha → sesión → memoria). Sin señal, lo escrito
+    // queda en el celular (COLA_KEY) y se sube al volver la señal.
     // ═══════════════════════════════════════════════════════════════════════
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    ClaseVivo.conectar(sb);
 
-    const elCurso   = document.getElementById('curso');
-    const elFecha   = document.getElementById('fecha');
-    const elMemoria = document.getElementById('memoria');
-    const elGuardar = document.getElementById('guardar');
-    const elEstado  = document.getElementById('estado');
+    const $ = id => document.getElementById(id);
+    const elFecha = $('fecha'), elMemoria = $('memoria');
+    const leerJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
+    const guardarJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
+    const COLA_KEY = 'profe_bitacora_cola';          // { "ctxId|fecha": { contenido, ts } }
+    const COPIA_KEY = 'profe_bitacora_copias';       // { "ctxId|fecha": contenido }  (para abrir sin señal)
+    const HORARIO_KEY = 'profe_bitacora_horario';
 
-    function setEstado(txt, tipo) {
-        elEstado.textContent = txt;
-        elEstado.className = tipo || '';
-    }
-
-    // ── Selector de fecha: últimas 4 semanas, solo lun–jue ──────────────────────
-    // JS getDay(): 0=dom … 6=sáb. horario.dia_semana: 0=lun … 3=jue (patrón del ecosistema).
-    const JS_A_SB = { 1:0, 2:1, 3:2, 4:3 };
     const DIAS  = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
     const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const fechaISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const fechaLabel = d => { const s = `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`; return s.charAt(0).toUpperCase() + s.slice(1); };
+    const etiqueta = n => (typeof ctxDisplay === 'function' ? ctxDisplay(n) : n);
 
-    function fechaISOLocal(d) {
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        return `${d.getFullYear()}-${m}-${dd}`;
-    }
-    function fechaLabel(d) {
-        const s = `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`;
-        return s.charAt(0).toUpperCase() + s.slice(1);
+    function estado(t, tipo) { $('estado').textContent = t; $('estado').className = tipo || ''; }
+    const ESPERA_MS = 6000;
+    function conTiempo(p) {
+        if (!navigator.onLine) return Promise.reject(new Error('sin señal'));
+        return Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('sin respuesta')), ESPERA_MS))]);
     }
 
-    // Genera las fechas de clase (lun–jue) de las últimas 4 semanas, más reciente primero.
-    // El primer option queda seleccionado por defecto: hoy si es lun–jue; si se abre
-    // viernes/fin de semana, el último día de clase anterior.
+    // ── Horario (copia en el celular): los días y cursos salen de aquí ──
+    let horario = leerJSON(HORARIO_KEY, []);           // [{ dia_semana, orden, contexto_id, nombre }]
+    async function cargarHorario() {
+        try {
+            const { data, error } = await conTiempo(sb.from('horario')
+                .select('dia_semana, orden, contexto_id, contextos(nombre)').eq('activo', true).order('orden'));
+            if (error) throw error;
+            horario = (data || []).filter(h => h.contextos).map(h => ({ dia_semana: h.dia_semana, orden: h.orden,
+                contexto_id: h.contexto_id, nombre: h.contextos.nombre }));
+            guardarJSON(HORARIO_KEY, horario);
+        } catch (_) {}
+    }
+    const diaSB = iso => (new Date(iso + 'T12:00:00').getDay() + 6) % 7;   // 0 = lunes
+    const clasesDe = iso => horario.filter(h => Number(h.dia_semana) === diaSB(iso));
+
+    // Fechas: últimas 4 semanas, solo los días que tienen clases en el horario; la más reciente primero.
     function poblarFechas() {
-        const hoy = new Date();
-        hoy.setHours(12, 0, 0, 0); // mediodía local: evita saltos por zona horaria
+        const elegida = elFecha.value;
+        const dias = new Set(horario.map(h => Number(h.dia_semana)));
+        const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
+        elFecha.innerHTML = '';
         for (let i = 0; i < 28; i++) {
-            const d = new Date(hoy);
-            d.setDate(hoy.getDate() - i);
-            if (JS_A_SB[d.getDay()] === undefined) continue; // descarta vie/sáb/dom
+            const d = new Date(hoy); d.setDate(hoy.getDate() - i);
+            if (!dias.has((d.getDay() + 6) % 7)) continue;
             const o = document.createElement('option');
-            o.value = fechaISOLocal(d);
-            o.textContent = fechaLabel(d);
+            o.value = fechaISO(d); o.textContent = fechaLabel(d) + (i === 0 ? ' (hoy)' : '');
             elFecha.appendChild(o);
         }
-        elFecha.selectedIndex = 0;
+        if (elegida && [...elFecha.options].some(o => o.value === elegida)) elFecha.value = elegida;
     }
 
-    // ── Cursos de la fecha: consulta a `horario` (patrón del ecosistema) ─────────
-    // Muestra TODO lo del horario de ese día (incluye RECREO/ENLACE/ORIENTACIÓN);
-    // NO filtra por tipo. Limpia curso + memoria y deja Guardar deshabilitado.
-    async function cargarCursosDeFecha(fecha) {
-        elCurso.innerHTML = '<option value="" disabled selected>Elige una clase…</option>';
-        elMemoria.value = '';
-        elGuardar.disabled = true;
+    // ── Cursos del día como botones ──
+    let actual = null;                                 // { ctx, fecha }
+    function pintarCursos() {
+        const fecha = elFecha.value;
+        const clases = fecha ? clasesDe(fecha) : [];
+        const vivo = ClaseVivo.enCurso();
+        if (!clases.length) { $('cursos').innerHTML = `<span class="msg">${horario.length ? 'No hay clases ese día.' : 'Sin señal y sin copia del horario: ábrela una vez con internet.'}</span>`; return; }
+        $('cursos').innerHTML = clases.map(h => {
+            const enCurso = vivo && vivo.ctx === h.nombre && fecha === fechaISO(new Date());
+            return `<button class="curso${actual && actual.ctx === h.contexto_id && actual.fecha === fecha ? ' activo' : ''}" data-ctx="${h.contexto_id}">
+                ${etiqueta(h.nombre)}${enCurso ? '<span class="vivo">● en clase</span>' : ''}</button>`;
+        }).join('');
+    }
+    $('cursos').addEventListener('click', e => {
+        const b = e.target.closest('.curso');
+        if (b) abrir(b.dataset.ctx, elFecha.value);
+    });
+    elFecha.addEventListener('change', async () => {
+        await guardarYa();
+        actual = null;
+        elMemoria.value = ''; elMemoria.disabled = true; $('memoria-lbl').textContent = 'Bitácora';
+        pintarCursos();
+    });
 
-        const diaSB = JS_A_SB[new Date(fecha + 'T12:00:00').getDay()];
-        if (diaSB === undefined) { setEstado('No hay clases ese día', 'info'); return; }
-
-        setEstado('Cargando clases…', 'info');
+    // ── Abrir la bitácora de un curso en una fecha ──
+    const clave = (ctx, fecha) => `${ctx}|${fecha}`;
+    async function abrir(ctx, fecha) {
+        await guardarYa();
+        actual = { ctx, fecha };
+        pintarCursos();
+        const h = horario.find(x => x.contexto_id === ctx);
+        $('memoria-lbl').textContent = `Bitácora · ${h ? etiqueta(h.nombre) : ''}`;
+        const k = clave(ctx, fecha);
+        const enCola = leerJSON(COLA_KEY, {})[k];
+        elMemoria.value = enCola ? enCola.contenido : (leerJSON(COPIA_KEY, {})[k] ?? '');
+        elMemoria.disabled = false;
+        if (enCola) { estado('⏳ sin subir', 'pend'); return; }        // lo del celular manda
+        estado('Cargando…');
         try {
-            const { data, error } = await sb.from('horario')
-                .select('orden, contextos(id, nombre)')
-                .eq('dia_semana', diaSB).eq('activo', true).order('orden');
+            const { data: s, error } = await conTiempo(sb.from('sesiones').select('id').eq('contexto_id', ctx).eq('fecha', fecha).maybeSingle());
             if (error) throw error;
-            const clases = (data || []).filter(h => h.contextos);
-            if (!clases.length) { setEstado('No hay clases ese día', 'info'); return; }
-            clases.forEach(h => {
-                const o = document.createElement('option');
-                o.value = h.contextos.id;
-                o.textContent = ctxDisplay(h.contextos.nombre);   // identidad visible + ícono
-
-                elCurso.appendChild(o);
-            });
-            setEstado('', '');
-        } catch (e) {
-            setEstado('No se pudieron cargar las clases — revisa conexión.', 'err');
+            let contenido = '';
+            if (s) {
+                const { data: m, error: e2 } = await conTiempo(sb.from('memorias').select('contenido').eq('sesion_id', s.id).maybeSingle());
+                if (e2) throw e2;
+                contenido = m?.contenido || '';
+            }
+            if (!actual || clave(actual.ctx, actual.fecha) !== k) return;          // ya se cambió de curso
+            if (leerJSON(COLA_KEY, {})[k]) return;                                // se empezó a escribir mientras cargaba
+            elMemoria.value = contenido;
+            copiar(k, contenido);
+            estado('');
+        } catch (_) {
+            estado(navigator.onLine ? 'No se pudo cargar' : 'sin señal', navigator.onLine ? 'err' : '');
         }
     }
+    function copiar(k, contenido) { const c = leerJSON(COPIA_KEY, {}); c[k] = contenido; guardarJSON(COPIA_KEY, c); }
 
-    // ── Carga inicial: fechas + clases de la fecha por defecto ──────────────────
-    async function init() {
-        poblarFechas();
-        await cargarCursosDeFecha(elFecha.value);
-    }
+    // ── Guardado automático ──
+    let timer = null;
+    elMemoria.addEventListener('input', () => {
+        if (!actual) return;
+        const k = clave(actual.ctx, actual.fecha);
+        const cola = leerJSON(COLA_KEY, {});
+        cola[k] = { contenido: elMemoria.value, ts: Date.now() };
+        guardarJSON(COLA_KEY, cola);
+        copiar(k, elMemoria.value);
+        estado('Sin guardar…', 'pend');
+        clearTimeout(timer);
+        timer = setTimeout(subir, 1200);
+    });
+    function guardarYa() { clearTimeout(timer); return subir(); }
 
-    // ── get-or-create de la sesión (curso + fecha) — copiado de SRP móvil ───────
-    // Si la sesión de esa fecha no existe todavía, la crea automáticamente.
-    async function getOrCreateSesion(contextoId, fecha) {
-        let { data: s, error } = await sb.from('sesiones').select('id')
-            .eq('contexto_id', contextoId).eq('fecha', fecha).maybeSingle();
+    async function getOrCreateSesion(ctx, fecha) {
+        let { data: s, error } = await sb.from('sesiones').select('id').eq('contexto_id', ctx).eq('fecha', fecha).maybeSingle();
         if (error) throw error;
         if (!s) {
-            const { data: nueva, error: e2 } = await sb.from('sesiones')
-                .insert({ contexto_id: contextoId, fecha }).select('id').single();
-            if (e2) throw e2;
-            s = nueva;
+            const r = await sb.from('sesiones').insert({ contexto_id: ctx, fecha }).select('id').single();
+            if (r.error) {      // otro equipo la creó recién
+                ({ data: s, error } = await sb.from('sesiones').select('id').eq('contexto_id', ctx).eq('fecha', fecha).maybeSingle());
+                if (error || !s) throw r.error;
+            } else s = r.data;
         }
         return s.id;
     }
 
-    // ── Al elegir curso/fecha: cargar memoria existente para editarla ───────────
-    // Solo lee; NO crea sesión aún (la sesión se crea recién al guardar).
-    async function cargarMemoriaExistente() {
-        const contextoId = elCurso.value;
-        const fecha = elFecha.value;
-        elGuardar.disabled = !(contextoId && fecha);
-        if (!contextoId || !fecha) return;
-
-        setEstado('Cargando…', 'info');
-        try {
-            const { data: s, error } = await sb.from('sesiones').select('id')
-                .eq('contexto_id', contextoId).eq('fecha', fecha).maybeSingle();
-            if (error) throw error;
-            if (s) {
-                const { data: row, error: e2 } = await sb.from('memorias')
-                    .select('contenido').eq('sesion_id', s.id).maybeSingle();
-                if (e2) throw e2;
-                elMemoria.value = row?.contenido || '';
-                setEstado(row?.contenido ? 'Bitácora existente cargada — puedes continuar editándola.' : '', 'info');
-            } else {
-                elMemoria.value = '';
-                setEstado('', '');
+    let subiendo = null;
+    function subir() {
+        if (subiendo) return subiendo.then(() => (Object.keys(leerJSON(COLA_KEY, {})).length ? subir() : null));
+        subiendo = (async () => {
+            const cola = leerJSON(COLA_KEY, {});
+            const claves = Object.keys(cola);
+            if (!claves.length) return;
+            if (!navigator.onLine) { estado('⏳ sin señal · guardado en el celular', 'pend'); return; }
+            estado('Guardando…');
+            for (const k of claves) {
+                const it = cola[k];
+                const [ctx, fecha] = k.split('|');
+                try {
+                    const sid = await conTiempo(getOrCreateSesion(ctx, fecha));
+                    const { error } = await conTiempo(sb.from('memorias').upsert(
+                        { sesion_id: sid, contenido: it.contenido, updated_at: new Date().toISOString() },
+                        { onConflict: 'sesion_id' }));
+                    if (error) throw error;
+                    const ahora = leerJSON(COLA_KEY, {});
+                    if (ahora[k] && ahora[k].ts === it.ts) { delete ahora[k]; guardarJSON(COLA_KEY, ahora); }
+                } catch (_) {
+                    estado('⏳ sin subir · se reintenta', 'pend');
+                    return;
+                }
             }
-        } catch (e) {
-            setEstado('No se pudo cargar la bitácora — revisa conexión.', 'err');
-        }
+            const quedan = Object.keys(leerJSON(COLA_KEY, {})).length;
+            if (quedan) estado('Sin guardar…', 'pend');
+            else { estado('Guardado ✓', 'ok'); setTimeout(() => { if ($('estado').textContent === 'Guardado ✓') estado(''); }, 2500); }
+        })().finally(() => { subiendo = null; });
+        return subiendo;
     }
+    window.addEventListener('online', () => subir());
+    window.addEventListener('offline', () => { if (Object.keys(leerJSON(COLA_KEY, {})).length) estado('⏳ sin señal · guardado en el celular', 'pend'); });
+    setInterval(() => { if (Object.keys(leerJSON(COLA_KEY, {})).length) subir(); }, 20000);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) guardarYa(); });
+    window.addEventListener('pagehide', () => { guardarYa(); });
 
-    // ── Guardar: upsert en `memorias` (mismo formato que Portal) ────────────────
-    async function guardar() {
-        const contextoId = elCurso.value;
-        const fecha = elFecha.value;
-        if (!contextoId || !fecha) return;
-
-        elGuardar.disabled = true;
-        setEstado('Guardando…', 'info');
-        try {
-            const sid = await getOrCreateSesion(contextoId, fecha);
-            const { error } = await sb.from('memorias').upsert(
-                { sesion_id: sid, contenido: elMemoria.value, updated_at: new Date().toISOString() },
-                { onConflict: 'sesion_id' }
-            );
-            if (error) throw error;
-            setEstado('✓ Bitácora guardada. Ya está disponible en el Portal.', 'ok');
-        } catch (e) {
-            setEstado('Error al guardar — revisa conexión e inténtalo de nuevo.', 'err');
-        } finally {
-            elGuardar.disabled = false;
+    // ── Inicio: hoy (o el último día con clases) y, si hay clase en curso, directo a ella ──
+    let entroSolo = false;
+    function entrarClaseEnCurso() {
+        if (entroSolo || actual) return;
+        const vivo = ClaseVivo.enCurso();
+        if (!vivo) return;
+        const hoy = fechaISO(new Date());
+        const h = clasesDe(hoy).find(x => x.nombre === vivo.ctx) || horario.find(x => x.nombre === vivo.ctx);
+        if (!h) return;
+        if (![...elFecha.options].some(o => o.value === hoy)) {
+            const o = document.createElement('option'); o.value = hoy; o.textContent = fechaLabel(new Date()) + ' (hoy)';
+            elFecha.prepend(o);
         }
+        elFecha.value = hoy;
+        entroSolo = true;
+        abrir(h.contexto_id, hoy);
     }
+    ClaseVivo.onCambio(() => { pintarCursos(); entrarClaseEnCurso(); });
 
-    elCurso.addEventListener('change', cargarMemoriaExistente);
-    elFecha.addEventListener('change', () => cargarCursosDeFecha(elFecha.value));
-    elMemoria.addEventListener('input', () => { if (elEstado.className === 'ok') setEstado('', ''); });
-    elGuardar.addEventListener('click', guardar);
-
-    init();
+    (async function init() {
+        if (horario.length) { poblarFechas(); pintarCursos(); entrarClaseEnCurso(); }
+        await cargarHorario();
+        poblarFechas(); pintarCursos(); entrarClaseEnCurso();
+        // la clase en curso puede tardar un momento en llegar de internet
+        setTimeout(entrarClaseEnCurso, 1500);
+        subir();
+    })();
     </script>
 </body>
 </html>
