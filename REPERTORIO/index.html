@@ -517,7 +517,9 @@
         .asset-list { display: flex; flex-direction: column; gap: 8px; }
         .asset-grip { cursor: grab; color: var(--muted); font-size: 0.8rem; letter-spacing: -2px; opacity: .5; user-select: none; }
         .asset-item:hover .asset-grip { opacity: 1; }
-        .asset-item.arrastrando { opacity: .4; }
+        .asset-item.arrastrando, .tab-entry.arrastrando { opacity: .4; }
+        .tab-item .asset-grip { margin-right: 2px; }
+        .tab-item:hover .asset-grip { opacity: 1; }
         .asset-item {
             display: flex;
             align-items: center;
@@ -3683,7 +3685,9 @@ function tabGroupHTML(tabs, songId) {
 
     const subgruposHTML = instOrder.map(inst => {
         const label = inst ? CAP(inst) : 'Sin instrumento';
-        const items = porInst[inst].sort((a,b) => (DIFIC_ORD[a.dificultad] ?? 9) - (DIFIC_ORD[b.dificultad] ?? 9));
+        // orden que dio el profe arrastrando (deuda BG); las aún sin ordenar, por dificultad
+        const items = porInst[inst].sort((a,b) => ((a.orden || 0) && (b.orden || 0) ? a.orden - b.orden : !(a.orden || 0) !== !(b.orden || 0) ? ((a.orden || 0) ? -1 : 1) : 0)
+            || (DIFIC_ORD[a.dificultad] ?? 9) - (DIFIC_ORD[b.dificultad] ?? 9));
         const itemsHTML = items.map(a => {
             const dif  = a.dificultad ? `<span class="tab-dific ${a.dificultad}">${DIFIC_LABEL[a.dificultad] || CAP(a.dificultad)}</span>` : '';
             const desc = partesAsset(a).descripcion || 'Sin descripción';
@@ -3707,8 +3711,9 @@ function tabGroupHTML(tabs, songId) {
                    </div>`
                 : '';
         return `
-            <div class="tab-entry">
+            <div class="tab-entry" data-id="${a.id}" draggable="true">
                 <div class="tab-item" ${dblclick} style="${a.storage_path ? 'cursor:pointer' : ''}">
+                    <span class="asset-grip" title="Arrastra para ordenar">⋮⋮</span>
                     ${toggle}
                     <div class="tab-item-info">
                         ${dif}
@@ -3954,9 +3959,11 @@ function assetItemHTML(a, i) {
 }
 
 // ── Ordenar recursos arrastrándolos en la ficha (el Entrenador los muestra en ese orden) ──
+// Tablaturas: dentro de su instrumento, con orden desde 1000 (después de los demás recursos).
+const SEL_ORDENABLE = '#asset-list > .asset-item[data-id], .tab-subgrupo > .tab-entry[data-id]';
 let assetArrastrado = null;
 document.addEventListener('dragstart', e => {
-    const it = e.target.closest?.('#asset-list > .asset-item[data-id]');
+    const it = e.target.closest?.(SEL_ORDENABLE);
     if (!it) return;
     assetArrastrado = it;
     it.classList.add('arrastrando');
@@ -3965,11 +3972,11 @@ document.addEventListener('dragstart', e => {
 });
 document.addEventListener('dragover', e => {
     if (!assetArrastrado) return;
-    const lista = document.getElementById('asset-list');
-    const sobre = e.target.closest?.('#asset-list > .asset-item[data-id]');
+    const lista = assetArrastrado.parentElement;
+    const sobre = e.target.closest?.(SEL_ORDENABLE);
     if (!lista || !lista.contains(e.target)) return;
     e.preventDefault();
-    if (!sobre || sobre === assetArrastrado) return;
+    if (!sobre || sobre === assetArrastrado || sobre.parentElement !== lista) return;
     const r = sobre.getBoundingClientRect();
     lista.insertBefore(assetArrastrado, e.clientY > r.top + r.height / 2 ? sobre.nextSibling : sobre);
 });
@@ -3981,11 +3988,13 @@ document.addEventListener('dragend', async () => {
     it.classList.remove('arrastrando');
     const c = songActiva && canciones.find(x => x.id === songActiva.id);
     if (!c) return;
-    const ids = [...document.querySelectorAll('#asset-list > .asset-item[data-id]')].map(n => n.dataset.id);
+    const esTab = it.classList.contains('tab-entry');
+    const ids = [...it.parentElement.querySelectorAll(':scope > [data-id]')].map(n => n.dataset.id);
+    const base = esTab ? 1000 : 0;
     const cambios = [];
     ids.forEach((id, i) => {
         const a = (c.assets || []).find(x => x.id === id);
-        if (a && a.orden !== i + 1) { a.orden = i + 1; cambios.push({ id, orden: i + 1 }); }
+        if (a && a.orden !== base + i + 1) { a.orden = base + i + 1; cambios.push({ id, orden: base + i + 1 }); }
     });
     if (!cambios.length) return;
     try {

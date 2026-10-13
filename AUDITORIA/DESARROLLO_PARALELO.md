@@ -3952,3 +3952,9 @@ específicamente en el celular".*
   propio ancho (hasta 560 px), cada recurso en una línea.
 - **Prueba:** "Figuras rítmicas en 6/8" ordenada arrastrando según la numeración del PO (Negra con punto → … →
   Combinado 3), guardado en la base; el Entrenador la muestra en ese orden, todos los ítems de una línea.
+- **Ampliación (2026-10-12, pedido del PO con "Iniciación del Taller de Cuerdas"):** las **tablaturas** también se
+  ordenan arrastrando en la ficha (⋮⋮, dentro de su instrumento; se guardan con `orden` desde 1001 para quedar después
+  de los demás recursos). El **Lector** las muestra en ese orden en sus cuatro listas (catálogo, panel de repertorio,
+  asignación y alumno): `cmpTabOrden` = instrumento → orden manual → dificultad, y sus consultas traen `orden`. Se
+  subió solo ese cambio del Lector (los cambios del Loop siguen aparte). Prueba: mover "La vaca Lola" al primer lugar →
+  guardado y el panel del Lector la muestra primera; después se dejó esa canción como estaba (sin orden manual).

@@ -4030,7 +4030,7 @@ async function abrirModalRep() {
         }
 
         let url = `${SB_URL}/rest/v1/repertorio_assets` +
-            `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,tonalidad,tab_sync,estado,repertorio_canciones(nombre,artista,categoria)` +
+            `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,tonalidad,tab_sync,estado,orden,repertorio_canciones(nombre,artista,categoria)` +
             `&tipo=in.(tab,cifrado)`;
         if (assetIds) url += `&id=in.(${assetIds.join(',')})`;
 
@@ -4078,12 +4078,7 @@ async function abrirModalRep() {
         }
         // Ordenar tabs dentro de cada canción por instrumento → dificultad
         for (const g of Object.values(grupos)) {
-            g.tabs.sort((a, b) => {
-                const ia = INST_ORD[a.instrumento?.toLowerCase()] ?? 9;
-                const ib = INST_ORD[b.instrumento?.toLowerCase()] ?? 9;
-                if (ia !== ib) return ia - ib;
-                return (DIFIC_ORD[a.dificultad?.toLowerCase()] ?? 9) - (DIFIC_ORD[b.dificultad?.toLowerCase()] ?? 9);
-            });
+            g.tabs.sort(cmpTabOrden);
         }
         // Ordenar: ejercicios primero (alfabético), luego canciones (alfabético)
         const sortKeyRep = nom => (/ejercicio/i.test(nom) || nom === 'material' ? '0' : '1') + nom;
@@ -5224,6 +5219,18 @@ function cmpInstDific(a, b) {
     return (DIFIC_ORD_G[(a.dif || '').toLowerCase()] ?? 9) - (DIFIC_ORD_G[(b.dif || '').toLowerCase()] ?? 9);
 }
 
+// Orden de las tablaturas de una canción (deuda BG): instrumento → el orden que el profe dio
+// arrastrándolas en la ficha de la Biblioteca (`orden` > 0) → dificultad.
+function cmpTabOrden(a, b) {
+    const ia = INST_ORD_G[(a.instrumento || '').toLowerCase()] ?? 9;
+    const ib = INST_ORD_G[(b.instrumento || '').toLowerCase()] ?? 9;
+    if (ia !== ib) return ia - ib;
+    const oa = a.orden || 0, ob = b.orden || 0;
+    if (oa && ob && oa !== ob) return oa - ob;
+    if (!oa !== !ob) return oa ? -1 : 1;
+    return (DIFIC_ORD_G[(a.dificultad || '').toLowerCase()] ?? 9) - (DIFIC_ORD_G[(b.dificultad || '').toLowerCase()] ?? 9);
+}
+
 // Modo trabajo = instancia docente y sin alumno logueado. Deriva de la Capa de
 // Configuración del Lector (LectorConfig): la distinción de instancia vive ahí.
 function esModoTrabajo() { return LectorConfig.perfil === 'docente' && !alumnoActual; }
@@ -5294,7 +5301,7 @@ async function setEstadoAssetLec(nuevoEstado) {
 // Carga assets para el panel (cacheado en _palRepAssets) + set de canciones Personal
 async function cargarRepAssetsPanel() {
     const url = `${SB_URL}/rest/v1/repertorio_assets` +
-        `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,tonalidad,tab_sync,estado,repertorio_canciones(nombre,artista,categoria)` +
+        `?select=id,nombre_archivo,storage_path,etiqueta,cancion_id,instrumento,dificultad,tonalidad,tab_sync,estado,orden,repertorio_canciones(nombre,artista,categoria)` +
         `&tipo=in.(tab,cifrado)`;
     const [resp, personalRows] = await Promise.all([
         fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } }),
@@ -5426,12 +5433,7 @@ async function renderPanelRepertorio() {
         grupos[a.cancion_id].tabs.push(a);
     }
     for (const g of Object.values(grupos)) {
-        g.tabs.sort((a, b) => {
-            const ia = INST_ORD[a.instrumento?.toLowerCase()] ?? 9;
-            const ib = INST_ORD[b.instrumento?.toLowerCase()] ?? 9;
-            if (ia !== ib) return ia - ib;
-            return (DIFIC_ORD[a.dificultad?.toLowerCase()] ?? 9) - (DIFIC_ORD[b.dificultad?.toLowerCase()] ?? 9);
-        });
+        g.tabs.sort(cmpTabOrden);
     }
     const sortKeyRep = nom => (/ejercicio|material/i.test(nom) ? '0' : '1') + nom;
     const gruposOrdenados = Object.entries(grupos).sort(([,a],[,b]) =>
@@ -5509,7 +5511,7 @@ async function renderPanelAlumnos() {
         // Cargar todo en paralelo
         const [alumnos, todosLosAssets, asistHoyRaw, particulares] = await Promise.all([
             sbGet(`/rest/v1/alumnos_taller?contexto=eq.CUERDAS&activo=eq.true&order=curso.asc,apellido.asc,nombre.asc`),
-            sbGet(`/rest/v1/repertorio_assets?tipo=eq.tab&select=id,nombre_archivo,storage_path,cancion_id,instrumento,dificultad,tonalidad,etiqueta,tab_sync,estado,repertorio_canciones(id,nombre,artista)`),
+            sbGet(`/rest/v1/repertorio_assets?tipo=eq.tab&select=id,nombre_archivo,storage_path,cancion_id,instrumento,dificultad,tonalidad,etiqueta,tab_sync,estado,orden,repertorio_canciones(id,nombre,artista)`),
             sbGet(`/rest/v1/practica_log?fecha=eq.${hoy()}&select=alumno_id,duracion_seg`),
             sbGet(`/rest/v1/lector_particulares?select=id,nombre,apellido,slug,activo&order=created_at.desc`).catch(() => [])
         ]);
@@ -5696,12 +5698,7 @@ async function renderPanelAlumnos() {
                     const INST_ORD   = { guitarra:0, ukelele:1, bajo:2, metalofono:3, flauta:4 };
                     const DIFIC_ORD  = { inicial:0, media:1, dificil:2, experto:3 };
                     for (const cid of sortedCids) {
-                        byCancion[cid].tabs.sort((a, b) => {
-                            const ia = INST_ORD[a.instrumento?.toLowerCase()] ?? 9;
-                            const ib = INST_ORD[b.instrumento?.toLowerCase()] ?? 9;
-                            if (ia !== ib) return ia - ib;
-                            return (DIFIC_ORD[a.dificultad?.toLowerCase()] ?? 9) - (DIFIC_ORD[b.dificultad?.toLowerCase()] ?? 9);
-                        });
+                        byCancion[cid].tabs.sort(cmpTabOrden);
                     }
 
                     const INST_EMOJI  = { guitarra:'🎸', ukelele:'🪕', bajo:'🎵', metalofono:'🎹', flauta:'🪈', cifrado:'🎼' };
@@ -6164,12 +6161,7 @@ function construirCatalogoAsignacionHTML(alumnoId) {
         byCancion[cid].tabs.push(t);
     }
     for (const cid of Object.keys(byCancion)) {
-        byCancion[cid].tabs.sort((a, b) => {
-            const ia = INST_ORD[a.instrumento?.toLowerCase()] ?? 9;
-            const ib = INST_ORD[b.instrumento?.toLowerCase()] ?? 9;
-            if (ia !== ib) return ia - ib;
-            return (DIFIC_ORD[a.dificultad?.toLowerCase()] ?? 9) - (DIFIC_ORD[b.dificultad?.toLowerCase()] ?? 9);
-        });
+        byCancion[cid].tabs.sort(cmpTabOrden);
     }
     const sortedCids = Object.keys(byCancion).sort((x, y) => byCancion[x].nombre.localeCompare(byCancion[y].nombre, 'es'));
 
