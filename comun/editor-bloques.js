@@ -461,6 +461,15 @@
         }
     });
 
+    // Clic derecho sobre un bloque: su menú (solo en editores que pueden crear pendientes).
+    document.addEventListener('contextmenu', e => {
+        const blq = e.target.closest?.('.eb[data-eb] .eb-blq');
+        if (!blq || !insDe(blq)?.op.alPendiente) return;
+        e.preventDefault();
+        const x = e.clientX, y = e.clientY;
+        menuBloque(blq.dataset.id, { getBoundingClientRect: () => ({ left: x, right: x, top: y, bottom: y }) });
+    });
+
     // ── Arrastrar bloques (dentro del mismo editor) ─────────────────────
     let arrastre = null, destino = null;
     document.addEventListener('dragstart', e => {
@@ -699,6 +708,7 @@
         abrirMenu([
             { ico: '⇄', lbl: 'Convertir en', sub: itemsTipos(id) },
             ...(b.t === 'hr' ? [] : [{ ico: '🎨', lbl: 'Color', sub: itemsColor([id]) }]),
+            ...(I.op.alPendiente && plano ? [{ ico: '☑', lbl: 'Convertir en pendiente', accion: () => aPendiente([id]) }] : []),
             { sep: true },
             { ico: '⧉', lbl: 'Duplicar', atajo: 'Ctrl+D', accion: () => duplicar(id) },
             { ico: '🗑', lbl: 'Eliminar', atajo: 'Supr', peligro: true, accion: () => eliminar(id) },
@@ -710,10 +720,19 @@
         elDe(id)?.classList.add('eb-sel');
         document.activeElement?.blur?.();
     }
+    // Bloque(s) → pendiente(s): uno por bloque con texto; el texto queda en el editor.
+    function aPendiente(ids) {
+        const I = insDeId(ids[0]);
+        if (!I?.op.alPendiente) return;
+        I.bloques.filter(b => ids.includes(b.id)).map(b => mdAPlano(b.x).trim()).filter(Boolean)
+            .reduce((cadena, t) => cadena.then(() => I.op.alPendiente(t)), Promise.resolve());
+    }
     function menuGrupo(ids, asa) {
+        const I = insDeId(ids[0]);
         abrirMenu([
             { ico: '⇄', lbl: 'Convertir en', sub: TIPOS.filter(x => x.t !== 'hr').map(x => ({ ico: x.ico, lbl: x.lbl, accion: () => convertirGrupo(ids, x.t) })) },
             { ico: '🎨', lbl: 'Color', sub: itemsColor(ids) },
+            ...(I?.op.alPendiente ? [{ ico: '☑', lbl: 'Convertir en pendientes', accion: () => aPendiente(ids) }] : []),
             { sep: true },
             { ico: '⧉', lbl: 'Duplicar', atajo: 'Ctrl+D', accion: () => duplicar(ids) },
             { ico: '🗑', lbl: 'Eliminar', atajo: 'Supr', peligro: true, accion: () => eliminar(ids) },

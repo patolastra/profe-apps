@@ -9,6 +9,8 @@
 <script src="../supabase/contextos.js"></script>
 <link rel="stylesheet" href="../comun/editor-bloques.css">
 <script src="../comun/editor-bloques.js"></script>
+<link rel="stylesheet" href="../comun/pendientes.css">
+<script src="../comun/pendientes.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -95,6 +97,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .ent-audios .aud { margin-bottom: 10px; }
 .ent-audios .aud-lbl { font-size: 12px; color: var(--suave); margin-bottom: 2px; }
 .ent-fin { min-height: 22px; cursor: text; }
+
+/* Pendientes del curso (arriba) y de cada clase (comun/pendientes.js) */
+#pag-pend { border: 1px solid var(--linea); border-radius: 10px; padding: 10px 12px 8px; margin: -12px 0 26px; }
+#pag-pend .pp-tit { font-size: 13px; font-weight: 600; color: var(--suave); margin-bottom: 4px; display: flex; gap: 8px; }
+.ent-pend { margin: 0 0 10px; padding-left: 2px; }
+.ent-pend .pp-tit { font-size: 12px; color: var(--suave); margin-bottom: 2px; }
+.ent-pend[hidden] { display: none; }
 
 </style>
 </head>
@@ -198,10 +207,15 @@ async function abrirCurso(ctxId) {
     $('pagina').innerHTML = '';
     $('ruta').textContent = `${info.icono} ${info.label}`;
 
+    const esGen = contextos.find(c => c.id === ctxId)?.nombre === 'GENERAL';
     const [pags, ses] = await Promise.all([
         sb.from('bitacora_paginas').select('*').eq('contexto_id', ctxId),
         sb.from('sesiones').select('id, fecha, memorias(contenido, audios, updated_at)')
             .eq('contexto_id', ctxId).lte('fecha', hoyISO()),
+        Pendientes.cargar(c => {
+            const q = c.from('pendientes').select(Pendientes.COLS).eq('categoria', Pendientes.CAT).in('estado', ['activo', 'completado']);
+            return esGen ? q.or(`contexto_id.eq.${ctxId},contexto_id.is.null`) : q.eq('contexto_id', ctxId);
+        }),
     ]);
     if (ctxActual !== ctxId) return;
     if (pags.error || ses.error) estado('No se pudo cargar todo — revisa conexión.', true); else estado('');
@@ -262,9 +276,45 @@ $('lista-ent').addEventListener('click', e => {
     marcarActiva(f.dataset.k);
 });
 
+// Pendientes: arriba los del curso (activos + completados de las últimas 2 semanas);
+// en cada clase, los que quedaron en esa clase. ＋ = a la próxima clase del curso.
+let listasPend = [];
+const esGeneralActual = () => contextos.find(c => c.id === ctxActual)?.nombre === 'GENERAL';
+const delCurso = p => p.contexto_id === ctxActual || (esGeneralActual() && p.contexto_id == null);
+async function destinoPendiente() {
+    const cid = ctxActual;
+    return esGeneralActual() ? { contexto_id: cid, sesion_id: null } : Pendientes.proximaClase(cid);
+}
+async function bloqueAPendiente(texto) {
+    const p = await Pendientes.crear({ ...(await destinoPendiente()), texto });
+    estado(p ? 'Pendiente creado ✓' : 'No se pudo crear el pendiente — revisa conexión.', !p);
+}
+function pintarPendientes() {
+    listasPend.forEach(l => l.destruir());
+    listasPend = [];
+    const caja = $('pag-pend');
+    if (caja) {
+        const cuenta = caja.querySelector('.pp-n');
+        listasPend.push(Pendientes.lista(caja.querySelector('.pp-lista'), {
+            filtro: delCurso, alta: destinoPendiente, mostrarClase: true, vacio: 'Sin pendientes.',
+            alCambiar: n => { cuenta.textContent = n.activos ? `· ${n.activos}` : ''; },
+        }));
+    }
+    entradas.forEach(E => {
+        if (E.tipo !== 'clase') return;
+        const box = secDe(E.k)?.querySelector('.ent-pend');
+        if (!box) return;
+        listasPend.push(Pendientes.lista(box.querySelector('.pp-lista'), {
+            filtro: p => p.sesion_id === E.sesionId, todosCompletados: true, botonAgregar: false,
+            alCambiar: n => { box.hidden = !(n.activos + n.completados); },
+        }));
+    });
+}
+
 function pintarHistorico() {
     const info = nombreCtx(ctxActual);
-    let html = `<div id="pag-titulo">${esc(info.icono + ' ' + info.label)}</div>`;
+    let html = `<div id="pag-titulo">${esc(info.icono + ' ' + info.label)}</div>
+        <div id="pag-pend"><div class="pp-tit">☑ Pendientes <span class="pp-n"></span></div><div class="pp-lista"></div></div>`;
     if (!entradas.length) html += '<div class="lat-vacio" style="padding:0">Todavía no hay clases ni notas. Crea una con ＋ Nota.</div>';
     entradas.forEach(E => {
         const cab = E.tipo === 'clase'
@@ -274,6 +324,7 @@ function pintarHistorico() {
                <button class="ent-menu" data-eb-menu title="Opciones de la nota">⋯</button></div>`;
         html += `<section class="entrada ${E.tipo}" data-k="${E.k}">
             <div class="ent-cab">${cab}</div>
+            ${E.tipo === 'clase' ? '<div class="ent-pend" hidden><div class="pp-tit">☑ Pendientes de esta clase</div><div class="pp-lista"></div></div>' : ''}
             <div class="ent-audios"></div>
             <div class="ent-editor"></div>
         </section>`;
@@ -289,8 +340,10 @@ function pintarHistorico() {
             vacio: E.tipo === 'clase' ? 'Sin bitácora — clic para escribir' : 'Escribe la nota…',
             alCambiar: () => marcarSucio(E),
             alSubir: E.tipo === 'nota' ? () => { const t = sec.querySelector('.ent-tit'); t.focus(); getSelection().selectAllChildren(t); getSelection().collapseToEnd(); } : null,
+            alPendiente: bloqueAPendiente,
         });
     });
+    pintarPendientes();
     pintarEntradas();
 }
 
@@ -446,6 +499,7 @@ window.addEventListener('message', async e => {
 
 // ── Inicio ──────────────────────────────────────────────────────────────
 EditorBloques.zona($('principal'));
+Pendientes.conectar(sb);
 (async function init() {
     await cargarContextos();
     const q = new URLSearchParams(location.search).get('ctx');

@@ -299,6 +299,8 @@ DROP POLICY IF EXISTS "acceso_total" ON pendientes_cierres;
 CREATE POLICY "acceso_total" ON pendientes_cierres FOR ALL USING (true) WITH CHECK (true);
 
 -- 14.3 Funciones
+-- (Versión vigente de pendientes_cierre_aplicar: supabase/pendientes_paso2.sql, 2026-10-12 —
+--  mueve solo los pendientes principales; sus subpendientes van con ellos.)
 -- Aplica UN cierre (jueves p_cierre). p_ids = NULL → todos los pendientes
 -- (uso real). p_ids = lista → solo esos pendientes (pruebas); en ese modo NO
 -- se registra el cierre en pendientes_cierres.

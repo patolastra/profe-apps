@@ -3812,3 +3812,37 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   ＋. Error encontrado y corregido: si el mismo pendiente estaba en dos listas de la página (Dashboard oculto + Plan),
   lo escrito no se guardaba.
 - **PO ejecutó `pendientes_realtime.sql` (2026-10-12).** Prueba: un pendiente creado y borrado desde otra conexión (simula otro equipo) aparece y desaparece solo en el Dashboard. **Pendiente:** probar en uso; paso 2.
+
+### BC. Pendientes — paso 2 (HOY, arrastrados, completados viejos, nombres, Cursos, sublistas, Bitácora → pendiente)
+*Origen: PO (2026-10-12), tarjeta Notion "Pendientes: Dashboard ↔ sesiones de clase" (paso 2 de BB + anotaciones del PO).*
+- **DECISIÓN del PO (2026-10-12):**
+  1. **HOY:** ☀ en cada pendiente lo suma a una lista "HOY" arriba del Dashboard (todos los cursos, dice el curso).
+     **Cada día la lista parte vacía.**
+  2. **Arrastrados:** desde 3 semanas se ven en naranjo con "Sigue" (el contador vuelve a cero) y "Archivar" (sale de
+     la lista sin borrarse, estado `descartado`). Nunca se archivan solos.
+  3. **Completados:** dejan de verse 2 semanas después de completados (no se borran).
+  4. **Nombres:** "Pendientes" en todos lados, con la clase al lado (Bitácora: "Pendientes → mié 21/10").
+  5. **Cursos:** arriba de cada curso sus pendientes activos; cada clase del histórico muestra los suyos.
+  6. **Sublistas:** un nivel, plegables.
+  7. **Bitácora → pendiente:** clic derecho o menú ⋮⋮ de un bloque (Bitácora del Planificador y Cursos) → "Convertir en
+     pendiente": se copia (el texto queda en la bitácora) a la próxima clase del curso.
+  8. Apoderados: paso 3 aparte (no en este desarrollo).
+- **Supabase (`supabase/pendientes_paso2.sql`, lo ejecuta el PO):** columnas `hoy DATE`, `completado_en TIMESTAMPTZ`
+  (se rellena con la fecha de la clase en los ya completados), `padre_id UUID` (borrar el padre borra sus
+  subpendientes); el traslado del jueves mueve solo los pendientes principales y sus subpendientes van con ellos.
+- **Implementación (2026-10-12):** `comun/pendientes.js` + `.css`: ☀ por pendiente (columna `hoy` = fecha; la lista HOY
+  filtra por la fecha de hoy, así cada día parte vacía; ＋ de HOY crea uno General marcado hoy); subpendientes de un
+  nivel (↳, Tab / Shift+Tab, Enter en un subpendiente crea el siguiente; ▸/▾ plegar, recordado en el equipo; plegado
+  muestra "hechos/total"; borrar el padre pregunta y se lleva los hijos); desde 3 semanas fila naranja con "Sigue" /
+  "Archivar"; completados con `completado_en`, ocultos a los 14 días (salvo el historial de cada clase en Cursos);
+  `Pendientes.proximaClase(curso)` (reemplaza la búsqueda del Dashboard). Planificador: grupo ☀ HOY arriba del
+  Dashboard (dice el curso), títulos "Pendientes" en el Plan y la Bitácora (con "→ fecha"). `comun/editor-bloques.js`:
+  opción `alPendiente` → "Convertir en pendiente(s)" en el menú ⋮⋮ y con clic derecho (Bitácora del Planificador →
+  próxima clase; Cursos → próxima clase del curso, General sin clase). Cursos: cuadro "Pendientes" bajo el título y
+  "Pendientes de esta clase" en cada clase (solo si tiene).
+- **PO ejecutó `pendientes_paso2.sql` (2026-10-12).** Prueba (servidor local, datos reales; pendientes de prueba
+  borrados al final): pendiente en Primero → ☀ aparece en HOY con "Primero"; 2 subpendientes (↳ y Enter) guardados con
+  su padre; Shift+Tab lo suelta y Tab lo vuelve a meter; marcar un subpendiente guarda `completado_en`; con 3 semanas se
+  ve naranjo con Sigue/Archivar y "Sigue" lo limpia; Cursos muestra el cuadro y los pendientes de cada clase; clic
+  derecho en un bloque de la clase → "Convertir en pendiente" lo crea en la próxima clase y el texto queda; borrar el
+  padre borró sus hijos en Supabase. **Pendiente:** probar en uso; paso 3 (Apoderados).
