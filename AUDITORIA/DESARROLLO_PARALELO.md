@@ -3969,3 +3969,7 @@ búsqueda más corta y los cursos con su nombre corto.*
   Lecciones (donde todo sigue como antes). Si la ventana es angosta, la barra se desplaza de lado (no se parte).
 - **Prueba (1900 px):** una línea de 48 px sin desbordar; ir a Entrenador y a Lecciones y volver deja cada control en
   su lugar; sin errores.
+- **Ajuste del PO (2026-10-13):** la cuenta de canciones va como texto del campo de búsqueda ("Buscar en 119
+  canciones…"; se corrigió "canciónes" también en la lista de una sesión). Se quitó el botón **Lecciones**:
+  **CONGELADO — futura evaluación: dar de baja o seguir desarrollando** (la función queda intacta; anotado en
+  CLAUDE.md §5).

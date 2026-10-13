@@ -167,7 +167,7 @@ Estas son **reglas**, no recomendaciones:
 Resumen por grupos (detalle completo en el Excel):
 
 - **🟢 Núcleo activo (conservar):** Portal/Dashboard, Workspace PC, Biblioteca, Entrenador, Ritmo, Lector, Pizarra, Libro, Bitácora/Memoria, Metalófono, `contextos.js`, config Supabase, CAJÓN (planificación), ADMIN (base del futuro panel de administración), `SHELL_MINIMO` (puente móvil provisional).
-- **🔵 Conservar dormido (congelado — no desarrollar, no borrar):** SRP completo (concepto + backend, filas 6a-6e), visor de ANALIZADOR (logging postergado; eventos_uso no persiste actualmente), LOOP-LAB, `import_2026` (respaldo histórico), PRESENTADOR PEDAGÓGICO (`.txt` de diseño, archivar), función **Lecciones**.
+- **🔵 Conservar dormido (congelado — no desarrollar, no borrar):** SRP completo (concepto + backend, filas 6a-6e), visor de ANALIZADOR (logging postergado; eventos_uso no persiste actualmente), LOOP-LAB, `import_2026` (respaldo histórico), PRESENTADOR PEDAGÓGICO (`.txt` de diseño, archivar), función **Lecciones** (DECISIÓN del PO 2026-10-13: su botón se quitó de la Biblioteca; **futura evaluación: dar de baja o seguir desarrollando**).
 - **🟠 Retirado en F4 (ejecutado):** `modulos.js`, `PC/index.html`, shell móvil antiguo (incluida su **UI de captura SRP-adjacente** e IndexedDB `SRP_VozDB` embebidas en `MOVIL`), FICHAS (`walk-secuencia`), legacy del Portal (dock, dashboard de 8 días, popover/calendario, semáforo, deep-link `?ctx`-solo, `volverAHoy`/`volverDashboard`/`wsTitulo`), experimentos de test (`supabase/test.html`, `ritmo-demo.html`, `vexflow-test.html`, comando `/elementos`), MIDIs de prueba (`METALÓFONO APP/MIDI/PRUEBAS/`), y la rama **`gh-pages`** (local y remota).
 - **⚪/diferido:** módulos futuros que no existen aún (§9).
 
