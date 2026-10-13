@@ -3942,6 +3942,23 @@ específicamente en el celular".*
   nueva apareció sola y al borrarlas desaparecieron solas. Reglas probadas: sin escribir se aplica al tiro; escribiendo
   espera y se aplica al dejar de escribir; con cambios sin guardar queda lo de aquí + aviso. Planificador carga sin
   errores. **Siguiente:** que el PO lo pruebe en uso (PC + celular a la vez); luego Fase 2 (Libro).
+- **Fase 2 — Libro (aprobada por el PO, 2026-10-13, "dale con la fase 2"):** al instante entre equipos: los toques de
+  Evaluar (celular) y las notas en el detalle de la evaluación del Libro (Resultados incluido); Pasar lista (el Libro y
+  Evaluar del celular toman los ausentes al tiro); las marcas de participación y de entregas. Misma regla (no se pisa lo
+  que se está escribiendo; lo pendiente de subir manda). Tablas `libro_evaluacion_notas`, `libro_asistencia`,
+  `libro_participacion_detalle`, `libro_entrega_detalle` a Realtime (`supabase/libro_realtime.sql`, lo ejecuta el PO).
+- **Implementación Fase 2 (2026-10-13):** `LIBRO/index.html` escucha `libro_evaluacion_notas` (evaluación abierta:
+  notas y toques, Resultados incluido), `libro_asistencia` (la lista de la clase con que se abrió el Libro),
+  `libro_participacion_detalle` y `libro_entrega_detalle` (la actividad abierta; lo pendiente de subir de este equipo
+  manda) y repinta junto, nunca mientras se escribe; al volver a la pantalla se pone al día. `MOVIL/evaluar.html`
+  escucha la lista de la clase y las notas de la evaluación abierta (lo de este celular sin subir manda; no repinta en
+  medio de un toque). `sw-movil.js` v6. PO ejecutó `libro_realtime.sql`.
+- **Prueba (servidor local, datos reales cambiados "desde otro equipo" y devueltos a su valor exacto):** Libro de
+  Quinto, participación "HUI": marcar a Renata apareció sola como participó y al devolverla, sola sin marcar; Libro de
+  Segundo, evaluación por toques "prueba": 3 toques a Josefina aparecieron solos en Resultados ("Corresponde 6,7") y
+  volvieron a 0; Pasar lista de esa clase: quitar una ausente se reflejó al tiro (6 → 5) y al reponer la lista original
+  volvió a 6. Entregas y Evaluar del celular: mismo mecanismo, sin prueba en vivo (falta clase en curso / entrega
+  abierta); quedan para la prueba en uso.
 - **Pedido del PO (2026-10-12) — curso al agregar en Hoy:** en Hoy (Dashboard y celular) "＋ Agregar pendiente" abre
   una fila de íconos de los cursos ("¿De qué curso?"); el pendiente va a la próxima clase de ese curso, marcado para
   hoy (General: sin clase). Tocar el ícono de curso de un pendiente de Hoy abre la misma fila ("Mover a:") y lo cambia

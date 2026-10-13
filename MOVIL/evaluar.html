@@ -12,6 +12,7 @@
     <script src="../supabase/contextos.js"></script>
     <script src="../comun/clase-vivo.js"></script>
     <script src="../comun/asistencia.js"></script>
+    <script src="../comun/tiempo-real.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
         :root {
@@ -425,6 +426,48 @@ ClaseVivo.onCambio(() => {
     if ((ahora && ahora.sesionId) !== antes) { ev = null; cargar(); }
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { subir(); if (!ev) cargar(); } });
+
+// ── Al instante (deuda BE, Fase 2): la lista de la clase (ausentes) y las notas que cambian en
+// otro equipo (p. ej. el Libro evaluó a alguien) se reflejan solas. Lo que este celular tiene
+// sin subir manda. No se repinta en medio de un toque.
+let tocando = false;
+document.addEventListener('pointerdown', () => { tocando = true; }, true);
+document.addEventListener('pointerup', () => { tocando = false; if (repintarPend) repintarAhora(); }, true);
+document.addEventListener('pointercancel', () => { tocando = false; }, true);
+let repintarPend = false;
+function repintarAhora() {
+    if (tocando) { repintarPend = true; return; }
+    repintarPend = false;
+    if (!ev) return;
+    if (pantalla === 'tablero') pintarTablero();
+    else if (pantalla === 'grupos') mostrarGrupos();
+}
+TiempoReal.conectar(sb);
+TiempoReal.escuchar('libro_asistencia', ({ nuevo }) => {
+    if (!nuevo || !clase || nuevo.sesion_id !== clase.sesionId) return;
+    ausentes = new Set(nuevo.ausentes || []);
+    repintarAhora();
+});
+TiempoReal.escuchar('libro_evaluacion_notas', ({ nuevo }) => {
+    if (!nuevo || !ev || nuevo.evaluacion_id !== ev.id) return;
+    const n = notas.find(x => x.id === nuevo.id);
+    if (!n || leerJSON(COLA_KEY, {})[n.id]) return;           // lo de este celular sin subir manda
+    n.toques = nuevo.toques || 0; n.nota = nuevo.nota; n.estado_eval = nuevo.estado_eval; n.grupo_id = nuevo.grupo_id;
+    guardarCacheEval();
+    repintarAhora();
+});
+// Al volver a la pantalla: la evaluación abierta se pone al día (sin perder dónde estaba).
+TiempoReal.alVolver(async () => {
+    if (!ev || !clase) return;
+    try {
+        const datos = await conTiempo(traerEvaluacion(ev, CACHE('ev_' + ev.id)));
+        const porId = new Map(datos.notas.map(x => [x.id, x]));
+        notas.forEach(n => { const x = porId.get(n.id); if (x) Object.assign(n, { toques: x.toques, nota: x.nota, estado_eval: x.estado_eval, grupo_id: x.grupo_id }); });
+        aplicarCola();
+        ausentes = new Set((await conTiempo(Asistencia.obtener(clase.sesionId))).ausentes || []);
+        repintarAhora();
+    } catch (_) {}
+});
 
 // Si ClaseVivo aún no trae la clase de internet, se espera un momento antes de decir que no hay.
 (async () => {

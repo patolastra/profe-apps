@@ -19,6 +19,7 @@
 <script src="../comun/clase-vivo.js"></script>
 <script src="../comun/asistencia.js"></script>
 <script src="../comun/libro-proyeccion.js"></script>
+<script src="../comun/tiempo-real.js"></script>
 <link rel="stylesheet" href="../comun/participacion-tablero.css">
 <style>
   :root{
@@ -769,6 +770,7 @@ async function init(){
   await cargarAusentesHoy();
   await cargarNombresRepes();
   Asistencia.onCambio(id => { if (id === ref.sesion) asistenciaCambio(); });   // p. ej. lista pasada en el Planificador
+  libroTiempoReal();   // toques, notas, lista, participación y entregas al instante entre equipos (deuda BE, Fase 2)
 
   // Secciones por tipo de contexto:
   //   curso (o población vinculada) → panel: Evaluaciones · Participación · Entregas
@@ -5295,6 +5297,83 @@ async function _guardarObservacion(){
 });
 
 init().then(() => subirMarcas());   // marcas que quedaron sin subir de una vez anterior
+
+// ═══════════════════════════════════════════════════════════════════════
+// AL INSTANTE ENTRE EQUIPOS (deuda BE, Fase 2): lo que cambia en otro equipo (toques de
+// Evaluar en el celular, notas, Pasar lista, marcas de participación y entregas) se ve
+// solo en la vista abierta. Nunca se repinta mientras se escribe (se hace al dejar de
+// escribir); lo pendiente de subir de este equipo manda sobre lo que llega.
+// ═══════════════════════════════════════════════════════════════════════
+let trPend = null, trTimer = null;
+function trEscribiendo(){
+  const a = document.activeElement;
+  return !!a && a !== document.body && !!a.closest?.('input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"]');
+}
+// Junta los avisos que llegan seguidos y repinta una sola vez (o al dejar de escribir).
+function trRepintar(que){
+  trPend = { ...(trPend || {}), [que]: true };
+  clearTimeout(trTimer);
+  trTimer = setTimeout(trAplicar, 300);
+}
+function trAplicar(){
+  if (!trPend) return;
+  if (trEscribiendo()) return;              // se reintenta al dejar de escribir
+  const p = trPend; trPend = null;
+  if (p.eval && vistaActiva === 'eval-detalle' && evalActual) evalRefrescar();
+  if (p.part && partEnInstancia()) refrescarVistasParticipacion();
+  if (p.ent && vistaActiva === 'entrega-detalle' && entregaActual) renderEntregaDetalle();
+}
+document.addEventListener('focusout', () => setTimeout(() => { if (trPend) trAplicar(); }, 60));
+const trSinCampos = r => { const x = { ...r }; delete x.estudiante; return x; };
+
+function libroTiempoReal(){
+  TiempoReal.conectar(sb);
+  TiempoReal.escuchar('libro_evaluacion_notas', ({ nuevo }) => {
+    if (!nuevo || !evalActual || nuevo.evaluacion_id !== evalActual.id) return;
+    const n = notas.find(x => x.id === nuevo.id);
+    if (!n) return;                        // estudiante nuevo: llega al volver a abrir (lista al día)
+    Object.assign(n, trSinCampos(nuevo));
+    trRepintar('eval');
+  });
+  TiempoReal.escuchar('libro_asistencia', ({ nuevo }) => {
+    if (nuevo?.sesion_id && nuevo.sesion_id === ref.sesion) asistenciaCambio();
+  });
+  TiempoReal.escuchar('libro_participacion_detalle', ({ nuevo }) => {
+    if (!nuevo || !partActual || nuevo.participacion_id !== partActual.id) return;
+    const d = partDet.find(x => x.id === nuevo.id);
+    if (!d) return;
+    const fila = { id: nuevo.id, participo: nuevo.participo };
+    marcasSobre('libro_participacion_detalle', [fila]);   // lo de este equipo sin subir manda
+    if (d.participo === fila.participo) return;
+    d.participo = fila.participo;
+    trRepintar('part');
+  });
+  TiempoReal.escuchar('libro_entrega_detalle', ({ nuevo }) => {
+    if (!nuevo || !entregaActual || nuevo.entrega_id !== entregaActual.id) return;
+    const d = entregaDet.find(x => x.id === nuevo.id);
+    if (!d) return;
+    const fila = trSinCampos(nuevo);
+    marcasSobre('libro_entrega_detalle', [fila]);
+    Object.assign(d, fila);
+    trRepintar('ent');
+  });
+  // Al volver a la pantalla: ponerse al día con lo que se abrió.
+  TiempoReal.alVolver(async () => {
+    await asistenciaCambio();
+    if (partActual && partEnInstancia()) reconciliarPartDet();
+    if (vistaActiva === 'eval-detalle' && evalActual) {
+      const { data } = await sb.from('libro_evaluacion_notas').select('*').eq('evaluacion_id', evalActual.id);
+      (data || []).forEach(r => { const n = notas.find(x => x.id === r.id); if (n) Object.assign(n, trSinCampos(r)); });
+      trRepintar('eval');
+    }
+    if (vistaActiva === 'entrega-detalle' && entregaActual) {
+      const { data } = await sb.from('libro_entrega_detalle').select('*').eq('entrega_id', entregaActual.id);
+      marcasSobre('libro_entrega_detalle', data || []);
+      (data || []).forEach(r => { const d = entregaDet.find(x => x.id === r.id); if (d) Object.assign(d, trSinCampos(r)); });
+      trRepintar('ent');
+    }
+  });
+}
 </script>
 </body>
 </html>
