@@ -3888,3 +3888,8 @@ los pendientes como en el Dashboard.*
   próxima clase de Tercero); clase en curso simulada solo en el navegador → "En clase · Cuarto" + Bitácora, sin
   Evaluar (Cuarto no tiene evaluaciones por toques). Dashboard del PC sin cambios. **Falta:** probar en el celular
   real (gestos con el dedo, instalada).
+- **Ajuste del PO (2026-10-12):** en las listas por curso (Todos, PC y celular) lo que está en Hoy lleva la etiqueta
+  "☀ Hoy" (opción `sinMarcaHoy` para la propia lista Hoy). **Tiempo real en el celular verificado:** un pendiente
+  creado, marcado para hoy y borrado desde otra conexión (otro equipo) aparece, gana la etiqueta, pasa a Hoy y
+  desaparece solo. Hoy solo pendientes y clase en curso tienen tiempo real en todo el sistema (PEDIDO del PO: tiempo
+  real en toda la app → auditoría aparte, ver BE).

@@ -15,7 +15,8 @@
 //   const l = Pendientes.lista(caja, { filtro, alta, mostrarClase, mostrarCurso, botonAgregar,
 //                                      vacio, alCambiar, todosCompletados, completadosAbiertos,
 //                                      sugerencias (filas con Aceptar / Rechazar para Hoy),
-//                                      tactil (celular: el texto se edita al tocarlo) })
+//                                      tactil (celular: el texto se edita al tocarlo),
+//                                      sinMarcaHoy (la lista Hoy no repite la marca "☀ Hoy") })
 //   l.agregar() · l.repintar()
 //   Pendientes.crear({ contexto_id, sesion_id, fecha, texto, hoy })
 //   Pendientes.proximaClase(contexto_id)   → destino { contexto_id, sesion_id, fecha }
@@ -525,6 +526,7 @@
         const partes = [];
         if (plegado) partes.push(`<span class="pd-cuenta" title="Subpendientes hechos">${hijos.filter(h => h.estado === 'completado').length}/${hijos.length}</span>`);
         if (!esHijo && !hecho && sem > 0) partes.push(`<span class="pd-sem" title="${sem === 1 ? 'Trasladado 1 semana' : `Trasladado ${sem} semanas`}">(${sem} sem)</span>`);
+        if (!esHijo && !L.op.sinMarcaHoy && p.hoy === hoyISO()) partes.push('<span class="pd-marca-hoy" title="Está en Hoy">☀ Hoy</span>');
         if (!esHijo && L.op.mostrarCurso) { const c = L.op.mostrarCurso(p); if (c) partes.push(`<span class="pd-curso" title="Curso">${esc(c)}</span>`); }
         if (!esHijo && L.op.mostrarClase && p.fecha) partes.push(`<span class="pd-clase" title="Clase a la que pertenece">${fechaCorta(p.fecha)}</span>`);
         fila.querySelector('.pd-meta').innerHTML = partes.join(' ');
