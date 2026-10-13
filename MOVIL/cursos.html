@@ -13,6 +13,7 @@
 <script src="../comun/clase-vivo.js"></script>
 <link rel="stylesheet" href="../comun/editor-bloques.css">
 <script src="../comun/editor-bloques.js"></script>
+<script src="../comun/tiempo-real.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 :root {
@@ -183,15 +184,19 @@ $('lat-cursos').addEventListener('click', e => { const b = e.target.closest('.la
 let entradas = [];        // { k, tipo:'clase'|'nota', fecha, id?, titulo, contenido, audios, actualizado, ed }
 const claveCola = E => E.tipo === 'clase' ? `c|${ctxActual}|${E.fecha}` : `n|${E.id}`;
 
-async function abrirCurso(id) {
+// refresco = ponerse al día con lo de internet sin rearmar antes desde la copia (al volver, o
+// porque otro equipo cambió algo); si se está escribiendo, se espera a que se deje de escribir.
+async function abrirCurso(id, refresco) {
     if (!id) return;
     await subir();
-    entradas.forEach(E => E.ed?.destruir());
-    ctxActual = id;
-    try { localStorage.setItem('profe_cel_cursos_ultimo', id); } catch (_) {}
-    pintarCursos();
     const copia = leerJSON(COPIA_KEY, {})[id];
-    if (copia) { armar(copia); pintarPagina(); } else $('pagina').innerHTML = '<div class="msg">Cargando…</div>';
+    if (!refresco) {
+        entradas.forEach(E => E.ed?.destruir());
+        ctxActual = id;
+        try { localStorage.setItem('profe_cel_cursos_ultimo', id); } catch (_) {}
+        pintarCursos();
+        if (copia) { armar(copia); pintarPagina(); } else $('pagina').innerHTML = '<div class="msg">Cargando…</div>';
+    }
     try {
         const [ses, pags] = await Promise.all([
             esGeneral(id) ? Promise.resolve({ data: [] }) : conTiempo(sb.from('sesiones').select('id, fecha, memorias(contenido, audios, updated_at)').eq('contexto_id', id).lte('fecha', hoyISO())),
@@ -202,13 +207,14 @@ async function abrirCurso(id) {
         const lista = [];
         (ses.data || []).forEach(s => {
             const m = Array.isArray(s.memorias) ? s.memorias[0] : s.memorias;
-            lista.push({ tipo: 'clase', fecha: s.fecha, contenido: m?.contenido || '', audios: m?.audios || [], actualizado: m?.updated_at || null });
+            lista.push({ tipo: 'clase', sesionId: s.id, fecha: s.fecha, contenido: m?.contenido || '', audios: m?.audios || [], actualizado: m?.updated_at || null });
         });
         (pags.data || []).forEach(p => lista.push({ tipo: 'nota', id: p.id, fecha: p.fecha || isoDe(new Date(p.created_at)), titulo: p.titulo || '',
             contenido: p.contenido || '', audios: p.audios || [], actualizado: p.updated_at, creado: p.created_at }));
         const c = leerJSON(COPIA_KEY, {}); c[id] = lista; guardarJSON(COPIA_KEY, c);
-        // Si se está escribiendo, no se repinta (lo escrito manda; lo nuevo llega al volver a abrir).
-        if (document.activeElement?.closest?.('#pagina [contenteditable], #pagina input')) return;
+        // Si se está escribiendo, no se repinta: se hace al dejar de escribir.
+        if (escribiendo()) { refrescoPend = true; return; }
+        refrescoPend = false;
         const y = scrollY;
         armar(lista); pintarPagina();
         scrollTo(0, y);
@@ -378,6 +384,7 @@ async function sesionDe(ctx, fecha) {
 }
 async function subirUno(it) {
     const ahora = new Date().toISOString();
+    enviados.add(Date.parse(ahora));      // el aviso al instante de este guardado es eco propio
     if (it.tipo === 'clase') {
         const sid = await conTiempo(sesionDe(it.ctx, it.fecha));
         const { error } = await conTiempo(sb.from('memorias').upsert({ sesion_id: sid, contenido: it.contenido, updated_at: ahora }, { onConflict: 'sesion_id' }));
@@ -434,6 +441,51 @@ window.addEventListener('offline', () => { if (Object.keys(leerJSON(COLA_KEY, {}
 setInterval(() => { if (Object.keys(leerJSON(COLA_KEY, {})).length) subir(); }, 20000);
 document.addEventListener('visibilitychange', () => { if (document.hidden) subir(); });
 window.addEventListener('pagehide', () => { subir(); });
+
+// ── Al instante: lo que cambia en otro equipo (deuda BE) ────────────────
+// Lo que se está escribiendo no se toca (se aplica al dejar de escribir). Si aquí hay algo
+// sin subir de esa misma entrada, queda lo de aquí (se sube después) y se avisa.
+const enviados = new Set();
+let refrescoPend = false;
+const escribiendo = () => !!document.activeElement?.closest?.('#pagina [contenteditable], #pagina input');
+const refrescar = () => { if (ctxActual) abrirCurso(ctxActual, true); };
+function aplicarRemoto(E, r) {
+    if (enviados.has(Date.parse(r.updated))) return;
+    if (r.contenido === (E.ed ? E.ed.texto() : E.contenido) && (E.tipo === 'clase' || ((r.titulo ?? E.titulo) === E.titulo && (r.fecha ?? E.fecha) === E.fecha))) return;
+    if (leerJSON(COLA_KEY, {})[claveCola(E)]) { TiempoReal.aviso('Esta entrada cambió en otro equipo mientras escribías: quedó tu versión.'); return; }
+    if (document.activeElement?.closest?.(`.entrada[data-k="${E.k}"]`)) { E.remoto = r; return; }
+    E.remoto = null;
+    if (E.tipo === 'nota' && r.fecha && r.fecha !== E.fecha) { refrescar(); return; }
+    E.contenido = r.contenido; E.actualizado = r.updated;
+    if (E.tipo === 'nota') { E.titulo = r.titulo ?? E.titulo; const t = secDe(E.k)?.querySelector('.ent-tit'); if (t) t.textContent = E.titulo; }
+    E.ed?.poner(r.contenido); E.ed?.guardado(r.updated);
+    const c = leerJSON(COPIA_KEY, {}), l = c[ctxActual];
+    const x = l && (E.tipo === 'clase' ? l.find(y => y.tipo === 'clase' && y.fecha === E.fecha) : l.find(y => y.tipo === 'nota' && y.id === E.id));
+    if (x) { Object.assign(x, { contenido: E.contenido, actualizado: r.updated, ...(E.tipo === 'nota' ? { titulo: E.titulo } : {}) }); guardarJSON(COPIA_KEY, c); }
+}
+document.addEventListener('focusout', () => setTimeout(() => {
+    if (escribiendo()) return;
+    entradas.forEach(E => { if (E.remoto) aplicarRemoto(E, E.remoto); });
+    if (refrescoPend) refrescar();
+}, 60));
+TiempoReal.escuchar('memorias', async ({ nuevo }) => {
+    if (!nuevo?.sesion_id || !ctxActual) return;
+    const E = entradas.find(x => x.tipo === 'clase' && x.sesionId === nuevo.sesion_id);
+    if (E) { aplicarRemoto(E, { contenido: nuevo.contenido || '', updated: nuevo.updated_at }); return; }
+    if (enviados.has(Date.parse(nuevo.updated_at))) return;
+    const { data } = await sb.from('sesiones').select('contexto_id').eq('id', nuevo.sesion_id).maybeSingle();
+    if (data?.contexto_id === ctxActual) refrescar();
+});
+TiempoReal.escuchar('bitacora_paginas', ({ evento, nuevo, viejo }) => {
+    if (!ctxActual) return;
+    if (evento === 'DELETE') { if (entradas.some(x => x.tipo === 'nota' && x.id === viejo?.id)) refrescar(); return; }
+    if (nuevo?.contexto_id !== ctxActual || enviados.has(Date.parse(nuevo.updated_at))) return;
+    const E = entradas.find(x => x.tipo === 'nota' && x.id === nuevo.id);
+    if (!E) { refrescar(); return; }
+    aplicarRemoto(E, { contenido: nuevo.contenido || '', titulo: nuevo.titulo || '', fecha: nuevo.fecha, updated: nuevo.updated_at });
+});
+TiempoReal.alVolver(refrescar);
+TiempoReal.conectar(sb);
 
 // ── Inicio: en clase, el curso en curso; si no, el último abierto ───────
 let entroSolo = false;

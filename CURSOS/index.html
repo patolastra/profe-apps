@@ -13,6 +13,7 @@
 <script src="../comun/pendientes.js"></script>
 <link rel="stylesheet" href="../comun/apoderados.css">
 <script src="../comun/apoderados.js"></script>
+<script src="../comun/tiempo-real.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -480,6 +481,7 @@ function guardarTodo() { entradas.forEach(E => { if (E.sucio) guardarAhora(E); }
 async function guardar(E, contenido, titulo, fecha) {
     estado('Guardando…');
     const ahora = new Date().toISOString();
+    E.ultEnvio = ahora;          // el aviso al instante de este guardado es eco propio (no es "otro equipo")
     try {
         if (E.tipo === 'clase') {
             const { error } = await sb.from('memorias').upsert(
@@ -512,8 +514,61 @@ window.addEventListener('message', async e => {
     try { window.parent.postMessage({ tipo: 'ws-guardado', reqId: e.data.reqId, ok: !entradas.some(x => x.sucio) }, '*'); } catch (_) {}
 });
 
+// ── Al instante: lo que cambia en otro equipo (deuda BE) ────────────────
+// Una entrada que se está escribiendo no se toca: lo de afuera se aplica al dejar de escribir.
+// Si ambos lados editaron, queda lo último guardado (lo de aquí se guarda después) y se avisa.
+const editandoSec = E => !!document.activeElement?.closest?.(`.entrada[data-k="${E.k}"]`);
+function aplicarRemoto(E, r) {
+    if (TiempoReal.mismaHora(E.updated, r.updated) || TiempoReal.mismaHora(E.ultEnvio, r.updated)) return;   // es lo que guardó esta página
+    const iguales = r.contenido === (E.ed ? E.ed.texto() : E.contenido)
+        && (E.tipo === 'clase' || ((r.titulo ?? E.titulo) === E.titulo && (r.fecha ?? E.fecha) === E.fecha));
+    if (iguales) { E.updated = r.updated; return; }
+    if (E.sucio) { TiempoReal.aviso('Esta entrada cambió en otro equipo mientras escribías: quedó tu versión.'); return; }
+    if (editandoSec(E)) { E.remoto = r; return; }                         // al dejar de escribir
+    E.remoto = null;
+    const cambiaFecha = E.tipo === 'nota' && r.fecha && r.fecha !== E.fecha;
+    E.contenido = r.contenido; E.updated = r.updated;
+    if (E.tipo === 'nota') { E.titulo = r.titulo ?? E.titulo; E.fecha = r.fecha || E.fecha; }
+    if (cambiaFecha) { recargarCurso(); return; }
+    E.ed?.poner(r.contenido); E.ed?.guardado(r.updated);
+    const sec = secDe(E.k);
+    if (E.tipo === 'nota' && sec) sec.querySelector('.ent-tit').textContent = E.titulo;
+    pintarEntradas();
+}
+document.addEventListener('focusout', () => setTimeout(() => {
+    entradas.forEach(E => { if (E.remoto && !editandoSec(E)) aplicarRemoto(E, E.remoto); });
+    if (recargaPend && !document.activeElement?.closest?.('#pagina [contenteditable], #pagina input')) recargarCurso();
+}, 50));
+// Cambios de estructura (nota nueva o borrada, clase nueva): se rearma el curso, sin moverse de lugar.
+let recargaPend = false;
+async function recargarCurso() {
+    if (!ctxActual) return;
+    if (document.activeElement?.closest?.('#pagina [contenteditable], #pagina input') || entradas.some(x => x.sucio)) { recargaPend = true; return; }
+    recargaPend = false;
+    const y = $('principal').scrollTop;
+    await abrirCurso(ctxActual);
+    $('principal').scrollTop = y;
+}
+TiempoReal.escuchar('memorias', async ({ nuevo }) => {
+    if (!nuevo?.sesion_id || !ctxActual) return;
+    const E = entradas.find(x => x.tipo === 'clase' && x.sesionId === nuevo.sesion_id);
+    if (E) { aplicarRemoto(E, { contenido: nuevo.contenido || '', updated: nuevo.updated_at }); return; }
+    const { data } = await sb.from('sesiones').select('contexto_id, fecha').eq('id', nuevo.sesion_id).maybeSingle();
+    if (data?.contexto_id === ctxActual && data.fecha <= hoyISO() && !esGeneralActual()) recargarCurso();
+});
+TiempoReal.escuchar('bitacora_paginas', ({ evento, nuevo, viejo }) => {
+    if (!ctxActual) return;
+    if (evento === 'DELETE') { if (porK['n' + viejo?.id]) recargarCurso(); return; }
+    if (nuevo?.contexto_id !== ctxActual) return;
+    const E = porK['n' + nuevo.id];
+    if (!E) { recargarCurso(); return; }
+    aplicarRemoto(E, { contenido: nuevo.contenido || '', titulo: nuevo.titulo || '', fecha: nuevo.fecha, updated: nuevo.updated_at });
+});
+TiempoReal.alVolver(() => recargarCurso());
+
 // ── Inicio ──────────────────────────────────────────────────────────────
 EditorBloques.zona($('principal'));
+TiempoReal.conectar(sb);
 Pendientes.conectar(sb);
 Apoderados.conectar(sb);
 (async function init() {

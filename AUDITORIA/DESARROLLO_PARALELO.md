@@ -3921,6 +3921,27 @@ específicamente en el celular".*
   asistencia), Biblioteca, Plan, etc. se ven al día solo al abrir o recargar.
 - **Próximo paso propuesto:** auditoría módulo por módulo (qué se vería al instante, prioridades; recomendación de
   partida: Bitácora y Asistencia) y un SQL corto por tabla que ejecuta el PO. No implementar sin aprobación.
+- **Auditoría (2026-10-13):** al instante entre equipos hoy: pendientes, citas a apoderados y clase en curso. Lo demás
+  (bitácora y notas, Libro, Plan, Biblioteca, Materiales, Dashboard) se pone al día solo al abrir o recargar; y el
+  celular corta la conexión al apagar la pantalla o cambiar de app.
+- **DECISIÓN del PO (2026-10-13):** (1) **base común + Fase 1 (Bitácora y notas)** ahora: Cursos del PC y del
+  celular, ✍🏼 del Planificador y "Clase anterior" del Plan; además, cada página se pone al día sola **al volver a
+  ella**. Fase 2 (Libro: toques, asistencia, marcas) y Fase 3 (Plan, Dashboard, Biblioteca, Materiales) después de
+  probarla. (2) Regla: nunca se pisa lo que se está escribiendo (lo de otro equipo se aplica al dejar de escribir); si
+  los dos editaron lo mismo, **queda lo último guardado + aviso** "cambió en otro equipo".
+- **Implementación Fase 1 (2026-10-13):** pieza común `comun/tiempo-real.js` (`TiempoReal`: escuchar una tabla,
+  "al volver" —pantalla visible de nuevo, página traída de vuelta o señal recuperada—, aviso breve abajo, y comparar
+  fechas-hora para reconocer los guardados propios). Conectada en **Cursos del PC**, **Cursos del celular** y el
+  **Planificador** (ventana ✍🏼 y "Clase anterior"). Tablas `memorias` y `bitacora_paginas` sumadas a Realtime
+  (`supabase/bitacora_realtime.sql`, lo ejecutó el PO). Una entrada que se está escribiendo no se toca (se aplica al
+  dejar de escribir); con cambios sin guardar aquí, queda lo de aquí y aparece "cambió en otro equipo mientras
+  escribías: quedó tu versión". Notas nuevas, borradas o con fecha cambiada rearman el curso sin moverse de lugar.
+  `sw-movil.js` v5 suma la pieza.
+- **Prueba (servidor local; notas de prueba creadas y borradas "desde otro equipo"):** con el SQL ejecutado, un cambio
+  de nota hecho afuera apareció solo en Cursos del PC ("LLEGO SOLO") y en el celular ("LLEGO AL CELULAR"); una nota
+  nueva apareció sola y al borrarlas desaparecieron solas. Reglas probadas: sin escribir se aplica al tiro; escribiendo
+  espera y se aplica al dejar de escribir; con cambios sin guardar queda lo de aquí + aviso. Planificador carga sin
+  errores. **Siguiente:** que el PO lo pruebe en uso (PC + celular a la vez); luego Fase 2 (Libro).
 - **Pedido del PO (2026-10-12) — curso al agregar en Hoy:** en Hoy (Dashboard y celular) "＋ Agregar pendiente" abre
   una fila de íconos de los cursos ("¿De qué curso?"); el pendiente va a la próxima clase de ese curso, marcado para
   hoy (General: sin clase). Tocar el ícono de curso de un pendiente de Hoy abre la misma fila ("Mover a:") y lo cambia

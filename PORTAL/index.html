@@ -19,6 +19,7 @@
     <script src="../comun/pendientes.js"></script>
     <link rel="stylesheet" href="../comun/apoderados.css">
     <script src="../comun/apoderados.js"></script>
+    <script src="../comun/tiempo-real.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -1363,6 +1364,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ClaseVivo.conectar(sb);           // clase en curso compartida con otros equipos (AM)
         Pendientes.conectar(sb);          // pendientes al instante en todo el sistema (BB)
         Apoderados.conectar(sb);          // citas a apoderados (BK)
+        TiempoReal.conectar(sb);          // bitácora al instante entre equipos (BE)
         Asistencia.iniciar(sb);           // Pasar lista: listas que quedaron sin subir
         await Promise.all([loadContextos(), loadHorario(), cargarAnioActivo()]);
         await crearSesionesPendientes();
@@ -4143,10 +4145,13 @@ async function abrirMemoria() {
 async function guardarMemoria(sid) {
     if (!sid) return;
     if (!memEd) return;
+    memTimer = null;           // ya no hay cambios esperando (memTimer = "hay algo sin guardar")
     const contenido = memEd.texto();
+    const ahora = new Date().toISOString();
+    memUltEnvio = ahora;       // el aviso al instante de este guardado es eco propio
     try {
         const { error } = await sb.from('memorias').upsert(
-            { sesion_id: sid, contenido, updated_at: new Date().toISOString() },
+            { sesion_id: sid, contenido, updated_at: ahora },
             { onConflict: 'sesion_id' }
         );
         if (error) throw error;
@@ -4157,6 +4162,38 @@ async function guardarMemoria(sid) {
         document.getElementById('mem-status').textContent = 'Error al guardar — revisa conexión / tabla "memorias"';
     }
 }
+
+// ── Bitácora al instante (deuda BE): lo escrito en otro equipo (Cursos, celular) ──
+// Ventana ✍🏼 abierta: se aplica si no se está escribiendo (si no, al dejar de escribir);
+// con cambios sin guardar aquí, queda lo de aquí (se guarda después) y se avisa.
+// "Clase anterior" del panel izquierdo: se vuelve a pintar.
+let memUltEnvio = null, memRemoto = null;
+function memAplicarRemoto(r) {
+    if (!memEd || TiempoReal.mismaHora(memUltEnvio, r.updated)) return;
+    if (r.contenido === memEd.texto()) return;
+    if (memTimer) { TiempoReal.aviso('La bitácora cambió en otro equipo mientras escribías: quedó tu versión.'); return; }
+    if (document.activeElement?.closest?.('#mem-editor')) { memRemoto = r; return; }
+    memRemoto = null;
+    memEd.poner(r.contenido); memEd.guardado(r.updated);
+}
+document.addEventListener('focusout', () => setTimeout(() => {
+    if (memRemoto && !document.activeElement?.closest?.('#mem-editor')) memAplicarRemoto(memRemoto);
+}, 50));
+TiempoReal.escuchar('memorias', ({ nuevo }) => {
+    if (!nuevo?.sesion_id) return;
+    const modal = document.getElementById('mem-modal');
+    if (modal?.classList.contains('show') && sesionActual && nuevo.sesion_id === sesionActual.id)
+        memAplicarRemoto({ contenido: nuevo.contenido || '', updated: nuevo.updated_at });
+    if (sesionActual && histSesiones[histIdx]?.id === nuevo.sesion_id) mostrarRegistroIzq();
+});
+TiempoReal.alVolver(async () => {
+    if (!sesionActual) return;
+    if (histSesiones[histIdx]) mostrarRegistroIzq();
+    const modal = document.getElementById('mem-modal');
+    if (!modal?.classList.contains('show') || memTimer) return;
+    const { data } = await sb.from('memorias').select('contenido, updated_at').eq('sesion_id', sesionActual.id).maybeSingle();
+    if (data) memAplicarRemoto({ contenido: data.contenido || '', updated: data.updated_at });
+});
 
 function cerrarMemoria() {
     const modal = document.getElementById('mem-modal');
