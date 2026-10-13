@@ -4017,6 +4017,6 @@ institucional y al drive institucional (cuenta Microsoft 365 / Outlook del SLEP)
   una pestaña nueva del navegador. Los avisos de versión nueva y de clase en curso quedan a su izquierda (barra estable,
   regla 8b: los accesos nunca se mueven).
 - **Implementación (2026-10-13):** `PC/workspace.html`: grupo `#ws-derecha` (margen automático) con el aviso de
-  versión, el de clase en curso y los dos enlaces (`outlook.office.com/mail/`, `portal.office.com/onedrive`). La
+  versión, el de clase en curso y los dos enlaces (`outlook.office.com/mail/`, `sleplosparquesgobcl-my.sharepoint.com/favorites`; ajustado por el PO). La
   dirección de correo **no** va en el enlace (el repo y la página son públicos): abren la cuenta Microsoft con sesión
   iniciada en el navegador.
