@@ -3811,4 +3811,4 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   Dashboard; borrarlo desde el Dashboard lo quita del Plan y de Supabase. Bitácora: "→ mié 21/10", lista vacía con su
   ＋. Error encontrado y corregido: si el mismo pendiente estaba en dos listas de la página (Dashboard oculto + Plan),
   lo escrito no se guardaba.
-- **Pendiente:** el PO ejecuta `pendientes_realtime.sql` (al instante entre equipos); probar en uso; paso 2.
+- **PO ejecutó `pendientes_realtime.sql` (2026-10-12).** Prueba: un pendiente creado y borrado desde otra conexión (simula otro equipo) aparece y desaparece solo en el Dashboard. **Pendiente:** probar en uso; paso 2.
