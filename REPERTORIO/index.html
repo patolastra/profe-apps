@@ -515,6 +515,9 @@
 
         /* Assets */
         .asset-list { display: flex; flex-direction: column; gap: 8px; }
+        .asset-grip { cursor: grab; color: var(--muted); font-size: 0.8rem; letter-spacing: -2px; opacity: .5; user-select: none; }
+        .asset-item:hover .asset-grip { opacity: 1; }
+        .asset-item.arrastrando { opacity: .4; }
         .asset-item {
             display: flex;
             align-items: center;
@@ -1831,13 +1834,21 @@
         .ent-res-btn { display: inline-flex; align-items: center; gap: 6px; }
         .ent-res-caret { font-size: 0.6rem; opacity: 0.8; }
         .ent-res-menu {
-            display: none; position: absolute; top: calc(100% + 6px); right: 0; z-index: 30;
+            display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
             background: #1e293b; border: 1px solid #334155; border-radius: 10px;
             padding: 6px; min-width: 170px; box-shadow: 0 12px 30px rgba(0,0,0,.4);
+            /* Ancho propio (no el del botón): cada recurso en UNA línea */
+            width: max-content; max-width: min(560px, 90vw); max-height: 70vh; overflow-y: auto;
         }
+        /* Recurso abierto: al lado del botón, en una línea */
+        .ent-res-actual {
+            align-self: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-size: 0.8rem; font-weight: 600; color: #cbd5e1;
+        }
+        #entrenador-overlay.ent-light .ent-res-actual { color: #334155; }
         .ent-res-menu.open { display: block; }
         .ent-res-item {
-            display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+            display: block; width: 100%; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             background: none; border: none; color: #cbd5e1; font-size: 0.8rem; font-weight: 600;
             padding: 8px 10px; border-radius: 7px; cursor: pointer;
         }
@@ -3286,6 +3297,15 @@ function assetSortKey(a) {
          + (DIFIC_ORD[a.dificultad]   ?? 9) * 10
          + (a.tonalidad || '').localeCompare('zzz');
 }
+// Orden de los recursos de una canción: el que dio el profe arrastrándolos en la ficha
+// (`orden` > 0) manda; los aún sin ordenar (0, p. ej. recién agregados) van después, por
+// tipo / instrumento / dificultad. Lo usan la ficha y el desplegable del Entrenador.
+function ordenAssets(a, b) {
+    const oa = a.orden || 0, ob = b.orden || 0;
+    if (oa && ob) return oa - ob;
+    if (oa || ob) return oa ? -1 : 1;
+    return assetSortKey(a) - assetSortKey(b) || String(a.created_at || '').localeCompare(String(b.created_at || ''));
+}
 
 // ── ESTADO ──────────────────────────────────────────────────────────────────
 let canciones        = [];
@@ -3738,7 +3758,7 @@ function toggleTabGroup() {
 function renderPanel() {
     if (!songActiva) return;
     const c = songActiva;
-    const assets = [...(c.assets || [])].sort((a,b) => assetSortKey(a) - assetSortKey(b));
+    const assets = [...(c.assets || [])].sort(ordenAssets);
 
     const artworkHTML = c.artwork_url
         ? `<div class="panel-artwork"><img src="${c.artwork_url}" alt=""></div>`
@@ -3895,7 +3915,8 @@ function assetItemHTML(a, i) {
         const isAudio   = a.tipo === 'audio';
         const isMetal   = a.tipo === 'metalofono';
         return `
-        <div class="asset-item">
+        <div class="asset-item" data-id="${a.id}" draggable="true">
+            <span class="asset-grip" title="Arrastra para ordenar">⋮⋮</span>
             <div class="asset-item-ico">${info.ico}</div>
             <div class="asset-item-info">
                 <div class="asset-item-tipo">${info.label}${isAudio ? (a.rol === 'karaoke' ? ' · 🎶 Karaoke' : ' · 🎤 Melodía') : ''}</div>
@@ -3914,7 +3935,8 @@ function assetItemHTML(a, i) {
 
     // Texto (letra, cifrado, notas)
     return `
-    <div class="asset-item">
+    <div class="asset-item" data-id="${a.id}" draggable="true">
+        <span class="asset-grip" title="Arrastra para ordenar">⋮⋮</span>
         <div class="asset-item-ico">${info.ico}</div>
         <div class="asset-item-info">
             <div class="asset-item-tipo">${info.label}</div>
@@ -3930,6 +3952,51 @@ function assetItemHTML(a, i) {
         </div>
     </div>`;
 }
+
+// ── Ordenar recursos arrastrándolos en la ficha (el Entrenador los muestra en ese orden) ──
+let assetArrastrado = null;
+document.addEventListener('dragstart', e => {
+    const it = e.target.closest?.('#asset-list > .asset-item[data-id]');
+    if (!it) return;
+    assetArrastrado = it;
+    it.classList.add('arrastrando');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', it.dataset.id); } catch (_) {}
+});
+document.addEventListener('dragover', e => {
+    if (!assetArrastrado) return;
+    const lista = document.getElementById('asset-list');
+    const sobre = e.target.closest?.('#asset-list > .asset-item[data-id]');
+    if (!lista || !lista.contains(e.target)) return;
+    e.preventDefault();
+    if (!sobre || sobre === assetArrastrado) return;
+    const r = sobre.getBoundingClientRect();
+    lista.insertBefore(assetArrastrado, e.clientY > r.top + r.height / 2 ? sobre.nextSibling : sobre);
+});
+document.addEventListener('drop', e => { if (assetArrastrado) e.preventDefault(); });
+document.addEventListener('dragend', async () => {
+    const it = assetArrastrado;
+    assetArrastrado = null;
+    if (!it) return;
+    it.classList.remove('arrastrando');
+    const c = songActiva && canciones.find(x => x.id === songActiva.id);
+    if (!c) return;
+    const ids = [...document.querySelectorAll('#asset-list > .asset-item[data-id]')].map(n => n.dataset.id);
+    const cambios = [];
+    ids.forEach((id, i) => {
+        const a = (c.assets || []).find(x => x.id === id);
+        if (a && a.orden !== i + 1) { a.orden = i + 1; cambios.push({ id, orden: i + 1 }); }
+    });
+    if (!cambios.length) return;
+    try {
+        const rs = await Promise.all(cambios.map(x => sb.from('repertorio_assets').update({ orden: x.orden }).eq('id', x.id)));
+        const err = rs.find(r => r.error);
+        if (err) throw err.error;
+        toast('Orden guardado');
+    } catch (e) {
+        toast('No se pudo guardar el orden: ' + (e?.message || e));
+    }
+});
 
 async function toggleCurso(ctx, btn) {
     if (!songActiva) return;
@@ -6159,7 +6226,7 @@ function cerrarEntrenador() {
 function entRenderChips(preselId) {
     const assets = (entrenadorSong?.assets || [])
         .filter(a => a.tipo !== 'audio')
-        .sort((a,b) => assetSortKey(a) - assetSortKey(b));
+        .sort(ordenAssets);
     const wrap = document.getElementById('ent-asset-chips');
     const activo = assets.find(a => a.id === preselId)
                 || assets.find(a => a.tipo === 'letra')
@@ -6182,14 +6249,14 @@ function entRenderChips(preselId) {
     wrap.innerHTML = `
         <div class="ent-res-dd">
             <button class="ent-chip ent-res-btn active" onclick="entResToggleMenu(event)" title="Recursos de la canción">
-                <span id="ent-res-current">${entResEtiqueta(activo)}</span>
-                <span class="ent-res-caret">▾</span>
+                <span>📑 Recursos</span><span class="ent-res-caret">▾</span>
             </button>
             <div class="ent-res-menu" id="ent-res-menu">
                 ${assets.map(a => `<button class="ent-res-item${a.id === activo?.id ? ' active' : ''}"
                      data-id="${a.id}" onclick="entSelAsset('${a.id}')">${entResEtiqueta(a)}</button>`).join('')}
             </div>
-        </div>`;
+        </div>
+        <span id="ent-res-current" class="ent-res-actual" title="${entEsc(nombreAsset(activo))}">${entResEtiqueta(activo)}</span>`;
     if (activo) entCargarAsset(activo);
 }
 
@@ -6458,7 +6525,7 @@ function entSelAsset(id) {
     if (!asset) return;
     entResCerrarMenu();
     const cur = document.getElementById('ent-res-current');
-    if (cur) cur.innerHTML = entResEtiqueta(asset);
+    if (cur) { cur.innerHTML = entResEtiqueta(asset); cur.title = nombreAsset(asset); }
     document.querySelectorAll('.ent-res-item').forEach(b => b.classList.toggle('active', b.dataset.id === id));
     entCargarAsset(asset, true);   // clic del usuario (para abrir Metalófono al seleccionar)
 }

@@ -3939,3 +3939,16 @@ específicamente en el celular".*
   (`REPERTORIO/index.html`), y el choque detenía toda la Biblioteca/Entrenador (p. ej. "Sesión" desde el Plan se
   quedaba a medio camino). Renombrada a **`ctxMinimo`**. Verificado: `?practicar=<sesión de Tercero>` abre la sesión
   con sus canciones. **Lección:** antes de agregar un nombre global a una pieza compartida, buscarlo en todo el repo.
+
+### BG. Biblioteca — ordenar los recursos de una canción; desplegable del Entrenador ordenado
+*Origen: PO (2026-10-12), con "Figuras rítmicas en 6/8" (10 ritmos en desorden en el Entrenador).*
+- **Pedido del PO:** ordenar los recursos arrastrándolos en la ficha de la Biblioteca y que el Entrenador los muestre en
+  ese orden; el botón del desplegable del Entrenador debe ser fijo, con el título del recurso aparte, y el menú sin
+  ítems de dos líneas.
+- **Implementación (2026-10-12):** sin cambios en Supabase (la columna `repertorio_assets.orden` ya existía, todo en
+  0). `ordenAssets()` (REPERTORIO): `orden` > 0 manda; los sin ordenar van después por tipo/instrumento/dificultad.
+  Ficha: cada recurso (no tablaturas, que siguen agrupadas) se arrastra (⋮⋮); al soltar se guarda `orden` 1..n.
+  Entrenador: botón fijo "📑 Recursos ▾", el recurso abierto al lado (una línea, con "…" si no cabe), menú con su
+  propio ancho (hasta 560 px), cada recurso en una línea.
+- **Prueba:** "Figuras rítmicas en 6/8" ordenada arrastrando según la numeración del PO (Negra con punto → … →
+  Combinado 3), guardado en la base; el Entrenador la muestra en ese orden, todos los ítems de una línea.
