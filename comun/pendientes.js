@@ -13,7 +13,8 @@
 //   Pendientes.conectar(sb)
 //   await Pendientes.cargar(sb => sb.from('pendientes').select(Pendientes.COLS).eq(...))
 //   const l = Pendientes.lista(caja, { filtro, alta, mostrarClase, mostrarCurso, botonAgregar,
-//                                      vacio, alCambiar, todosCompletados, completadosAbiertos })
+//                                      vacio, alCambiar, todosCompletados, completadosAbiertos,
+//                                      sugerencias (filas con Aceptar / Rechazar para Hoy) })
 //   l.agregar() · l.repintar()
 //   Pendientes.crear({ contexto_id, sesion_id, fecha, texto, hoy })
 //   Pendientes.proximaClase(contexto_id)   → destino { contexto_id, sesion_id, fecha }
@@ -177,6 +178,7 @@
             caja, op, filasEl: new Map(), abiertoComp: op.completadosAbiertos !== false,
         };
         caja.classList.add('pd-lista');
+        caja.classList.toggle('pd-sugerencias', !!op.sugerencias);
         caja.innerHTML = `<div class="pd-activos"></div>
             ${op.botonAgregar === false || !op.alta ? '' : '<button class="pd-add" type="button">＋ Agregar pendiente</button>'}
             <div class="pd-vacio"></div>
@@ -286,6 +288,8 @@
                     <button class="pd-sol" type="button" tabindex="-1" title="Agregar a HOY">☀</button>
                     <button class="pd-sub" type="button" tabindex="-1" title="Agregar un subpendiente">↳</button>
                     <button class="pd-del" type="button" tabindex="-1" title="Borrar">✕</button>
+                    <button class="pd-aceptar" type="button" title="Queda para hoy">Aceptar</button>
+                    <button class="pd-rechazar" type="button" title="Sale de Hoy; sigue como pendiente de su curso">Rechazar</button>
                 </span>
             </div>
             <div class="pd-arr"><span class="pd-arr-txt"></span>
@@ -337,6 +341,10 @@
         });
         fila.querySelector('.pd-sol').addEventListener('click', () => cambiar(p.id, { hoy: yo().hoy === hoyISO() ? null : hoyISO() }));
         fila.querySelector('.pd-sub').addEventListener('click', () => agregarHijo(L, yo()));
+        // Sugerencias (marcados ☀ otro día y no hechos): aceptar = hoy; rechazar = fuera de Hoy.
+        fila.querySelector('.pd-aceptar').addEventListener('click', () => cambiar(p.id, { hoy: hoyISO() }));
+        fila.querySelector('.pd-rechazar').addEventListener('click', () => cambiar(p.id, { hoy: null }));
+        if (L.op.sugerencias) fila.querySelector('.pd-txt').readOnly = true;
         fila.querySelector('.pd-plegar').addEventListener('click', () => {
             if (plegados.has(p.id)) plegados.delete(p.id); else plegados.add(p.id);
             guardarPlegados(); repintarTodo();

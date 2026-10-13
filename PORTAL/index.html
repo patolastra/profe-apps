@@ -222,6 +222,12 @@
         #dash-pend-hoy .pd-en-hoy .pd-sol { opacity: 0 !important; }
         #dash-pend-hoy .pd-fila:hover .pd-sol { opacity: 1 !important; }
         #dash-pend-hoy .pd-add { margin-top: 8px; }
+        /* Sugerencias: marcados ☀ otro día y no hechos → Aceptar (hoy) / Rechazar (fuera de Hoy) */
+        #dash-hoy-sug { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 8px 10px 4px; margin-bottom: 12px; }
+        #dash-hoy-sug[hidden] { display: none; }
+        .dash-hoy-sug-tit { font-size: 0.72rem; font-weight: 700; color: #92400e; margin-bottom: 2px; }
+        #dash-hoy-sug .pd-fila { border-bottom-color: #fef3c7; }
+        #dash-hoy-sug .pd-fila:last-child { border-bottom: none; }
         #dash-pend-hoy .pd-vacio { padding: 12px 0; }
         /* En ventanas angostas, apilar (calendario arriba, pendientes abajo). */
         @media (max-width: 860px) {
@@ -1184,7 +1190,13 @@
                         <button type="button" data-vista="todos">Todos</button>
                     </div>
                 </div>
-                <div id="dash-pend-hoy" hidden></div>
+                <div id="dash-pend-hoy" hidden>
+                    <div id="dash-hoy-sug" hidden>
+                        <div class="dash-hoy-sug-tit">De días anteriores · ¿siguen para hoy?</div>
+                        <div id="dash-hoy-sug-lista"></div>
+                    </div>
+                    <div id="dash-hoy-lista"></div>
+                </div>
                 <div id="dash-pend-body"></div>
             </aside>
         </div>
@@ -1868,18 +1880,27 @@ function renderPendientesDashboard() {
     };
     // Vista ☀ Hoy: los marcados hoy con ☀, de cualquier curso, en una lista grande y limpia.
     // ＋ agrega uno general (sin clase) a Hoy.
-    const cajaHoy = document.getElementById('dash-pend-hoy');
+    const cajaHoy = document.getElementById('dash-hoy-lista');
     const nHoy = document.getElementById('dash-hoy-n');
+    const cursoDe = p => { const c = contextos[p.contexto_id]; return c && c.id !== GENERAL_ID ? ctxDisplay(c.nombre) : 'General'; };
+    // Sugerencias: marcados ☀ un día anterior y aún no hechos.
+    const cajaSug = document.getElementById('dash-hoy-sug');
+    let nSug = 0;
+    dashPendListas.push(Pendientes.lista(document.getElementById('dash-hoy-sug-lista'), {
+        filtro: p => p.estado === 'activo' && !!p.hoy && p.hoy < Pendientes.hoyISO(),
+        sugerencias: true, botonAgregar: false, mostrarCurso: cursoDe,
+        alCambiar: n => { nSug = n.activos; cajaSug.hidden = !n.activos; },
+    }));
     dashPendListas.push(Pendientes.lista(cajaHoy, {
         filtro: p => p.hoy === Pendientes.hoyISO(),
         alta: () => ({ contexto_id: GENERAL_ID, sesion_id: null, hoy: Pendientes.hoyISO() }),
-        mostrarCurso: p => { const c = contextos[p.contexto_id]; return c && c.id !== GENERAL_ID ? ctxDisplay(c.nombre) : 'General'; },
+        mostrarCurso: cursoDe,
         vacio: 'Nada para hoy. En "Todos", marca pendientes con ☀.',
         completadosAbiertos: false,
         alCambiar: n => { nHoy.textContent = n.activos || ''; },
     }));
-    // Al abrir: Hoy si ya tiene pendientes (pudieron marcarse en el celular); si no, Todos.
-    if (!dashPendVista) dashPendVista = cajaHoy.querySelector('.pd-activos').children.length ? 'hoy' : 'todos';
+    // Al abrir: Hoy si ya tiene pendientes (pudieron marcarse en el celular) o sugerencias; si no, Todos.
+    if (!dashPendVista) dashPendVista = cajaHoy.querySelector('.pd-activos').children.length || nSug ? 'hoy' : 'todos';
     mostrarVistaPend(dashPendVista);
     grupo(ctxIcono('GENERAL') + ' Generales', p => p.contexto_id == null || p.contexto_id === GENERAL_ID, GENERAL_ID);
     instancias.forEach(c => grupo(ctxDisplay(c.nombre), p => p.contexto_id === c.id, c.id));

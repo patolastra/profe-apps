@@ -3854,3 +3854,8 @@ bitácoras de los cursos funcionen como páginas de Notion".*
 - **Ajuste del PO (2026-10-12):** Hoy con letra normal y sin margen a la izquierda (la flecha de plegar queda en el
   borde); espacio fijo para la barra de desplazamiento (Dashboard y Cursos) para que nada baile; subpendientes con
   sangría clara en todas las listas (su casilla bajo el texto del pendiente principal). Medido en servidor local.
+- **DECISIÓN del PO (2026-10-12) — sugerencias en Hoy:** lo marcado ☀ un día anterior y no hecho aparece arriba de la
+  vista Hoy, en un recuadro "De días anteriores · ¿siguen para hoy?", con **Aceptar** (queda para hoy) o **Rechazar**
+  (sale de Hoy; sigue como pendiente de su curso). Opción `sugerencias` de `Pendientes.lista`. El Dashboard abre en Hoy
+  también si hay sugerencias. Probado en servidor local (2 de prueba marcados "ayer": uno aceptado → en Hoy; otro
+  rechazado → solo en su curso; borrados al final).
