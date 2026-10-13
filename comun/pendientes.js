@@ -3,7 +3,7 @@
 // La usan el Dashboard (cursos + HOY), "Pendientes" del Plan, "Pendientes" de la Bitácora
 // y Cursos. Se ve y funciona igual en todos lados: activos arriba, "Completados" abajo en
 // gris y cursiva (se dejan de ver 2 semanas después de completados); agregar, editar,
-// marcar y borrar; ☀ = a la lista HOY (cada día parte vacía); subpendientes de un nivel,
+// marcar y borrar; ☀️ = a la lista HOY (cada día parte vacía); subpendientes de un nivel,
 // plegables; desde 3 semanas arrastrado: "Sigue" / "Archivar".
 // Al instante: entre pestañas del mismo computador (BroadcastChannel) y entre
 // equipos (Supabase Realtime, supabase/pendientes_realtime.sql).
@@ -16,7 +16,7 @@
 //                                      vacio, alCambiar, todosCompletados, completadosAbiertos,
 //                                      sugerencias (filas con Aceptar / Rechazar para Hoy),
 //                                      tactil (celular: el texto se edita al tocarlo),
-//                                      sinMarcaHoy (la lista Hoy no repite la marca "☀ Hoy") })
+//                                      sinMarcaHoy (la lista Hoy no repite la marca "☀️ Hoy") })
 //   l.agregar() · l.repintar()
 //   Pendientes.crear({ contexto_id, sesion_id, fecha, texto, hoy })
 //   Pendientes.proximaClase(contexto_id)   → destino { contexto_id, sesion_id, fecha }
@@ -431,7 +431,7 @@
                 <textarea class="pd-txt" rows="1" placeholder="Escribe el pendiente…"></textarea>
                 <span class="pd-meta"></span>
                 <span class="pd-acc">
-                    <button class="pd-sol" type="button" tabindex="-1" title="Agregar a HOY">☀</button>
+                    <button class="pd-sol" type="button" tabindex="-1" title="Agregar a HOY">☀️</button>
                     <button class="pd-sub" type="button" tabindex="-1" title="Agregar un subpendiente">↳</button>
                     <button class="pd-del" type="button" tabindex="-1" title="Borrar">✕</button>
                     <button class="pd-aceptar" type="button" title="Queda para hoy">Aceptar</button>
@@ -487,7 +487,7 @@
         });
         fila.querySelector('.pd-sol').addEventListener('click', () => cambiar(p.id, { hoy: yo().hoy === hoyISO() ? null : hoyISO() }));
         fila.querySelector('.pd-sub').addEventListener('click', () => agregarHijo(L, yo()));
-        // Sugerencias (marcados ☀ otro día y no hechos): aceptar = hoy; rechazar = fuera de Hoy.
+        // Sugerencias (marcados ☀️ otro día y no hechos): aceptar = hoy; rechazar = fuera de Hoy.
         fila.querySelector('.pd-aceptar').addEventListener('click', () => cambiar(p.id, { hoy: hoyISO() }));
         fila.querySelector('.pd-rechazar').addEventListener('click', () => cambiar(p.id, { hoy: null }));
         if (L.op.sugerencias) txt.readOnly = true;
@@ -526,7 +526,7 @@
         const partes = [];
         if (plegado) partes.push(`<span class="pd-cuenta" title="Subpendientes hechos">${hijos.filter(h => h.estado === 'completado').length}/${hijos.length}</span>`);
         if (!esHijo && !hecho && sem > 0) partes.push(`<span class="pd-sem" title="${sem === 1 ? 'Trasladado 1 semana' : `Trasladado ${sem} semanas`}">(${sem} sem)</span>`);
-        if (!esHijo && !L.op.sinMarcaHoy && p.hoy === hoyISO()) partes.push('<span class="pd-marca-hoy" title="Está en Hoy">☀ Hoy</span>');
+        if (!esHijo && !L.op.sinMarcaHoy && p.hoy === hoyISO()) partes.push('<span class="pd-marca-hoy" title="Está en Hoy">☀️ Hoy</span>');
         if (!esHijo && L.op.mostrarCurso) {
             const c = L.op.mostrarCurso(p);                       // texto, o { texto, titulo }
             const tx = c && typeof c === 'object' ? c.texto : c, ti = c && typeof c === 'object' ? c.titulo : 'Curso';
