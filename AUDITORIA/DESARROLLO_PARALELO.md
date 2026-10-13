@@ -3980,3 +3980,20 @@ búsqueda más corta y los cursos con su nombre corto.*
   categoría con ancho fijo; "Practicar" con su espacio siempre reservado (entre ⭐ y estilos; se oculta sin
   desaparecer); selectores, cursos y + Canción sin encoger. Medido: posición y ancho de todos los controles idénticos
   tras cambiar categoría (3 veces), elegir curso (aparece Practicar), Personal, Todos y un estilo.
+
+### BI. Libros — sección central con el Libro de clases de cada instancia
+*Origen: PO (2026-10-13): nueva sección central "Libros" para entrar al Libro de clases de cualquier instancia; pestaña
+permanente del Workspace.*
+- **DECISIÓN del PO (2026-10-13):** se ve **como Cursos** (columna con las instancias a la izquierda; el Libro de la
+  elegida a la derecha, en la misma pestaña; recuerda la última). Instancias: **todas menos General** (1°–8°, talleres,
+  Recreo, Orientación, Enlaces). Clase sobre la que se abre: **la de hoy; si no hay, la última que ocurrió**. El botón
+  📒 Libro del Plan **lleva a la pestaña Libros** con ese curso y la clase del Plan (no abre más pestañas de Libro).
+  Pestaña fija: Dashboard · Biblioteca · Cursos · **Libros**.
+- **Implementación (2026-10-13):** `LIBROS/index.html` (estilo Cursos) carga las instancias (sin General) y el año
+  activo (`libro_anios`); al elegir, busca la clase (hoy o la última; si nunca hubo, la próxima) y muestra
+  `LIBRO/index.html?sesion=&ctx=&anio=` en un marco; recuerda la última instancia. Reenvía entre el Libro y el Workspace
+  los mensajes de título de ventana (imprimir). Workspace: pestaña fija `libros`; `ws-abrir` con `ir` a una pestaña ya
+  abierta le manda `ws-ir` sin recargarla. Planificador: el 📒 abre Libros con `ir: { ctx, sesion }`.
+- **Prueba (servidor local):** 4 pestañas fijas (Dashboard · Biblioteca · Cursos · Libros); 14 instancias; Tercero →
+  su Libro sobre la clase del lun 12/10; el 📒 del Plan (simulado desde una pestaña) llevó a Libros con Cuarto y su
+  clase, sin abrir pestañas nuevas; Orientación abre con los alumnos de Octavo.

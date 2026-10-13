@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📒 Libros</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
+<script src="../supabase/contextos.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+    --bg:      #ffffff;
+    --lateral: #f7f7f5;
+    --hover:   #ececea;
+    --activo:  #e3e3e0;
+    --texto:   #37352f;
+    --suave:   #8f8d88;
+    --linea:   #e6e6e3;
+}
+html, body { height: 100%; }
+body {
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg); color: var(--texto);
+    display: flex; overflow: hidden; font-size: 16px;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+/* ── Columna: instancias ─────────────────────────────────── */
+#col {
+    width: 210px; flex-shrink: 0; overflow-y: auto; padding: 14px 8px 40px; font-size: 14px; user-select: none;
+    background: var(--lateral); border-right: 1px solid var(--linea);
+}
+#col h1 { font-size: 15px; font-weight: 600; padding: 4px 10px 12px; min-height: 36px; }
+.fila {
+    display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px;
+    cursor: pointer; min-height: 28px; width: 100%; text-align: left;
+}
+.fila:hover { background: var(--hover); }
+.fila.activa { background: var(--activo); font-weight: 600; }
+.fila .ico { width: 20px; text-align: center; flex-shrink: 0; }
+.fila .nom { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clase { font-size: 11.5px; color: var(--suave); padding: 0 8px 6px 36px; }
+.sep-lat { height: 1px; background: var(--linea); margin: 8px 6px; }
+
+/* ── Libro de la instancia elegida ───────────────────────── */
+#principal { flex: 1; min-width: 0; position: relative; }
+#libro { width: 100%; height: 100%; border: 0; display: block; }
+#vacio { color: var(--suave); text-align: center; margin-top: 30vh; font-size: 15px; padding: 0 20px; }
+</style>
+</head>
+<body>
+
+<nav id="col">
+    <h1>📒 Libros</h1>
+    <div id="lista"></div>
+</nav>
+
+<main id="principal">
+    <div id="vacio">Elige un curso o taller a la izquierda.</div>
+    <iframe id="libro" hidden allow="autoplay; fullscreen; window-management" allowfullscreen></iframe>
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// LIBROS — el Libro de clases de cada instancia en una sola pestaña (deuda BI, 2026-10-13)
+// Columna con todas las instancias menos General; al elegir una, su Libro
+// (LIBRO/index.html) se abre a la derecha sobre la clase de hoy o, si no hay, la
+// última que ocurrió. El Plan abre esta misma pestaña con su curso y su clase
+// (mensaje 'ws-ir' del Workspace, o ?ctx=&sesion= en la dirección).
+// ═══════════════════════════════════════════════════════════════════════
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const fechaCorta = iso => { const d = new Date(iso + 'T12:00:00'); return `${DIAS[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`; };
+const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+let instancias = [];        // [{ id, nombre }]
+let actual = null;          // { nombre, sesion, fecha }
+let anio = String(new Date().getFullYear());
+
+function orden(nombre) {
+    const claves = typeof CTX_IDENTIDAD !== 'undefined' ? Object.keys(CTX_IDENTIDAD) : [];
+    const i = claves.indexOf(String(nombre || '').toUpperCase());
+    return i < 0 ? 999 : i;
+}
+
+async function cargar() {
+    const [cx, an] = await Promise.all([
+        sb.from('contextos').select('id, nombre, activo'),
+        sb.from('libro_anios').select('anio').eq('activo', true).limit(1),
+    ]);
+    if (an.data && an.data[0]) anio = String(an.data[0].anio);
+    instancias = (cx.data || []).filter(c => c.activo !== false && c.nombre !== 'GENERAL')
+        .sort((a, b) => orden(a.nombre) - orden(b.nombre) || a.nombre.localeCompare(b.nombre));
+    pintarLista();
+}
+
+function pintarLista() {
+    $('lista').innerHTML = instancias.map((c, i) => {
+        const info = contextoInfo(c.nombre);
+        const act = actual && actual.nombre === c.nombre;
+        // separa cursos de talleres y jefaturas
+        const sep = i > 0 && /^[1-8]/.test(contextoInfo(instancias[i - 1].nombre).icono || '') && !/^[1-8]/.test(info.icono || '')
+            ? '<div class="sep-lat"></div>' : '';
+        return `${sep}<button class="fila${act ? ' activa' : ''}" data-nombre="${esc(c.nombre)}" title="${esc(info.label)}">
+                <span class="ico">${info.icono || '📁'}</span><span class="nom">${esc(info.label)}</span></button>
+            ${act && actual.fecha ? `<div class="clase">clase ${actual.fecha === hoyISO() ? 'de hoy' : 'del ' + fechaCorta(actual.fecha)}</div>` : ''}`;
+    }).join('');
+}
+$('lista').addEventListener('click', e => {
+    const f = e.target.closest('.fila');
+    if (f) abrir(f.dataset.nombre);
+});
+
+// Clase de hoy de la instancia; si no hay, la última que ocurrió; si nunca hubo, la próxima.
+async function claseDe(cid) {
+    const hoy = hoyISO();
+    let { data } = await sb.from('sesiones').select('id, fecha').eq('contexto_id', cid)
+        .lte('fecha', hoy).order('fecha', { ascending: false }).limit(1);
+    if (data && data[0]) return data[0];
+    ({ data } = await sb.from('sesiones').select('id, fecha').eq('contexto_id', cid)
+        .gt('fecha', hoy).order('fecha', { ascending: true }).limit(1));
+    return data && data[0] ? data[0] : null;
+}
+
+async function abrir(nombre, sesion = null, fecha = null) {
+    const c = instancias.find(x => x.nombre === nombre);
+    if (!c) return;
+    try { localStorage.setItem('profe_libros_ultimo', nombre); } catch (_) {}
+    if (!sesion) {
+        const s = await claseDe(c.id);
+        if (!s) {
+            actual = { nombre, sesion: null, fecha: null };
+            pintarLista();
+            $('libro').hidden = true; $('vacio').hidden = false;
+            $('vacio').textContent = `${contextoInfo(nombre).label} todavía no tiene clases registradas.`;
+            return;
+        }
+        sesion = s.id; fecha = s.fecha;
+    } else if (!fecha) {
+        const { data } = await sb.from('sesiones').select('fecha').eq('id', sesion).maybeSingle();
+        fecha = data?.fecha || null;
+    }
+    actual = { nombre, sesion, fecha };
+    pintarLista();
+    $('vacio').hidden = true;
+    const f = $('libro');
+    f.hidden = false;
+    f.src = `../LIBRO/index.html?sesion=${encodeURIComponent(sesion)}&ctx=${encodeURIComponent(nombre)}&anio=${encodeURIComponent(anio)}`;
+}
+
+// ── Puente con el Workspace ──
+// · 'ws-ir' { ctx, sesion }: el Plan pide abrir el Libro de su curso sobre su clase.
+// · El Libro (adentro) habla con el Workspace (título de la ventana al imprimir): se
+//   reenvía hacia arriba y la respuesta, hacia abajo.
+window.addEventListener('message', e => {
+    const m = e.data;
+    if (!m || typeof m !== 'object' || typeof m.tipo !== 'string') return;
+    const libro = $('libro').contentWindow;
+    if (e.source === window.parent && window.parent !== window) {
+        if (m.tipo === 'ws-ir' && m.ctx) { abrir(String(m.ctx).toUpperCase(), m.sesion || null); return; }
+        if (m.tipo.startsWith('ws-titulo-ventana')) { try { libro.postMessage(m, '*'); } catch (_) {} }
+        return;
+    }
+    if (e.source === libro && m.tipo.startsWith('ws-') && window.parent !== window) {
+        try { window.parent.postMessage(m, '*'); } catch (_) {}
+    }
+});
+
+(async function init() {
+    await cargar();
+    const q = new URLSearchParams(location.search);
+    let ultimo = null;
+    try { ultimo = localStorage.getItem('profe_libros_ultimo'); } catch (_) {}
+    const ctx = (q.get('ctx') || '').toUpperCase();
+    if (ctx && instancias.some(c => c.nombre === ctx)) abrir(ctx, q.get('sesion'));
+    else if (ultimo && instancias.some(c => c.nombre === ultimo)) abrir(ultimo);
+})();
+</script>
+</body>
+</html>

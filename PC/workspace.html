@@ -193,6 +193,7 @@ const APPS = {
     metalofono: { id:'metalofono', ico:'🎹', titulo:'Metalófono',  src:'../METALÓFONO APP/METAL21 (ALPHA).HTML' },
     lector:     { id:'lector',     ico:'🎸', titulo:'Tablaturas', src:'../tabs/index.html?admin=1' },
     cursos:     { id:'cursos',     ico:'📓', titulo:'Cursos',      src:'../CURSOS/index.html', guardarAlCerrar:true, fija:true },
+    libros:     { id:'libros',     ico:'📒', titulo:'Libros',      src:'../LIBROS/index.html', fija:true },
 };
 
 // ── ESTADO EN MEMORIA ───────────────────────────────────────────────────────
@@ -439,6 +440,14 @@ window.addEventListener('message', (e) => {
     if (!m || typeof m !== 'object' || typeof m.tipo !== 'string') return;
     if (m.tipo === 'ws-abrir') {
         if (typeof m.key !== 'string' || typeof m.src !== 'string') return;
+        // Pestaña ya abierta + `ir`: se le pide ir a ese lugar sin recargarla (p. ej. el Plan
+        // abre Libros en su curso y su clase: { ctx, sesion }).
+        const ya = tabs.find(t => t.key === m.key);
+        if (ya && m.ir && typeof m.ir === 'object') {
+            try { ya.iframeEl.contentWindow.postMessage({ tipo: 'ws-ir', ...m.ir }, '*'); } catch (_) {}
+            activar(ya.key);
+            return;
+        }
         abrirInstancia({
             key: m.key,
             titulo: String(m.titulo || m.key),
@@ -560,12 +569,13 @@ if (location.protocol !== 'file:') {
 // ── INIT ──────────────────────────────────────────────────────────────────
 renderLauncher();
 
-// Pestañas iniciales PERMANENTES (no cerrables): Dashboard → Biblioteca → Cursos.
+// Pestañas iniciales PERMANENTES (no cerrables): Dashboard → Biblioteca → Cursos → Libros.
 // Dashboard activo. Los Planes se abren como pestañas aparte (postMessage).
 // El Entrenador genérico y Metalófono NO se abren por defecto; siguen en el (+).
 abrirApp('dashboard', true);
 abrirApp('repertorio', true);
 abrirApp('cursos', true);
+abrirApp('libros', true);
 activar('dashboard');
 </script>
 </body>
