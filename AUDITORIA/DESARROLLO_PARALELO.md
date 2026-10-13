@@ -4118,3 +4118,10 @@ Notion, en versión para el celular.*
   señal se subió; barra táctil sobre el teclado (cabe en 375 px), "•" convierte en viñetas, Enter del teclado del
   celular crea el siguiente ítem, ⋯ muestra Subir/Bajar/Duplicar/Eliminar; eliminar la nota la borra de la base. En el
   PC el editor sigue igual (＋/⋮⋮ visibles, Enter parte el bloque). Falta probar en el celular real (teclado, toque largo).
+- **Ajuste del PO (2026-10-13): menú lateral.** En vez de la fila de cursos, un **menú lateral** estilo Notion (como la
+  columna de cursos del Workspace) con todos los contextos **sin tener que desplazarse**, que se abre/cierra con ☰
+  arriba; arriba del menú, **🏠 Inicio** (vuelve a la página principal del celular). Tocar un curso cierra el menú y
+  abre su página; el encabezado muestra el curso abierto.
+  Prueba: ☰ abre el menú con 🏠 Inicio, General y los 14 cursos/talleres/jefaturas; caben sin desplazarse en 375×812 y
+  en 360×640 (cada fila ajusta su alto a la pantalla, entre 30 y 44 px); tocar Quinto cierra el menú y abre su página
+  ("5️⃣ Quinto" en el encabezado). Sin curso elegido, el menú se abre solo.
