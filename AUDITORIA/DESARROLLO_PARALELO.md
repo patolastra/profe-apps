@@ -4020,3 +4020,33 @@ institucional y al drive institucional (cuenta Microsoft 365 / Outlook del SLEP)
   versión, el de clase en curso y los dos enlaces (`outlook.office.com/mail/`, `sleplosparquesgobcl-my.sharepoint.com/favorites`; ajustado por el PO). La
   dirección de correo **no** va en el enlace (el repo y la página son públicos): abren la cuenta Microsoft con sesión
   iniciada en el navegador.
+
+### BK. Citas a apoderados (pendientes, paso 3)
+*Origen: anotación del PO en la tarjeta Notion "Pendientes: Dashboard ↔ sesiones de clase" (paso 3): una lista especial
+de recordatorios para apoderados — llamar para gestionar la reunión, anotar cuándo quedé de atenderlo y, al final,
+acuerdos y acciones —, que se pueda crear desde el Dashboard, el Plan y Cursos.*
+- **Auditoría (2026-10-13):** hoy no existe ningún dato de apoderados (ni nombre ni teléfono). Los estudiantes están en
+  `libro_estudiantes`; su curso en `libro_matriculas` (año activo) o `libro_pertenencias_taller`; las jefaturas toman
+  la población de su curso por `libro_contexto_poblacion`. Hace falta una tabla nueva.
+- **DECISIÓN del PO (2026-10-13):**
+  1. Tres etapas: **Por citar** (motivo) → **Citado** (fecha y hora; ese día aparece en ☀ Hoy) → **Atendido**
+     (acuerdos). Si el apoderado no llega, vuelve a Por citar.
+  2. La cita va ligada a un **estudiante elegido de la lista del curso** (permite ver su historial de citas).
+  3. **No** se guarda el teléfono ni datos del apoderado.
+  4. De los acuerdos **se pueden** generar pendientes del curso (botón), **no automático**.
+  5. Se ven y se crean desde el Dashboard (todas), el Plan y Cursos (las del curso).
+- **Supabase (`supabase/apoderado_citas.sql`, lo ejecuta el PO):** tabla `apoderado_citas` (contexto, estudiante,
+  motivo, estado `por_citar|citado|atendido`, `cita_en`, acuerdos, `atendido_en`), RLS `acceso_total`, Realtime.
+- **PO ejecutó `apoderado_citas.sql` (2026-10-13).**
+- **Implementación (2026-10-13):** pieza compartida `comun/apoderados.js` (`Apoderados`) + `comun/apoderados.css`.
+  Dashboard: pestaña **👪 Apoderados** (junto a ☀ Hoy / Todos, con la cuenta de citas abiertas) y cuadro "👪 Citas de
+  hoy" arriba de la vista Hoy. Plan: sección **👪 APODERADOS** bajo Pendientes (citas del curso). Cursos: cuadro
+  **👪 Apoderados** bajo Pendientes (no en General). Nueva cita: curso (íconos; cursos, talleres y jefaturas, estas con
+  la lista de su curso) → buscar estudiante → motivo. Por citar: 📅 Citar (fecha y hora). Citado: cambiar fecha,
+  "No vino" (vuelve a Por citar), "✓ Atendido"; si la fecha pasó sin atender, en rojo. Atendido: acuerdos y "Acción
+  → Pendiente" (crea "Apoderado de <nombre>: <acción>" en la próxima clase del curso). Atendidas: plegadas, se ven 30
+  días. Al instante entre pestañas y equipos.
+- **Prueba (servidor local, datos de prueba borrados al final):** cita creada en Tercero desde el Dashboard → Citar
+  hoy 11:00 (aparece en "Citas de hoy") → Atendido → acuerdos guardados → acción convertida en pendiente para la clase
+  del 19/10; la cita se ve en Cursos (Tercero) y en el Plan de Tercero del 19/10 con su pendiente. Corregido: la lista
+  no se repintaba si se agregaba con el cursor aún en el motivo.

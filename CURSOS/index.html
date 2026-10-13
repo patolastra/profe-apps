@@ -11,6 +11,8 @@
 <script src="../comun/editor-bloques.js"></script>
 <link rel="stylesheet" href="../comun/pendientes.css">
 <script src="../comun/pendientes.js"></script>
+<link rel="stylesheet" href="../comun/apoderados.css">
+<script src="../comun/apoderados.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -104,6 +106,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .ent-pend { margin: 0 0 10px; padding-left: 2px; }
 .ent-pend .pp-tit { font-size: 12px; color: var(--suave); margin-bottom: 2px; }
 .ent-pend[hidden] { display: none; }
+/* Citas a apoderados del curso (comun/apoderados.js, BK); General no tiene estudiantes */
+#pag-apo { border: 1px solid var(--linea); border-radius: 10px; padding: 10px 12px 8px; margin: -14px 0 26px; }
+#pag-apo .pp-tit { font-size: 13px; font-weight: 600; color: var(--suave); margin-bottom: 6px; display: flex; gap: 8px; }
 
 </style>
 </head>
@@ -289,9 +294,18 @@ async function bloqueAPendiente(texto) {
     const p = await Pendientes.crear({ ...(await destinoPendiente()), texto });
     estado(p ? 'Pendiente creado ✓' : 'No se pudo crear el pendiente — revisa conexión.', !p);
 }
+let listaApo = null;
 function pintarPendientes() {
     listasPend.forEach(l => l.destruir());
     listasPend = [];
+    listaApo?.destruir(); listaApo = null;
+    const cajaApo = $('pag-apo');
+    if (cajaApo) {
+        const n = cajaApo.querySelector('.pp-n');
+        listaApo = Apoderados.lista(cajaApo.querySelector('.pp-lista'), {
+            contextoId: ctxActual, alCambiar: c => { n.textContent = c.total ? `· ${c.total}` : ''; },
+        });
+    }
     const caja = $('pag-pend');
     if (caja) {
         const cuenta = caja.querySelector('.pp-n');
@@ -315,6 +329,7 @@ function pintarHistorico() {
     const info = nombreCtx(ctxActual);
     let html = `<div id="pag-titulo">${esc(info.icono + ' ' + info.label)}</div>
         <div id="pag-pend"><div class="pp-tit">☑ Pendientes <span class="pp-n"></span></div><div class="pp-lista"></div></div>`;
+    if (!esGeneralActual()) html += `<div id="pag-apo"><div class="pp-tit">👪 Apoderados <span class="pp-n"></span></div><div class="pp-lista"></div></div>`;
     if (!entradas.length) html += '<div class="lat-vacio" style="padding:0">Todavía no hay clases ni notas. Crea una con ＋ Nota.</div>';
     entradas.forEach(E => {
         const cab = E.tipo === 'clase'
@@ -500,6 +515,7 @@ window.addEventListener('message', async e => {
 // ── Inicio ──────────────────────────────────────────────────────────────
 EditorBloques.zona($('principal'));
 Pendientes.conectar(sb);
+Apoderados.conectar(sb);
 (async function init() {
     await cargarContextos();
     const q = new URLSearchParams(location.search).get('ctx');

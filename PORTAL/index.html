@@ -16,6 +16,8 @@
     <script src="../comun/editor-bloques.js"></script>
     <link rel="stylesheet" href="../comun/pendientes.css">
     <script src="../comun/pendientes.js"></script>
+    <link rel="stylesheet" href="../comun/apoderados.css">
+    <script src="../comun/apoderados.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -204,7 +206,13 @@
             color: var(--muted); padding: 4px 12px; border-radius: 6px;
         }
         .dash-pend-vistas button.activa { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
-        #dash-pend-body[hidden], #dash-pend-hoy[hidden] { display: none; }
+        #dash-pend-body[hidden], #dash-pend-hoy[hidden], #dash-pend-apo[hidden] { display: none; }
+        #dash-apo-n { font-weight: 700; color: #b45309; }
+        #dash-apo-n:empty { display: none; }
+        /* Citas a apoderados de hoy (BK), arriba de la lista Hoy */
+        #dash-hoy-citas { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 8px 10px; margin-bottom: 12px; }
+        #dash-hoy-citas[hidden] { display: none; }
+        .dash-hoy-citas-tit { font-size: 0.72rem; font-weight: 700; color: #1d4ed8; margin-bottom: 6px; }
         #dash-hoy-n { font-weight: 700; color: #b45309; }
         #dash-hoy-n:empty { display: none; }
         /* Vista Hoy: lista grande y limpia (con el curso como etiqueta) */
@@ -1152,6 +1160,7 @@
                     <div class="dash-pend-vistas" role="tablist">
                         <button type="button" data-vista="hoy">☀️ Hoy <span id="dash-hoy-n"></span></button>
                         <button type="button" data-vista="todos">Todos</button>
+                        <button type="button" data-vista="apo" title="Citas a apoderados">👪 Apoderados <span id="dash-apo-n"></span></button>
                     </div>
                 </div>
                 <div id="dash-pend-hoy" hidden>
@@ -1159,9 +1168,14 @@
                         <div class="dash-hoy-sug-tit">De días anteriores · ¿siguen para hoy?</div>
                         <div id="dash-hoy-sug-lista"></div>
                     </div>
+                    <div id="dash-hoy-citas" hidden>
+                        <div class="dash-hoy-citas-tit">👪 Citas de hoy</div>
+                        <div id="dash-hoy-citas-lista"></div>
+                    </div>
                     <div id="dash-hoy-lista"></div>
                 </div>
                 <div id="dash-pend-body"></div>
+                <div id="dash-pend-apo" hidden></div>
             </aside>
         </div>
     </div>
@@ -1318,6 +1332,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ClaseVivo.subirPendientes(sb);    // Modo Clase: registros que quedaron sin subir
         ClaseVivo.conectar(sb);           // clase en curso compartida con otros equipos (AM)
         Pendientes.conectar(sb);          // pendientes al instante en todo el sistema (BB)
+        Apoderados.conectar(sb);          // citas a apoderados (BK)
         Asistencia.iniciar(sb);           // Pasar lista: listas que quedaron sin subir
         await Promise.all([loadContextos(), loadHorario(), cargarAnioActivo()]);
         await crearSesionesPendientes();
@@ -1786,11 +1801,13 @@ async function cierreSemanalPendientes() {
 // (indicando la clase a la que van) y, abajo, los completados de las últimas 2 semanas.
 // ＋ en cada grupo agrega a la próxima clase de ese curso (hoy incluida).
 let dashPendListas = [];
+let dashApoListas = [];   // citas a apoderados (BK)
 let dashPendVista = null;   // 'hoy' | 'todos' (se elige al abrir; luego la cambia el profe)
 function mostrarVistaPend(v) {
     dashPendVista = v;
     document.getElementById('dash-pend-hoy').hidden = v !== 'hoy';
     document.getElementById('dash-pend-body').hidden = v !== 'todos';
+    document.getElementById('dash-pend-apo').hidden = v !== 'apo';
     document.querySelectorAll('.dash-pend-vistas button').forEach(b => b.classList.toggle('activa', b.dataset.vista === v));
 }
 document.querySelector('.dash-pend-vistas')?.addEventListener('click', e => {
@@ -1872,7 +1889,19 @@ function renderPendientesDashboard() {
         alCambiar: n => { nHoy.textContent = n.activos || ''; },
     }));
     // Al abrir: Hoy si ya tiene pendientes (pudieron marcarse en el celular) o sugerencias; si no, Todos.
-    if (!dashPendVista) dashPendVista = cajaHoy.querySelector('.pd-activos').children.length || nSug ? 'hoy' : 'todos';
+    // Citas a apoderados (BK): pestaña propia con todas; las de hoy, también arriba de Hoy.
+    dashApoListas.forEach(l => l.destruir());
+    const cajaCitasHoy = document.getElementById('dash-hoy-citas');
+    let nCitasHoy = 0;
+    dashApoListas = [
+        Apoderados.lista(document.getElementById('dash-hoy-citas-lista'), {
+            soloHoy: true, alCambiar: n => { nCitasHoy = n.citados; cajaCitasHoy.hidden = !n.citados; },
+        }),
+        Apoderados.lista(document.getElementById('dash-pend-apo'), {
+            alCambiar: n => { document.getElementById('dash-apo-n').textContent = n.total || ''; },
+        }),
+    ];
+    if (!dashPendVista) dashPendVista = cajaHoy.querySelector('.pd-activos').children.length || nSug || nCitasHoy ? 'hoy' : 'todos';
     mostrarVistaPend(dashPendVista);
     grupo(ctxIcono('GENERAL') + ' Generales', p => p.contexto_id == null || p.contexto_id === GENERAL_ID, GENERAL_ID);
     instancias.forEach(c => grupo(ctxDisplay(c.nombre), p => p.contexto_id === c.id, c.id));
@@ -4178,6 +4207,7 @@ function flushTareas() { Pendientes.guardarTodo(); }
 // El botón ＋ crea el pendiente DIRECTO en la sesión actual (no la siguiente).
 // ═══════════════════════════════════════════════════════════
 let sesPendLista = null;
+let sesApoLista = null;   // citas a apoderados del curso (BK)
 async function cargarPendientesSesion() {
     const panel = document.getElementById('ses-pend-panel');
     if (!panel) return;
@@ -4191,7 +4221,19 @@ async function cargarPendientesSesion() {
                 <span class="rev-chevron">▾</span>
             </div>
             <div class="rev-sec-body"><div id="ses-pend-lista"></div></div>
+        </div>
+        <div class="rev-seccion">
+            <div class="rev-sec-hdr" onclick="toggleRevSec(this)">
+                <span>👪 APODERADOS <span id="ses-apo-n" class="ses-apo-n"></span></span>
+                <span class="rev-chevron">▾</span>
+            </div>
+            <div class="rev-sec-body"><div id="ses-apo-lista"></div></div>
         </div>`;
+    sesApoLista?.destruir();
+    sesApoLista = Apoderados.lista(document.getElementById('ses-apo-lista'), {
+        contextoId: sesionActual.contexto_id,
+        alCambiar: n => { const e = document.getElementById('ses-apo-n'); if (e) e.textContent = n.total ? '· ' + n.total : ''; },
+    });
     sesPendLista?.destruir();
     sesPendLista = Pendientes.lista(document.getElementById('ses-pend-lista'), {
         filtro: p => p.sesion_id === sid,
