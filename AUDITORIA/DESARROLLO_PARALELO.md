@@ -3976,3 +3976,7 @@ búsqueda más corta y los cursos con su nombre corto.*
 - **Ajuste del PO (2026-10-13):** Todo / Canciones / Materiales es **un solo botón** que va pasando con cada clic (azul
   cuando filtra); sin separador y selectores más angostos. Medido: con "Practicar" visible cabe en una línea a 1900 px
   (sobran ~500 px) y a 1400 px (justo).
+- **Ajuste del PO (2026-10-13) — REGLA: ninguna interacción en una barra puede hacer bailar sus elementos.** Botón de
+  categoría con ancho fijo; "Practicar" con su espacio siempre reservado (entre ⭐ y estilos; se oculta sin
+  desaparecer); selectores, cursos y + Canción sin encoger. Medido: posición y ancho de todos los controles idénticos
+  tras cambiar categoría (3 veces), elegir curso (aparece Practicar), Personal, Todos y un estilo.
