@@ -16,6 +16,7 @@
 //                                      vacio, alCambiar, todosCompletados, completadosAbiertos,
 //                                      sugerencias (filas con Aceptar / Rechazar para Hoy),
 //                                      tactil (celular: el texto se edita al tocarlo),
+//                                      elegirCurso ({ cursos }: ＋ pregunta el curso; tocar el curso lo cambia),
 //                                      marcaHoy (marca ☀️ en los que están en Hoy; para el celular,
 //                                      donde no hay botón ☀️ a la vista) })
 //   l.agregar() · l.repintar()
@@ -326,15 +327,26 @@
         };
         caja.classList.add('pd-lista');
         caja.classList.toggle('pd-sugerencias', !!op.sugerencias);
+        if (op.elegirCurso) caja.dataset.elegir = '1';
         caja.innerHTML = `<div class="pd-activos"></div>
             ${op.botonAgregar === false || !op.alta ? '' : '<button class="pd-add" type="button">＋ Agregar pendiente</button>'}
+            <div class="pd-cursos" hidden></div>
             <div class="pd-vacio"></div>
             <div class="pd-comp" hidden>
                 <button class="pd-comp-hdr" type="button"><span class="pd-comp-lbl"></span><span class="pd-comp-chev"></span></button>
                 <div class="pd-comp-body"></div>
             </div>
             <div class="pd-aviso"></div>`;
-        caja.querySelector('.pd-add')?.addEventListener('click', () => agregar(L));
+        caja.querySelector('.pd-add')?.addEventListener('click', () => {
+            if (op.elegirCurso) abrirCursos(L, null, caja.querySelector('.pd-add')); else agregar(L);
+        });
+        // Tocar el curso de un pendiente (listas con elegirCurso) = cambiarlo de curso.
+        if (op.elegirCurso) caja.addEventListener('click', e => {
+            const c = e.target.closest('.pd-curso');
+            if (!c) return;
+            const fila = c.closest('.pd-fila');
+            if (fila) abrirCursos(L, fila.dataset.id, fila.parentElement);
+        });
         caja.querySelector('.pd-comp-hdr').addEventListener('click', () => { L.abiertoComp = !L.abiertoComp; pintar(L); });
         listas.add(L);
         ro?.observe(caja);
@@ -365,9 +377,42 @@
     function hijosDe(L, id) { return [...filas.values()].filter(p => p.padre_id === id && vigente(L, p)).sort(porFecha); }
     function contar(L) { const it = items(L); return { activos: it.filter(p => p.estado === 'activo').length, completados: it.filter(p => p.estado === 'completado').length }; }
 
-    async function agregar(L) {
+    // Elegir curso (opción elegirCurso: { cursos: () => [{ id, corto, nombre }] }): una fila de
+    // íconos bajo `ancla`. Para uno nuevo (id = null) se llama alta(curso); para uno existente,
+    // se lo cambia a ese curso (alta(curso) da su próxima clase).
+    function abrirCursos(L, id, ancla) {
+        let box = L.caja.querySelector('.pd-cursos');
+        if (!box) { box = document.createElement('div'); box.className = 'pd-cursos'; box.hidden = true; }   // se fue con una fila borrada
+        if (!box.hidden && box.dataset.para === String(id)) { box.hidden = true; return; }
+        const actual = id ? filas.get(id)?.contexto_id : null;
+        box.dataset.para = String(id);
+        box.innerHTML = `<span class="pd-cursos-tit">${id ? 'Mover a:' : '¿De qué curso?'}</span>` +
+            L.op.elegirCurso.cursos().map(c => `<button type="button" class="pd-curso-op${c.id === actual ? ' actual' : ''}"
+                data-cid="${esc(c.id ?? '')}" title="${esc(c.nombre)}">${esc(c.corto)}</button>`).join('') +
+            '<button type="button" class="pd-cursos-x" title="Cerrar">✕</button>';
+        ancla.insertAdjacentElement('afterend', box);
+        box.hidden = false;
+        box.onclick = async e => {
+            if (e.target.closest('.pd-cursos-x')) { box.hidden = true; return; }
+            const b = e.target.closest('.pd-curso-op');
+            if (!b) return;
+            box.hidden = true;
+            const cid = b.dataset.cid || null;
+            if (!id) { agregar(L, cid); return; }
+            const p = filas.get(id);
+            if (!p || p.contexto_id === cid) return;
+            const d = await L.op.alta(cid);
+            if (!d) return;
+            const cambios = { contexto_id: d.contexto_id, sesion_id: d.sesion_id || null };
+            if (d.fecha && d.sesion_id) fechas.set(d.sesion_id, d.fecha);
+            cambiar(id, cambios);
+            [...filas.values()].filter(h => h.padre_id === id).forEach(h => cambiar(h.id, cambios));
+        };
+    }
+
+    async function agregar(L, curso) {
         if (!L.op.alta) return;
-        const destino = await L.op.alta();
+        const destino = await L.op.alta(curso);
         if (!destino) { aviso(L.op.sinDestino || 'Este curso no tiene una próxima clase en el horario.'); return; }
         const p = await crear(destino);
         if (!p) { aviso('No se pudo crear el pendiente — revisa la conexión.'); return; }

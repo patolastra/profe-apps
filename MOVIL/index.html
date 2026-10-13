@@ -130,6 +130,11 @@
         .pd-cuenta { color: var(--muted); }
         #v-hoy .pd-plegar.pd-sin { display: none; }
         #v-hoy .pd-curso { font-size: 1.1rem; background: none; padding: 0 2px; line-height: 1; }
+        .pd-cursos { background: var(--bg); border-color: var(--border); gap: 6px; padding: 8px; }
+        .pd-cursos-tit { color: var(--muted); width: 100%; margin-bottom: 2px; }
+        .pd-curso-op { font-size: 1.35rem; padding: 7px 8px; }
+        .pd-curso-op:hover { background: var(--card); border-color: var(--border); }
+        .pd-curso-op.actual { background: #3a2e0f; border-color: #a16207; }
         #v-hoy .pd-hijos { margin-left: 21px; }
 
         /* Deslizar: derecha = ☀️ Hoy · izquierda = borrar */
@@ -294,6 +299,7 @@ function ordenCtx(nombre) {
     return i < 0 ? 999 : i;
 }
 const etiqueta = n => (typeof ctxDisplay === 'function' ? ctxDisplay(n) : n);
+const corto = n => (typeof ctxCorto === 'function' ? ctxCorto(n) : ((typeof ctxIcono === 'function' && ctxIcono(n)) || n));
 
 // Señal y cambios por subir
 function pintarRed(n = Pendientes.enCola()) {
@@ -376,7 +382,10 @@ function armarListas() {
     }));
     listas.push(Pendientes.lista($('hoy-lista'), {
         filtro: esHoy, tactil: true, mostrarCurso: cursoDe, completadosAbiertos: false,
-        alta: () => ({ contexto_id: g?.id || null, sesion_id: null, hoy: Pendientes.hoyISO() }),
+        // ＋ pregunta el curso (íconos); va a la próxima clase de ese curso, marcado para hoy.
+        alta: async cid => ({ ...(await destino(cid || g?.id || null)), hoy: Pendientes.hoyISO() }),
+        elegirCurso: { cursos: () => [g, ...[...contextos].filter(c => c !== g).sort((a, b) => ordenCtx(a.nombre) - ordenCtx(b.nombre))]
+            .filter(Boolean).map(c => ({ id: c.id, corto: corto(c.nombre), nombre: etiqueta(c.nombre) })) },
         vacio: 'Nada para hoy. En "Todos", desliza un pendiente → para traerlo.',
         alCambiar: n => { $('hoy-n').textContent = n.activos || ''; },
     }));

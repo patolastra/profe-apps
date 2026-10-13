@@ -3907,3 +3907,8 @@ específicamente en el celular".*
   asistencia), Biblioteca, Plan, etc. se ven al día solo al abrir o recargar.
 - **Próximo paso propuesto:** auditoría módulo por módulo (qué se vería al instante, prioridades; recomendación de
   partida: Bitácora y Asistencia) y un SQL corto por tabla que ejecuta el PO. No implementar sin aprobación.
+- **Pedido del PO (2026-10-12) — curso al agregar en Hoy:** en Hoy (Dashboard y celular) "＋ Agregar pendiente" abre
+  una fila de íconos de los cursos ("¿De qué curso?"); el pendiente va a la próxima clase de ese curso, marcado para
+  hoy (General: sin clase). Tocar el ícono de curso de un pendiente de Hoy abre la misma fila ("Mover a:") y lo cambia
+  de curso (con sus subpendientes). Opción `elegirCurso` de `Pendientes.lista`. Probado en servidor local (PC: crear en
+  Quinto → mié 13/10, mover a Sexto; celular: crear en Segundo → jue 15/10; borrados al final).
