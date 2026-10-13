@@ -14,6 +14,8 @@
     <script src="../comun/recurrentes.js"></script>
     <link rel="stylesheet" href="../comun/editor-bloques.css">
     <script src="../comun/editor-bloques.js"></script>
+    <link rel="stylesheet" href="../comun/pendientes.css">
+    <script src="../comun/pendientes.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -292,6 +294,7 @@
         .pend-vacio { font-size: 0.82rem; color: var(--muted); padding: 6px 2px; }
         .pend-grupo { display: flex; flex-direction: column; gap: 4px; }
         .pend-grupo-hdr {
+            display: flex; align-items: baseline; gap: 4px;
             font-size: 0.82rem; font-weight: 800; color: var(--text);
             padding: 2px 2px 4px; border-bottom: 1px solid var(--border); margin-bottom: 2px;
         }
@@ -311,7 +314,12 @@
             font-size: 0.84rem; color: var(--text); line-height: 1.35;
             overflow-wrap: anywhere; padding-top: 1px;
         }
-        .pend-grupo-vacio { font-size: 0.8rem; color: var(--muted); font-style: italic; font-weight: 400; }
+        .pend-grupo-vacio { flex: 1; font-size: 0.8rem; color: var(--muted); font-style: italic; font-weight: 400; }
+        .pend-grupo-add {
+            background: none; border: none; cursor: pointer; color: var(--muted); font-size: 0.95rem; line-height: 1;
+            padding: 0 6px; border-radius: 6px; font-family: inherit;
+        }
+        .pend-grupo-add:hover { color: var(--accent); background: #eef4ff; }
         .pend-sem { font-size: 0.74rem; font-weight: 700; color: #b45309; white-space: nowrap; }
 
 
@@ -1225,7 +1233,6 @@
                 <span id="mem-tareas-dest"></span>
             </div>
             <div id="mem-tareas-lista"></div>
-            <button id="mem-tareas-add" onclick="agregarTarea()">＋ Agregar pendiente</button>
         </div>
         <div id="mem-footer"><span id="mem-status"></span></div>
     </div>
@@ -1298,6 +1305,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
         ClaseVivo.subirPendientes(sb);    // Modo Clase: registros que quedaron sin subir
         ClaseVivo.conectar(sb);           // clase en curso compartida con otros equipos (AM)
+        Pendientes.conectar(sb);          // pendientes al instante en todo el sistema (BB)
         Asistencia.iniciar(sb);           // Pasar lista: listas que quedaron sin subir
         await Promise.all([loadContextos(), loadHorario(), cargarAnioActivo()]);
         await crearSesionesPendientes();
@@ -1739,10 +1747,9 @@ function initCalNav() {
 // DASHBOARD · PANEL DE PENDIENTES (Etapa 4B)
 // Resumen de pendientes activos en #dash-pend: "Generales" (contexto_id null o
 // GENERAL) + un grupo por instancia con pendientes, en el orden del sistema.
-// Solo lectura + completar. Independiente del semáforo/pendientesMap y del
+// Lista única (comun/pendientes.js): agregar, editar, completar. Independiente del semáforo/pendientesMap y del
 // calendario. Reutiliza la identidad global (ctxDisplay / ctxIcono).
 // ═══════════════════════════════════════════════════════════
-let pendientesDash = [];   // estado local del panel (no toca pendientesMap del semáforo)
 
 // Orden "natural del sistema": índice del nombre técnico en el mapa de identidad
 // global (contextos.js), que ya lista Primero…Octavo y luego el resto. No duplica
@@ -1762,146 +1769,82 @@ async function cierreSemanalPendientes() {
     try { await sb.rpc('pendientes_cierre_semanal'); } catch (_) {}
 }
 
-// Consulta de pendientes que incluye `semanas_pendiente` (antigüedad). Si la
-// columna aún no existe en Supabase, repite la consulta sin ella (retrocompatible).
-async function consultaPendientes(build, cols) {
-    const r = await build(cols + ', semanas_pendiente');
-    if (!r.error) return r;
-    return build(cols);
+// Lista única de pendientes (comun/pendientes.js): un grupo por curso, con sus activos
+// (indicando la clase a la que van) y, abajo, los completados de clases desde la semana
+// pasada. ＋ en cada grupo agrega a la próxima clase de ese curso (hoy incluida).
+let dashPendListas = [];
+function lunesSemanaPasada() {
+    const d = new Date(); d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 7);
+    return isoDate(d);
 }
-
-// Indicador de antigüedad "(n sem)": fuera del texto editable. Solo tiene
-// sentido en un pendiente activo (al completarse se oculta; el valor se conserva).
-function semIndicador(p, clase) {
-    const n = Number(p?.semanas_pendiente) || 0;
-    if (n < 1) return null;
-    const s = document.createElement('span');
-    s.className = clase;
-    s.textContent = `(${n} sem)`;
-    s.title = n === 1 ? 'Trasladado 1 semana' : `Trasladado ${n} semanas`;
-    return s;
-}
-
 async function cargarPendientesDashboard() {
     const body = document.getElementById('dash-pend-body');
     if (!body) return;
     body.innerHTML = '<div class="pend-vacio">Cargando…</div>';
-    // Solo pendientes actuales (tarea_proxima). Los antiguos de SRP/ADMIN fueron dados de baja.
-    const { data, error } = await consultaPendientes(cols => sb.from('pendientes')
-        .select(cols)
-        .eq('estado', 'activo')
-        .eq('categoria', TAREA_CAT)
-        .order('fecha_captura', { ascending: false }),
-        'id, contexto_id, sesion_id, categoria, texto, estado, fecha_captura');
-    if (error) {
-        body.innerHTML = '<div class="pend-vacio">No se pudieron cargar los pendientes.</div>';
-        return;
-    }
-    pendientesDash = data || [];
-    renderPendientesDashboard();
+    const desde = lunesSemanaPasada();
+    const [act] = await Promise.all([
+        Pendientes.cargar(c => c.from('pendientes').select(Pendientes.COLS)
+            .eq('categoria', TAREA_CAT).eq('estado', 'activo')),
+        Pendientes.cargar(c => c.from('pendientes').select(Pendientes.COLS.replace('sesiones(fecha)', 'sesiones!inner(fecha)'))
+            .eq('categoria', TAREA_CAT).eq('estado', 'completado').gte('sesiones.fecha', desde)),
+    ]);
+    if (act.error) { body.innerHTML = '<div class="pend-vacio">No se pudieron cargar los pendientes.</div>'; return; }
+    renderPendientesDashboard(desde);
 }
 
-function renderPendientesDashboard() {
+function renderPendientesDashboard(desde) {
     const body = document.getElementById('dash-pend-body');
     if (!body) return;
-
-    // GENERAL_ID: contexto cuyo nombre técnico es 'GENERAL' (del mapa ya cargado).
     const gCtx = Object.values(contextos).find(c => (c.nombre || '').toUpperCase() === 'GENERAL');
     const GENERAL_ID = gCtx ? gCtx.id : null;
-
-    // Agrupar SOLO por contexto_id. Generales = contexto_id null o === GENERAL_ID.
-    const porGrupo = new Map();   // 'GEN' | contexto_id → [pendientes]
-    pendientesDash.forEach(p => {
-        const esGen = p.contexto_id == null || p.contexto_id === GENERAL_ID;
-        const key = esGen ? 'GEN' : p.contexto_id;
-        if (!porGrupo.has(key)) porGrupo.set(key, []);
-        porGrupo.get(key).push(p);
-    });
-
-    // Los grupos SIEMPRE visibles no dependen de tener pendientes: Generales +
-    // toda instancia activa (excepto GENERAL), en el orden del sistema.
     const instancias = Object.values(contextos)
         .filter(c => c.id !== GENERAL_ID)
         .sort((a, b) => ordenContexto(a.nombre) - ordenContexto(b.nombre));
 
+    dashPendListas.forEach(l => l.destruir());
+    dashPendListas = [];
     body.innerHTML = '';
-    body.appendChild(buildPendGrupo('GEN', ctxIcono('GENERAL') + ' Generales', porGrupo.get('GEN') || []));
-    instancias.forEach(c => {
-        body.appendChild(buildPendGrupo(c.id, ctxDisplay(c.nombre), porGrupo.get(c.id) || []));
-    });
+    const grupo = (label, esDelGrupo, cid) => {
+        const grp = document.createElement('div');
+        grp.className = 'pend-grupo';
+        grp.innerHTML = `<div class="pend-grupo-hdr"><span></span><span class="pend-grupo-vacio"></span>
+            <button class="pend-grupo-add" title="Agregar un pendiente a la próxima clase">＋</button></div><div></div>`;
+        grp.querySelector('.pend-grupo-hdr span').textContent = label;
+        const vacio = grp.querySelector('.pend-grupo-vacio');
+        const l = Pendientes.lista(grp.lastElementChild, {
+            filtro: p => esDelGrupo(p) && (p.estado === 'activo' || (p.fecha && p.fecha >= desde)),
+            alta: () => destinoPendienteDashboard(cid, cid === GENERAL_ID),
+            mostrarClase: true, botonAgregar: false, completadosAbiertos: false,
+            alCambiar: n => { vacio.textContent = n.activos ? '' : ' - no hay pendientes'; },
+        });
+        grp.querySelector('.pend-grupo-add').onclick = () => l.agregar();
+        dashPendListas.push(l);
+        body.appendChild(grp);
+    };
+    grupo(ctxIcono('GENERAL') + ' Generales', p => p.contexto_id == null || p.contexto_id === GENERAL_ID, GENERAL_ID);
+    instancias.forEach(c => grupo(ctxDisplay(c.nombre), p => p.contexto_id === c.id, c.id));
 }
 
-// Un grupo del panel: encabezado (identidad) + lista de pendientes, o estado
-// vacío compacto si no tiene ninguno. El grupo permanece aunque tenga 0.
-function buildPendGrupo(key, label, items) {
-    const grp = document.createElement('div');
-    grp.className = 'pend-grupo';
-    grp.dataset.grupo = key;
-
-    const hdr = document.createElement('div');
-    hdr.className = 'pend-grupo-hdr';
-    hdr.textContent = label;
-
-    if (items.length) {
-        grp.appendChild(hdr);
-        items.forEach(p => grp.appendChild(buildPendItemDash(p)));
-    } else {
-        hdr.appendChild(pendGrupoVacioEl());   // estado vacío en la misma línea del título
-        grp.appendChild(hdr);
+// Destino de un pendiente nuevo desde el Dashboard: la próxima clase del curso (hoy
+// incluida); si aún no existe, la próxima fecha de su horario (se crea la sesión).
+// General (o un curso sin horario): sin clase.
+async function destinoPendienteDashboard(cid, esGeneral) {
+    if (!cid || esGeneral) return { contexto_id: cid, sesion_id: null };
+    const hoy = isoDate(new Date());
+    const { data } = await sb.from('sesiones').select('id, fecha')
+        .eq('contexto_id', cid).gte('fecha', hoy).order('fecha', { ascending: true }).limit(1);
+    if (data?.[0]) return { contexto_id: cid, sesion_id: data[0].id, fecha: data[0].fecha };
+    const dias = new Set();
+    Object.entries(horarioDia).forEach(([ds, arr]) => { if (arr.some(h => h.contexto_id === cid)) dias.add(SB_A_JS[Number(ds)]); });
+    if (!dias.size) return { contexto_id: cid, sesion_id: null };
+    const d = new Date(); d.setHours(12, 0, 0, 0);
+    for (let i = 0; i < 21; i++, d.setDate(d.getDate() + 1)) {
+        if (!dias.has(d.getDay())) continue;
+        const f = isoDate(d), ses = await getOrCreate(cid, f);
+        return { contexto_id: cid, sesion_id: ses?.id || null, fecha: f };
     }
-    return grp;
-}
-
-function pendGrupoVacioEl() {
-    // Sufijo inline del encabezado: " - no hay pendientes" (misma tipografía/color).
-    const v = document.createElement('span');
-    v.className = 'pend-grupo-vacio';
-    v.textContent = ' - no hay pendientes';
-    return v;
-}
-
-function buildPendItemDash(p) {
-    const row = document.createElement('div');
-    row.className = 'pend-item';
-    row.dataset.id = p.id;
-
-    const chk = document.createElement('button');
-    chk.className = 'pend-chk';
-    chk.title = 'Marcar como completado';
-    chk.textContent = '☐';
-    chk.addEventListener('click', () => completarPendienteDash(p.id, chk));
-
-    const txt = document.createElement('div');
-    txt.className = 'pend-txt';
-    txt.textContent = p.texto;
-    const sem = semIndicador(p, 'pend-sem');
-    if (sem) txt.append(' ', sem);
-
-    row.appendChild(chk);
-    row.appendChild(txt);
-    return row;
-}
-
-// Completar: actualiza Supabase; al éxito quita el ítem. El grupo PERMANECE
-// visible: si queda sin ítems, muestra un estado vacío compacto (la instancia no
-// desaparece). En error, conserva el ítem y avisa (no oculta silenciosamente).
-async function completarPendienteDash(id, btnEl) {
-    if (btnEl) btnEl.disabled = true;
-    const { error } = await sb.from('pendientes').update({ estado: 'completado' }).eq('id', id);
-    if (error) {
-        if (btnEl) btnEl.disabled = false;
-        alert('No se pudo completar el pendiente. Revisa la conexión e inténtalo de nuevo.');
-        return;
-    }
-    pendientesDash = pendientesDash.filter(p => p.id !== id);   // estado local
-    const row = document.querySelector(`.pend-item[data-id="${id}"]`);
-    const grp = row ? row.closest('.pend-grupo') : null;
-    if (row) row.remove();
-    // El grupo NO se elimina: si quedó sin ítems, mostrar el estado vacío inline
-    // en la misma línea del título.
-    if (grp && !grp.querySelector('.pend-item') && !grp.querySelector('.pend-grupo-vacio')) {
-        grp.querySelector('.pend-grupo-hdr').appendChild(pendGrupoVacioEl());
-    }
+    return { contexto_id: cid, sesion_id: null };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4174,7 +4117,6 @@ function cerrarMemoria() {
 const TAREA_CAT = 'tarea_proxima';
 let memNextSid    = null;   // id de la sesión destino (lazy: solo se crea al primer alta)
 let memNextFecha  = null;   // fecha de la sesión destino (para la etiqueta)
-const tareaTimers = {};     // debounce de guardado por fila (keyed por id)
 
 // Espejo de sesionAnterior: primera sesión futura EXISTENTE del mismo contexto.
 async function sesionSiguiente(cid, fechaStr) {
@@ -4234,24 +4176,27 @@ function actualizarDestino() {
     dest.textContent = memNextFecha ? `→ ${fmtFechaCorta(memNextFecha)}` : '→ sin sesión futura';
 }
 
+let memTareasLista = null;   // lista de "Pendientes para la próxima clase" (comun/pendientes.js)
 async function cargarTareas() {
     if (!sesionActual) return;
     memNextSid = null; memNextFecha = null;
-    const lista = document.getElementById('mem-tareas-lista');
-    lista.innerHTML = '<div id="mem-tareas-vacio">Cargando…</div>';
-
+    const caja = document.getElementById('mem-tareas-lista');
     await memResolverDestino();
     actualizarDestino();
-
-    if (!memNextSid) { renderTareas([]); return; }   // aún no hay sesión → no puede haber pendientes
-
-    const { data, error } = await consultaPendientes(cols => sb.from('pendientes')
-        .select(cols)
-        .eq('sesion_id', memNextSid).eq('categoria', TAREA_CAT)
-        .in('estado', ['activo', 'completado'])
-        .order('created_at'), 'id, texto, estado');
-    if (error) { lista.innerHTML = '<div id="mem-tareas-vacio">No se pudieron cargar los pendientes.</div>'; return; }
-    renderTareas(data || []);
+    memTareasLista?.destruir();
+    memTareasLista = Pendientes.lista(caja, {
+        filtro: p => !!memNextSid && p.sesion_id === memNextSid,
+        alta: async () => {
+            const sid = await memNextSidEnsure();
+            return sid ? { contexto_id: sesionActual.contexto_id, sesion_id: sid, fecha: memNextFecha } : null;
+        },
+        vacio: 'Sin pendientes aún.',
+        sinDestino: 'Este contexto no tiene próxima clase en el horario.',
+    });
+    if (!memNextSid) return;   // aún no hay sesión → no puede haber pendientes
+    const sid = memNextSid;
+    await Pendientes.cargar(c => c.from('pendientes').select(Pendientes.COLS)
+        .eq('sesion_id', sid).eq('categoria', TAREA_CAT).in('estado', ['activo', 'completado']));
 }
 
 function fmtFechaCorta(iso) {
@@ -4260,165 +4205,17 @@ function fmtFechaCorta(iso) {
     return `${DIAS_C[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
 }
 
-function renderTareas(items) {
-    const lista = document.getElementById('mem-tareas-lista');
-    lista.innerHTML = '';
-    if (!items.length) {
-        lista.innerHTML = '<div id="mem-tareas-vacio">Sin pendientes aún.</div>';
-        return;
-    }
-    items.forEach(it => lista.appendChild(filaTarea(it)));
-}
-
-// Ajusta la altura de un textarea a su contenido (multilínea sin scroll ni recorte).
-// Suma el borde (offsetHeight - clientHeight) para que funcione con box-sizing:border-box.
-function autoGrowTarea(el) {
-    el.style.height = 'auto';
-    const borde = el.offsetHeight - el.clientHeight;
-    el.style.height = (el.scrollHeight + borde) + 'px';
-}
-
-// Reajusta todas las filas multilínea del panel (tras render o al cambiar el ancho de la columna).
-function ajustarAlturasPendientes() {
-    document.querySelectorAll('#ses-pend-lista .mem-tarea-txt.multilinea').forEach(autoGrowTarea);
-}
-
-// Recalcula la altura cuando la columna izquierda cambia de ancho (cambio de modo, arrastre, ventana).
-(function() {
-    const col = document.querySelector('.s-col-plan');
-    if (col && 'ResizeObserver' in window) {
-        new ResizeObserver(() => ajustarAlturasPendientes()).observe(col);
-    }
-})();
-
-// multilinea=true → campo <textarea> que envuelve y crece (panel de sesión).
-// multilinea=false (por defecto) → <input> de una línea (modal de Memoria, sin cambios).
-function filaTarea(it, multilinea = false) {
-    const fila = document.createElement('div');
-    fila.className = 'mem-tarea' + (it.estado === 'completado' ? ' done' : '') + (multilinea ? ' multilinea' : '');
-    fila.dataset.id = it.id;
-
-    const chk = document.createElement('input');
-    chk.type = 'checkbox';
-    chk.className = 'mem-tarea-chk';
-    chk.checked = it.estado === 'completado';
-    chk.title = 'Marcar como realizado';
-    chk.onchange = () => toggleTarea(fila, chk.checked);
-
-    const txt = document.createElement(multilinea ? 'textarea' : 'input');
-    if (!multilinea) txt.type = 'text';
-    txt.className = 'mem-tarea-txt' + (multilinea ? ' multilinea' : '');
-    txt.value = it.texto || '';
-    txt.placeholder = 'Escribe el pendiente…';
-    txt.oninput  = () => { if (multilinea) autoGrowTarea(txt); programarGuardadoTarea(fila); };
-    txt.onblur   = () => guardarTarea(fila, true);   // guarda; borra si quedó vacío
-    txt.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); txt.blur(); } };
-    if (multilinea) { txt.rows = 1; setTimeout(() => autoGrowTarea(txt), 0); }
-
-    const del = document.createElement('button');
-    del.className = 'mem-tarea-del';
-    del.textContent = '✕';
-    del.title = 'Eliminar';
-    del.onclick = () => eliminarTarea(fila);
-
-    // Antigüedad "(n sem)" junto al texto, nunca dentro de él. Oculta por CSS
-    // mientras la fila está completada (.done); al desmarcar reaparece.
-    const sem = semIndicador(it, 'mem-tarea-sem');
-    if (sem) fila.append(chk, txt, sem, del);
-    else     fila.append(chk, txt, del);
-    return fila;
-}
-
-async function agregarTarea() {
-    if (!sesionActual) return;
-    const sid = await memNextSidEnsure();
-    if (!sid) {
-        const lista = document.getElementById('mem-tareas-lista');
-        if (lista && !lista.querySelector('.mem-tarea'))
-            lista.innerHTML = '<div id="mem-tareas-vacio">Este contexto no tiene próxima clase en el horario.</div>';
-        return;
-    }
-    const { data, error } = await sb.from('pendientes').insert({
-        contexto_id: sesionActual.contexto_id,
-        sesion_id:   sid,
-        categoria:   TAREA_CAT,
-        texto:       '',
-        estado:      'activo',
-    }).select('id, texto, estado').single();
-    if (error) return;
-
-    const lista = document.getElementById('mem-tareas-lista');
-    const vacio = document.getElementById('mem-tareas-vacio');
-    if (vacio) vacio.remove();
-    const fila = filaTarea(data);
-    lista.appendChild(fila);
-    fila.querySelector('.mem-tarea-txt').focus();
-}
-
-function programarGuardadoTarea(fila) {
-    const id = fila.dataset.id;
-    clearTimeout(tareaTimers[id]);
-    tareaTimers[id] = setTimeout(() => guardarTarea(fila, false), 600);
-}
-
-async function guardarTarea(fila, borrarSiVacio) {
-    const id  = fila.dataset.id;
-    if (!id) return;
-    clearTimeout(tareaTimers[id]); delete tareaTimers[id];
-    const txt = fila.querySelector('.mem-tarea-txt').value.trim();
-    if (borrarSiVacio && txt === '') { eliminarTarea(fila); return; }
-    await setTareaTexto(id, txt);
-}
-
-// Helpers compartidos de datos (única fuente de escritura; usados por el modal de Memoria y el panel de sesión).
-async function setTareaEstado(id, hecho) {
-    if (!id) return;
-    await sb.from('pendientes')
-        .update({ estado: hecho ? 'completado' : 'activo' })
-        .eq('id', id);
-}
-async function setTareaTexto(id, texto) {
-    if (!id) return;
-    await sb.from('pendientes').update({ texto }).eq('id', id);
-}
-async function borrarTarea(id) {
-    if (!id) return;
-    await sb.from('pendientes').delete().eq('id', id);
-}
-
-async function toggleTarea(fila, hecho) {
-    fila.classList.toggle('done', hecho);
-    await setTareaEstado(fila.dataset.id, hecho);
-}
-
-async function eliminarTarea(fila) {
-    const id = fila.dataset.id;
-    if (id) {
-        clearTimeout(tareaTimers[id]); delete tareaTimers[id];
-        await borrarTarea(id);
-    }
-    const lista = fila.parentElement;   // funciona en el modal y en el panel de sesión
-    fila.remove();
-    // Estado vacío solo aplica al modal; el panel conserva su botón ＋ Agregar.
-    if (lista && lista.id === 'mem-tareas-lista' && !lista.querySelector('.mem-tarea'))
-        lista.innerHTML = '<div id="mem-tareas-vacio">Sin pendientes aún.</div>';
-}
-
-// Fuerza el guardado de ediciones con debounce pendiente (al cerrar el modal).
-function flushTareas() {
-    document.querySelectorAll('#mem-tareas-lista .mem-tarea').forEach(fila => {
-        const id = fila.dataset.id;
-        if (tareaTimers[id]) guardarTarea(fila, false);
-    });
-}
+// Fuerza el guardado de lo que se esté escribiendo (al cerrar la Bitácora).
+function flushTareas() { Pendientes.guardarTodo(); }
 
 // ═══════════════════════════════════════════════════════════
 // FASE 2 — Pendientes de la SESIÓN ACTUAL (columna izquierda)
 // Sección colapsable equivalente a Memoria. Ancla: sesionActual.id
 // (NO histIdx). Vive fuera de pintarRegistro → no cambia al navegar ← / →.
-// Reutiliza filaTarea (marcar/editar/eliminar) y los helpers de datos.
+// Lista única de pendientes (comun/pendientes.js), igual que en el Dashboard y la Bitácora.
 // El botón ＋ crea el pendiente DIRECTO en la sesión actual (no la siguiente).
 // ═══════════════════════════════════════════════════════════
+let sesPendLista = null;
 async function cargarPendientesSesion() {
     const panel = document.getElementById('ses-pend-panel');
     if (!panel) return;
@@ -4431,46 +4228,15 @@ async function cargarPendientesSesion() {
                 <span>PENDIENTES DE ESTA CLASE</span>
                 <span class="rev-chevron">▾</span>
             </div>
-            <div class="rev-sec-body">
-                <div id="ses-pend-lista"><div class="vacio">Cargando…</div></div>
-                <button id="ses-pend-add" onclick="agregarPendienteSesion()">＋ Agregar pendiente</button>
-            </div>
+            <div class="rev-sec-body"><div id="ses-pend-lista"></div></div>
         </div>`;
-    const lista = document.getElementById('ses-pend-lista');
-
-    const { data, error } = await consultaPendientes(cols => sb.from('pendientes')
-        .select(cols)
-        .eq('sesion_id', sid).eq('categoria', TAREA_CAT)
-        .in('estado', ['activo', 'completado'])
-        .order('created_at'), 'id, texto, estado');
-
-    if (sesionActual?.id !== sid) return;   // cambió de sesión mientras cargaba → descartar
-    if (error) { lista.innerHTML = '<div class="vacio">No se pudieron cargar los pendientes.</div>'; return; }
-
-    lista.innerHTML = '';   // vacío = sin filas; el botón ＋ Agregar permanece
-    (data || []).forEach(it => lista.appendChild(filaTarea(it, true)));
-    setTimeout(ajustarAlturasPendientes, 0);   // ajustar al ancho final (tras el layout)
-}
-
-// Flujo B: crear pendiente DIRECTAMENTE en la sesión actual (no usa memNextSid ni sesionSiguiente).
-async function agregarPendienteSesion() {
-    if (!sesionActual) return;
-    const { data, error } = await sb.from('pendientes').insert({
-        contexto_id: sesionActual.contexto_id,
-        sesion_id:   sesionActual.id,      // ← sesión ACTUAL
-        categoria:   TAREA_CAT,
-        texto:       '',
-        estado:      'activo',
-    }).select('id, texto, estado').single();
-    if (error) return;
-
-    const lista = document.getElementById('ses-pend-lista');
-    if (!lista) return;
-    const vacio = lista.querySelector('.vacio');
-    if (vacio) vacio.remove();
-    const fila = filaTarea(data, true);
-    lista.appendChild(fila);
-    fila.querySelector('.mem-tarea-txt').focus();
+    sesPendLista?.destruir();
+    sesPendLista = Pendientes.lista(document.getElementById('ses-pend-lista'), {
+        filtro: p => p.sesion_id === sid,
+        alta: () => ({ contexto_id: sesionActual.contexto_id, sesion_id: sid, fecha: sesionActual.fecha }),   // sesión ACTUAL
+    });
+    await Pendientes.cargar(c => c.from('pendientes').select(Pendientes.COLS)
+        .eq('sesion_id', sid).eq('categoria', TAREA_CAT).in('estado', ['activo', 'completado']));
 }
 
 // ═══════════════════════════════════════════════════════════

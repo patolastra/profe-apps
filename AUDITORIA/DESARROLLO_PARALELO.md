@@ -3780,3 +3780,35 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   diapositiva inicial automática de esa clase pasada; se borró.
 - **DEUDA A FUTURO (PO, 2026-10-12):** controlar el aspecto de **toda la app con un solo interruptor central de tema
   claro/oscuro**. No implementado.
+
+### BB. Pendientes — una sola lista en todo el sistema (paso 1)
+*Origen: PO (2026-10-12), tras el informe de pendientes; tarjeta Notion "Pendientes: Dashboard ↔ sesiones de clase
+(agrupa 6 tarjetas)" (centro de F6B: se adelanta una parte, como permite el período paralelo).*
+- **Auditoría (informe al PO):** 3 lugares con comportamientos distintos: Dashboard (solo marcar; al marcar desaparece; sin
+  agregar ni editar; no dice para qué clase), Planificador "Pendientes de esta clase" y Bitácora "Pendientes para la
+  próxima clase" (agregar/editar/marcar tachado/borrar). Sin actualización al instante entre ellos. Traspaso semanal del
+  jueves 18:00 funcionando (3 cierres: 33, 43, 34 movidos). 41 activos (17 con 3 semanas), 54 completados; 216 antiguos
+  SRP/ADMIN cerrados.
+- **Limpieza pedida por el PO:** borrados los 39 pendientes antiguos (todos completados) de las 6 sesiones de General.
+  Las 6 sesiones **no** se borraron: tienen 7 registros de `sesiones_srp` (SRP congelado, datos a conservar).
+- **DECISIÓN del PO (paso 1):** misma lista en todos lados; completados en gris y cursiva, abajo en "Completados";
+  agregar y editar desde el Dashboard; actualización al instante. Paso 2 (después, a diseñar): lista "HOY", qué hacer con
+  los que se arrastran semanas, pendientes en Cursos, nombres "de esta clase" / "para la próxima".
+- **Implementación paso 1 (2026-10-12):** pieza compartida **`comun/pendientes.js` + `comun/pendientes.css`**
+  (`Pendientes.conectar/cargar/lista/guardarTodo`): un solo almacén en memoria y listas que lo filtran; activos arriba,
+  "Completados · n" abajo en gris y cursiva (se puede plegar); agregar, editar (se guarda solo), marcar/desmarcar,
+  borrar; "(n sem)" y, si se pide, la clase a la que va. **Al instante:** entre pestañas/ventanas del mismo computador
+  (BroadcastChannel `profe-pendientes`) y entre equipos con Supabase Realtime (`supabase/pendientes_realtime.sql`, lo
+  ejecuta el PO). Planificador (`PORTAL/index.html`): **Dashboard** = un grupo por curso con ＋ en el encabezado (va a la
+  próxima clase del curso, hoy incluida; si no existe se crea según el horario; General sin clase), cada pendiente dice
+  su clase ("lun 12/10"), completados de clases desde el lunes de la semana pasada (plegados); **Pendientes de esta
+  clase** y **Bitácora → Pendientes para la próxima clase** usan la misma lista. Se retiró el código anterior de las tres
+  listas (sin respaldo, regla §4.10).
+- **Prueba (servidor local, datos reales con pendientes de prueba borrados al final):** Dashboard 15 grupos, 41 activos,
+  11 completados recientes; ＋ en Primero → nuevo pendiente a "mié 14/10" con el cursor listo; escribir lo guarda;
+  marcar lo pasa a Completados (gris) y a Supabase. Con el Plan de Primero 14/10 abierto en otra pestaña: aparece en sus
+  Completados; desmarcarlo allí lo devuelve a activos también en el Dashboard; editarlo allí cambia el texto en el
+  Dashboard; borrarlo desde el Dashboard lo quita del Plan y de Supabase. Bitácora: "→ mié 21/10", lista vacía con su
+  ＋. Error encontrado y corregido: si el mismo pendiente estaba en dos listas de la página (Dashboard oculto + Plan),
+  lo escrito no se guardaba.
+- **Pendiente:** el PO ejecuta `pendientes_realtime.sql` (al instante entre equipos); probar en uso; paso 2.
