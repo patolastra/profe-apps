@@ -7,6 +7,12 @@
     <meta name="theme-color" content="#0b1120">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="icono-192.png">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase/config.js"></script>
+    <script src="../supabase/contextos.js"></script>
+    <script src="../comun/clase-vivo.js"></script>
+    <link rel="stylesheet" href="../comun/pendientes.css">
+    <script src="../comun/pendientes.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
         :root {
@@ -32,34 +38,131 @@
         #auth-gate { position: fixed; inset: 0; background: var(--bg); z-index: 9999; }
         #auth-gate.desbloqueado { display: none; }
 
-        /* ── MODO LIENZO (Shell mínimo) ── */
-        body.lienzo #main,
-        body.lienzo #bottom-bar { display: none; }
-
-        /* Acceso único del lienzo — visible solo en modo lienzo */
-        #lienzo-memoria, #lienzo-evaluar { display: none; }
-        body.lienzo #lienzo-memoria, body.lienzo #lienzo-evaluar {
-            display: flex; align-items: center; justify-content: center; gap: 10px;
-            margin: 28px 18px 0;
-            padding: 22px;
-            background: var(--card); border: 1px solid var(--border);
-            border-radius: 18px;
-            color: var(--text); text-decoration: none;
-            font-size: 1.05rem; font-weight: 700; letter-spacing: 0.02em;
-        }
-        body.lienzo #lienzo-memoria:active, body.lienzo #lienzo-evaluar:active { background: #253455; }
-        body.lienzo #lienzo-evaluar { margin-top: 14px; }
-
         /* ── HEADER ── */
         #header {
+            display: flex; align-items: baseline; gap: 10px;
             padding: calc(18px + env(safe-area-inset-top, 0px)) 18px 14px;
             background: linear-gradient(180deg, var(--bg) 50%, var(--surface) 100%);
         }
-        #hdr-line {
-            font-size: 1.4rem; font-weight: 700;
-            color: var(--text);
-        }
+        #hdr-line { flex: 1; font-size: 1.4rem; font-weight: 700; color: var(--text); }
+        #red { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+        #red.pend { color: var(--yellow); }
 
+        /* ── Accesos (Bitácora, Evaluar) ── */
+        .acceso {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            margin: 14px 18px 0; padding: 20px;
+            background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+            color: var(--text); text-decoration: none; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.02em;
+        }
+        .acceso:active { background: #253455; }
+        .acceso[hidden] { display: none; }
+        .acceso.chico { padding: 12px; font-size: 0.95rem; border-radius: 14px; }
+
+        /* ── Con clase en curso ── */
+        #en-clase-tit {
+            margin: 18px 18px 0; padding: 16px 18px; border-radius: 18px;
+            background: #0f2a1d; border: 1px solid #166534; color: #bbf7d0;
+            font-size: 1.15rem; font-weight: 700;
+        }
+        #en-clase-tit small { display: block; font-size: 0.75rem; font-weight: 600; color: #86efac; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
+
+        /* ── Pendientes (sin clase) ── */
+        #pend { margin: 18px 12px 0; }
+        #pend-hdr { display: flex; align-items: center; gap: 10px; padding: 0 6px 10px; }
+        #pend-hdr .tit { flex: 1; font-size: 0.72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+        .vistas { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
+        .vistas button {
+            border: none; background: none; color: var(--muted); font: inherit; font-size: 0.85rem; font-weight: 600;
+            padding: 6px 14px; border-radius: 8px;
+        }
+        .vistas button.activa { background: var(--card); color: var(--text); }
+        #hoy-n { color: var(--yellow); font-weight: 700; }
+        #hoy-n:empty { display: none; }
+        #v-hoy[hidden], #v-todos[hidden], #sug[hidden] { display: none; }
+        .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 6px 12px 10px 16px; }
+        #sug { background: #2a2210; border: 1px solid #5c4813; border-radius: 14px; padding: 8px 12px 4px; margin-bottom: 10px; }
+        #sug .tit { font-size: 0.75rem; font-weight: 700; color: #fcd34d; margin-bottom: 2px; }
+
+        /* Cursos plegables */
+        .grupo { border-bottom: 1px solid var(--border); }
+        .grupo:last-child { border-bottom: none; }
+        .grupo-hdr { display: flex; align-items: center; gap: 8px; padding: 12px 2px; }
+        .grupo-hdr .nom { flex: 1; font-weight: 700; font-size: 0.98rem; }
+        .grupo-hdr .n { font-size: 0.8rem; color: var(--muted); min-width: 1.5em; text-align: right; }
+        .grupo-hdr .chev { color: var(--muted); width: 1em; text-align: center; }
+        .grupo-hdr .mas {
+            border: 1px solid var(--border); background: none; color: var(--muted); border-radius: 8px;
+            font-size: 1rem; width: 32px; height: 28px; line-height: 1;
+        }
+        .grupo-cuerpo { padding: 0 0 10px; }
+        .grupo:not(.abierto) .grupo-cuerpo { display: none; }
+
+        /* Lista de pendientes en oscuro y para el dedo */
+        .pd-lista { color: var(--text); font-size: 1rem; }
+        .pd-fila { padding: 4px 0; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; position: relative; background: var(--surface); transition: transform .15s; }
+        #sug .pd-fila { background: transparent; }
+        .pd-fila:hover { background: var(--surface); }
+        .pd-txt { font-size: 1rem; color: var(--text); -webkit-user-select: none; user-select: none; }
+        .pd-txt:not([readonly]) { -webkit-user-select: text; user-select: text; }
+        .pd-txt:hover { border-color: transparent; }
+        .pd-txt:focus:not([readonly]) { border-color: var(--accent); background: var(--bg); }
+        .pd-chk { width: 20px; height: 20px; margin-top: 6px; }
+        .pd-hecho .pd-txt { color: #64748b; }
+        .pd-meta { padding-top: 7px; }
+        .pd-clase { color: var(--muted); }
+        .pd-curso { font-size: 0.72rem; font-weight: 600; color: #cbd5e1; background: var(--card); border-radius: 999px; padding: 2px 9px; }
+        .pd-sem { color: #fbbf24; }
+        .pd-acc { display: none; }
+        .pd-sugerencias .pd-acc { display: flex; }
+        .pd-sugerencias .pd-acc .pd-aceptar { background: #3a2e0f; border-color: #a16207; color: #fde68a; }
+        .pd-sugerencias .pd-acc .pd-rechazar { background: transparent; border-color: var(--border); color: #cbd5e1; }
+        .pd-arrastrado { background: #2a1a0c; }
+        .pd-arrastrado:hover { background: #2a1a0c; }
+        .pd-arr { color: #fbbf24; }
+        .pd-arr button { background: transparent; border-color: #92400e; color: #fde68a; }
+        .pd-comp-hdr { color: var(--muted); }
+        .pd-add { border-color: var(--border); color: var(--muted); font-size: 0.9rem; padding: 10px 12px; }
+        .pd-vacio { color: var(--muted); font-size: 0.9rem; padding: 10px 0; }
+        .pd-plegar { width: 18px; font-size: 0.8rem; padding-top: 8px; }
+        .pd-hijos { margin-left: 45px; }
+        .pd-cuenta { color: var(--muted); }
+        #v-hoy .pd-plegar.pd-sin { display: none; }
+        #v-hoy .pd-hijos { margin-left: 21px; }
+
+        /* Deslizar: derecha = ☀ Hoy · izquierda = borrar */
+        .pd-nodo { position: relative; }
+        .pd-nodo.sw-der::before, .pd-nodo.sw-izq::before {
+            position: absolute; top: 0; height: 100%; max-height: 52px; display: flex; align-items: center;
+            font-size: 0.85rem; font-weight: 700; border-radius: 10px; left: 0; right: 0; padding: 0 14px;
+        }
+        .pd-nodo.sw-der::before { content: "☀ Hoy"; background: #78350f; color: #fde68a; justify-content: flex-start; }
+        .pd-nodo.sw-izq::before { content: "Borrar 🗑"; background: #7f1d1d; color: #fecaca; justify-content: flex-end; }
+        .pd-nodo.sw-listo::before { filter: brightness(1.35); }
+        .pd-fila.mueve { transition: none; }
+
+        /* Arrastrar sobre otro = subpendiente */
+        #fantasma {
+            position: fixed; left: 16px; right: 16px; z-index: 50; pointer-events: none;
+            background: var(--card); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 14px;
+            font-size: 0.95rem; box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: .95;
+        }
+        #fantasma[hidden] { display: none; }
+        .pd-fila.arrastrando { opacity: .35; }
+        .pd-fila.destino { outline: 2px solid var(--accent); outline-offset: -1px; border-radius: 10px; background: #172554; }
+        body.arrastrando { overflow: hidden; }
+
+        #aviso-gesto { font-size: 0.72rem; color: var(--muted); text-align: center; padding: 10px 0 0; }
+
+        /* Aviso "Borrado · Deshacer" */
+        #toast {
+            position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+            background: #f1f5f9; color: #0f172a; border-radius: 12px; padding: 10px 10px 10px 16px; z-index: 60;
+            display: flex; align-items: center; gap: 12px; font-size: 0.9rem; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+            max-width: calc(100% - 32px);
+        }
+        #toast[hidden] { display: none; }
+        #toast button { background: none; border: none; color: #1d4ed8; font: inherit; font-weight: 700; padding: 4px 8px; }
     </style>
 </head>
 <body>
@@ -70,11 +173,38 @@
 <!-- HEADER -->
 <div id="header">
     <div id="hdr-line">—</div>
+    <span id="red"></span>
 </div>
 
-<!-- ACCESO ÚNICO DEL LIENZO -->
-<a id="lienzo-memoria" href="../MEMORIA/index.html">✍🏼 BITÁCORA</a>
-<a id="lienzo-evaluar" class="lienzo-acceso" href="evaluar.html">📝 EVALUAR</a>
+<!-- CON CLASE EN CURSO: curso, Bitácora y Evaluar (si hay evaluaciones por toques) -->
+<section id="en-clase" hidden>
+    <div id="en-clase-tit"><small>En clase</small><span id="en-clase-curso"></span></div>
+    <a class="acceso" href="../MEMORIA/index.html">✍🏼 BITÁCORA</a>
+    <a class="acceso" id="acc-evaluar" href="evaluar.html" hidden>📝 EVALUAR</a>
+</section>
+
+<!-- SIN CLASE: Bitácora y pendientes -->
+<section id="sin-clase" hidden>
+    <a class="acceso chico" href="../MEMORIA/index.html">✍🏼 BITÁCORA</a>
+    <div id="pend">
+        <div id="pend-hdr">
+            <span class="tit">Pendientes</span>
+            <div class="vistas">
+                <button type="button" data-vista="hoy">☀ Hoy <span id="hoy-n"></span></button>
+                <button type="button" data-vista="todos">Todos</button>
+            </div>
+        </div>
+        <div id="v-hoy" hidden>
+            <div id="sug" hidden><div class="tit">De días anteriores · ¿siguen para hoy?</div><div id="sug-lista"></div></div>
+            <div class="panel"><div id="hoy-lista"></div></div>
+        </div>
+        <div id="v-todos" hidden><div class="panel" id="grupos"></div></div>
+        <div id="aviso-gesto">Desliza → ☀ Hoy · ← borrar · mantén presionado y arrastra sobre otro para hacerlo subpendiente</div>
+    </div>
+</section>
+
+<div id="fantasma" hidden></div>
+<div id="toast" hidden><span id="toast-txt"></span><button type="button" id="toast-btn">Deshacer</button></div>
 
 <script>
 // ── AUTH GATE ──────────────────────────────────────────────────────────────
@@ -112,30 +242,361 @@
 })();
 
 // ── CONSTANTES ─────────────────────────────────────────────────────────────
-
 const DIAS  = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-
+const $ = id => document.getElementById(id);
+const leerJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
+const guardarJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
 
 // ── HEADER ─────────────────────────────────────────────────────────────────
 (function() {
-    const hoy    = new Date();
-    const params = new URLSearchParams(location.search);
-    const diaJS  = params.has('dia') ? parseInt(params.get('dia')) : hoy.getDay();
-    const dia    = DIAS[diaJS] || DIAS[hoy.getDay()];
-    const fecha  = `${hoy.getDate()} de ${MESES[hoy.getMonth()]}`;
-    document.getElementById('hdr-line').textContent = `${dia.charAt(0).toUpperCase() + dia.slice(1)} · ${fecha}`;
+    const hoy = new Date();
+    const dia = DIAS[hoy.getDay()];
+    $('hdr-line').textContent = `${dia.charAt(0).toUpperCase() + dia.slice(1)} · ${hoy.getDate()} de ${MESES[hoy.getMonth()]}`;
 })();
 
-// ── INIT ───────────────────────────────────────────────────────────────────
-// Modo lienzo: Shell mínimo — oculta #main y #bottom-bar (via body.lienzo),
-// y evita consultas innecesarias. Auth y header siguen activos.
-// Poner false para restaurar el Shell completo.
-const SHELL_MINIMO = true;
+// ═══════════════════════════════════════════════════════════════════════════
+// INICIO SEGÚN LA CLASE EN CURSO (deuda BD, 2026-10-12)
+// · Con clase en curso: qué curso está en clase, Bitácora y Evaluar (si ese curso
+//   tiene evaluaciones por toques abiertas).
+// · Sin clase: Bitácora y los pendientes (☀ Hoy / Todos), como en el Dashboard,
+//   pensados para el dedo: deslizar → ☀ Hoy, ← borrar (con Deshacer), mantener y
+//   arrastrar sobre otro = subpendiente. Funciona sin señal (comun/pendientes.js con
+//   cola: lo que se haga se sube al volver la señal).
+// ═══════════════════════════════════════════════════════════════════════════
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+ClaseVivo.conectar(sb);
+Pendientes.conectar(sb, { sinSenal: true });
 
-if (SHELL_MINIMO) {
-    document.body.classList.add('lienzo');
+const ESPERA_MS = 5000;
+function conTiempo(p) {
+    if (!navigator.onLine) return Promise.reject(new Error('sin señal'));
+    return Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('sin respuesta')), ESPERA_MS))]);
 }
+
+// Cursos (copia en el celular para abrir sin señal)
+let contextos = leerJSON('profe_movil_contextos', []);
+async function cargarContextos() {
+    try {
+        const { data, error } = await conTiempo(sb.from('contextos').select('id, nombre, activo'));
+        if (error) throw error;
+        contextos = (data || []).filter(c => c.activo !== false);
+        guardarJSON('profe_movil_contextos', contextos);
+    } catch (_) {}
+}
+const ctxPorId = id => contextos.find(c => c.id === id);
+const GENERAL = () => contextos.find(c => c.nombre === 'GENERAL');
+function ordenCtx(nombre) {
+    const claves = typeof CTX_IDENTIDAD !== 'undefined' ? Object.keys(CTX_IDENTIDAD) : [];
+    const i = claves.indexOf(String(nombre || '').toUpperCase());
+    return i < 0 ? 999 : i;
+}
+const etiqueta = n => (typeof ctxDisplay === 'function' ? ctxDisplay(n) : n);
+
+// Señal y cambios por subir
+function pintarRed(n = Pendientes.enCola()) {
+    const el = $('red');
+    el.textContent = n ? `⏳ ${n} sin subir` : (navigator.onLine ? '' : 'sin señal');
+    el.className = n ? 'pend' : '';
+}
+Pendientes.alCola(pintarRed);
+window.addEventListener('online', () => { pintarRed(); cargarPendientes(); });
+window.addEventListener('offline', () => pintarRed());
+
+// ── Con clase / sin clase ──
+let modo = null;
+function decidir() {
+    const c = ClaseVivo.enCurso();
+    const nuevo = c ? 'clase' : 'libre';
+    $('en-clase').hidden = nuevo !== 'clase';
+    $('sin-clase').hidden = nuevo !== 'libre';
+    if (c) {
+        $('en-clase-curso').textContent = etiqueta(c.ctx);
+        revisarEvaluar(c.ctx);
+    }
+    if (nuevo === 'libre' && modo !== 'libre') iniciarPendientes();
+    modo = nuevo;
+}
+async function revisarEvaluar(ctx) {
+    const k = 'profe_toques_evs_' + ctx;                 // misma copia que usa Evaluar
+    let evs = leerJSON(k, null);
+    const id = contextos.find(c => c.nombre === ctx)?.id;
+    if (id) {
+        try {
+            const { data, error } = await conTiempo(sb.from('libro_evaluaciones')
+                .select('id,nombre,fecha,anio_id,contexto_id,descuento_toque,nota_min,estado')
+                .eq('contexto_id', id).eq('estado', 'abierto').not('descuento_toque', 'is', null)
+                .order('fecha', { ascending: false }));
+            if (error) throw error;
+            evs = data || [];
+            guardarJSON(k, evs);
+        } catch (_) {}
+    }
+    $('acc-evaluar').hidden = !(evs && evs.length);
+}
+ClaseVivo.onCambio(decidir);
+
+// ── Pendientes ──
+let listas = [];
+let vista = null;
+function mostrarVista(v) {
+    vista = v;
+    $('v-hoy').hidden = v !== 'hoy';
+    $('v-todos').hidden = v !== 'todos';
+    document.querySelectorAll('.vistas button').forEach(b => b.classList.toggle('activa', b.dataset.vista === v));
+}
+document.querySelector('.vistas').addEventListener('click', e => {
+    const b = e.target.closest('button[data-vista]');
+    if (b) mostrarVista(b.dataset.vista);
+});
+
+// Destino de uno nuevo: la próxima clase del curso; sin señal se resuelve al subir.
+async function destino(cid) {
+    const g = GENERAL();
+    if (!cid || (g && cid === g.id)) return { contexto_id: cid, sesion_id: null };
+    try { return await conTiempo(Pendientes.proximaClase(cid)); }
+    catch (_) { return { contexto_id: cid, sesion_id: null, resolver: true }; }
+}
+
+let abiertos = new Set(leerJSON('profe_movil_grupos', []));
+function armarListas() {
+    listas.forEach(l => l.destruir());
+    listas = [];
+    const g = GENERAL();
+    const cursoDe = p => { const c = ctxPorId(p.contexto_id); return c && c !== g ? etiqueta(c.nombre) : 'General'; };
+    const esHoy = p => p.hoy === Pendientes.hoyISO();
+
+    listas.push(Pendientes.lista($('sug-lista'), {
+        filtro: p => p.estado === 'activo' && !!p.hoy && p.hoy < Pendientes.hoyISO(),
+        sugerencias: true, botonAgregar: false, mostrarCurso: cursoDe,
+        alCambiar: n => { $('sug').hidden = !n.activos; },
+    }));
+    listas.push(Pendientes.lista($('hoy-lista'), {
+        filtro: esHoy, tactil: true, mostrarCurso: cursoDe, completadosAbiertos: false,
+        alta: () => ({ contexto_id: g?.id || null, sesion_id: null, hoy: Pendientes.hoyISO() }),
+        vacio: 'Nada para hoy. En "Todos", desliza un pendiente → para traerlo.',
+        alCambiar: n => { $('hoy-n').textContent = n.activos || ''; },
+    }));
+
+    const cont = $('grupos');
+    cont.innerHTML = '';
+    const cursos = [...contextos].filter(c => c !== g).sort((a, b) => ordenCtx(a.nombre) - ordenCtx(b.nombre));
+    const grupos = [{ id: g?.id || null, label: (typeof ctxIcono === 'function' ? ctxIcono('GENERAL') + ' ' : '') + 'Generales',
+                      es: p => p.contexto_id == null || (g && p.contexto_id === g.id) }]
+        .concat(cursos.map(c => ({ id: c.id, label: etiqueta(c.nombre), es: p => p.contexto_id === c.id })));
+    grupos.forEach(G => {
+        const el = document.createElement('div');
+        const clave = G.id || 'general';
+        el.className = 'grupo' + (abiertos.has(clave) ? ' abierto' : '');
+        el.innerHTML = `<div class="grupo-hdr"><span class="chev"></span><span class="nom"></span><span class="n"></span>
+            <button class="mas" type="button" aria-label="Agregar pendiente">＋</button></div><div class="grupo-cuerpo"></div>`;
+        el.querySelector('.nom').textContent = G.label;
+        const chev = el.querySelector('.chev');
+        const pintarChev = () => { chev.textContent = el.classList.contains('abierto') ? '▾' : '▸'; };
+        pintarChev();
+        const l = Pendientes.lista(el.querySelector('.grupo-cuerpo'), {
+            filtro: G.es, tactil: true, mostrarClase: true, botonAgregar: false, completadosAbiertos: false,
+            alta: () => destino(G.id), vacio: 'Sin pendientes.',
+            alCambiar: n => { el.querySelector('.n').textContent = n.activos || ''; },
+        });
+        listas.push(l);
+        el.querySelector('.grupo-hdr').addEventListener('click', e => {
+            if (e.target.closest('.mas')) return;
+            el.classList.toggle('abierto');
+            if (el.classList.contains('abierto')) abiertos.add(clave); else abiertos.delete(clave);
+            guardarJSON('profe_movil_grupos', [...abiertos]);
+            pintarChev();
+        });
+        el.querySelector('.mas').addEventListener('click', () => {
+            el.classList.add('abierto'); abiertos.add(clave); guardarJSON('profe_movil_grupos', [...abiertos]); pintarChev();
+            l.agregar();
+        });
+        cont.appendChild(el);
+    });
+}
+
+async function cargarPendientes() {
+    const hace14 = new Date(Date.now() - 14 * 864e5).toISOString();
+    const r = await Promise.all([
+        Pendientes.cargar(c => conTiempo(c.from('pendientes').select(Pendientes.COLS)
+            .eq('categoria', Pendientes.CAT).eq('estado', 'activo'))),
+        Pendientes.cargar(c => conTiempo(c.from('pendientes').select(Pendientes.COLS)
+            .eq('categoria', Pendientes.CAT).eq('estado', 'completado').gte('completado_en', hace14))),
+    ]);
+    return !r[0].error;
+}
+
+let iniciado = false;
+async function iniciarPendientes() {
+    if (iniciado) return;
+    iniciado = true;
+    const habiaCopia = Pendientes.restaurarCopia();
+    armarListas();
+    if (habiaCopia) elegirVista();
+    await cargarContextos();
+    armarListas();
+    await cargarPendientes();
+    if (!vista) elegirVista();
+    pintarRed();
+}
+// Abre en Hoy si ya hay algo para hoy (o sugerencias); si no, en Todos.
+function elegirVista() {
+    const hay = $('hoy-lista').querySelector('.pd-activos').children.length || !$('sug').hidden;
+    mostrarVista(hay ? 'hoy' : 'todos');
+}
+
+// ═══ Gestos: deslizar y arrastrar ═══════════════════════════════════════
+const UMBRAL = 80;            // px para que el deslizamiento cuente
+const PRESION_MS = 450;       // mantener presionado para arrastrar
+let g = null;                 // gesto en curso
+
+function filaDe(el) { return el?.closest?.('#sin-clase .pd-fila'); }
+function editando(fila) { const t = fila.querySelector('.pd-txt'); return t && !t.readOnly && document.activeElement === t; }
+
+document.addEventListener('touchstart', e => {
+    const fila = filaDe(e.target);
+    if (!fila || e.touches.length > 1 || e.target.closest('.pd-chk, .pd-plegar, .pd-arr, .pd-acc') ||
+        fila.closest('.pd-sugerencias') || editando(fila)) { g = null; return; }
+    const t = e.touches[0];
+    g = { fila, id: fila.dataset.id, x0: t.clientX, y0: t.clientY, dx: 0, tipo: null };
+    g.timer = setTimeout(() => empezarArrastre(t.clientY), PRESION_MS);
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+    if (!g) return;
+    const t = e.touches[0];
+    const dx = t.clientX - g.x0, dy = t.clientY - g.y0;
+    if (g.tipo === 'arrastre') { e.preventDefault(); moverArrastre(t.clientX, t.clientY); return; }
+    if (!g.tipo) {
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { g.tipo = 'desliza'; clearTimeout(g.timer); g.fila.classList.add('mueve'); }
+        else if (Math.abs(dy) > 10) { clearTimeout(g.timer); g = null; return; }   // es scroll
+        else return;
+    }
+    if (g.tipo === 'desliza') {
+        e.preventDefault();
+        g.dx = dx;
+        g.fila.style.transform = `translateX(${dx}px)`;
+        const nodo = g.fila.parentElement;
+        nodo.classList.toggle('sw-der', dx > 0);
+        nodo.classList.toggle('sw-izq', dx < 0);
+        nodo.classList.toggle('sw-listo', Math.abs(dx) >= UMBRAL);
+    }
+}, { passive: false });
+
+document.addEventListener('touchend', () => terminarGesto());
+document.addEventListener('touchcancel', () => terminarGesto(true));
+// Mantener presionado no debe abrir el menú del sistema.
+document.addEventListener('contextmenu', e => { if (filaDe(e.target)) e.preventDefault(); });
+
+function marcarGesto(fila) { fila.dataset.gesto = '1'; setTimeout(() => { delete fila.dataset.gesto; }, 350); }
+
+function terminarGesto(cancelado) {
+    if (!g) return;
+    clearTimeout(g.timer);
+    const { fila, id, tipo, dx } = g;
+    g = null;
+    if (tipo === 'desliza') {
+        marcarGesto(fila);
+        const nodo = fila.parentElement;
+        fila.classList.remove('mueve');
+        fila.style.transform = '';
+        nodo.classList.remove('sw-der', 'sw-izq', 'sw-listo');
+        if (cancelado || Math.abs(dx) < UMBRAL) return;
+        const p = Pendientes.get(id);
+        if (!p) return;
+        if (dx > 0) {
+            if (p.padre_id) { toast('Los subpendientes van con su principal.'); return; }
+            const hoy = Pendientes.hoyISO(), estaba = p.hoy === hoy;
+            Pendientes.cambiar(id, { hoy: estaba ? null : hoy });
+            toast(estaba ? 'Fuera de Hoy' : '☀ A Hoy');
+        } else {
+            Pendientes.borrar(id).then(b => toast('Borrado', () => Pendientes.restaurar(b)));
+        }
+    } else if (tipo === 'arrastre') {
+        marcarGesto(fila);
+        soltarArrastre(cancelado);
+    }
+}
+
+// ── Arrastrar: soltar sobre otro pendiente = queda como su subpendiente; en un espacio vacío = vuelve a ser principal
+let arr = null;
+function empezarArrastre(y) {
+    if (!g || g.tipo) return;
+    const p = Pendientes.get(g.id);
+    if (!p) return;
+    g.tipo = 'arrastre';
+    navigator.vibrate?.(20);
+    arr = { id: g.id, fila: g.fila, destino: null };
+    g.fila.classList.add('arrastrando');
+    document.body.classList.add('arrastrando');
+    const f = $('fantasma');
+    f.textContent = p.texto || '(sin texto)';
+    f.hidden = false;
+    f.style.top = (y - 24) + 'px';
+}
+function moverArrastre(x, y) {
+    if (!arr) return;
+    const f = $('fantasma');
+    f.style.top = (y - 24) + 'px';
+    const bajo = filaDe(document.elementFromPoint(x, y));
+    const valido = bajo && bajo !== arr.fila && !arr.fila.parentElement.contains(bajo) && !bajo.closest('.pd-sugerencias') ? bajo : null;
+    if (arr.destino !== valido) {
+        arr.destino?.classList.remove('destino');
+        arr.destino = valido;
+        valido?.classList.add('destino');
+    }
+    // desplazar la pantalla al acercarse a los bordes
+    if (y < 70) scrollBy(0, -12); else if (y > innerHeight - 70) scrollBy(0, 12);
+}
+function soltarArrastre(cancelado) {
+    if (!arr) return;
+    const { id, fila, destino } = arr;
+    arr = null;
+    fila.classList.remove('arrastrando');
+    destino?.classList.remove('destino');
+    $('fantasma').hidden = true;
+    document.body.classList.remove('arrastrando');
+    if (cancelado) return;
+    const p = Pendientes.get(id);
+    if (!p) return;
+    if (destino) {
+        let padre = Pendientes.get(destino.dataset.id);
+        if (padre?.padre_id) padre = Pendientes.get(padre.padre_id);        // un solo nivel
+        if (!padre || padre.id === id) return;
+        const tieneHijos = !!document.querySelector(`#sin-clase .pd-nodo[data-id="${id}"] > .pd-hijos .pd-fila`);
+        if (tieneHijos) { toast('Tiene subpendientes: no puede quedar dentro de otro.'); return; }
+        Pendientes.cambiar(id, { padre_id: padre.id, sesion_id: padre.sesion_id, contexto_id: padre.contexto_id });
+        toast(`Subpendiente de "${(padre.texto || '').slice(0, 28)}"`);
+    } else if (p.padre_id) {
+        Pendientes.cambiar(id, { padre_id: null });
+        toast('Ahora es un pendiente principal');
+    }
+}
+
+// ── Aviso con Deshacer ──
+let toastTimer = null, toastAccion = null;
+function toast(texto, deshacer) {
+    $('toast-txt').textContent = texto;
+    $('toast-btn').hidden = !deshacer;
+    toastAccion = deshacer || null;
+    $('toast').hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { $('toast').hidden = true; toastAccion = null; }, deshacer ? 5000 : 1800);
+}
+$('toast-btn').addEventListener('click', () => {
+    const f = toastAccion;
+    $('toast').hidden = true; toastAccion = null;
+    if (f) f();
+});
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+(async function init() {
+    decidir();
+    if (!contextos.length) { await cargarContextos(); decidir(); }
+    // Si la clase en curso aún no llega de internet, se vuelve a mirar en un momento.
+    setTimeout(decidir, 1500);
+})();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { decidir(); if (modo === 'libre') cargarPendientes(); } });
 
 // App instalable y sin señal (deuda AN): ver sw-movil.js en la raíz.
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw-movil.js', { scope: '../' }).catch(() => {});

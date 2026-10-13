@@ -3859,3 +3859,32 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   (sale de Hoy; sigue como pendiente de su curso). Opción `sugerencias` de `Pendientes.lista`. El Dashboard abre en Hoy
   también si hay sugerencias. Probado en servidor local (2 de prueba marcados "ayer": uno aceptado → en Hoy; otro
   rechazado → solo en su curso; borrados al final).
+
+### BD. Celular — inicio según haya clase en curso; pendientes en el celular
+*Origen: PO (2026-10-12): iterar la app del celular; distinguir con / sin clase en curso; sin clase, ver y gestionar
+los pendientes como en el Dashboard.*
+- **DECISIÓN del PO (2026-10-12):**
+  - **Sin clase en curso:** el inicio muestra la fecha, ✍🏼 Bitácora y los **pendientes** con ☀ Hoy / Todos (Hoy igual
+    que el Dashboard, con sugerencias Aceptar / Rechazar; Todos = cursos plegables con su número y ＋). Tocar la casilla
+    = hecho; tocar el texto = editar. **Deslizar a la derecha** = poner/sacar de ☀ Hoy; **a la izquierda** = borrar,
+    con aviso "Borrado · Deshacer". **Subpendiente:** mantener presionado y arrastrar un pendiente sobre otro (queda
+    bajo él); arrastrarlo a un espacio vacío lo vuelve principal (a probar si es cómodo). **Sin señal:** se ve la
+    última lista y lo que se marque, agregue o borre se sube al volver la señal.
+  - **Con clase en curso:** el inicio muestra qué curso está en clase, ✍🏼 Bitácora y 📝 Evaluar si hay evaluaciones
+    por toques abiertas de ese curso (los pendientes no se muestran en clase, por ahora).
+- **Implementación (2026-10-12):** `MOVIL/index.html` rehecho sobre la misma entrada: decide con `ClaseVivo.enCurso()`
+  (y vuelve a decidir al cambiar). En clase: tarjeta "En clase · curso", ✍🏼 Bitácora y 📝 Evaluar (solo si el curso
+  tiene evaluaciones por toques abiertas; usa la misma copia que Evaluar para verlo sin señal). Sin clase: Bitácora +
+  pendientes (☀ Hoy con sugerencias / Todos con cursos plegables, abiertos recordados en el celular). Gestos propios de
+  la página (deslizar, mantener 0,45 s y arrastrar; aviso con Deshacer). `comun/pendientes.js`: modo
+  `conectar(sb, { sinSenal: true })` = cola en el equipo (`profe_pend_cola`, ids creados en el celular, upsert) + copia
+  de la última lista (`profe_pend_copia`); un pendiente creado sin señal en un curso toma su próxima clase al subir;
+  opción `tactil` (el texto se edita al tocarlo); nuevas `cambiar`, `borrar` (devuelve lo borrado), `restaurar`,
+  `get`, `restaurarCopia`, `enCola`, `alCola`. `sw-movil.js` v2 suma `comun/pendientes.js/.css`.
+- **Prueba (servidor local, tamaño celular, datos reales; pendientes de prueba borrados al final):** ＋ en Tercero crea
+  en su próxima clase; deslizar → lo pone en Hoy; ← lo borra y "Deshacer" lo devuelve (mismo id, en la base);
+  mantener + arrastrar B sobre A → subpendiente con sangría; arrastrarlo al título → vuelve a principal; sin señal
+  (simulada): marcar uno y crear otro dejan "⏳ 2 sin subir" y al volver la señal suben solos (el creado tomó la
+  próxima clase de Tercero); clase en curso simulada solo en el navegador → "En clase · Cuarto" + Bitácora, sin
+  Evaluar (Cuarto no tiene evaluaciones por toques). Dashboard del PC sin cambios. **Falta:** probar en el celular
+  real (gestos con el dedo, instalada).

@@ -14,7 +14,8 @@
 //   await Pendientes.cargar(sb => sb.from('pendientes').select(Pendientes.COLS).eq(...))
 //   const l = Pendientes.lista(caja, { filtro, alta, mostrarClase, mostrarCurso, botonAgregar,
 //                                      vacio, alCambiar, todosCompletados, completadosAbiertos,
-//                                      sugerencias (filas con Aceptar / Rechazar para Hoy) })
+//                                      sugerencias (filas con Aceptar / Rechazar para Hoy),
+//                                      tactil (celular: el texto se edita al tocarlo) })
 //   l.agregar() · l.repintar()
 //   Pendientes.crear({ contexto_id, sesion_id, fecha, texto, hoy })
 //   Pendientes.proximaClase(contexto_id)   → destino { contexto_id, sesion_id, fecha }
@@ -40,9 +41,20 @@
     const guardarPlegados = () => { try { localStorage.setItem('profe_pend_plegados', JSON.stringify([...plegados])); } catch (_) {} };
 
     // ── Datos ───────────────────────────────────────────────────────────
-    function conectar(cliente) {
+    // conectar(sb, { sinSenal: true }) — celular: los cambios pasan por una cola guardada en
+    // el equipo (se suben al volver la señal) y la última lista queda copiada para abrir sin señal.
+    let conCola = false;
+    const COLA_KEY = 'profe_pend_cola', COPIA_KEY = 'profe_pend_copia';
+    const leerJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
+    const escribirJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
+    function conectar(cliente, op = {}) {
         if (sb) return;
         sb = cliente;
+        conCola = !!op.sinSenal;
+        if (conCola) {
+            window.addEventListener('online', subirCola);
+            setInterval(subirCola, 20000);
+        }
         try {
             sb.channel('profe-pendientes')
               .on('postgres_changes', { event: '*', schema: 'public', table: 'pendientes' }, pl => {
@@ -78,7 +90,7 @@
     }
     const pidiendo = new Set();
     async function pedirFecha(sid) {
-        if (pidiendo.has(sid) || !sb) return;
+        if (pidiendo.has(sid) || !sb || !navigator.onLine) return;
         pidiendo.add(sid);
         const { data } = await sb.from('sesiones').select('fecha').eq('id', sid).maybeSingle();
         if (data?.fecha) {
@@ -89,14 +101,114 @@
     }
 
     async function cargar(consulta) {
-        const { data, error } = await consulta(sb);
-        if (error) return { error };
-        (data || []).forEach(p => ponerLocal(p, true));
+        let r;
+        try { r = await consulta(sb); } catch (e) { r = { error: e }; }
+        if (r.error) return { error: r.error };
+        (r.data || []).forEach(p => ponerLocal(p, true));
+        if (conCola) aplicarCola();
         repintarTodo();
-        return { data };
+        return { data: r.data };
     }
 
-    async function crear({ contexto_id, sesion_id, fecha, texto = '', hoy = null, padre_id = null }) {
+    // ── Cola (modo sin señal) ───────────────────────────────────────────
+    // Operaciones en orden: { tipo: 'crear', fila, resolver } · { tipo: 'cambiar', id, cambios } · { tipo: 'borrar', id }
+    const COLS_FILA = ['id', 'contexto_id', 'sesion_id', 'categoria', 'texto', 'estado', 'semanas_pendiente', 'hoy', 'completado_en', 'padre_id', 'created_at'];
+    const soloFila = p => Object.fromEntries(COLS_FILA.filter(k => k in p).map(k => [k, p[k]]));
+    function guardarCopia() {
+        if (!conCola) return;
+        escribirJSON(COPIA_KEY, { filas: [...filas.values()], fechas: [...fechas] });
+    }
+    // Abre la última lista guardada en este equipo (sin señal).
+    function restaurarCopia() {
+        const c = leerJSON(COPIA_KEY, null);
+        if (!c) return false;
+        (c.fechas || []).forEach(([k, v]) => fechas.set(k, v));
+        (c.filas || []).forEach(p => ponerLocal(p, true));
+        aplicarCola();
+        repintarTodo();
+        return true;
+    }
+    function encolar(op) {
+        const cola = leerJSON(COLA_KEY, []);
+        // varios cambios seguidos del mismo pendiente se juntan en uno
+        const ult = cola[cola.length - 1];
+        if (op.tipo === 'cambiar' && ult && ult.tipo === 'cambiar' && ult.id === op.id) Object.assign(ult.cambios, op.cambios);
+        else cola.push(op);
+        escribirJSON(COLA_KEY, cola);
+        guardarCopia();
+        pintarCola();
+        subirCola();
+    }
+    // Lo que aún no sube manda sobre lo que trae internet.
+    function aplicarCola() {
+        leerJSON(COLA_KEY, []).forEach(op => {
+            if (op.tipo === 'crear') ponerLocal(op.fila, true);
+            else if (op.tipo === 'cambiar' && filas.has(op.id)) Object.assign(filas.get(op.id), op.cambios);
+            else if (op.tipo === 'borrar') { filas.delete(op.id); filas.forEach((p, k) => { if (p.padre_id === op.id) filas.delete(k); }); }
+        });
+    }
+    const esDeRed = e => !navigator.onLine || /fetch|network|timeout|load failed/i.test(String((e && e.message) || e));
+    let subiendo = null;
+    function subirCola() {
+        if (subiendo || !sb || !navigator.onLine) return subiendo;
+        subiendo = (async () => {
+            for (;;) {
+                const cola = leerJSON(COLA_KEY, []);
+                if (!cola.length) break;
+                const op = cola[0];
+                let error = null;
+                try {
+                    if (op.tipo === 'crear') {
+                        const fila = { ...op.fila };
+                        if (op.resolver && !fila.sesion_id && fila.contexto_id) {
+                            const d = await proximaClase(fila.contexto_id);
+                            fila.sesion_id = d.sesion_id || null;
+                            if (d.sesion_id && filas.has(fila.id)) {
+                                if (d.fecha) fechas.set(d.sesion_id, d.fecha);
+                                cambiarLocal(fila.id, { sesion_id: d.sesion_id });
+                            }
+                        }
+                        ({ error } = await sb.from('pendientes').upsert(fila, { onConflict: 'id' }));
+                    } else if (op.tipo === 'cambiar') {
+                        ({ error } = await sb.from('pendientes').update(op.cambios).eq('id', op.id));
+                    } else if (op.tipo === 'borrar') {
+                        ({ error } = await sb.from('pendientes').delete().eq('id', op.id));
+                    }
+                } catch (e) { error = e; }
+                if (error && esDeRed(error)) break;                    // sin señal: se reintenta después
+                const ahora = leerJSON(COLA_KEY, []);
+                ahora.shift();                                          // hecho (o rechazado por la base: se descarta)
+                escribirJSON(COLA_KEY, ahora);
+                if (error) aviso('Un cambio no se pudo guardar y se descartó.');
+            }
+            pintarCola();
+        })().finally(() => { subiendo = null; });
+        return subiendo;
+    }
+    function enCola() { return leerJSON(COLA_KEY, []).length; }
+    let avisarCola = null;
+    function pintarCola() { if (avisarCola) avisarCola(enCola()); }
+
+    function cambiarLocal(id, cambios) {
+        const p = filas.get(id);
+        if (!p) return;
+        Object.assign(p, cambios);
+        if ('sesion_id' in cambios) p.fecha = fechas.get(p.sesion_id) || null;
+        avisar({ tipo: 'poner', p: { ...p } });
+        repintarTodo();
+    }
+
+    const nuevoId = () => (crypto.randomUUID ? crypto.randomUUID()
+        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
+
+    async function crear({ contexto_id, sesion_id, fecha, texto = '', hoy = null, padre_id = null, resolver = false }) {
+        if (conCola) {
+            const fila = { id: nuevoId(), contexto_id, sesion_id: sesion_id || null, categoria: CAT, texto, estado: 'activo',
+                semanas_pendiente: 0, hoy, completado_en: null, padre_id, created_at: new Date().toISOString() };
+            const p = ponerLocal({ ...fila, sesiones: fecha ? { fecha } : null });
+            encolar({ tipo: 'crear', fila, resolver });
+            return p;
+        }
         const { data, error } = await sb.from('pendientes').insert({
             contexto_id, sesion_id: sesion_id || null, categoria: CAT, texto, estado: 'activo', hoy, padre_id,
         }).select(COLS).single();
@@ -109,6 +221,15 @@
     async function cambiar(id, cambios) {
         const p = filas.get(id);
         if (!p) return;
+        if (conCola) {
+            cambiarLocal(id, cambios);
+            // un pendiente aún sin subir: el cambio va dentro de su "crear"
+            const cola = leerJSON(COLA_KEY, []);
+            const cr = cola.find(o => o.tipo === 'crear' && o.fila.id === id);
+            if (cr && !subiendo) { Object.assign(cr.fila, cambios); escribirJSON(COLA_KEY, cola); return; }
+            encolar({ tipo: 'cambiar', id, cambios });
+            return;
+        }
         const antes = { ...p };
         Object.assign(p, cambios);
         if ('sesion_id' in cambios) p.fecha = fechas.get(p.sesion_id) || null;
@@ -121,6 +242,7 @@
             aviso('No se pudo guardar el pendiente — revisa la conexión.');
         }
     }
+    // Devuelve lo borrado (el pendiente y sus subpendientes), para poder deshacer.
     async function borrar(id) {
         clearTimeout(timers[id]?.t); delete timers[id];
         const antes = filas.get(id);
@@ -129,8 +251,31 @@
         hijos.forEach(h => filas.delete(h.id));
         avisar({ tipo: 'quitar', id });
         repintarTodo();
+        const borrados = antes ? [{ ...antes }, ...hijos.map(h => ({ ...h }))] : [];
+        if (conCola) {
+            const cola = leerJSON(COLA_KEY, []);
+            const k = cola.findIndex(o => o.tipo === 'crear' && o.fila.id === id);
+            if (k >= 0 && !subiendo) {                       // aún no subía: basta con olvidarlo (y a sus hijos)
+                escribirJSON(COLA_KEY, cola.filter(o => o.id !== id && !(o.tipo === 'crear' && (o.fila.id === id || o.fila.padre_id === id))));
+                pintarCola(); return borrados;
+            }
+            encolar({ tipo: 'borrar', id });
+            return borrados;
+        }
         const { error } = await sb.from('pendientes').delete().eq('id', id);
         if (error && antes) { ponerLocal(antes); hijos.forEach(h => ponerLocal(h)); aviso('No se pudo borrar el pendiente — revisa la conexión.'); }
+        return borrados;
+    }
+    // Deshacer un borrado: vuelven los mismos pendientes (mismo id), el principal primero.
+    async function restaurar(borrados) {
+        for (const p of borrados) {
+            const fila = soloFila(p);
+            ponerLocal({ ...fila, sesiones: p.fecha ? { fecha: p.fecha } : null });
+            avisar({ tipo: 'poner', p: filas.get(p.id) });
+            if (conCola) { encolar({ tipo: 'crear', fila }); continue; }
+            const { error } = await sb.from('pendientes').upsert(fila, { onConflict: 'id' });
+            if (error) aviso('No se pudo deshacer — revisa la conexión.');
+        }
     }
     // `el` = el cuadro donde se escribe (un mismo pendiente puede verse en varias listas).
     function guardarTexto(id, el, ahora) {
@@ -234,10 +379,10 @@
     }
     function enfocarFila(L, id) {
         const t = L.caja.querySelector(`.pd-fila[data-id="${id}"] .pd-txt`);
-        if (t) t.focus();
+        if (t) { t.readOnly = false; t.focus(); }
     }
 
-    function repintarTodo() { listas.forEach(L => { if (L.caja.isConnected) pintar(L); else listas.delete(L); }); }
+    function repintarTodo() { listas.forEach(L => { if (L.caja.isConnected) pintar(L); else listas.delete(L); }); guardarCopia(); }
     // Al pasar la medianoche (o volver a la pestaña), HOY parte vacía.
     let diaPintado = hoyISO();
     const revisarDia = () => { if (hoyISO() !== diaPintado) { diaPintado = hoyISO(); repintarTodo(); } };
@@ -344,7 +489,13 @@
         // Sugerencias (marcados ☀ otro día y no hechos): aceptar = hoy; rechazar = fuera de Hoy.
         fila.querySelector('.pd-aceptar').addEventListener('click', () => cambiar(p.id, { hoy: hoyISO() }));
         fila.querySelector('.pd-rechazar').addEventListener('click', () => cambiar(p.id, { hoy: null }));
-        if (L.op.sugerencias) fila.querySelector('.pd-txt').readOnly = true;
+        if (L.op.sugerencias) txt.readOnly = true;
+        // Táctil (celular): el texto se edita solo al tocarlo (así deslizar y arrastrar no abren el teclado).
+        if (L.op.tactil && !L.op.sugerencias) {
+            txt.readOnly = true;
+            txt.addEventListener('click', () => { if (txt.readOnly && !fila.dataset.gesto) { txt.readOnly = false; txt.focus(); } });
+            txt.addEventListener('blur', () => { txt.readOnly = true; });
+        }
         fila.querySelector('.pd-plegar').addEventListener('click', () => {
             if (plegados.has(p.id)) plegados.delete(p.id); else plegados.add(p.id);
             guardarPlegados(); repintarTodo();
@@ -394,5 +545,9 @@
     const ro = 'ResizeObserver' in window
         ? new ResizeObserver(ents => ents.forEach(e => e.target.querySelectorAll('.pd-txt').forEach(crecer))) : null;
 
-    window.Pendientes = { conectar, cargar, lista, guardarTodo, crear, proximaClase, hoyISO, COLS, CAT };
+    window.Pendientes = {
+        conectar, cargar, lista, guardarTodo, crear, cambiar, borrar, restaurar, proximaClase, hoyISO,
+        get: id => filas.get(id), restaurarCopia, subirCola, enCola, alCola: fn => { avisarCola = fn; },
+        COLS, CAT,
+    };
 })();
