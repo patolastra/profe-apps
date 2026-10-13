@@ -3958,3 +3958,14 @@ específicamente en el celular".*
   asignación y alumno): `cmpTabOrden` = instrumento → orden manual → dificultad, y sus consultas traen `orden`. Se
   subió solo ese cambio del Lector (los cambios del Loop siguen aparte). Prueba: mover "La vaca Lola" al primer lugar →
   guardado y el panel del Lector la muestra primera; después se dejó esa canción como estaba (sin orden manual).
+
+### BH. Biblioteca — barra en una sola línea
+*Origen: PO (2026-10-13): rehacer la barra de la Biblioteca en una sola línea, sin el título "Biblioteca", con la
+búsqueda más corta y los cursos con su nombre corto.*
+- **Implementación:** en la vista Biblioteca la cabecera oscura se oculta y la barra de filtros lleva todo en una
+  línea: búsqueda (más corta) · Todo / Canciones / Materiales · Todos + cursos con su **ícono** (nombre mínimo; nombre
+  completo al pasar el mouse) · Practicar · estilos · orden · cuenta · Lecciones · + Canción. `ubicarControles()` mueve
+  búsqueda, cuenta, Lecciones y + Canción a la barra en la Biblioteca y de vuelta a la cabecera en Entrenador y
+  Lecciones (donde todo sigue como antes). Si la ventana es angosta, la barra se desplaza de lado (no se parte).
+- **Prueba (1900 px):** una línea de 48 px sin desbordar; ir a Entrenador y a Lecciones y volver deja cada control en
+  su lugar; sin errores.

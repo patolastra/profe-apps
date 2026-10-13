@@ -155,6 +155,20 @@
             cursor: pointer; white-space: nowrap; font-family: inherit;
         }
         #btn-practicar:hover { background: #c2410c; }
+        /* Biblioteca en una sola línea (deuda BH): búsqueda, tipo, cursos (íconos), estilos, orden, Lecciones, + Canción */
+        #filtros-bar.una-linea { flex-wrap: nowrap; gap: 8px; padding: 8px 16px; overflow-x: auto; scrollbar-width: thin; }
+        #filtros-bar.una-linea #filtros-chips { flex-wrap: nowrap; flex: 0 1 auto; gap: 4px; }
+        #filtros-bar.una-linea #filtros-sel { margin-left: 0; }
+        #filtros-bar.una-linea #search-wrap { flex: 0 1 230px; min-width: 140px; max-width: 230px; }
+        #filtros-bar.una-linea #search { background: #f1f5f9; color: #0f172a; padding-top: 6px; padding-bottom: 6px; }
+        #filtros-bar.una-linea #search::placeholder { color: #94a3b8; }
+        #filtros-bar.una-linea #search:focus { background: #e2e8f0; }
+        #filtros-bar.una-linea #header-count { color: var(--muted); opacity: 1; margin-left: auto; white-space: nowrap; }
+        #filtros-bar.una-linea #btn-lecciones { color: #475569; border-color: var(--border); background: #fff; white-space: nowrap; }
+        #filtros-bar.una-linea #btn-lecciones:hover { color: #7c3aed; border-color: #7c3aed; }
+        #filtros-bar.una-linea #btn-nueva { white-space: nowrap; }
+        #filtros-bar.una-linea .cat-btn { white-space: nowrap; }
+        .chip.chip-ico { padding-left: 8px; padding-right: 8px; font-size: 0.95rem; line-height: 1.15; }
         @media (max-width: 720px) {
             #filtros-bar { flex-wrap: wrap; padding: 8px 16px; }
             #filtros-bar > .sep { display: none; }
@@ -2666,7 +2680,7 @@
     </div>
     <div class="sep"></div>
     <div id="filtros-chips">
-        <button class="chip activo" data-filtro="todos" onclick="setFiltro(this)" title="Todos los cursos">📚 Todos</button>
+        <button class="chip activo" data-filtro="todos" onclick="setFiltro(this)" title="Todos los cursos">Todos</button>
         <div id="chips-cursos"></div>
     </div>
     <button id="btn-practicar" onclick="practicarCurso()" title="Practicar la sesión de este curso en el Entrenador" style="display:none">🎵 Practicar</button>
@@ -3598,11 +3612,12 @@ function renderChips() {
     const estilosUsados = [...new Set(canciones.map(c => c.estilo).filter(Boolean))].sort();
 
     const wrap = document.getElementById('chips-cursos');
-    wrap.innerHTML = cursosUsados.map(c => {
-        if (c === '|') return '<span class="chips-salto"></span>';
+    // Barra de una sola línea (deuda BH): cada curso con su nombre mínimo (el ícono), nombre completo al pasar el mouse.
+    wrap.innerHTML = cursosUsados.filter(c => c !== '|').map(c => {
         const activo = filtroCurso === c ? 'activo' : '';
         const cls = c === 'PERSONAL' ? 'personal' : 'curso';
-        return `<button class="chip ${cls} ${activo}" data-filtro="curso:${c}" onclick="setFiltro(this)" title="${ctxLabel(c)}">${ctxCorto(c)}</button>`;
+        const ico = c === 'PERSONAL' ? '⭐' : (ctxIcono(c) || ctxLabel(c));
+        return `<button class="chip chip-ico ${cls} ${activo}" data-filtro="curso:${c}" onclick="setFiltro(this)" title="${ctxLabel(c)}">${ico}</button>`;
     }).join('');
     document.querySelector('#filtros-chips .chip[data-filtro="todos"]').classList.toggle('activo', !filtroCurso);
 
@@ -7715,6 +7730,7 @@ function entMmSsToMs(str) {
 let sesiones             = [];
 let sesionEditando       = null;   // objeto sesión en el editor
 let vistaActual          = 'canciones'; // 'canciones' | 'sesiones'
+ubicarControles();
 let entModoSesion        = false;
 let entModoEditSesion    = false;
 let entSesionActual      = null;
@@ -7764,6 +7780,27 @@ async function borrarSesionDB(id) {
     sesiones = sesiones.filter(s => s.id !== id);
 }
 
+// ── Biblioteca en una sola línea (deuda BH) ──
+// En la vista Biblioteca la barra de filtros lleva también la búsqueda, la cuenta, Lecciones y
+// + Canción, y la cabecera oscura (con el título) se oculta. En Entrenador y Lecciones esos
+// controles vuelven a la cabecera, como antes.
+function ubicarControles() {
+    const enBarra = vistaActual === 'canciones';
+    const hdr = document.getElementById('header'), barra = document.getElementById('filtros-bar');
+    const busq = document.getElementById('search-wrap'), cuenta = document.getElementById('header-count');
+    const lec = document.getElementById('btn-lecciones'), nueva = document.getElementById('btn-nueva');
+    if (enBarra) {
+        barra.prepend(busq);
+        barra.append(cuenta, lec, nueva);
+    } else {
+        hdr.querySelector('h1').after(busq);
+        document.getElementById('btn-sesiones').before(cuenta, lec);
+        document.getElementById('btn-nueva-sesion-hdr').after(nueva);
+    }
+    hdr.style.display = enBarra ? 'none' : '';
+    barra.classList.toggle('una-linea', enBarra);
+}
+
 // ── Vista sesiones ──
 function toggleVistaSesiones() {
     vistaActual = vistaActual === 'sesiones' ? 'canciones' : 'sesiones';
@@ -7780,6 +7817,7 @@ function toggleVistaSesiones() {
     // exclusividad con la vista lecciones
     document.getElementById('vista-lecciones').style.display = 'none';
     document.getElementById('btn-lecciones').classList.remove('activo');
+    ubicarControles();
     if (esSesiones) renderVistaSesiones();
 }
 
@@ -7880,6 +7918,7 @@ function toggleVistaLecciones() {
     // exclusividad con la vista sesiones
     document.getElementById('vista-sesiones').style.display = 'none';
     document.getElementById('btn-sesiones').classList.remove('activo');
+    ubicarControles();
     if (esLec) cargarLecciones().then(renderVistaLecciones).catch(e => toast('Error: ' + e.message));
 }
 
