@@ -4009,3 +4009,14 @@ permanente del Workspace.*
 - **Ajuste del PO (2026-10-13):** en el Libro de los cursos, **Asistencia** pasa a ser un botón grande del panel, el
   primero (antes de + Evaluación); los siete caben en una fila. En los talleres (sin panel) sigue arriba. En Libros se
   quitó el detalle "clase del …" bajo el curso: la lista es siempre igual.
+
+### BJ. Workspace — accesos directos al correo y al OneDrive institucional
+*Origen: pedido del PO (2026-10-13): dos accesos directos en la barra del Workspace, a la derecha del todo, al correo
+institucional y al drive institucional (cuenta Microsoft 365 / Outlook del SLEP).*
+- **Decisión del PO:** dos botones al extremo derecho de la barra: ✉️ Correo (Outlook) y 📁 Drive (OneDrive), que abren
+  una pestaña nueva del navegador. Los avisos de versión nueva y de clase en curso quedan a su izquierda (barra estable,
+  regla 8b: los accesos nunca se mueven).
+- **Implementación (2026-10-13):** `PC/workspace.html`: grupo `#ws-derecha` (margen automático) con el aviso de
+  versión, el de clase en curso y los dos enlaces (`outlook.office.com/mail/`, `portal.office.com/onedrive`). La
+  dirección de correo **no** va en el enlace (el repo y la página son públicos): abren la cuenta Microsoft con sesión
+  iniciada en el navegador.
