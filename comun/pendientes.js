@@ -16,7 +16,7 @@
 //                                      vacio, alCambiar, todosCompletados, completadosAbiertos,
 //                                      sugerencias (filas con Aceptar / Rechazar para Hoy),
 //                                      tactil (celular: el texto se edita al tocarlo),
-//                                      marcaHoy (etiqueta "☀️ Hoy" en los que están en Hoy; para el celular,
+//                                      marcaHoy (marca ☀️ en los que están en Hoy; para el celular,
 //                                      donde no hay botón ☀️ a la vista) })
 //   l.agregar() · l.repintar()
 //   Pendientes.crear({ contexto_id, sesion_id, fecha, texto, hoy })
@@ -527,7 +527,7 @@
         const partes = [];
         if (plegado) partes.push(`<span class="pd-cuenta" title="Subpendientes hechos">${hijos.filter(h => h.estado === 'completado').length}/${hijos.length}</span>`);
         if (!esHijo && !hecho && sem > 0) partes.push(`<span class="pd-sem" title="${sem === 1 ? 'Trasladado 1 semana' : `Trasladado ${sem} semanas`}">(${sem} sem)</span>`);
-        if (!esHijo && L.op.marcaHoy && p.hoy === hoyISO()) partes.push('<span class="pd-marca-hoy" title="Está en Hoy">☀️ Hoy</span>');
+        if (!esHijo && L.op.marcaHoy && p.hoy === hoyISO()) partes.push('<span class="pd-marca-hoy" title="Está en Hoy">☀️</span>');
         if (!esHijo && L.op.mostrarCurso) {
             const c = L.op.mostrarCurso(p);                       // texto, o { texto, titulo }
             const tx = c && typeof c === 'object' ? c.texto : c, ti = c && typeof c === 'object' ? c.titulo : 'Curso';
