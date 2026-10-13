@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════
 // Apoderados — citas a apoderados (deuda BK, 2026-10-13; pendientes, paso 3)
-// Tres etapas: Por citar (motivo) → Citado (fecha y hora; ese día aparece en ☀ Hoy) →
+// Tres etapas: Por citar (motivo) → Citado o llamada agendada (fecha y hora; ese día aparece en ☀ Hoy) →
 // Atendido (acuerdos). Si el apoderado no llega, vuelve a Por citar. De los acuerdos se
 // pueden crear pendientes del curso (a mano, nunca solo). Cada cita va ligada a un
 // estudiante de la lista del curso. Sin teléfono ni datos del apoderado (DECISIÓN del PO).
@@ -16,7 +16,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
     'use strict';
-    const COLS = 'id, contexto_id, estudiante_id, motivo, estado, cita_en, acuerdos, atendido_en, created_at, libro_estudiantes(nombre, apellido, nombre_social)';
+    const COLS = 'id, contexto_id, estudiante_id, motivo, estado, modalidad, cita_en, acuerdos, atendido_en, created_at, libro_estudiantes(nombre, apellido, nombre_social)';
     const DIAS_ATENDIDAS = 30;      // atendidas: se ven 30 días (no se borran)
     const ORDEN = ['PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO', 'SEXTO', 'SEPTIMO', 'OCTAVO'];
 
@@ -197,7 +197,7 @@
                 arr.forEach(c => caja.appendChild(fila(L, c)));
             };
             sec('Por citar', porCitar, 'ap-sec-por');
-            sec('Citados', citados, 'ap-sec-cit');
+            sec('Agendados', citados, 'ap-sec-cit');
             if (!porCitar.length && !citados.length && !L.form) {
                 const v = document.createElement('div');
                 v.className = 'ap-vacio';
@@ -236,11 +236,12 @@
         el.className = 'ap-fila ap-' + c.estado;
         const vencida = c.estado === 'citado' && c.cita_en && new Date(c.cita_en) < new Date() && iso(new Date(c.cita_en)) !== hoyISO();
         if (vencida) el.classList.add('ap-vencida');
+        const llamada = c.modalidad === 'llamada';
         const curso = L.op.contextoId ? '' : `<span class="ap-curso" title="${esc(display(c.contexto_id))}">${esc(icono(c.contexto_id))}</span>`;
         el.innerHTML = `
             <div class="ap-cab">
                 ${curso}<span class="ap-est">${esc(nombreEst(c.libro_estudiantes))}</span>
-                ${c.estado === 'citado' && c.cita_en ? `<button type="button" class="ap-fecha" title="Cambiar fecha y hora">📅 ${esc(fechaHora(c.cita_en))}</button>` : ''}
+                ${c.estado === 'citado' && c.cita_en ? `<button type="button" class="ap-fecha" title="${llamada ? 'Llamada · cambiar fecha y hora' : 'Cita · cambiar fecha y hora'}">${llamada ? '📞' : '📅'} ${esc(fechaHora(c.cita_en))}</button>` : ''}
                 <span class="ap-sp"></span>
                 <span class="ap-acc"></span>
                 <button type="button" class="ap-del" title="Borrar la cita">✕</button>
@@ -259,7 +260,7 @@
             b.type = 'button'; b.className = 'ap-btn ' + cls; b.textContent = txt; b.title = titulo; b.onclick = fn;
             acc.appendChild(b);
         };
-        const pedirFecha = () => {
+        const pedirFecha = (modalidad = c.modalidad || 'cita') => {
             extra.innerHTML = `<div class="ap-cuando"><input type="datetime-local" class="ap-dt"><button type="button" class="ap-btn ap-ok">Guardar</button><button type="button" class="ap-btn ap-no">Cancelar</button></div>`;
             const dt = extra.querySelector('.ap-dt');
             if (c.cita_en) dt.value = aLocalInput(c.cita_en);
@@ -267,19 +268,21 @@
             dt.focus();
             extra.querySelector('.ap-ok').onclick = () => {
                 if (!dt.value) return;
-                guardar(c.id, { estado: 'citado', cita_en: new Date(dt.value).toISOString() });
+                guardar(c.id, { estado: 'citado', modalidad, cita_en: new Date(dt.value).toISOString() });
             };
             extra.querySelector('.ap-no').onclick = () => { extra.innerHTML = ''; };
         };
         if (c.estado === 'por_citar') {
-            boton('📅 Citar', 'Anotar fecha y hora de la cita', pedirFecha, 'ap-prim');
+            boton('📞 Llamar', 'Agendar una llamada (fecha y hora)', () => pedirFecha('llamada'));
+            boton('📅 Citar', 'Citar en persona (fecha y hora)', () => pedirFecha('cita'), 'ap-prim');
         } else if (c.estado === 'citado') {
-            el.querySelector('.ap-fecha').onclick = pedirFecha;
-            boton('No vino', 'El apoderado no llegó: vuelve a Por citar', () => guardar(c.id, { estado: 'por_citar', cita_en: null }));
+            el.querySelector('.ap-fecha').onclick = () => pedirFecha();
+            boton(llamada ? 'No contestó' : 'No vino', llamada ? 'No contestó: vuelve a Por citar' : 'El apoderado no llegó: vuelve a Por citar',
+                () => guardar(c.id, { estado: 'por_citar', cita_en: null }));
             boton('✓ Atendido', 'Se atendió: anotar acuerdos', () => { L.abiertas = true; guardar(c.id, { estado: 'atendido', atendido_en: new Date().toISOString() }); }, 'ap-prim');
         } else {
             const d = c.atendido_en ? new Date(c.atendido_en) : null;
-            if (d) { const s = document.createElement('span'); s.className = 'ap-cuando-at'; s.textContent = `atendido ${DIAS_C[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`; acc.appendChild(s); }
+            if (d) { const s = document.createElement('span'); s.className = 'ap-cuando-at'; s.textContent = `${llamada ? '📞 ' : ''}atendido ${DIAS_C[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`; acc.appendChild(s); }
             extra.innerHTML = `
                 <textarea class="ap-acuerdos" rows="2" placeholder="Acuerdos…">${esc(c.acuerdos)}</textarea>
                 <div class="ap-accion"><input type="text" class="ap-accion-txt" placeholder="Acción a tomar → pendiente del curso (Enter)"><button type="button" class="ap-btn">→ Pendiente</button></div>`;

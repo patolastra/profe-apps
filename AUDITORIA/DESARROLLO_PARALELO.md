@@ -4050,3 +4050,9 @@ acuerdos y acciones —, que se pueda crear desde el Dashboard, el Plan y Cursos
   hoy 11:00 (aparece en "Citas de hoy") → Atendido → acuerdos guardados → acción convertida en pendiente para la clase
   del 19/10; la cita se ve en Cursos (Tercero) y en el Plan de Tercero del 19/10 con su pendiente. Corregido: la lista
   no se repintaba si se agregaba con el cursor aún en el motivo.
+- **Ajuste del PO (2026-10-13): citar o llamar.** En Por citar, dos acciones: **📅 Citar** (en persona) y **📞 Llamar**;
+  ambas con fecha y hora, mismo camino. En llamadas, "No vino" se llama "No contestó". Columna `modalidad`
+  (`cita|llamada`, `supabase/apoderado_citas_modalidad.sql`, lo ejecuta el PO).
+  PO ejecutó el SQL (2026-10-13). Prueba en Cursos (Tercero, cita de prueba borrada): 📞 Llamar → "📞 mié 14/10 ·
+  15:00" con "No contestó" → vuelve a Por citar → 📅 Citar → "No vino". La sección "Citados" pasa a "Agendados" y el
+  cuadro del Dashboard a "Llamadas y citas de hoy".
