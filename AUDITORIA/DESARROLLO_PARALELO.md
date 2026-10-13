@@ -4083,3 +4083,6 @@ en la Pizarra, en letra ligada y/o imprenta, activable desde el Planificador con
   una sola letra, el mismo tamaño que tendría junto a la otra). (2) La fecha pasa a ser una **recurrente**: sin botón
   📅 propio; "📅 Fecha" va en el menú 🔔 (con Quitar), con formato, letra y lado debajo; el 🔔 queda encendido si la
   fecha está a la vista. Prueba: ambas a la derecha, 555 px de ancho cada línea (ligada 6,2 % y imprenta 7,5 % del alto).
+- **Ajuste del PO (2026-10-13): menú limpio.** El menú 🔔 solo lista las recurrentes (🤫 Silencio y atención, 📅 Fecha
+  — esta dice "Visible" cuando se ve —). "📅 Fecha ‹" abre **su propio menú** al lado, con un **interruptor
+  Visible / Oculta** y debajo formato, letra y lado; cambiar opciones ya no la muestra sola (solo el interruptor).
