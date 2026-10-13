@@ -328,6 +328,7 @@
         caja.classList.add('pd-lista');
         caja.classList.toggle('pd-sugerencias', !!op.sugerencias);
         if (op.elegirCurso) caja.dataset.elegir = '1';
+        caja.classList.toggle('pd-tactil', !!op.tactil);
         caja.innerHTML = `<div class="pd-activos"></div>
             ${op.botonAgregar === false || !op.alta ? '' : '<button class="pd-add" type="button">＋ Agregar pendiente</button>'}
             <div class="pd-cursos" hidden></div>
@@ -537,10 +538,15 @@
         fila.querySelector('.pd-aceptar').addEventListener('click', () => cambiar(p.id, { hoy: hoyISO() }));
         fila.querySelector('.pd-rechazar').addEventListener('click', () => cambiar(p.id, { hoy: null }));
         if (L.op.sugerencias) txt.readOnly = true;
-        // Táctil (celular): el texto se edita solo al tocarlo (así deslizar y arrastrar no abren el teclado).
+        // Táctil (celular): el texto se edita solo con un toque corto en la fila. Mientras no se
+        // edita, el cuadro de texto no recibe el dedo (CSS .pd-tactil): así mantener presionado
+        // arrastra la fila en vez de seleccionar texto, y deslizar no abre el teclado.
         if (L.op.tactil && !L.op.sugerencias) {
             txt.readOnly = true;
-            txt.addEventListener('click', () => { if (txt.readOnly && !fila.dataset.gesto) { txt.readOnly = false; txt.focus(); } });
+            fila.addEventListener('click', e => {
+                if (!txt.readOnly || fila.dataset.gesto || e.target.closest('.pd-chk, .pd-plegar, .pd-acc, .pd-curso, .pd-arr')) return;
+                txt.readOnly = false; txt.focus();
+            });
             txt.addEventListener('blur', () => { txt.readOnly = true; });
         }
         fila.querySelector('.pd-plegar').addEventListener('click', () => {

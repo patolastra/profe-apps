@@ -3912,3 +3912,8 @@ específicamente en el celular".*
   hoy (General: sin clase). Tocar el ícono de curso de un pendiente de Hoy abre la misma fila ("Mover a:") y lo cambia
   de curso (con sus subpendientes). Opción `elegirCurso` de `Pendientes.lista`. Probado en servidor local (PC: crear en
   Quinto → mié 13/10, mover a Sexto; celular: crear en Segundo → jue 15/10; borrados al final).
+- **Arreglo (2026-10-12, reportado por el PO en el celular):** mantener presionado abría la edición del texto en vez de
+  arrastrar (el dedo caía sobre el cuadro de texto y el teléfono lo trataba como selección). Ahora, en listas táctiles,
+  el texto sin editar no recibe el dedo (`.pd-tactil .pd-txt[readonly] { pointer-events: none }`): lo recibe la fila;
+  toque corto = editar, mantener = arrastrar. Simulado en servidor local (el dedo cae en la fila; arrastre → subpendiente
+  sin abrir edición; toque corto → edita). Falta confirmarlo en el celular real.
