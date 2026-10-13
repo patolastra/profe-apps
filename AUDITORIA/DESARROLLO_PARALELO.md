@@ -3765,3 +3765,18 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   (de un bloque o de los seleccionados): Color 1 (normal) / 2 (naranjo) / 3 (azul) para todo el bloque, reemplazando los
   colores que tuviera adentro (negrita/cursiva se conservan). Prueba: `hola **mundo** {3:azul}` → color 2 =
   `{2:hola **mundo** azul}`; color 1 sobre la selección quita los colores.
+- **Pedido del PO (2026-10-12): "la Bitácora del Planificador tiene que verse y sentirse igual que Cursos", en blanco.**
+  El editor salió de Cursos a una **pieza compartida `comun/editor-bloques.js` + `comun/editor-bloques.css`**
+  (`EditorBloques.crear(caja, { texto, alCambiar, vacio, alSubir, actualizado })`, `.zona(el)` para el marco de selección,
+  `.html(texto)` solo lectura, `.menu(...)`; clases e ids con prefijo `eb-` para no chocar con cada página). Cursos la usa
+  (un editor por entrada). Planificador (`PORTAL/index.html`): la ventana ✍🏼 Bitácora (más ancha, blanca) cambia el cuadro
+  de texto por el editor (audios y "Pendientes para la próxima clase" igual; guardado automático 1,2 s como antes); el
+  panel "Clase anterior" muestra la bitácora con su formato, solo lectura. Ajustes: Ctrl+Z y "?" (ayuda) no interfieren
+  con el editor; Esc en el editor selecciona el bloque (no cierra nada).
+- **Prueba (servidor local, sin guardar bitácoras reales):** Cursos igual que antes (22 bitácoras de Séptimo intactas,
+  atajos, separador). Planificador, Séptimo 16 jul: el editor abre con el cursor listo; título, casilla, texto con "?"
+  (no abre la ayuda); Esc selecciona el bloque y la ventana sigue abierta; el texto a guardar sale con el formato
+  esperado; "Clase anterior" (9 jul) se ve en bloques. Efecto lateral de la prueba deshecho: abrir el Plan creó la
+  diapositiva inicial automática de esa clase pasada; se borró.
+- **DEUDA A FUTURO (PO, 2026-10-12):** controlar el aspecto de **toda la app con un solo interruptor central de tema
+  claro/oscuro**. No implementado.

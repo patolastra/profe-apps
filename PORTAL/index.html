@@ -12,6 +12,8 @@
     <script src="../comun/nombre-asset.js"></script>
     <script src="../comun/asistencia.js"></script>
     <script src="../comun/recurrentes.js"></script>
+    <link rel="stylesheet" href="../comun/editor-bloques.css">
+    <script src="../comun/editor-bloques.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -918,7 +920,7 @@
         #mem-modal.show { display: flex; }
         #mem-inner {
             background: var(--card-bg); border: 1px solid var(--border);
-            border-radius: 10px; width: min(560px, 92vw); max-height: 82vh;
+            border-radius: 10px; width: min(760px, 94vw); max-height: 86vh; background: #fff;
             display: flex; flex-direction: column; overflow: hidden;
             box-shadow: 0 8px 24px rgba(0,0,0,0.18);
         }
@@ -931,15 +933,16 @@
         #mem-audios { padding: 8px 12px 0; display: flex; flex-direction: column; gap: 6px; }
         #mem-audios audio { width: 100%; height: 34px; }
         #mem-audios .mem-audio-lbl { font-size: 0.7rem; color: var(--muted); }
-        #mem-area {
-            flex: 1; min-height: 220px; margin: 10px 12px; padding: 10px;
-            border: 1px solid var(--border); border-radius: 8px; resize: none;
-            font: inherit; font-size: 0.85rem; color: var(--text); outline: none;
+        /* Bitácora: el mismo editor por bloques de Cursos (comun/editor-bloques.js), en blanco */
+        #mem-editor {
+            flex: 1; min-height: 240px; overflow-y: auto; background: #fff;
+            padding: 14px 24px 8px 56px;
         }
         #mem-footer { padding: 0 12px 10px; font-size: 0.72rem; color: var(--muted); min-height: 18px; }
         .rev-mem-audio { padding: 4px 0; }
         .rev-mem-audio audio { width: 100%; height: 32px; }
-        .rev-mem-texto { white-space: pre-wrap; font-size: 0.8rem; padding: 4px 0; }
+        .rev-mem-texto { font-size: 0.8rem; padding: 4px 0; }
+        .rev-mem-texto .eb-lectura { font-size: 13px; }
 
         /* ── Pendientes para la próxima clase (Fase 1 — manual) ── */
         #mem-tareas { margin: 0 12px 4px; padding-top: 8px; border-top: 1px solid var(--border); }
@@ -1215,7 +1218,7 @@
             <button onclick="cerrarMemoria()">✕</button>
         </div>
         <div id="mem-audios"></div>
-        <textarea id="mem-area" placeholder="¿Qué ocurrió en esta clase? Observaciones, reflexiones, contexto...&#10;&#10;Este texto se conserva como bitácora permanente de la sesión. No genera pendientes."></textarea>
+        <div id="mem-editor"></div>
         <div id="mem-tareas">
             <div id="mem-tareas-hdr">
                 <span>Pendientes para la próxima clase</span>
@@ -3726,10 +3729,11 @@ document.addEventListener('keydown', e => {
         if (document.getElementById('md-cheat').classList.contains('show')) { toggleCheatsheet(); return; }
         if (editandoId) { cancelarEdicion(); return; }
     }
-    if (e.key === '?' && !['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)) {
+    if (e.key === '?' && !['INPUT','TEXTAREA'].includes(document.activeElement?.tagName) && !document.activeElement?.isContentEditable) {
         e.preventDefault(); toggleCheatsheet(); return;
     }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        if (document.activeElement?.closest?.('.eb')) return;   // Bitácora: deshacer del navegador
         if (document.activeElement === document.getElementById('plan-input')) return;
         if (document.activeElement === document.getElementById('pres-area'))  return;
         e.preventDefault();
@@ -4056,6 +4060,7 @@ function insertarRep(nombre, cancionId) {
 // Documento narrativo permanente por sesión. No genera pendientes.
 // ═══════════════════════════════════════════════════════════
 let memTimer = null;
+let memEd = null;      // editor por bloques de la Bitácora (comun/editor-bloques.js)
 
 function memAudioUrl(path) {
     return sb.storage.from('memorias-audio').getPublicUrl(path).data.publicUrl;
@@ -4075,7 +4080,7 @@ function buildMemSeccion(mem, titulo = '✍🏼 BITÁCORA') {
     const audios = Array.isArray(mem?.audios) ? mem.audios : [];
     const hay    = texto || audios.length;
     const cuerpo = hay
-        ? `${audios.map(memAudioHtml).join('')}${texto ? `<div class="rev-mem-texto">${escapeHtmlMem(texto)}</div>` : ''}`
+        ? `${audios.map(memAudioHtml).join('')}${texto ? `<div class="rev-mem-texto">${EditorBloques.html(texto)}</div>` : ''}`
         : `<div class="vacio">Sin bitácora registrada.</div>`;
     return `
         <div class="rev-seccion">
@@ -4098,24 +4103,31 @@ async function abrirMemoria() {
     document.getElementById('mem-modal').classList.add('show');
     document.getElementById('mem-titulo').textContent =
         `✍🏼 Bitácora — ${fmtTituloSesion(sesionActual.nombre, sesionActual.fecha)}`;
-    const area = document.getElementById('mem-area');
-    area.value = '';
+    const caja = document.getElementById('mem-editor');
+    if (memEd) { memEd.destruir(); memEd = null; }
+    caja.innerHTML = '';
     document.getElementById('mem-audios').innerHTML = '';
     document.getElementById('mem-status').textContent = 'Cargando...';
-    area.oninput = () => {
-        document.getElementById('mem-status').textContent = 'Sin guardar...';
-        clearTimeout(memTimer);
-        memTimer = setTimeout(() => guardarMemoria(sesionActual.id), 1200);
-    };
+    const sid = sesionActual.id;
 
     const { data, error } = await sb.from('memorias')
-        .select('contenido, audios').eq('sesion_id', sesionActual.id).maybeSingle();
+        .select('contenido, audios, updated_at').eq('sesion_id', sid).maybeSingle();
     if (error) {
         document.getElementById('mem-status').textContent =
             'No se pudo cargar (¿tabla "memorias" creada en Supabase?)';
         return;
     }
-    area.value = data?.contenido || '';
+    EditorBloques.zona(document.getElementById('mem-inner'));
+    memEd = EditorBloques.crear(caja, {
+        texto: data?.contenido || '', actualizado: data?.updated_at,
+        vacio: '¿Qué ocurrió en esta clase? Observaciones, reflexiones, contexto…',
+        alCambiar: () => {
+            document.getElementById('mem-status').textContent = 'Sin guardar...';
+            clearTimeout(memTimer);
+            memTimer = setTimeout(() => guardarMemoria(sid), 1200);
+        },
+    });
+    if (!memEd.tieneAlgo()) memEd.enfocar('inicio');
     const audios = Array.isArray(data?.audios) ? data.audios : [];
     document.getElementById('mem-audios').innerHTML = audios.map(memAudioHtml).join('');
     document.getElementById('mem-status').textContent = '';
@@ -4125,13 +4137,15 @@ async function abrirMemoria() {
 
 async function guardarMemoria(sid) {
     if (!sid) return;
-    const contenido = document.getElementById('mem-area').value;
+    if (!memEd) return;
+    const contenido = memEd.texto();
     try {
         const { error } = await sb.from('memorias').upsert(
             { sesion_id: sid, contenido, updated_at: new Date().toISOString() },
             { onConflict: 'sesion_id' }
         );
         if (error) throw error;
+        memEd?.guardado(new Date().toISOString());
         document.getElementById('mem-status').textContent = 'Guardado ✓';
         setTimeout(() => { if (document.getElementById('mem-status').textContent === 'Guardado ✓') document.getElementById('mem-status').textContent = ''; }, 2500);
     } catch (e) {
