@@ -3,7 +3,7 @@
 // todo lo demás (Workspace, Planificador…) pasa directo, como si no existiera.
 // Siempre pide primero a internet (así llegan las versiones nuevas) y, sin señal,
 // usa la última copia guardada.
-const CACHE = 'profe-movil-v2';
+const CACHE = 'profe-movil-v3';
 const PROPIAS = [
     'MOVIL/', 'MOVIL/index.html', 'MOVIL/evaluar.html', 'MOVIL/manifest.webmanifest',
     'MOVIL/icono-192.png', 'MOVIL/icono-512.png',
@@ -31,7 +31,9 @@ self.addEventListener('fetch', e => {
     e.respondWith((async () => {
         const c = await caches.open(CACHE);
         try {
-            const r = await fetch(e.request);
+            // no-cache: pregunta al servidor si hay versión nueva (sin esto, el navegador puede
+            // entregar una copia de hasta 10 min y mezclar piezas viejas con nuevas).
+            const r = await fetch(e.request.mode === 'navigate' ? e.request.url : e.request, { cache: 'no-cache' });
             if (r && (r.ok || r.type === 'opaque')) c.put(limpia, r.clone());   // opaca = librería externa
             return r;
         } catch (_) {

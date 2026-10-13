@@ -45,3 +45,7 @@ function contextoInfo(nombre) {
 function ctxIcono(nombre)         { return contextoInfo(nombre).icono; }   // '3️⃣'
 function ctxNombreVisible(nombre) { return contextoInfo(nombre).label; }   // 'Tercero'
 function ctxDisplay(nombre)       { return contextoInfo(nombre).display; } // '3️⃣ Tercero'
+// Nombre MÍNIMO (DECISIÓN del PO 2026-10-12): solo el ícono ('2️⃣', '💼', '🎸'…), para
+// listas donde el curso es un dato al margen (p. ej. Pendientes · Hoy). Siempre con el
+// nombre completo en `title`. Sin ícono conocido, el nombre visible.
+function ctxCorto(nombre)         { const i = contextoInfo(nombre); return i.icono || i.label; }       // '2️⃣'

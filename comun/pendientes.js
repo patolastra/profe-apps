@@ -527,7 +527,11 @@
         if (plegado) partes.push(`<span class="pd-cuenta" title="Subpendientes hechos">${hijos.filter(h => h.estado === 'completado').length}/${hijos.length}</span>`);
         if (!esHijo && !hecho && sem > 0) partes.push(`<span class="pd-sem" title="${sem === 1 ? 'Trasladado 1 semana' : `Trasladado ${sem} semanas`}">(${sem} sem)</span>`);
         if (!esHijo && !L.op.sinMarcaHoy && p.hoy === hoyISO()) partes.push('<span class="pd-marca-hoy" title="Está en Hoy">☀ Hoy</span>');
-        if (!esHijo && L.op.mostrarCurso) { const c = L.op.mostrarCurso(p); if (c) partes.push(`<span class="pd-curso" title="Curso">${esc(c)}</span>`); }
+        if (!esHijo && L.op.mostrarCurso) {
+            const c = L.op.mostrarCurso(p);                       // texto, o { texto, titulo }
+            const tx = c && typeof c === 'object' ? c.texto : c, ti = c && typeof c === 'object' ? c.titulo : 'Curso';
+            if (tx) partes.push(`<span class="pd-curso" title="${esc(ti)}">${esc(tx)}</span>`);
+        }
         if (!esHijo && L.op.mostrarClase && p.fecha) partes.push(`<span class="pd-clase" title="Clase a la que pertenece">${fechaCorta(p.fecha)}</span>`);
         fila.querySelector('.pd-meta').innerHTML = partes.join(' ');
         fila.querySelector('.pd-sol').hidden = esHijo;

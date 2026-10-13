@@ -154,7 +154,7 @@ Estas son **reglas**, no recomendaciones:
 5. **No modificar assets pedagógicos reales** (`METALÓFONO APP/MIDI/`, `tabs/TABS/`) sin confirmación.
 6. **Conectividad intermitente (dirección posible, no arquitectura cerrada):** tolerar internet inestable en las escuelas es una preocupación válida del ecosistema. El patrón concreto para lograrlo (p. ej. IndexedDB local → sync a Supabase → campo `sincronizado`) **no** es una decisión universal cerrada para todo el ecosistema: se documenta como **HECHO** solo donde ya se aplicó: la Bandeja de SRP (hoy congelado), **Pasar lista** (`comun/asistencia.js`, cola en `localStorage`, 2026-10-05) y las **marcas del Libro** (participó / entregó / aplica, cola `profe_libro_marcas_cola`, 2026-10-07). Su definición/validación general queda **PENDIENTE**.
 7. **Deep-linking:** respetar el protocolo del §3; no meter datos personales en la URL.
-8. **Alias de display en espacios compactos:** cuando el nombre no cabe, usar alias corto (`KIDS CASTIGADAS`→`KIDS`) en vez de truncar; `title` siempre con el nombre completo.
+8. **Alias de display en espacios compactos:** cuando el nombre no cabe, usar alias corto (`KIDS CASTIGADAS`→`KIDS`) en vez de truncar; `title` siempre con el nombre completo. **Nombre mínimo** (DECISIÓN del PO 2026-10-12): donde el curso es un dato al margen (hoy: listas ☀ Hoy de pendientes), solo su **ícono** con `ctxCorto(nombre)` (`supabase/contextos.js`), con el nombre completo en `title`.
 9. **Antes de un cambio relevante:** consultar esta Fuente de Verdad (§ *Regla de uso*).
 10. **Reimplementar, no rescatar legacy:** una funcionalidad futura que resulte deseable se **reimplementa sobre la arquitectura vigente**; **no** se conserva código legacy únicamente como fallback.
 

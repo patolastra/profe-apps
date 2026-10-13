@@ -3893,3 +3893,17 @@ los pendientes como en el Dashboard.*
   creado, marcado para hoy y borrado desde otra conexión (otro equipo) aparece, gana la etiqueta, pasa a Hoy y
   desaparece solo. Hoy solo pendientes y clase en curso tienen tiempo real en todo el sistema (PEDIDO del PO: tiempo
   real en toda la app → auditoría aparte, ver BE).
+- **DECISIÓN del PO (2026-10-12) — nombre mínimo del curso:** solo su ícono (2️⃣, 💼 General, 🎸 Cuerdas…), con el
+  nombre completo al pasar el mouse. Regla única `ctxCorto(nombre)` en `supabase/contextos.js`. Por ahora en las listas
+  Hoy (y sus sugerencias) del Dashboard y del celular. **Arreglo:** el celular podía mezclar piezas nuevas con viejas
+  (copias del navegador de hasta 10 min) → `sw-movil.js` v3 pregunta siempre al servidor (`cache: 'no-cache'`) y la
+  página tolera un `contextos.js` viejo. Probablemente por eso la etiqueta "☀ Hoy" aún no se veía en el celular.
+
+### BE. Tiempo real en toda la app — DEUDA (anotada, sin diseñar)
+*Origen: PO (2026-10-12): "todo debería ser con actualización en tiempo real, en general en toda la app y
+específicamente en el celular".*
+- **HECHO hoy:** solo **pendientes** (`comun/pendientes.js`) y **clase en curso** (`comun/clase-vivo.js`) se
+  actualizan al instante entre equipos (Supabase Realtime). Bitácora, toques de Evaluar, Libro (participación, notas,
+  asistencia), Biblioteca, Plan, etc. se ven al día solo al abrir o recargar.
+- **Próximo paso propuesto:** auditoría módulo por módulo (qué se vería al instante, prioridades; recomendación de
+  partida: Bitácora y Asistencia) y un SQL corto por tabla que ejecuta el PO. No implementar sin aprobación.
