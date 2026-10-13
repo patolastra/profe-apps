@@ -4078,3 +4078,8 @@ en la Pizarra, en letra ligada y/o imprenta, activable desde el Planificador con
   queda tapada. Menú 📅 del Planificador: mostrar/ocultar, formato con el ejemplo de la fecha de la clase, letra
   (muestra cada fuente), lado; elegir una opción la muestra y se recuerda para el curso. Letra agrandada para leerse
   desde el fondo de la sala (ligada 8,5 % del alto; con ambas, 7 % y 6,5 %).
+- **Ajuste del PO (2026-10-13):** (1) las dos letras con **las mismas dimensiones, justo entremedio** (a igual tamaño
+  la ligada salía bastante más grande): se mide el texto en ambas fuentes y cada una se escala al ancho promedio (con
+  una sola letra, el mismo tamaño que tendría junto a la otra). (2) La fecha pasa a ser una **recurrente**: sin botón
+  📅 propio; "📅 Fecha" va en el menú 🔔 (con Quitar), con formato, letra y lado debajo; el 🔔 queda encendido si la
+  fecha está a la vista. Prueba: ambas a la derecha, 555 px de ancho cada línea (ligada 6,2 % y imprenta 7,5 % del alto).

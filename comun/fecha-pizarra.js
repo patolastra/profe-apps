@@ -21,10 +21,7 @@
     #fecha-franja[hidden] { display: none; }
     #fecha-franja.der { align-items: flex-end; }
     #fecha-franja.izq { align-items: flex-start; }
-    #fecha-franja .fp-ligada { font-size: 8.5vh; }
-    #fecha-franja .fp-imprenta { font-size: 8vh; }
-    #fecha-franja.ambas .fp-ligada { font-size: 7vh; }
-    #fecha-franja.ambas .fp-imprenta { font-size: 6.5vh; }`;
+    #fecha-franja > div { font-size: 7.5vh; }`;
     document.head.appendChild(css);
 
     const leer = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (_) { return {}; } };
@@ -49,6 +46,20 @@
         return `${DIAS[d.getDay()]} ${formato === 'guion' ? p.join(' - ') : p.join('/')}`;
     }
 
+    // Las dos letras del mismo ancho (DECISIÓN del PO): a igual tamaño la ligada sale bastante más
+    // grande que la imprenta; se mide el texto en ambas y cada una se escala al ancho promedio, así
+    // quedan iguales y justo entremedio. Igual con una sola letra (mismo tamaño que tendría junto a la otra).
+    const REF_VH = { sola: 8, ambas: 6.8 };
+    const FAM = { ligada: "'Fecha Ligada'", imprenta: "'Fecha Imprenta'" };
+    let lienzo = null;
+    async function tamanos(t, ref) {
+        try { await Promise.all(Object.values(FAM).map(f => document.fonts.load(`100px ${f}`, t))); } catch (_) {}
+        const ctx = (lienzo ||= document.createElement('canvas').getContext('2d'));
+        const ancho = f => { ctx.font = `100px ${f}`; return ctx.measureText(t).width || 1; };
+        const wL = ancho(FAM.ligada), wI = ancho(FAM.imprenta), prom = (wL + wI) / 2;
+        return { ligada: ref * prom / wL, imprenta: ref * prom / wI };
+    }
+
     // Pizarra: franja entre el encabezado y el área de diapositivas.
     function enPizarra(ctx, fechaISO) {
         const area = document.getElementById('slide-area');
@@ -63,13 +74,19 @@
             const t = texto(fechaISO, c.formato);
             const lineas = c.letra === 'ambas' ? ['ligada', 'imprenta'] : [c.letra === 'imprenta' ? 'imprenta' : 'ligada'];
             f.innerHTML = '';
-            lineas.forEach(l => { const s = document.createElement('div'); s.className = 'fp-' + l; s.textContent = t; f.appendChild(s); });
-            // La diapositiva se reajusta al nuevo alto (también cuando termina de cargar la fuente).
+            const els = lineas.map(l => { const s = document.createElement('div'); s.className = 'fp-' + l; s.textContent = t; f.appendChild(s); return s; });
+            // La diapositiva se reajusta al nuevo alto (también cuando la letra queda con su tamaño final).
             const reajustar = () => window.dispatchEvent(new Event('resize'));
             reajustar();
-            if (document.fonts) document.fonts.ready.then(reajustar);
             if (antes !== f.hidden) setTimeout(reajustar, 50);
+            const yo = ++pintar.n;
+            tamanos(t, lineas.length > 1 ? REF_VH.ambas : REF_VH.sola).then(tm => {
+                if (yo !== pintar.n) return;
+                els.forEach((el, i) => { el.style.fontSize = tm[lineas[i]].toFixed(2) + 'vh'; });
+                reajustar();
+            });
         };
+        pintar.n = 0;
         onCambio(pintar);
         pintar();
     }
