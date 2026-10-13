@@ -3513,6 +3513,12 @@ como respaldo).*
   del Planificador (`@rep:`) y su diapositiva en la Pizarra siguen existiendo y eligen "el primer audio".
 - **Propuesta (Claude, no decidida):** retirar ambos en una limpieza propia (código, botón del selector de canciones
   del Planificador y soporte `@rep:` en la Pizarra), revisando antes si alguna presentación guardada aún usa `@rep:`.
+- **Auditoría (2026-10-13):** 50 presentaciones guardadas usan `@rep:`, todas de clases pasadas (la última, 2026-08-24);
+  ninguna futura. Sin soporte, esas diapositivas se verían como texto crudo (`@rep:Nombre|id`).
+- **DECISIÓN del PO (2026-10-13, opción 1 recomendada):** retirar Visor, selector de canciones del Planificador y la
+  diapositiva de canción de la Pizarra (letra, audio, modos, coloreado). Las `@rep:` guardadas se muestran como una
+  diapositiva de texto simple con "🎵 Nombre" (Pizarra y vista previa del Planificador). **No se tocan los datos.** La
+  tecla T de la Pizarra (abrir el Entrenador) se conserva.
 
 ### AT. Repertorio pasa a llamarse Biblioteca (en todo el sistema)
 *Origen: DECISIÓN del PO (2026-10-08): "formalizar que Repertorio ahora se llama Biblioteca, en todo el sistema".*
