@@ -3846,3 +3846,8 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   ve naranjo con Sigue/Archivar y "Sigue" lo limpia; Cursos muestra el cuadro y los pendientes de cada clase; clic
   derecho en un bloque de la clase → "Convertir en pendiente" lo crea en la próxima clase y el texto queda; borrar el
   padre borró sus hijos en Supabase. **Pendiente:** probar en uso; paso 3 (Apoderados).
+- **Ajuste del PO (2026-10-12):** en Cursos los completados parten plegados. En el Dashboard, Pendientes tiene **dos
+  vistas** con selector: **☀ Hoy** (lista grande y limpia: texto grande, curso como etiqueta, sin "(n sem)" ni
+  Sigue/Archivar; ＋ agrega uno general a Hoy; el selector muestra cuántos hay) y **Todos** (por curso, como antes;
+  el grupo HOY de arriba se retiró). Al abrir: Hoy si ya tiene pendientes (pueden venir del celular), si no Todos.
+  Probado en servidor local (abre en Hoy con 2 de prueba, en Todos sin ellos; borrados al final).

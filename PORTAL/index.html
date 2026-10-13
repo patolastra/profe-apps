@@ -191,9 +191,37 @@
             min-height: 240px;
         }
         .dash-pend-hdr {
-            font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px;
+            display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
         }
+        .dash-pend-tit {
+            flex: 1; font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--muted);
+        }
+        /* Dos vistas: ☀ Hoy (grande y limpia) / Todos (por curso) */
+        .dash-pend-vistas { display: flex; background: #f1f5f9; border-radius: 8px; padding: 2px; }
+        .dash-pend-vistas button {
+            border: none; background: none; cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 600;
+            color: var(--muted); padding: 4px 12px; border-radius: 6px;
+        }
+        .dash-pend-vistas button.activa { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+        #dash-pend-body[hidden], #dash-pend-hoy[hidden] { display: none; }
+        #dash-hoy-n { font-weight: 700; color: #b45309; }
+        #dash-hoy-n:empty { display: none; }
+        /* Vista Hoy: lista grande y limpia (con el curso como etiqueta) */
+        #dash-pend-hoy .pd-lista { font-size: 1.15rem; gap: 4px; }
+        #dash-pend-hoy .pd-fila { padding: 6px 4px; gap: 10px; border-bottom: 1px solid #f1f5f9; border-radius: 0; }
+        #dash-pend-hoy .pd-txt { font-size: 1.15rem; line-height: 1.4; }
+        #dash-pend-hoy .pd-chk { width: 20px; height: 20px; margin-top: 8px; }
+        #dash-pend-hoy .pd-meta { padding-top: 9px; }
+        #dash-pend-hoy .pd-curso {
+            font-size: 0.72rem; font-weight: 600; color: #475569; background: #f1f5f9; border-radius: 999px; padding: 2px 9px;
+        }
+        #dash-pend-hoy .pd-sem, #dash-pend-hoy .pd-arr { display: none; }
+        #dash-pend-hoy .pd-arrastrado { background: none; }
+        #dash-pend-hoy .pd-en-hoy .pd-sol { opacity: 0 !important; }
+        #dash-pend-hoy .pd-fila:hover .pd-sol { opacity: 1 !important; }
+        #dash-pend-hoy .pd-add { font-size: 0.9rem; padding: 9px 12px; margin-top: 8px; }
+        #dash-pend-hoy .pd-vacio { font-size: 0.9rem; padding: 14px 4px; }
         /* En ventanas angostas, apilar (calendario arriba, pendientes abajo). */
         @media (max-width: 860px) {
             #dash-split { flex-direction: column; }
@@ -298,8 +326,6 @@
             font-size: 0.82rem; font-weight: 800; color: var(--text);
             padding: 2px 2px 4px; border-bottom: 1px solid var(--border); margin-bottom: 2px;
         }
-        .pend-hoy { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 6px 8px; }
-        .pend-hoy .pend-grupo-hdr { color: #b45309; border-bottom-color: #fde68a; }
         .pend-item {
             display: flex; align-items: flex-start; gap: 8px;
             padding: 5px 4px; border-radius: 7px;
@@ -1150,8 +1176,15 @@
                 <div id="cal-mensual"></div>
             </div>
             <aside id="dash-pend" class="dash-col" aria-label="Pendientes">
-                <div class="dash-pend-hdr">Pendientes</div>
-                <div id="dash-pend-body"><!-- Etapa 4: panel de pendientes (vacío por ahora) --></div>
+                <div class="dash-pend-hdr">
+                    <span class="dash-pend-tit">Pendientes</span>
+                    <div class="dash-pend-vistas" role="tablist">
+                        <button type="button" data-vista="hoy">☀ Hoy <span id="dash-hoy-n"></span></button>
+                        <button type="button" data-vista="todos">Todos</button>
+                    </div>
+                </div>
+                <div id="dash-pend-hoy" hidden></div>
+                <div id="dash-pend-body"></div>
             </aside>
         </div>
     </div>
@@ -1776,6 +1809,17 @@ async function cierreSemanalPendientes() {
 // (indicando la clase a la que van) y, abajo, los completados de las últimas 2 semanas.
 // ＋ en cada grupo agrega a la próxima clase de ese curso (hoy incluida).
 let dashPendListas = [];
+let dashPendVista = null;   // 'hoy' | 'todos' (se elige al abrir; luego la cambia el profe)
+function mostrarVistaPend(v) {
+    dashPendVista = v;
+    document.getElementById('dash-pend-hoy').hidden = v !== 'hoy';
+    document.getElementById('dash-pend-body').hidden = v !== 'todos';
+    document.querySelectorAll('.dash-pend-vistas button').forEach(b => b.classList.toggle('activa', b.dataset.vista === v));
+}
+document.querySelector('.dash-pend-vistas')?.addEventListener('click', e => {
+    const b = e.target.closest('button[data-vista]');
+    if (b) mostrarVistaPend(b.dataset.vista);
+});
 async function cargarPendientesDashboard() {
     const body = document.getElementById('dash-pend-body');
     if (!body) return;
@@ -1821,12 +1865,21 @@ function renderPendientesDashboard() {
         dashPendListas.push(l);
         body.appendChild(grp);
     };
-    // ☀ HOY: los marcados hoy con ☀, de cualquier curso. ＋ agrega uno general (sin clase) a HOY.
-    grupo('☀ HOY', p => p.hoy === Pendientes.hoyISO(), GENERAL_ID, {
-        clase: 'pend-hoy', vacio: ' - marca pendientes con ☀', tituloAdd: 'Agregar un pendiente a HOY',
+    // Vista ☀ Hoy: los marcados hoy con ☀, de cualquier curso, en una lista grande y limpia.
+    // ＋ agrega uno general (sin clase) a Hoy.
+    const cajaHoy = document.getElementById('dash-pend-hoy');
+    const nHoy = document.getElementById('dash-hoy-n');
+    dashPendListas.push(Pendientes.lista(cajaHoy, {
+        filtro: p => p.hoy === Pendientes.hoyISO(),
         alta: () => ({ contexto_id: GENERAL_ID, sesion_id: null, hoy: Pendientes.hoyISO() }),
         mostrarCurso: p => { const c = contextos[p.contexto_id]; return c && c.id !== GENERAL_ID ? ctxDisplay(c.nombre) : 'General'; },
-    });
+        vacio: 'Nada para hoy. En "Todos", marca pendientes con ☀.',
+        completadosAbiertos: false,
+        alCambiar: n => { nHoy.textContent = n.activos || ''; },
+    }));
+    // Al abrir: Hoy si ya tiene pendientes (pudieron marcarse en el celular); si no, Todos.
+    if (!dashPendVista) dashPendVista = cajaHoy.querySelector('.pd-activos').children.length ? 'hoy' : 'todos';
+    mostrarVistaPend(dashPendVista);
     grupo(ctxIcono('GENERAL') + ' Generales', p => p.contexto_id == null || p.contexto_id === GENERAL_ID, GENERAL_ID);
     instancias.forEach(c => grupo(ctxDisplay(c.nombre), p => p.contexto_id === c.id, c.id));
 }
