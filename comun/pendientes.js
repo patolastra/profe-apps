@@ -21,7 +21,10 @@
 //                                      donde no hay botón ☀️ a la vista) })
 //   l.agregar() · l.repintar()
 //   Pendientes.crear({ contexto_id, sesion_id, fecha, texto, hoy })
-//   Pendientes.proximaClase(contexto_id)   → destino { contexto_id, sesion_id, fecha }
+//   Pendientes.proximaClase(contexto_id, { despuesDe, desde })   → destino { contexto_id, sesion_id, fecha }
+//     sin opciones: la próxima clase desde hoy (hoy incluida). despuesDe: la clase siguiente a esa fecha
+//     (un texto de la bitácora de esa clase); desde: desde esa fecha (una nota). Nunca una clase ya pasada.
+//   Pendientes.fechaCorta(iso)   → "mar 20/10"
 //   Pendientes.guardarTodo()   (antes de cerrar una ventana)
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
@@ -296,16 +299,30 @@
 
     // Próxima clase de un curso (hoy incluida); si aún no existe, la próxima fecha de su
     // horario (se crea la sesión). Sin horario (General, por ejemplo): sin clase.
-    async function proximaClase(cid) {
+    async function proximaClase(cid, { despuesDe = null, desde = null } = {}) {
         if (!cid) return { contexto_id: null, sesion_id: null };
         const hoy = hoyISO();
-        const { data } = await sb.from('sesiones').select('id, fecha')
-            .eq('contexto_id', cid).gte('fecha', hoy).order('fecha', { ascending: true }).limit(1);
-        if (data?.[0]) return { contexto_id: cid, sesion_id: data[0].id, fecha: data[0].fecha };
+        const minimo = desde && desde > hoy ? desde : hoy;          // nunca una clase ya pasada
+        let q = sb.from('sesiones').select('id, fecha').eq('contexto_id', cid).gte('fecha', minimo);
+        if (despuesDe) q = q.gt('fecha', despuesDe);                // la clase siguiente a la revisada
+        const { data } = await q.order('fecha', { ascending: true }).limit(2);
+        let cand = data || [];
+        // Desde un texto o una nota: la clase de hoy no cuenta si ya se dio (quedó su registro de
+        // tiempos al terminarla) o está en curso; entonces va a la siguiente.
+        let hoyDada = false;
+        if ((despuesDe || desde) && cand[0]?.fecha === hoy) {
+            const { data: t } = await sb.from('clase_tiempos').select('id').eq('sesion_id', cand[0].id).limit(1);
+            let vivo = null; try { vivo = window.ClaseVivo?.enCurso(); } catch (_) {}
+            hoyDada = !!(t && t.length) || vivo?.sesionId === cand[0].id;
+            if (hoyDada) cand = cand.slice(1);
+        }
+        if (cand[0]) return { contexto_id: cid, sesion_id: cand[0].id, fecha: cand[0].fecha };
         const { data: hor } = await sb.from('horario').select('dia_semana').eq('contexto_id', cid).eq('activo', true);
         const dias = new Set((hor || []).map(h => (Number(h.dia_semana) + 1) % 7));   // 0 = lunes → getDay 1
         if (!dias.size) return { contexto_id: cid, sesion_id: null };
-        const d = new Date(); d.setHours(12, 0, 0, 0);
+        const d = new Date(minimo + 'T12:00:00');
+        if (despuesDe && despuesDe >= minimo) { d.setTime(new Date(despuesDe + 'T12:00:00').getTime()); d.setDate(d.getDate() + 1); }
+        else if (hoyDada && minimo === hoy) d.setDate(d.getDate() + 1);
         for (let i = 0; i < 21; i++, d.setDate(d.getDate() + 1)) {
             if (!dias.has(d.getDay())) continue;
             const f = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -604,7 +621,7 @@
         ? new ResizeObserver(ents => ents.forEach(e => e.target.querySelectorAll('.pd-txt').forEach(crecer))) : null;
 
     window.Pendientes = {
-        conectar, cargar, lista, guardarTodo, crear, cambiar, borrar, restaurar, proximaClase, hoyISO,
+        conectar, cargar, lista, guardarTodo, crear, cambiar, borrar, restaurar, proximaClase, hoyISO, fechaCorta,
         get: id => filas.get(id), restaurarCopia, subirCola, enCola, alCola: fn => { avisarCola = fn; },
         COLS, CAT,
     };

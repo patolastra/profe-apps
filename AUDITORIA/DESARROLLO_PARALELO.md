@@ -3869,6 +3869,14 @@ bitácoras de los cursos funcionen como páginas de Notion".*
   (sale de Hoy; sigue como pendiente de su curso). Opción `sugerencias` de `Pendientes.lista`. El Dashboard abre en Hoy
   también si hay sugerencias. Probado en servidor local (2 de prueba marcados "ayer": uno aceptado → en Hoy; otro
   rechazado → solo en su curso; borrados al final).
+- **Ajuste del PO (2026-10-13): ¿para qué clase es el pendiente que nace de un texto?** En Cursos iba a "la próxima
+  clase desde hoy": al revisar la clase de hoy (Recreo, mar 13/10), sus pendientes quedaban en esa misma clase.
+  **DECISIÓN del PO:** de la bitácora de una clase X → la clase **siguiente a X**; si esa ya pasó, la próxima que **aún
+  no ocurre** (la de hoy no cuenta si ya se dio —quedó su registro de tiempos— o está en curso); de una **nota** → la
+  primera clase **desde la fecha de la nota** que aún no ocurre; General → sin clase. Al crearlo se avisa
+  "Pendiente para la clase del mar 20/10". Igual en Cursos y en la ✍🏼 del Planificador. `Pendientes.proximaClase(cid,
+  { despuesDe | desde })`. Los dos pendientes de Recreo ("ejercicio: …") se movieron al mar 20/10 (autorizado por el PO).
+  Prueba: Recreo, desde la clase del 13 → 20/10; desde la del 06 → 13/10 (hoy, porque no quedó registro de que ya se dio).
 
 ### BD. Celular — inicio según haya clase en curso; pendientes en el celular
 *Origen: PO (2026-10-12): iterar la app del celular; distinguir con / sin clase en curso; sin clase, ver y gestionar

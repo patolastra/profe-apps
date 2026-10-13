@@ -4127,12 +4127,16 @@ async function abrirMemoria() {
             clearTimeout(memTimer);
             memTimer = setTimeout(() => guardarMemoria(sid), 1200);
         },
-        // Bloque → pendiente de la próxima clase (se copia; el texto queda en la Bitácora).
+        // Bloque → pendiente (se copia; el texto queda en la Bitácora). Va a la clase SIGUIENTE a esta;
+        // si ya pasó, a la próxima que aún no ocurre (DECISIÓN del PO 2026-10-13), y se avisa cuál.
         alPendiente: async texto => {
-            const destino = await memNextSidEnsure();
-            if (!destino) { alert('Este curso no tiene una próxima clase en el horario.'); return; }
-            const p = await Pendientes.crear({ contexto_id: sesionActual.contexto_id, sesion_id: destino, fecha: memNextFecha, texto });
-            if (!p) alert('No se pudo crear el pendiente — revisa la conexión.');
+            const destino = await Pendientes.proximaClase(sesionActual.contexto_id, { despuesDe: sesionActual.fecha });
+            if (!destino.sesion_id) { alert('Este curso no tiene una próxima clase en el horario.'); return; }
+            const p = await Pendientes.crear({ ...destino, texto });
+            if (!p) { alert('No se pudo crear el pendiente — revisa la conexión.'); return; }
+            const st = document.getElementById('mem-status');
+            st.textContent = `Pendiente para la clase del ${Pendientes.fechaCorta(destino.fecha)} ✓`;
+            setTimeout(() => { if (st.textContent.startsWith('Pendiente para')) st.textContent = ''; }, 4000);
         },
     });
     if (!memEd.tieneAlgo()) memEd.enfocar('inicio');

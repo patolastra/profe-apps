@@ -287,13 +287,20 @@ $('lista-ent').addEventListener('click', e => {
 let listasPend = [];
 const esGeneralActual = () => contextos.find(c => c.id === ctxActual)?.nombre === 'GENERAL';
 const delCurso = p => p.contexto_id === ctxActual || (esGeneralActual() && p.contexto_id == null);
+// ＋ del cuadro de pendientes del curso: la próxima clase desde hoy.
 async function destinoPendiente() {
     const cid = ctxActual;
     return esGeneralActual() ? { contexto_id: cid, sesion_id: null } : Pendientes.proximaClase(cid);
 }
-async function bloqueAPendiente(texto) {
-    const p = await Pendientes.crear({ ...(await destinoPendiente()), texto });
-    estado(p ? 'Pendiente creado ✓' : 'No se pudo crear el pendiente — revisa conexión.', !p);
+// Texto de la bitácora → pendiente (DECISIÓN del PO 2026-10-13): de una clase, va a la clase SIGUIENTE
+// a esa (si ya pasó, a la próxima que aún no ocurre); de una nota, a la primera clase desde su fecha.
+async function bloqueAPendiente(texto, E) {
+    const cid = ctxActual;
+    const destino = esGeneralActual() ? { contexto_id: cid, sesion_id: null }
+        : await Pendientes.proximaClase(cid, E?.tipo === 'clase' ? { despuesDe: E.fecha } : { desde: E?.fecha });
+    const p = await Pendientes.crear({ ...destino, texto });
+    estado(!p ? 'No se pudo crear el pendiente — revisa conexión.'
+        : destino.fecha ? `Pendiente para la clase del ${Pendientes.fechaCorta(destino.fecha)} ✓` : 'Pendiente creado ✓', !p);
 }
 let listaApo = null;
 function pintarPendientes() {
@@ -356,7 +363,7 @@ function pintarHistorico() {
             vacio: E.tipo === 'clase' ? 'Sin bitácora — clic para escribir' : 'Escribe la nota…',
             alCambiar: () => marcarSucio(E),
             alSubir: E.tipo === 'nota' ? () => { const t = sec.querySelector('.ent-tit'); t.focus(); getSelection().selectAllChildren(t); getSelection().collapseToEnd(); } : null,
-            alPendiente: bloqueAPendiente,
+            alPendiente: texto => bloqueAPendiente(texto, E),
         });
     });
     pintarPendientes();
