@@ -3959,6 +3959,24 @@ específicamente en el celular".*
   volvieron a 0; Pasar lista de esa clase: quitar una ausente se reflejó al tiro (6 → 5) y al reponer la lista original
   volvió a 6. Entregas y Evaluar del celular: mismo mecanismo, sin prueba en vivo (falta clase en curso / entrega
   abierta); quedan para la prueba en uso.
+- **Fase 3 (aprobada por el PO, 2026-10-13, "dale con la fase 3"):** **Plan**: el texto de las diapositivas
+  (`presentaciones`) al instante en el Planificador de otro equipo y en una Pizarra abierta en otro equipo; los
+  **Materiales** del curso (`materiales_contexto`). **Biblioteca**: canciones, recursos, ⭐ Personal y sesiones del
+  Entrenador (`repertorio_canciones`, `repertorio_assets`, `repertorio_cancion_contextos`,
+  `repertorio_sesiones_entrenamiento`), sin tocar el Entrenador ni una ficha abiertos (se aplica al cerrarlos).
+  **Dashboard**: su calendario sale del horario (no cambia en el día a día) y sus pendientes y citas ya eran al
+  instante; solo se pone al día al volver a la pantalla. SQL `supabase/fase3_realtime.sql` (lo ejecuta el PO).
+- **Implementación Fase 3 (2026-10-13):** Planificador: texto de las diapositivas al instante (no se pisa lo que
+  se escribe; con cambios sin guardar queda lo de aquí + aviso) y Materiales del curso (no se tocan con su ventana de
+  edición abierta; también al borrarse); al volver, se pone al día y redibuja el calendario (marca de hoy). Pizarra:
+  toma el texto nuevo de su clase sin moverse de la diapositiva (`textoAlDia`). Biblioteca: canciones, recursos,
+  ⭐ Personal y sesiones del Entrenador se recargan solos (espera si hay Entrenador, ficha o ventana abierta, o si se
+  escribe; no repinta si lo que llega es igual a lo que se ve). PO ejecutó `fase3_realtime.sql`.
+- **Prueba (servidor local, datos reales cambiados "desde otro equipo" y devueltos):** Biblioteca: el artista de "El
+  Corralero" cambió solo en pantalla y volvió; Pizarra de Primero (mié 14/10): una diapositiva agregada afuera apareció
+  sola sin moverla de la que mostraba; Planificador de esa clase: al devolver el texto original afuera, el texto y la
+  vista previa se ajustaron solos (2 → 1 diapositiva); Materiales de Primero: uno agregado afuera apareció solo y al
+  borrarlo volvió a "Sin materiales." **Con esto la deuda BE queda cubierta en toda la app; falta la prueba en uso.**
 - **Pedido del PO (2026-10-12) — curso al agregar en Hoy:** en Hoy (Dashboard y celular) "＋ Agregar pendiente" abre
   una fila de íconos de los cursos ("¿De qué curso?"); el pendiente va a la próxima clase de ese curso, marcado para
   hoy (General: sin clase). Tocar el ícono de curso de un pendiente de Hoy abre la misma fila ("Mover a:") y lo cambia

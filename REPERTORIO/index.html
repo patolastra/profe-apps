@@ -9,6 +9,7 @@
     <script src="../supabase/contextos.js"></script>
     <script src="../comun/clase-vivo.js"></script>
     <script src="../comun/nombre-asset.js"></script>
+    <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
     <script src="../ritmo.js"></script>
@@ -8863,6 +8864,34 @@ pedidosCanal?.addEventListener('message', ev => {
     if (m.tipo === 'pedidos' || m.tipo === 'cargada') pedidosAplicar(m.sesionId, m.pedidos || [], m.canciones);
     if (m.tipo === 'curso') cursoAplicar(m.sesionId, m.canciones || [], m.sesion);
 });
+
+// ── Al instante entre equipos (deuda BE, Fase 3) ──────────────────────────────
+// Canciones, recursos, ⭐ Personal y sesiones del Entrenador que cambian en otro equipo se ven
+// solos. Con el Entrenador, una ficha o una ventana abierta, o escribiendo, se espera a que se
+// cierre. Si lo que llega es igual a lo que ya se ve (p. ej. lo guardó esta misma página), no se repinta.
+let bibTimer = null;
+const bibOcupada = () => !!document.querySelector('[id$="-overlay"].visible')
+    || !!document.activeElement?.closest?.('input, textarea, select, [contenteditable="true"]');
+const bibFoto = () => JSON.stringify([canciones.map(c => [c.id, c.nombre, c.artista, c.url, c.personal, c.assets.map(a => [a.id, a.tipo, a.estado, a.orden, a.etiqueta, a.rol, a.descripcion, a.dificultad])]),
+    sesiones.map(x => [x.id, x.nombre, x.contexto_id, (x.canciones || []).map(i => i.cancion_id), (x.pedidos || []).length])]);
+function bibAvisar() { clearTimeout(bibTimer); bibTimer = setTimeout(bibRefrescar, 1500); }
+async function bibRefrescar() {
+    if (bibOcupada()) { bibTimer = setTimeout(bibRefrescar, 3000); return; }
+    const antes = bibFoto();
+    try { await Promise.all([cargarTodo(), cargarSesiones()]); } catch (_) { return; }
+    recalcCursos();
+    if (bibFoto() === antes) return;
+    if (songActiva) songActiva = canciones.find(c => c.id === songActiva.id) || null;
+    const y = window.scrollY;
+    render();
+    if (vistaActual === 'sesiones') renderVistaSesiones();
+    if (songActiva) renderPanel();
+    window.scrollTo(0, y);
+}
+['repertorio_canciones', 'repertorio_assets', 'repertorio_cancion_contextos', 'repertorio_sesiones_entrenamiento']
+    .forEach(t => TiempoReal.escuchar(t, bibAvisar));
+TiempoReal.alVolver(bibAvisar);
+TiempoReal.conectar(sb);
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 (async () => {

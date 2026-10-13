@@ -2050,6 +2050,7 @@ async function cargarPresentacion(sid) {
 }
 
 async function guardarPres(sid) {
+    presTimer = null;          // ya no hay cambios esperando (presTimer = "hay algo sin guardar")
     const contenido = document.getElementById('pres-area').value;
     // Texto al día en la Pizarra abierta de esta clase (antes de subir: no depende de internet).
     if (Proyeccion.pizarraViva()) Proyeccion.ordenar(sid, { accion: 'texto', contenido });
@@ -4193,6 +4194,40 @@ TiempoReal.alVolver(async () => {
     if (!modal?.classList.contains('show') || memTimer) return;
     const { data } = await sb.from('memorias').select('contenido, updated_at').eq('sesion_id', sesionActual.id).maybeSingle();
     if (data) memAplicarRemoto({ contenido: data.contenido || '', updated: data.updated_at });
+});
+
+// ── Plan al instante (deuda BE, Fase 3) ──
+// Texto de las diapositivas: si se cambió en otro equipo, se aplica si aquí no se está escribiendo
+// (si no, al dejar de escribir); con cambios sin guardar aquí, queda lo de aquí y se avisa.
+// Materiales del curso: se aplican si su ventana de edición no está abierta.
+let presRemoto = null;
+function presAplicarRemoto(contenido) {
+    const area = document.getElementById('pres-area');
+    if (!area || contenido === area.value) return;
+    if (presTimer) { TiempoReal.aviso('Las diapositivas cambiaron en otro equipo mientras escribías: quedó tu versión.'); return; }
+    if (document.activeElement === area) { presRemoto = contenido; return; }
+    presRemoto = null;
+    area.value = contenido;
+    presAreaTextoGuardado = contenido;
+    actualizarPreview();
+}
+document.getElementById('pres-area')?.addEventListener('blur', () => setTimeout(() => { if (presRemoto != null) presAplicarRemoto(presRemoto); }, 50));
+TiempoReal.escuchar('presentaciones', ({ nuevo }) => {
+    if (nuevo?.sesion_id && sesionActual && nuevo.sesion_id === sesionActual.id) presAplicarRemoto(nuevo.contenido || '');
+});
+TiempoReal.escuchar('materiales_contexto', ({ evento, nuevo }) => {
+    if (!sesionActual || document.getElementById('mat-modal')?.classList.contains('show')) return;   // se está editando aquí
+    if (evento === 'DELETE') { cargarMateriales(); return; }
+    if (!nuevo || nuevo.contexto_id !== sesionActual.contexto_id) return;
+    materialesActuales = Array.isArray(nuevo.items) ? nuevo.items : [];
+    renderMateriales();
+});
+TiempoReal.alVolver(async () => {
+    renderCalSemanas();                      // el día pudo cambiar (marca de hoy)
+    if (!sesionActual || presTimer) return;
+    const { data } = await sb.from('presentaciones').select('contenido').eq('sesion_id', sesionActual.id).maybeSingle();
+    if (data) presAplicarRemoto(data.contenido || '');
+    if (!document.getElementById('mat-modal')?.classList.contains('show')) cargarMateriales();
 });
 
 function cerrarMemoria() {

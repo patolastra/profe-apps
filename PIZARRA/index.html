@@ -15,6 +15,7 @@
     <script src="../comun/libro-proyeccion.js"></script>
     <script src="../comun/recurrentes.js"></script>
     <script src="../comun/fecha-pizarra.js"></script>
+    <script src="../comun/tiempo-real.js"></script>
     <style>
         /* ── Variables de tema (se sobrescriben por JS) ─── */
         :root {
@@ -1538,6 +1539,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const e = JSON.parse(localStorage.getItem('profe_espejo_entrenador') || 'null');
         if (e && e.sesionId === miSesion) mostrar();
     } catch (_) {}
+})();
+
+// Al instante (deuda BE, Fase 3): si el texto de esta clase cambia en otro equipo (p. ej. el
+// Planificador de otro computador), la Pizarra lo toma sin moverse de su diapositiva.
+(function conectarTR(intento = 0) {
+    if (typeof TiempoReal === 'undefined') return;
+    if (!sb || !sesionId) { if (intento < 60) setTimeout(() => conectarTR(intento + 1), 500); return; }   // la Pizarra aún arranca
+    TiempoReal.conectar(sb);
+    TiempoReal.escuchar('presentaciones', ({ nuevo }) => {
+        if (nuevo?.sesion_id && nuevo.sesion_id === sesionId && typeof nuevo.contenido === 'string') textoAlDia(nuevo.contenido);
+    });
+    TiempoReal.alVolver(async () => {
+        if (!sesionId) return;
+        const { data } = await sb.from('presentaciones').select('contenido').eq('sesion_id', sesionId).maybeSingle();
+        if (data && typeof data.contenido === 'string') textoAlDia(data.contenido);
+    });
 })();
 </script>
 </body>
