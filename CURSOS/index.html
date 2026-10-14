@@ -514,8 +514,19 @@ async function guardar(E, contenido, titulo, fecha) {
 window.addEventListener('beforeunload', e => { if (entradas.some(x => x.sucio)) { guardarTodo(); e.preventDefault(); e.returnValue = ''; } });
 document.addEventListener('visibilitychange', () => { if (document.hidden) guardarTodo(); });
 
-// Workspace: guardar antes de cerrar la pestaña.
+// Ir a un curso (y a una de sus notas): el Plan abre aquí una nota de su clase anterior (deuda BN).
+async function irA(ctxNombre, notaId) {
+    const c = contextos.find(x => x.nombre === String(ctxNombre || '').toUpperCase());
+    if (!c) return;
+    if (ctxActual !== c.id) await abrirCurso(c.id);
+    if (!notaId || !porK['n' + notaId]) return;
+    secDe('n' + notaId)?.scrollIntoView({ block: 'start' });
+    marcarActiva('n' + notaId);
+}
+
+// Workspace: guardar antes de cerrar la pestaña; 'ws-ir' { ctx, nota } = ir a esa nota.
 window.addEventListener('message', async e => {
+    if (e.data?.tipo === 'ws-ir' && e.source === window.parent) { irA(e.data.ctx, e.data.nota); return; }
     if (e.data?.tipo !== 'ws-guardar') return;
     await guardarTodo();
     try { window.parent.postMessage({ tipo: 'ws-guardado', reqId: e.data.reqId, ok: !entradas.some(x => x.sucio) }, '*'); } catch (_) {}
@@ -580,11 +591,12 @@ Pendientes.conectar(sb);
 Apoderados.conectar(sb);
 (async function init() {
     await cargarContextos();
-    const q = new URLSearchParams(location.search).get('ctx');
+    const prm = new URLSearchParams(location.search);
+    const q = prm.get('ctx');
     let ultimo = null;
     try { ultimo = localStorage.getItem('profe_cursos_ultimo'); } catch (e) {}
     const elegido = (q && contextos.find(c => c.nombre === q.toUpperCase())) || contextos.find(c => c.id === ultimo);
-    if (elegido) abrirCurso(elegido.id);
+    if (elegido) irA(elegido.nombre, prm.get('nota'));
 })();
 </script>
 </body>

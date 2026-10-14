@@ -988,6 +988,10 @@
         .rev-mem-audio audio { width: 100%; height: 32px; }
         .rev-mem-texto { font-size: 0.8rem; padding: 4px 0; }
         .rev-mem-texto .eb-lectura { font-size: 13px; }
+        .rev-nota { cursor: pointer; border-radius: 6px; padding: 4px 6px; margin: 0 -6px 4px; }
+        .rev-nota:hover { background: rgba(127,127,127,.12); }
+        .rev-nota-tit { font-size: 0.8rem; font-weight: 700; }
+        .rev-nota-tit span { font-weight: 400; opacity: .65; }
 
         /* ── Pendientes para la próxima clase (Fase 1 — manual) ── */
         #mem-tareas { margin: 0 12px 4px; padding-top: 8px; border-top: 1px solid var(--border); }
@@ -3198,11 +3202,12 @@ async function pintarRegistro(panel, ant) {
         sb.from('pendientes').select('texto').eq('sesion_id', ant.id).eq('categoria', 'pendientes_materiales').eq('estado', 'activo'),
         sb.from('memorias').select('contenido, audios').eq('sesion_id', ant.id).maybeSingle(),
     ]);
-    const datosHTML = await datosClaseHTML(ant.id);
+    const [datosHTML, notas] = await Promise.all([datosClaseHTML(ant.id), notasDelTramo(ant)]);
     if (myToken !== _regToken) return;           // otra navegación más nueva ganó → descartar
 
     panel.innerHTML = `
         ${buildMemSeccion(memAnt, `CLASE ANTERIOR — ${fechaLbl}`)}
+        ${buildNotasSeccion(notas)}
         ${datosHTML}
         <div class="reg-hist-bloques">
             ${buildRevSeccion('REVISIÓN', rev, true)}
@@ -4093,6 +4098,49 @@ function buildMemSeccion(mem, titulo = '✍🏼 BITÁCORA') {
         </div>`;
 }
 
+// Notas de Cursos (`bitacora_paginas`) del tramo de una clase anterior (deuda BN): desde esa
+// clase (incluida) hasta la siguiente (excluida); en la anterior inmediata, hasta la clase que
+// se planifica (incluida). Solo las del curso; solo lectura (un clic la abre en Cursos).
+async function notasDelTramo(ant) {
+    if (!sesionActual) return [];
+    const i = histSesiones.findIndex(h => h.id === ant.id);
+    let q = sb.from('bitacora_paginas').select('id, titulo, fecha, contenido')
+        .eq('contexto_id', sesionActual.contexto_id).gte('fecha', ant.fecha);
+    q = i > 0 ? q.lt('fecha', histSesiones[i - 1].fecha) : q.lte('fecha', sesionActual.fecha);
+    const { data } = await q.order('fecha').order('created_at');
+    return data || [];
+}
+
+function buildNotasSeccion(notas) {
+    if (!notas.length) return '';
+    const cuerpo = notas.map(n => {
+        const d = new Date(n.fecha + 'T12:00:00');
+        const f = `${d.toLocaleDateString('es-CL', { weekday: 'short' })} ${d.getDate()} ${d.toLocaleDateString('es-CL', { month: 'short' })}`.replace(/\./g, '');
+        const texto = (n.contenido || '').trim();
+        return `<div class="rev-nota" onclick="abrirNotaCursos('${n.id}')" title="Abrir en Cursos">
+            <div class="rev-nota-tit">📝 ${escapeHtmlMem(n.titulo || 'Sin título')} <span>· ${f}</span></div>
+            ${texto ? `<div class="rev-mem-texto">${EditorBloques.html(texto)}</div>` : ''}
+        </div>`;
+    }).join('');
+    return `
+        <div class="rev-seccion">
+            <div class="rev-sec-hdr" onclick="toggleRevSec(this)">
+                <span>📝 NOTAS DEL CURSO (${notas.length})</span>
+                <span class="rev-chevron">▾</span>
+            </div>
+            <div class="rev-sec-body">${cuerpo}</div>
+        </div>`;
+}
+
+// Abre la nota en la pestaña fija Cursos del Workspace (suelto: pestaña de navegador).
+function abrirNotaCursos(id) {
+    if (!sesionActual) return;
+    const ctx = contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '';
+    const src = `../CURSOS/index.html?ctx=${encodeURIComponent(ctx)}&nota=${encodeURIComponent(id)}`;
+    const enviado = wsAbrir({ key: 'cursos', titulo: 'Cursos', ico: '🎓', src, guardarAlCerrar: true, ir: { ctx, nota: id } });
+    if (!enviado) window.open(src, '_blank');
+}
+
 function escapeHtmlMem(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -4190,6 +4238,11 @@ TiempoReal.escuchar('memorias', ({ nuevo }) => {
     if (modal?.classList.contains('show') && sesionActual && nuevo.sesion_id === sesionActual.id)
         memAplicarRemoto({ contenido: nuevo.contenido || '', updated: nuevo.updated_at });
     if (sesionActual && histSesiones[histIdx]?.id === nuevo.sesion_id) mostrarRegistroIzq();
+});
+TiempoReal.escuchar('bitacora_paginas', ({ evento, nuevo, viejo }) => {   // notas de Cursos (BN)
+    if (!sesionActual || !histSesiones[histIdx]) return;
+    if (evento === 'DELETE' ? document.querySelector(`.rev-nota[onclick*="${viejo?.id}"]`) : nuevo?.contexto_id === sesionActual.contexto_id)
+        mostrarRegistroIzq();
 });
 TiempoReal.alVolver(async () => {
     if (!sesionActual) return;

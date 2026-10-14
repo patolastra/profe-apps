@@ -4193,3 +4193,25 @@ Notion, en versión para el celular.*
   Prueba: ☰ abre el menú con 🏠 Inicio, General y los 14 cursos/talleres/jefaturas; caben sin desplazarse en 375×812 y
   en 360×640 (cada fila ajusta su alto a la pantalla, entre 30 y 44 px); tocar Quinto cierra el menú y abre su página
   ("5️⃣ Quinto" en el encabezado). Sin curso elegido, el menú se abre solo.
+
+### BN. Planificador — las notas de Cursos junto a la clase anterior
+*Origen: pedido del PO (2026-10-14): las notas que se escriben en Cursos también deben verse en el Planificador, donde
+se muestran las clases anteriores.*
+- **Auditoría (2026-10-14):** el panel izquierdo del Plan (`pintarRegistro`, `PORTAL/index.html`) muestra de la clase
+  anterior (y de las anteriores con ← →) su bitácora (`memorias`), datos de la clase, Revisión, Repertorio, Plan y
+  Materiales. Las notas de Cursos viven en `bitacora_paginas` (`contexto_id`, `fecha`, `titulo`, `contenido`) y hoy
+  solo se ven en Cursos. Sin cambios en Supabase (la tabla ya está en tiempo real, BE).
+- **DECISIÓN del PO (2026-10-14):**
+  1. Se ven las notas **del tramo**: fecha desde esa clase (incluida) hasta la clase siguiente (excluida); en la clase
+     anterior inmediata, hasta la clase que se planifica (incluida).
+  2. Solo las del curso (**no** las de General).
+  3. **Solo lectura**; un clic abre la nota en Cursos.
+  4. **Bajo la bitácora** de esa clase, cada una con su fecha y su título.
+- **Implementación (2026-10-14):** `PORTAL/index.html`: `notasDelTramo` + sección "📝 NOTAS DEL CURSO (n)" bajo la
+  bitácora de la clase anterior (solo si hay notas; título, fecha corta y texto con `EditorBloques.html`); clic →
+  `abrirNotaCursos` abre la pestaña fija Cursos con `ir: { ctx, nota }` (suelto: pestaña de navegador); al instante
+  con `TiempoReal` sobre `bitacora_paginas`. `CURSOS/index.html`: `irA(ctx, nota)` atiende `ws-ir` y `?ctx=&nota=`
+  (abre el curso y salta a la nota). Sin cambios en Supabase.
+- **Prueba (servidor local):** Plan de Quinto del mar 20/10: la clase anterior (13/10) muestra "R' Equipo de Aula ·
+  mar 13 oct" bajo su bitácora; con ← (clase del 06/10) no aparece. `CURSOS/?ctx=QUINTO&nota=…` abre Quinto con la
+  nota marcada y a la vista. Falta probar el clic dentro del Workspace (mismo mecanismo que Libros, BI).
