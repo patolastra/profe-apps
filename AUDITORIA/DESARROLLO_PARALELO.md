@@ -4261,3 +4261,18 @@ pestañas; cada una muestra su información en el mismo espacio.*
 - **Prueba (servidor local, 1366×768):** actividad "Calentamiento" escrita con el teclado: "O: Reconocer el pulso con el
   cuerpo" queda destacado y la viñeta siguiente no; al recargar se mantiene; en una segunda actividad el destaque
   aparece al ir escribiendo "O:". Guardado en la base como texto. Actividades de prueba borradas.
+
+### BQ. Editor por bloques — listas juntas (viñetas, numerados y casillas)
+*Origen: pedido del PO (2026-10-15): las viñetas y los ítems numerados se veían separados por un espacio grande, como
+párrafos sueltos.*
+- **DECISIÓN del PO (2026-10-15):** en todo el sistema, viñetas seguidas, numerados seguidos y **casillas** seguidas van
+  con el interlineado normal de una lista; la separación de siempre queda solo entre la lista y lo que viene antes o
+  después (y entre listas de distinto tipo).
+- **Implementación (2026-10-15):** solo `comun/editor-bloques.css` (aplica a Cursos PC y celular, Bitácora del
+  Planificador, Actividades del Plan e Historial): en listas, sin margen entre bloques, relleno de 1 px y alto mínimo
+  de una línea; 5 px de separación al entrar o salir de un grupo de un mismo tipo; casilla centrada en la línea.
+  Lectura igual de compacta. El celular toma la versión nueva solo (pide primero a internet).
+- **Prueba (servidor local, 1366×768):** Actividad con texto, 3 viñetas, 3 numerados, 2 casillas y párrafo: cada ítem
+  de lista mide 22 px y van pegados (antes 32 px por ítem en el editor); entre grupos, 5 px; párrafos sin cambio.
+  Historial de Enlaces (lista de 10 nombres) y Cursos de Enlaces (26 px por ítem a 16 px de letra) se ven como lista
+  continua. Actividad de prueba borrada.
