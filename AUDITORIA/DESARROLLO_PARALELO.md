@@ -4247,3 +4247,4 @@ pestañas; cada una muestra su información en el mismo espacio.*
   de prueba borradas). Card creada desde "otro equipo" aparece sola y desaparece al borrarla allá. 🎓 Curso: nota del
   13/10 arriba, luego la clase del 13/10 y las anteriores; ✏️ abre el editor y ✓ Listo vuelve a lectura. Pendientes y
   Apoderados se ven en sus pestañas.
+- **Ajuste del PO (2026-10-15):** la pestaña "🎓 Curso" del Plan se llama **🕘 Historial** (cabe sin cortarse a 1366 px).
