@@ -4276,3 +4276,16 @@ párrafos sueltos.*
   de lista mide 22 px y van pegados (antes 32 px por ítem en el editor); entre grupos, 5 px; párrafos sin cambio.
   Historial de Enlaces (lista de 10 nombres) y Cursos de Enlaces (26 px por ítem a 16 px de letra) se ven como lista
   continua. Actividad de prueba borrada.
+
+### BR. Plan — arrastrar para ordenar actividades y los párrafos de cada actividad
+*Origen: pedido del PO (2026-10-15).*
+- **DECISIÓN del PO (2026-10-15):** las actividades se ordenan entre sí arrastrando, y los párrafos (bloques) dentro de
+  cada actividad también.
+- **Implementación (2026-10-15):** `PORTAL/index.html`: asa ⋮⋮ a la izquierda del título de cada actividad (aparece al
+  pasar el mouse; `data-eb-no-marco` para que no active el recuadro de selección del editor) con arrastre propio
+  (línea azul de destino) → `moverPlanCard(desde, antes)`, que también usan ⋯ Subir / Bajar, y guarda el orden. Los
+  párrafos usan el ⋮⋮ que el editor ya tenía: en la actividad el texto se corre 14 px para que el ⋮⋮ quede dentro de
+  la tarjeta y se oculta el ＋ (Enter ya crea el bloque siguiente).
+- **Prueba (servidor local, 1366×768, arrastre real con el mouse):** "tercer párrafo" arrastrado sobre "primer párrafo"
+  → orden nuevo en pantalla y en la base; actividad TRES arrastrada sobre UNO → TRES, UNO, DOS en pantalla y en la base;
+  ⋯ Subir sigue funcionando; sin recuadro de selección pegado tras arrastrar. Actividades de prueba borradas.

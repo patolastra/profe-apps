@@ -541,6 +541,15 @@
         /* Plan de la clase en cards */
         .pcard { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px 6px; margin-bottom: 10px; }
         .pcard-hdr { display: flex; align-items: center; gap: 4px; }
+        /* Arrastrar: actividades por su ⋮⋮; párrafos por el ⋮⋮ de cada bloque (dentro de la card, deuda BR) */
+        #plan-cards { position: relative; }
+        #pcard-ind { position: absolute; left: 0; right: 0; height: 3px; background: #9ccaf5; border-radius: 2px; display: none; pointer-events: none; }
+        .pcard-asa { color: #b3b1ad; font-size: 14px; letter-spacing: -2px; cursor: grab; padding: 2px 3px; border-radius: 4px; user-select: none; opacity: 0; transition: opacity .12s; }
+        .pcard:hover .pcard-asa { opacity: 1; }
+        .pcard-asa:hover { background: #f1f5f9; color: var(--muted); }
+        .pcard.pcard-arr { opacity: .35; }
+        .pcard-ed { padding-left: 14px; }
+        .pcard-ed .eb-mas { display: none; }   /* en la actividad, solo el ⋮⋮ (Enter ya crea el bloque siguiente) */
         .pcard-tit { flex: 1; min-width: 0; border: none; outline: none; background: none; font: inherit; font-size: 0.95rem; font-weight: 800; color: var(--text, #1e293b); padding: 2px 0; }
         .pcard-tit::placeholder { color: #cbd5e1; }
         .pcard-menu { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: 0 4px; border-radius: 4px; }
@@ -4081,7 +4090,7 @@ function pintarPlan() {
     planCards.forEach(c => c.ed?.destruir());
     pane.innerHTML = `
         ${planCards.length ? '' : '<div class="plan-vacio">Arma el plan de esta clase en actividades:<br>un título, el objetivo (un párrafo que empieza con <b>O:</b>) y lo que vas a hacer.</div>'}
-        <div id="plan-cards"></div>
+        <div id="plan-cards"><div id="pcard-ind"></div></div>
         <button class="plan-nueva" onclick="nuevaPlanCard()">＋ Actividad</button>
         <div class="plan-estado" id="plan-estado"></div>`;
     const cont = document.getElementById('plan-cards');
@@ -4089,6 +4098,7 @@ function pintarPlan() {
         const el = document.createElement('div');
         el.className = 'pcard'; el.dataset.id = c.id;
         el.innerHTML = `<div class="pcard-hdr">
+                <span class="pcard-asa" draggable="true" data-eb-no-marco title="Arrastra para mover la actividad">⋮⋮</span>
                 <input class="pcard-tit" placeholder="Título de la actividad">
                 <button class="pcard-menu" title="Opciones">⋯</button>
             </div><div class="pcard-ed"></div>`;
@@ -4129,6 +4139,65 @@ function guardarPlanTodo() { return Promise.all(planCards.filter(c => c.sucio).m
 window.addEventListener('beforeunload', e => { if (planCards.some(c => c.sucio)) { guardarPlanTodo(); e.preventDefault(); e.returnValue = ''; } });
 document.addEventListener('visibilitychange', () => { if (document.hidden) guardarPlanTodo(); });
 
+// Mueve la actividad de la posición `desde` a quedar antes de la posición `antes` (0..n) y guarda el orden.
+async function moverPlanCard(desde, antes) {
+    if (antes === desde || antes === desde + 1) return;
+    await guardarPlanTodo();
+    const [c] = planCards.splice(desde, 1);
+    planCards.splice(antes > desde ? antes - 1 : antes, 0, c);
+    planCards.forEach((x, k) => { x.orden = k; });
+    pintarPlan();
+    const ahora = new Date().toISOString();
+    const res = await Promise.all(planCards.map(x => {
+        x.ultEnvio = ahora; x.updated_at = ahora;
+        return sb.from('plan_cards').update({ orden: x.orden, updated_at: ahora }).eq('id', x.id);
+    }));
+    if (res.some(r => r.error)) planEstado('No se pudo guardar el orden — revisa la conexión.', true);
+}
+
+// Arrastrar actividades por su asa ⋮⋮ (deuda BR). Los párrafos de cada actividad se arrastran
+// con el ⋮⋮ de cada bloque (EditorBloques), que no se mezcla con este.
+let arrastreCard = null, destinoCard = null;
+document.addEventListener('dragstart', e => {
+    const asa = e.target.closest?.('.pcard-asa'); if (!asa) return;
+    const el = asa.closest('.pcard');
+    arrastreCard = planCards.findIndex(c => c.id === el.dataset.id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    e.dataTransfer.setDragImage(el, 20, 16);
+    requestAnimationFrame(() => el.classList.add('pcard-arr'));
+});
+document.addEventListener('dragover', e => {
+    if (arrastreCard === null) return;
+    const cont = document.getElementById('plan-cards'); if (!cont) return;
+    e.preventDefault();
+    const els = [...cont.querySelectorAll('.pcard')];
+    let pos = els.length;
+    for (let k = 0; k < els.length; k++) {
+        const r = els[k].getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) { pos = k; break; }
+    }
+    destinoCard = pos;
+    const base = cont.getBoundingClientRect();
+    const y = pos < els.length ? els[pos].getBoundingClientRect().top - base.top - 6
+                               : els[els.length - 1].getBoundingClientRect().bottom - base.top + 3;
+    const ind = document.getElementById('pcard-ind');
+    ind.style.top = y + 'px'; ind.style.display = 'block';
+});
+document.addEventListener('drop', e => {
+    if (arrastreCard === null) return;
+    e.preventDefault();
+    const desde = arrastreCard, antes = destinoCard;
+    finArrastreCard();
+    if (antes !== null) moverPlanCard(desde, antes);
+});
+document.addEventListener('dragend', () => finArrastreCard());
+function finArrastreCard() {
+    arrastreCard = null; destinoCard = null;
+    const ind = document.getElementById('pcard-ind'); if (ind) ind.style.display = 'none';
+    document.querySelectorAll('.pcard.pcard-arr').forEach(n => n.classList.remove('pcard-arr'));
+}
+
 async function nuevaPlanCard() {
     if (!sesionActual) return;
     const orden = planCards.length ? Math.max(...planCards.map(c => c.orden || 0)) + 1 : 0;
@@ -4167,17 +4236,7 @@ function menuPlanCard(c, boton) {
             pintarPlan();
             return;
         }
-        const j = a === 'subir' ? i - 1 : i + 1;
-        await guardarPlanTodo();
-        [planCards[i], planCards[j]] = [planCards[j], planCards[i]];
-        planCards.forEach((x, k) => { x.orden = k; });
-        pintarPlan();
-        const ahora = new Date().toISOString();
-        const res = await Promise.all(planCards.map(x => {
-            x.ultEnvio = ahora; x.updated_at = ahora;
-            return sb.from('plan_cards').update({ orden: x.orden, updated_at: ahora }).eq('id', x.id);
-        }));
-        if (res.some(r => r.error)) planEstado('No se pudo guardar el orden — revisa la conexión.', true);
+        moverPlanCard(i, a === 'subir' ? i - 1 : i + 2);
     });
     setTimeout(() => document.addEventListener('click', function fuera(ev) {
         if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener('click', fuera); }
