@@ -4215,3 +4215,35 @@ se muestran las clases anteriores.*
 - **Prueba (servidor local):** Plan de Quinto del mar 20/10: la clase anterior (13/10) muestra "R' Equipo de Aula ·
   mar 13 oct" bajo su bitácora; con ← (clase del 06/10) no aparece. `CURSOS/?ctx=QUINTO&nota=…` abre Quinto con la
   nota marcada y a la vista. Falta probar el clic dentro del Workspace (mismo mecanismo que Libros, BI).
+
+### BO. Planificador — columna izquierda con pestañas: Plan de la clase (cards), Curso, Pendientes, Apoderados
+*Origen: pedido del PO (2026-10-14): en la columna izquierda del Plan, donde hoy está "Clase anterior", un menú de
+pestañas; cada una muestra su información en el mismo espacio.*
+- **Auditoría (2026-10-15):** la columna izquierda muestra, bajo la barra ← Clase anterior →, el registro de la clase
+  anterior (`pintarRegistro`: bitácora, notas BN, datos de la clase, Revisión/Repertorio/Plan/Materiales antiguos), y
+  debajo Pendientes y Apoderados de la clase (`cargarPendientesSesion`); Materiales anclado al fondo. El plan antiguo
+  (`plan_sesion_items`, una fila por ítem) ya no se edita desde la vista única.
+- **DECISIÓN del PO (2026-10-15):**
+  1. Pestañas: **📋 Plan** (abre primero) · **🎓 Curso** · **Pendientes** · **👪 Apoderados**. Materiales sigue abajo.
+  2. **Plan de la clase** = algo nuevo: el plan de ESTA clase, estilo Notion en **cards**; cada card con título y
+     texto (párrafos, viñetas, numerado). Tabla nueva (aprobada). Pasos siguientes: (2) cada card con sus
+     diapositivas de la presentación al lado (diseño a conversar), (3) multimedia en las cards.
+  3. **Curso** = la página del curso como en Cursos (clases y notas), **solo lectura con botón para editar**; parte
+     mostrando la clase anterior. Las flechas ← → desaparecen (se recorre con la rueda).
+  4. "Datos de la clase" y Revisión/Repertorio/Plan antiguos **fuera** (no se borran datos); el PO irá sumando lo que
+     necesite.
+- **Implementación paso 1 (2026-10-15):** `PORTAL/index.html`: barra de pestañas `#plan-tabs` (ancho de "Apoderados"
+  fijo: 👪 + n° de citas, nombre en el `title`, regla 8b) y 4 paneles en la columna izquierda. **Plan:** tabla nueva
+  `plan_cards` (`supabase/plan_cards.sql`, ejecutado por el PO; `sesion_id`, `orden`, `titulo`, `contenido`; en
+  Realtime): cards con título + `EditorBloques`, ＋ Card, ⋯ Subir / Bajar / Eliminar, guardado automático, al instante
+  entre equipos sin pisar lo que se escribe. **Curso:** clases anteriores a esta (bitácora de `memorias`) + notas hasta
+  su fecha (`bitacora_paginas`), lo más nuevo arriba, como en Cursos; ✏️ Editar convierte la entrada en editor ahí
+  mismo y ✓ Listo guarda. **Pendientes / Apoderados:** las mismas listas de antes. Retirados del Plan: registro de la
+  clase anterior (`pintarRegistro`, historial ← →, notas BN —ahora en la pestaña Curso—, Datos de la clase y
+  Revisión/Repertorio/Plan antiguos). El editor del plan antiguo (`plan_sesion_items`) ya estaba sin uso; sigue en el
+  código, a retirar en una limpieza aparte.
+- **Prueba (servidor local, 1366×768, Quinto 20/10):** abre en 📋 Plan; ＋ Card ×2, título y viñetas guardados en la base;
+  texto escrito a mano guardado ("Guardado ✓"); ↑ Subir cambia el orden en pantalla y en la base; Eliminar borra (cards
+  de prueba borradas). Card creada desde "otro equipo" aparece sola y desaparece al borrarla allá. 🎓 Curso: nota del
+  13/10 arriba, luego la clase del 13/10 y las anteriores; ✏️ abre el editor y ✓ Listo vuelve a lectura. Pendientes y
+  Apoderados se ven en sus pestañas.
