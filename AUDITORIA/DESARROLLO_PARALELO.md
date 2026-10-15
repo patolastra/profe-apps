@@ -4248,3 +4248,16 @@ pestañas; cada una muestra su información en el mismo espacio.*
   13/10 arriba, luego la clase del 13/10 y las anteriores; ✏️ abre el editor y ✓ Listo vuelve a lectura. Pendientes y
   Apoderados se ven en sus pestañas.
 - **Ajuste del PO (2026-10-15):** la pestaña "🎓 Curso" del Plan se llama **🕘 Historial** (cabe sin cortarse a 1366 px).
+
+### BP. Plan — las cards se llaman "Actividades" y cada una puede tener un objetivo ("O:")
+*Origen: pedido del PO (2026-10-15).*
+- **DECISIÓN del PO (2026-10-15):** (1) las cards del Plan se llaman **Actividades** en todo lo visible; (2) cada
+  actividad puede tener un **objetivo**: un párrafo que empieza con **"O:"** se reconoce como el objetivo y se destaca.
+- **Implementación (2026-10-15):** `comun/editor-bloques.js` gana la opción **`objetivo`** (en `crear` y en `html`):
+  un párrafo cuyo texto empieza con "O:" lleva la clase `eb-objetivo`, también mientras se escribe; estilo en
+  `comun/editor-bloques.css` (fondo verde claro, borde izquierdo verde, letra seminegrita). Sin la opción, el editor
+  sigue igual (Cursos, Bitácora). El texto se guarda tal cual ("O: …"), sin cambios en la base. Planificador: "＋
+  Actividad", "Título de la actividad", "Eliminar actividad", ayuda inicial que explica el "O:".
+- **Prueba (servidor local, 1366×768):** actividad "Calentamiento" escrita con el teclado: "O: Reconocer el pulso con el
+  cuerpo" queda destacado y la viñeta siguiente no; al recargar se mantiene; en una segunda actividad el destaque
+  aparece al ir escribiendo "O:". Guardado en la base como texto. Actividades de prueba borradas.

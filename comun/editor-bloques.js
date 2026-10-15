@@ -14,7 +14,8 @@
 //   toque largo (o ⋯ de la barra) = menú del bloque, con Subir / Bajar en vez de arrastrar.
 //   ed.texto() · ed.poner(texto) · ed.tieneAlgo() · ed.enfocar('inicio'|'fin') · ed.guardado(isoFecha)
 //   EditorBloques.zona(elemento)   → ahí se puede arrastrar un marco para seleccionar bloques
-//   EditorBloques.html(texto)      → vista de solo lectura (HTML)
+//   EditorBloques.html(texto, op)  → vista de solo lectura (HTML); op.objetivo como en crear
+//   objetivo: un párrafo que empieza con "O:" es el objetivo y se destaca (Actividades del Plan, deuda BP)
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
     'use strict';
@@ -142,7 +143,8 @@
     }
 
     // ── Bloques en pantalla ─────────────────────────────────────────────
-    function htmlBloque(b, num, editable, vacio) {
+    const esObjetivo = b => b.t === 'p' && /^\s*O:/.test(mdAPlano(b.x));
+    function htmlBloque(b, num, editable, vacio, op) {
         let marca = '';
         if (b.t === 'ul')   marca = '<span class="eb-marca">•</span>';
         if (b.t === 'ol')   marca = `<span class="eb-marca">${num}.</span>`;
@@ -154,13 +156,14 @@
                 <span class="eb-asa" draggable="true" data-eb-tip="<b>Arrastra</b> para mover<br><b>Haz clic</b> para abrir el menú">⋮⋮</span>
             </div>` : '';
         const vaciaCls = !editable && b.t === 'p' && !b.x ? ' eb-vacia' : '';
-        return `<div class="eb-blq eb-t-${b.t}${b.t === 'todo' && b.c ? ' eb-hecho' : ''}${vaciaCls}" data-id="${b.id}">${asas}${marca}${cuerpo}</div>`;
+        const objCls = op?.objetivo && esObjetivo(b) ? ' eb-objetivo' : '';
+        return `<div class="eb-blq eb-t-${b.t}${b.t === 'todo' && b.c ? ' eb-hecho' : ''}${vaciaCls}${objCls}" data-id="${b.id}">${asas}${marca}${cuerpo}</div>`;
     }
-    function html(texto) {
+    function html(texto, op) {
         let num = 0;
         const bs = aBloques(texto);
         while (bs.length && bs[bs.length - 1].t === 'p' && !bs[bs.length - 1].x) bs.pop();
-        return `<div class="eb eb-lectura"><div class="eb-bloques">${bs.map(b => { num = b.t === 'ol' ? num + 1 : 0; return htmlBloque(b, num, false); }).join('')}</div></div>`;
+        return `<div class="eb eb-lectura"><div class="eb-bloques">${bs.map(b => { num = b.t === 'ol' ? num + 1 : 0; return htmlBloque(b, num, false, '', op); }).join('')}</div></div>`;
     }
 
     // ── Instancias ──────────────────────────────────────────────────────
@@ -204,7 +207,7 @@
         if (!I.bloques.length) I.bloques = [{ id: nid(), t: 'p', x: '' }];
         [...cont.querySelectorAll('.eb-blq')].forEach(n => n.remove());
         let num = 0, h = '';
-        I.bloques.forEach(b => { num = b.t === 'ol' ? num + 1 : 0; h += htmlBloque(b, num, true, I.op.vacio); });
+        I.bloques.forEach(b => { num = b.t === 'ol' ? num + 1 : 0; h += htmlBloque(b, num, true, I.op.vacio, I.op); });
         cont.insertAdjacentHTML('beforeend', h);
         marcarSolo(I);
     }
@@ -324,6 +327,7 @@
         if (!b) return;
         if (!txt.textContent) txt.innerHTML = '';
         b.x = mdDeDom(txt);
+        if (I.op.objetivo) txt.parentElement.classList.toggle('eb-objetivo', esObjetivo(b));
         if (e.inputType === 'insertText' && e.data) {
             const plano = txt.textContent, pos = cursorEn(txt);
             if (I.op.tactil && plano === '/') { txt.innerHTML = ''; b.x = ''; marcarSolo(I); menuTipos(id); return; }

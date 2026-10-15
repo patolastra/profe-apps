@@ -4033,7 +4033,7 @@ function memAudioHtml(a, i) {
 
 // ═══════════════════════════════════════════════════════════
 // COLUMNA IZQUIERDA CON PESTAÑAS (deuda BO, 2026-10-15)
-// 📋 Plan (cards de esta clase, tabla plan_cards) · 🕘 Historial (página del curso como en
+// 📋 Plan (actividades de esta clase, tabla plan_cards; "O:" = objetivo) · 🕘 Historial (página del curso como en
 // Cursos: clases y notas, solo lectura con ✏️ por entrada) · Pendientes · Apoderados.
 // ═══════════════════════════════════════════════════════════
 const PLAN_TABS = ['plan', 'curso', 'pend', 'apo'];
@@ -4049,7 +4049,7 @@ document.getElementById('plan-tabs').addEventListener('click', e => {
 });
 EditorBloques.zona(document.getElementById('col-plan-body'));
 
-// ── 📋 Plan de la clase: cards (título + texto por bloques) ──────────────
+// ── 📋 Plan de la clase: actividades (título + texto por bloques; párrafo "O:" = objetivo) ──
 let planCards = [];          // [{ id, orden, titulo, contenido, updated_at, ed, sucio, timer, ultEnvio }]
 let planSid = null;          // sesión de las cards cargadas
 let planRemotoPend = false;  // llegó un cambio de otro equipo mientras se escribía aquí
@@ -4080,16 +4080,16 @@ function pintarPlan() {
     const pane = document.getElementById('pane-plan');
     planCards.forEach(c => c.ed?.destruir());
     pane.innerHTML = `
-        ${planCards.length ? '' : '<div class="plan-vacio">Arma el plan de esta clase en cards:<br>un título y lo que vas a hacer.</div>'}
+        ${planCards.length ? '' : '<div class="plan-vacio">Arma el plan de esta clase en actividades:<br>un título, el objetivo (un párrafo que empieza con <b>O:</b>) y lo que vas a hacer.</div>'}
         <div id="plan-cards"></div>
-        <button class="plan-nueva" onclick="nuevaPlanCard()">＋ Card</button>
+        <button class="plan-nueva" onclick="nuevaPlanCard()">＋ Actividad</button>
         <div class="plan-estado" id="plan-estado"></div>`;
     const cont = document.getElementById('plan-cards');
     planCards.forEach(c => {
         const el = document.createElement('div');
         el.className = 'pcard'; el.dataset.id = c.id;
         el.innerHTML = `<div class="pcard-hdr">
-                <input class="pcard-tit" placeholder="Título">
+                <input class="pcard-tit" placeholder="Título de la actividad">
                 <button class="pcard-menu" title="Opciones">⋯</button>
             </div><div class="pcard-ed"></div>`;
         cont.appendChild(el);
@@ -4100,7 +4100,8 @@ function pintarPlan() {
         el.querySelector('.pcard-menu').addEventListener('click', e => { e.stopPropagation(); menuPlanCard(c, e.currentTarget); });
         c.ed = EditorBloques.crear(el.querySelector('.pcard-ed'), {
             texto: c.contenido || '', actualizado: c.updated_at,
-            vacio: 'Qué vas a hacer: pasos, viñetas, párrafos…',
+            vacio: 'O: objetivo de la actividad · luego qué vas a hacer: pasos, viñetas, párrafos…',
+            objetivo: true,
             alCambiar: () => planCambio(c),
         });
     });
@@ -4134,7 +4135,7 @@ async function nuevaPlanCard() {
     const ahora = new Date().toISOString();
     const { data, error } = await sb.from('plan_cards')
         .insert({ sesion_id: sesionActual.id, orden, titulo: '', contenido: '', updated_at: ahora }).select().single();
-    if (error) { planEstado('No se pudo crear la card — revisa la conexión.', true); return; }
+    if (error) { planEstado('No se pudo crear la actividad — revisa la conexión.', true); return; }
     await guardarPlanTodo();
     planCards.push({ ...data, ultEnvio: data.updated_at });
     pintarPlan();
@@ -4148,7 +4149,7 @@ function menuPlanCard(c, boton) {
     pop.className = 'pcard-pop';
     pop.innerHTML = `${i > 0 ? '<button data-a="subir">↑ Subir</button>' : ''}
         ${i < planCards.length - 1 ? '<button data-a="bajar">↓ Bajar</button>' : ''}
-        <button data-a="borrar" class="peligro">🗑 Eliminar card</button>`;
+        <button data-a="borrar" class="peligro">🗑 Eliminar actividad</button>`;
     document.body.appendChild(pop);
     const r = boton.getBoundingClientRect();
     pop.style.top = (r.bottom + 4) + 'px';
@@ -4157,7 +4158,7 @@ function menuPlanCard(c, boton) {
         const a = e.target.closest('button')?.dataset.a; if (!a) return;
         pop.remove();
         if (a === 'borrar') {
-            if (!confirm(`¿Eliminar la card "${c.titulo || 'sin título'}"?`)) return;
+            if (!confirm(`¿Eliminar la actividad "${c.titulo || 'sin título'}"?`)) return;
             clearTimeout(c.timer); c.sucio = false;
             const { error } = await sb.from('plan_cards').delete().eq('id', c.id);
             if (error) { planEstado('No se pudo eliminar — revisa la conexión.', true); return; }
@@ -4197,7 +4198,7 @@ TiempoReal.escuchar('plan_cards', ({ evento, nuevo, viejo }) => {
     if (nuevo?.sesion_id !== sesionActual.id) return;
     const c = planCards.find(x => x.id === nuevo.id);
     if (c && (TiempoReal.mismaHora(c.ultEnvio, nuevo.updated_at) || TiempoReal.mismaHora(c.updated_at, nuevo.updated_at))) return;   // eco propio
-    if (c?.sucio) { TiempoReal.aviso('Una card del plan cambió en otro equipo mientras escribías: quedó tu versión.'); return; }
+    if (c?.sucio) { TiempoReal.aviso('Una actividad del plan cambió en otro equipo mientras escribías: quedó tu versión.'); return; }
     planRemoto();
 });
 document.addEventListener('focusout', () => setTimeout(() => {
