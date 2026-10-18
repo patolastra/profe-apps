@@ -8407,8 +8407,12 @@ function espejoAnclaScroll() {
     });
     return best;
 }
+// Desplazar la letra en la Pizarra misma (rueda, toque, teclado): mientras se hace, la copia no obedece al profe y
+// le avisa su posición, así ambas quedan en el mismo lugar.
+let espejoLocalHasta = 0;
 function espejoAplicarScroll(sc) {
     if (!sc || entViewMode !== 'scroll') return;
+    if (ESPEJO && Date.now() < espejoLocalHasta) return;
     const z = document.getElementById('ent-zona');
     const el = z?.querySelector(`.ent-lyric-line[data-orig="${sc.orig}"]`);
     if (!el || !z.clientHeight) return;
@@ -8685,11 +8689,32 @@ if (ESPEJO) {
         const m = ev.data || {};
         if (m.tipo === 'estado') espejoAplicar(m);
         else if (m.tipo === 'scroll') espejoAplicarScroll(m.s);
+        else if (m.tipo === 'scroll-pizarra') return;
         else if (m.tipo === 'ritmo') espejoRitmo(m);
         else if (m.tipo === 'metal') espejoMetalAplicar(m);
     };
+    // Desplazamiento hecho en la Pizarra: se le avisa al Entrenador del profe.
+    // Mientras dura el gesto (y un poco después), cada 150 ms manda dónde quedó la letra si se movió.
+    const zE = document.getElementById('ent-zona');
+    let espejoLocalTimer = null, espejoLocalTop = null;
+    const local = () => {
+        espejoLocalHasta = Date.now() + 900;
+        if (espejoLocalTimer || !espejoCanal) return;
+        espejoLocalTimer = setInterval(() => {
+            if (zE.scrollTop !== espejoLocalTop) {
+                espejoLocalTop = zE.scrollTop;
+                const sc = espejoAnclaScroll();
+                if (sc) espejoCanal.postMessage({ tipo: 'scroll-pizarra', s: sc });
+            }
+            if (Date.now() > espejoLocalHasta) { clearInterval(espejoLocalTimer); espejoLocalTimer = null; espejoLocalTop = null; }
+        }, 150);
+    };
+    ['wheel', 'touchstart', 'touchmove', 'pointerdown'].forEach(t => zE.addEventListener(t, local, { passive: true }));
+    window.addEventListener('keydown', local);
 } else {
     ['play', 'pause', 'seeked', 'ratechange'].forEach(t => entAudio().addEventListener(t, espejoEmitir));
+    // La letra se desplazó en la Pizarra: el Entrenador del profe la sigue.
+    espejoCanal?.addEventListener('message', ev => { if (ev.data?.tipo === 'scroll-pizarra' && espejoOn) espejoAplicarScroll(ev.data.s); });
     let espejoScrollRaf = 0;
     document.getElementById('ent-zona').addEventListener('scroll', () => {
         if (!espejoOn || !espejoCanal || espejoScrollRaf) return;

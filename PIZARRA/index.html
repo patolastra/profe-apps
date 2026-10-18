@@ -904,7 +904,21 @@ window.addEventListener('resize', () => { autoFitPendiente(); autoFitPanelMsg();
 
 // ── RENDER ───────────────────────────────────────────────
 
+// Diapositiva en blanco (deuda BU): al cerrar la letra de una canción de una actividad sin diapositivas.
+// `siguiente` = la diapositiva que viene después de esa actividad (▶ va ahí, ◀ a la anterior); `act` = la
+// actividad, para que el Planificador la siga destacando como en curso.
+let enBlanco = null;
+function mostrarBlanco(siguiente, act) {
+    const area = document.getElementById('slide-area');
+    area.className = 'tipo-texto';
+    area.innerHTML = '<div class="slide-texto"><div class="slide-content"></div></div>';
+    document.body.classList.remove('slide-metal-active');
+    enBlanco = { siguiente: Math.max(0, siguiente | 0), act: act || null };
+    actualizarContadores();
+}
+
 function renderSlide() {
+    enBlanco = null;
     const area = document.getElementById('slide-area');
     if (!slides.length) {
         area.className = '';
@@ -970,7 +984,9 @@ function actualizarContadores() {
     if (c1) c1.textContent = txt;
     if (c2) c2.textContent = txt;
     // El Planificador enmarca la diapositiva que se está mostrando (deuda AY).
-    try { if (sesionId) localStorage.setItem('profe_pizarra_slide', JSON.stringify({ sesionId, idx: slideIdx, t: Date.now() })); } catch (_) {}
+    try { if (sesionId) localStorage.setItem('profe_pizarra_slide', JSON.stringify(enBlanco
+        ? { sesionId, idx: -1, act: enBlanco.act, t: Date.now() }
+        : { sesionId, idx: slideIdx, t: Date.now() })); } catch (_) {}
 }
 
 // ── NAVEGACIÓN ───────────────────────────────────────────
@@ -981,8 +997,14 @@ function irA(idx) {
     renderSlide();
 }
 
-function avanzar()    { if (slideIdx < slides.length - 1) irA(slideIdx + 1); }
-function retroceder() { if (slideIdx > 0) irA(slideIdx - 1); }
+function avanzar() {
+    if (enBlanco) { if (enBlanco.siguiente < slides.length) irA(enBlanco.siguiente); return; }
+    if (slideIdx < slides.length - 1) irA(slideIdx + 1);
+}
+function retroceder() {
+    if (enBlanco) { if (enBlanco.siguiente > 0) irA(enBlanco.siguiente - 1); return; }
+    if (slideIdx > 0) irA(slideIdx - 1);
+}
 
 // ── ÓRDENES DEL PLANIFICADOR (comun/clase-vivo.js, misma computadora) ──
 // ◀ ▶ = flechas del teclado; clic en la vista previa = ir a esa diapositiva;
@@ -996,6 +1018,9 @@ function ordenDelPlanificador(o) {
         irA(o.idx | 0);
     } else if (o.accion === 'texto') {
         textoAlDia(o.contenido || '');
+    } else if (o.accion === 'blanco') {
+        if (typeof o.contenido === 'string') textoAlDia(o.contenido);
+        mostrarBlanco(o.siguiente, o.act);
     } else if (o.accion === 'cerrar') {
         window.close();   // "Terminar clase" en el Planificador (deuda AZ)
     }
@@ -1008,7 +1033,7 @@ function textoAlDia(contenido) {
     let idx = slideIdx;
     if (nuevos[idx] !== actual) { const j = nuevos.indexOf(actual); if (j >= 0) idx = j; }
     idx = Math.max(0, Math.min(idx, nuevos.length - 1));
-    const redibujar = !slides.length || nuevos[idx] !== actual;
+    const redibujar = !enBlanco && (!slides.length || nuevos[idx] !== actual);   // en blanco se queda en blanco
     slides = nuevos; slideIdx = idx;
     if (redibujar) renderSlide(); else actualizarContadores();
 }

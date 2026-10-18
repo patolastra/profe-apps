@@ -4423,3 +4423,18 @@ párrafos sueltos.*
   oculta solo en la pantalla del profe; el espejo la seguía enviando). `espejoCancioneroDatos` no envía nada con
   `?mini=1`. Prueba (local): Entrenador mínimo de Quinto en El Crack, lista "abierta" por dentro → el estado enviado a
   la Pizarra va sin cancionero.
+- **Ajustes del PO (2026-10-18):**
+  1. **Desplazar la letra en la Pizarra** (deuda del Entrenador, vale para todo espejo): el Entrenador del profe
+     reenviaba su posición cada 300 ms y deshacía lo hecho en la Pizarra. Ahora, mientras se usa la rueda / toque /
+     teclado en la Pizarra (y 0,9 s después), la copia no obedece y cada 150 ms le avisa al Entrenador del profe dónde
+     quedó (`scroll-pizarra`), que la sigue. Prueba (local, dos pestañas = profe + Pizarra): rueda y desplazamiento en
+     la Pizarra → queda en su lugar (1500 px) y el profe pasa al mismo verso (n° 34).
+  2. **Cerrar la letra de una actividad sin diapositivas** (en clase): la Pizarra queda **en blanco** (orden
+     `blanco` de `Proyeccion`; no vuelve a la diapositiva anterior) y la actividad **sigue destacada** (la Pizarra
+     publica `idx: -1, act`); ▶ va a la primera diapositiva de lo que viene después de esa actividad, ◀ a la anterior;
+     el texto al día no la saca del blanco. Prueba (local): A1 (1 diapo), A2 (canción, sin diapos), A3 (2 diapos) →
+     al cerrar la canción de A2 se ordena blanco con siguiente = 2 y A2 sigue amarilla; en la Pizarra queda en blanco,
+     ▶ muestra "Tres", ◀ desde blanco muestra "Uno".
+  3. **Al terminar la clase** se apaga la actividad en curso (solo hay actividad en curso con la clase de esa sesión
+     en curso; el Planificador repinta al cambiar la clase). Prueba (local): sin clase, ninguna card ni cuadro
+     destacado. Datos de prueba borrados.

@@ -2679,9 +2679,11 @@ function marcarEnPizarra() {
         el.classList.toggle('en-pizarra', si);
         if (si) act = el.dataset.act || '';
     });
+    if (idx === -1 && p && p.act && p.sesionId === sesionActual?.id && Proyeccion.pizarraViva()) act = p.act;   // Pizarra en blanco de esa actividad
     // En clase, con la letra de una canción de una actividad en la Pizarra, la actividad en curso es esa.
     const st = ClaseVivo.get();
     if (miniAct && !document.getElementById('prev-mini')?.hidden && st && sesionActual && st.sesionId === sesionActual.id) act = miniAct;
+    if (!(st && sesionActual && st.sesionId === sesionActual.id)) act = null;   // sin la clase de esta sesión en curso, no hay actividad en curso
     document.querySelectorAll('#plan-cards .pcard').forEach(el => el.classList.toggle('en-curso', act !== null && el.dataset.id === act));
     // Al cambiar la actividad en curso, el Plan la deja arriba de la columna (sin cambiar el orden; no si se escribe ahí).
     // Mientras haya una, sobra espacio abajo para que también la última pueda quedar arriba.
@@ -2836,6 +2838,7 @@ async function confirmarFinClase() {
 }
 
 ClaseVivo.onCambio(renderClase);
+ClaseVivo.onCambio(() => marcarEnPizarra());   // al terminar la clase se apaga la actividad en curso
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('clase-fin-clave').addEventListener('keydown', e => {
         if (e.key === 'Enter') { e.preventDefault(); confirmarFinClase(); }
@@ -4752,6 +4755,17 @@ window.addEventListener('resize', miniUbicar);
 function cerrarMini() {
     const box = document.getElementById('prev-mini');
     if (box.hidden) return;
+    // En clase, si la actividad de la canción no tiene diapositivas, la Pizarra queda en blanco (no vuelve a la
+    // diapositiva anterior) y la actividad sigue destacada; ▶ sigue con la diapositiva que viene después de ella.
+    if (miniAct && controlaPizarra() && !document.querySelector(`#prev-body .slide-prev[data-act="${miniAct}"]`)) {
+        const k = presModelo.findIndex(c => c.id === miniAct);
+        let siguiente = slides.length;
+        for (const c of presModelo.slice(k + 1)) {
+            const el = document.querySelector(`#prev-body .slide-prev[data-act="${c.id || ''}"]`);
+            if (el) { siguiente = parseInt(el.dataset.idx); break; }
+        }
+        Proyeccion.ordenar(sesionActual.id, { accion: 'blanco', siguiente, act: miniAct, contenido: document.getElementById('pres-area').value });
+    }
     box.querySelector('iframe').src = 'about:blank';   // al salir, el Entrenador suelta la Pizarra (pagehide)
     box.hidden = true;
     miniAct = null;
