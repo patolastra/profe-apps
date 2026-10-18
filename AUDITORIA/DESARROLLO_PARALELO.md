@@ -4289,3 +4289,39 @@ párrafos sueltos.*
 - **Prueba (servidor local, 1366×768, arrastre real con el mouse):** "tercer párrafo" arrastrado sobre "primer párrafo"
   → orden nuevo en pantalla y en la base; actividad TRES arrastrada sobre UNO → TRES, UNO, DOS en pantalla y en la base;
   ⋯ Subir sigue funcionando; sin recuadro de selección pegado tras arrastrar. Actividades de prueba borradas.
+
+### BS. Plan — cada actividad con sus diapositivas (deuda BO, paso 2)
+*Origen: paso 2 de BO (PO, 2026-10-15): cada actividad del Plan con sus diapositivas de la presentación al lado.*
+- **DECISIÓN del PO (2026-10-18):** (1) las diapositivas se agrupan **bajo cada actividad**: la columna Presentación
+  se divide en **un cuadro por actividad** (con su título arriba), más un cuadro **Inicio** fijo arriba para el saludo
+  y lo que no es de ninguna actividad; (2) al cambiar el orden de las actividades, **sus diapositivas se mueven con
+  ellas**; (3) una actividad nueva parte **sin diapositivas**; (4) las presentaciones ya escritas quedan completas en
+  **Inicio**; (5) en clase, se **destaca la actividad en curso** según la diapositiva de la Pizarra; (6) tocar una
+  actividad **salta a su primera diapositiva**: la Pizarra con la clase en curso, la vista previa sin clase.
+- **Auditoría (2026-10-18):** la presentación es un solo texto (`presentaciones.contenido`, diapositivas separadas por
+  `---`) que usan el editor (`#pres-area`), la vista previa (posiciones de texto, arrastrar, duplicar, borrar,
+  deshacer), Insertar, el tiempo real y la Pizarra (`parsearSlides`, índice de diapositiva compartido con
+  `Proyeccion` y `profe_pizarra_slide`).
+- **Diseño técnico (sin cambios en Supabase):** el texto completo sigue siendo la única verdad. Cada actividad con
+  diapositivas se marca dentro del texto con una diapositiva-marca `@actividad:<id de plan_cards>` antes de las suyas;
+  lo anterior a la primera marca es Inicio. Planificador y Pizarra **no cuentan ni muestran** las marcas (mismo
+  índice de diapositiva en ambos). Los cuadros editan cada tramo y rearman el texto en el orden de las actividades.
+- **Implementación (2026-10-18):** `PORTAL/index.html`: `#pres-area` queda oculto como texto completo; la columna
+  Presentación muestra `#pres-secc` con un cuadro por tramo (Inicio, cada actividad en el orden del Plan y, si
+  quedara una marca sin actividad, "Diapositivas sin actividad", para no perder nada); cada cuadro crece con su texto y
+  su encabezado (título + n° de diapositivas) salta a sus diapositivas. Escribir en un cuadro rearma el texto
+  (`presTextoDe`) y sigue el camino de siempre (guardado, vista previa, Pizarra al día, tiempo real). Vista previa:
+  rótulo por actividad y cada diapositiva sabe de cuál es; clic en una diapositiva selecciona su texto en su cuadro;
+  arrastrar, duplicar, borrar y deshacer conservan las marcas. Insertar (imagen, metalófono, YouTube) escribe en el
+  último cuadro usado. Actividades: botón ▶ (solo si tiene diapositivas, espacio reservado) → `irActividad`; mover
+  una actividad rearma y guarda la presentación; eliminarla avisa y borra también sus diapositivas. En clase, la
+  diapositiva de la Pizarra destaca su actividad (card, cuadro y rótulo, en ámbar). `PIZARRA/index.html`:
+  `parsearSlides` ignora las marcas. Sin cambios en Supabase.
+- **Prueba (servidor local, 1366×768, Quinto 27/10):** dos actividades creadas y escritas con el teclado; sus
+  diapositivas quedan en el texto guardado tras su marca, con rótulos Inicio / Calentamiento / Canto en la vista previa;
+  ↓ Bajar Calentamiento → cuadros y texto guardado en el orden nuevo; al recargar, cada cuadro con lo suyo; ▶ de
+  Calentamiento marca "# Pulso" en la vista previa; clic en "Coro" de la vista previa selecciona su texto en el cuadro
+  Canto; con la Pizarra simulada en "# Pulso", Calentamiento se destaca en card, cuadro y rótulo; eliminar Canto pide
+  "¿… y sus 2 diapositivas?" y las saca del texto; la Pizarra abre con 3 diapositivas (sin marcas) en el mismo orden.
+  Datos de prueba borrados (presentación de Quinto 27/10 vuelta a la diapositiva inicial). Falta: prueba con la
+  Pizarra real en el proyector.

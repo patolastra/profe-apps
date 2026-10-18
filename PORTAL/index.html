@@ -752,6 +752,30 @@
         #prev-body.cols-2 .slide-prev { margin-bottom: 0; }
         #prev-body.cols-2 .slide-prev { aspect-ratio: 16/9; } /* máx 311×175px, siempre 16:9 */
 
+        /* Diapositivas por actividad (deuda BS): un cuadro por actividad en la Presentación */
+        .s-col-editor #pres-area { display: none; }   /* texto completo: oculto, sigue siendo la verdad */
+        #pres-secc { flex: 1; overflow-y: auto; background: #f1f5f9; padding: 8px; }
+        .psec { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+        .psec-hdr { display: flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 0.75rem; font-weight: 800; color: #475569; background: #f8fafc; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+        .psec-hdr:hover { color: var(--text); background: #eef2f7; }
+        .psec-tit { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .psec-tit.sin { color: #94a3b8; font-weight: 600; font-style: italic; }
+        .psec-n { width: 5.5em; text-align: right; font-size: 0.68rem; font-weight: 600; color: var(--muted); flex-shrink: 0; }
+        .psec.inicio .psec-hdr { color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.68rem; }
+        .psec.huerfano .psec-hdr { color: #b45309; }
+        .psec-ta { display: block; width: 100%; border: none; outline: none; resize: none; overflow: hidden; padding: 8px 12px; font-family: 'Courier New', monospace; font-size: 0.83rem; line-height: 1.6; color: var(--text); background: var(--card-bg); min-height: 3.4em; }
+        .psec-ta::placeholder { color: #cbd5e1; }
+        .psec.en-curso { border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b; }
+        .psec.en-curso .psec-hdr { background: #fef3c7; color: #92400e; }
+        .pcard.en-curso { border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b, 0 0 12px 2px rgba(245,158,11,.35); }
+        .pcard-ir { visibility: hidden; border: none; background: none; color: var(--muted); cursor: pointer; font-size: 0.8rem; padding: 2px 5px; border-radius: 4px; }
+        .pcard-ir.si { visibility: visible; }
+        .pcard-ir:hover { background: #fef3c7; color: #92400e; }
+        .prev-act { grid-column: 1 / -1; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; padding: 6px 2px 0; border-top: 1px dashed #cbd5e1; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .prev-act:first-child { border-top: none; padding-top: 0; }
+        .prev-act:hover { color: var(--text); }
+        .prev-act.en-curso { color: #b45309; }
+
         /* Slides UR buttons */
         .slides-ur-btns { margin-left: auto; display: flex; gap: 3px; }
 
@@ -1304,6 +1328,7 @@
                     </div>
                 </div>
                 <textarea id="pres-area" placeholder="# Título&#10;---&#10;## Subtítulo&#10;- ítem 1&#10;- ítem 2"></textarea>
+                <div id="pres-secc"></div>
                 <div class="s-editor-footer" id="pres-status"></div>
             </div>
 
@@ -2122,6 +2147,172 @@ async function guardarPres(sid) {
     }
 }
 
+// ── Diapositivas por actividad (deuda BS) ──
+// El texto completo (#pres-area, oculto) sigue siendo la única verdad (presentaciones.contenido). Cada
+// actividad con diapositivas lleva antes una diapositiva-marca "@actividad:<id>"; lo anterior a la primera
+// marca es Inicio. Las marcas no se muestran ni se cuentan (aquí ni en la Pizarra). Cada cuadro edita su
+// tramo y el texto se rearma en el orden de las actividades del Plan.
+const PRES_SEP = '\n---\n';
+const esMarcaAct = s => /^@actividad:\S*$/.test(s.trim());
+let presModelo = [];          // [{ id (null = Inicio), texto, card?, huerfano? }]
+let presDesdeCuadro = false;  // el cambio del texto completo vino de un cuadro (no rearmar los cuadros)
+let presUltimaTa = null;      // último cuadro con el cursor (Insertar escribe ahí)
+
+// Tramos del texto completo, en su orden: { id, texto, inicio (posición del texto en el completo) }.
+function presTramos(full) {
+    const tramos = [{ id: null, partes: [], inicio: 0 }];
+    let pos = 0;
+    full.split(PRES_SEP).forEach(p => {
+        if (esMarcaAct(p)) tramos.push({ id: p.trim().slice(11), partes: [], inicio: pos + p.length + PRES_SEP.length });
+        else { const t = tramos[tramos.length - 1]; if (!t.partes.length) t.inicio = pos; t.partes.push(p); }
+        pos += p.length + PRES_SEP.length;
+    });
+    tramos.forEach(t => { t.texto = t.partes.join(PRES_SEP); });
+    return tramos;
+}
+// Cuadros en el orden del Plan: Inicio, cada actividad y, al final, lo de marcas sin actividad (no se pierde).
+function presArmarModelo() {
+    const porId = new Map();
+    presTramos(document.getElementById('pres-area').value).forEach(t => {
+        const k = t.id || '';
+        const ya = porId.get(k);
+        porId.set(k, ya ? [ya, t.texto].filter(Boolean).join(PRES_SEP) : t.texto);
+    });
+    const cards = sesionActual && planSid === sesionActual.id ? planCards : [];
+    presModelo = [{ id: null, texto: porId.get('') || '' }];
+    cards.forEach(c => presModelo.push({ id: c.id, texto: porId.get(c.id) || '', card: c }));
+    porId.forEach((texto, k) => {
+        if (k && !cards.some(c => c.id === k) && texto) presModelo.push({ id: k, texto, huerfano: true });
+    });
+}
+function presTextoDe(modelo) {
+    const piezas = [];
+    modelo.forEach(c => {
+        if (!c.texto) return;
+        if (c.id) {
+            // Un tramo que termina en "---" se pegaría a la marca siguiente: se separa con un salto.
+            const k = piezas.length - 1;
+            if (k >= 0 && (piezas[k] === '---' || piezas[k].endsWith('\n---'))) piezas[k] += '\n';
+            piezas.push('@actividad:' + c.id);
+        }
+        piezas.push(c.texto);
+    });
+    return piezas.join(PRES_SEP);
+}
+// Escribe el texto completo como si se hubiera tecleado (guarda, vista previa, Pizarra al día).
+function presFijarTexto(full, desdeCuadro) {
+    const area = document.getElementById('pres-area');
+    if (area.value === full) return;
+    area.value = full;
+    presDesdeCuadro = !!desdeCuadro;
+    area.dispatchEvent(new Event('input'));
+    presDesdeCuadro = false;
+}
+const presEscribiendo = () => !!document.activeElement?.closest?.('#pres-secc');
+const presNDiapos = texto => parsearSlides(texto).length;
+
+// Pinta los cuadros. Si la estructura no cambió, solo pone al día títulos y textos (sin tocar el que tiene el cursor).
+function pintarSecciones() {
+    const cont = document.getElementById('pres-secc');
+    if (!cont) return;
+    if (!presDesdeCuadro) presArmarModelo();
+    const clave = presModelo.map(c => (c.id || 'inicio') + (c.huerfano ? '!' : '')).join('|');
+    if (cont.dataset.clave !== clave) {
+        cont.dataset.clave = clave;
+        cont.innerHTML = '';
+        presModelo.forEach(c => {
+            const box = document.createElement('div');
+            box.className = 'psec' + (c.id ? '' : ' inicio') + (c.huerfano ? ' huerfano' : '');
+            box.dataset.act = c.id || '';
+            box.innerHTML = `<div class="psec-hdr" title="Ir a sus diapositivas"><span class="psec-tit"></span><span class="psec-n"></span></div>
+                <textarea class="psec-ta" spellcheck="false"></textarea>`;
+            const ta = box.querySelector('.psec-ta');
+            ta.placeholder = c.id ? 'Diapositivas de esta actividad (sepáralas con ---)' : '# Título\n---\n## Subtítulo\n- ítem 1';
+            ta.addEventListener('input', () => presCuadroInput(box.dataset.act, ta));
+            ta.addEventListener('focus', () => { presUltimaTa = ta; });
+            ['click', 'keyup'].forEach(ev => ta.addEventListener(ev, () => {
+                const g = presPosGlobal(box.dataset.act, ta.selectionStart);
+                if (g !== null) resaltarSlideActiva(g);
+            }));
+            box.querySelector('.psec-hdr').addEventListener('click', () => irActividad(box.dataset.act || null));
+            cont.appendChild(box);
+        });
+        if (presUltimaTa && !cont.contains(presUltimaTa)) presUltimaTa = null;
+    }
+    const boxes = [...cont.querySelectorAll('.psec')];
+    presModelo.forEach((c, k) => {
+        const box = boxes[k];
+        const tit = box.querySelector('.psec-tit');
+        const nombre = c.id ? (c.huerfano ? 'Diapositivas sin actividad' : (c.card?.titulo || '').trim()) : 'Inicio';
+        tit.textContent = nombre || 'Actividad sin título';
+        tit.classList.toggle('sin', !nombre);
+        const n = presNDiapos(c.texto);
+        box.querySelector('.psec-n').textContent = n ? n + (n === 1 ? ' diapo.' : ' diapos.') : '';
+        const ta = box.querySelector('.psec-ta');
+        if (ta.value !== c.texto && document.activeElement !== ta) ta.value = c.texto;
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+    });
+    // ▶ de cada actividad del Plan: solo si tiene diapositivas (espacio reservado, regla 8b).
+    document.querySelectorAll('#plan-cards .pcard').forEach(el => {
+        const c = presModelo.find(x => x.id === el.dataset.id);
+        el.querySelector('.pcard-ir')?.classList.toggle('si', !!(c && presNDiapos(c.texto)));
+    });
+}
+
+function presCuadroInput(id, ta) {
+    const c = presModelo.find(x => (x.id || '') === id);
+    if (!c) return;
+    c.texto = ta.value;
+    presFijarTexto(presTextoDe(presModelo), true);
+}
+// Posición en el texto completo de la posición `local` del cuadro `id` (null si el cuadro está vacío).
+function presPosGlobal(id, local) {
+    const t = presTramos(document.getElementById('pres-area').value).find(x => (x.id || '') === id);
+    return t ? t.inicio + local : null;
+}
+// Selecciona en su cuadro el tramo [ini, fin) del texto completo y lo deja a la vista.
+function presSeleccionar(ini, fin) {
+    const t = presTramos(document.getElementById('pres-area').value)
+        .filter(x => x.inicio <= ini && ini <= x.inicio + x.texto.length).pop();
+    const box = t && document.querySelector(`#pres-secc .psec[data-act="${t.id || ''}"]`);
+    if (!box) return;
+    const ta = box.querySelector('.psec-ta');
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(ini - t.inicio, fin - t.inicio);
+    const lh = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+    const linea = ta.value.slice(0, ini - t.inicio).split('\n').length - 1;
+    const cont = document.getElementById('pres-secc');
+    const y = box.offsetTop + box.querySelector('.psec-hdr').offsetHeight + linea * lh;
+    if (y < cont.scrollTop || y > cont.scrollTop + cont.clientHeight - 2 * lh) cont.scrollTop = Math.max(0, y - cont.clientHeight / 4);
+}
+// Dónde escribe Insertar: el último cuadro con el cursor (o Inicio).
+function presTa() {
+    return presUltimaTa && document.contains(presUltimaTa) ? presUltimaTa
+        : document.querySelector('#pres-secc .psec-ta') || document.getElementById('pres-area');
+}
+// Rearma el texto en el orden actual de las actividades (al moverlas) y lo guarda si cambió.
+function presReordenar() {
+    presArmarModelo();
+    presFijarTexto(presTextoDe(presModelo));
+}
+// Saltar a la primera diapositiva de una actividad (null = Inicio): la Pizarra si la clase está en curso,
+// y siempre la vista previa.
+function irActividad(id) {
+    const el = document.querySelector(`#prev-body .slide-prev[data-act="${id || ''}"]`);
+    if (!el) {
+        const st = document.getElementById('pres-status');
+        st.textContent = id ? 'Esta actividad aún no tiene diapositivas.' : 'Inicio no tiene diapositivas.';
+        setTimeout(() => { if (st.textContent.endsWith('diapositivas.')) st.textContent = ''; }, 2500);
+        return;
+    }
+    document.querySelectorAll('#prev-body .slide-prev').forEach(s => s.classList.remove('activa'));
+    el.classList.add('activa');
+    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    document.querySelector(`#pres-secc .psec[data-act="${id || ''}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (controlaPizarra()) Proyeccion.ordenar(sesionActual.id, { accion: 'ir', idx: parseInt(el.dataset.idx), contenido: document.getElementById('pres-area').value });
+}
+
 // F3 Libro de Clases: resuelve el año escolar activo desde libro_anios (dimensión
 // creada en F1). Solo lectura; no modifica nada. Si falla, abrirLibro() usa el
 // año de la fecha de la sesión como respaldo.
@@ -2410,8 +2601,15 @@ function marcarEnPizarra() {
     let p = null;
     try { p = JSON.parse(localStorage.getItem('profe_pizarra_slide') || 'null'); } catch (_) {}
     const idx = p && sesionActual && p.sesionId === sesionActual.id && Proyeccion.pizarraViva() ? p.idx : -1;
-    document.querySelectorAll('#prev-body .slide-prev').forEach(el =>
-        el.classList.toggle('en-pizarra', parseInt(el.dataset.idx) === idx));
+    let act = null;   // actividad en curso (BS): la de la diapositiva que muestra la Pizarra
+    document.querySelectorAll('#prev-body .slide-prev').forEach(el => {
+        const si = parseInt(el.dataset.idx) === idx;
+        el.classList.toggle('en-pizarra', si);
+        if (si) act = el.dataset.act || '';
+    });
+    document.querySelectorAll('#plan-cards .pcard').forEach(el => el.classList.toggle('en-curso', act !== null && el.dataset.id === act));
+    document.querySelectorAll('#pres-secc .psec').forEach(el => el.classList.toggle('en-curso', act !== null && el.dataset.act === act));
+    document.querySelectorAll('#prev-body .prev-act').forEach(el => el.classList.toggle('en-curso', act !== null && el.dataset.actRot === act));
 }
 window.addEventListener('storage', e => { if (e.key === 'profe_pizarra_slide') marcarEnPizarra(); });
 // ── Fecha en la Pizarra (deuda BL): 📅 muestra/oculta la fecha de la clase arriba de la Pizarra,
@@ -3371,7 +3569,7 @@ async function patearItem(id, el) {
 // ═══════════════════════════════════════════════════════════
 function parsearSlides(txt) {
     if (!txt.trim()) return [];
-    return txt.split(/\n---\n/).map(s => s.trim()).filter(Boolean);
+    return txt.split(/\n---\n/).map(s => s.trim()).filter(s => s && !esMarcaAct(s));   // marcas de actividad: no son diapositivas (BS)
 }
 
 function esc(s) {
@@ -3507,13 +3705,31 @@ function actualizarPreview() {
     const rawParts = txt.split(SEP);
     slides = [];
     let charPos = 0, slideIdx = 0;
+    // Actividades (BS): un rótulo antes de las diapositivas de cada una; cada diapositiva sabe de cuál es.
+    let act = '';
+    const hayActs = rawParts.some(esMarcaAct);
+    const rotulo = (id, raw) => {
+        const r = document.createElement('div');
+        r.className = 'prev-act';
+        r.dataset.raw = raw; r.dataset.actRot = id;
+        const card = planCards.find(c => c.id === id);
+        r.textContent = !id ? 'Inicio' : card ? ((card.titulo || '').trim() || 'Actividad sin título') : 'Diapositivas sin actividad';
+        r.title = 'Ir a sus diapositivas';
+        r.addEventListener('click', () => irActividad(id || null));
+        body.appendChild(r);
+    };
+    if (hayActs && rawParts[0].trim() && !esMarcaAct(rawParts[0])) rotulo('', '');
     rawParts.forEach((part, i) => {
         const trimmed = part.trim();
-        if (trimmed) {
+        if (esMarcaAct(part)) {
+            act = trimmed.slice(11);
+            rotulo(act, trimmed);
+        } else if (trimmed) {
             const leadWS  = part.length - part.trimStart().length;
             const trailWS = part.length - part.trimEnd().length;
             slides.push(trimmed);
             const el = buildSlideEl(trimmed, slideIdx++);
+            el.dataset.act = act;
             el.dataset.selStart = charPos + leadWS;
             el.dataset.selEnd   = charPos + part.length - trailWS;
             body.appendChild(el);
@@ -3521,6 +3737,7 @@ function actualizarPreview() {
         charPos += part.length + (i < rawParts.length - 1 ? SEP.length : 0);
     });
 
+    pintarSecciones();
     if (!slides.length) {
         body.innerHTML = '<div class="vacio" style="padding:12px">Sin contenido.</div>';
         return;
@@ -3622,11 +3839,8 @@ function buildSlideEl(raw, idx) {
         el.classList.add('activa');
         // En clase: la Pizarra salta a esta diapositiva (con el texto actual, por si aún no se guardó).
         if (controlaPizarra()) Proyeccion.ordenar(sesionActual.id, { accion: 'ir', idx: parseInt(el.dataset.idx), contenido: ta.value });
-        const start = parseInt(el.dataset.selStart);
-        const end   = parseInt(el.dataset.selEnd);
-        ta.focus();
-        ta.setSelectionRange(start, end);
-        scrollTextareaToPos(ta, start);
+        // Su texto se selecciona en el cuadro de su actividad (BS).
+        presSeleccionar(parseInt(el.dataset.selStart), parseInt(el.dataset.selEnd));
     });
 
     return el;
@@ -3634,7 +3848,7 @@ function buildSlideEl(raw, idx) {
 
 function reensamblarTextoSlides() {
     const body = document.getElementById('prev-body');
-    return [...body.querySelectorAll('.slide-prev')]
+    return [...body.querySelectorAll('.slide-prev, .prev-act')]   // con las marcas de actividad (BS)
         .map(el => el.dataset.raw)
         .filter(Boolean)
         .join('\n---\n');
@@ -3791,7 +4005,7 @@ document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
         if (document.activeElement?.closest?.('.eb')) return;   // Bitácora: deshacer del navegador
         if (document.activeElement === document.getElementById('plan-input')) return;
-        if (document.activeElement === document.getElementById('pres-area'))  return;
+        if (document.activeElement === document.getElementById('pres-area') || presEscribiendo()) return;
         e.preventDefault();
         if (modoTriptico === 'pres' && zonaCtrlZ === 'slides') {
             if (e.shiftKey) redoSlides(); else undoSlides();
@@ -3901,7 +4115,7 @@ function cerrarPickerMetal() {
 }
 
 function insertarMetal(nombre, url) {
-    const ta = document.getElementById('pres-area');
+    const ta = presTa();
     const insert = '\n---\n@metal:' + nombre + '|' + url + '\n---\n';
     const start = ta.selectionStart;
     ta.value = ta.value.slice(0, start) + insert + ta.value.slice(ta.selectionEnd);
@@ -3984,7 +4198,7 @@ async function uploadImg(file) {
 }
 
 function insertarImg(nombre, url) {
-    const ta = document.getElementById('pres-area');
+    const ta = presTa();
     const insert = '\n---\n@img:' + url + '|' + nombre + '\n---\n';
     const start = ta.selectionStart;
     ta.value = ta.value.slice(0, start) + insert + ta.value.slice(ta.selectionEnd);
@@ -4012,7 +4226,7 @@ document.addEventListener('click', () => cerrarMenuInsertar());
 function insertarYoutube() {
     const url = prompt('URL del video de YouTube:');
     if (!url?.trim()) return;
-    const ta = document.getElementById('pres-area');
+    const ta = presTa();
     const insert = '\n---\n@youtube:' + url.trim() + '\n---\n';
     const start = ta.selectionStart;
     ta.value = ta.value.slice(0, start) + insert + ta.value.slice(ta.selectionEnd);
@@ -4100,12 +4314,14 @@ function pintarPlan() {
         el.innerHTML = `<div class="pcard-hdr">
                 <span class="pcard-asa" draggable="true" data-eb-no-marco title="Arrastra para mover la actividad">⋮⋮</span>
                 <input class="pcard-tit" placeholder="Título de la actividad">
+                <button class="pcard-ir" title="Ir a sus diapositivas">▶</button>
                 <button class="pcard-menu" title="Opciones">⋯</button>
             </div><div class="pcard-ed"></div>`;
         cont.appendChild(el);
         const tit = el.querySelector('.pcard-tit');
         tit.value = c.titulo || '';
-        tit.addEventListener('input', () => { c.titulo = tit.value; planCambio(c); });
+        tit.addEventListener('input', () => { c.titulo = tit.value; planCambio(c); presTitulos(); });
+        el.querySelector('.pcard-ir').addEventListener('click', e => { e.stopPropagation(); irActividad(c.id); });
         tit.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); c.ed.enfocar('inicio'); } });
         el.querySelector('.pcard-menu').addEventListener('click', e => { e.stopPropagation(); menuPlanCard(c, e.currentTarget); });
         c.ed = EditorBloques.crear(el.querySelector('.pcard-ed'), {
@@ -4114,6 +4330,16 @@ function pintarPlan() {
             objetivo: true,
             alCambiar: () => planCambio(c),
         });
+    });
+    pintarSecciones();   // un cuadro de diapositivas por actividad (BS)
+    marcarEnPizarra();
+}
+// Títulos de las actividades al día en los cuadros y rótulos de la vista previa (BS).
+function presTitulos() {
+    pintarSecciones();
+    document.querySelectorAll('#prev-body .prev-act').forEach(r => {
+        const card = planCards.find(c => c.id === r.dataset.actRot);
+        if (card) r.textContent = (card.titulo || '').trim() || 'Actividad sin título';
     });
 }
 
@@ -4147,6 +4373,7 @@ async function moverPlanCard(desde, antes) {
     planCards.splice(antes > desde ? antes - 1 : antes, 0, c);
     planCards.forEach((x, k) => { x.orden = k; });
     pintarPlan();
+    presReordenar();   // sus diapositivas se mueven con ellas (BS)
     const ahora = new Date().toISOString();
     const res = await Promise.all(planCards.map(x => {
         x.ultEnvio = ahora; x.updated_at = ahora;
@@ -4227,11 +4454,13 @@ function menuPlanCard(c, boton) {
         const a = e.target.closest('button')?.dataset.a; if (!a) return;
         pop.remove();
         if (a === 'borrar') {
-            if (!confirm(`¿Eliminar la actividad "${c.titulo || 'sin título'}"?`)) return;
+            const nd = presNDiapos(presModelo.find(x => x.id === c.id)?.texto || '');
+            if (!confirm(`¿Eliminar la actividad "${c.titulo || 'sin título'}"${nd ? ` y sus ${nd === 1 ? 'diapositiva' : nd + ' diapositivas'}` : ''}?`)) return;
             clearTimeout(c.timer); c.sucio = false;
             const { error } = await sb.from('plan_cards').delete().eq('id', c.id);
             if (error) { planEstado('No se pudo eliminar — revisa la conexión.', true); return; }
             await guardarPlanTodo();
+            if (nd) presFijarTexto(presTextoDe(presModelo.filter(x => x.id !== c.id)));   // sus diapositivas se van con ella (BS)
             planCards.splice(planCards.indexOf(c), 1);
             pintarPlan();
             return;
@@ -4497,13 +4726,13 @@ function presAplicarRemoto(contenido) {
     const area = document.getElementById('pres-area');
     if (!area || contenido === area.value) return;
     if (presTimer) { TiempoReal.aviso('Las diapositivas cambiaron en otro equipo mientras escribías: quedó tu versión.'); return; }
-    if (document.activeElement === area) { presRemoto = contenido; return; }
+    if (presEscribiendo()) { presRemoto = contenido; return; }
     presRemoto = null;
     area.value = contenido;
     presAreaTextoGuardado = contenido;
     actualizarPreview();
 }
-document.getElementById('pres-area')?.addEventListener('blur', () => setTimeout(() => { if (presRemoto != null) presAplicarRemoto(presRemoto); }, 50));
+document.getElementById('pres-secc')?.addEventListener('focusout', () => setTimeout(() => { if (presRemoto != null && !presEscribiendo()) presAplicarRemoto(presRemoto); }, 50));
 TiempoReal.escuchar('presentaciones', ({ nuevo }) => {
     if (nuevo?.sesion_id && sesionActual && nuevo.sesion_id === sesionActual.id) presAplicarRemoto(nuevo.contenido || '');
 });
