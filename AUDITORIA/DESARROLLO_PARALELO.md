@@ -4404,3 +4404,8 @@ párrafos sueltos.*
   (ancho mínimo y sin corte). Prueba (local): actividad con 3 canciones → cuadro activo con título, canciones y
   espacio para escribir; actividad sin canciones ni diapositivas → línea con "＋ Diapositivas" en una línea.
   Actividades de prueba borradas.
+- **Corrección del PO (2026-10-18):** lo pedido era solo que el **título** se vea activo, no que aparezca el cuadro de
+  texto. Una actividad con canciones y sin diapositivas sigue siendo línea (sin cuadro de texto, se abre al tocar "＋
+  Diapositivas"), pero con fondo blanco, borde continuo y título en negrita sin cursiva; "＋ Diapositivas" siempre en
+  una línea. Prueba (local): así se ve con 3 canciones; sin canciones, línea punteada como antes. Datos de prueba
+  borrados.
