@@ -2282,7 +2282,7 @@ function pintarSecciones() {
             box.querySelector('.psec-cancs').addEventListener('click', e => {
                 const b = e.target.closest('.psec-canc'); if (!b) return;
                 e.stopPropagation();
-                abrirMini(b.dataset.id);
+                abrirMini(b.dataset.id, box.dataset.act || null);
             });
             box.querySelector('.psec-hdr').addEventListener('click', () => {
                 if (!box.classList.contains('vacio')) { irActividad(box.dataset.act || null); return; }
@@ -2679,6 +2679,9 @@ function marcarEnPizarra() {
         el.classList.toggle('en-pizarra', si);
         if (si) act = el.dataset.act || '';
     });
+    // En clase, con la letra de una canción de una actividad en la Pizarra, la actividad en curso es esa.
+    const st = ClaseVivo.get();
+    if (miniAct && !document.getElementById('prev-mini')?.hidden && st && sesionActual && st.sesionId === sesionActual.id) act = miniAct;
     document.querySelectorAll('#plan-cards .pcard').forEach(el => el.classList.toggle('en-curso', act !== null && el.dataset.id === act));
     // Al cambiar la actividad en curso, el Plan la deja arriba de la columna (sin cambiar el orden; no si se escribe ahí).
     // Mientras haya una, sobra espacio abajo para que también la última pueda quedar arriba.
@@ -4719,8 +4722,10 @@ async function abrirCancionCurso(cancionId) {
 // ── Letra de una canción de la actividad (deuda BU): Entrenador mínimo en la Vista previa (sin cancionero,
 // con la barra de siempre); con la clase de ESTA sesión en curso, la letra va también a la Pizarra (el
 // espejo de "📽️ Pizarra"). ✕ (o ← / Esc del Entrenador) lo cierra y la Pizarra vuelve a su diapositiva.
-async function abrirMini(cancionId) {
+let miniAct = null;   // actividad de la canción abierta en el Entrenador mínimo (en clase, es la actividad en curso)
+async function abrirMini(cancionId, actId) {
     if (!cancionId || !sesionActual) return;
+    miniAct = actId || null;
     const curso = await cancionesDelCurso();
     const sid = entrenamientoDefaultId;
     const st = ClaseVivo.get();
@@ -4730,6 +4735,7 @@ async function abrirMini(cancionId) {
     box.querySelector('iframe').src = `../REPERTORIO/index.html?mini=1${enClase ? '&pizarra=1' : ''}&${q}&v=${Date.now()}`;
     box.hidden = false;
     miniUbicar();
+    marcarEnPizarra();
 }
 // Cubre las columnas Presentación y Vista previa: empieza donde empieza la Presentación (sigue al ancho
 // de la columna del Plan, que se puede arrastrar).
@@ -4748,6 +4754,8 @@ function cerrarMini() {
     if (box.hidden) return;
     box.querySelector('iframe').src = 'about:blank';   // al salir, el Entrenador suelta la Pizarra (pagehide)
     box.hidden = true;
+    miniAct = null;
+    marcarEnPizarra();   // vuelve a mandar la diapositiva de la Pizarra
 }
 window.addEventListener('message', e => {
     if (e.data?.tipo === 'ent-mini-cerrar' && e.source === document.querySelector('#prev-mini iframe')?.contentWindow) cerrarMini();

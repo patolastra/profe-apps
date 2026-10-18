@@ -4415,3 +4415,7 @@ párrafos sueltos.*
   el Plan; mientras hay una, la columna deja espacio abajo para que también la última pueda quedar arriba. Prueba
   (local, Pizarra simulada): 4 actividades, diapositiva de la 4ª → amarilla y a 8 px del borde superior; diapositiva de
   Inicio → ninguna destacada y sin espacio extra. Datos de prueba borrados.
+- **Ajuste del PO (2026-10-18):** con la clase en curso, abrir la letra de una canción de una actividad (Entrenador
+  mínimo) la deja como **actividad en curso** (amarilla y arriba en el Plan), aunque la diapositiva de la Pizarra sea
+  de otra; al cerrar el Entrenador mínimo, vuelve a mandar la diapositiva. Prueba (local, clase simulada): canción de
+  la Actividad 3 → Actividad 3 amarilla; al cerrar, ninguna. Datos de prueba borrados.
