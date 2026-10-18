@@ -5469,6 +5469,9 @@ function abrirEntrenador(songId) {
 }
 
 function cerrarEntrenador() {
+    // Entrenador mínimo: la copia de la Pizarra se congela en la letra (no recibe "cerrado"); el Planificador
+    // decide después si la suelta o la deja a la vista (deuda BU).
+    if (MINI) espejoCongelado = true;
     if (entModoEdicion) entSalirEdicion();   // guardar la letra en edición antes de cerrar
     if (entPrueba) entPruebaFin();
     entBusqCerrar();
@@ -8420,8 +8423,9 @@ function espejoAplicarScroll(sc) {
     const delta = (r.top + r.height / 2 - zr.top) - sc.rel * z.clientHeight;
     if (Math.abs(delta) > 2) z.scrollTop += delta;
 }
+let espejoCongelado = false;
 function espejoEmitir() {
-    if (!espejoOn || !espejoCanal) return;
+    if (!espejoOn || !espejoCanal || espejoCongelado) return;
     espejoCanal.postMessage(espejoEstado());
     espejoMetalEmitir();
 }
@@ -8441,6 +8445,15 @@ function entToggleEspejo() {
     espejoTimer = setInterval(espejoEmitir, 300);
     espejoEmitir();
     espejoPintarBoton();
+}
+// Entrenador mínimo del Planificador (deuda BU): al cerrarlo, la letra puede quedarse en la Pizarra hasta que se
+// elija otra diapositiva o canción: deja de emitir sin avisar "off". Devuelve si estaba proyectando.
+function espejoDejarEnPizarra() {
+    if (!espejoOn) return false;
+    espejoOn = false;
+    clearInterval(espejoTimer); espejoTimer = null;
+    try { localStorage.removeItem(ESPEJO_KEY); } catch (_) {}
+    return true;
 }
 // Al cerrarse esta página (pestaña o Entrenador mínimo del Planificador), la Pizarra vuelve a su diapositiva.
 window.addEventListener('pagehide', () => { if (espejoOn) espejoApagar(); });
@@ -8717,7 +8730,7 @@ if (ESPEJO) {
     espejoCanal?.addEventListener('message', ev => { if (ev.data?.tipo === 'scroll-pizarra' && espejoOn) espejoAplicarScroll(ev.data.s); });
     let espejoScrollRaf = 0;
     document.getElementById('ent-zona').addEventListener('scroll', () => {
-        if (!espejoOn || !espejoCanal || espejoScrollRaf) return;
+        if (!espejoOn || !espejoCanal || espejoScrollRaf || espejoCongelado) return;
         espejoScrollRaf = requestAnimationFrame(() => {
             espejoScrollRaf = 0;
             const sc = espejoAnclaScroll();

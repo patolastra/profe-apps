@@ -919,6 +919,7 @@ function mostrarBlanco(siguiente, act) {
 
 function renderSlide() {
     enBlanco = null;
+    window.espejoEntrenador?.soltar();   // una letra dejada en la Pizarra se va al elegir otra diapositiva
     const area = document.getElementById('slide-area');
     if (!slides.length) {
         area.className = '';
@@ -1020,7 +1021,11 @@ function ordenDelPlanificador(o) {
         textoAlDia(o.contenido || '');
     } else if (o.accion === 'blanco') {
         if (typeof o.contenido === 'string') textoAlDia(o.contenido);
-        mostrarBlanco(o.siguiente, o.act);
+        // Con `letra`, la letra de la canción se queda a la vista (sin dibujar el blanco); ◀ ▶ siguen igual.
+        if (o.letra && window.espejoEntrenador?.dejar()) {
+            enBlanco = { siguiente: Math.max(0, o.siguiente | 0), act: o.act || null };
+            actualizarContadores();
+        } else mostrarBlanco(o.siguiente, o.act);
     } else if (o.accion === 'cerrar') {
         window.close();   // "Terminar clase" en el Planificador (deuda AZ)
     }
@@ -1555,9 +1560,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.body.appendChild(capa);
     }
     function quitar() { if (capa) { capa.remove(); capa = null; } }
+    // Letra "dejada" (deuda BU): el profe cerró la letra de una actividad sin diapositivas; la copia se queda
+    // a la vista hasta que se elija otra diapositiva (se suelta al dibujar una) u otra canción ("on").
+    let dejado = false;
+    window.espejoEntrenador = {
+        dejar()  { dejado = !!capa; return dejado; },
+        soltar() { if (dejado) { dejado = false; quitar(); } },
+    };
     canal.onmessage = ev => {
         const m = ev.data || {};
-        if (m.tipo === 'on' && m.sesionId === miSesion) mostrar();
+        if (m.tipo === 'on' && m.sesionId === miSesion) { dejado = false; mostrar(); }
         else if (m.tipo === 'off') quitar();
     };
     // Pizarra recién abierta por el botón: el espejo ya estaba encendido.

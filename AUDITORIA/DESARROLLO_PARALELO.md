@@ -4451,3 +4451,12 @@ párrafos sueltos.*
   cada actividad (`ultDiapoAct`). Prueba (local, dos ventanas): A2 con "Dos a" (2) y "Dos b" (3); Pizarra en Dos b,
   abrir y cerrar la canción de A2 → vuelve a 3; Pizarra en "Uno" sin haber mostrado A2 → vuelve a 2, A2 destacada.
   Datos de prueba borrados.
+- **Ajuste del PO (2026-10-18):** al cerrar la letra de una actividad **sin** diapositivas ya no se va a una
+  diapositiva en blanco: **la letra se queda a la vista en la Pizarra** hasta que se elija otra diapositiva o
+  canción (la actividad sigue destacada; ▶ / ◀ siguen igual que con el blanco). Al cerrar, el Entrenador mínimo se
+  congela (`espejoCongelado`: no envía el estado "cerrado"); el Planificador le pide `espejoDejarEnPizarra()` (deja de
+  emitir sin soltar la copia) y ordena `blanco` con `letra: true`; la Pizarra marca la copia como dejada y la suelta al
+  dibujar una diapositiva o al recibir otra canción. Si no se estaba proyectando, queda el blanco. Con diapositivas,
+  se suelta como antes. Prueba (local, dos ventanas): A2 (canción, sin diapos) proyectada y cerrada → la Pizarra sigue
+  mostrando El Crack, A2 destacada; ▶ → "Tres" y la letra se va; A3 (con diapo) proyectada y cerrada → la letra se va
+  y queda "Tres". Datos de prueba borrados.
