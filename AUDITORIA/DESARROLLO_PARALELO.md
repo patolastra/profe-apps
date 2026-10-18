@@ -4399,3 +4399,8 @@ párrafos sueltos.*
   bajo el título** (el título ya no se corta por ellos). Prueba (local): actividad 'Repertorio: "El puma chileno y el
   león africano"' con 3 canciones → título entero en la primera fila y Aló, Aló · El Crack · Si Antes Te Hubiera
   Conocido debajo. Actividad de prueba borrada.
+- **Ajuste del PO (2026-10-18):** una actividad **con canciones vinculadas** se ve como cuadro activo en la
+  Presentación aunque no tenga diapositivas (no como línea delgada). "＋ Diapositivas" ya no se parte en dos líneas
+  (ancho mínimo y sin corte). Prueba (local): actividad con 3 canciones → cuadro activo con título, canciones y
+  espacio para escribir; actividad sin canciones ni diapositivas → línea con "＋ Diapositivas" en una línea.
+  Actividades de prueba borradas.
