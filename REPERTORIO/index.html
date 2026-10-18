@@ -2964,7 +2964,7 @@
                    style="display:none" onkeydown="entPitchInputKey(event)" onblur="entPitchInputBlur()">
             <span id="ent-vel-label">1.0x</span>
             <div id="ent-mode-btns">
-                <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()" title="Esconder / mostrar toda la letra">Letra</button>
+                <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()" title="Esconder toda la letra (luego Alt+clic muestra un verso y Alt+doble clic una estrofa) · si hay versos escondidos, mostrarla toda">Letra</button>
                 <button id="ent-btn-sync" onclick="entToggleSync()">Sync</button>
                 <button id="ent-btn-sync-save" onclick="entGuardarSyncAsset()" style="display:none">Guardar</button>
                 <button id="ent-btn-editar" onclick="entToggleEdicion()" title="Modo edición de letra (Esc para salir)">Editar</button>
@@ -5423,6 +5423,7 @@ function abrirEntrenador(songId) {
     entrenadorVelocidad     = cfg.velocidad || 1.0;
     entrenadorOcultar       = false;
     entrenadorLineasOcultas = new Set(cfg.lineasOcultas || []);
+    entPintarBtnLetra();
     entrenadorLineasColoreadas = new Set(cfg.lineasColoreadas || []);
     entrenadorModoClaro     = true;    // el tema SIEMPRE arranca claro; el toggle lo cambia en sesión
     entAplicarTema();
@@ -6372,6 +6373,7 @@ function entAplicarOcultas() {
         const i = +el.dataset.orig;
         el.classList.toggle('oculta', entrenadorOcultar || entrenadorLineasOcultas.has(i));
     });
+    entPintarBtnLetra();
 }
 
 function entToggleOculta(i) {
@@ -6710,6 +6712,7 @@ const ENT_ATAJOS = [
         { k: 'Shift + clic en un verso', d: 'Marcar / desmarcar verso coloreado (referencia de clase)' },
         { k: 'Ctrl / ⌘ + Shift + clic', d: 'Colorear / descolorear la estrofa completa' },
         { k: 'Shift + doble clic', d: 'Quitar todos los versos coloreados (en cualquier parte)' },
+        { k: 'Letra (botón)', d: 'Esconder toda la letra; luego Alt + clic la va mostrando. Con versos escondidos, la muestra toda' },
         { k: 'Alt + clic en un verso', d: 'Esconder / mostrar ese verso (no mueve el audio)' },
         { k: 'Alt + doble clic', d: 'Esconder / mostrar la estrofa completa' },
         { k: 'Botón Letra', d: 'Esconder / mostrar toda la letra' },
@@ -6734,12 +6737,20 @@ function entrenadorSeek(e) {
     if (audioEl.duration) audioEl.currentTime = pct * audioEl.duration;
 }
 
+// "Letra" (deuda del Entrenador, PO 2026-10-18): esconde TODA la letra verso por verso, así Alt+clic (verso) y
+// Alt+doble clic (estrofa) la van mostrando de a poco; si hay algo escondido, la muestra toda.
 function entrenadorToggleOcultar() {
-    entrenadorOcultar = !entrenadorOcultar;
-    const btn = document.getElementById('ent-btn-ocultar');
-    btn.textContent = 'Letra';
-    btn.classList.toggle('oculto', entrenadorOcultar);
+    entrenadorOcultar = false;
+    if (entrenadorLineasOcultas.size) entrenadorLineasOcultas.clear();
+    else entrenadorLines.forEach((l, i) => { if ((l.text || '').trim()) entrenadorLineasOcultas.add(i); });
     entAplicarOcultas();
+}
+// El botón "Letra" queda marcado mientras haya versos escondidos.
+function entPintarBtnLetra() {
+    const btn = document.getElementById('ent-btn-ocultar');
+    if (!btn) return;
+    btn.textContent = 'Letra';
+    btn.classList.toggle('oculto', entrenadorOcultar || entrenadorLineasOcultas.size > 0);
 }
 
 // Tema claro/oscuro del Entrenador. Solo alterna la clase .ent-light en el contenedor
@@ -7619,6 +7630,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     entrenadorVelocidad     = sesionItem.velocidad ?? 1.0;
     entrenadorOcultar       = false;
     entrenadorLineasOcultas = new Set();
+    entPintarBtnLetra();
     entrenadorLineasColoreadas = new Set();
 
     document.getElementById('ent-song-nombre').textContent  = song.nombre;

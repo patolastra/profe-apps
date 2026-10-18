@@ -4460,3 +4460,20 @@ párrafos sueltos.*
   se suelta como antes. Prueba (local, dos ventanas): A2 (canción, sin diapos) proyectada y cerrada → la Pizarra sigue
   mostrando El Crack, A2 destacada; ▶ → "Tres" y la letra se va; A3 (con diapo) proyectada y cerrada → la letra se va
   y queda "Tres". Datos de prueba borrados.
+- **Ajuste del PO (2026-10-18):** también con una actividad **con** diapositivas, al cerrar la letra la Pizarra
+  **espera** (la letra queda a la vista) a que el profe elija qué mostrar; ▶ va a la diapositiva de esa actividad (la
+  última que mostró o su primera), ◀ a la anterior. Prueba (local, dos ventanas): A2 con "Dos" → cerrar su canción
+  proyectada deja la letra; ▶ muestra "Dos" y la letra se va. Datos de prueba borrados.
+
+### BV. Entrenador — esconder toda la letra e ir mostrando versos o estrofas
+*Origen: deuda anotada por el PO (2026-10-18; Notion, Pendiente), pedida el mismo día.*
+- **DECISIÓN del PO:** poder esconder toda la letra de una canción e ir mostrando los versos o estrofas que se
+  necesiten, con el mecanismo que ya existe.
+- **Auditoría:** el botón "Letra" escondía toda la letra con una marca general que se imponía a todo (Alt+clic no
+  podía mostrar un verso); Alt+clic (verso) y Alt+doble clic (estrofa) ya esconden/muestran versos uno a uno
+  (`entrenadorLineasOcultas`, se guarda por canción y llega a la Pizarra).
+- **Implementación (2026-10-18):** `REPERTORIO/index.html`: "Letra" esconde cada verso con texto (en vez de la marca
+  general), así Alt+clic / Alt+doble clic los van mostrando; si hay versos escondidos, "Letra" muestra todo. El botón
+  queda marcado mientras haya versos escondidos (`entPintarBtnLetra`). Ayuda del botón y atajos (⌨) al día.
+- **Prueba (local, El Crack, 59 versos):** Letra → 59 escondidos y botón marcado; Alt+clic en un verso → se ve (58);
+  Alt+doble clic en otro → se ve su estrofa (54); Letra → todo visible y botón sin marcar.

@@ -4762,25 +4762,28 @@ window.addEventListener('resize', miniUbicar);
 function cerrarMini() {
     const box = document.getElementById('prev-mini');
     if (box.hidden) return;
-    // En clase, si la actividad de la canción no tiene diapositivas, la Pizarra queda en blanco (no vuelve a la
-    // diapositiva anterior) y la actividad sigue destacada; ▶ sigue con la diapositiva que viene después de ella.
-    // Si tiene diapositivas, la Pizarra vuelve a la última que mostró de esa actividad (o a su primera).
-    const propias = miniAct ? [...document.querySelectorAll(`#prev-body .slide-prev[data-act="${miniAct}"]`)].map(el => parseInt(el.dataset.idx)) : [];
-    if (miniAct && controlaPizarra() && propias.length) {
-        const ult = ultDiapoAct[sesionActual.id + '|' + miniAct];
-        Proyeccion.ordenar(sesionActual.id, { accion: 'ir', idx: propias.includes(ult) ? ult : propias[0], contenido: document.getElementById('pres-area').value });
-    } else if (miniAct && controlaPizarra()) {
-        const k = presModelo.findIndex(c => c.id === miniAct);
-        let siguiente = slides.length;
-        for (const c of presModelo.slice(k + 1)) {
-            const el = document.querySelector(`#prev-body .slide-prev[data-act="${c.id || ''}"]`);
-            if (el) { siguiente = parseInt(el.dataset.idx); break; }
+    // En clase, al cerrar la letra la Pizarra la deja a la vista y espera a que el profe elija qué mostrar (otra
+    // diapositiva u otra canción); la actividad sigue destacada. ▶ va a las diapositivas de esa actividad (la última
+    // que mostró o su primera) o, si no tiene, a lo que viene después; ◀ a la anterior. Si no se estaba proyectando
+    // y la actividad no tiene diapositivas, la Pizarra queda en blanco.
+    if (miniAct && controlaPizarra()) {
+        const propias = [...document.querySelectorAll(`#prev-body .slide-prev[data-act="${miniAct}"]`)].map(el => parseInt(el.dataset.idx));
+        let siguiente;
+        if (propias.length) {
+            const ult = ultDiapoAct[sesionActual.id + '|' + miniAct];
+            siguiente = propias.includes(ult) ? ult : propias[0];
+        } else {
+            const k = presModelo.findIndex(c => c.id === miniAct);
+            siguiente = slides.length;
+            for (const c of presModelo.slice(k + 1)) {
+                const el = document.querySelector(`#prev-body .slide-prev[data-act="${c.id || ''}"]`);
+                if (el) { siguiente = parseInt(el.dataset.idx); break; }
+            }
         }
-        // La letra se queda en la Pizarra (el Entrenador deja de emitir sin soltarla) hasta elegir otra diapositiva
-        // o canción; si no se estaba proyectando, queda en blanco.
         let letra = false;
         try { letra = !!box.querySelector('iframe').contentWindow.espejoDejarEnPizarra?.(); } catch (_) {}
-        Proyeccion.ordenar(sesionActual.id, { accion: 'blanco', letra, siguiente, act: miniAct, contenido: document.getElementById('pres-area').value });
+        if (letra || !propias.length)
+            Proyeccion.ordenar(sesionActual.id, { accion: 'blanco', letra, siguiente, act: miniAct, contenido: document.getElementById('pres-area').value });
     }
     box.querySelector('iframe').src = 'about:blank';   // al salir, el Entrenador suelta la Pizarra (pagehide)
     box.hidden = true;
