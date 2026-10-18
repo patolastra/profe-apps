@@ -4419,3 +4419,7 @@ párrafos sueltos.*
   mínimo) la deja como **actividad en curso** (amarilla y arriba en el Plan), aunque la diapositiva de la Pizarra sea
   de otra; al cerrar el Entrenador mínimo, vuelve a mandar la diapositiva. Prueba (local, clase simulada): canción de
   la Actividad 3 → Actividad 3 amarilla; al cerrar, ninguna. Datos de prueba borrados.
+- **Ajuste del PO (2026-10-18):** el Entrenador mínimo **nunca** muestra el cancionero en la Pizarra (su lista estaba
+  oculta solo en la pantalla del profe; el espejo la seguía enviando). `espejoCancioneroDatos` no envía nada con
+  `?mini=1`. Prueba (local): Entrenador mínimo de Quinto en El Crack, lista "abierta" por dentro → el estado enviado a
+  la Pizarra va sin cancionero.
