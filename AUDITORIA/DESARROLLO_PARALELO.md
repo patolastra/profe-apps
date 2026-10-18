@@ -4409,3 +4409,9 @@ párrafos sueltos.*
   Diapositivas"), pero con fondo blanco, borde continuo y título en negrita sin cursiva; "＋ Diapositivas" siempre en
   una línea. Prueba (local): así se ve con 3 canciones; sin canciones, línea punteada como antes. Datos de prueba
   borrados.
+- **Ajuste del PO (2026-10-18):** con la clase en curso, la **actividad en curso** (la de la diapositiva que muestra la
+  Pizarra) se pinta **amarilla** en la pestaña Plan y **sube al comienzo de la columna** (desplazándola, sin cambiar el
+  orden); su identidad es solo el color. Sube solo cuando cambia la actividad en curso, y no si se está escribiendo en
+  el Plan; mientras hay una, la columna deja espacio abajo para que también la última pueda quedar arriba. Prueba
+  (local, Pizarra simulada): 4 actividades, diapositiva de la 4ª → amarilla y a 8 px del borde superior; diapositiva de
+  Inicio → ninguna destacada y sin espacio extra. Datos de prueba borrados.
