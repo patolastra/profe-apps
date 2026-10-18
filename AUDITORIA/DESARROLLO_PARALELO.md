@@ -4543,3 +4543,7 @@ la clase en curso.*
   **como diapositivas moradas** (repertorio) al comienzo de la grilla: 16:9, 🎵 grande, nombre y artista; tocarlas
   abre su letra (Entrenador mínimo) como antes. Prueba (local): 3 canciones como tarjetas moradas antes de "Verso y
   estrofa" y de ＋ Diapositiva. Datos de prueba borrados.
+- **Corrección (2026-10-18):** el PO informó que la lista seguía separada de su título. La lista ya no tenía margen,
+  pero el párrafo que la titula seguía con el alto y el relleno de un párrafo normal (30 px). Ahora un párrafo
+  seguido de una lista mide como una línea de lista (sin margen abajo, relleno de 1 px; `:has`). Prueba (local, con
+  el texto real de la actividad del PO): título → 1ª viñeta 28 px y entre viñetas 26 px (en lectura 23 / 21 px).
