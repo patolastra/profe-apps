@@ -4386,3 +4386,8 @@ párrafos sueltos.*
   angosta (266 px) la barra baja de fila sin salirse; ✕ lo cierra (iframe en blanco) y ← / Esc del Entrenador
   también. Sin clase no se toca la Pizarra. Datos de prueba borrados. **Falta:** probar con la clase en curso que la
   letra aparece en la Pizarra y que al cerrar vuelve a su diapositiva (usa el espejo ya probado del Entrenador).
+- **Ajuste del PO (2026-10-18):** el Entrenador mínimo ocupa **las columnas Presentación y Vista previa** (no solo la
+  Vista previa), para tener espacio. `#prev-mini` pasa a ser hijo de `.s-split` y su borde izquierdo sigue al de la
+  Presentación (también al arrastrar el ancho del Plan). En el Entrenador mínimo se ocultan el nombre y el artista
+  del encabezado (ya están en la franja del Planificador). Prueba (local, 1366×768): ocupa de x=369 (inicio de la
+  Presentación) a 1366, barra en una fila, ⏪ ▶ ⏩ abajo; ✕ cierra.

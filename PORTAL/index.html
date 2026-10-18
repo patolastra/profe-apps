@@ -585,7 +585,7 @@
         #vista-sesion.show { display: flex; }
 
 
-        .s-split { flex: 1; display: flex; overflow: hidden; }
+        .s-split { flex: 1; display: flex; overflow: hidden; position: relative; }
 
         .s-col { display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
         .s-col:last-child { border-right: none; }
@@ -593,7 +593,7 @@
         .s-col-editor  { width: 37%; }
         .s-col-preview { flex: 1; position: relative; }
         /* Entrenador mínimo en la Vista previa (deuda BU) */
-        #prev-mini { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: #0f172a; }
+        #prev-mini { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 20; display: flex; flex-direction: column; background: #0f172a; }
         #prev-mini[hidden] { display: none; }
         #prev-mini .pm-hdr { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #ede9fe; color: #5b21b6; font-size: 0.8rem; font-weight: 800; flex-shrink: 0; }
         #prev-mini .pm-tit { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1377,11 +1377,12 @@
                 </div>
                 <div class="s-col-body cols-1" id="prev-body" style="display:none"></div>
                 <div id="rev-panel"></div>
-                <!-- Entrenador mínimo de una canción de la actividad (deuda BU); ✕ vuelve a la vista previa -->
-                <div id="prev-mini" hidden>
-                    <div class="pm-hdr"><span class="pm-tit"></span><button class="pm-x" onclick="cerrarMini()" title="Volver a la vista previa">✕</button></div>
-                    <iframe allow="window-management; autoplay; fullscreen"></iframe>
-                </div>
+            </div>
+            <!-- Entrenador mínimo de una canción de la actividad (deuda BU): cubre Presentación y Vista previa;
+                 ✕ vuelve a ellas -->
+            <div id="prev-mini" hidden>
+                <div class="pm-hdr"><span class="pm-tit"></span><button class="pm-x" onclick="cerrarMini()" title="Volver a la presentación">✕</button></div>
+                <iframe allow="window-management; autoplay; fullscreen"></iframe>
             </div>
         </div>
     </div>
@@ -4714,7 +4715,20 @@ async function abrirMini(cancionId) {
     box.querySelector('.pm-tit').textContent = '🎵 ' + (bibCanciones?.get(cancionId)?.nombre || 'Canción') + (enClase ? ' · en la Pizarra' : '');
     box.querySelector('iframe').src = `../REPERTORIO/index.html?mini=1${enClase ? '&pizarra=1' : ''}&${q}&v=${Date.now()}`;
     box.hidden = false;
+    miniUbicar();
 }
+// Cubre las columnas Presentación y Vista previa: empieza donde empieza la Presentación (sigue al ancho
+// de la columna del Plan, que se puede arrastrar).
+function miniUbicar() {
+    const box = document.getElementById('prev-mini');
+    const ed = document.querySelector('.s-col-editor');
+    if (!box || box.hidden || !ed) return;
+    box.style.left = ed.offsetLeft + 'px';
+}
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.ResizeObserver) new ResizeObserver(miniUbicar).observe(document.querySelector('.s-col-plan'));
+});
+window.addEventListener('resize', miniUbicar);
 function cerrarMini() {
     const box = document.getElementById('prev-mini');
     if (box.hidden) return;
