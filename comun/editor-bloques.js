@@ -76,6 +76,7 @@
 
     // ── Formato dentro del texto ────────────────────────────────────────
     // "\" antes de * _ { } \ = el carácter tal cual. Una marca sin su cierre queda como texto.
+    // "<br>" = salto de línea dentro del mismo bloque (Mayús+Enter, PO 2026-10-18).
     function mdAHtml(s) {
         s = String(s || '');
         let out = '';
@@ -105,6 +106,7 @@
                 if (abiertos.includes(m)) { cerrarHasta(m); i += m.length - 1; continue; }
                 if (hayCierre(m, i + m.length)) { out += abre(m); abiertos.push(m); i += m.length - 1; continue; }
             }
+            if (s.startsWith('<br>', i)) { out += '<br>'; i += 3; continue; }
             const c = s.slice(i, i + 3).match(/^\{([23]):/);
             if (c && hayCierre('}', i + 3)) { out += `<font color="${COLOR_HEX[c[1]]}">`; abiertos.push('}'); i += 2; continue; }
             if (ch === '}' && abiertos.includes('}')) { cerrarHasta('}'); continue; }
@@ -117,8 +119,10 @@
     function domAMd(nodo, escapar) {
         let out = '';
         nodo.childNodes.forEach(n => {
-            if (n.nodeType === 3) { const v = n.nodeValue.replace(/\n/g, ' '); out += escapar ? escMd(v) : v; return; }
-            if (n.nodeType !== 1 || n.tagName === 'BR') return;
+            // Un salto de línea escrito dentro del bloque (Mayús+Enter) se guarda como "<br>".
+            if (n.nodeType === 3) { out += n.nodeValue.split('\n').map(v => escapar ? escMd(v) : v).join('<br>'); return; }
+            if (n.nodeType === 1 && n.tagName === 'BR') { out += '<br>'; return; }
+            if (n.nodeType !== 1) return;
             let dentro = domAMd(n, escapar);
             if (!dentro) return;
             const tag = n.tagName, st = n.style || {};
@@ -134,7 +138,8 @@
     // Los * _ { } del texto se marcan con "\" solo cuando hace falta (enlaces y textos antiguos quedan tal cual).
     function mdDeDom(el) {
         const libre = domAMd(el, false), seguro = domAMd(el, true);
-        return libre === seguro || mdAHtml(libre) === mdAHtml(seguro) ? libre : seguro;
+        const md = libre === seguro || mdAHtml(libre) === mdAHtml(seguro) ? libre : seguro;
+        return md.replace(/<br>$/, '');   // el último salto es el que el navegador pone para mostrar la línea vacía
     }
     function mdDeTexto(t) { return mdAHtml(t) === esc(t) ? t : escMd(t); }
     function mdAPlano(s) { const d = document.createElement('div'); d.innerHTML = mdAHtml(s); return d.textContent; }
@@ -150,7 +155,7 @@
         if (b.t === 'ol')   marca = `<span class="eb-marca">${num}.</span>`;
         if (b.t === 'todo') marca = `<span class="eb-marca"><input type="checkbox"${b.c ? ' checked' : ''}${editable ? '' : ' disabled'}></span>`;
         const cuerpo = b.t === 'hr' ? '<div class="eb-linea"></div>'
-            : `<div class="eb-txt"${editable ? ` contenteditable="true" spellcheck="true" data-vacio="${esc(vacio || '')}"` : ''}>${mdAHtml(b.x)}</div>`;
+            : `<div class="eb-txt"${editable ? ` contenteditable="true" spellcheck="true" data-vacio="${esc(vacio || '')}"` : ''}>${mdAHtml(b.x)}${/<br>$/.test(b.x) ? '<br>' : ''}</div>`;
         const asas = editable ? `<div class="eb-asas">
                 <button class="eb-mas" tabindex="-1" data-eb-tip="<b>Haz clic</b> para agregar un bloque debajo<br><b>Alt + clic</b> para agregar un bloque arriba">＋</button>
                 <span class="eb-asa" draggable="true" data-eb-tip="<b>Arrastra</b> para mover<br><b>Haz clic</b> para abrir el menú">⋮⋮</span>
@@ -363,7 +368,8 @@
         const sel = getSelection(), colapsada = sel.isCollapsed, off = cursorEn(txt), largo = txt.textContent.length;
 
         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); txt.blur(); seleccionar([id]); return; }
-        if (e.key === 'Enter') { e.preventDefault(); alEnter(txt, e.shiftKey); return; }
+        if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); document.execCommand('insertLineBreak'); return; }   // salto dentro del párrafo
+        if (e.key === 'Enter') { e.preventDefault(); alEnter(txt); return; }
         if (e.key === 'Backspace' && colapsada && off === 0) { e.preventDefault(); alBorrarAlInicio(txt); return; }
         if (e.key === 'Delete' && colapsada && off === largo && i < bs.length - 1) {
             e.preventDefault();
@@ -381,19 +387,20 @@
             if (I.op.alSubir) { e.preventDefault(); I.op.alSubir(); return; }
         }
         if (e.key === 'ArrowDown' && colapsada && off === largo) { const s = siguiente(); if (s) { e.preventDefault(); enfocar(s.id, 0); return; } }
+        if (e.key === 'ArrowLeft' && colapsada && off === 0 && !e.shiftKey) { const a = anterior(); if (a) { e.preventDefault(); enfocar(a.id, 'fin'); return; } }
+        if (e.key === 'ArrowRight' && colapsada && off === largo && !e.shiftKey) { const s = siguiente(); if (s) { e.preventDefault(); enfocar(s.id, 0); return; } }
         if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); duplicar(id); return; }
         if (e.key === '/' && !b.x) { e.preventDefault(); menuTipos(id); return; }
     }, true);
 
     // Enter: parte el bloque en el cursor (en una lista vacía, vuelve a texto).
-    // Mayús+Enter en un párrafo: la línea siguiente parte como viñeta, pegada al párrafo (título de una lista).
-    function alEnter(txt, conMayus) {
+    function alEnter(txt) {
         const I = insDe(txt), id = txt.parentElement.dataset.id, i = idx(I, id), b = I?.bloques[i];
         if (!b) return;
         const sel = getSelection();
         if (LISTAS.has(b.t) && !b.x) { convertir(id, 'p'); return; }
         if (!sel.isCollapsed) sel.deleteFromDocument();
-        const o = cursorEn(txt), tNuevo = LISTAS.has(b.t) ? b.t : (conMayus && b.t === 'p' ? 'ul' : 'p');
+        const o = cursorEn(txt), tNuevo = LISTAS.has(b.t) ? b.t : 'p';
         if (o === 0 && txt.textContent.length) {
             b.x = mdDeDom(txt);
             insertar(I, i, { id: nid(), t: tNuevo, x: '', c: false });
@@ -425,7 +432,7 @@
     document.addEventListener('beforeinput', e => {
         const txt = e.target.closest?.('.eb-blq .eb-txt');
         if (!txt || e.isComposing) return;
-        if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') { e.preventDefault(); alEnter(txt); return; }
+        if (e.inputType === 'insertParagraph') { e.preventDefault(); alEnter(txt); return; }
         if (e.inputType === 'deleteContentBackward' && getSelection().isCollapsed && cursorEn(txt) === 0) { e.preventDefault(); alBorrarAlInicio(txt); }
     });
 
@@ -764,7 +771,7 @@
     function aPendiente(ids) {
         const I = insDeId(ids[0]);
         if (!I?.op.alPendiente) return;
-        I.bloques.filter(b => ids.includes(b.id)).map(b => mdAPlano(b.x).trim()).filter(Boolean)
+        I.bloques.filter(b => ids.includes(b.id)).map(b => mdAPlano(b.x.replace(/<br>/g, ' ')).trim()).filter(Boolean)
             .reduce((cadena, t) => cadena.then(() => I.op.alPendiente(t)), Promise.resolve());
     }
     function menuGrupo(ids, asa) {

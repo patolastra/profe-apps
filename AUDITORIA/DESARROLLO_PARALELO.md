@@ -4547,3 +4547,12 @@ la clase en curso.*
   pero el párrafo que la titula seguía con el alto y el relleno de un párrafo normal (30 px). Ahora un párrafo
   seguido de una lista mide como una línea de lista (sin margen abajo, relleno de 1 px; `:has`). Prueba (local, con
   el texto real de la actividad del PO): título → 1ª viñeta 28 px y entre viñetas 26 px (en lectura 23 / 21 px).
+- **Corrección del PO (2026-10-18), editor por bloques en todo el sistema:** Mayús+Enter **no** crea una viñeta: es
+  un **salto de línea dentro del mismo párrafo** (sin el espacio entre párrafos); Enter sigue creando un bloque nuevo
+  con su espacio. Se deshizo la regla "párrafo seguido de lista = pegado" (vuelve el espaciado de siempre) y se
+  mantiene el aire extra tras "O:". Formato: el salto se guarda dentro de la línea del bloque como `<br>` (el texto
+  sigue siendo una línea por bloque; el celular lo lee igual); al convertir un bloque en pendiente, los saltos pasan a
+  espacios. Además, **← al comienzo de un bloque va al final del anterior** y **→ al final va al comienzo del
+  siguiente**. `comun/editor-bloques.js` y `.css`. Prueba (local, teclado real): "CON LETRA:" Mayús+↵ "Pregunta uno"
+  Mayús+↵ "Pregunta dos" ↵ "Otro parrafo", Inicio, ← y "!" → guardado "CON LETRA:<br>Pregunta uno<br>Pregunta dos!\nOtro
+  parrafo"; al recargar, un párrafo de 3 líneas y otro aparte.
