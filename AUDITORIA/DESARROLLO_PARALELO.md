@@ -4528,3 +4528,14 @@ la clase en curso.*
   apartado al final; volver a "Acción y reacción" carga solo su nota y agregar una viñeta la deja en su apartado:
   "Clase tranquila en general. / ## Acción y reacción / … / - Probar de nuevo el jueves / ## Juego: ASMR / Les encantó,
   repetir." Bitácora de prueba y actividades borradas.
+- **Ajustes del PO (2026-10-18):** (1) el ✍🏼 de la actividad sale de la card y va en la línea de "← Actividades",
+  pegado a la derecha; (2) los apartados de actividades en la bitácora van con **título 3** (`### <título>`; se
+  siguen reconociendo los `##` escritos antes y se pasan a `###` al guardar); (3) diapositivas **3 o 4 por fila**, a
+  elección con "Por fila 3 | 4" (se recuerda en el equipo); (4) más aire después del objetivo "O:" (10 px; 4 px entre
+  dos objetivos seguidos) en todo el editor por bloques; (5) **un párrafo seguido de una lista es su título**: la
+  lista va pegada a él, y **Mayús+Enter** en un párrafo empieza la línea siguiente como viñeta; (6) casillas del
+  detalle de la actividad con espacio para el texto. `comun/editor-bloques.js` (Mayús+Enter) y `.css` (espacios).
+  Prueba (local): escrito con el teclado "O: reforzar la letra" ↵ "CON LETRA RENDERIZADA:" Mayús+↵ "Pregunta uno" ↵
+  "Pregunta dos" → objetivo, párrafo a 10 px, viñetas a 1 px y 0 px; texto guardado igual que siempre. En clase: ✍🏼
+  en la barra de "← Actividades"; 3 por fila → 3 arriba y la 4ª abajo; 4 por fila → 4 arriba; nota guardada como
+  "### Repertorio". Datos de prueba borrados.

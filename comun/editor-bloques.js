@@ -363,7 +363,7 @@
         const sel = getSelection(), colapsada = sel.isCollapsed, off = cursorEn(txt), largo = txt.textContent.length;
 
         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); txt.blur(); seleccionar([id]); return; }
-        if (e.key === 'Enter') { e.preventDefault(); alEnter(txt); return; }
+        if (e.key === 'Enter') { e.preventDefault(); alEnter(txt, e.shiftKey); return; }
         if (e.key === 'Backspace' && colapsada && off === 0) { e.preventDefault(); alBorrarAlInicio(txt); return; }
         if (e.key === 'Delete' && colapsada && off === largo && i < bs.length - 1) {
             e.preventDefault();
@@ -386,13 +386,14 @@
     }, true);
 
     // Enter: parte el bloque en el cursor (en una lista vacía, vuelve a texto).
-    function alEnter(txt) {
+    // Mayús+Enter en un párrafo: la línea siguiente parte como viñeta, pegada al párrafo (título de una lista).
+    function alEnter(txt, conMayus) {
         const I = insDe(txt), id = txt.parentElement.dataset.id, i = idx(I, id), b = I?.bloques[i];
         if (!b) return;
         const sel = getSelection();
         if (LISTAS.has(b.t) && !b.x) { convertir(id, 'p'); return; }
         if (!sel.isCollapsed) sel.deleteFromDocument();
-        const o = cursorEn(txt), tNuevo = LISTAS.has(b.t) ? b.t : 'p';
+        const o = cursorEn(txt), tNuevo = LISTAS.has(b.t) ? b.t : (conMayus && b.t === 'p' ? 'ul' : 'p');
         if (o === 0 && txt.textContent.length) {
             b.x = mdDeDom(txt);
             insertar(I, i, { id: nid(), t: tNuevo, x: '', c: false });

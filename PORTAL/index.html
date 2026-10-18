@@ -609,10 +609,14 @@
         .cl-det-txt .eb-lectura .eb-t-h2 .eb-txt { font-size: 23px; }
         .cl-det-txt .eb-lectura .eb-t-h3 .eb-txt { font-size: 21px; }
         #clase-panel { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 15; background: #e9eef4; overflow-y: auto; padding: 14px 16px; }
-        .cl-cancs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .cl-top { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+        .cl-cancs { flex: 1; display: flex; flex-wrap: wrap; gap: 8px; }
+        .cl-cols { flex-shrink: 0; display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--muted); }
+        .cl-cols button { width: 30px; height: 28px; border: 1px solid var(--border); background: #fff; border-radius: 6px; cursor: pointer; font-weight: 700; color: #475569; }
+        .cl-cols button.on { background: #1e293b; color: #fff; border-color: #1e293b; }
         .cl-canc { border: 1px solid #ddd6fe; background: #ede9fe; color: #5b21b6; border-radius: 999px; padding: 6px 16px; font-size: 1rem; font-weight: 700; cursor: pointer; }
         .cl-canc:hover { background: #ddd6fe; }
-        .cl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; align-items: start; }
+        .cl-grid { display: grid; gap: 12px; align-items: start; }
         .cl-slide { cursor: pointer; }
         .cl-slide .cl-ed { position: absolute; top: 6px; right: 6px; z-index: 2; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; width: 30px; height: 28px; cursor: pointer; font-size: 0.9rem; opacity: .75; }
         .cl-slide .cl-ed:hover { opacity: 1; background: #eef2ff; }
@@ -623,8 +627,9 @@
         .cl-edit-box div { display: flex; gap: 6px; justify-content: flex-end; }
         .cl-edit-box button { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 4px 12px; cursor: pointer; font-weight: 700; }
         .cl-edit-box button.cl-ok { background: var(--accent); color: #fff; border-color: var(--accent); }
-        .cl-det-cab { display: flex; align-items: flex-start; gap: 8px; }
-        .cl-det-cab .cl-det-tit { flex: 1; min-width: 0; }
+        .cl-det-barra { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .cl-det-barra .cl-volver { padding: 2px 0; }
+        .cl-det-txt .eb-lectura .eb-marca { width: 30px; }
         .cl-bit-btn { flex-shrink: 0; border: 1px solid var(--border); background: #fff; border-radius: 8px; width: 42px; height: 38px; font-size: 1.25rem; cursor: pointer; }
         .cl-bit-btn:hover, .cl-bit-btn.on { background: #eef2ff; border-color: #a5b4fc; }
         .cl-bit { margin-top: 10px; background: #fff; border: 2px solid #a5b4fc; border-radius: 12px; padding: 10px 12px; }
@@ -4911,10 +4916,10 @@ function pintarClaseIzq() {
     const it = claseVista === 'detalle' ? items.find(i => i.id === claseSel) : null;
     if (it) {
         const texto = it.card ? (it.card.ed ? it.card.ed.texto() : it.card.contenido || '') : '';
-        pane.innerHTML = `<button class="cl-volver">← Actividades</button>
+        pane.innerHTML = `<div class="cl-det-barra"><button class="cl-volver">← Actividades</button>
+                ${it.card ? '<button class="cl-bit-btn" title="Registrar bitácora de esta actividad">✍🏼</button>' : ''}</div>
             <div class="cl-det${act && act === it.id ? ' en-curso' : ''}" data-id="${it.id}">
-                <div class="cl-det-cab"><div class="cl-det-tit">${esc(it.titulo)}</div>
-                    ${it.card ? '<button class="cl-bit-btn" title="Registrar bitácora de esta actividad">✍🏼</button>' : ''}</div>
+                <div class="cl-det-tit">${esc(it.titulo)}</div>
                 <div class="cl-det-txt">${texto ? EditorBloques.html(texto, { objetivo: true }) : ''}</div>
             </div>
             <div class="cl-bit" hidden><div class="cl-bit-tit">✍🏼 Bitácora · ${esc(it.titulo)}</div><div class="cl-bit-ed"></div>
@@ -4935,8 +4940,11 @@ function pintarClaseDer() {
     const card = claseSel ? planCards.find(c => c.id === claseSel) : null;
     const cs = card ? cancionesDe(card) : [];
     if (cs.length && !bibCanciones) cargarBib().then(() => pintarClaseDer());
-    panel.innerHTML = `${cs.length ? `<div class="cl-cancs">${cs.map(x => `<button class="cl-canc" data-id="${x.cancion_id}" title="Ver la letra">🎵 ${esc(bibCanciones?.get(x.cancion_id)?.nombre || '…')}</button>`).join('')}</div>` : ''}
-        <div class="cl-grid"></div>`;
+    let cols = 3;
+    try { cols = localStorage.getItem('profe_clase_cols') === '4' ? 4 : 3; } catch (_) {}
+    panel.innerHTML = `<div class="cl-top"><div class="cl-cancs">${cs.map(x => `<button class="cl-canc" data-id="${x.cancion_id}" title="Ver la letra">🎵 ${esc(bibCanciones?.get(x.cancion_id)?.nombre || '…')}</button>`).join('')}</div>
+            <div class="cl-cols" title="Diapositivas por fila">Por fila <button data-n="3" class="${cols === 3 ? 'on' : ''}">3</button><button data-n="4" class="${cols === 4 ? 'on' : ''}">4</button></div></div>
+        <div class="cl-grid" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))"></div>`;
     const grid = panel.querySelector('.cl-grid');
     const pIdx = pizarraIdx();
     document.querySelectorAll(`#prev-body .slide-prev[data-act="${claseSel}"]`).forEach(src => {
@@ -4965,15 +4973,15 @@ function claseElegir(id) {
 
 // ── Bitácora de la actividad (deuda BW, parte 2) ──
 // La bitácora de la clase es UN solo texto (memorias.contenido): lo que se escribe en ✍🏼 más un apartado por
-// actividad, que empieza con "## <título de la actividad>" y llega hasta el siguiente título (# o ##). El botón ✍🏼
+// actividad, que empieza con "### <título de la actividad>" y llega hasta el siguiente título (#, ## o ###). El botón ✍🏼
 // de la actividad edita solo su apartado (no abre toda la bitácora); desde ✍🏼 se ve y se edita todo junto.
 var claseBit = null;   // { id, titulo, ed, timer, sucio }
 function bitLineas(texto, titulo) {
     const lineas = (texto || '').split('\n');
-    const h = lineas.findIndex(l => l.trim() === '## ' + titulo);
+    const h = lineas.findIndex(l => l.trim() === '### ' + titulo || l.trim() === '## ' + titulo);
     if (h < 0) return { lineas, h: -1, fin: -1 };
     let fin = h + 1;
-    while (fin < lineas.length && !/^#{1,2} /.test(lineas[fin])) fin++;
+    while (fin < lineas.length && !/^#{1,3} /.test(lineas[fin])) fin++;
     return { lineas, h, fin };
 }
 function bitCuerpo(texto, titulo) {
@@ -4982,7 +4990,7 @@ function bitCuerpo(texto, titulo) {
 }
 function bitPoner(texto, titulo, cuerpo) {
     const { lineas, h, fin } = bitLineas(texto, titulo);
-    const sec = cuerpo ? ['## ' + titulo, ...cuerpo.split('\n')] : [];
+    const sec = cuerpo ? ['### ' + titulo, ...cuerpo.split('\n')] : [];
     if (h >= 0) return [...lineas.slice(0, h), ...sec, ...lineas.slice(fin)].join('\n');
     if (!cuerpo) return texto || '';
     const base = (texto || '').replace(/\s+$/, '');
@@ -5082,6 +5090,8 @@ document.getElementById('pane-clase')?.addEventListener('click', e => {
     if (c) claseElegir(c.dataset.id);
 });
 document.getElementById('clase-panel')?.addEventListener('click', e => {
+    const n = e.target.closest('.cl-cols button');
+    if (n) { try { localStorage.setItem('profe_clase_cols', n.dataset.n); } catch (_) {} pintarClaseDer(); return; }
     const canc = e.target.closest('.cl-canc');
     if (canc) { abrirMini(canc.dataset.id, claseSel || null); return; }
     if (e.target.closest('.cl-nueva')) { claseEditar(e.target.closest('.cl-nueva'), true); return; }
