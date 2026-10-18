@@ -4391,3 +4391,7 @@ párrafos sueltos.*
   Presentación (también al arrastrar el ancho del Plan). En el Entrenador mínimo se ocultan el nombre y el artista
   del encabezado (ya están en la franja del Planificador). Prueba (local, 1366×768): ocupa de x=369 (inicio de la
   Presentación) a 1366, barra en una fila, ⏪ ▶ ⏩ abajo; ✕ cierra.
+- **Ajuste del PO (2026-10-18):** fuera la franja morada sobre el Entrenador mínimo; la **✕ va en la barra del
+  Entrenador, a la derecha de "Scroll"** (`#ent-btn-mini-x`, solo con `?mini=1`; llama a `cerrarEntrenador`, que avisa
+  al Planificador). Vuelven el nombre y el artista a la izquierda de la barra (ya hay espacio). Prueba (local,
+  1366×768): barra con El Crack · Los Miserables a la izquierda y ✕ tras Scroll; la ✕ cierra el Entrenador mínimo.
