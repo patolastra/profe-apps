@@ -2018,6 +2018,14 @@
         #ent-header-tools {
             display: flex; align-items: center; gap: 6px; flex-shrink: 0;
         }
+        /* Entrenador mínimo (?mini=1, dentro del Planificador, deuda BU): solo el Entrenador de una canción,
+           sin cancionero ni volver; la barra de herramientas de siempre */
+        body.mini { overflow: hidden; }
+        body.mini > *:not(#entrenador-overlay):not(#metal-overlay):not(#toast):not(script) { display: none !important; }
+        body.mini #ent-btn-cerrar, body.mini #ent-btn-toggle-lista, body.mini #ent-sesion-lista,
+        body.mini #ent-sesion-nav, body.mini #ent-btn-pedir { display: none !important; }
+        body.mini #ent-header { height: auto; min-height: 52px; padding: 6px 10px; flex-wrap: wrap; row-gap: 4px; }
+        body.mini #ent-header-tools, body.mini #ent-mode-btns { flex-wrap: wrap; row-gap: 4px; flex-shrink: 1; min-width: 0; }   /* columna angosta: la barra baja de fila */
         /* Entrenador espejo (?espejo=1, dentro de la Pizarra): solo la letra, sin controles */
         body.espejo { background: #0f172a; overflow: hidden; }
         body.espejo > *:not(#entrenador-overlay):not(#metal-overlay):not(#espejo-cancionero):not(script) { display: none !important; }
@@ -5496,6 +5504,7 @@ function cerrarEntrenador() {
     entHeaderOculto = false;
     document.getElementById('ent-header').style.display = '';
     entrenadorSong = null;
+    if (MINI) try { window.parent.postMessage({ tipo: 'ent-mini-cerrar' }, '*'); } catch (_) {}   // ← / Esc: el Planificador lo quita
 }
 
 // Recursos de la canción como UN desplegable (reemplaza los chips sueltos). Conserva
@@ -8290,6 +8299,10 @@ document.getElementById('search').addEventListener('input', render);
 // va en silencio y sigue el avance del audio. ESPEJO_KEY avisa a una Pizarra que
 // recién se abre que debe mostrar el espejo.
 const ESPEJO     = new URLSearchParams(location.search).get('espejo') === '1';
+// Entrenador mínimo dentro del Planificador (deuda BU): ?mini=1; con &pizarra=1 y la clase en curso,
+// proyecta la letra en la Pizarra al abrir (el mismo espejo de "📽️ Pizarra").
+const MINI       = new URLSearchParams(location.search).get('mini') === '1';
+if (MINI) document.body.classList.add('mini');
 const ESPEJO_KEY = 'profe_espejo_entrenador';
 const espejoCanal = ('BroadcastChannel' in window) ? new BroadcastChannel('profe-espejo-entrenador') : null;
 let espejoOn = false, espejoTimer = null;
@@ -8418,6 +8431,8 @@ function entToggleEspejo() {
     espejoEmitir();
     espejoPintarBoton();
 }
+// Al cerrarse esta página (pestaña o Entrenador mínimo del Planificador), la Pizarra vuelve a su diapositiva.
+window.addEventListener('pagehide', () => { if (espejoOn) espejoApagar(); });
 function espejoApagar() {
     espejoOn = false;
     clearInterval(espejoTimer); espejoTimer = null;
@@ -8949,6 +8964,7 @@ TiempoReal.conectar(sb);
         if (vistaActual !== 'sesiones') toggleVistaSesiones();
         if (practicarId) practicarSesion(practicarId, cancionId);   // con ?cancion=: parte en esa canción
         else if (cancionId) abrirEntrenador(cancionId);
+        if (MINI && params.get('pizarra') === '1' && ClaseVivo.get() && !espejoOn) entToggleEspejo();
         // Entrada desde Pizarra: header oculto al abrir (preferencia de entrada, no un modo).
         if (proyeccion) entOcultarHeader(true);
     }

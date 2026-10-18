@@ -4358,3 +4358,31 @@ párrafos sueltos.*
   Entrenador con `?practicar=<Quinto>&cancion=<El Crack>` abre en "El Crack · 2/3"; `ws-ir` a la 3ª canción salta a
   "Si Antes Te Hubiera Conocido · 3/3". Datos de prueba revertidos (repertorio de Quinto con sus 3 canciones,
   actividad borrada). Falta: probar el clic dentro del Workspace.
+- **Ajuste del PO (2026-10-18):** el 🎵 sale de la cabecera de la actividad y pasa al menú ⋯ ("🎵 Vincular canción").
+  Corregido: los rótulos de la vista previa decían "Diapositivas sin actividad" si la presentación se pintaba antes
+  de que llegaran las actividades (ahora se ponen al día al pintar el Plan).
+
+### BU. Plan — la letra de una canción de la actividad en la Vista previa y en la Pizarra
+*Origen: pedido del PO (2026-10-18).*
+- **DECISIÓN del PO (2026-10-18):** en la columna Presentación, el cuadro de una actividad con canciones tiene **un
+  botón por canción**; al tocarlo, la columna Vista previa muestra un **Entrenador mínimo** (sin cancionero, con
+  play/pausa y la barra de siempre) con una **✕** para volver a la vista previa, y **con la clase en curso** la
+  Pizarra muestra solo la letra; **sin clase**, solo la Vista previa (la Pizarra no se toca).
+- **Auditoría (2026-10-18):** ya existe el espejo del Entrenador en la Pizarra (botón "📽️ Pizarra", deuda del
+  2026-10-06): el Entrenador emite su estado (`profe-espejo-entrenador`) y la Pizarra superpone
+  `REPERTORIO/?espejo=1` (solo la letra, en silencio); al soltarlo vuelve a su diapositiva.
+- **Implementación (2026-10-18):** `REPERTORIO/index.html`: modo **`?mini=1`** (solo el Entrenador; sin ←, ☰,
+  cancionero, navegación de sesión ni Pedir); con `&pizarra=1` y la clase en curso enciende el espejo al abrir; ← /
+  Esc avisan al Planificador (`ent-mini-cerrar`); al cerrarse la página (`pagehide`) el espejo se apaga solo (sirve
+  también para la pestaña del Entrenador). `PORTAL/index.html`: botones 🎵 por canción en el encabezado del cuadro;
+  `#prev-mini` (encabezado + ✕ + iframe) sobre la Vista previa; `abrirMini` usa la sesión del curso si la canción
+  está en ella (`practicar` + `cancion`) y pide la Pizarra solo si la clase en curso es esta; ✕, cambiar de clase o
+  ←/Esc lo cierran. Sin cambios en Supabase.
+- **Deuda anotada por el PO (Notion, Pendiente):** en el Entrenador, esconder toda la letra e ir mostrando versos o
+  estrofas con el mecanismo de marcado que ya existe.
+- **Prueba (servidor local, Quinto 27/10):** ⋯ muestra "🎵 Vincular canción" y abre el selector; El Crack vinculada →
+  botón "🎵 El Crack" en el cuadro de la actividad (línea delgada sin diapositivas); al tocarlo, la Vista previa
+  muestra el Entrenador de El Crack (sesión del curso) sin ←, ☰ ni cancionero, con ⏪ ▶ ⏩ abajo; en una columna
+  angosta (266 px) la barra baja de fila sin salirse; ✕ lo cierra (iframe en blanco) y ← / Esc del Entrenador
+  también. Sin clase no se toca la Pizarra. Datos de prueba borrados. **Falta:** probar con la clase en curso que la
+  letra aparece en la Pizarra y que al cerrar vuelve a su diapositiva (usa el espejo ya probado del Entrenador).

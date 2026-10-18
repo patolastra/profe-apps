@@ -591,7 +591,18 @@
         .s-col:last-child { border-right: none; }
         .s-col-plan    { width: 27%; }
         .s-col-editor  { width: 37%; }
-        .s-col-preview { flex: 1; }
+        .s-col-preview { flex: 1; position: relative; }
+        /* Entrenador mínimo en la Vista previa (deuda BU) */
+        #prev-mini { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: #0f172a; }
+        #prev-mini[hidden] { display: none; }
+        #prev-mini .pm-hdr { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #ede9fe; color: #5b21b6; font-size: 0.8rem; font-weight: 800; flex-shrink: 0; }
+        #prev-mini .pm-tit { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #prev-mini .pm-x { border: none; background: #fff; color: #5b21b6; border-radius: 6px; width: 28px; height: 26px; cursor: pointer; font-size: 0.9rem; }
+        #prev-mini .pm-x:hover { background: #ddd6fe; }
+        #prev-mini iframe { flex: 1; width: 100%; border: 0; }
+        .psec-cancs { display: flex; gap: 4px; flex-shrink: 1; min-width: 0; overflow: hidden; }
+        .psec-canc { border: 1px solid #ddd6fe; background: #ede9fe; color: #5b21b6; border-radius: 999px; padding: 1px 8px; font-size: 0.7rem; font-weight: 700; cursor: pointer; white-space: nowrap; max-width: 14em; overflow: hidden; text-overflow: ellipsis; font-style: normal; }
+        .psec-canc:hover { background: #ddd6fe; }
 
         .s-split.modo-plan #prev-col-hdr { display: none; }
 
@@ -773,9 +784,6 @@
         .psec.en-curso { border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b; }
         .psec.en-curso .psec-hdr { background: #fef3c7; color: #92400e; }
         .pcard.en-curso { border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b, 0 0 12px 2px rgba(245,158,11,.35); }
-        .pcard-cbtn { border: none; background: none; cursor: pointer; font-size: 0.8rem; padding: 2px 4px; border-radius: 4px; opacity: .45; }
-        .pcard:hover .pcard-cbtn { opacity: 1; }
-        .pcard-cbtn:hover { background: #f1f5f9; }
         .pcard-cancs { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px 0 4px 14px; }
         .pcard-cancs[hidden] { display: none; }
         .pcard-canc { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; border-radius: 999px; padding: 1px 4px 1px 9px; font-size: 0.74rem; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1369,6 +1377,11 @@
                 </div>
                 <div class="s-col-body cols-1" id="prev-body" style="display:none"></div>
                 <div id="rev-panel"></div>
+                <!-- Entrenador mínimo de una canción de la actividad (deuda BU); ✕ vuelve a la vista previa -->
+                <div id="prev-mini" hidden>
+                    <div class="pm-hdr"><span class="pm-tit"></span><button class="pm-x" onclick="cerrarMini()" title="Volver a la vista previa">✕</button></div>
+                    <iframe allow="window-management; autoplay; fullscreen"></iframe>
+                </div>
             </div>
         </div>
     </div>
@@ -2062,6 +2075,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
     document.getElementById('prev-body').innerHTML     = '';
     cerrarRevision();
     cerrarMemoria();
+    cerrarMini();
     resetHistorial();
     resetModoEdicion();
 
@@ -2250,7 +2264,7 @@ function pintarSecciones() {
             const box = document.createElement('div');
             box.className = 'psec' + (c.id ? '' : ' inicio') + (c.huerfano ? ' huerfano' : '');
             box.dataset.act = c.id || '';
-            box.innerHTML = `<div class="psec-hdr" title="Ir a sus diapositivas"><span class="psec-tit"></span><span class="psec-n"></span></div>
+            box.innerHTML = `<div class="psec-hdr" title="Ir a sus diapositivas"><span class="psec-tit"></span><span class="psec-cancs"></span><span class="psec-n"></span></div>
                 <textarea class="psec-ta" spellcheck="false"></textarea>`;
             const ta = box.querySelector('.psec-ta');
             ta.placeholder = c.id ? 'Diapositivas de esta actividad (sepáralas con ---)' : '# Título\n---\n## Subtítulo\n- ítem 1';
@@ -2262,6 +2276,11 @@ function pintarSecciones() {
                 const g = presPosGlobal(box.dataset.act, ta.selectionStart);
                 if (g !== null) resaltarSlideActiva(g);
             }));
+            box.querySelector('.psec-cancs').addEventListener('click', e => {
+                const b = e.target.closest('.psec-canc'); if (!b) return;
+                e.stopPropagation();
+                abrirMini(b.dataset.id);
+            });
             box.querySelector('.psec-hdr').addEventListener('click', () => {
                 if (!box.classList.contains('vacio')) { irActividad(box.dataset.act || null); return; }
                 box.classList.remove('vacio'); box.classList.add('abierto');   // abrir el cuadro para escribir
@@ -2284,6 +2303,17 @@ function pintarSecciones() {
         box.classList.toggle('vacio', vacio);
         box.querySelector('.psec-hdr').title = vacio ? 'Agregar diapositivas a esta actividad' : 'Ir a sus diapositivas';
         box.querySelector('.psec-n').textContent = vacio ? '＋ Diapositivas' : n ? n + (n === 1 ? ' diapo.' : ' diapos.') : '';
+        // Canciones de la actividad (BU): un botón por canción → su letra en la Vista previa (y en la Pizarra en clase).
+        const cs = c.card ? cancionesDe(c.card) : [];
+        const clave = cs.map(x => x.cancion_id).join(',') + (cs.length && !bibCanciones ? '…' : '');
+        if (box.dataset.cancs !== clave) {
+            box.dataset.cancs = clave;
+            if (cs.length && !bibCanciones) cargarBib().then(() => pintarSecciones());
+            box.querySelector('.psec-cancs').innerHTML = cs.map(x => {
+                const nom = bibCanciones?.get(x.cancion_id)?.nombre || '…';
+                return `<button class="psec-canc" data-id="${x.cancion_id}" title="Ver la letra: ${esc(nom)}">🎵 ${esc(nom)}</button>`;
+            }).join('');
+        }
         const ta = box.querySelector('.psec-ta');
         if (ta.value !== c.texto && document.activeElement !== ta) ta.value = c.texto;
         ta.style.height = 'auto';
@@ -4350,7 +4380,6 @@ function pintarPlan() {
         el.innerHTML = `<div class="pcard-hdr">
                 <span class="pcard-asa" draggable="true" data-eb-no-marco title="Arrastra para mover la actividad">⋮⋮</span>
                 <input class="pcard-tit" placeholder="Título de la actividad">
-                <button class="pcard-cbtn" title="Vincular una canción del repertorio del curso">🎵</button>
                 <button class="pcard-ir" title="Ir a sus diapositivas">▶</button>
                 <button class="pcard-menu" title="Opciones">⋯</button>
             </div><div class="pcard-cancs"></div><div class="pcard-ed"></div>`;
@@ -4359,7 +4388,6 @@ function pintarPlan() {
         tit.value = c.titulo || '';
         tit.addEventListener('input', () => { c.titulo = tit.value; planCambio(c); presTitulos(); });
         el.querySelector('.pcard-ir').addEventListener('click', e => { e.stopPropagation(); irActividad(c.id); });
-        el.querySelector('.pcard-cbtn').addEventListener('click', e => { e.stopPropagation(); elegirCancion(c, e.currentTarget); });
         pintarCancionesCard(c, el);
         tit.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); c.ed.enfocar('inicio'); } });
         el.querySelector('.pcard-menu').addEventListener('click', e => { e.stopPropagation(); menuPlanCard(c, e.currentTarget); });
@@ -4370,7 +4398,7 @@ function pintarPlan() {
             alCambiar: () => planCambio(c),
         });
     });
-    pintarSecciones();   // un cuadro de diapositivas por actividad (BS)
+    presTitulos();       // un cuadro de diapositivas por actividad y rótulos de la vista previa al día (BS)
     marcarEnPizarra();
 }
 // Títulos de las actividades al día en los cuadros y rótulos de la vista previa (BS).
@@ -4482,7 +4510,8 @@ function menuPlanCard(c, boton) {
     const i = planCards.indexOf(c);
     const pop = document.createElement('div');
     pop.className = 'pcard-pop';
-    pop.innerHTML = `${i > 0 ? '<button data-a="subir">↑ Subir</button>' : ''}
+    pop.innerHTML = `<button data-a="cancion">🎵 Vincular canción</button>
+        ${i > 0 ? '<button data-a="subir">↑ Subir</button>' : ''}
         ${i < planCards.length - 1 ? '<button data-a="bajar">↓ Bajar</button>' : ''}
         <button data-a="borrar" class="peligro">🗑 Eliminar actividad</button>`;
     document.body.appendChild(pop);
@@ -4492,6 +4521,7 @@ function menuPlanCard(c, boton) {
     pop.addEventListener('click', async e => {
         const a = e.target.closest('button')?.dataset.a; if (!a) return;
         pop.remove();
+        if (a === 'cancion') { elegirCancion(c, boton); return; }
         if (a === 'borrar') {
             const nd = presNDiapos(presModelo.find(x => x.id === c.id)?.texto || '');
             if (!confirm(`¿Eliminar la actividad "${c.titulo || 'sin título'}"${nd ? ` y sus ${nd === 1 ? 'diapositiva' : nd + ' diapositivas'}` : ''}?`)) return;
@@ -4565,6 +4595,7 @@ async function guardarCancionesCard(c) {
 function quitarCancionCard(c, k) {
     c.canciones = cancionesDe(c).filter((_, i) => i !== k);
     pintarCancionesCard(c);
+    pintarSecciones();
     guardarCancionesCard(c);
 }
 
@@ -4642,6 +4673,7 @@ async function elegirCancion(c, boton) {
         }
         c.canciones = [...cancionesDe(c), { cancion_id: id }];
         pintarCancionesCard(c);
+        pintarSecciones();
         guardarCancionesCard(c);
     });
     function fuera(ev) { if (!pop.contains(ev.target)) cerrar(); }
@@ -4667,6 +4699,31 @@ async function abrirCancionCurso(cancionId) {
     }
     if (!wsAbrir(instancia)) window.open(instancia.src, '_blank');
 }
+
+// ── Letra de una canción de la actividad (deuda BU): Entrenador mínimo en la Vista previa (sin cancionero,
+// con la barra de siempre); con la clase de ESTA sesión en curso, la letra va también a la Pizarra (el
+// espejo de "📽️ Pizarra"). ✕ (o ← / Esc del Entrenador) lo cierra y la Pizarra vuelve a su diapositiva.
+async function abrirMini(cancionId) {
+    if (!cancionId || !sesionActual) return;
+    const curso = await cancionesDelCurso();
+    const sid = entrenamientoDefaultId;
+    const st = ClaseVivo.get();
+    const enClase = !!(st && st.sesionId === sesionActual.id);
+    const q = (sid && curso.includes(cancionId) ? `practicar=${encodeURIComponent(sid)}&cancion=` : 'cancion=') + encodeURIComponent(cancionId);
+    const box = document.getElementById('prev-mini');
+    box.querySelector('.pm-tit').textContent = '🎵 ' + (bibCanciones?.get(cancionId)?.nombre || 'Canción') + (enClase ? ' · en la Pizarra' : '');
+    box.querySelector('iframe').src = `../REPERTORIO/index.html?mini=1${enClase ? '&pizarra=1' : ''}&${q}&v=${Date.now()}`;
+    box.hidden = false;
+}
+function cerrarMini() {
+    const box = document.getElementById('prev-mini');
+    if (box.hidden) return;
+    box.querySelector('iframe').src = 'about:blank';   // al salir, el Entrenador suelta la Pizarra (pagehide)
+    box.hidden = true;
+}
+window.addEventListener('message', e => {
+    if (e.data?.tipo === 'ent-mini-cerrar' && e.source === document.querySelector('#prev-mini iframe')?.contentWindow) cerrarMini();
+});
 
 // Al instante: lo de otro equipo se aplica si aquí no se está escribiendo en el plan.
 const escribiendoPlan = () => !!document.activeElement?.closest?.('#pane-plan');
