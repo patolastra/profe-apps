@@ -4325,3 +4325,8 @@ párrafos sueltos.*
   "¿… y sus 2 diapositivas?" y las saca del texto; la Pizarra abre con 3 diapositivas (sin marcas) en el mismo orden.
   Datos de prueba borrados (presentación de Quinto 27/10 vuelta a la diapositiva inicial). Falta: prueba con la
   Pizarra real en el proyector.
+- **Ajuste del PO (2026-10-18):** no toda actividad tiene diapositivas. En la Presentación, una actividad sin
+  diapositivas es una **línea delgada** (borde punteado) con su título y "＋ Diapositivas"; al tocarla se abre su cuadro
+  para escribir y, si se deja sin escribir, vuelve a ser línea. Su ▶ en el Plan sigue oculto. Prueba (local,
+  1366×768): dos actividades nuevas = dos líneas; abrir Canto y escribir "# Cantamos" → cuadro con 1 diapositiva y ▶;
+  abrir Conversación y salir sin escribir → vuelve a línea. Datos de prueba borrados.

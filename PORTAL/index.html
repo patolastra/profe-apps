@@ -765,6 +765,11 @@
         .psec.huerfano .psec-hdr { color: #b45309; }
         .psec-ta { display: block; width: 100%; border: none; outline: none; resize: none; overflow: hidden; padding: 8px 12px; font-family: 'Courier New', monospace; font-size: 0.83rem; line-height: 1.6; color: var(--text); background: var(--card-bg); min-height: 3.4em; }
         .psec-ta::placeholder { color: #cbd5e1; }
+        .psec.vacio { background: transparent; border-style: dashed; }
+        .psec.vacio .psec-hdr { background: transparent; border-bottom: none; padding: 3px 10px; font-weight: 600; color: #94a3b8; }
+        .psec.vacio .psec-hdr:hover { color: var(--text); background: #fff; }
+        .psec.vacio .psec-n { width: 8em; }
+        .psec.vacio .psec-ta { display: none; }
         .psec.en-curso { border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b; }
         .psec.en-curso .psec-hdr { background: #fef3c7; color: #92400e; }
         .pcard.en-curso { border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b, 0 0 12px 2px rgba(245,158,11,.35); }
@@ -2230,11 +2235,17 @@ function pintarSecciones() {
             ta.placeholder = c.id ? 'Diapositivas de esta actividad (sepáralas con ---)' : '# Título\n---\n## Subtítulo\n- ítem 1';
             ta.addEventListener('input', () => presCuadroInput(box.dataset.act, ta));
             ta.addEventListener('focus', () => { presUltimaTa = ta; });
+            // Actividad sin diapositivas: al salir sin escribir, vuelve a ser una línea delgada.
+            ta.addEventListener('blur', () => { if (!ta.value) { box.classList.remove('abierto'); box.classList.toggle('vacio', !!box.dataset.act); } });
             ['click', 'keyup'].forEach(ev => ta.addEventListener(ev, () => {
                 const g = presPosGlobal(box.dataset.act, ta.selectionStart);
                 if (g !== null) resaltarSlideActiva(g);
             }));
-            box.querySelector('.psec-hdr').addEventListener('click', () => irActividad(box.dataset.act || null));
+            box.querySelector('.psec-hdr').addEventListener('click', () => {
+                if (!box.classList.contains('vacio')) { irActividad(box.dataset.act || null); return; }
+                box.classList.remove('vacio'); box.classList.add('abierto');   // abrir el cuadro para escribir
+                ta.focus();
+            });
             cont.appendChild(box);
         });
         if (presUltimaTa && !cont.contains(presUltimaTa)) presUltimaTa = null;
@@ -2247,7 +2258,11 @@ function pintarSecciones() {
         tit.textContent = nombre || 'Actividad sin título';
         tit.classList.toggle('sin', !nombre);
         const n = presNDiapos(c.texto);
-        box.querySelector('.psec-n').textContent = n ? n + (n === 1 ? ' diapo.' : ' diapos.') : '';
+        // No toda actividad tiene diapositivas: sin texto, una línea delgada con "＋ Diapositivas".
+        const vacio = !!c.id && !c.texto && !box.classList.contains('abierto');
+        box.classList.toggle('vacio', vacio);
+        box.querySelector('.psec-hdr').title = vacio ? 'Agregar diapositivas a esta actividad' : 'Ir a sus diapositivas';
+        box.querySelector('.psec-n').textContent = vacio ? '＋ Diapositivas' : n ? n + (n === 1 ? ' diapo.' : ' diapos.') : '';
         const ta = box.querySelector('.psec-ta');
         if (ta.value !== c.texto && document.activeElement !== ta) ta.value = c.texto;
         ta.style.height = 'auto';
