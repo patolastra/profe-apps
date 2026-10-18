@@ -7686,17 +7686,18 @@ function cerrarEntrenadorModoEdicion() {
 }
 
 // ── Modo práctica de sesión ──
-function practicarSesion(id) {
+// cancionId (opcional): partir en esa canción de la sesión (p. ej. desde una actividad del Plan, deuda BT).
+function practicarSesion(id, cancionId) {
     const s = sesiones.find(x => x.id === id);
     if (!s || !s.canciones.length) { toast('La sesión no tiene canciones'); return; }
     entModoSesion     = true;
     entModoEditSesion = false;
     entSesionActual   = JSON.parse(JSON.stringify(s));
-    entSesionCIdx     = 0;
+    entSesionCIdx     = Math.max(0, cancionId ? entSesionActual.canciones.findIndex(i => i.cancion_id === cancionId) : 0);
     entAutoAvance     = false;
     document.getElementById('ent-btn-toggle-lista').style.display = '';
     document.getElementById('ent-btn-toggle-lista').classList.add('activo');
-    const item = entSesionActual.canciones[0];
+    const item = entSesionActual.canciones[entSesionCIdx];
     const song = canciones.find(c => c.id === item.cancion_id);
     if (!song) { toast('Canción no encontrada'); return; }
     abrirEntrenadorConConfig(song, item);
@@ -7750,6 +7751,26 @@ function entIrACancionSesion(idx) {
     if (!song) { toast('Canción no encontrada'); return; }
     abrirEntrenadorConConfig(song, item);
 }
+
+// Workspace: 'ws-ir' { practicar, cancion } = una actividad del Plan pide la sesión del curso en esa canción
+// (deuda BT), con esta pestaña ya abierta. La lista se lee al día: la canción pudo sumarse recién desde el Plan.
+window.addEventListener('message', async e => {
+    const m = e.data;
+    if (m?.tipo !== 'ws-ir' || e.source !== window.parent || !m.practicar) return;
+    const { data } = await sb.from(PED_TABLA).select('*').eq('id', m.practicar).maybeSingle();
+    if (data) {
+        const s = sesiones.find(x => x.id === data.id);
+        if (s) s.canciones = data.canciones || []; else sesiones.unshift(data);
+    }
+    if (vistaActual !== 'sesiones') toggleVistaSesiones();
+    if (entModoSesion && entSesionActual?.id === m.practicar) {
+        if (data) cursoAplicar(data.id, data.canciones || []);
+        const idx = entSesionActual.canciones.findIndex(i => i.cancion_id === m.cancion);
+        if (idx >= 0) entIrACancionSesion(idx);
+    } else {
+        practicarSesion(m.practicar, m.cancion);
+    }
+});
 
 function entSesionSiguiente() {
     if (!entModoSesion || entModoEdicion) return;
@@ -8918,14 +8939,15 @@ TiempoReal.conectar(sb);
     // especial de entrada de ?proyeccion=1 es abrir con el HEADER OCULTO (re-mostrable
     // con H); todo lo demás es idéntico a una apertura normal.
     // ?practicar=<id> → abre esa sesión de entrenamiento (reusa practicarSesion).
-    // ?cancion=<id>   → abre esa canción individual (reusa abrirEntrenador).
+    // ?cancion=<id>   → abre esa canción individual (reusa abrirEntrenador); junto a ?practicar, parte la
+    //                   sesión en esa canción.
     const proyeccion  = params.get('proyeccion') === '1';
     const practicarId = params.get('practicar');
     const cancionId   = params.get('cancion');
     if (practicarId || cancionId) {
         // Asegura la vista de sesiones detrás del overlay (identidad "Entrenador").
         if (vistaActual !== 'sesiones') toggleVistaSesiones();
-        if (practicarId) practicarSesion(practicarId);
+        if (practicarId) practicarSesion(practicarId, cancionId);   // con ?cancion=: parte en esa canción
         else if (cancionId) abrirEntrenador(cancionId);
         // Entrada desde Pizarra: header oculto al abrir (preferencia de entrada, no un modo).
         if (proyeccion) entOcultarHeader(true);

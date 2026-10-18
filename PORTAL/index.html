@@ -773,6 +773,27 @@
         .psec.en-curso { border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b; }
         .psec.en-curso .psec-hdr { background: #fef3c7; color: #92400e; }
         .pcard.en-curso { border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b, 0 0 12px 2px rgba(245,158,11,.35); }
+        .pcard-cbtn { border: none; background: none; cursor: pointer; font-size: 0.8rem; padding: 2px 4px; border-radius: 4px; opacity: .45; }
+        .pcard:hover .pcard-cbtn { opacity: 1; }
+        .pcard-cbtn:hover { background: #f1f5f9; }
+        .pcard-cancs { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px 0 4px 14px; }
+        .pcard-cancs[hidden] { display: none; }
+        .pcard-canc { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; border-radius: 999px; padding: 1px 4px 1px 9px; font-size: 0.74rem; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pcard-canc:hover { background: #ddd6fe; }
+        .pcard-canc-x { border: none; background: none; color: #7c3aed; cursor: pointer; font-size: 0.65rem; padding: 0 3px; border-radius: 50%; opacity: .5; }
+        .pcard-canc-x:hover { opacity: 1; background: #c4b5fd; }
+        .pcanc-pop { position: fixed; z-index: 3000; width: 300px; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 6px; }
+        .pcanc-q { width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 0.82rem; outline: none; }
+        .pcanc-q:focus { border-color: var(--accent); }
+        .pcanc-lista { max-height: 300px; overflow-y: auto; margin-top: 4px; }
+        .pcanc-tit { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 6px 6px 2px; }
+        .pcanc-tit small { text-transform: none; letter-spacing: 0; font-weight: 600; }
+        .pcanc-op { display: block; width: 100%; text-align: left; border: none; background: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; }
+        .pcanc-op:hover { background: #f1f5f9; }
+        .pcanc-op b { display: block; font-size: 0.8rem; }
+        .pcanc-op small { display: block; font-size: 0.7rem; color: var(--muted); }
+        .pcanc-op.ya { opacity: .4; cursor: default; }
+        .pcanc-vacio { font-size: 0.75rem; color: var(--muted); padding: 4px 8px; }
         .pcard-ir { visibility: hidden; border: none; background: none; color: var(--muted); cursor: pointer; font-size: 0.8rem; padding: 2px 5px; border-radius: 4px; }
         .pcard-ir.si { visibility: visible; }
         .pcard-ir:hover { background: #fef3c7; color: #92400e; }
@@ -4329,14 +4350,17 @@ function pintarPlan() {
         el.innerHTML = `<div class="pcard-hdr">
                 <span class="pcard-asa" draggable="true" data-eb-no-marco title="Arrastra para mover la actividad">⋮⋮</span>
                 <input class="pcard-tit" placeholder="Título de la actividad">
+                <button class="pcard-cbtn" title="Vincular una canción del repertorio del curso">🎵</button>
                 <button class="pcard-ir" title="Ir a sus diapositivas">▶</button>
                 <button class="pcard-menu" title="Opciones">⋯</button>
-            </div><div class="pcard-ed"></div>`;
+            </div><div class="pcard-cancs"></div><div class="pcard-ed"></div>`;
         cont.appendChild(el);
         const tit = el.querySelector('.pcard-tit');
         tit.value = c.titulo || '';
         tit.addEventListener('input', () => { c.titulo = tit.value; planCambio(c); presTitulos(); });
         el.querySelector('.pcard-ir').addEventListener('click', e => { e.stopPropagation(); irActividad(c.id); });
+        el.querySelector('.pcard-cbtn').addEventListener('click', e => { e.stopPropagation(); elegirCancion(c, e.currentTarget); });
+        pintarCancionesCard(c, el);
         tit.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); c.ed.enfocar('inicio'); } });
         el.querySelector('.pcard-menu').addEventListener('click', e => { e.stopPropagation(); menuPlanCard(c, e.currentTarget); });
         c.ed = EditorBloques.crear(el.querySelector('.pcard-ed'), {
@@ -4485,6 +4509,163 @@ function menuPlanCard(c, boton) {
     setTimeout(() => document.addEventListener('click', function fuera(ev) {
         if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener('click', fuera); }
     }), 0);
+}
+
+// ── Canciones de cada actividad (deuda BT): fichas 🎵 que abren el Entrenador del curso en esa canción ──
+// plan_cards.canciones = [{ cancion_id }]. Se eligen del repertorio del curso (su sesión del Entrenador) o de
+// toda la Biblioteca; una canción que el curso no tiene se suma a su repertorio.
+let bibCanciones = null;      // Map id → { id, nombre, artista } (toda la Biblioteca, se carga una vez)
+let bibCargando = null;
+function cargarBib() {
+    if (bibCanciones) return Promise.resolve(bibCanciones);
+    if (!bibCargando) bibCargando = sb.from('repertorio_canciones').select('id, nombre, artista').then(({ data, error }) => {
+        bibCargando = null;
+        if (error) return new Map();
+        bibCanciones = new Map((data || []).map(r => [r.id, r]));
+        return bibCanciones;
+    });
+    return bibCargando;
+}
+// Canciones del repertorio del curso (en su orden), leídas al día.
+async function cancionesDelCurso() {
+    if (!entrenamientoDefaultId) return [];
+    const { data } = await sb.from('repertorio_sesiones_entrenamiento').select('canciones').eq('id', entrenamientoDefaultId).maybeSingle();
+    return (Array.isArray(data?.canciones) ? data.canciones : []).map(i => i.cancion_id);
+}
+const cancionesDe = c => Array.isArray(c.canciones) ? c.canciones : [];
+
+function pintarCancionesCard(c, el) {
+    el = el || document.querySelector(`#plan-cards .pcard[data-id="${c.id}"]`);
+    const cont = el?.querySelector('.pcard-cancs');
+    if (!cont) return;
+    const lista = cancionesDe(c);
+    cont.hidden = !lista.length;
+    if (!lista.length) { cont.innerHTML = ''; return; }
+    if (!bibCanciones) { cargarBib().then(() => pintarCancionesCard(c)); }
+    cont.innerHTML = lista.map((x, k) => {
+        const song = bibCanciones?.get(x.cancion_id);
+        const nom = song ? song.nombre : (bibCanciones ? 'Canción no encontrada' : '…');
+        return `<span class="pcard-canc" data-k="${k}" title="Abrir en el Entrenador${song?.artista ? ' · ' + esc(song.artista) : ''}">🎵 ${esc(nom)}<button class="pcard-canc-x" data-k="${k}" title="Quitar de la actividad">✕</button></span>`;
+    }).join('');
+    cont.onclick = e => {
+        const x = e.target.closest('.pcard-canc-x');
+        if (x) { e.stopPropagation(); quitarCancionCard(c, +x.dataset.k); return; }
+        const f = e.target.closest('.pcard-canc');
+        if (f) abrirCancionCurso(cancionesDe(c)[+f.dataset.k]?.cancion_id);
+    };
+}
+
+async function guardarCancionesCard(c) {
+    const ahora = new Date().toISOString();
+    c.ultEnvio = ahora; c.updated_at = ahora;
+    const { error } = await sb.from('plan_cards').update({ canciones: cancionesDe(c), updated_at: ahora }).eq('id', c.id);
+    if (error) planEstado('No se pudo guardar la canción. ¿Falta correr supabase/plan_cards_canciones.sql?', true);
+    else planEstado('Guardado ✓');
+}
+function quitarCancionCard(c, k) {
+    c.canciones = cancionesDe(c).filter((_, i) => i !== k);
+    pintarCancionesCard(c);
+    guardarCancionesCard(c);
+}
+
+// Suma una canción al repertorio del curso (lee la lista al día; crea la sesión del curso si no tiene).
+async function sumarAlCurso(cancionId) {
+    const ctx = contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '';
+    if (!entrenamientoDefaultId) {
+        const nom = ctx.charAt(0) + ctx.slice(1).toLowerCase();
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const { error } = await sb.from('repertorio_sesiones_entrenamiento')
+            .insert({ id, nombre: `${nom} ${new Date().getFullYear()}`, canciones: [], creada_en: Date.now(), contexto_id: sesionActual.contexto_id });
+        if (error) throw error;
+        entrenamientoDefaultId = id;
+    }
+    const { data, error } = await sb.from('repertorio_sesiones_entrenamiento').select('canciones').eq('id', entrenamientoDefaultId).single();
+    if (error) throw error;
+    const cs = Array.isArray(data?.canciones) ? data.canciones : [];
+    if (cs.some(i => i.cancion_id === cancionId)) return;
+    cs.push({ cancion_id: cancionId, orden: cs.length, loops: [] });
+    const { error: e2 } = await sb.from('repertorio_sesiones_entrenamiento').update({ canciones: cs }).eq('id', entrenamientoDefaultId);
+    if (e2) throw e2;
+}
+
+// Selector: primero el repertorio del curso; al escribir, también el resto de la Biblioteca.
+async function elegirCancion(c, boton) {
+    document.querySelector('.pcanc-pop')?.remove();
+    const pop = document.createElement('div');
+    pop.className = 'pcanc-pop';
+    pop.innerHTML = `<input class="pcanc-q" placeholder="Buscar canción o artista…"><div class="pcanc-lista"><div class="pcanc-tit">Cargando…</div></div>`;
+    document.body.appendChild(pop);
+    const r = boton.getBoundingClientRect();
+    pop.style.top = Math.min(r.bottom + 4, window.innerHeight - 340) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left - 120, window.innerWidth - pop.offsetWidth - 8)) + 'px';
+    const q = pop.querySelector('.pcanc-q');
+    q.focus();
+    const [bib, curso] = await Promise.all([cargarBib(), cancionesDelCurso()]);
+    const enCurso = new Set(curso);
+    const norm = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const fila = (id, extra) => {
+        const s = bib.get(id); if (!s) return '';
+        const ya = cancionesDe(c).some(x => x.cancion_id === id);
+        return `<button class="pcanc-op${ya ? ' ya' : ''}" data-id="${id}" ${ya ? 'disabled title="Ya está en la actividad"' : ''}>
+            <b>${esc(s.nombre || '')}</b><small>${esc(s.artista || '')}${extra || ''}</small></button>`;
+    };
+    const pintar = () => {
+        const t = norm(q.value.trim());
+        const pasa = id => { const s = bib.get(id); return s && (!t || norm(s.nombre).includes(t) || norm(s.artista).includes(t)); };
+        const delCurso = curso.filter(pasa);
+        let html = `<div class="pcanc-tit">Repertorio del curso</div>` +
+            (delCurso.length ? delCurso.map(id => fila(id)).join('') : `<div class="pcanc-vacio">${curso.length ? 'Ninguna coincide.' : 'El curso aún no tiene canciones.'}</div>`);
+        if (t) {
+            const otras = [...bib.keys()].filter(id => !enCurso.has(id) && pasa(id))
+                .sort((a, b) => (bib.get(a).nombre || '').localeCompare(bib.get(b).nombre || '')).slice(0, 30);
+            html += `<div class="pcanc-tit">Biblioteca <small>(se suma al curso)</small></div>` +
+                (otras.length ? otras.map(id => fila(id)).join('') : '<div class="pcanc-vacio">Ninguna coincide.</div>');
+        } else {
+            html += '<div class="pcanc-vacio">Escribe para buscar en toda la Biblioteca.</div>';
+        }
+        pop.querySelector('.pcanc-lista').innerHTML = html;
+    };
+    pintar();
+    q.addEventListener('input', pintar);
+    q.addEventListener('keydown', e => {
+        if (e.key === 'Escape') cerrar();
+        if (e.key === 'Enter') pop.querySelector('.pcanc-op:not(.ya)')?.click();
+    });
+    pop.addEventListener('click', async e => {
+        e.stopPropagation();
+        const op = e.target.closest('.pcanc-op'); if (!op || op.disabled) return;
+        const id = op.dataset.id;
+        cerrar();
+        if (!enCurso.has(id)) {
+            try { await sumarAlCurso(id); }
+            catch (_) { planEstado('No se pudo sumar la canción al repertorio del curso — revisa la conexión.', true); return; }
+        }
+        c.canciones = [...cancionesDe(c), { cancion_id: id }];
+        pintarCancionesCard(c);
+        guardarCancionesCard(c);
+    });
+    function fuera(ev) { if (!pop.contains(ev.target)) cerrar(); }
+    function cerrar() { pop.remove(); document.removeEventListener('mousedown', fuera); }
+    setTimeout(() => document.addEventListener('mousedown', fuera), 0);
+}
+
+// Abre el Entrenador del curso en esa canción (pestaña del repertorio del curso). Si el curso ya no la
+// tiene, la abre sola.
+async function abrirCancionCurso(cancionId) {
+    if (!cancionId || !sesionActual) return;
+    const ctx = contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '';
+    const curso = await cancionesDelCurso();
+    const sid = entrenamientoDefaultId;
+    let instancia;
+    if (sid && curso.includes(cancionId)) {
+        instancia = { key: `sesion:${sesionActual.contexto_id}`, titulo: `Sesión: ${ctxDisplay(ctx)}`, ico: '🎵',
+            src: `../REPERTORIO/index.html?practicar=${encodeURIComponent(sid)}&cancion=${encodeURIComponent(cancionId)}`,
+            ir: { practicar: sid, cancion: cancionId } };
+    } else {
+        const nom = bibCanciones?.get(cancionId)?.nombre || 'Canción';
+        instancia = { key: `cancion:${cancionId}`, titulo: nom, ico: '🎵', src: `../REPERTORIO/index.html?cancion=${encodeURIComponent(cancionId)}` };
+    }
+    if (!wsAbrir(instancia)) window.open(instancia.src, '_blank');
 }
 
 // Al instante: lo de otro equipo se aplica si aquí no se está escribiendo en el plan.

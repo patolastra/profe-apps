@@ -4330,3 +4330,31 @@ párrafos sueltos.*
   para escribir y, si se deja sin escribir, vuelve a ser línea. Su ▶ en el Plan sigue oculto. Prueba (local,
   1366×768): dos actividades nuevas = dos líneas; abrir Canto y escribir "# Cantamos" → cuadro con 1 diapositiva y ▶;
   abrir Conversación y salir sin escribir → vuelve a línea. Datos de prueba borrados.
+
+### BT. Plan — actividades vinculadas a canciones del repertorio del curso
+*Origen: pedido del PO (2026-10-18): algunas actividades deben quedar vinculadas a canciones del repertorio del curso.*
+- **DECISIÓN del PO (2026-10-18):** (1) una actividad puede tener **varias** canciones, en orden; (2) se eligen
+  primero del **repertorio del curso** (su sesión del Entrenador, deuda AU), con buscador en **toda la Biblioteca**:
+  una canción que el curso no tiene **se suma a su repertorio**; (3) tocar una canción **abre el Entrenador del curso
+  en esa canción** (en clase se proyecta desde ahí con 📽️ Pizarra, como hoy); (4) se ven como fichas en la actividad
+  del Plan. Columna nueva aprobada.
+- **Auditoría (2026-10-18):** el repertorio del curso = `repertorio_sesiones_entrenamiento.canciones` con
+  `contexto_id` (el Planificador ya conoce su id, `entrenamientoDefaultId`; botón de repertorio del curso abre
+  `REPERTORIO/?practicar=<id>` en la pestaña `sesion:<contexto>`). `practicarSesion` siempre parte en la primera
+  canción; el Workspace ya sabe pedir a una pestaña abierta que vaya a un lugar (`ws-abrir` con `ir` → `ws-ir`).
+  La Biblioteca suma una canción a un curso con `cursoAsignar` (lee la lista al día; crea la sesión si falta).
+- **Supabase:** `plan_cards.canciones` (jsonb, `supabase/plan_cards_canciones.sql`) — la corre el PO.
+- **Implementación (2026-10-18):** `PORTAL/index.html`: botón 🎵 en la cabecera de cada actividad → selector
+  (repertorio del curso en su orden; al escribir, también el resto de la Biblioteca, máx. 30, "se suma al curso";
+  Enter elige la primera); fichas 🎵 bajo el título (✕ quita de la actividad, no del curso); `sumarAlCurso` lee la
+  lista al día y crea la sesión del curso si no existe (como `cursoAsignar` de la Biblioteca); guardado aparte del
+  texto (`plan_cards.canciones`), con aviso si falta la columna. Tocar una ficha abre la pestaña del repertorio del
+  curso (`sesion:<contexto>`) con `?practicar=<sesión>&cancion=<id>` o, si ya está abierta, le pide ir ahí (`ir`);
+  si el curso ya no tiene la canción, la abre sola. `REPERTORIO/index.html`: `practicarSesion(id, cancionId)` parte en
+  esa canción; `?practicar&cancion` en la dirección; atiende `ws-ir` { practicar, cancion } (lee la lista al día).
+- **Prueba (servidor local, 1366×768, Quinto 27/10; PO corrió el SQL):** selector muestra las 3 canciones de Quinto;
+  "amor" muestra "Mi Buen Amor" bajo Biblioteca; El Crack (del curso) y Mi Buen Amor (de la Biblioteca) quedan como
+  fichas y en la base, y Mi Buen Amor se sumó a la sesión de Quinto (3 → 4); al recargar siguen; ✕ quita y guarda.
+  Entrenador con `?practicar=<Quinto>&cancion=<El Crack>` abre en "El Crack · 2/3"; `ws-ir` a la 3ª canción salta a
+  "Si Antes Te Hubiera Conocido · 3/3". Datos de prueba revertidos (repertorio de Quinto con sus 3 canciones,
+  actividad borrada). Falta: probar el clic dentro del Workspace.
