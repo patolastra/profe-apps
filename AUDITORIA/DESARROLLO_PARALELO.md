@@ -4395,3 +4395,7 @@ párrafos sueltos.*
   Entrenador, a la derecha de "Scroll"** (`#ent-btn-mini-x`, solo con `?mini=1`; llama a `cerrarEntrenador`, que avisa
   al Planificador). Vuelven el nombre y el artista a la izquierda de la barra (ya hay espacio). Prueba (local,
   1366×768): barra con El Crack · Los Miserables a la izquierda y ✕ tras Scroll; la ✕ cierra el Entrenador mínimo.
+- **Ajuste del PO (2026-10-18):** en el cuadro de la actividad, los botones de las canciones van **en su propia fila,
+  bajo el título** (el título ya no se corta por ellos). Prueba (local): actividad 'Repertorio: "El puma chileno y el
+  león africano"' con 3 canciones → título entero en la primera fila y Aló, Aló · El Crack · Si Antes Te Hubiera
+  Conocido debajo. Actividad de prueba borrada.
