@@ -4514,3 +4514,17 @@ la clase en curso.*
   (ambas guardadas en la base); clic en una diapositiva ordena `ir` a la Pizarra (idx 3); Pizarra en una diapositiva de
   "Acción y reacción" → el detalle pasa a esa; terminar la clase → vuelve el Plan normal sin destacados. Datos de
   prueba borrados. Falta: parte 2 (bitácora por actividad) y prueba en clase real.
+- **Implementación parte 2 (2026-10-18) — bitácora por actividad:** `PORTAL/index.html`. En el detalle de una
+  actividad (vista de clase), botón ✍🏼 junto al título con la ayuda "Registrar bitácora de esta actividad": abre bajo
+  la actividad un recuadro con un editor por bloques solo para su apartado (no abre toda la bitácora), con guardado
+  automático y "Listo". La bitácora sigue siendo **un solo texto** (`memorias.contenido`): el apartado de cada
+  actividad empieza con `## <título de la actividad>` y llega hasta el siguiente título (`#` o `##`); al guardar se
+  lee el texto al día y se reemplaza o agrega solo ese apartado (si queda vacío, se quita). Si la ventana ✍🏼 está
+  abierta, se pone al día. Mientras se escribe, la columna no se repinta; al cambiar de actividad, volver a la lista o
+  terminar la clase se guarda y se cierra. Sin cambios en Supabase. Nota: si se cambia el título de la actividad
+  después, su apartado viejo queda con el título anterior y se empieza uno nuevo.
+- **Prueba (local, clase simulada, bitácora de Quinto 27/10 vacía al empezar):** nota escrita con el teclado en
+  "Acción y reacción" → `## Acción y reacción` + nota; texto general agregado aparte; nota en "Juego: ASMR" → su
+  apartado al final; volver a "Acción y reacción" carga solo su nota y agregar una viñeta la deja en su apartado:
+  "Clase tranquila en general. / ## Acción y reacción / … / - Probar de nuevo el jueves / ## Juego: ASMR / Les encantó,
+  repetir." Bitácora de prueba y actividades borradas.

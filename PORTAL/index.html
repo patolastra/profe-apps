@@ -623,6 +623,17 @@
         .cl-edit-box div { display: flex; gap: 6px; justify-content: flex-end; }
         .cl-edit-box button { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 4px 12px; cursor: pointer; font-weight: 700; }
         .cl-edit-box button.cl-ok { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .cl-det-cab { display: flex; align-items: flex-start; gap: 8px; }
+        .cl-det-cab .cl-det-tit { flex: 1; min-width: 0; }
+        .cl-bit-btn { flex-shrink: 0; border: 1px solid var(--border); background: #fff; border-radius: 8px; width: 42px; height: 38px; font-size: 1.25rem; cursor: pointer; }
+        .cl-bit-btn:hover, .cl-bit-btn.on { background: #eef2ff; border-color: #a5b4fc; }
+        .cl-bit { margin-top: 10px; background: #fff; border: 2px solid #a5b4fc; border-radius: 12px; padding: 10px 12px; }
+        .cl-bit[hidden] { display: none; }
+        .cl-bit-tit { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #4f46e5; margin-bottom: 4px; }
+        .cl-bit-ed { min-height: 90px; }
+        .cl-bit-pie { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+        .cl-bit-est { flex: 1; font-size: 0.75rem; color: var(--muted); }
+        .cl-bit-pie button { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 4px 12px; cursor: pointer; font-weight: 700; }
         .cl-vacio { color: var(--muted); font-size: 1.1rem; padding: 40px; text-align: center; }
         #prev-mini { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 20; display: flex; flex-direction: column; background: #0f172a; }
         #prev-mini[hidden] { display: none; }
@@ -4883,13 +4894,17 @@ function pintarClase() {
     document.getElementById('pane-plan').hidden = !planActiva || en;
     pane.hidden = !planActiva || !en;
     panel.hidden = !en;
-    if (!en) { claseVista = 'lista'; claseSel = null; claseEditando = null; actManual = null; return; }
+    if (!en) { if (claseBit) cerrarClaseBit(); claseVista = 'lista'; claseSel = null; claseEditando = null; actManual = null; return; }
     miniUbicar();
     pintarClaseIzq();
     pintarClaseDer();
 }
 
 function pintarClaseIzq() {
+    if (claseBit) {
+        if (claseVista === 'detalle' && claseBit.id === claseSel) return;   // se está escribiendo su bitácora
+        cerrarClaseBit();
+    }
     const pane = document.getElementById('pane-clase');
     const items = claseItems();
     const act = actEnCursoUlt;
@@ -4898,9 +4913,12 @@ function pintarClaseIzq() {
         const texto = it.card ? (it.card.ed ? it.card.ed.texto() : it.card.contenido || '') : '';
         pane.innerHTML = `<button class="cl-volver">← Actividades</button>
             <div class="cl-det${act && act === it.id ? ' en-curso' : ''}" data-id="${it.id}">
-                <div class="cl-det-tit">${esc(it.titulo)}</div>
+                <div class="cl-det-cab"><div class="cl-det-tit">${esc(it.titulo)}</div>
+                    ${it.card ? '<button class="cl-bit-btn" title="Registrar bitácora de esta actividad">✍🏼</button>' : ''}</div>
                 <div class="cl-det-txt">${texto ? EditorBloques.html(texto, { objetivo: true }) : ''}</div>
-            </div>`;
+            </div>
+            <div class="cl-bit" hidden><div class="cl-bit-tit">✍🏼 Bitácora · ${esc(it.titulo)}</div><div class="cl-bit-ed"></div>
+                <div class="cl-bit-pie"><span class="cl-bit-est"></span><button class="cl-bit-listo">Listo</button></div></div>`;
     } else {
         pane.innerHTML = items.length
             ? `<div class="cl-lista">${items.map(i => `<button class="cl-card${act && act === i.id ? ' en-curso' : ''}" data-id="${i.id}">
@@ -4945,6 +4963,84 @@ function claseElegir(id) {
     document.getElementById('col-plan-body').scrollTop = 0;
 }
 
+// ── Bitácora de la actividad (deuda BW, parte 2) ──
+// La bitácora de la clase es UN solo texto (memorias.contenido): lo que se escribe en ✍🏼 más un apartado por
+// actividad, que empieza con "## <título de la actividad>" y llega hasta el siguiente título (# o ##). El botón ✍🏼
+// de la actividad edita solo su apartado (no abre toda la bitácora); desde ✍🏼 se ve y se edita todo junto.
+var claseBit = null;   // { id, titulo, ed, timer, sucio }
+function bitLineas(texto, titulo) {
+    const lineas = (texto || '').split('\n');
+    const h = lineas.findIndex(l => l.trim() === '## ' + titulo);
+    if (h < 0) return { lineas, h: -1, fin: -1 };
+    let fin = h + 1;
+    while (fin < lineas.length && !/^#{1,2} /.test(lineas[fin])) fin++;
+    return { lineas, h, fin };
+}
+function bitCuerpo(texto, titulo) {
+    const { lineas, h, fin } = bitLineas(texto, titulo);
+    return h < 0 ? '' : lineas.slice(h + 1, fin).join('\n').replace(/\s+$/, '');
+}
+function bitPoner(texto, titulo, cuerpo) {
+    const { lineas, h, fin } = bitLineas(texto, titulo);
+    const sec = cuerpo ? ['## ' + titulo, ...cuerpo.split('\n')] : [];
+    if (h >= 0) return [...lineas.slice(0, h), ...sec, ...lineas.slice(fin)].join('\n');
+    if (!cuerpo) return texto || '';
+    const base = (texto || '').replace(/\s+$/, '');
+    return (base ? base + '\n' : '') + sec.join('\n');
+}
+async function abrirClaseBit() {
+    const card = planCards.find(c => c.id === claseSel);
+    const caja = document.querySelector('#pane-clase .cl-bit');
+    if (!card || !caja || !sesionActual) return;
+    const titulo = (card.titulo || '').trim() || 'Actividad sin título';
+    const sid = sesionActual.id;
+    caja.hidden = false;
+    document.querySelector('#pane-clase .cl-bit-btn')?.classList.add('on');
+    const est = caja.querySelector('.cl-bit-est');
+    est.textContent = 'Cargando…';
+    const { data, error } = await sb.from('memorias').select('contenido').eq('sesion_id', sid).maybeSingle();
+    if (error) { est.textContent = 'No se pudo cargar la bitácora — revisa la conexión.'; return; }
+    if (!sesionActual || sesionActual.id !== sid || claseSel !== card.id) return;
+    const B = { id: card.id, titulo, sid, timer: null, sucio: false };
+    B.ed = EditorBloques.crear(caja.querySelector('.cl-bit-ed'), {
+        texto: bitCuerpo(data?.contenido, titulo),
+        vacio: 'Lo que vas rescatando de esta actividad…',
+        alCambiar: () => { B.sucio = true; est.textContent = 'Sin guardar…'; clearTimeout(B.timer); B.timer = setTimeout(() => guardarClaseBit(B), 1200); },
+    });
+    claseBit = B;
+    est.textContent = '';
+    B.ed.enfocar('fin');
+}
+// Guarda el apartado de la actividad en el texto de la bitácora, leído al día justo antes.
+async function guardarClaseBit(B) {
+    if (!B || !B.sucio) return;
+    clearTimeout(B.timer); B.timer = null; B.sucio = false;
+    const est = () => document.querySelector('#pane-clase .cl-bit-est');
+    const cuerpo = B.ed.texto().replace(/\s+$/, '');
+    const { data, error } = await sb.from('memorias').select('contenido').eq('sesion_id', B.sid).maybeSingle();
+    if (error) { B.sucio = true; if (est()) est().textContent = 'No se pudo guardar — revisa la conexión.'; return; }
+    const nuevo = bitPoner(data?.contenido || '', B.titulo, cuerpo);
+    if (nuevo === (data?.contenido || '')) { if (est()) est().textContent = ''; return; }
+    const ahora = new Date().toISOString();
+    memUltEnvio = ahora;   // eco propio
+    const { error: e2 } = await sb.from('memorias').upsert({ sesion_id: B.sid, contenido: nuevo, updated_at: ahora }, { onConflict: 'sesion_id' });
+    if (e2) { B.sucio = true; if (est()) est().textContent = 'No se pudo guardar — revisa la conexión.'; return; }
+    if (est() && claseBit === B) { est().textContent = 'Guardado ✓'; setTimeout(() => { if (est()?.textContent === 'Guardado ✓') est().textContent = ''; }, 2000); }
+    // Ventana ✍🏼 abierta: se pone al día con el apartado nuevo.
+    if (memEd && document.getElementById('mem-modal')?.classList.contains('show') && sesionActual?.id === B.sid && !memTimer) { memEd.poner(nuevo); memEd.guardado(ahora); }
+}
+function cerrarClaseBit() {
+    const B = claseBit;
+    claseBit = null;
+    if (!B) return;
+    guardarClaseBit(B);
+    B.ed?.destruir();
+    const caja = document.querySelector('#pane-clase .cl-bit');
+    if (caja) { caja.hidden = true; caja.querySelector('.cl-bit-ed').innerHTML = ''; }
+    document.querySelector('#pane-clase .cl-bit-btn')?.classList.remove('on');
+}
+window.addEventListener('beforeunload', () => { if (claseBit?.sucio) guardarClaseBit(claseBit); });
+
 // ✏️: edita el texto de la diapositiva ahí mismo; ＋: una diapositiva nueva al final de la actividad.
 function claseEditar(el, nueva) {
     const raw = nueva ? '' : (document.querySelector(`#prev-body .slide-prev[data-idx="${el.dataset.idx}"]`)?.dataset.raw || '');
@@ -4980,6 +5076,8 @@ function claseEditar(el, nueva) {
 
 document.getElementById('pane-clase')?.addEventListener('click', e => {
     if (e.target.closest('.cl-volver')) { claseVista = 'lista'; pintarClaseIzq(); return; }
+    if (e.target.closest('.cl-bit-btn')) { claseBit ? cerrarClaseBit() : abrirClaseBit(); return; }
+    if (e.target.closest('.cl-bit-listo')) { cerrarClaseBit(); return; }
     const c = e.target.closest('.cl-card');
     if (c) claseElegir(c.dataset.id);
 });
