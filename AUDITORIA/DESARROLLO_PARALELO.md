@@ -4539,3 +4539,7 @@ la clase en curso.*
   "Pregunta dos" → objetivo, párrafo a 10 px, viñetas a 1 px y 0 px; texto guardado igual que siempre. En clase: ✍🏼
   en la barra de "← Actividades"; 3 por fila → 3 arriba y la 4ª abajo; 4 por fila → 4 arriba; nota guardada como
   "### Repertorio". Datos de prueba borrados.
+- **Ajuste del PO (2026-10-18):** en la vista de clase, las canciones de la actividad dejan de ser chips y se ven
+  **como diapositivas moradas** (repertorio) al comienzo de la grilla: 16:9, 🎵 grande, nombre y artista; tocarlas
+  abre su letra (Entrenador mínimo) como antes. Prueba (local): 3 canciones como tarjetas moradas antes de "Verso y
+  estrofa" y de ＋ Diapositiva. Datos de prueba borrados.
