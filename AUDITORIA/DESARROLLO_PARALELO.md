@@ -4563,3 +4563,7 @@ la clase en curso.*
   convierten al abrirlos. Prueba (local): la actividad real del PO ("CON LETRA DE LA CANCIÓN RENDERIZADA:<br>-  Pregunta…")
   se ve como título + 4 viñetas pegadas; "PASOS:" Mayús+↵ "1. Primero" ↵ "Segundo" → "PASOS:<br>\n1. Primero\n2.
   Segundo" (también con el texto entrando de una vez). Actividad de prueba borrada.
+- **Ajuste del PO (2026-10-18):** la actividad en curso **ya no se colorea** en la columna del Plan (ni en la card del
+  Plan ni en la vista de clase); sí se mantiene el **marco dorado** de la diapositiva que está en la Pizarra. La
+  actividad en curso sigue funcionando por dentro (sube al comienzo, cambia el detalle en clase). Prueba (local, clase
+  simulada): detalle y card en blanco; la diapositiva en la Pizarra con su marco dorado. Datos de prueba borrados.
