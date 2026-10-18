@@ -4438,3 +4438,9 @@ párrafos sueltos.*
   3. **Al terminar la clase** se apaga la actividad en curso (solo hay actividad en curso con la clase de esa sesión
      en curso; el Planificador repinta al cambiar la clase). Prueba (local): sin clase, ninguna card ni cuadro
      destacado. Datos de prueba borrados.
+- **Ajuste del PO (2026-10-18):** al terminar la clase se apaga también el **marco dorado** de la diapositiva en la
+  Pizarra en la vista previa (el marco y la actividad en curso solo existen con la clase de esa sesión en curso).
+  El PO informó que la Pizarra en blanco "no funciona": probado de nuevo de punta a punta con dos ventanas reales
+  (Planificador + Pizarra, ✕ del Entrenador mínimo) → la Pizarra queda en blanco (siguiente = 2) y la actividad sigue
+  destacada. Sospecha: la Pizarra abierta tenía la versión anterior (GitHub Pages guarda copias hasta 10 min); a
+  confirmar por el PO cerrando y reabriendo la Pizarra.
