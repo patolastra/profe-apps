@@ -4480,3 +4480,37 @@ párrafos sueltos.*
 - **Ajuste del PO (2026-10-18):** en el Entrenador desde el Planificador (`?mini=1`), un verso escondido **se deja
   leer al pasar el mouse** (sin desenfoque, medio transparente) solo en la pantalla del profe; la Pizarra no cambia y
   Alt+clic lo muestra de verdad. Prueba (local): con toda la letra escondida, el verso bajo el mouse se lee.
+
+### BW. Planificador en clase — vista para conducir la clase (diseño)
+*Origen: pedido del PO (2026-10-18): idear cómo se ve todo el Planificador (Plan + Presentación + Vista previa) con
+la clase en curso.*
+- **DECISIÓN del PO (2026-10-18):**
+  1. **Prioridades en clase:** conducir la clase, luego registrar bitácora, luego editar diapositivas.
+  2. **Columna izquierda:** las actividades como **cards grandes** (títulos); al escoger una, **reemplaza la lista**
+     y se muestra toda su información con **letra mucho más grande** (con "← Actividades" para volver). Escoger una
+     la deja **en curso** (amarilla); **la Pizarra espera** hasta que se toque una diapositiva o canción.
+  3. **Presentación + Vista previa** forman un solo espacio: las **diapositivas, canciones u otros recursos** de la
+     actividad escogida, **un poco más grandes** que hoy; siempre a mano las **canciones de la actividad**.
+  4. **Editar en clase:** ✏️ en cada diapositiva (edita su texto ahí) y ＋ para agregar una nueva a la actividad.
+  5. **Bitácora por actividad:** en la actividad, un botón como el de ✍🏼 con la ayuda "Registrar bitácora de esta
+     actividad", que no abre toda la bitácora. La bitácora de la clase es **un solo texto**: lo escrito en ✍🏼
+     (lo general de la clase) más lo escrito para cada actividad, con su título; desde ✍🏼 se edita todo junto.
+  6. **Por partes:** (1) vista de clase; (2) bitácora por actividad.
+- **PROPUESTA (Claude, por defecto mientras el PO no diga otra cosa):** Inicio aparece como una card más, primera;
+  las pestañas Historial / Pendientes / Apoderados siguen arriba; fuera de clase todo queda como hoy.
+- **Implementación parte 1 (2026-10-18):** `PORTAL/index.html`. Con la clase de esta sesión en curso
+  (`claseAqui()`), la pestaña 📋 Plan muestra `#pane-clase` en vez del editor: **lista** de cards grandes (Inicio si
+  tiene diapositivas + cada actividad, con n° de diapositivas y canciones) o **detalle** de la escogida (título 1,6 rem,
+  texto por bloques en lectura a 20 px, "← Actividades"). Sobre Presentación + Vista previa, `#clase-panel` (se ubica
+  como el Entrenador mínimo, que queda encima): botones grandes de canciones (abren el Entrenador mínimo) y las
+  diapositivas de la actividad en una grilla de ≥ 380 px, con el tema del curso y el marco dorado de la que está en la
+  Pizarra; clic = esa diapositiva en la Pizarra; ✏️ = editar su texto ahí (Listo / Cancelar; reemplaza solo ese tramo
+  del texto); ＋ Diapositiva = una nueva al final de la actividad. Escoger una actividad la deja en curso (`actManual`,
+  manda mientras la Pizarra no cambie de diapositiva) sin mover la Pizarra; si la Pizarra pasa a una diapositiva de
+  otra actividad, el detalle cambia a esa. Al terminar la clase vuelve el Plan de siempre. Sin cambios en Supabase.
+- **Prueba (local, clase simulada, 3 actividades):** lista con Inicio (1 diapositiva), Acción y reacción (1),
+  Repertorio (2 · 2 canciones), Juego: ASMR; escoger Repertorio → detalle en grande y amarillo (también su card del
+  Plan), canciones El Crack y Aló, Aló, diapositivas de 476 px; ✏️ cambió "Verso y estrofa" y ＋ agregó "Nueva en clase"
+  (ambas guardadas en la base); clic en una diapositiva ordena `ir` a la Pizarra (idx 3); Pizarra en una diapositiva de
+  "Acción y reacción" → el detalle pasa a esa; terminar la clase → vuelve el Plan normal sin destacados. Datos de
+  prueba borrados. Falta: parte 2 (bitácora por actividad) y prueba en clase real.

@@ -593,6 +593,37 @@
         .s-col-editor  { width: 37%; }
         .s-col-preview { flex: 1; position: relative; }
         /* Entrenador mínimo en la Vista previa (deuda BU) */
+        /* Vista de clase (deuda BW) */
+        #pane-clase[hidden], #clase-panel[hidden] { display: none; }
+        .cl-lista { display: flex; flex-direction: column; gap: 10px; }
+        .cl-card { text-align: left; border: 1px solid var(--border); background: #fff; border-radius: 12px; padding: 16px 18px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; font: inherit; }
+        .cl-card:hover { border-color: #94a3b8; }
+        .cl-card-tit { font-size: 1.3rem; font-weight: 800; color: var(--text, #1e293b); line-height: 1.25; }
+        .cl-card-meta { font-size: 0.8rem; color: var(--muted); min-height: 1.2em; }
+        .cl-card.en-curso, .cl-det.en-curso { background: #fef9c3; border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b; }
+        .cl-volver { border: none; background: none; color: var(--accent); font-weight: 700; cursor: pointer; padding: 2px 0 10px; font-size: 0.95rem; }
+        .cl-det { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+        .cl-det-tit { font-size: 1.6rem; font-weight: 800; line-height: 1.2; margin-bottom: 10px; color: var(--text, #1e293b); }
+        .cl-det-txt .eb-lectura { font-size: 20px; line-height: 1.5; }
+        .cl-det-txt .eb-lectura .eb-t-h1 .eb-txt { font-size: 26px; }
+        .cl-det-txt .eb-lectura .eb-t-h2 .eb-txt { font-size: 23px; }
+        .cl-det-txt .eb-lectura .eb-t-h3 .eb-txt { font-size: 21px; }
+        #clase-panel { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 15; background: #e9eef4; overflow-y: auto; padding: 14px 16px; }
+        .cl-cancs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .cl-canc { border: 1px solid #ddd6fe; background: #ede9fe; color: #5b21b6; border-radius: 999px; padding: 6px 16px; font-size: 1rem; font-weight: 700; cursor: pointer; }
+        .cl-canc:hover { background: #ddd6fe; }
+        .cl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; align-items: start; }
+        .cl-slide { cursor: pointer; }
+        .cl-slide .cl-ed { position: absolute; top: 6px; right: 6px; z-index: 2; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; width: 30px; height: 28px; cursor: pointer; font-size: 0.9rem; opacity: .75; }
+        .cl-slide .cl-ed:hover { opacity: 1; background: #eef2ff; }
+        .cl-nueva { aspect-ratio: 16/9; border: 2px dashed #94a3b8; border-radius: 8px; background: transparent; color: #475569; font-size: 1rem; font-weight: 700; cursor: pointer; }
+        .cl-nueva:hover { background: #fff; }
+        .cl-edit-box { background: #fff; border-radius: 8px; border: 2px solid var(--accent); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+        .cl-edit-box textarea { min-height: 180px; font-family: 'Courier New', monospace; font-size: 0.95rem; border: none; outline: none; resize: vertical; }
+        .cl-edit-box div { display: flex; gap: 6px; justify-content: flex-end; }
+        .cl-edit-box button { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 4px 12px; cursor: pointer; font-weight: 700; }
+        .cl-edit-box button.cl-ok { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .cl-vacio { color: var(--muted); font-size: 1.1rem; padding: 40px; text-align: center; }
         #prev-mini { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 20; display: flex; flex-direction: column; background: #0f172a; }
         #prev-mini[hidden] { display: none; }
         #prev-mini iframe { flex: 1; width: 100%; border: 0; }
@@ -1340,6 +1371,7 @@
                 </div>
                 <div class="s-col-body" id="col-plan-body">
                     <div class="ptab-pane" id="pane-plan"></div>
+                    <div class="ptab-pane" id="pane-clase" hidden></div>
                     <div class="ptab-pane" id="pane-curso" hidden></div>
                     <div class="ptab-pane" id="pane-pend" hidden><div id="ses-pend-lista"></div></div>
                     <div class="ptab-pane" id="pane-apo" hidden><div id="ses-apo-lista"></div></div>
@@ -1383,6 +1415,8 @@
             </div>
             <!-- Entrenador mínimo de una canción de la actividad (deuda BU): cubre Presentación y Vista previa;
                  ✕ vuelve a ellas -->
+            <!-- Vista de clase (deuda BW): diapositivas y canciones de la actividad escogida, sobre Presentación y Vista previa -->
+            <div id="clase-panel" hidden></div>
             <div id="prev-mini" hidden>
                 <iframe allow="window-management; autoplay; fullscreen"></iframe>
             </div>
@@ -2687,6 +2721,8 @@ function marcarEnPizarra() {
         }
     });
     if (idx === -1 && p && p.act && p.sesionId === sesionActual?.id && Proyeccion.pizarraViva()) act = p.act;   // Pizarra en blanco de esa actividad
+    // Escogida en la vista de clase: manda mientras la Pizarra siga en la misma diapositiva (deuda BW).
+    if (actManual) { if (idx === actManual.idx) act = actManual.id; else actManual = null; }
     // En clase, con la letra de una canción de una actividad en la Pizarra, la actividad en curso es esa.
     const st = ClaseVivo.get();
     if (miniAct && !document.getElementById('prev-mini')?.hidden && st && sesionActual && st.sesionId === sesionActual.id) act = miniAct;
@@ -2701,6 +2737,14 @@ function marcarEnPizarra() {
         if (card && !document.getElementById('pane-plan').hidden && !document.activeElement?.closest?.('#pane-plan'))
             body.scrollTo({ top: card.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - 8, behavior: 'smooth' });
     }
+    // Vista de clase: la actividad en curso es la que se ve en grande; marco de la diapositiva de la Pizarra.
+    if (act !== actEnCursoUlt && act !== null && claseAqui() && act !== claseSel) {
+        claseSel = act; claseVista = 'detalle'; claseEditando = null;
+        actEnCursoUlt = act;
+        pintarClase();
+    }
+    document.querySelectorAll('#clase-panel .cl-slide').forEach(el => el.classList.toggle('en-pizarra', parseInt(el.dataset.idx) === idx));
+    document.querySelectorAll('#pane-clase .cl-card, #pane-clase .cl-det').forEach(el => el.classList.toggle('en-curso', act !== null && act !== '' && el.dataset.id === act));
     actEnCursoUlt = act;
     document.querySelectorAll('#pres-secc .psec').forEach(el => el.classList.toggle('en-curso', act !== null && el.dataset.act === act));
     document.querySelectorAll('#prev-body .prev-act').forEach(el => el.classList.toggle('en-curso', act !== null && el.dataset.actRot === act));
@@ -2845,7 +2889,7 @@ async function confirmarFinClase() {
 }
 
 ClaseVivo.onCambio(renderClase);
-ClaseVivo.onCambio(() => marcarEnPizarra());   // al terminar la clase se apaga la actividad en curso
+ClaseVivo.onCambio(() => { pintarClase(); marcarEnPizarra(); });   // vista de clase al comenzar / terminar   // al terminar la clase se apaga la actividad en curso
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('clase-fin-clave').addEventListener('keydown', e => {
         if (e.key === 'Enter') { e.preventDefault(); confirmarFinClase(); }
@@ -2926,6 +2970,8 @@ function aplicarTemaPreview(sesionId) {
                    '--hl-bg': t.hlBg, '--hl-border': t.hlBorder, '--hl-text': t.hlText,
                    '--slide-font': t.font };
     Object.entries(vars).forEach(([k, v]) => body.style.setProperty(k, v));
+    const panel = document.getElementById('clase-panel');   // vista de clase (deuda BW)
+    if (panel) Object.entries(vars).forEach(([k, v]) => panel.style.setProperty(k, v));
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3833,6 +3879,7 @@ function actualizarPreview() {
     });
 
     pintarSecciones();
+    if (claseAqui()) pintarClase();   // vista de clase al día (deuda BW)
     if (!slides.length) {
         body.innerHTML = '<div class="vacio" style="padding:12px">Sin contenido.</div>';
         return;
@@ -4361,6 +4408,7 @@ function planTab(t) {
     PLAN_TABS.forEach(x => { const el = document.getElementById('pane-' + x); if (el) el.hidden = x !== t; });
     document.getElementById('col-plan-body').scrollTop = 0;
     if (t === 'curso' && !cursoPintado) cargarCurso();
+    pintarClase();
 }
 document.getElementById('plan-tabs').addEventListener('click', e => {
     const b = e.target.closest('.ptab'); if (b) planTab(b.dataset.tab);
@@ -4429,6 +4477,7 @@ function pintarPlan() {
     });
     presTitulos();       // un cuadro de diapositivas por actividad y rótulos de la vista previa al día (BS)
     marcarEnPizarra();
+    pintarClase();
 }
 // Títulos de las actividades al día en los cuadros y rótulos de la vista previa (BS).
 function presTitulos() {
@@ -4750,10 +4799,12 @@ async function abrirMini(cancionId, actId) {
 // Cubre las columnas Presentación y Vista previa: empieza donde empieza la Presentación (sigue al ancho
 // de la columna del Plan, que se puede arrastrar).
 function miniUbicar() {
-    const box = document.getElementById('prev-mini');
     const ed = document.querySelector('.s-col-editor');
-    if (!box || box.hidden || !ed) return;
-    box.style.left = ed.offsetLeft + 'px';
+    if (!ed) return;
+    ['prev-mini', 'clase-panel'].forEach(id => {
+        const box = document.getElementById(id);
+        if (box && !box.hidden) box.style.left = ed.offsetLeft + 'px';
+    });
 }
 document.addEventListener('DOMContentLoaded', () => {
     if (window.ResizeObserver) new ResizeObserver(miniUbicar).observe(document.querySelector('.s-col-plan'));
@@ -4792,6 +4843,155 @@ function cerrarMini() {
 }
 window.addEventListener('message', e => {
     if (e.data?.tipo === 'ent-mini-cerrar' && e.source === document.querySelector('#prev-mini iframe')?.contentWindow) cerrarMini();
+});
+
+// ── Vista de clase (deuda BW, parte 1) ──
+// Con la clase de esta sesión en curso, la pestaña Plan muestra las actividades como cards grandes; la escogida
+// reemplaza la lista con su información en letra grande y queda en curso. Presentación + Vista previa se vuelven
+// un solo panel con sus canciones y diapositivas (más grandes): tocar una diapositiva la muestra en la Pizarra
+// (que mientras tanto espera), ✏️ la edita ahí mismo y ＋ agrega una a la actividad.
+var claseVista = 'lista';     // 'lista' | 'detalle'
+var claseSel = null;          // actividad escogida ('' = Inicio)
+var claseEditando = null;     // diapositiva en edición en el panel (no se repinta mientras tanto)
+var actManual = null;         // { id, idx }: actividad escogida a mano y la diapositiva que mostraba la Pizarra
+function claseAqui() { const st = ClaseVivo.get(); return !!(st && sesionActual && st.sesionId === sesionActual.id); }
+function pizarraIdx() {
+    try { const p = JSON.parse(localStorage.getItem('profe_pizarra_slide') || 'null'); return p && p.sesionId === sesionActual?.id ? p.idx : -1; }
+    catch (_) { return -1; }
+}
+
+function claseItems() {
+    const items = [];
+    const ini = presModelo.find(c => !c.id);
+    if (ini && presNDiapos(ini.texto)) items.push({ id: '', titulo: 'Inicio' });
+    (sesionActual && planSid === sesionActual.id ? planCards : []).forEach(c =>
+        items.push({ id: c.id, titulo: (c.titulo || '').trim() || 'Actividad sin título', card: c }));
+    return items;
+}
+function claseMeta(it) {
+    const n = document.querySelectorAll(`#prev-body .slide-prev[data-act="${it.id}"]`).length;
+    const k = it.card ? cancionesDe(it.card).length : 0;
+    return [n ? n + (n === 1 ? ' diapositiva' : ' diapositivas') : '', k ? k + (k === 1 ? ' canción' : ' canciones') : ''].filter(Boolean).join(' · ');
+}
+
+function pintarClase() {
+    const en = claseAqui();
+    const pane = document.getElementById('pane-clase');
+    const panel = document.getElementById('clase-panel');
+    if (!pane || !panel) return;
+    const planActiva = document.querySelector('#plan-tabs .ptab.activa')?.dataset.tab === 'plan';
+    document.getElementById('pane-plan').hidden = !planActiva || en;
+    pane.hidden = !planActiva || !en;
+    panel.hidden = !en;
+    if (!en) { claseVista = 'lista'; claseSel = null; claseEditando = null; actManual = null; return; }
+    miniUbicar();
+    pintarClaseIzq();
+    pintarClaseDer();
+}
+
+function pintarClaseIzq() {
+    const pane = document.getElementById('pane-clase');
+    const items = claseItems();
+    const act = actEnCursoUlt;
+    const it = claseVista === 'detalle' ? items.find(i => i.id === claseSel) : null;
+    if (it) {
+        const texto = it.card ? (it.card.ed ? it.card.ed.texto() : it.card.contenido || '') : '';
+        pane.innerHTML = `<button class="cl-volver">← Actividades</button>
+            <div class="cl-det${act && act === it.id ? ' en-curso' : ''}" data-id="${it.id}">
+                <div class="cl-det-tit">${esc(it.titulo)}</div>
+                <div class="cl-det-txt">${texto ? EditorBloques.html(texto, { objetivo: true }) : ''}</div>
+            </div>`;
+    } else {
+        pane.innerHTML = items.length
+            ? `<div class="cl-lista">${items.map(i => `<button class="cl-card${act && act === i.id ? ' en-curso' : ''}" data-id="${i.id}">
+                <span class="cl-card-tit">${esc(i.titulo)}</span><span class="cl-card-meta">${claseMeta(i)}</span></button>`).join('')}</div>`
+            : '<div class="cl-vacio">Esta clase aún no tiene actividades.</div>';
+    }
+}
+
+function pintarClaseDer() {
+    if (claseEditando !== null) return;   // no interrumpir lo que se está escribiendo
+    const panel = document.getElementById('clase-panel');
+    if (!panel || panel.hidden) return;
+    if (claseSel === null) { panel.innerHTML = '<div class="cl-vacio">Escoge una actividad para ver sus diapositivas y canciones.</div>'; return; }
+    const card = claseSel ? planCards.find(c => c.id === claseSel) : null;
+    const cs = card ? cancionesDe(card) : [];
+    if (cs.length && !bibCanciones) cargarBib().then(() => pintarClaseDer());
+    panel.innerHTML = `${cs.length ? `<div class="cl-cancs">${cs.map(x => `<button class="cl-canc" data-id="${x.cancion_id}" title="Ver la letra">🎵 ${esc(bibCanciones?.get(x.cancion_id)?.nombre || '…')}</button>`).join('')}</div>` : ''}
+        <div class="cl-grid"></div>`;
+    const grid = panel.querySelector('.cl-grid');
+    const pIdx = pizarraIdx();
+    document.querySelectorAll(`#prev-body .slide-prev[data-act="${claseSel}"]`).forEach(src => {
+        const el = document.createElement('div');
+        el.className = [...src.classList].filter(c => !['activa', 'en-pizarra', 'dragging', 'drag-over'].includes(c)).join(' ') + ' cl-slide';
+        el.dataset.idx = src.dataset.idx;
+        el.classList.toggle('en-pizarra', parseInt(src.dataset.idx) === pIdx);
+        el.title = 'Mostrar en la Pizarra';
+        const inner = src.querySelector('.slide-content')?.cloneNode(true);
+        if (inner) { inner.style.fontSize = ''; el.appendChild(inner); }
+        el.insertAdjacentHTML('beforeend', `<span class="sn">${parseInt(src.dataset.idx) + 1}</span><button class="cl-ed" title="Editar esta diapositiva">✏️</button>`);
+        grid.appendChild(el);
+    });
+    grid.insertAdjacentHTML('beforeend', '<button class="cl-nueva">＋ Diapositiva</button>');
+    requestAnimationFrame(() => grid.querySelectorAll('.cl-slide').forEach(autoFitSlide));
+}
+
+// Escoger una actividad: queda en curso (amarilla) y en grande; la Pizarra no se mueve.
+function claseElegir(id) {
+    claseSel = id; claseVista = 'detalle'; claseEditando = null;
+    actManual = { id, idx: pizarraIdx() };
+    marcarEnPizarra();
+    pintarClase();
+    document.getElementById('col-plan-body').scrollTop = 0;
+}
+
+// ✏️: edita el texto de la diapositiva ahí mismo; ＋: una diapositiva nueva al final de la actividad.
+function claseEditar(el, nueva) {
+    const raw = nueva ? '' : (document.querySelector(`#prev-body .slide-prev[data-idx="${el.dataset.idx}"]`)?.dataset.raw || '');
+    claseEditando = nueva ? 'nueva' : parseInt(el.dataset.idx);
+    const box = document.createElement('div');
+    box.className = 'cl-edit-box';
+    box.innerHTML = `<textarea spellcheck="false" placeholder="# Título\n## Subtítulo\n- ítem"></textarea>
+        <div><button class="cl-cancel">Cancelar</button><button class="cl-ok">Listo</button></div>`;
+    box.querySelector('textarea').value = raw;
+    el.replaceWith(box);
+    const ta = box.querySelector('textarea');
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+    box.querySelector('.cl-cancel').onclick = () => { claseEditando = null; pintarClaseDer(); };
+    box.querySelector('.cl-ok').onclick = () => {
+        const nuevo = ta.value.trim();
+        const area = document.getElementById('pres-area');
+        claseEditando = null;
+        if (nueva) {
+            if (nuevo) {
+                presArmarModelo();
+                const c = presModelo.find(x => (x.id || '') === claseSel);
+                if (c) { c.texto = c.texto.trim() ? c.texto.replace(/\s+$/, '') + PRES_SEP + nuevo : nuevo; presFijarTexto(presTextoDe(presModelo)); }
+            }
+        } else if (nuevo !== raw) {
+            const src = document.querySelector(`#prev-body .slide-prev[data-idx="${el.dataset.idx}"]`);
+            let ini = parseInt(src?.dataset.selStart), fin = parseInt(src?.dataset.selEnd);
+            if (area.value.slice(ini, fin) !== raw) { ini = area.value.indexOf(raw); fin = ini + raw.length; }   // el texto cambió mientras tanto
+            if (ini >= 0) presFijarTexto(area.value.slice(0, ini) + nuevo + area.value.slice(fin));
+        }
+        pintarClaseDer();
+    };
+}
+
+document.getElementById('pane-clase')?.addEventListener('click', e => {
+    if (e.target.closest('.cl-volver')) { claseVista = 'lista'; pintarClaseIzq(); return; }
+    const c = e.target.closest('.cl-card');
+    if (c) claseElegir(c.dataset.id);
+});
+document.getElementById('clase-panel')?.addEventListener('click', e => {
+    const canc = e.target.closest('.cl-canc');
+    if (canc) { abrirMini(canc.dataset.id, claseSel || null); return; }
+    if (e.target.closest('.cl-nueva')) { claseEditar(e.target.closest('.cl-nueva'), true); return; }
+    const sl = e.target.closest('.cl-slide');
+    if (!sl) return;
+    if (e.target.closest('.cl-ed')) { claseEditar(sl, false); return; }
+    if (!controlaPizarra()) { alert('La Pizarra no está abierta.\n\nÁbrela con el botón 📽️.'); return; }
+    Proyeccion.ordenar(sesionActual.id, { accion: 'ir', idx: parseInt(sl.dataset.idx), contenido: document.getElementById('pres-area').value });
 });
 
 // Al instante: lo de otro equipo se aplica si aquí no se está escribiendo en el plan.
