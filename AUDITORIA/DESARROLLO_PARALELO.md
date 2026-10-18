@@ -4556,3 +4556,10 @@ la clase en curso.*
   siguiente**. `comun/editor-bloques.js` y `.css`. Prueba (local, teclado real): "CON LETRA:" Mayús+↵ "Pregunta uno"
   Mayús+↵ "Pregunta dos" ↵ "Otro parrafo", Inicio, ← y "!" → guardado "CON LETRA:<br>Pregunta uno<br>Pregunta dos!\nOtro
   parrafo"; al recargar, un párrafo de 3 líneas y otro aparte.
+- **Ajuste del PO (2026-10-18):** una línea hecha con Mayús+Enter que empieza con "- ", "1. " o "[] " **es una
+  lista** (viñeta, numerada o casilla) **pegada al párrafo** que la titula. Al escribir la marca, el párrafo se parte
+  ahí; Enter sigue la lista como siempre. Formato: el párrafo título termina en `<br>` en su línea
+  (`CON LETRA:<br>` + `\n- …`), lo que pega la lista que sigue (clase `eb-pegar`); los textos ya escritos así se
+  convierten al abrirlos. Prueba (local): la actividad real del PO ("CON LETRA DE LA CANCIÓN RENDERIZADA:<br>-  Pregunta…")
+  se ve como título + 4 viñetas pegadas; "PASOS:" Mayús+↵ "1. Primero" ↵ "Segundo" → "PASOS:<br>\n1. Primero\n2.
+  Segundo" (también con el texto entrando de una vez). Actividad de prueba borrada.

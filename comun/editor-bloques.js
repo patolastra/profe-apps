@@ -53,8 +53,27 @@
             if ((m = linea.match(/^[-*] \[( |x|X)\] ?(.*)$/)))   return { id: nid(), t: 'todo', x: m[2], c: m[1] !== ' ' };
             if ((m = linea.match(/^([-*•]) (.*)$/)))             return { id: nid(), t: 'ul', x: m[2], m: m[1] };
             if ((m = linea.match(/^\d+[.)] (.*)$/)))             return { id: nid(), t: 'ol', x: m[1] };
+            // Párrafo que termina en "<br>": la lista que le sigue va pegada a él (su título; PO 2026-10-18).
+            if (/<br>$/.test(linea)) return { id: nid(), t: 'p', x: linea.replace(/<br>$/, ''), pegar: true };
             return { id: nid(), t: 'p', x: linea };
+        }).flatMap(b => partirLista(b) || [b]);
+    }
+    // Párrafo con líneas hechas con Mayús+Enter que empiezan con "- ", "1. " o "[] ": esas líneas son una lista
+    // pegada al párrafo (cada línea con marca, un ítem; una línea sin marca sigue al ítem anterior).
+    const MARCA_LISTA = /^(\[\s?\] |[-*•] |\d+[.)] )/;
+    function partirLista(b) {
+        if (b.t !== 'p' || !b.x.includes('<br>')) return null;
+        const lineas = b.x.split('<br>');
+        const k = lineas.findIndex((l, j) => j > 0 && MARCA_LISTA.test(l));
+        if (k < 0) return null;
+        const out = [{ ...b, x: lineas.slice(0, k).join('<br>'), pegar: true }];
+        lineas.slice(k).forEach(l => {
+            const m = l.match(MARCA_LISTA);
+            if (!m) { out[out.length - 1].x += '<br>' + l; return; }
+            const t = m[1][0] === '[' ? 'todo' : /^\d/.test(m[1]) ? 'ol' : 'ul';
+            out.push({ id: nid(), t, x: l.slice(m[1].length).replace(/^ +/, ''), c: false });
         });
+        return out;
     }
     function aTexto(bs) {
         let n = 0;
@@ -68,7 +87,7 @@
                 case 'ol': return n + '. ' + b.x;
                 case 'todo': return (b.c ? '- [x] ' : '- [ ] ') + b.x;
                 case 'hr': return '---';
-                default: return b.x;
+                default: return b.x + (b.pegar ? '<br>' : '');
             }
         }).join('\n');
         return txt.trim() ? txt : '';
@@ -162,7 +181,8 @@
             </div>` : '';
         const vaciaCls = !editable && b.t === 'p' && !b.x ? ' eb-vacia' : '';
         const objCls = op?.objetivo && esObjetivo(b) ? ' eb-objetivo' : '';
-        return `<div class="eb-blq eb-t-${b.t}${b.t === 'todo' && b.c ? ' eb-hecho' : ''}${vaciaCls}${objCls}" data-id="${b.id}">${asas}${marca}${cuerpo}</div>`;
+        const pegCls = b.t === 'p' && b.pegar ? ' eb-pegar' : '';
+        return `<div class="eb-blq eb-t-${b.t}${b.t === 'todo' && b.c ? ' eb-hecho' : ''}${vaciaCls}${objCls}${pegCls}" data-id="${b.id}">${asas}${marca}${cuerpo}</div>`;
     }
     function html(texto, op) {
         let num = 0;
@@ -337,6 +357,16 @@
             const plano = txt.textContent, pos = cursorEn(txt);
             if (I.op.tactil && plano === '/') { txt.innerHTML = ''; b.x = ''; marcarSolo(I); menuTipos(id); return; }
             if (b.t === 'p' && plano === '---') { b.x = ''; txt.innerHTML = ''; convertir(id, 'hr'); return; }
+            if (e.data.includes(' ')) {
+                const partes = partirLista(b);
+                if (partes) {
+                    const i = idx(I, id);
+                    I.bloques.splice(i, 1, ...partes);
+                    pintar(I); cambio(I);
+                    enfocar(partes[1].id, 'fin');   // si el texto llegó de una vez ("1. Primero"), el cursor queda tras él
+                    return;
+                }
+            }
             if (e.data.includes(' ')) {
                 const reglas = [[/^### /, 'h3'], [/^## /, 'h2'], [/^# /, 'h1'], [/^\[\s?\] /, 'todo'], [/^[-*] /, 'ul'], [/^1[.)] /, 'ol']];
                 for (const [re, t] of reglas) {
