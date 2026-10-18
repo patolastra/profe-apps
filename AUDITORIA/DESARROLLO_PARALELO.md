@@ -4477,3 +4477,6 @@ párrafos sueltos.*
   queda marcado mientras haya versos escondidos (`entPintarBtnLetra`). Ayuda del botón y atajos (⌨) al día.
 - **Prueba (local, El Crack, 59 versos):** Letra → 59 escondidos y botón marcado; Alt+clic en un verso → se ve (58);
   Alt+doble clic en otro → se ve su estrofa (54); Letra → todo visible y botón sin marcar.
+- **Ajuste del PO (2026-10-18):** en el Entrenador desde el Planificador (`?mini=1`), un verso escondido **se deja
+  leer al pasar el mouse** (sin desenfoque, medio transparente) solo en la pantalla del profe; la Pizarra no cambia y
+  Alt+clic lo muestra de verdad. Prueba (local): con toda la letra escondida, el verso bajo el mouse se lee.
