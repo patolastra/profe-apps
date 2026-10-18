@@ -2668,7 +2668,8 @@ function recuElegir(id) {
 }
 
 // ── Diapositiva en la Pizarra (deuda AY): marco en la vista previa de la que se está mostrando ──
-let actEnCursoUlt = null;   // última actividad en curso (para subirla en el Plan solo al cambiar)
+let actEnCursoUlt = null;
+const ultDiapoAct = {};     // 'sesión|actividad' → índice de la última diapositiva que la Pizarra mostró de ella   // última actividad en curso (para subirla en el Plan solo al cambiar)
 function marcarEnPizarra() {
     let p = null;
     try { p = JSON.parse(localStorage.getItem('profe_pizarra_slide') || 'null'); } catch (_) {}
@@ -2680,7 +2681,10 @@ function marcarEnPizarra() {
     document.querySelectorAll('#prev-body .slide-prev').forEach(el => {
         const si = parseInt(el.dataset.idx) === idx;
         el.classList.toggle('en-pizarra', si);
-        if (si) act = el.dataset.act || '';
+        if (si) {
+            act = el.dataset.act || '';
+            if (act) ultDiapoAct[sesionActual.id + '|' + act] = idx;   // última diapositiva mostrada de cada actividad
+        }
     });
     if (idx === -1 && p && p.act && p.sesionId === sesionActual?.id && Proyeccion.pizarraViva()) act = p.act;   // Pizarra en blanco de esa actividad
     // En clase, con la letra de una canción de una actividad en la Pizarra, la actividad en curso es esa.
@@ -4760,7 +4764,12 @@ function cerrarMini() {
     if (box.hidden) return;
     // En clase, si la actividad de la canción no tiene diapositivas, la Pizarra queda en blanco (no vuelve a la
     // diapositiva anterior) y la actividad sigue destacada; ▶ sigue con la diapositiva que viene después de ella.
-    if (miniAct && controlaPizarra() && !document.querySelector(`#prev-body .slide-prev[data-act="${miniAct}"]`)) {
+    // Si tiene diapositivas, la Pizarra vuelve a la última que mostró de esa actividad (o a su primera).
+    const propias = miniAct ? [...document.querySelectorAll(`#prev-body .slide-prev[data-act="${miniAct}"]`)].map(el => parseInt(el.dataset.idx)) : [];
+    if (miniAct && controlaPizarra() && propias.length) {
+        const ult = ultDiapoAct[sesionActual.id + '|' + miniAct];
+        Proyeccion.ordenar(sesionActual.id, { accion: 'ir', idx: propias.includes(ult) ? ult : propias[0], contenido: document.getElementById('pres-area').value });
+    } else if (miniAct && controlaPizarra()) {
         const k = presModelo.findIndex(c => c.id === miniAct);
         let siguiente = slides.length;
         for (const c of presModelo.slice(k + 1)) {

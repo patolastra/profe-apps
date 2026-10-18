@@ -4444,3 +4444,10 @@ párrafos sueltos.*
   (Planificador + Pizarra, ✕ del Entrenador mínimo) → la Pizarra queda en blanco (siguiente = 2) y la actividad sigue
   destacada. Sospecha: la Pizarra abierta tenía la versión anterior (GitHub Pages guarda copias hasta 10 min); a
   confirmar por el PO cerrando y reabriendo la Pizarra.
+- **Ajuste del PO (2026-10-18):** el PO confirmó que la Pizarra en blanco sí funciona (probaba con una actividad con
+  diapositivas). Nuevo caso: al cerrar la letra de una actividad **con** diapositivas, la Pizarra volvía a la
+  diapositiva donde estaba (de la actividad anterior); ahora va a **la última diapositiva que mostró de esa
+  actividad** o, si no mostró ninguna, a **su primera**. El Planificador recuerda la última diapositiva mostrada de
+  cada actividad (`ultDiapoAct`). Prueba (local, dos ventanas): A2 con "Dos a" (2) y "Dos b" (3); Pizarra en Dos b,
+  abrir y cerrar la canción de A2 → vuelve a 3; Pizarra en "Uno" sin haber mostrado A2 → vuelve a 2, A2 destacada.
+  Datos de prueba borrados.
