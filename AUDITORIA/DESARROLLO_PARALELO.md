@@ -4567,3 +4567,27 @@ la clase en curso.*
   Plan ni en la vista de clase); sí se mantiene el **marco dorado** de la diapositiva que está en la Pizarra. La
   actividad en curso sigue funcionando por dentro (sube al comienzo, cambia el detalle en clase). Prueba (local, clase
   simulada): detalle y card en blanco; la diapositiva en la Pizarra con su marco dorado. Datos de prueba borrados.
+
+### BX. Plan — melodías de metalófono y ritmos en las actividades
+*Origen: pedido del PO (2026-10-19): además de canciones (letra + audio), poder vincular a una actividad melodías
+de metalófono y ritmos.*
+- **Auditoría:** los ritmos (`tipo='ritmo'`) y las melodías de metalófono (`tipo='metalofono'`) son recursos
+  (`repertorio_assets`) de una canción de la Biblioteca (hoy 10 ritmos y 16 metalófonos, casi todos en borrador). El
+  Entrenador ya los muestra y los lleva a la Pizarra (espejo del ritmo y del metalófono). Falta: elegirlos en la
+  actividad y abrir el Entrenador directo en ese recurso.
+- **DECISIÓN del PO (2026-10-19):** aprobado: selector con pestañas 🎵 Canción · 🎹 Metalófono · 🥁 Ritmo; cada
+  recurso con su nombre de cortesía; primero los del curso, al escribir toda la Biblioteca (sin filtrar por estado);
+  tocarlo abre el Entrenador mínimo en ese recurso (en clase, también en la Pizarra); su canción se suma al repertorio
+  del curso, como con las canciones. Sin cambios en Supabase.
+- **Implementación (2026-10-19):** `PORTAL/index.html`: "🎵 Vincular canción, metalófono o ritmo" (menú ⋯ de la
+  actividad) abre el selector con pestañas 🎵 Canción · 🎹 Metalófono · 🥁 Ritmo (ancho fijo, regla 8b). El vínculo
+  se guarda en la misma lista `plan_cards.canciones` como `{ cancion_id, asset_id }` (sin `asset_id` = canción, como
+  antes). Fichas del Plan, botones del cuadro de la Presentación y tarjetas moradas de la vista de clase muestran
+  🎹 / 🥁 + "Canción · Descripción" (nombre de cortesía); la vista de clase cuenta "1 metalófono · 1 ritmo".
+  `REPERTORIO/index.html`: `?asset=<id>` (y `asset` en `ws-ir`) parte el Entrenador en ese recurso; un metalófono se
+  abre directo en el Metalófono. Sin cambios en Supabase.
+- **Prueba (local, Quinto 27/10):** pestaña Metalófono → "Del curso" con Aló, Aló y 5 de El Crack; "crack" filtra;
+  vinculado "El Crack · Parte 1, en C" (queda inhabilitado en el selector); Ritmo → "El curso aún no tiene ritmos";
+  ritmo "Figuras rítmicas en 6/8 · Negra con punto" agregado. Desde la Presentación: el ritmo abre el Entrenador
+  mínimo con su partitura; el metalófono abre el Metalófono con esa melodía. Vista de clase: tarjetas 🎹 y 🥁 con su
+  descripción. Actividad de prueba borrada. Falta: prueba en clase real (Pizarra) y dentro del Workspace.
