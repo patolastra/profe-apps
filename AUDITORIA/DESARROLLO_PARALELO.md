@@ -4591,3 +4591,4 @@ de metalófono y ritmos.*
   ritmo "Figuras rítmicas en 6/8 · Negra con punto" agregado. Desde la Presentación: el ritmo abre el Entrenador
   mínimo con su partitura; el metalófono abre el Metalófono con esa melodía. Vista de clase: tarjetas 🎹 y 🥁 con su
   descripción. Actividad de prueba borrada. Falta: prueba en clase real (Pizarra) y dentro del Workspace.
+- **Commit:** `7d3a51e` (subido).
