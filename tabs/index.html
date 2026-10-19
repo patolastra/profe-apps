@@ -502,6 +502,37 @@
             background: #111; flex-direction: column;
         }
         #modalAcordes.open { display: flex; }
+
+        /* Afinador (deuda CE) */
+        #btnAfinar { background: #34495e; color: #fff; }
+        #modalAfinador {
+            display: none; position: fixed; inset: 0; z-index: 520;
+            background: rgba(0,0,0,.82); align-items: center; justify-content: center;
+        }
+        #modalAfinador.open { display: flex; }
+        .afi-box {
+            background: #14202e; border: 1px solid #2c3e50; border-radius: 14px;
+            padding: 18px 22px 22px; width: min(520px, calc(100vw - 32px));
+            max-height: calc(100vh - 24px); overflow-y: auto;
+            box-shadow: 0 16px 60px rgba(0,0,0,.9);
+        }
+        .afi-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .afi-title  { font-weight: 800; font-size: 1.15rem; color: #fff; }
+        .afi-sub    { font-size: .82rem; color: #8aa; margin-bottom: 14px; min-height: 1.1em; }
+        .afi-cuerdas { display: flex; flex-direction: column; gap: 8px; }
+        .afi-cuerda {
+            display: flex; align-items: center; gap: 14px; width: 100%;
+            background: #1d2c3d; color: #dde; border: 2px solid transparent; border-radius: 10px;
+            padding: 10px 16px; font-size: 1.15rem; text-align: left;
+        }
+        .afi-cuerda:hover { opacity: 1; background: #24384d; }
+        .afi-num  { width: 1.4em; font-weight: 900; color: #8aa; flex-shrink: 0; }
+        .afi-nota { width: 3.6em; font-weight: 800; flex-shrink: 0; }
+        .afi-linea { flex: 1; background: linear-gradient(#c9b98a, #8c7a4a); border-radius: 2px; }
+        .afi-cuerda.sonando { border-color: #f9c74f; background: #2e3b22; }
+        .afi-cuerda.sonando .afi-nota, .afi-cuerda.sonando .afi-num { color: #f9c74f; }
+        .afi-cuerda.sonando .afi-linea { background: #f9c74f; box-shadow: 0 0 8px #f9c74f; }
+        .afi-ayuda { margin-top: 14px; font-size: .78rem; color: #789; text-align: center; }
         .mac-box {
             width: 100vw; height: 100vh;
             display: flex; flex-direction: column;
@@ -651,6 +682,7 @@
         <button id="btnCifrado" onclick="toggleCifrado()" style="display:none;background:#555;color:#fff">C/Do</button>
         <button id="btnAcordes" style="display:none" onclick="abrirModalAcordes()">🎸 Acordes</button>
         <button id="btnPistas" class="btn-pistas" onclick="togglePistasPanel(this)">🎵 Pistas</button>
+        <button id="btnAfinar" onclick="abrirAfinador()" title="Afinador: suena cada cuerda al aire" style="visibility:hidden">🎚️ Afinar</button>
     </div>
     <div id="badgeAlumno" class="badge-alumno"><span id="badgeNombre"></span></div>
 </div>
@@ -1003,6 +1035,19 @@
 </div>
 <div id="toast"></div>
 <div id="estadoMenuLec"></div>
+
+<!-- AFINADOR (deuda CE) -->
+<div id="modalAfinador" onclick="if (event.target === this) cerrarAfinador()">
+    <div class="afi-box">
+        <div class="afi-header">
+            <span class="afi-title" id="afiTitulo">🎚️ Afinador</span>
+            <button class="mac-close" onclick="cerrarAfinador()">✕</button>
+        </div>
+        <div class="afi-sub" id="afiSub"></div>
+        <div class="afi-cuerdas" id="afiCuerdas"></div>
+        <div class="afi-ayuda">Toca una cuerda para que suene sin parar · otra vez para callarla · teclas 1–<span id="afiMax">6</span> · Esc cierra</div>
+    </div>
+</div>
 
 <!-- MODAL ACORDES -->
 <div id="modalAcordes">
@@ -2010,6 +2055,8 @@ function actualizarBadgeInstrumento() {
     if (!badge || !label) return;
     const visible = !!(currentFileName || currentStoragePath);
     badge.style.display = visible ? 'flex' : 'none';
+    const btnAfi = document.getElementById('btnAfinar');
+    if (btnAfi) btnAfi.style.visibility = visible ? 'visible' : 'hidden';
     if (!visible) return;
     const tieneCapo = currentInstrument === 'guitarra' || currentInstrument === 'ukelele';
     const capoLinea = tieneCapo && capoFret > 0
@@ -6768,6 +6815,99 @@ function abrirModalAcordes() {
 function cerrarModalAcordes() {
     document.getElementById('modalAcordes').classList.remove('open');
 }
+
+// ─── AFINADOR (deuda CE, 2026-10-19) ─────────────────────────────────────────
+// Muestra las cuerdas del instrumento de la partitura (afinación estándar + capo). Al tocar
+// una, suena el sonido del instrumento pulsado de nuevo cada AFI_PERIODO segundos, hasta
+// elegir otra, tocarla de nuevo o cerrar el afinador.
+const AFI_NOTAS   = ['Do','Do♯','Re','Re♯','Mi','Fa','Fa♯','Sol','Sol♯','La','La♯','Si'];
+const AFI_PERIODO = 1.6;
+let afiCuerda = -1;      // índice en openStrings de la cuerda que suena (-1 = ninguna)
+let afiTimer  = null;
+let afiNodos  = [];      // notas sonando (para callarlas al cambiar/cerrar)
+
+function afiMidi(i) {
+    const capo = (currentInstrument === 'guitarra' || currentInstrument === 'ukelele') ? capoFret : 0;
+    return openStrings[i] + capo;
+}
+
+function abrirAfinador() {
+    if (isPlaying) document.getElementById('btnPause').click();
+    ensureAudio();
+    const nombres = { guitarra: '🎸 Guitarra', ukelele: '🪕 Ukelele', bajo: '🎸 Bajo' };
+    document.getElementById('afiTitulo').textContent = `🎚️ Afinador · ${nombres[currentInstrument] || ''}`;
+    const usaCapo = (currentInstrument === 'guitarra' || currentInstrument === 'ukelele') && capoFret > 0;
+    document.getElementById('afiSub').textContent = usaCapo ? `Con capo en el traste ${capoFret}` : 'Cuerdas al aire';
+    document.getElementById('afiMax').textContent = openStrings.length;
+    const cont = document.getElementById('afiCuerdas');
+    cont.innerHTML = '';
+    openStrings.forEach((_, i) => {
+        const b = document.createElement('button');
+        b.className = 'afi-cuerda';
+        b.dataset.i = i;
+        const grosor = 1 + Math.round(i * 4 / Math.max(1, openStrings.length - 1));
+        b.innerHTML = `<span class="afi-num">${i + 1}</span><span class="afi-nota">${AFI_NOTAS[afiMidi(i) % 12]}</span>`
+                    + `<span class="afi-linea" style="height:${grosor}px"></span>`;
+        b.onclick = () => afiTocar(i);
+        cont.appendChild(b);
+    });
+    afiCuerda = -1;
+    document.getElementById('modalAfinador').classList.add('open');
+}
+
+function afiPulsar() {
+    if (afiCuerda < 0 || !audioCtx) return;
+    const midi = afiMidi(afiCuerda);
+    const now  = audioCtx.currentTime;
+    if (guitarSF) {
+        const nodo = guitarSF.play(midi, now, { duration: AFI_PERIODO + 1.2, gain: 1.5 });
+        if (nodo) afiNodos.push(nodo);
+    } else {
+        // Sonido de reemplazo si el del instrumento no cargó (mismo nivel que playNote)
+        if (!ksCache.has(midi)) ksCache.set(midi, buildKSBuffer(midi));
+        const src = audioCtx.createBufferSource();
+        const atk = audioCtx.createGain();
+        src.buffer = ksCache.get(midi);
+        atk.gain.setValueAtTime(0, now);
+        atk.gain.linearRampToValueAtTime(0.17, now + 0.014);   // = KS_NIVEL de playNote
+        src.connect(atk); atk.connect(bodyFilter);
+        src.start(); src.stop(now + AFI_PERIODO + 1.2);
+        afiNodos.push(src);
+    }
+    if (afiNodos.length > 3) afiNodos.shift();
+}
+
+function afiCallar() {
+    clearInterval(afiTimer); afiTimer = null;
+    afiNodos.forEach(n => { try { n.stop(); } catch (_) {} });
+    afiNodos = [];
+}
+
+function afiTocar(i) {
+    afiCallar();
+    afiCuerda = (afiCuerda === i) ? -1 : i;
+    document.querySelectorAll('#afiCuerdas .afi-cuerda').forEach(b =>
+        b.classList.toggle('sonando', +b.dataset.i === afiCuerda));
+    if (afiCuerda < 0) return;
+    ensureAudio();
+    afiPulsar();
+    afiTimer = setInterval(afiPulsar, AFI_PERIODO * 1000);
+}
+
+function cerrarAfinador() {
+    afiCallar();
+    afiCuerda = -1;
+    document.getElementById('modalAfinador').classList.remove('open');
+}
+
+// Con el afinador abierto, el teclado es solo suyo (1–N = cuerda, Esc = cerrar)
+window.addEventListener('keydown', e => {
+    if (!document.getElementById('modalAfinador')?.classList.contains('open')) return;
+    e.stopImmediatePropagation();
+    if (e.key === 'Escape') { e.preventDefault(); cerrarAfinador(); return; }
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= openStrings.length) { e.preventDefault(); afiTocar(n - 1); }
+}, true);
 
 function mostrarDetalleAcorde(idx) {
     acDetalleIdx = idx;

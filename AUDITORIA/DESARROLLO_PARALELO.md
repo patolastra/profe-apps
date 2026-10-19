@@ -4723,3 +4723,27 @@ secciones: `alumno_tabs` / `alumno_tab_secciones`) sin buscarlo en la lista.
   y Ctrl+Shift+A → abre su sub-vista de asignación (su nombre, buscador y catálogo); "← Lista" → barra "Alumno activo"
   con "📋 Asignaciones" y "Cerrar sesión"; el botón vuelve a sus asignaciones. Sin asignaciones modificadas.
 - **Commit:** `0948a82` (subido). Falta: uso real con un estudiante.
+
+### CE. Lector — afinador sencillo
+*Origen: pedido del PO (2026-10-19): "agrega un afinador sencillo para lector tabs; dependiendo del instrumento en que
+esté la partitura, abro el afinador, muestra las cuerdas del instrumento, y si toco una cuerda empieza a sonar ella
+indefinidamente hasta que cambio de cuerda o salgo del afinador".*
+- **Auditoría (2026-10-19):** el Lector reconoce el instrumento de la partitura con `detectarInstrumento` (datos del
+  MusicXML: sonido / nombre del instrumento / 4 líneas) → `currentInstrument` = guitarra, ukelele o bajo (los tres en
+  uso; el letrero de la izquierda lo muestra). La afinación es la **estándar fija** (`TUNING`; no se leen afinaciones
+  especiales del archivo). Hay **capo** por partitura (`capoFret`, guitarra y ukelele). El sonido ya existe: el de
+  cada instrumento (`guitarSF`, soundfont precargado; reemplazo Karplus-Strong si no cargó) por `masterBus`.
+- **DECISIÓN del PO (2026-10-19):** botón **🎚️ Afinar** en la barra de controles (profe y estudiantes) que abre el
+  afinador con las cuerdas del instrumento de la partitura; nombres **solo Do-Re-Mi** (número de cuerda + nota);
+  sonido = la **cuerda del instrumento pulsada de nuevo** cada ~1,5 s mientras esté elegida; **con capo**, cada cuerda
+  suena subida según el traste del capo. Criterio de Claude (sin pregunta): al abrir se pausa la reproducción; tocar
+  la misma cuerda la apaga; teclas 1–6 eligen cuerda y Esc / ✕ / clic fuera cierran (y callan).
+- **Alcance:** solo `tabs/index.html`; sin cambios en Supabase.
+- **Implementación (2026-10-19):** botón `#btnAfinar` en la barra (oculto sin reservar otro lugar mientras no hay
+  partitura, se muestra con el letrero del instrumento); ventana `#modalAfinador` con una fila por cuerda (número,
+  nota en Do-Re-Mi y una línea más gruesa en las graves); `afiTocar` pulsa la cuerda con `guitarSF` (o el sonido de
+  reemplazo) cada 1,6 s; `afiCallar` corta el sonido al cambiar o cerrar. El teclado queda solo para el afinador
+  mientras está abierto.
+- **Prueba (local):** partitura de guitarra con capo 2 → "Con capo en el traste 2", notas Fa♯ Do♯ La Mi Si Fa♯; la
+  cuerda 6 suena repetida; tecla 2 cambia a la cuerda 2, otra vez 2 la calla; Esc cierra y corta el sonido. Sin capo:
+  Mi Si Sol Re La Mi.
