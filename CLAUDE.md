@@ -32,7 +32,7 @@ Estado = clasificación oficial de Fase 1.5 (ver §5 para la leyenda). Detalle p
 | **Portal / Planning** | Planificación de sesiones + Dashboard. Profesor. | `PORTAL/index.html` | 🟢 Activo |
 | **Workspace PC** | Entrada PC: pestañas + iframes persistentes. Profesor. | `PC/workspace.html` | 🟢 Activo — **entrada PC actual** |
 | **Dashboard** | Calendario 3 semanas + panel de pendientes (dentro del Portal). | `PORTAL/` | 🟢 Activo |
-| **Biblioteca** (antes "Repertorio") | Biblioteca de canciones y recursos + Entrenador (todo asset salvo las tablaturas se abre en el Entrenador; el **visor de letras se retiró**, deuda AS 2026-10-13). Audio Melodía + Karaoke por canción. | `REPERTORIO/index.html` | 🟢 Activo |
+| **Biblioteca** (antes "Repertorio") | Biblioteca de canciones y recursos + Entrenador (todo asset salvo las tablaturas se abre en el Entrenador; una tablatura elegida en el Entrenador abre el Lector en una pestaña del Workspace, deuda CF; el **visor de letras se retiró**, deuda AS 2026-10-13). Audio Melodía + Karaoke por canción. | `REPERTORIO/index.html` | 🟢 Activo |
 | **Entrenador** | Editor central de assets (letras/sync/proyección). Vive en la Biblioteca (`?vista=sesiones`). | `REPERTORIO/` | 🟢 Activo |
 | **Ritmo** | Motor rítmico del Entrenador (`ritmo.js` + `ritmo-render.js`): una o **dos voces** (👏 palmas + 🥁 golpe grave, línea `voz: 2`) y **silencios** (letra mayúscula), deuda BY 2026-10-19. | `REPERTORIO/` | 🟢 Activo |
 | **Lector de Tablaturas** | Lector MXL/MusicXML, audio sync, secciones, modo cifrado, afinador (🎚️ Afinar, deuda CE). | `tabs/index.html` | 🟢 Activo |

@@ -4748,3 +4748,27 @@ indefinidamente hasta que cambio de cuerda o salgo del afinador".*
   cuerda 6 suena repetida; tecla 2 cambia a la cuerda 2, otra vez 2 la calla; Esc cierra y corta el sonido. Sin capo:
   Mi Si Sol Re La Mi.
 - **Commit:** `d09a53d` (subido). Falta: uso en clase.
+
+### CF. Entrenador — una tablatura abre el Lector
+*Origen: pedido del PO (2026-10-19): el Taller de Cuerdas es una instancia como todas, pero su repertorio debería abrir
+el Lector de tablaturas; "algo raro pasa".*
+- **Auditoría (2026-10-19):** la sesión del curso "Cuerdas 2026" tiene una canción ("Iniciación del Taller de Cuerdas")
+  con 18 tablaturas de ukelele. Desde el Plan (🎵) o la Biblioteca se abre en el Entrenador, que lista las tablaturas
+  como recursos; al cargar una, `entCargarAsset` cae en el caso genérico "archivo en Storage" y pone el `.mxl`
+  (zip) dentro de un cuadro: el navegador lo **descarga** o deja la pantalla en blanco. Solo la ficha de la Biblioteca
+  (doble clic) abre el Lector, y en una pestaña suelta del navegador. Nada en el código trata distinto a Cuerdas: el
+  problema es de **toda** tablatura en el Entrenador.
+- **DECISIÓN del PO (2026-10-19):** una tablatura en el Entrenador abre el **Lector en esa partitura**, en una
+  **pestaña del Workspace**.
+- **Alcance:** solo `REPERTORIO/index.html`; sin cambios en Supabase ni en el Lector (ya acepta `?storage=&nombre=&seccion=`).
+- **Criterio de Claude:** el Entrenador muestra en su lugar un cuadro con el nombre de la tablatura, botón
+  **🎸 Abrir en el Lector** y un botón por cada parte (sección); al elegirla en el desplegable de recursos se abre sola
+  (al abrir la canción no, para no abrir pestañas sin pedirlas). Dentro del Workspace = pestaña propia por partitura
+  (clave `lector:<id>`, se enfoca si ya está); fuera del Workspace o dentro del Entrenador mínimo del Plan = pestaña del
+  navegador.
+- **Implementación (2026-10-19):** en `entCargarAsset`, rama nueva para `tipo === 'tab'` → `entRenderTab` (cuadro 🎸 con
+  nombre de cortesía, botón al Lector y botones por parte) y, si la eligió el profe, `entAbrirTabEnLector`, que pide al
+  Workspace `ws-abrir` con `../tabs/index.html?storage=&nombre=[&seccion=]` (fuera del Workspace, `window.open`).
+- **Prueba (local, Workspace):** Entrenador en "Cuerdas 2026" → cuadro de la tablatura (ya no descarga el `.mxl`);
+  "Abrir en el Lector" abre la pestaña 🎸 con la partitura de ukelele cargada; elegir otra en el desplegable abre su
+  pestaña sola; botón de una parte abre el Lector con `&seccion=`. Sin errores en la consola.

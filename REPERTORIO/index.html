@@ -1649,6 +1649,17 @@
             padding: 8px 10px; border-radius: 7px; cursor: pointer;
         }
         .ent-res-item:hover { background: #273549; }
+        /* Tablatura en el Entrenador: cuadro que lleva al Lector (deuda CF) */
+        .ent-tab-card { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; max-width: 560px; padding: 24px; }
+        .ent-tab-ico { font-size: 3rem; }
+        .ent-tab-nombre { font-size: 1.15rem; color: #cbd5e1; }
+        .ent-tab-abrir { font-size: 1.1rem; padding: 12px 26px; border: none; border-radius: 10px; background: #ea580c; color: #fff; cursor: pointer; }
+        .ent-tab-abrir:hover { background: #c2410c; }
+        .ent-tab-secs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+        .ent-tab-secs button { padding: 6px 14px; border: 1px solid #334155; border-radius: 8px; background: #1e293b; color: #cbd5e1; cursor: pointer; }
+        .ent-tab-secs button:hover { background: #273549; }
+        #entrenador-overlay.ent-light .ent-tab-nombre { color: #334155; }
+        #entrenador-overlay.ent-light .ent-tab-secs button { background: #f1f5f9; border-color: #cbd5e1; color: #334155; }
         .ent-res-item.active { color: #fff; background: #ea580c; }
         #entrenador-overlay.ent-light .ent-res-menu { background: #fff; border-color: #e2e8f0; }
         #entrenador-overlay.ent-light .ent-res-item { color: #475569; }
@@ -5924,6 +5935,11 @@ function entCargarAsset(asset, userInitiated = false) {
     } else if (asset.tipo === 'metalofono') {
         ocultarRow.style.display = ''; ocultarRow.classList.add('ent-tools-disabled');
         entRenderMetalofono(asset, userInitiated);
+    } else if (asset.tipo === 'tab' && asset.storage_path) {
+        // Tablatura: se lee en el Lector (deuda CF). Elegida en el desplegable se abre sola.
+        ocultarRow.style.display = ''; ocultarRow.classList.add('ent-tools-disabled');
+        entRenderTab(asset);
+        if (userInitiated) entAbrirTabEnLector(asset);
     } else if (asset.storage_path) {
         const url = storageUrl(asset.storage_path);
         zona.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:none;"></iframe>`;
@@ -5935,6 +5951,40 @@ function entCargarAsset(asset, userInitiated = false) {
         zona.innerHTML = `<div style="color:#475569">Sin contenido</div>`;
         ocultarRow.style.display = ''; ocultarRow.classList.add('ent-tools-disabled');
     }
+}
+
+// Tablatura en el Entrenador (deuda CF): cuadro con su nombre y botones al Lector (completa y por parte).
+function entRenderTab(asset) {
+    const secciones = asset.tab_sync?.secciones || [];
+    document.getElementById('ent-zona').innerHTML = `
+        <div class="ent-tab-card">
+            <div class="ent-tab-ico">🎸</div>
+            <div class="ent-tab-nombre">${entEsc(nombreAsset(asset, entrenadorSong?.nombre))}</div>
+            <button class="ent-tab-abrir" onclick="entAbrirTabEnLector(entrenadorAssetActivo)">🎸 Abrir en el Lector</button>
+            ${secciones.length ? `<div class="ent-tab-secs">${secciones.map((s, i) =>
+                `<button onclick="entAbrirTabEnLector(entrenadorAssetActivo, ${i})">${entEsc(s.nombre)}</button>`).join('')}</div>` : ''}
+        </div>`;
+}
+
+// Abre la tablatura en el Lector: pestaña propia del Workspace (se enfoca si ya está) o,
+// suelto / dentro del Entrenador mínimo del Plan, pestaña del navegador.
+function entAbrirTabEnLector(asset, iSeccion) {
+    if (!asset?.storage_path) return;
+    const seccion = iSeccion != null ? asset.tab_sync?.secciones?.[iSeccion]?.nombre : null;
+    const nombre = asset.nombre_archivo || asset.etiqueta || 'tab';
+    const params = new URLSearchParams({ storage: asset.storage_path, nombre });
+    if (seccion) params.set('seccion', seccion);
+    const enWs = !MINI && !ESPEJO && window.parent && window.parent !== window;
+    if (enWs) {
+        const corto = nombreAsset(asset, entrenadorSong?.nombre);
+        try {
+            window.parent.postMessage({ tipo: 'ws-abrir', key: `lector:${asset.id}${seccion ? ':' + seccion : ''}`,
+                titulo: seccion ? `${corto} · ${seccion}` : corto, ico: '🎸',
+                src: `../tabs/${LECTOR_HTML}?${params}` }, '*');
+            return;
+        } catch (_) {}
+    }
+    window.open(`../tabs/${LECTOR_HTML}?${params}`, '_blank');
 }
 
 // Renderiza un asset de ritmo en la zona del Entrenador reutilizando el motor
