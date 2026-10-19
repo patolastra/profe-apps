@@ -4617,3 +4617,4 @@ de metalófono y ritmos.*
   2 compases ("nNnN / bb" + "ccNnN / N.cn.c") → Partitura alineada con 👏 y 🥁 y Infantil con 10 golpes y 5 silencios;
   Play / Stop sin errores. Entrenador con ese ritmo (sin guardarlo): dos líneas, Play, Partitura ↔ Infantil sin
   errores. No se guardó nada. Falta: escucharlo (el sonido del golpe grave) y la Pizarra en clase.
+- **Commit:** `8eee199` (subido).
