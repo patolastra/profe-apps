@@ -4747,3 +4747,4 @@ indefinidamente hasta que cambio de cuerda o salgo del afinador".*
 - **Prueba (local):** partitura de guitarra con capo 2 → "Con capo en el traste 2", notas Fa♯ Do♯ La Mi Si Fa♯; la
   cuerda 6 suena repetida; tecla 2 cambia a la cuerda 2, otra vez 2 la calla; Esc cierra y corta el sonido. Sin capo:
   Mi Si Sol Re La Mi.
+- **Commit:** `d09a53d` (subido). Falta: uso en clase.
