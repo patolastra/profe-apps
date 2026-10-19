@@ -4592,3 +4592,28 @@ de metalófono y ritmos.*
   mínimo con su partitura; el metalófono abre el Metalófono con esa melodía. Vista de clase: tarjetas 🎹 y 🥁 con su
   descripción. Actividad de prueba borrada. Falta: prueba en clase real (Pizarra) y dentro del Workspace.
 - **Commit:** `7d3a51e` (subido).
+
+### BY. Entrenador — ritmos a dos voces (y silencios)
+*Origen: pedido del PO (2026-10-19): poder armar ritmos a dos voces en el Entrenador.*
+- **Auditoría:** el motor (`ritmo.js` + `ritmo-render.js`, **protegidos**, §10) tiene una sola voz y no tiene
+  silencios; el reproductor ya estaba preparado para varias voces (`opts.voces`, timbre por voz). Consumidores: solo
+  `REPERTORIO/index.html` (editor de ritmo, vista del Entrenador y espejo en la Pizarra).
+- **DECISIÓN del PO (2026-10-19):** (1) dos líneas, una sobre otra, con las barras alineadas; (2) la voz 1 sigue con
+  palmas (o piano) y la voz 2 suena con un **golpe grave**; (3) se agregan **silencios** (en una y dos voces);
+  (4) **autoriza modificar el motor de ritmo**, solo para esto; los ritmos de una voz quedan iguales.
+- **Formato (PROPUESTA de Claude, aplicada):** silencio = la misma letra en mayúscula (`N` silencio de negra,
+  `C.` de corchea con puntillo; también dentro de tresillos). La segunda voz va después de una línea `voz: 2`, con
+  la misma cantidad de compases. Sin cambios en Supabase (el ritmo sigue siendo texto en `repertorio_assets.contenido`).
+- **Implementación (2026-10-19):** `ritmo.js`: silencios (letra mayúscula → evento con `rest: true`; la base de un
+  tresillo no puede ser silencio), clave `voz: 2` y `obj.voces` (`measures` sigue siendo la voz 1; los eventos de la
+  voz 2 siguen la numeración), error `VOZ2_COMPASES` si las voces no tienen los mismos compases, `serializeMeasure`
+  público; 16 pruebas nuevas (`node ritmo.js`: 107 OK). `ritmo-render.js`: Partitura con una línea por voz formateadas
+  juntas (lo simultáneo queda alineado) e íconos 👏 / 🥁; Infantil con dos filas (🥁 en la voz 2, silencio = punto
+  gris); los silencios no suenan ni destellan; timbre nuevo `grave` (golpe tipo tambor) para la voz 2.
+  `REPERTORIO/index.html`: editor de ritmo con "Voces 1 | 2" (cada compás con su línea 👏 y su línea 🥁, validación por
+  voz, ayuda con silencios), vista previa más alta con dos voces; espejo de la Pizarra con los golpes de ambas voces;
+  `ritmo.js?v=by1` para que ningún equipo use una copia vieja del motor.
+- **Prueba (local):** los 12 ritmos guardados se leen y se vuelven a escribir idénticos (1 voz). Editor: 2 voces,
+  2 compases ("nNnN / bb" + "ccNnN / N.cn.c") → Partitura alineada con 👏 y 🥁 y Infantil con 10 golpes y 5 silencios;
+  Play / Stop sin errores. Entrenador con ese ritmo (sin guardarlo): dos líneas, Play, Partitura ↔ Infantil sin
+  errores. No se guardó nada. Falta: escucharlo (el sonido del golpe grave) y la Pizarra en clase.

@@ -7,11 +7,14 @@
  * todo deriva de los `events` (startTick/durTick/evIdx/tuplet). El player usa
  * un único reloj (AudioContext.currentTime) para audio, cursor y FX.
  *
- * PARTITURA → VexFlow (vendorizado local en vendor/vexflow.js). Una sola línea,
+ * PARTITURA → VexFlow (vendorizado local en vendor/vexflow.js). Una línea por voz,
  *             plicas arriba, contenido dentro del compás, indicador de tresillo
  *             conmutable (solo visual).
  * INFANTIL  → SVG propio. Espaciado por duración SIN solapamiento (jerarquía
  *             negra/blanca > corchea > semicorchea) + autofit por viewBox.
+ * DOS VOCES (deuda BY): obj.voces = [voz 1, voz 2] → dos líneas alineadas por tiempo
+ *             (👏 voz 1 · 🥁 voz 2); la voz 2 suena con un golpe grave. Silencios
+ *             (e.rest) se dibujan pero no suenan ni destellan.
  *
  * Contrato de `layout` (dueño del mapeo temporal→espacial), común a ambos modos:
  *   { modo, svg, tickToX(absTick), setCursor(repTick), fx(evIdx), limpiarFx() }
@@ -44,6 +47,9 @@
         .ritmo-clap { font: 40px "Segoe UI Emoji","Apple Color Emoji",system-ui,sans-serif;
                       text-anchor:middle; dominant-baseline:central; }
         .ritmo-inf-group { fill: rgba(124,58,237,.10); stroke: rgba(124,58,237,.55); stroke-width:1.6; }
+        .ritmo-inf-sil { fill: #cbd5e1; }
+        .ritmo-voz-lbl { font: 26px "Segoe UI Emoji","Apple Color Emoji",system-ui,sans-serif;
+                         text-anchor:middle; dominant-baseline:central; }
         `;
         document.head.appendChild(st);
     }
@@ -60,7 +66,7 @@
         obj.measures.forEach((m, mi) => {
             m.events.forEach(e => {
                 evs.push({
-                    evIdx: e.evIdx, mi, fig: e.fig, dotted: e.dotted, tuplet: e.tuplet,
+                    evIdx: e.evIdx, mi, fig: e.fig, dotted: e.dotted, tuplet: e.tuplet, rest: !!e.rest,
                     durTick: e.durTick, absTick: mi * m.capacityTicks + e.startTick,
                 });
             });
@@ -144,78 +150,93 @@
 
         const evMap = {};
         const anclas = [];
-        let x = 8;
-        let lineY = Y_STAVE + 20;    // se fija con la línea real del primer compás
+        // Voces (deuda BY): una línea por voz, alineadas por tiempo (mismo formateo).
+        const voces = obj.voces || [{ measures: obj.measures }];
+        const GAP_VOZ = 90;                              // distancia entre las líneas de las voces
+        const LBL_W = voces.length > 1 ? 44 : 0;         // espacio para el ícono de cada voz
+        let x = 8 + LBL_W;
+        const lineYs = voces.map((_, vi) => Y_STAVE + 20 + vi * GAP_VOZ);   // se fijan con la línea real
         const RIGHT_PAD = 20;
 
-        obj.measures.forEach((measure, mi) => {
-            // 1) Construir notas VexFlow (plicas SIEMPRE arriba)
-            const notes = [];
-            const grupos = {};      // groupId → [notes]  (para tresillos)
-            measure.events.forEach(e => {
-                let code = DUR_VEX[e.fig] + (e.dotted ? 'd' : '');
-                const n = new VF.StaveNote({ keys: ['b/4'], duration: code, stem_direction: VF.Stem.UP });
-                n.setStemDirection(VF.Stem.UP);
-                if (e.dotted) VF.Dot.buildAndAttach([n], { all: true });
-                n.setAttribute('id', 'ev' + e.evIdx);   // identidad evIdx → <g id="vf-ev…">
-                evMap[e.evIdx] = n;
-                notes.push(n);
-                if (e.tuplet) (grupos[e.tuplet.groupId] ||= []).push(n);
+        obj.measures.forEach((_, mi) => {
+            const porVoz = voces.map(vz => {
+                const measure = vz.measures[mi];
+                // 1) Construir notas VexFlow (plicas SIEMPRE arriba); silencio = figura + 'r'
+                const notes = [];
+                const grupos = {};      // groupId → [notes]  (para tresillos)
+                measure.events.forEach(e => {
+                    let code = DUR_VEX[e.fig] + (e.dotted ? 'd' : '') + (e.rest ? 'r' : '');
+                    const n = new VF.StaveNote({ keys: ['b/4'], duration: code, stem_direction: VF.Stem.UP });
+                    n.setStemDirection(VF.Stem.UP);
+                    if (e.dotted) VF.Dot.buildAndAttach([n], { all: true });
+                    n.setAttribute('id', 'ev' + e.evIdx);   // identidad evIdx → <g id="vf-ev…">
+                    evMap[e.evIdx] = n;
+                    notes.push(n);
+                    if (e.tuplet) (grupos[e.tuplet.groupId] ||= []).push(n);
+                });
+
+                // 2) Tresillos: SIEMPRE se crean (aplican el multiplicador 2/3 → espaciado
+                //    y ticks correctos). El indicador visual se dibuja o no según la opción.
+                const tuplets = Object.values(grupos).map(g =>
+                    new VF.Tuplet(g, { num_notes: 3, notes_occupied: 2, bracketed: true, ratioed: false }));
+
+                const voice = new VF.Voice({ num_beats: obj.meter.num, beat_value: obj.meter.den })
+                    .setMode(VF.Voice.Mode.SOFT);
+                voice.addTickables(notes);
+                return { measure, notes, tuplets, voice };
             });
-
-            // 2) Tresillos: SIEMPRE se crean (aplican el multiplicador 2/3 → espaciado
-            //    y ticks correctos). El indicador visual se dibuja o no según la opción.
-            const tuplets = Object.values(grupos).map(g =>
-                new VF.Tuplet(g, { num_notes: 3, notes_occupied: 2, bracketed: true, ratioed: false }));
-
-            const voice = new VF.Voice({ num_beats: obj.meter.num, beat_value: obj.meter.den })
-                .setMode(VF.Voice.Mode.SOFT);
-            voice.addTickables(notes);
+            const vfVoces = porVoz.map(p => p.voice);
 
             // 3) Ancho del compás = ancho mínimo musical + paddings (evita desborde)
             const fmt = new VF.Formatter();
-            fmt.joinVoices([voice]);
-            const minW = fmt.preCalculateMinTotalWidth([voice]);
+            vfVoces.forEach(v => fmt.joinVoices([v]));
+            const minW = fmt.preCalculateMinTotalWidth(vfVoces);
             const leftMods = (mi === 0) ? 42 : 12;    // hueco para cifra de compás
             // Aire: ensanchamos el compás sobre el mínimo musical para que las figuras
             // (p.ej. negras) respiren y no queden pegadas. El desborde se evita porque
             // formateamos las notas al ancho útil real del compás (con RIGHT_PAD).
             const measureW = Math.ceil(minW * AIR + leftMods + RIGHT_PAD);
 
-            const stave = new VF.Stave(x, Y_STAVE, measureW);
-            // Una sola línea: mostrar únicamente la línea central de las 5
-            stave.setConfigForLines([
-                { visible: false }, { visible: false }, { visible: true }, { visible: false }, { visible: false },
-            ]);
-            if (mi === 0) stave.addTimeSignature(obj.meter.num + '/' + obj.meter.den);
-            stave.setContext(ctx).draw();
-            if (mi === 0) lineY = stave.getYForLine(2);   // línea central (baseline musical)
+            const staves = porVoz.map((p, vi) => {
+                const stave = new VF.Stave(x, Y_STAVE + vi * GAP_VOZ, measureW);
+                // Una sola línea: mostrar únicamente la línea central de las 5
+                stave.setConfigForLines([
+                    { visible: false }, { visible: false }, { visible: true }, { visible: false }, { visible: false },
+                ]);
+                if (mi === 0) stave.addTimeSignature(obj.meter.num + '/' + obj.meter.den);
+                stave.setContext(ctx).draw();
+                if (mi === 0) lineYs[vi] = stave.getYForLine(2);   // línea central (baseline musical)
+                return stave;
+            });
 
-            // 4) Formatear las notas DENTRO del ancho útil del compás
-            const startX = stave.getNoteStartX();
-            const usable = (stave.getX() + stave.getWidth()) - startX - RIGHT_PAD;
-            fmt.format([voice], Math.max(40, usable));
+            // 4) Formatear las notas DENTRO del ancho útil del compás (todas las voces juntas:
+            //    lo que suena a la vez queda alineado en vertical)
+            const startX = Math.max(...staves.map(st => st.getNoteStartX()));
+            const usable = (staves[0].getX() + staves[0].getWidth()) - startX - RIGHT_PAD;
+            fmt.format(vfVoces, Math.max(40, usable));
 
             // Barrado según compás: 3/8 en 6/8, 2/8 en 4/4 — plicas arriba
             const groupsBeam = obj.meter.den === 8 ? [new VF.Fraction(3, 8)] : [new VF.Fraction(2, 8)];
-            const beams = VF.Beam.generateBeams(notes, { groups: groupsBeam, stem_direction: VF.Stem.UP });
+            porVoz.forEach((p, vi) => {
+                const beams = VF.Beam.generateBeams(p.notes, { groups: groupsBeam, stem_direction: VF.Stem.UP });
 
-            voice.draw(ctx, stave);
-            beams.forEach(b => b.setContext(ctx).draw());
-            // Tresillo: SIEMPRE se dibuja (reserva su espacio vertical → el toggle no
-            // desplaza la partitura). Si el indicador está OFF, se oculta con
-            // visibility:hidden, que sigue contando en getBBox (misma geometría/escala).
-            if (tuplets.length) {
-                const gTup = ctx.openGroup('ritmo-tuplet-layer');
-                tuplets.forEach(tp => tp.setContext(ctx).draw());
-                ctx.closeGroup();
-                if (!mostrarTresillo && gTup) gTup.style.visibility = 'hidden';
-            }
+                p.voice.draw(ctx, staves[vi]);
+                beams.forEach(b => b.setContext(ctx).draw());
+                // Tresillo: SIEMPRE se dibuja (reserva su espacio vertical → el toggle no
+                // desplaza la partitura). Si el indicador está OFF, se oculta con
+                // visibility:hidden, que sigue contando en getBBox (misma geometría/escala).
+                if (p.tuplets.length) {
+                    const gTup = ctx.openGroup('ritmo-tuplet-layer');
+                    p.tuplets.forEach(tp => tp.setContext(ctx).draw());
+                    ctx.closeGroup();
+                    if (!mostrarTresillo && gTup) gTup.style.visibility = 'hidden';
+                }
 
-            // 5) Anclas tick→X (posición real de cada nota en el layout de VexFlow)
-            const cap = measure.capacityTicks;
-            measure.events.forEach(e => {
-                anclas.push({ t: mi * cap + e.startTick, x: evMap[e.evIdx].getAbsoluteX() });
+                // 5) Anclas tick→X (posición real de cada nota en el layout de VexFlow)
+                const cap = p.measure.capacityTicks;
+                p.measure.events.forEach(e => {
+                    anclas.push({ t: mi * cap + e.startTick, x: evMap[e.evIdx].getAbsoluteX() });
+                });
             });
             x += measureW;
         });
@@ -223,6 +244,9 @@
         const totalW = x + 4;
         renderer.resize(totalW, CANVAS_H);
         const svg = wrap.querySelector('svg');
+        // Ícono de cada voz a la izquierda de su línea (solo con dos voces).
+        if (voces.length > 1) voces.forEach((_, vi) =>
+            svg.appendChild(txt(8 + LBL_W / 2, lineYs[vi], vi === 0 ? '👏' : '🥁', 'ritmo-voz-lbl')));
 
         let bb;
         try { bb = svg.getBBox(); } catch (_) { bb = { x: 0, y: 0, width: totalW, height: CANVAS_H }; }
@@ -231,7 +255,7 @@
         // CURSOR: banda SIMÉTRICA respecto de la línea musical, de tamaño fijo en
         // unidades de viewBox → longitud consistente e independiente de la densidad
         // (negras, corcheas o semicorcheas dan el mismo cursor). Centrado por construcción.
-        const curTop = lineY - CURSOR_HALF, curBot = lineY + CURSOR_HALF;
+        const curTop = lineYs[0] - CURSOR_HALF, curBot = lineYs[lineYs.length - 1] + CURSOR_HALF;
 
         // AUTOFIT: viewBox = caja de la notación ∪ banda del cursor, con recorte para que
         // la partitura crezca, y TOPE DE ESCALA para que no crezca desproporcionadamente.
@@ -277,21 +301,28 @@
     const GAP_MIN = 14;              // separación mínima garantizada entre 👏 (>0)
     const PAD_INF = 24;
 
-    function renderInfantil(obj, contenedor, opts) {
-        const evs = aplanar(obj);
+    const FILA_INF = 90;             // distancia entre las filas de las dos voces (deuda BY)
 
-        // Paso visual por evento: separación ≥ (ancho clap + GAP_MIN), y además
-        // crece con la duración (jerarquía negra/blanca > corchea > semicorchea).
-        // NO altera el modelo: solo posiciona en X. El cursor usará estas anclas.
-        const anclas = [];
+    function renderInfantil(obj, contenedor, opts) {
+        const voces = obj.voces || [{ measures: obj.measures }];
+        const filas = voces.map(vz => aplanar({ measures: vz.measures }));
+
+        // Paso visual por instante de ataque (de cualquier voz): separación ≥ (ancho clap +
+        // GAP_MIN), y además crece con la duración hasta el instante siguiente (jerarquía
+        // negra/blanca > corchea > semicorchea). Con una voz sin silencios equivale a la
+        // duración de cada figura. NO altera el modelo: solo posiciona en X.
+        const ticks = [...new Set(filas.flat().map(e => e.absTick))].sort((a, b) => a - b);
+        const xDe = new Map();
         let x = PAD_INF;
-        evs.forEach((e, i) => {
-            anclas.push({ t: e.absTick, x, evIdx: e.evIdx });
-            // paso = piso anti-solape + componente proporcional a la duración
-            const step = Math.max(CLAP_W + GAP_MIN, CLAP_W + e.durTick * 1.4);
-            x += step;
+        ticks.forEach((t, k) => {
+            xDe.set(t, x);
+            const dur = (k + 1 < ticks.length ? ticks[k + 1] : obj.ticksPorRep) - t;
+            x += Math.max(CLAP_W + GAP_MIN, CLAP_W + dur * 1.4);   // piso anti-solape + duración
         });
+        const anclas = ticks.map(t => ({ t, x: xDe.get(t) }));
         const totalW = x + PAD_INF;
+        const H = H_INF + (filas.length - 1) * FILA_INF;
+        const yFila = vi => H_INF / 2 + vi * FILA_INF;
 
         const wrap = document.createElement('div');
         wrap.className = 'ritmo-wrap';
@@ -300,25 +331,29 @@
         wrap.appendChild(svg);
 
         // Recuadros de tresillo (debajo de los 👏), usando las X ya calculadas
-        const gruposTup = {};
-        evs.forEach((e, i) => { if (e.tuplet) (gruposTup[e.mi + e.tuplet.groupId] ||= []).push(i); });
-        Object.values(gruposTup).forEach(idxs => {
-            const x1 = anclas[idxs[0]].x, x2 = anclas[idxs[idxs.length - 1]].x;
-            svg.appendChild(svgEl('rect', {
-                class: 'ritmo-inf-group', rx: 14,
-                x: x1 - CLAP_W / 2 - 8, y: H_INF / 2 - 34, width: (x2 - x1) + CLAP_W + 16, height: 68,
-            }));
+        filas.forEach((evs, vi) => {
+            const gruposTup = {};
+            evs.forEach(e => { if (e.tuplet) (gruposTup[e.mi + e.tuplet.groupId] ||= []).push(xDe.get(e.absTick)); });
+            Object.values(gruposTup).forEach(xs => {
+                const x1 = xs[0], x2 = xs[xs.length - 1];
+                svg.appendChild(svgEl('rect', {
+                    class: 'ritmo-inf-group', rx: 14,
+                    x: x1 - CLAP_W / 2 - 8, y: yFila(vi) - 34, width: (x2 - x1) + CLAP_W + 16, height: 68,
+                }));
+            });
         });
 
+        // 👏 voz 1 · 🥁 voz 2; un silencio es un punto gris (no suena ni destella).
         const evMap = {};
-        evs.forEach((e, i) => {
+        filas.forEach((evs, vi) => evs.forEach(e => {
             const g = svgEl('g', { class: 'ritmo-ev', 'data-ev-idx': e.evIdx });
-            g.appendChild(txt(anclas[i].x, H_INF / 2, '👏', 'ritmo-clap'));
+            if (e.rest) g.appendChild(svgEl('circle', { class: 'ritmo-inf-sil', cx: xDe.get(e.absTick), cy: yFila(vi), r: 6 }));
+            else g.appendChild(txt(xDe.get(e.absTick), yFila(vi), vi === 0 ? '👏' : '🥁', 'ritmo-clap'));
             svg.appendChild(g);
             evMap[e.evIdx] = g;
-        });
+        }));
 
-        hacerResponsive(svg, totalW, H_INF);
+        hacerResponsive(svg, totalW, H);
 
         // Anclas de borde para el cursor
         const acCursor = anclas.map(a => ({ t: a.t, x: a.x }));
@@ -327,7 +362,7 @@
         acCursor.sort((a, b) => a.t - b.t);
         const tickToX = crearTickToX(acCursor);
 
-        const setCur = montarCursor(svg, 4, H_INF - 4, tickToX(0));
+        const setCur = montarCursor(svg, 4, H - 4, tickToX(0));
         return construirLayout('infantil', svg, tickToX, setCur, evMap, (g) => g);
     }
 
@@ -403,6 +438,28 @@
         return src;
     }
 
+    // ── GOLPE GRAVE (voz 2, deuda BY): tipo tambor/bombo — seno con caída de altura
+    // + un golpecito de ruido filtrado para el ataque. Ignora la duración (percusivo).
+    function programarGrave(c, t, salida) {
+        const o = c.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(150, t);
+        o.frequency.exponentialRampToValueAtTime(55, t + 0.18);
+        const g = c.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(1.0, t + 0.004);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
+        o.connect(g).connect(salida);
+        o.start(t); o.stop(t + 0.42);
+        const src = c.createBufferSource(); src.buffer = bufferRuido(c);
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+        const g2 = c.createGain();
+        g2.gain.setValueAtTime(0.35, t);
+        g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+        src.connect(lp).connect(g2).connect(salida);
+        src.start(t); src.stop(t + 0.08);
+        return [o, src];
+    }
+
     // ── PIANO (patrón): síntesis de una nota tipo piano (C4 = 261.63 Hz).
     // Respeta la DURACIÓN real de la figura (durSec): ataque rápido + decaimiento
     // progresivo que SOSTIENE hasta el final de la figura y luego libera (release).
@@ -453,6 +510,7 @@
     const TIMBRES_PATRON = {
         palmas:  (c, t, out, durSec) => programarGolpe(c, t, out),               // el clap ignora la duración
         pianoC4: (c, t, out, durSec) => programarPiano(c, t, out, 392.00, durSec), // G4 (id conservado por compat)
+        grave:   (c, t, out, durSec) => programarGrave(c, t, out),               // voz 2 (deuda BY)
     };
 
     // Registro del metrónomo según el timbre del patrón (MISMO tick, distinta altura):
@@ -469,10 +527,16 @@
         const tpr = obj.ticksPorRep;
         const totalTicks = tpr * obj.reps;
 
-        // Ataques del patrón dentro de UNA repetición (absTick + evIdx).
-        const ataquesRep = [];
-        obj.measures.forEach((m, mi) => m.events.forEach(e =>
-            ataquesRep.push({ absTick: mi * m.capacityTicks + e.startTick, durTick: e.durTick, evIdx: e.evIdx })));
+        // Ataques del patrón dentro de UNA repetición (absTick + evIdx), por voz. Los
+        // silencios no son ataques: no suenan ni destellan (deuda BY).
+        const ataquesPorVoz = (obj.voces || [{ measures: obj.measures }]).map(vz => {
+            const at = [];
+            vz.measures.forEach((m, mi) => m.events.forEach(e => {
+                if (!e.rest) at.push({ absTick: mi * m.capacityTicks + e.startTick, durTick: e.durTick, evIdx: e.evIdx });
+            }));
+            return at;
+        });
+        const ataquesRep = ataquesPorVoz.flat();
 
         // Lista GLOBAL (todas las reps) para cursor/FX — común a todas las voces.
         const ataquesGlobal = [];
@@ -481,9 +545,10 @@
                 ataquesGlobal.push({ t: (a.absTick + r * tpr) * secPorTick, evIdx: a.evIdx });
         ataquesGlobal.sort((a, b) => a.t - b.t);
 
-        // CANAL PATRÓN — voces. Esta iteración: una sola voz con su propio timbre.
-        // `opts.voces` (futuro) permite N voces; por defecto se arma una desde el patrón.
-        const voces = opts.voces || [{ timbre: opts.timbrePatron || 'palmas', ataques: ataquesRep }];
+        // CANAL PATRÓN — voces, cada una con su timbre: la voz 1 con el del patrón
+        // (palmas/piano), la voz 2 con el golpe grave. `opts.voces` puede reemplazarlas.
+        const voces = opts.voces || ataquesPorVoz.map((at, vi) =>
+            ({ timbre: vi === 0 ? (opts.timbrePatron || 'palmas') : 'grave', ataques: at }));
 
         // PRECUENTA — 4/4: 1 compás · 6/8: 2 compases (respeta meter.beats/beatTicks).
         const precountMeasures = opts.precuenta ? (obj.meter.group === 'compound' ? 2 : 1) : 0;

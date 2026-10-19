@@ -12,8 +12,8 @@
     <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
-    <script src="../ritmo.js"></script>
-    <script src="../ritmo-render.js"></script>
+    <script src="../ritmo.js?v=by1"></script>
+    <script src="../ritmo-render.js?v=by1"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -989,6 +989,8 @@
         .ritmo-ed-line .rl-status.ok  { color: #16a34a; }
         .ritmo-ed-line .rl-status.err { color: #dc2626; }
         .ritmo-ed-line .rl-msg { font-size: 0.72rem; color: #dc2626; min-width: 130px; }
+        .ritmo-ed-line .rl-voz { font-size: 1rem; flex-shrink: 0; }
+        .ritmo-ed-line.dos .rl-msg { min-width: 110px; }
         .ritmo-ed-line .rl-del {
             background: none; border: none; cursor: pointer; color: var(--muted);
             font-size: 1rem; padding: 2px 6px; border-radius: 6px; flex-shrink: 0;
@@ -997,6 +999,7 @@
         .ritmo-ed-help { font-size: 0.72rem; color: var(--muted); line-height: 1.5; }
         .ritmo-ed-preview-wrap { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px; background: #f8fafc; }
         .ritmo-ed-preview { width: 100%; height: 220px; background: #fff; border-radius: 8px; }
+        .ritmo-ed-preview.dos { height: 300px; }
         .ritmo-ed-preview-controls { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
         .ritmo-ed-meta { font-size: 0.8rem; color: var(--muted); }
 
@@ -2781,6 +2784,13 @@
                         <button class="seg-btn" data-val="infantil" onclick="ritmoEdSetModo('infantil')">Infantil</button>
                     </div>
                 </div>
+                <div class="ritmo-ed-field">
+                    <label>Voces</label>
+                    <div class="seg-ctrl" id="ritmo-ed-voces">
+                        <button class="seg-btn activo" data-val="1" onclick="ritmoEdSetVoces(1)" title="Una voz (palmas)">1</button>
+                        <button class="seg-btn" data-val="2" onclick="ritmoEdSetVoces(2)" title="Dos voces: 👏 palmas + 🥁 golpe grave">2</button>
+                    </div>
+                </div>
             </div>
             <div class="ritmo-ed-field">
                 <label>Etiqueta (opcional)</label>
@@ -2791,7 +2801,7 @@
                 <div id="ritmo-ed-lines"></div>
                 <button class="btn-secondary" id="ritmo-ed-add" onclick="ritmoEdAddLine()" style="align-self:flex-start;margin-top:2px">+ Agregar compás</button>
             </div>
-            <div class="ritmo-ed-help">Figuras: <b>r b n c s</b> · puntillo: <b>n.</b> <b>c.</b> · tresillo: <b>(n,nnn)</b> <b>(c,ccc)</b> <b>(n,nccn)</b> · sin espacios entre figuras</div>
+            <div class="ritmo-ed-help">Figuras: <b>r b n c s</b> · silencio = en mayúscula: <b>N</b> <b>C</b> <b>B</b> · puntillo: <b>n.</b> <b>c.</b> · tresillo: <b>(n,nnn)</b> <b>(c,ccc)</b> <b>(n,nccn)</b> <b>(c,cCc)</b> · sin espacios entre figuras · con 2 voces, cada compás tiene su línea 👏 y su línea 🥁</div>
             <div class="ritmo-ed-preview-wrap">
                 <div id="ritmo-ed-preview" class="ritmo-ed-preview"></div>
                 <div class="ritmo-ed-preview-controls">
@@ -4191,7 +4201,7 @@ function setAssetMeta(campo, btn) {
 // EDITOR DE RITMO — crea/edita assets tipo='ritmo'. Reutiliza el núcleo ritmo.js
 // (parse/validarLinea/serialize) y el renderer/player ritmo-render.js. No duplica lógica.
 // ═══════════════════════════════════════════════════════════════════════
-let ritmoEd = null;         // { songId, assetId, ritId, compas, modo, lines[] }
+let ritmoEd = null;         // { songId, assetId, ritId, compas, modo, lines[], lines2[] | null (voz 2, deuda BY) }
 let ritmoEdPlayer = null;   // preview player (ritmo-render.js)
 
 function abrirEditorRitmo(songId, assetId) {
@@ -4199,7 +4209,7 @@ function abrirEditorRitmo(songId, assetId) {
     if (!c) return;
     // Cerrar el modal de +INSERTAR si está abierto (se llega desde su grid de tipos)
     cerrarModalAsset();
-    ritmoEd = { songId, assetId: assetId || null, ritId: null, compas: '4/4', modo: 'partitura', lines: ['nnnn'] };
+    ritmoEd = { songId, assetId: assetId || null, ritId: null, compas: '4/4', modo: 'partitura', lines: ['nnnn'], lines2: null };
     let bpm = 90, reps = 1, etiqueta = '';
 
     if (assetId) {
@@ -4212,17 +4222,20 @@ function abrirEditorRitmo(songId, assetId) {
                 ritmoEd.compas = `${obj.meter.num}/${obj.meter.den}`;
                 ritmoEd.modo = obj.modo;
                 bpm = obj.bpm; reps = obj.reps;
-                // Líneas de compás = definición serializada sin las líneas de cabecera (clave:)
-                ritmoEd.lines = RITMO.serialize(obj).split('\n')
-                    .filter(l => !/^[A-Za-z_]+:/.test(l))
-                    .filter(l => l.trim());
+                // Líneas de compás de cada voz, en su texto canónico
+                ritmoEd.lines = obj.measures.map(RITMO.serializeMeasure);
+                ritmoEd.lines2 = obj.voces[1] ? obj.voces[1].measures.map(RITMO.serializeMeasure) : null;
                 if (!ritmoEd.lines.length) ritmoEd.lines = ['nnnn'];
             } catch (e) {
                 // Definición corrupta: cargar el texto crudo para que el usuario lo corrija
-                ritmoEd.lines = (a.contenido || '').split('\n')
-                    .filter(l => !/^[A-Za-z_]+:/.test(l))
-                    .filter(l => l.trim());
+                const crudo = (a.contenido || '').split(/^\s*voz\s*:\s*2\s*$/m);
+                const compases = t => (t || '').split('\n').filter(l => !/^[A-Za-z_]+:/.test(l)).filter(l => l.trim());
+                ritmoEd.lines = compases(crudo[0]);
                 if (!ritmoEd.lines.length) ritmoEd.lines = [''];
+                if (crudo.length > 1) {
+                    const l2 = compases(crudo[1]);
+                    ritmoEd.lines2 = ritmoEd.lines.map((_, i) => l2[i] || '');
+                }
             }
         }
     }
@@ -4234,6 +4247,7 @@ function abrirEditorRitmo(songId, assetId) {
     document.getElementById('ritmo-ed-etiqueta').value = etiqueta;
     ritmoEdSyncSeg('ritmo-ed-compas', ritmoEd.compas);
     ritmoEdSyncSeg('ritmo-ed-modo', ritmoEd.modo);
+    ritmoEdSyncSeg('ritmo-ed-voces', ritmoEd.lines2 ? '2' : '1');
     ritmoEdResetPreview();
     ritmoEdRenderLines();
     document.getElementById('modal-ritmo-overlay').classList.add('visible');
@@ -4264,34 +4278,53 @@ function ritmoEdSetModo(m) {
     ritmoEdSyncSeg('ritmo-ed-modo', m);
 }
 
+// Una o dos voces (deuda BY): con dos, cada compás tiene su línea 👏 (voz 1) y su línea 🥁 (voz 2).
+function ritmoEdSetVoces(n) {
+    if (!ritmoEd) return;
+    if (n === 2 && !ritmoEd.lines2) ritmoEd.lines2 = ritmoEd.lines.map(() => '');
+    if (n === 1 && ritmoEd.lines2) {
+        if (ritmoEd.lines2.some(l => l.trim()) && !confirm('¿Quitar la voz 2? Se borran sus compases.')) return;
+        ritmoEd.lines2 = null;
+    }
+    ritmoEdSyncSeg('ritmo-ed-voces', String(n));
+    ritmoEdResetPreview();
+    ritmoEdRenderLines();
+}
+
 function ritmoEdRenderLines() {
     const wrap = document.getElementById('ritmo-ed-lines');
-    wrap.innerHTML = ritmoEd.lines.map((l, i) => `
-        <div class="ritmo-ed-line">
+    const dos = !!ritmoEd.lines2;
+    const campo = (l, i, k) => `${dos ? `<span class="rl-voz">${k === 2 ? '🥁' : '👏'}</span>` : ''}
             <input type="text" value="${(l || '').replace(/"/g, '&quot;')}"
-                   oninput="ritmoEdSetLine(${i}, this.value)" placeholder="ej: nnnn" autocomplete="off" spellcheck="false">
-            <span class="rl-status" id="rl-status-${i}"></span>
+                   oninput="ritmoEdSetLine(${i}, this.value, ${k})" placeholder="${k === 2 ? 'voz 2' : 'ej: nnnn'}" autocomplete="off" spellcheck="false">
+            <span class="rl-status" id="rl-status${k === 2 ? '2' : ''}-${i}"></span>`;
+    wrap.innerHTML = ritmoEd.lines.map((l, i) => `
+        <div class="ritmo-ed-line${dos ? ' dos' : ''}">
+            ${campo(l, i, 1)}${dos ? campo(ritmoEd.lines2[i], i, 2) : ''}
             <span class="rl-msg" id="rl-msg-${i}"></span>
             <button class="rl-del" onclick="ritmoEdDelLine(${i})" title="Eliminar compás" ${ritmoEd.lines.length <= 1 ? 'style="visibility:hidden"' : ''}>✕</button>
         </div>`).join('');
     ritmoEdValidarTodo();
 }
 
-function ritmoEdSetLine(i, val) {
+function ritmoEdSetLine(i, val, voz) {
     if (!ritmoEd) return;
-    ritmoEd.lines[i] = val;
+    if (voz === 2 && ritmoEd.lines2) ritmoEd.lines2[i] = val;
+    else ritmoEd.lines[i] = val;
     ritmoEdValidarTodo();
 }
 
 function ritmoEdAddLine() {
     if (!ritmoEd) return;
     ritmoEd.lines.push('');
+    if (ritmoEd.lines2) ritmoEd.lines2.push('');
     ritmoEdRenderLines();
 }
 
 function ritmoEdDelLine(i) {
     if (!ritmoEd || ritmoEd.lines.length <= 1) return;
     ritmoEd.lines.splice(i, 1);
+    if (ritmoEd.lines2) ritmoEd.lines2.splice(i, 1);
     ritmoEdRenderLines();
 }
 
@@ -4304,18 +4337,20 @@ function ritmoEdValidarTodo() {
     let todoOk = ritmoEd.lines.length > 0;
 
     ritmoEd.lines.forEach((l, i) => {
-        const st = document.getElementById(`rl-status-${i}`);
         const msg = document.getElementById(`rl-msg-${i}`);
-        if (!st) return;
-        const v = RITMO.validarLinea(l, meter);
-        if (v.valida) {
-            st.textContent = '✓'; st.className = 'rl-status ok';
-            if (msg) msg.textContent = '';
-        } else {
-            st.textContent = '✕'; st.className = 'rl-status err';
-            todoOk = false;
-            if (msg) msg.textContent = ritmoEdMsgError(v);
-        }
+        const errores = [];
+        [[l, `rl-status-${i}`, ''], ...(ritmoEd.lines2 ? [[ritmoEd.lines2[i], `rl-status2-${i}`, '🥁 ']] : [])].forEach(([txt, id, pre]) => {
+            const st = document.getElementById(id);
+            if (!st) return;
+            const v = RITMO.validarLinea(txt, meter);
+            if (v.valida) { st.textContent = '✓'; st.className = 'rl-status ok'; }
+            else {
+                st.textContent = '✕'; st.className = 'rl-status err';
+                todoOk = false;
+                errores.push(pre + ritmoEdMsgError(v));
+            }
+        });
+        if (msg) msg.textContent = errores.join(' · ');
     });
 
     const bpm = Number(document.getElementById('ritmo-ed-bpm').value);
@@ -4347,6 +4382,10 @@ function ritmoEdBuildDef() {
     L.push('rep: ' + reps);
     L.push('modo: ' + ritmoEd.modo);
     ritmoEd.lines.forEach(l => { if (l.trim()) L.push(l.trim()); });
+    if (ritmoEd.lines2) {   // segunda voz (deuda BY)
+        L.push('voz: 2');
+        ritmoEd.lines2.forEach(l => { if (l.trim()) L.push(l.trim()); });
+    }
     return L.join('\n');
 }
 
@@ -4371,11 +4410,13 @@ function ritmoEdProbar() {
     let obj;
     try { obj = RITMO.parse(ritmoEdBuildDef()); }
     catch (e) { meta.textContent = (e.code ? e.code + ': ' : '') + (e.message || 'Definición inválida'); return; }
-    const layout = RITMO_UI.render(obj, document.getElementById('ritmo-ed-preview'), obj.modo);
+    const prevEl = document.getElementById('ritmo-ed-preview');
+    prevEl.classList.toggle('dos', obj.voces.length > 1);
+    const layout = RITMO_UI.render(obj, prevEl, obj.modo);
     ritmoEdPlayer = RITMO_UI.crearPlayer(obj, layout, {});
     document.getElementById('ritmo-ed-play').disabled = false;
     document.getElementById('ritmo-ed-stop').disabled = false;
-    meta.textContent = `${obj.meter.num}/${obj.meter.den} · ${obj.bpm} BPM · ×${obj.reps} · ${obj.modo}`;
+    meta.textContent = `${obj.meter.num}/${obj.meter.den} · ${obj.bpm} BPM · ×${obj.reps} · ${obj.modo}${obj.voces.length > 1 ? ' · 2 voces' : ''}`;
 }
 
 function ritmoEdPlay() { if (ritmoEdPlayer) ritmoEdPlayer.play(); }
@@ -8586,7 +8627,9 @@ function espejoRitmo(m) {
         const spt = 60 / (m.bpm * o.meter.beatTicks), tpr = o.ticksPorRep;
         // Golpes de todas las repeticiones (misma cuenta que el reproductor).
         const rep = [];
-        o.measures.forEach((me, mi) => me.events.forEach(e => rep.push({ abs: mi * me.capacityTicks + e.startTick, ev: e.evIdx })));
+        (o.voces || [{ measures: o.measures }]).forEach(vz => vz.measures.forEach((me, mi) => me.events.forEach(e => {
+            if (!e.rest) rep.push({ abs: mi * me.capacityTicks + e.startTick, ev: e.evIdx });   // los silencios no destellan (BY)
+        })));
         const golpes = [];
         for (let r = 0; r < m.reps; r++) for (const a of rep) golpes.push({ t: (a.abs + r * tpr) * spt, ev: a.ev });
         golpes.sort((a, b) => a.t - b.t);

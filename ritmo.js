@@ -73,13 +73,20 @@
 
     // ── LECTOR DE FIGURA ──────────────────────────────────────────────────────
     // Lee una figura (letra + puntillo opcional) desde s[i]. Devuelve null si no hay.
+    // Letra en MAYÚSCULA = silencio de esa figura (N = silencio de negra; deuda BY).
     function leerFigura(s, i) {
         const ch = s[i];
-        if (FIGURAS.indexOf(ch) === -1) return null;
+        if (!ch) return null;
+        const fig = ch.toLowerCase();
+        if (FIGURAS.indexOf(fig) === -1) return null;
         let j = i + 1, dotted = false;
         if (s[j] === '.') { dotted = true; j++; }
-        return { fig: ch, dotted, next: j, ticks: figTicks(ch, dotted) };
+        const f = { fig, dotted, next: j, ticks: figTicks(fig, dotted) };
+        if (ch !== fig) f.rest = true;
+        return f;
     }
+    // Un evento lleva `rest: true` solo si es silencio (los ritmos sin silencios no cambian).
+    function conSilencio(ev, f) { if (f.rest) ev.rest = true; return ev; }
 
     // ── ANALIZADOR DE UNA LÍNEA (independiente del compás) ────────────────────
     // Devuelve { events, durTick, error }. `error` es null o { code, msg, pos }.
@@ -101,7 +108,7 @@
             // ── Figura simple ──
             const f = leerFigura(s, i);
             if (f) {
-                events.push({ startTick: cursor, durTick: f.ticks, fig: f.fig, dotted: f.dotted, tuplet: null });
+                events.push(conSilencio({ startTick: cursor, durTick: f.ticks, fig: f.fig, dotted: f.dotted, tuplet: null }, f));
                 cursor += f.ticks;
                 i = f.next;
                 continue;
@@ -113,7 +120,7 @@
 
                 // base
                 const base = leerFigura(s, j);
-                if (!base) return err('TRESILLO_BASE_INVALIDA', `Base de tresillo inválida en posición ${j}`, j);
+                if (!base || base.rest) return err('TRESILLO_BASE_INVALIDA', `Base de tresillo inválida en posición ${j}`, j);
                 j = base.next;
 
                 // coma
@@ -150,13 +157,13 @@
                 const baseStr = base.fig + (base.dotted ? '.' : '');
                 for (const cf of contenido) {
                     const effDur = cf.ticks * 2 / 3;
-                    events.push({
+                    events.push(conSilencio({
                         startTick: cursor,
                         durTick: effDur,
                         fig: cf.fig,
                         dotted: cf.dotted,
                         tuplet: { ratio: '3:2', groupId, base: baseStr },
-                    });
+                    }, cf));
                     cursor += effDur;
                 }
                 // El grupo ocupa exactamente 2×base ticks.
@@ -201,7 +208,7 @@
     }
 
     // ── CABECERA ──────────────────────────────────────────────────────────────
-    const CLAVES_HEADER = new Set(['id', 'compas', 'bpm', 'rep', 'reps', 'modo']);
+    const CLAVES_HEADER = new Set(['id', 'compas', 'bpm', 'rep', 'reps', 'modo', 'voz']);
 
     function parseHeaderValor(header, key, val) {
         switch (key) {
@@ -236,6 +243,8 @@
         const rawLines = defString.split(/\r?\n/);
         const header = {};              // valores crudos de cabecera
         const lineasCompas = [];        // { texto, nLinea } (1-based, del archivo)
+        const lineasVoz2 = [];          // compases tras "voz: 2" (segunda voz; deuda BY)
+        let destino = lineasCompas;
 
         rawLines.forEach((raw, idx) => {
             const t = raw.trim();
@@ -246,9 +255,15 @@
                 if (!CLAVES_HEADER.has(key)) {
                     throw new RitmoError('CABECERA_DESCONOCIDA', `Clave de cabecera desconocida: "${m[1]}"`, { linea: idx + 1 });
                 }
+                if (key === 'voz') {
+                    // "voz: 2" separa la segunda voz: los compases que siguen son suyos.
+                    if (m[2].trim() !== '2' || destino === lineasVoz2) throw new RitmoError('VOZ_INVALIDA', `Voz inválida: "${m[2].trim()}" (solo "voz: 2", una vez)`, { linea: idx + 1 });
+                    destino = lineasVoz2;
+                    return;
+                }
                 parseHeaderValor(header, key, m[2]);
             } else {
-                lineasCompas.push({ texto: t, nLinea: idx + 1 });
+                destino.push({ texto: t, nLinea: idx + 1 });
             }
         });
 
@@ -264,10 +279,10 @@
         const modo = header.modo !== undefined ? header.modo : 'partitura';
         const id   = header.id   && header.id.length ? header.id : genId();
 
-        // Construcción de compases con validación e índice global de eventos.
-        const measures = [];
+        // Construcción de compases con validación e índice global de eventos (único entre
+        // las dos voces: la voz 2 sigue numerando después de la voz 1).
         let evIdx = 0;
-        for (const { texto, nLinea } of lineasCompas) {
+        const construir = lineas => lineas.map(({ texto, nLinea }) => {
             const v = validarLinea(texto, meter);
             if (!v.valida) {
                 throw new RitmoError(v.error.code,
@@ -275,16 +290,27 @@
                     { linea: nLinea, texto, durTick: v.durTick, esperado: v.esperado });
             }
             const events = v.events.map(e => ({ ...e, evIdx: evIdx++ }));
-            measures.push({ capacityTicks: meter.capacityTicks, events });
+            return { capacityTicks: meter.capacityTicks, events };
+        });
+        const measures = construir(lineasCompas);
+        // voces: [voz 1] o [voz 1, voz 2]. `measures` sigue siendo la voz 1 (compatibilidad).
+        const voces = [{ measures }];
+        if (lineasVoz2.length) {
+            if (lineasVoz2.length !== lineasCompas.length) {
+                throw new RitmoError('VOZ2_COMPASES',
+                    `La voz 2 tiene ${lineasVoz2.length} compases y la voz 1 tiene ${lineasCompas.length}: deben ser iguales`);
+            }
+            voces.push({ measures: construir(lineasVoz2) });
         }
 
         return {
-            id, bpm, reps, modo, meter, measures,
+            id, bpm, reps, modo, meter, measures, voces,
             ticksPorRep: meter.capacityTicks * measures.length,
         };
     }
 
     // ── SERIALIZACIÓN ─────────────────────────────────────────────────────────
+    const figTexto = e => (e.rest ? e.fig.toUpperCase() : e.fig) + (e.dotted ? '.' : '');
     // Reconstruye un compás a texto canónico a partir de sus eventos.
     function serializeMeasure(measure) {
         const ev = measure.events;
@@ -297,12 +323,12 @@
                 const base = e.tuplet.base;
                 let contenido = '';
                 while (i < ev.length && ev[i].tuplet && ev[i].tuplet.groupId === gid) {
-                    contenido += ev[i].fig + (ev[i].dotted ? '.' : '');
+                    contenido += figTexto(ev[i]);
                     i++;
                 }
                 out += '(' + base + ',' + contenido + ')';
             } else {
-                out += e.fig + (e.dotted ? '.' : '');
+                out += figTexto(e);
                 i++;
             }
         }
@@ -319,6 +345,8 @@
         lines.push('rep: ' + obj.reps);
         lines.push('modo: ' + obj.modo);
         for (const m of obj.measures) lines.push(serializeMeasure(m));
+        const v2 = obj.voces && obj.voces[1];
+        if (v2) { lines.push('voz: 2'); for (const m of v2.measures) lines.push(serializeMeasure(m)); }
         return lines.join('\n');
     }
 
@@ -329,7 +357,7 @@
         // fábricas / utilidades
         genId, crearMeter, figTicks,
         // núcleo
-        parse, serialize,
+        parse, serialize, serializeMeasure,
         parseLinea, validarLinea,
         // error
         RitmoError,
@@ -503,6 +531,28 @@
         // Serialización canónica esperada de un tresillo
         const so = parse('id: rit_x\ncompas: 4/4\nbpm: 90\nrep: 1\nmodo: partitura\n(n,nccn)nn');
         ok(serialize(so).endsWith('(n,nccn)nn'), 'serialize reconstruye "(n,nccn)nn"');
+
+        // ── Silencios y segunda voz (deuda BY) ──
+        log('· Silencios y voz 2');
+        const sil = parse('compas: 4/4\nnNcCn');
+        eq(sil.measures[0].events.length, 5, 'nNcCn = 5 eventos');
+        ok(sil.measures[0].events[1].rest === true && !('rest' in sil.measures[0].events[0]), 'N es silencio; n no lleva rest');
+        eq(sil.measures[0].events[2].durTick + sil.measures[0].events[3].durTick, 48, 'cC suman una negra');
+        lanza(() => parse('compas: 4/4\nNNN'), 'COMPAS_INCOMPLETO', 'silencios cuentan en la duración');
+        const tsil = parse('compas: 4/4\n(c,cCc)nnn');
+        ok(tsil.measures[0].events[1].rest === true, 'silencio dentro de tresillo');
+        ok(serialize(tsil).endsWith('(c,cCc)nnn'), 'serialize conserva el silencio del tresillo');
+        lanza(() => parse('compas: 4/4\n(N,nnn)nn'), 'TRESILLO_BASE_INVALIDA', 'la base del tresillo no puede ser silencio');
+        const dos = parse('compas: 4/4\nnnnn\ncccccccc\nvoz: 2\nbb\nN.cb');
+        eq(dos.voces.length, 2, 'dos voces');
+        ok(dos.measures === dos.voces[0].measures, 'measures = voz 1');
+        eq(dos.ticksPorRep, 384, 'ticksPorRep según la voz 1');
+        eq(dos.voces[1].measures[0].events[0].evIdx, 12, 'la voz 2 sigue numerando los eventos');
+        ok(serialize(dos).endsWith('cccccccc\nvoz: 2\nbb\nN.cb'), 'serialize escribe la voz 2');
+        eq(serialize(parse(serialize(dos))), serialize(dos), 'round-trip con dos voces');
+        eq(parse('compas: 4/4\nnnnn').voces.length, 1, 'una voz por defecto');
+        lanza(() => parse('compas: 4/4\nnnnn\nvoz: 2\nbb\nbb'), 'VOZ2_COMPASES', 'voz 2 con otra cantidad de compases');
+        lanza(() => parse('compas: 4/4\nnnnn\nvoz: 3\nbb'), 'VOZ_INVALIDA', 'solo voz 2');
 
         // ── Resumen ──
         log(`\n═══ Resultado: ${pass} OK, ${fail} FALLAS ═══\n`);
