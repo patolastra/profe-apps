@@ -4650,4 +4650,4 @@ de metalófono y ritmos.*
   se quita al proyectar; vencimiento natural (1,5 s) → Silencio. Sin la columna `minutos` avisa "¿Falta correr
   supabase/plan_cards_minutos.sql?" y el Tiempo libre igual funciona con los minutos confirmados. Datos borrados.
   Nota: si la Pizarra se abre recién, la vista de clase sigue a su diapositiva (comportamiento de BW).
-- **Commit:** `da80e76` (subido). Falta: el PO corre `supabase/plan_cards_minutos.sql`; prueba en clase real.
+- **Commit:** `da80e76` (subido). El PO corrió `supabase/plan_cards_minutos.sql` (2026-10-19; verificado: los minutos se guardan y se leen). Falta: prueba en clase real.
