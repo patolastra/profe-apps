@@ -4681,3 +4681,4 @@ de metalófono y ritmos.*
 - **Prueba (local, sin guardar):** diapositiva de prueba con título, línea `1L` larga, párrafo largo, 3 numerados y
   una viñeta. Vista previa: la línea `1L` en una línea a 19 px mientras el párrafo queda a 22 px (dos líneas); lista
   1-2-3 y la viñeta aparte. Pizarra (1280×720): igual, la línea `1L` en una sola línea y más chica que el resto.
+- **Commit:** `b391460` (subido). Falta: uso en clase.
