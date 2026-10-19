@@ -4633,7 +4633,7 @@ de metalófono y ritmos.*
   imágenes; más adelante el PO agregará imágenes por edad). Al llegar a cero, sin sonido, pasa a 🤫 **Silencio y
   atención**, que **se quita sola cuando el profe proyecta** otra diapositiva o canción (también con su botón o Esc).
 - **PROPUESTA (Claude, por defecto):** se reconoce el título sin importar mayúsculas ni tildes; conserva su texto
-  (notas) y puede tener diapositivas como cualquier actividad; 10 minutos si no se anotan; mientras corre, "+1 min"
+  (notas) y puede tener diapositivas como cualquier actividad; 10 minutos si no se anotan (el PO lo cambió a 5, ver ajuste); mientras corre, "+1 min"
   y "Terminar" (pasa a Silencio y atención); no cuenta como tiempo perdido (ese sigue siendo manual).
 - **Supabase:** columna `plan_cards.minutos` (`supabase/plan_cards_minutos.sql`, la corre el PO).
 - **Implementación (2026-10-19):** `comun/recurrentes.js`: recurrente `libre` (fuera del menú 🔔, sin imagen) con
@@ -4651,3 +4651,16 @@ de metalófono y ritmos.*
   supabase/plan_cards_minutos.sql?" y el Tiempo libre igual funciona con los minutos confirmados. Datos borrados.
   Nota: si la Pizarra se abre recién, la vista de clase sigue a su diapositiva (comportamiento de BW).
 - **Commit:** `da80e76` (subido). El PO corrió `supabase/plan_cards_minutos.sql` (2026-10-19; verificado: los minutos se guardan y se leen). Falta: prueba en clase real.
+- **Ajustes del PO (2026-10-19):** (1) la actividad Tiempo libre **no muestra cuadro de texto** por defecto; ⋯ →
+  "✏️ Agregar texto" lo muestra (si ya tiene texto, se ve siempre); (2) en la columna Presentación su título se ve
+  **activo** y muestra los minutos ("⏱ 5 min"); (3) **5 minutos** por defecto; (4) la **Vista previa** muestra una
+  diapositiva "TIEMPO LIBRE 5:00" en el lugar de la actividad (solo para el profe: no cuenta ni va como diapositiva a
+  la Pizarra); (5) en clase, el panel de la actividad muestra esa diapositiva con el mensaje para el profe
+  **"Recuerda hacer el trabajo ejecutivo: firmar libro, llenar leccionario…"** (tocarla pide confirmar los minutos);
+  (6) en la Pizarra, letrero y reloj más grandes (letrero 11 % del ancho, reloj 36 %: el reloj siempre manda).
+  `PORTAL/index.html` (`libreSinTexto`, `previewLibres`, `libreDiapoHTML`, `LIBRE_NOTA`) y `comun/recurrentes.js`.
+- **Prueba (local, Quinto 27/10):** "Canto" + "Tiempo libre": card sin cuadro de texto con "⏱ 5 min"; Presentación con
+  "⏱ 5 min" y título activo; Vista previa con su diapositiva bajo el rótulo "Tiempo libre"; ⋯ muestra "✏️ Agregar
+  texto" y lo abre; cambiar a 10 → Presentación "⏱ 10 min", Vista previa "10:00", guardado ✓. Clase simulada: panel
+  con la diapositiva y el mensaje; tocarla → "¿Cuántos minutos?"; Comenzar → Pizarra con letrero y reloj grandes;
+  "10:01" mide 732 px en un bloque de 818 px (cabe). Datos borrados.

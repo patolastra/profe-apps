@@ -642,6 +642,16 @@
         .cl-libre button:hover { filter: brightness(0.96); }
         .cl-libre-reloj { font-size: 3rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; min-width: 4.2ch; }
         .cl-libre-nota { font-size: 0.9rem; font-weight: 600; color: #475569; margin-top: 6px; }
+        .psec.libre .psec-n { color: #0f766e; font-weight: 800; }
+        /* Diapositiva del Tiempo libre en la Vista previa y en la vista de clase (solo en la pantalla del profe) */
+        .libre-prev { aspect-ratio: 16/9; border-radius: 8px; background: #fff; border: 2px solid #5eead4; color: #000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2%; cursor: pointer;
+            container-type: inline-size; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center; padding: 3%; }
+        .libre-prev:hover { border-color: #0d9488; }
+        .libre-prev .lp-tit { font-size: 8cqw; font-weight: 800; letter-spacing: .04em; line-height: 1; }
+        .libre-prev .lp-reloj { font-size: 24cqw; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+        .libre-prev .lp-nota { font-size: 3.6cqw; font-weight: 700; color: #b45309; line-height: 1.25; max-width: 92%; }
+        .cl-grid .libre-prev .lp-nota { font-size: 5.4cqw; }
         .cl-det-barra .cl-volver { padding: 2px 0; }
         .cl-det-txt .eb-lectura .eb-marca { width: 30px; }
         .cl-bit-btn { flex-shrink: 0; border: 1px solid var(--border); background: #fff; border-radius: 8px; width: 42px; height: 38px; font-size: 1.25rem; cursor: pointer; }
@@ -2374,9 +2384,12 @@ function pintarSecciones() {
         const vacio = !!c.id && !c.texto && !box.classList.contains('abierto');
         box.classList.toggle('vacio', vacio);
         // Con canciones vinculadas, el título se ve activo aunque aún no tenga diapositivas (sigue sin cuadro de texto).
-        box.classList.toggle('con-canc', vacio && !!(c.card && cancionesDe(c.card).length));
+        const libre = !!(c.card && esLibre(c.card));
+        box.classList.toggle('libre', libre);
+        box.classList.toggle('con-canc', vacio && (libre || !!(c.card && cancionesDe(c.card).length)));
         box.querySelector('.psec-hdr').title = vacio ? 'Agregar diapositivas a esta actividad' : 'Ir a sus diapositivas';
-        box.querySelector('.psec-n').textContent = vacio ? '＋ Diapositivas' : n ? n + (n === 1 ? ' diapo.' : ' diapos.') : '';
+        box.querySelector('.psec-n').textContent = libre ? '⏱ ' + minutosLibre(c.card) + ' min' + (n ? ' · ' + n + (n === 1 ? ' diapo.' : ' diapos.') : '')
+            : vacio ? '＋ Diapositivas' : n ? n + (n === 1 ? ' diapo.' : ' diapos.') : '';
         // Canciones de la actividad (BU): un botón por canción → su letra en la Vista previa (y en la Pizarra en clase).
         const cs = c.card ? cancionesDe(c.card) : [];
         const clave = cs.map(vincClave).join(',') + (cs.length && !bibCanciones ? '…' : '');
@@ -3914,9 +3927,10 @@ function actualizarPreview() {
         charPos += part.length + (i < rawParts.length - 1 ? SEP.length : 0);
     });
 
+    previewLibres(body);
     pintarSecciones();
     if (claseAqui()) pintarClase();   // vista de clase al día (deuda BW)
-    if (!slides.length) {
+    if (!slides.length && !body.querySelector('.libre-prev')) {
         body.innerHTML = '<div class="vacio" style="padding:12px">Sin contenido.</div>';
         return;
     }
@@ -3924,6 +3938,36 @@ function actualizarPreview() {
         document.querySelectorAll('#prev-body .slide-prev').forEach(autoFitSlide);
     });
     marcarEnPizarra();
+}
+
+// Tiempo libre (BZ): una diapositiva para el profe (no cuenta ni va a la Pizarra como diapositiva) en el lugar
+// de su actividad: tras su rótulo si tiene diapositivas, si no con un rótulo propio antes de la actividad siguiente.
+function previewLibres(body) {
+    if (!sesionActual || planSid !== sesionActual.id) return;
+    planCards.forEach((c, k) => {
+        if (!esLibre(c)) return;
+        const tile = document.createElement('div');
+        tile.className = 'libre-prev';
+        tile.dataset.libre = c.id;
+        tile.title = 'Tiempo libre: en clase se comienza desde la actividad';
+        tile.innerHTML = libreDiapoHTML(c, false);
+        const propio = body.querySelector(`.prev-act[data-act-rot="${c.id}"]`);
+        if (propio) { propio.after(tile); return; }
+        const rot = document.createElement('div');
+        rot.className = 'prev-act';
+        rot.dataset.raw = ''; rot.dataset.actRot = c.id;
+        rot.textContent = (c.titulo || '').trim() || 'Tiempo libre';
+        rot.addEventListener('click', () => irActividad(c.id));
+        let antes = null;
+        for (const d of planCards.slice(k + 1)) { antes = body.querySelector(`.prev-act[data-act-rot="${d.id}"]`); if (antes) break; }
+        if (!body.querySelector('.prev-act') && body.firstChild) {   // sin rótulos aún: las del comienzo son "Inicio"
+            const ini = document.createElement('div');
+            ini.className = 'prev-act'; ini.dataset.raw = ''; ini.dataset.actRot = ''; ini.textContent = 'Inicio';
+            body.prepend(ini);
+        }
+        if (antes) { antes.before(rot); rot.after(tile); }
+        else { body.append(rot, tile); }
+    });
 }
 
 function buildSlideEl(raw, idx) {
@@ -4482,12 +4526,21 @@ async function cargarPlanCards() {
 // en clase, su detalle tiene "Comenzar": se confirman o cambian los minutos y la Pizarra muestra la cuenta
 // regresiva (recurrente 'libre' de comun/recurrentes.js); al terminar pasa sola a 🤫 Silencio y atención.
 const esLibre = c => (c?.titulo || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'tiempo libre';
-const minutosLibre = c => (Number.isInteger(c?.minutos) && c.minutos > 0) ? c.minutos : 10;
+const minutosLibre = c => (Number.isInteger(c?.minutos) && c.minutos > 0) ? c.minutos : 5;
+const LIBRE_NOTA = 'Recuerda hacer el trabajo ejecutivo: firmar libro, llenar leccionario…';
+// Diapositiva del Tiempo libre (solo para el profe: Vista previa y vista de clase). La Pizarra muestra la suya.
+function libreDiapoHTML(c, conNota) {
+    return `<div class="lp-tit">TIEMPO LIBRE</div><div class="lp-reloj">${minutosLibre(c)}:00</div>`
+        + (conNota ? `<div class="lp-nota">${LIBRE_NOTA}</div>` : '');
+}
+// El texto de una actividad Tiempo libre no se muestra hasta pedirlo (⋯ → Agregar texto) o si ya tiene.
+const libreSinTexto = c => esLibre(c) && !(c.contenido || '').trim() && !(c.ed && c.ed.texto().trim()) && !c.verTexto;
 async function guardarMinutos(c, v) {
     const n = Math.round(Number(v));
     if (!Number.isFinite(n) || n < 1) return;
     const ahora = new Date().toISOString();
     c.minutos = n; c.ultEnvio = ahora; c.updated_at = ahora;
+    presTitulos();
     const { error } = await sb.from('plan_cards').update({ minutos: n, updated_at: ahora }).eq('id', c.id);
     if (error) planEstado('No se pudo guardar la duración. ¿Falta correr supabase/plan_cards_minutos.sql?', true);
     else planEstado('Guardado ✓');
@@ -4568,13 +4621,16 @@ function pintarPlan() {
         const tit = el.querySelector('.pcard-tit');
         tit.value = c.titulo || '';
         const filaLibre = el.querySelector('.pcard-libre'), inMin = el.querySelector('.pcard-min');
-        const verLibre = () => { filaLibre.hidden = !esLibre(c); inMin.value = minutosLibre(c); };
+        const verLibre = () => {
+            filaLibre.hidden = !esLibre(c); inMin.value = minutosLibre(c);
+            el.querySelector('.pcard-ed').hidden = libreSinTexto(c);
+        };
         verLibre();
         inMin.addEventListener('change', () => guardarMinutos(c, inMin.value));
         tit.addEventListener('input', () => { c.titulo = tit.value; planCambio(c); presTitulos(); verLibre(); });
         el.querySelector('.pcard-ir').addEventListener('click', e => { e.stopPropagation(); irActividad(c.id); });
         pintarCancionesCard(c, el);
-        tit.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); c.ed.enfocar('inicio'); } });
+        tit.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (!libreSinTexto(c)) c.ed.enfocar('inicio'); } });
         el.querySelector('.pcard-menu').addEventListener('click', e => { e.stopPropagation(); menuPlanCard(c, e.currentTarget); });
         c.ed = EditorBloques.crear(el.querySelector('.pcard-ed'), {
             texto: c.contenido || '', actualizado: c.updated_at,
@@ -4582,13 +4638,17 @@ function pintarPlan() {
             objetivo: true,
             alCambiar: () => planCambio(c),
         });
+        verLibre();   // ya con su editor
     });
     presTitulos();       // un cuadro de diapositivas por actividad y rótulos de la vista previa al día (BS)
     marcarEnPizarra();
     pintarClase();
 }
 // Títulos de las actividades al día en los cuadros y rótulos de la vista previa (BS).
+let libreClave = '';   // actividades Tiempo libre y sus minutos que ya están en la Vista previa (BZ)
 function presTitulos() {
+    const k = planCards.filter(esLibre).map(c => c.id + ':' + minutosLibre(c)).join(',');
+    if (k !== libreClave) { libreClave = k; actualizarPreview(); }
     pintarSecciones();
     document.querySelectorAll('#prev-body .prev-act').forEach(r => {
         const card = planCards.find(c => c.id === r.dataset.actRot);
@@ -4696,7 +4756,7 @@ function menuPlanCard(c, boton) {
     const i = planCards.indexOf(c);
     const pop = document.createElement('div');
     pop.className = 'pcard-pop';
-    pop.innerHTML = `<button data-a="cancion">🎵 Vincular canción, metalófono o ritmo</button>
+    pop.innerHTML = `${libreSinTexto(c) ? '<button data-a="texto">✏️ Agregar texto</button>' : ''}<button data-a="cancion">🎵 Vincular canción, metalófono o ritmo</button>
         ${i > 0 ? '<button data-a="subir">↑ Subir</button>' : ''}
         ${i < planCards.length - 1 ? '<button data-a="bajar">↓ Bajar</button>' : ''}
         <button data-a="borrar" class="peligro">🗑 Eliminar actividad</button>`;
@@ -4708,6 +4768,13 @@ function menuPlanCard(c, boton) {
         const a = e.target.closest('button')?.dataset.a; if (!a) return;
         pop.remove();
         if (a === 'cancion') { elegirCancion(c, boton); return; }
+        if (a === 'texto') {   // Tiempo libre: muestra su cuadro de texto (BZ)
+            c.verTexto = true;
+            const ed = document.querySelector(`#plan-cards .pcard[data-id="${c.id}"] .pcard-ed`);
+            if (ed) ed.hidden = false;
+            c.ed?.enfocar('inicio');
+            return;
+        }
         if (a === 'borrar') {
             const nd = presNDiapos(presModelo.find(x => x.id === c.id)?.texto || '');
             if (!confirm(`¿Eliminar la actividad "${c.titulo || 'sin título'}"${nd ? ` y sus ${nd === 1 ? 'diapositiva' : nd + ' diapositivas'}` : ''}?`)) return;
@@ -5057,7 +5124,8 @@ function claseMeta(it) {
     const n = document.querySelectorAll(`#prev-body .slide-prev[data-act="${it.id}"]`).length;
     const k = { cancion: 0, metalofono: 0, ritmo: 0 };
     (it.card ? cancionesDe(it.card) : []).forEach(x => k[!x.asset_id ? 'cancion' : bibRecursos?.get(x.asset_id)?.tipo === 'ritmo' ? 'ritmo' : 'metalofono']++);
-    return [n ? n + (n === 1 ? ' diapositiva' : ' diapositivas') : '',
+    return [it.card && esLibre(it.card) ? '⏱ ' + minutosLibre(it.card) + ' minutos' : '',
+        n ? n + (n === 1 ? ' diapositiva' : ' diapositivas') : '',
         ...Object.entries(k).map(([t, m]) => m ? m + ' ' + (m === 1 ? VINC_TIPO[t].uno : VINC_TIPO[t].varios) : '')].filter(Boolean).join(' · ');
 }
 
@@ -5121,7 +5189,8 @@ function pintarClaseDer() {
             <span class="cl-canc-nom">${esc(v.nom)}</span>${v.sub ? `<span class="cl-canc-art">${esc(v.sub)}</span>` : ''}</button>`; }).join('');
     panel.innerHTML = `<div class="cl-top"><div class="cl-cancs"></div>
             <div class="cl-cols" title="Diapositivas por fila">Por fila <button data-n="3" class="${cols === 3 ? 'on' : ''}">3</button><button data-n="4" class="${cols === 4 ? 'on' : ''}">4</button></div></div>
-        <div class="cl-grid" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">${cancHTML}</div>`;
+        <div class="cl-grid" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">${card && esLibre(card)
+            ? `<div class="libre-prev" title="Comenzar el tiempo libre">${libreDiapoHTML(card, true)}</div>` : ''}${cancHTML}</div>`;
     const grid = panel.querySelector('.cl-grid');
     const pIdx = pizarraIdx();
     document.querySelectorAll(`#prev-body .slide-prev[data-act="${claseSel}"]`).forEach(src => {
@@ -5273,6 +5342,11 @@ document.getElementById('clase-panel')?.addEventListener('click', e => {
     if (n) { try { localStorage.setItem('profe_clase_cols', n.dataset.n); } catch (_) {} pintarClaseDer(); return; }
     const canc = e.target.closest('.cl-canc');
     if (canc) { abrirMini(canc.dataset.id, claseSel || null, canc.dataset.asset); return; }
+    if (e.target.closest('.libre-prev')) {   // Tiempo libre: pide confirmar los minutos (si no está corriendo)
+        const a = Recurrentes.actual();
+        if (!(a && a.sesionId === sesionActual?.id && a.diapo === 'libre')) { libreConfirmar = true; pintarLibre(); }
+        return;
+    }
     if (e.target.closest('.cl-nueva')) { claseEditar(e.target.closest('.cl-nueva'), true); return; }
     const sl = e.target.closest('.cl-slide');
     if (!sl) return;

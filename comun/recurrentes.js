@@ -99,6 +99,11 @@
             }
             img.style.display = sinImg ? 'none' : 'block';
             cuenta.style.display = sinImg ? 'flex' : 'none';
+            // Tiempo libre: letrero más grande y el reloj aún más (siempre manda el reloj); mismo bloque 4:3 + título.
+            titulo.style.height = sinImg ? '22cqw' : '13cqw';
+            titulo.style.fontSize = sinImg ? '11cqw' : '7.9cqw';
+            cuenta.style.height = sinImg ? '66cqw' : '75cqw';
+            cuenta.style.fontSize = sinImg ? '36cqw' : '30cqw';
             clearInterval(tic); tic = null;
             if (ver && a.diapo === 'libre') {
                 const paso = () => { const r = restanteMs(); if (r !== null) cuenta.textContent = reloj(r); };
