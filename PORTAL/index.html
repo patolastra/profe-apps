@@ -2617,7 +2617,14 @@ function botonClase() {
     const st = ClaseVivo.enCurso();
     if (!st) return comenzarClase();
     if (st.aqui && st.sesionId === sesionActual.id) abrirFinClase();
+    else if (st.sesionId === sesionActual.id) traerClase();   // la misma, en otro equipo (deuda CG)
     else abrirFinClase(st);
+}
+// La clase en curso en otro equipo pasa a este (misma hora de inicio); el otro la suelta.
+function traerClase() {
+    abrirPizarra();   // primero (mismo gesto de clic → evita el bloqueo de ventanas)
+    ClaseVivo.traer();
+    logEvento('traer_clase', { sesion_id: sesionActual.id });
 }
 function comenzarClase() {
     abrirPizarra();   // primero (mismo gesto de clic → evita el bloqueo de ventanas)
@@ -2668,10 +2675,14 @@ function renderClase() {
     const box  = document.getElementById('clase-timers');
     if (!btn) return;
     const esEsta = !!(st && st.aqui && sesionActual && st.sesionId === sesionActual.id);
+    const allaEsta = !!(st && !st.aqui && sesionActual && st.sesionId === sesionActual.id);   // deuda CG
     if (!st) {
         btn.textContent = '▶ Comenzar clase'; btn.disabled = false; btn.title = '';
     } else if (esEsta) {
         btn.textContent = '⏹ Terminar clase'; btn.disabled = false; btn.title = '';
+    } else if (allaEsta) {
+        btn.textContent = '⇄ Traer la clase aquí'; btn.disabled = false;
+        btn.title = 'Esta clase está en curso en otro equipo. Tráela a este: sigue con la misma hora de inicio y el otro equipo la suelta.';
     } else {
         btn.textContent = '▶ Comenzar clase'; btn.disabled = false;
         btn.title = `Hay una clase en curso (${ctxDisplay(st.ctx)}${st.aqui ? '' : ', en otro equipo'}). Al comenzar esta, esa se termina.`;
@@ -2687,7 +2698,7 @@ function renderClase() {
     recuPintar();
     ajustarBarra();
     box.hidden  = !st;
-    document.getElementById('ct-ctx').textContent = st && !esEsta ? ctxDisplay(st.ctx) : '';
+    document.getElementById('ct-ctx').textContent = allaEsta ? 'En curso en otro equipo' : st && !esEsta ? ctxDisplay(st.ctx) : '';
     document.getElementById('ct-perdido-wrap').hidden = !!(st && !st.aqui);   // se lleva donde se comenzó
     clearInterval(_claseTick); _claseTick = null;
     if (st) { tickClase(); _claseTick = setInterval(tickClase, 500); }

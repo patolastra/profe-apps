@@ -4773,3 +4773,29 @@ el Lector de tablaturas; "algo raro pasa".*
   "Abrir en el Lector" abre la pestaña 🎸 con la partitura de ukelele cargada; elegir otra en el desplegable abre su
   pestaña sola; botón de una parte abre el Lector con `&seccion=`. Sin errores en la consola.
 - **Commit:** `88b54f3` (subido). Falta: uso en el taller.
+
+### CG. Modo Clase — "Traer la clase aquí" (misma clase en curso en otro equipo)
+*Origen: bug reportado por el PO (2026-10-19): con la clase de Tercero en curso (comenzada en otro equipo), el
+Planificador de este equipo mostraba "▶ Comenzar clase" en esa misma clase.*
+- **Auditoría (2026-10-19):** `renderClase` (`PORTAL/index.html`) solo muestra "⏹ Terminar clase" si la clase en curso
+  es de **este** computador (`ClaseVivo.enCurso().aqui`); la misma clase comenzada en otro equipo cae en el caso "otra
+  clase" y dice "Comenzar clase". Apretarlo ("Terminarla y comenzar esta") deja **dos equipos con la misma clase en
+  curso**: `leerRemota` solo suelta la clase local si la de internet es de **otra** sesión. `clase_en_curso` no guarda
+  qué equipo la tiene.
+- **DECISIÓN del PO (2026-10-19):** en la misma clase, este equipo dice **"En curso en otro equipo"** con un botón
+  **"Traer la clase aquí"**: la clase pasa a este equipo con la **misma hora de inicio** y el otro la **suelta sin
+  duplicar tiempos**.
+- **Alcance:** `comun/clase-vivo.js` y `PORTAL/index.html`; sin cambios en Supabase.
+- **Criterio de Claude:** cada equipo recuerda la hora (`updated_at`) de su última publicación de la fila; si la fila
+  de la misma clase cambia a una hora que no es la suya, otro equipo la trajo → la suelta (sin registrar tiempos) y
+  cierra su Pizarra. Traer abre la Pizarra aquí (como Comenzar) y no pide clave (no se pierde nada). El **tiempo
+  perdido** anotado en el otro equipo no viaja (la fila no tiene dónde llevarlo sin cambiar Supabase).
+- **Implementación (2026-10-19):** `ClaseVivo.traer()` copia la clase de internet como clase de este equipo (mismo
+  `inicio`) y la publica; `publicar` guarda en `profe_clase_publicada_en` la hora de la fila propia; `leerRemota`, con
+  la misma sesión y una fila más nueva que la propia, suelta la clase local (sin `clase_tiempos`) y ordena cerrar la
+  Pizarra. Clases comenzadas antes de esta versión toman como propia la fila que ven. En el Planificador, `renderClase`
+  muestra "En curso en otro equipo" + "⇄ Traer la clase aquí" (`traerClase`: abre la Pizarra y trae).
+- **Prueba:** simulación de dos equipos con base falsa (Node): B ve la clase de A, la trae (mismo inicio), A la suelta
+  y cierra su Pizarra sin registro, B sigue con ella y al terminar deja **un** registro con el inicio original y la
+  fila de internet vacía. Planificador local con la clase real de Tercero en otro equipo: muestra "En curso en otro
+  equipo" y el botón (sin apretarlo, para no mover la clase real). Sin errores nuevos en la consola.

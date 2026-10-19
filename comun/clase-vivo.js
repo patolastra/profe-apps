@@ -23,6 +23,7 @@
     const PEND_KEY  = 'profe_clase_pendientes';
     const REM_KEY   = 'profe_clase_remota';
     const PUB_KEY   = 'profe_clase_publicar';
+    const MIA_KEY   = 'profe_clase_publicada_en';   // updated_at de la última fila que publicó ESTE equipo (deuda CG)
     const MAX_MS    = 2 * 3600 * 1000;
     const oyentes   = [];
     let sbRef = null;
@@ -92,6 +93,7 @@
         pend.push(fila);
         escribir(PEND_KEY, pend);
         escribir(CLASE_KEY, null);
+        escribir(MIA_KEY, null);
         const rem = leer(REM_KEY, null);
         if (rem && rem.sesionId === st.sesionId) {
             escribir(REM_KEY, null);
@@ -108,7 +110,26 @@
                  inicio: new Date(st.inicio).toISOString(), updated_at: new Date().toISOString() };
     }
     // La última publicación pendiente gana (es una sola fila).
-    function publicar(op) { escribir(PUB_KEY, op); enviar(); }
+    function publicar(op) {
+        if (op.accion === 'poner') escribir(MIA_KEY, op.fila.updated_at);
+        escribir(PUB_KEY, op); enviar();
+    }
+
+    // La misma clase en curso en otro equipo pasa a este, con su misma hora de inicio
+    // (deuda CG). El otro equipo ve que la fila ya no es la suya y la suelta sin registrar
+    // tiempos: el registro lo hace este al terminar.
+    function traer() {
+        const rem = leer(REM_KEY, null);
+        if (get() || !rem || vencida(rem)) return get();
+        const st = {
+            sesionId: rem.sesionId, ctx: rem.ctx || '', fecha: rem.fecha || '',
+            inicio: rem.inicio, perdidoAcumMs: 0, perdidoDesde: null, episodios: 0,
+        };
+        escribir(CLASE_KEY, st);
+        publicar({ accion: 'poner', fila: filaRemota(st) });
+        avisar();
+        return get();
+    }
     let _enviando = null;
     function enviar() {
         if (!sbRef) return Promise.resolve(false);
@@ -147,12 +168,27 @@
         } catch (_) { return; }
         let rem = fila ? { sesionId: fila.sesion_id, ctx: fila.ctx || '', fecha: fila.fecha || '',
                            inicio: Date.parse(fila.inicio) } : null;
+        const filaEn = fila ? Date.parse(fila.updated_at) : null;
         if (vencida(rem)) {
             try { await sbRef.from('clase_en_curso').delete().eq('id', 1).eq('sesion_id', rem.sesionId); } catch (_) {}
             rem = null;
         }
         const antes = JSON.stringify(leer(REM_KEY, null));
         const st = get();
+        if (st && rem && rem.sesionId === st.sesionId) {
+            const mia = leer(MIA_KEY, null);
+            if (!mia) escribir(MIA_KEY, fila.updated_at);   // clase comenzada antes de esta versión
+            else if (filaEn > Date.parse(mia)) {
+                // Otro equipo trajo esta clase (deuda CG): se suelta sin registrar tiempos
+                // y se cierra la Pizarra de este equipo.
+                escribir(CLASE_KEY, null);
+                escribir(MIA_KEY, null);
+                escribir(REM_KEY, rem);
+                try { window.Proyeccion?.ordenar(st.sesionId, { accion: 'cerrar' }); } catch (_) {}
+                avisar();
+                return;
+            }
+        }
         if (st && rem && rem.sesionId !== st.sesionId && rem.inicio >= st.inicio) {
             // Otro equipo comenzó otra clase: la de aquí se termina (sus tiempos se guardan).
             escribir(REM_KEY, rem);
@@ -239,7 +275,7 @@
     }, true);
 
     window.ClaseVivo = {
-        get, comenzar, togglePerdido, terminar, subirPendientes,
+        get, comenzar, traer, togglePerdido, terminar, subirPendientes,
         tiempoClaseMs, tiempoPerdidoMs, fmt, onCambio, enCurso, conectar,
     };
 })();
