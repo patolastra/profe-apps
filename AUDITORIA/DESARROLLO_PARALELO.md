@@ -4624,3 +4624,29 @@ de metalófono y ritmos.*
   selector y al volver a la página, y repinta fichas, cuadros de la Presentación, vista de clase y el selector
   abierto. Prueba (local): con el selector abierto en Ritmo, un ritmo de prueba creado en la base apareció solo en
   ~4 s y al borrarlo desapareció solo; datos de prueba borrados.
+
+### BZ. Plan — actividad "Tiempo libre" con cuenta regresiva en la Pizarra
+*Origen: pedido del PO (2026-10-19).*
+- **DECISIÓN del PO (2026-10-19):** una actividad cuyo título es "Tiempo libre" es de un tipo especial: en el Plan se
+  anota cuánto dura; en clase, un botón en la actividad la comienza, **pidiendo confirmar o cambiar los minutos**.
+  La Pizarra muestra una diapositiva recurrente con "TIEMPO LIBRE" y la **cuenta regresiva** (por ahora sin
+  imágenes; más adelante el PO agregará imágenes por edad). Al llegar a cero, sin sonido, pasa a 🤫 **Silencio y
+  atención**, que **se quita sola cuando el profe proyecta** otra diapositiva o canción (también con su botón o Esc).
+- **PROPUESTA (Claude, por defecto):** se reconoce el título sin importar mayúsculas ni tildes; conserva su texto
+  (notas) y puede tener diapositivas como cualquier actividad; 10 minutos si no se anotan; mientras corre, "+1 min"
+  y "Terminar" (pasa a Silencio y atención); no cuenta como tiempo perdido (ese sigue siendo manual).
+- **Supabase:** columna `plan_cards.minutos` (`supabase/plan_cards_minutos.sql`, la corre el PO).
+- **Implementación (2026-10-19):** `comun/recurrentes.js`: recurrente `libre` (fuera del menú 🔔, sin imagen) con
+  `{ fin, min }`; la capa de la Pizarra muestra "TIEMPO LIBRE" y la cuenta regresiva (m:ss) en el lugar de la imagen;
+  cualquier ventana abierta revisa el fin y pasa a `silencio` con `trasLibre`; `sumarLibre`, `terminarLibre`,
+  `alProyectar` (quita solo ese Silencio). `PIZARRA/index.html`: `irA` (cualquier diapositiva: teclado o
+  Planificador) y el espejo del Entrenador ("on") llaman `alProyectar`. `PORTAL/index.html`: actividad titulada
+  "Tiempo libre" → fila "⏱ [10] min" en su card (`plan_cards.minutos`); en la vista de clase, su detalle tiene
+  "⏱ Comenzar tiempo libre" → "¿Cuántos minutos?" (editable) → Comenzar; mientras corre, reloj + "+1 min" +
+  "Terminar"; después, aviso de Silencio y atención con "Quitar". Mismo aviso que el 🔔 si la Pizarra no acusa recibo.
+- **Prueba (local, clase simulada solo en la pestaña, Quinto 27/10):** título "Tiempo Libre" → fila de minutos;
+  Comenzar → confirmación con 10 → cambiado a 2 → la Pizarra mostró "TIEMPO LIBRE 1:52"; +1 min sumó 60 s; Terminar →
+  Pizarra con Silencio y atención; ir a otra diapositiva en la Pizarra → se quitó sola; un Silencio puesto con 🔔 no
+  se quita al proyectar; vencimiento natural (1,5 s) → Silencio. Sin la columna `minutos` avisa "¿Falta correr
+  supabase/plan_cards_minutos.sql?" y el Tiempo libre igual funciona con los minutos confirmados. Datos borrados.
+  Nota: si la Pizarra se abre recién, la vista de clase sigue a su diapositiva (comportamiento de BW).

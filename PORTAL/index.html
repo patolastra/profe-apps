@@ -631,6 +631,17 @@
         .cl-edit-box button { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 4px 12px; cursor: pointer; font-weight: 700; }
         .cl-edit-box button.cl-ok { background: var(--accent); color: #fff; border-color: var(--accent); }
         .cl-det-barra { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        /* ⏱ Tiempo libre (deuda BZ) */
+        .pcard-libre { display: flex; align-items: center; gap: 6px; padding: 2px 0 6px 14px; font-size: 0.8rem; color: #0f766e; font-weight: 700; }
+        .pcard-libre[hidden] { display: none; }
+        .pcard-libre input, .cl-libre input { width: 56px; border: 1px solid #99f6e4; border-radius: 6px; padding: 2px 6px; font: inherit; text-align: center; }
+        .cl-libre { margin-top: 14px; border: 2px solid #5eead4; background: #f0fdfa; border-radius: 12px; padding: 14px 16px; color: #0f766e; }
+        .cl-libre-fila { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 1.05rem; font-weight: 700; }
+        .cl-libre button { border: 1px solid #5eead4; background: #fff; color: #0f766e; border-radius: 8px; padding: 6px 12px; font-weight: 800; font-size: 0.95rem; cursor: pointer; }
+        .cl-libre button.prim { background: #0d9488; border-color: #0d9488; color: #fff; }
+        .cl-libre button:hover { filter: brightness(0.96); }
+        .cl-libre-reloj { font-size: 3rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; min-width: 4.2ch; }
+        .cl-libre-nota { font-size: 0.9rem; font-weight: 600; color: #475569; margin-top: 6px; }
         .cl-det-barra .cl-volver { padding: 2px 0; }
         .cl-det-txt .eb-lectura .eb-marca { width: 30px; }
         .cl-bit-btn { flex-shrink: 0; border: 1px solid var(--border); background: #fff; border-radius: 8px; width: 42px; height: 38px; font-size: 1.25rem; cursor: pointer; }
@@ -2702,7 +2713,8 @@ function recuMenu(e) {
     if (!menu.hidden && e) { menu.hidden = true; document.getElementById('fecha-sub').hidden = true; return; }
     const a = Recurrentes.actual();
     const activa = a && sesionActual && a.sesionId === sesionActual.id ? a.diapo : null;
-    menu.innerHTML = Object.entries(Recurrentes.DIAPOS).map(([id, d]) =>
+    menu.innerHTML = Object.entries(Recurrentes.DIAPOS).filter(([, d]) => !d.sinMenu).map(([id, d]) =>   // ⏱ Tiempo libre se lanza desde su actividad (BZ)
+       
         `<button class="${id === activa ? 'on' : ''}" onclick="recuElegir('${id}')">${d.ico} ${d.titulo}${id === activa ? '<small>Quitar</small>' : ''}</button>`).join('')
         + fechaFila();
     menu.onclick = ev => ev.stopPropagation();   // los menús se repintan al elegir: que no se cierren
@@ -4466,6 +4478,73 @@ async function cargarPlanCards() {
     pintarPlan();
 }
 
+// ── ⏱ Tiempo libre (deuda BZ): una actividad titulada "Tiempo libre" anota cuánto dura (plan_cards.minutos);
+// en clase, su detalle tiene "Comenzar": se confirman o cambian los minutos y la Pizarra muestra la cuenta
+// regresiva (recurrente 'libre' de comun/recurrentes.js); al terminar pasa sola a 🤫 Silencio y atención.
+const esLibre = c => (c?.titulo || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'tiempo libre';
+const minutosLibre = c => (Number.isInteger(c?.minutos) && c.minutos > 0) ? c.minutos : 10;
+async function guardarMinutos(c, v) {
+    const n = Math.round(Number(v));
+    if (!Number.isFinite(n) || n < 1) return;
+    const ahora = new Date().toISOString();
+    c.minutos = n; c.ultEnvio = ahora; c.updated_at = ahora;
+    const { error } = await sb.from('plan_cards').update({ minutos: n, updated_at: ahora }).eq('id', c.id);
+    if (error) planEstado('No se pudo guardar la duración. ¿Falta correr supabase/plan_cards_minutos.sql?', true);
+    else planEstado('Guardado ✓');
+}
+let libreConfirmar = false;   // el detalle muestra la confirmación de minutos antes de comenzar
+function pintarLibre() {
+    const box = document.querySelector('#pane-clase .cl-libre');
+    if (!box) return;
+    const c = planCards.find(x => x.id === box.dataset.id);
+    const a = Recurrentes.actual();
+    const mia = a && sesionActual && a.sesionId === sesionActual.id;
+    if (mia && a.diapo === 'libre') {
+        box.innerHTML = `<div class="cl-libre-fila"><span class="cl-libre-reloj">${Recurrentes.reloj(Recurrentes.restanteMs() || 0)}</span>
+            <button data-l="mas">+1 min</button><button data-l="fin">Terminar</button></div>
+            <div class="cl-libre-nota">La Pizarra muestra la cuenta regresiva. Al llegar a cero pasa a 🤫 Silencio y atención.</div>`;
+    } else if (mia && a.trasLibre) {
+        box.innerHTML = `<div class="cl-libre-fila">🤫 Silencio y atención en la Pizarra</div>
+            <div class="cl-libre-nota">Se quita sola al proyectar la siguiente actividad (o con <button data-l="quitar">Quitar</button>).</div>`;
+    } else if (libreConfirmar) {
+        box.innerHTML = `<div class="cl-libre-fila">⏱ ¿Cuántos minutos? <input type="number" min="1" max="90" class="cl-libre-min" value="${minutosLibre(c)}">
+            <button class="prim" data-l="ir">Comenzar</button><button data-l="no">Cancelar</button></div>`;
+        const inp = box.querySelector('.cl-libre-min');
+        inp.focus(); inp.select();
+        inp.onkeydown = e => { if (e.key === 'Enter') box.querySelector('[data-l=ir]').click(); if (e.key === 'Escape') box.querySelector('[data-l=no]').click(); };
+    } else {
+        box.innerHTML = `<div class="cl-libre-fila"><button class="prim" data-l="pedir">⏱ Comenzar tiempo libre</button> ${minutosLibre(c)} minutos</div>`;
+    }
+}
+function libreClic(b) {
+    const c = planCards.find(x => x.id === b.closest('.cl-libre').dataset.id);
+    const l = b.dataset.l;
+    if (l === 'pedir') { libreConfirmar = true; pintarLibre(); return; }
+    if (l === 'no') { libreConfirmar = false; pintarLibre(); return; }
+    if (l === 'mas') { Recurrentes.sumarLibre(60000); return; }
+    if (l === 'fin') { Recurrentes.terminarLibre(); return; }
+    if (l === 'quitar') { Recurrentes.quitar(); return; }
+    if (l === 'ir' && c) {
+        const n = Math.round(Number(b.closest('.cl-libre').querySelector('.cl-libre-min').value));
+        if (!Number.isFinite(n) || n < 1) return;
+        libreConfirmar = false;
+        if (n !== minutosLibre(c)) guardarMinutos(c, n);
+        Recurrentes.poner(sesionActual.id, 'libre', contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '',
+            { fin: Date.now() + n * 60000, min: n });
+        setTimeout(() => {
+            if (Recurrentes.actual() && !Recurrentes.recibida())
+                alert(Proyeccion.pizarraViva()
+                    ? 'La Pizarra no mostró el Tiempo libre.\n\nSeguramente se abrió antes de la última actualización: ciérrala y ábrela de nuevo con el botón 📽️.'
+                    : 'La Pizarra no está abierta.\n\nÁbrela con el botón 📽️ y el Tiempo libre aparecerá.');
+        }, 1500);
+    }
+}
+Recurrentes.onCambio(() => pintarLibre());
+setInterval(() => {   // el reloj del detalle
+    const r = document.querySelector('#pane-clase .cl-libre-reloj');
+    if (r) { const ms = Recurrentes.restanteMs(); if (ms !== null) r.textContent = Recurrentes.reloj(ms); }
+}, 250);
+
 function pintarPlan() {
     const pane = document.getElementById('pane-plan');
     planCards.forEach(c => c.ed?.destruir());
@@ -4483,11 +4562,16 @@ function pintarPlan() {
                 <input class="pcard-tit" placeholder="Título de la actividad">
                 <button class="pcard-ir" title="Ir a sus diapositivas">▶</button>
                 <button class="pcard-menu" title="Opciones">⋯</button>
-            </div><div class="pcard-cancs"></div><div class="pcard-ed"></div>`;
+            </div><div class="pcard-libre" hidden title="Tiempo libre: en clase se comienza desde la actividad (pide confirmar los minutos)">⏱ <input type="number" min="1" max="90" class="pcard-min"> min</div>
+            <div class="pcard-cancs"></div><div class="pcard-ed"></div>`;
         cont.appendChild(el);
         const tit = el.querySelector('.pcard-tit');
         tit.value = c.titulo || '';
-        tit.addEventListener('input', () => { c.titulo = tit.value; planCambio(c); presTitulos(); });
+        const filaLibre = el.querySelector('.pcard-libre'), inMin = el.querySelector('.pcard-min');
+        const verLibre = () => { filaLibre.hidden = !esLibre(c); inMin.value = minutosLibre(c); };
+        verLibre();
+        inMin.addEventListener('change', () => guardarMinutos(c, inMin.value));
+        tit.addEventListener('input', () => { c.titulo = tit.value; planCambio(c); presTitulos(); verLibre(); });
         el.querySelector('.pcard-ir').addEventListener('click', e => { e.stopPropagation(); irActividad(c.id); });
         pintarCancionesCard(c, el);
         tit.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); c.ed.enfocar('inicio'); } });
@@ -5008,9 +5092,11 @@ function pintarClaseIzq() {
             <div class="cl-det${act && act === it.id ? ' en-curso' : ''}" data-id="${it.id}">
                 <div class="cl-det-tit">${esc(it.titulo)}</div>
                 <div class="cl-det-txt">${texto ? EditorBloques.html(texto, { objetivo: true }) : ''}</div>
+                ${it.card && esLibre(it.card) ? `<div class="cl-libre" data-id="${it.id}"></div>` : ''}
             </div>
             <div class="cl-bit" hidden><div class="cl-bit-tit">✍🏼 Bitácora · ${esc(it.titulo)}</div><div class="cl-bit-ed"></div>
                 <div class="cl-bit-pie"><span class="cl-bit-est"></span><button class="cl-bit-listo">Listo</button></div></div>`;
+        pintarLibre();
     } else {
         pane.innerHTML = items.length
             ? `<div class="cl-lista">${items.map(i => `<button class="cl-card${act && act === i.id ? ' en-curso' : ''}" data-id="${i.id}">
@@ -5055,7 +5141,7 @@ function pintarClaseDer() {
 
 // Escoger una actividad: queda en curso (amarilla) y en grande; la Pizarra no se mueve.
 function claseElegir(id) {
-    claseSel = id; claseVista = 'detalle'; claseEditando = null;
+    claseSel = id; claseVista = 'detalle'; claseEditando = null; libreConfirmar = false;
     actManual = { id, idx: pizarraIdx() };
     marcarEnPizarra();
     pintarClase();
@@ -5174,7 +5260,9 @@ function claseEditar(el, nueva) {
 }
 
 document.getElementById('pane-clase')?.addEventListener('click', e => {
-    if (e.target.closest('.cl-volver')) { claseVista = 'lista'; pintarClaseIzq(); return; }
+    const lb = e.target.closest('.cl-libre button');
+    if (lb) { libreClic(lb); return; }
+    if (e.target.closest('.cl-volver')) { claseVista = 'lista'; libreConfirmar = false; pintarClaseIzq(); return; }
     if (e.target.closest('.cl-bit-btn')) { claseBit ? cerrarClaseBit() : abrirClaseBit(); return; }
     if (e.target.closest('.cl-bit-listo')) { cerrarClaseBit(); return; }
     const c = e.target.closest('.cl-card');
