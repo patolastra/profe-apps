@@ -4700,3 +4700,25 @@ blanco quedan con más aire).
   final. Ayuda (?) al día.
 - **Prueba (local, sin guardar):** "# Ritmo / (blanco) / Escuchamos / (blanco) / - uno" → 2 espacios; distancia
   título-párrafo 56 px contra 16 px sin la línea en blanco. Pizarra: `<h1>…</h1><div class="slide-esp"></div><p>…`.
+
+### CD. Lector — atajo a las asignaciones del estudiante con sesión iniciada
+*Origen: pedido del PO (2026-10-19).* Cuando un estudiante tiene su sesión iniciada en el Lector y el profe abre ahí
+mismo la administración (Ctrl+Shift+A o `?admin=1`), quiere modificar **las asignaciones de ese estudiante** (tabs y
+secciones: `alumno_tabs` / `alumno_tab_secciones`) sin buscarlo en la lista.
+- **Auditoría (2026-10-19):** el estudiante se identifica con `alumnoActual` (`loginAlumno`, desde la lista del panel;
+  los particulares `?p=` entran en modo público, sin administración, así que no aplica). La administración es el
+  panel de alumnos (`abrirPanelAlumnos`, gateado por `cap.admin`), que ya muestra arriba "Alumno activo" con su nombre
+  y "Cerrar sesión". Hoy, para editar sus asignaciones, hay que bajar por la lista de alumnos (agrupada por curso) y
+  tocar su 📋, que abre la sub-vista de asignación (`abrirModoAsignacion(id)`: catálogo con paleta, buscador,
+  instrumentos, ✓ Asignados y columna "Asignado"). Al cerrar el panel, el repertorio del estudiante se vuelve a leer
+  al abrirlo, así que los cambios se ven sin más.
+- **DECISIÓN del PO (2026-10-19):** con un estudiante con sesión iniciada, abrir la administración entra **directo a sus
+  asignaciones** ("← Lista" vuelve a la administración normal); además, botón **📋 Asignaciones** junto a su nombre en
+  "Alumno activo" para volver a ellas.
+- **Alcance:** solo `tabs/index.html`; sin cambios en Supabase.
+- **Implementación (2026-10-19):** `prepararModoAsignacion(id)` (deja la sub-vista elegida con los filtros limpios, sin
+  dibujar) sale de `abrirModoAsignacion`; `abrirPanelAlumnos` la llama si hay `alumnoActual`; botón 📋 Asignaciones en
+  la barra "Alumno activo" → `abrirModoAsignacion(alumnoActual.id)`.
+- **Prueba (local, sin guardar):** `?admin=1` sin estudiante → lista normal (16 filas); sesión iniciada de un estudiante
+  y Ctrl+Shift+A → abre su sub-vista de asignación (su nombre, buscador y catálogo); "← Lista" → barra "Alumno activo"
+  con "📋 Asignaciones" y "Cerrar sesión"; el botón vuelve a sus asignaciones. Sin asignaciones modificadas.
