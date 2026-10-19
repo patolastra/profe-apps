@@ -4799,3 +4799,4 @@ Planificador de este equipo mostraba "▶ Comenzar clase" en esa misma clase.*
   y cierra su Pizarra sin registro, B sigue con ella y al terminar deja **un** registro con el inicio original y la
   fila de internet vacía. Planificador local con la clase real de Tercero en otro equipo: muestra "En curso en otro
   equipo" y el botón (sin apretarlo, para no mover la clase real). Sin errores nuevos en la consola.
+- **Commit:** `6fede0a` (subido). Falta: probarlo con dos equipos reales.
