@@ -799,6 +799,9 @@
         .slide-prev .slide-content ul { padding-left: 1.2em; margin-bottom: 0.1em; text-align: left; }
         .slide-prev .slide-content li { font-size: 1em; line-height: 1.3; font-weight: 700; color: var(--slide-text); margin-bottom: 0.08em; text-align: left; }
         .slide-prev .slide-content li::marker { color: var(--slide-li); }
+        .slide-prev .slide-content ol { padding-left: 1.6em; margin-bottom: 0.1em; text-align: left; }
+        .slide-prev .slide-content ol > li::marker { font-weight: 800; }
+        .slide-content .una-linea { display: inline-block; max-width: 100%; white-space: nowrap; overflow: hidden; vertical-align: top; }
         .slide-prev .slide-content .c1  { color: var(--slide-c1); font-weight: 700; }
         .slide-prev .slide-content .c2  { color: var(--slide-c2); font-weight: 700; }
         .slide-prev .slide-content em   { font-style: italic; }
@@ -3806,40 +3809,65 @@ function parseInlinePreview(raw) {
 }
 function renderizarSlideHtml(raw) {
     const lines = raw.split('\n');
-    let html = '', inList = false;
+    let html = '', lista = null;   // lista abierta: 'ul' | 'ol'
+    const cerrar = () => { if (lista) { html += `</${lista}>`; lista = null; } };
     for (const line of lines) {
         const t = line.trim();
         if (!t) continue;
         if (t.startsWith('&') && !t.startsWith('&&')) {
-            if (inList) { html += '</ul>'; inList = false; }
+            cerrar();
             let c = t.slice(1); if (c.endsWith('&')) c = c.slice(0, -1);
             html += `<div class="hl">${pEsc(c)}</div>`;
             continue;
         }
-        let izq = false, tc = t;
-        if (t.startsWith('IZ ') || t === 'IZ') { izq = true; tc = t.startsWith('IZ ') ? t.slice(3) : ''; }
+        // Prefijos IZ (alinear a la izquierda) y 1L (una sola línea, deuda CA), en cualquier orden
+        let izq = false, una = false, tc = t;
+        for (;;) {
+            if (tc.startsWith('IZ ') || tc === 'IZ') { izq = true; tc = tc.slice(3); continue; }
+            if (tc.startsWith('1L ') || tc === '1L') { una = true; tc = tc.slice(3); continue; }
+            break;
+        }
         const cls = izq ? ' class="izq"' : '';
+        const en = h => una ? `<span class="una-linea">${h}</span>` : h;
+        let m;
         if (tc.startsWith('# ')) {
-            if (inList) { html += '</ul>'; inList = false; }
-            html += `<h1${cls}>${parseInlinePreview(tc.slice(2))}</h1>`;
+            cerrar();
+            html += `<h1${cls}>${en(parseInlinePreview(tc.slice(2)))}</h1>`;
         } else if (tc.startsWith('## ')) {
-            if (inList) { html += '</ul>'; inList = false; }
-            html += `<h2${cls}>${parseInlinePreview(tc.slice(3))}</h2>`;
+            cerrar();
+            html += `<h2${cls}>${en(parseInlinePreview(tc.slice(3)))}</h2>`;
         } else if (tc.startsWith('- ')) {
-            if (!inList) { html += '<ul>'; inList = true; }
-            html += `<li${cls}>${parseInlinePreview(tc.slice(2))}</li>`;
+            if (lista !== 'ul') { cerrar(); html += '<ul>'; lista = 'ul'; }
+            html += `<li${cls}>${en(parseInlinePreview(tc.slice(2)))}</li>`;
+        } else if ((m = tc.match(/^(\d{1,3})\. (.*)$/))) {
+            // Lista numerada (deuda CA): parte en el número escrito; las siguientes se numeran solas.
+            if (lista !== 'ol') { cerrar(); html += `<ol${+m[1] !== 1 ? ` start="${+m[1]}"` : ''}>`; lista = 'ol'; }
+            html += `<li${cls}>${en(parseInlinePreview(m[2]))}</li>`;
         } else if (tc) {
-            if (inList) { html += '</ul>'; inList = false; }
-            html += `<p${cls}>${parseInlinePreview(tc)}</p>`;
+            cerrar();
+            html += `<p${cls}>${en(parseInlinePreview(tc))}</p>`;
         }
     }
-    if (inList) html += '</ul>';
+    cerrar();
     return html;
+}
+
+// 1L (deuda CA): la línea marcada va en una sola línea; si no cabe a lo ancho, solo ella achica su letra.
+// Su caja corta lo que sobra (overflow), así no hace achicar al resto de la diapositiva.
+function limpiarUnaLinea(content) { content.querySelectorAll('.una-linea').forEach(s => { s.style.fontSize = ''; }); }
+function ajustarUnaLinea(content) {
+    content.querySelectorAll('.una-linea').forEach(s => {
+        if (s.scrollWidth > s.clientWidth + 1) {
+            const fs = parseFloat(getComputedStyle(s).fontSize);
+            s.style.fontSize = Math.max(4, fs * s.clientWidth / s.scrollWidth * 0.98) + 'px';
+        }
+    });
 }
 
 function autoFitSlide(el) {
     const content = el.querySelector('.slide-content');
     if (!content) return;
+    limpiarUnaLinea(content);
     // Forzar altura 16:9 explícita — aspect-ratio en flex containers puede ser ignorado
     const w = el.clientWidth;
     if (w === 0) return;
@@ -3854,6 +3882,7 @@ function autoFitSlide(el) {
         if (content.scrollHeight > availH + 1) hi = mid; else lo = mid;
     }
     content.style.fontSize = lo + 'px';
+    ajustarUnaLinea(content);
 }
 
 function scrollTextareaToPos(ta, pos) {
@@ -5938,7 +5967,9 @@ async function guardarMateriales() {
                 <div class="cheat-row"><span class="cheat-code"># Título</span><span class="cheat-desc">Título grande (h1)</span></div>
                 <div class="cheat-row"><span class="cheat-code">## Subtítulo</span><span class="cheat-desc">Subtítulo (h2)</span></div>
                 <div class="cheat-row"><span class="cheat-code">- ítem</span><span class="cheat-desc">Lista</span></div>
+                <div class="cheat-row"><span class="cheat-code">1. ítem</span><span class="cheat-desc">Lista numerada (sigue sola: 2., 3.…)</span></div>
                 <div class="cheat-row"><span class="cheat-code">IZ texto</span><span class="cheat-desc">Alinear línea a la izquierda</span></div>
+                <div class="cheat-row"><span class="cheat-code">1L texto</span><span class="cheat-desc">En una sola línea (si no cabe, solo ella se achica). Se combina: IZ 1L, 1L # Título</span></div>
                 <div class="cheat-row"><span class="cheat-code">&amp;texto&amp;</span><span class="cheat-desc">Bloque resaltado (caja)</span></div>
             </div>
             <div class="cheat-sec">

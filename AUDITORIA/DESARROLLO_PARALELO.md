@@ -4664,3 +4664,20 @@ de metalófono y ritmos.*
   texto" y lo abre; cambiar a 10 → Presentación "⏱ 10 min", Vista previa "10:00", guardado ✓. Clase simulada: panel
   con la diapositiva y el mensaje; tocarla → "¿Cuántos minutos?"; Comenzar → Pizarra con letrero y reloj grandes;
   "10:01" mide 732 px en un bloque de 818 px (cabe). Datos borrados.
+
+### CA. Diapositivas — línea forzada a una sola línea (`1L`) y lista numerada
+*Origen: pedido del PO (2026-10-19), para el texto de la columna Presentación.*
+- **DECISIÓN del PO (2026-10-19):** prefijo **`1L `** al comienzo de la línea (como `IZ `, combinable: `IZ 1L …`)
+  fuerza que ese texto se muestre en **una sola línea**; si no cabe a lo ancho, **solo esa línea** achica su letra (el
+  resto de la diapositiva queda igual). Además, **lista numerada** con `1. `, `2. `… (empieza en el número escrito).
+- **Alcance:** el mismo formato en el Planificador (Vista previa y vista de clase) y en la Pizarra; ayuda de markdown
+  (?) al día. Sin cambios en Supabase.
+- **Implementación (2026-10-19):** `PORTAL/index.html` y `PIZARRA/index.html` (`renderizarSlideHtml` de cada uno):
+  prefijos `IZ` y `1L` en cualquier orden; `1L` envuelve el texto en `<span class="una-linea">` (en bloque en línea,
+  sin cortes, lo que sobra se oculta) y, tras el ajuste de letra de la diapositiva (`autoFitSlide` / `autoFit`),
+  `ajustarUnaLinea` le baja la letra solo a ese texto hasta que quepa. Líneas `N. texto` → `<ol>` (con `start` si no
+  parte en 1); las listas abiertas se cierran al cambiar de tipo. Estilos de `ol` (número en negrita, color de
+  viñeta) y ayuda (?) al día. Nota: una línea antigua que empezaba con "2. " ahora se ve como lista numerada.
+- **Prueba (local, sin guardar):** diapositiva de prueba con título, línea `1L` larga, párrafo largo, 3 numerados y
+  una viñeta. Vista previa: la línea `1L` en una línea a 19 px mientras el párrafo queda a 22 px (dos líneas); lista
+  1-2-3 y la viñeta aparte. Pizarra (1280×720): igual, la línea `1L` en una sola línea y más chica que el resto.

@@ -159,6 +159,11 @@
             overflow-wrap: break-word;
         }
         .slide-content li::marker { color: var(--slide-li); }
+        .slide-content ol { padding-left: 1.6em; margin-bottom: 0.1em; }
+        .slide-content.centrado ol { text-align: left; }
+        .slide-content ol > li::marker { font-weight: 800; }
+        /* 1L (deuda CA): una sola línea; si no cabe, autoFit le baja la letra solo a ella */
+        .slide-content .una-linea { display: inline-block; max-width: 100%; white-space: nowrap; overflow: hidden; vertical-align: top; }
 
         /* Markdown inline */
         .slide-content .c1  { color: var(--slide-c1); font-weight: 700; }
@@ -410,6 +415,7 @@
         #rem-preview .slide-content ul { padding-left: 1.2em; margin-bottom: 0.1em; text-align: left; }
         #rem-preview .slide-content li { font-size: 1em; line-height: 1.3; font-weight: 700; color: var(--slide-text, #1a1a2e); margin-bottom: 0.08em; }
         #rem-preview .slide-content li::marker { color: var(--slide-li, #ea580c); }
+        #rem-preview .slide-content ol { padding-left: 1.6em; margin-bottom: 0.1em; text-align: left; }
         #rem-preview .slide-content .c1 { color: var(--slide-c1, #ea580c); font-weight: 700; }
         #rem-preview .slide-content .c2 { color: var(--slide-c2, #2563eb); font-weight: 700; }
         #rem-preview.tipo-youtube { background: #0f0f0f; }
@@ -821,13 +827,14 @@ function parseInline(raw) {
 
 function renderizarSlideHtml(raw) {
     const lines = raw.split('\n');
-    let html = '', inList = false, hasImg = false;
+    let html = '', lista = null, hasImg = false;   // lista abierta: 'ul' | 'ol'
+    const cerrar = () => { if (lista) { html += `</${lista}>`; lista = null; } };
     for (const line of lines) {
         const t = line.trim();
         if (!t) continue;
         // Imagen inline: @img:URL o @img:URL|caption
         if (t.startsWith('@img:')) {
-            if (inList) { html += '</ul>'; inList = false; }
+            cerrar();
             hasImg = true;
             const { url, caption } = extraerImgData(t);
             html += `<img class="slide-inline-img" src="${esc(url)}" alt="${esc(caption)}">`;
@@ -836,33 +843,41 @@ function renderizarSlideHtml(raw) {
         }
         // Bloque destacado: línea empieza con & (no &&)
         if (t.startsWith('&') && !t.startsWith('&&')) {
-            if (inList) { html += '</ul>'; inList = false; }
+            cerrar();
             let c = t.slice(1);
             if (c.endsWith('&')) c = c.slice(0, -1);
             html += `<div class="hl">${pEsc(c)}</div>`;
             continue;
         }
-        // Prefijo IZ → alineación izquierda
-        let izq = false, tc = t;
-        if (t.startsWith('IZ ') || t === 'IZ') {
-            izq = true; tc = t.startsWith('IZ ') ? t.slice(3) : '';
+        // Prefijos IZ (alinear a la izquierda) y 1L (una sola línea, deuda CA), en cualquier orden
+        let izq = false, una = false, tc = t;
+        for (;;) {
+            if (tc.startsWith('IZ ') || tc === 'IZ') { izq = true; tc = tc.slice(3); continue; }
+            if (tc.startsWith('1L ') || tc === '1L') { una = true; tc = tc.slice(3); continue; }
+            break;
         }
         const cls = izq ? ' class="izq"' : '';
+        const en = h => una ? `<span class="una-linea">${h}</span>` : h;
+        let m;
         if (tc.startsWith('# ')) {
-            if (inList) { html += '</ul>'; inList = false; }
-            html += `<h1${cls}>${parseInline(tc.slice(2))}</h1>`;
+            cerrar();
+            html += `<h1${cls}>${en(parseInline(tc.slice(2)))}</h1>`;
         } else if (tc.startsWith('## ')) {
-            if (inList) { html += '</ul>'; inList = false; }
-            html += `<h2${cls}>${parseInline(tc.slice(3))}</h2>`;
+            cerrar();
+            html += `<h2${cls}>${en(parseInline(tc.slice(3)))}</h2>`;
         } else if (tc.startsWith('- ')) {
-            if (!inList) { html += '<ul>'; inList = true; }
-            html += `<li${cls}>${parseInline(tc.slice(2))}</li>`;
+            if (lista !== 'ul') { cerrar(); html += '<ul>'; lista = 'ul'; }
+            html += `<li${cls}>${en(parseInline(tc.slice(2)))}</li>`;
+        } else if ((m = tc.match(/^(\d{1,3})\. (.*)$/))) {
+            // Lista numerada (deuda CA): parte en el número escrito; las siguientes se numeran solas.
+            if (lista !== 'ol') { cerrar(); html += `<ol${+m[1] !== 1 ? ` start="${+m[1]}"` : ''}>`; lista = 'ol'; }
+            html += `<li${cls}>${en(parseInline(m[2]))}</li>`;
         } else if (tc) {
-            if (inList) { html += '</ul>'; inList = false; }
-            html += `<p${cls}>${parseInline(tc)}</p>`;
+            cerrar();
+            html += `<p${cls}>${en(parseInline(tc))}</p>`;
         }
     }
-    if (inList) html += '</ul>';
+    cerrar();
     return { html, centrado: true, hasImg };
 }
 
@@ -873,9 +888,22 @@ function renderizarSlideHtml(raw) {
 // grande (p. ej. 4K) crecen en la misma proporción, para que la letra ocupe lo mismo.
 function topeFuente(base) { return Math.max(base, Math.round(base * window.innerHeight / 1080)); }
 
+// 1L (deuda CA): la línea marcada va en una sola línea; si no cabe a lo ancho, solo ella achica su letra.
+// Su caja corta lo que sobra (overflow), así no hace achicar al resto de la diapositiva.
+function limpiarUnaLinea(content) { content.querySelectorAll('.una-linea').forEach(s => { s.style.fontSize = ''; }); }
+function ajustarUnaLinea(content) {
+    content.querySelectorAll('.una-linea').forEach(s => {
+        if (s.scrollWidth > s.clientWidth + 1) {
+            const fs = parseFloat(getComputedStyle(s).fontSize);
+            s.style.fontSize = Math.max(4, fs * s.clientWidth / s.scrollWidth * 0.98) + 'px';
+        }
+    });
+}
+
 function autoFit(contenedor) {
     const content = contenedor.querySelector('.slide-content');
     if (!content) return;
+    limpiarUnaLinea(content);
 
     let lo = 10, hi = topeFuente(250);
     while (hi - lo > 1) {
@@ -888,6 +916,7 @@ function autoFit(contenedor) {
         }
     }
     content.style.fontSize = lo + 'px';
+    ajustarUnaLinea(content);
 }
 
 let rafFit = 0;
