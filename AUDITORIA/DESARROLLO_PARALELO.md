@@ -4772,3 +4772,4 @@ el Lector de tablaturas; "algo raro pasa".*
 - **Prueba (local, Workspace):** Entrenador en "Cuerdas 2026" → cuadro de la tablatura (ya no descarga el `.mxl`);
   "Abrir en el Lector" abre la pestaña 🎸 con la partitura de ukelele cargada; elegir otra en el desplegable abre su
   pestaña sola; botón de una parte abre el Lector con `&seccion=`. Sin errores en la consola.
+- **Commit:** `88b54f3` (subido). Falta: uso en el taller.
