@@ -4722,3 +4722,4 @@ secciones: `alumno_tabs` / `alumno_tab_secciones`) sin buscarlo en la lista.
 - **Prueba (local, sin guardar):** `?admin=1` sin estudiante → lista normal (16 filas); sesión iniciada de un estudiante
   y Ctrl+Shift+A → abre su sub-vista de asignación (su nombre, buscador y catálogo); "← Lista" → barra "Alumno activo"
   con "📋 Asignaciones" y "Cerrar sesión"; el botón vuelve a sus asignaciones. Sin asignaciones modificadas.
+- **Commit:** `0948a82` (subido). Falta: uso real con un estudiante.
