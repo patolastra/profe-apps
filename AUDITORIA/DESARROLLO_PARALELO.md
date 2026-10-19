@@ -4800,3 +4800,60 @@ Planificador de este equipo mostraba "▶ Comenzar clase" en esa misma clase.*
   fila de internet vacía. Planificador local con la clase real de Tercero en otro equipo: muestra "En curso en otro
   equipo" y el botón (sin apretarlo, para no mover la clase real). Sin errores nuevos en la consola.
 - **Commit:** `6fede0a` (subido). Falta: probarlo con dos equipos reales.
+
+### CH. Cajón peruano — animación que toca un MIDI (grave y agudo)
+*Origen: pedido del PO (2026-10-19): "una animación de alguien tocando cajón peruano, y que yo pueda pasarle MIDIs y
+que renderice los ritmos, básicamente dos notas: grave, agudo". Es el primer paso del **Cajón-instrumento** del
+roadmap (§9, evolución del Entrenador de ritmos).*
+- **Necesidad:** mostrar en clase (proyector) cómo suena y cómo se toca un ritmo de cajón, con los golpes graves y
+  agudos a la vista, a la velocidad que el curso necesite.
+- **Auditoría (2026-10-19):**
+  - **Motor de ritmo** (`ritmo.js` + `ritmo-render.js`, raíz, **protegidos**): lee el texto de ritmo propio (no MIDI);
+    ya tiene un golpe grave sintetizado (`programarGrave`, deuda BY) y un reloj único con `AudioContext`. No se
+    modifica: se **copia la idea** del sonido y del reloj en el módulo nuevo.
+  - **Metalófono**: lee MIDI con `@tonejs/midi` + Tone.js desde unpkg (no funciona sin internet) y valida con un lector
+    propio de bytes. Para el cajón basta un lector propio pequeño (notas, tiempos, tempo): funciona sin internet.
+  - **Biblioteca**: tipos de recurso fijos (`TIPOS_ASSET`: letra, audio, tab, metalofono, flauta, cifrado, ritmo); los
+    MIDI del metalófono van al bucket `repertorio-assets`. Un tipo nuevo "cajón" toca la Biblioteca, el Entrenador,
+    el Plan (🎹/🥁) y posiblemente una regla de la base: **se deja para un paso 2**.
+  - **Nombre de carpeta:** `CAJON/` ya existe (generador de planificación) → el módulo nuevo no puede llamarse así.
+- **PROPUESTA de Claude (paso 1):**
+  - **Dónde vive:** módulo propio `CAJON-PERUANO/index.html` (un archivo), con pestaña 🪘 en el Workspace. Carga un
+    MIDI desde el equipo (botón o arrastrar) o por `?midi=<url>&nombre=`. Paso 2 (aparte): recurso "Cajón" en la
+    Biblioteca y en el Plan.
+  - **Grave / agudo en el MIDI:** por altura de nota. Regla por defecto: si son notas de batería estándar (bombo 35/36 →
+    grave; caja, tom, etc. → agudo); si no, la nota **más baja** del archivo = grave y las demás = agudo. Al cargar se
+    listan las notas encontradas (cuántos golpes cada una) con un interruptor Grave/Agudo por nota; el ajuste se
+    recuerda por archivo en el equipo.
+  - **Animación:** SVG dibujado en el mismo archivo (sin librerías): una figura sentada sobre el cajón; **grave** = la
+    mano golpea el centro de la cara (el cajón vibra, onda grande, color cálido); **agudo** = golpe en el borde de
+    arriba (destello chico, color frío). Las manos se alternan en golpes seguidos. Abajo, una cinta con los golpes que
+    vienen (fila grave / fila agudo) y la línea del "ahora".
+  - **Sonido:** sintetizado (sin archivos): grave = golpe sordo tipo bombo; agudo = chasquido de madera ("slap"). La
+    intensidad del MIDI cambia el volumen y el tamaño del golpe.
+  - **Sincronía y tempo:** un solo reloj (`AudioContext`), sonido programado por adelantado y animación leyendo ese
+    reloj (el mismo principio del motor de ritmo). Tempo = BPM del MIDI con − / + de 5 (y cambio en vivo sin
+    perder el lugar); ▶ / ⏸ (pausa sigue desde donde quedó), ⏮ al inicio, 🔁 repetir.
+  - **Pasos siguientes (DECISIÓN del PO, 2026-10-19):** en uno de los pasos, estos ritmos de cajón se **publican para
+    los estudiantes**, que entran a ellos con un **código QR** (como el link del Metalófono alumno, `m/?a=&n=`). Orden
+    propuesto: paso 2 = recurso "Cajón" en la Biblioteca y el Plan; paso 3 = versión estudiante + link permanente + QR.
+- **DECISIÓN del PO (2026-10-19):** aprueba el paso 1 tal como está propuesto.
+- **Implementación (2026-10-19):** `CAJON-PERUANO/index.html` (nuevo, un archivo): lector de MIDI propio (formatos 0 y 1,
+  estado continuo, mapa de tempo, compás), regla grave/agudo (`mapaAutomatico`: batería estándar → bombo y toms de piso
+  graves; si no, la nota más baja) con panel 🎚️ Notas por altura (`profe_cajon_mapa:<nombre>` en `localStorage`) y
+  "Volver a la regla automática"; figura en SVG con brazos articulados (hombro → codo → mano), manos que se alternan en
+  golpes seguidos (< 0,5 s) y una en cada mano en golpes simultáneos; efectos (onda naranja + cajón que vibra en el
+  grave, destello celeste en el agudo, luces AGUDO / GRAVE); cinta con compases y tiempos. Sonido sintetizado; reloj
+  único `AudioContext` con programación anticipada (120 ms); la animación descuenta la latencia de salida. Tempo − / +
+  de 5 (30–300) en vivo sin perder el lugar, ▶ / ⏸ (Espacio), ⏮ (Inicio), 🔁 repetir (encendido), pantalla completa,
+  arrastrar un MIDI, botón Ejemplo (MIDI armado en memoria) y `?midi=<url>&nombre=`. `PC/workspace.html`: app 🪘 Cajón
+  en el menú ＋.
+- **Prueba (local, puerto 8971):** MIDI de prueba hecho por Claude (formato 1, pista de tempo aparte, 90 BPM, 3/4, notas
+  Do3/Do4 sin batería): 19 golpes, Do3 grave y Do4 agudo por la regla; los 19 sonidos de cada vuelta caen exactos
+  (corcheas a 0,333 s) y la vuelta empalma; a 100 BPM pasan a 0,3 s; la pausa queda quieta y sigue desde el mismo punto;
+  sin repetir se detiene al final y vuelve al inicio; Notas: pasar Do4 a grave da 19 graves, se guarda y "Volver a la
+  regla" deja 9. Ejemplo (batería): bombo grave, caja aguda, 100 BPM. Archivo que no es MIDI: aviso "Ese archivo no es
+  un MIDI.". Dentro del Workspace abre como pestaña 🪘 Cajón. Sin errores en la consola. Falta: escucharlo y verlo en el
+  proyector (en el panel de pruebas la animación iba a pocos cuadros por segundo, el sonido no).
+  - **Alcance:** solo el archivo nuevo + la pestaña en `PC/workspace.html`. Sin cambios en Supabase, ni en el motor de
+    ritmo, ni en los MIDI reales.

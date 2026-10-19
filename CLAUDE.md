@@ -42,6 +42,7 @@ Estado = clasificación oficial de Fase 1.5 (ver §5 para la leyenda). Detalle p
 | **Libros** | El Libro de clases de cada instancia (todas menos General) en una sola pestaña fija: columna de instancias + el Libro a la derecha, sobre la clase de hoy o la última. El 📒 del Plan lleva aquí. Profesor. | `LIBROS/index.html` | 🟢 Activo (2026-10-13, deuda BI) |
 | **Bitácora / Memoria** | Documento narrativo permanente de la clase (móvil). | `MEMORIA/index.html` + tabla `memorias` | 🟢 Activo — en el móvil junto a **Evaluar** (`MOVIL/evaluar.html`, por toques) |
 | **Metalófono** | Herramienta pedagógica MIDI. Dos modos en el **mismo archivo**: **profesor** (escritorio, completo) y **alumno** (`?modo=alumno&a=<id>`: celular horizontal, instrumento ya configurado, sin Supabase). Ver ficha en `AUDITORIA/DESARROLLO_PARALELO.md`. | `METALÓFONO APP/METAL21 (ALPHA).HTML` | 🟢 Activo (estable; el rótulo "alpha" es histórico) |
+| **Cajón peruano** | Figura animada que toca en el cajón el ritmo de un MIDI: golpes **grave** (centro de la tapa) y **agudo** (borde de arriba) según la altura de nota (ajustable por nota), sonido sintetizado, tempo y repetir; pestaña 🪘 del Workspace. Paso 1 del **Cajón-instrumento** (deuda CH, 2026-10-19); siguen Biblioteca/Plan y versión estudiante por QR. | `CAJON-PERUANO/index.html` | 🟢 Activo (2026-10-19, deuda CH) |
 | **ADMIN** | Gestión de pendientes (CRUD, 3 vistas). | `ADMIN/index.html` | 🟡 Activo pero antiguo → **futuro panel de administración** |
 | **CAJÓN (generador de planificación)** | Genera planificaciones `.docx`. | `CAJON/generador-planificacion.html` | 🟡 Activo pero antiguo (en uso) |
 | **ANALIZADOR** | Analítica de uso (`eventos_uso`) + análisis Gemini. | `ANALIZADOR/index.html` | 🟡 Antiguo — **visor congelado**; el logging (`eventos_uso`) **hoy NO persiste** (INSERT → 401, ver §7) |
@@ -52,7 +53,7 @@ Estado = clasificación oficial de Fase 1.5 (ver §5 para la leyenda). Detalle p
 - Lector: `tabs/index.html` es el **único** archivo oficial (no crear `index-beta`/`dev`/`2`; todo se desarrolla ahí).
 - Assets pedagógicos reales — **no modificar sin confirmar**: `METALÓFONO APP/MIDI/` (MIDIs reales del profesor), `tabs/TABS/` (partituras MuseScore reales).
 
-**Módulos futuros identificados (no existen aún):** Flauta, Huiro, Cifrado, Chords (Cifrado+Chords a fusionar), Games, Cajón-instrumento (percusión), Cuaderno MIDI. Ver §9. *(La "Biblioteca Musical" que figuraba aquí quedó absorbida por la Biblioteca, DECISIÓN del PO 2026-10-08.)*
+**Módulos futuros identificados (no existen aún):** Flauta, Huiro, Cifrado, Chords (Cifrado+Chords a fusionar), Games, Cajón-instrumento (percusión; **paso 1 ya existe**: `CAJON-PERUANO/`, deuda CH), Cuaderno MIDI. Ver §9. *(La "Biblioteca Musical" que figuraba aquí quedó absorbida por la Biblioteca, DECISIÓN del PO 2026-10-08.)*
 
 **Pizarra vs Presentador Pedagógico (aclaración):** `PIZARRA/` es el **módulo actual** (Pizarra = Presentador Pedagógico). **No son dos módulos:** `PRESENTADOR PEDAGÓGICO/` es únicamente un **documento histórico de diseño** (el prompt que dio origen a Pizarra), que se **archiva/conserva** como referencia.
 

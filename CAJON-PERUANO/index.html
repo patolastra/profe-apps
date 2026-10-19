@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cajón peruano</title>
+<!--
+  Cajón peruano (deuda CH, paso 1): una figura toca en el cajón el ritmo de un MIDI.
+  Cada nota del MIDI es un golpe GRAVE (centro de la tapa) o AGUDO (borde de arriba),
+  según su altura (regla por defecto + ajuste por nota, recordado en el equipo).
+  Sonido sintetizado y animación con un solo reloj (AudioContext). Sin librerías ni internet.
+  Dirección: ?midi=<url>&nombre=<texto> carga un MIDI al abrir.
+-->
+<style>
+    :root {
+        --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8;
+        --grave: #f97316; --agudo: #22d3ee;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+    body { display: flex; flex-direction: column; }
+
+    /* Barra (estable: anchos fijos, nada aparece ni desaparece) */
+    #barra { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel);
+        border-bottom: 1px solid var(--borde); flex: 0 0 auto; }
+    #barra button { background: #334155; color: var(--texto); border: 1px solid #475569; border-radius: 8px;
+        height: 36px; padding: 0 12px; font-size: 15px; cursor: pointer; white-space: nowrap; }
+    #barra button:hover:not(:disabled) { background: #475569; }
+    #barra button:disabled { opacity: .4; cursor: default; }
+    #barra button.on { background: #0e7490; border-color: #22d3ee; }
+    #b-play { width: 56px; font-size: 18px !important; background: #15803d !important; border-color: #22c55e !important; }
+    #b-play.pausa { background: #b45309 !important; border-color: #f59e0b !important; }
+    #nombre { width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tenue); font-size: 14px; }
+    .grupo { display: flex; align-items: center; gap: 4px; }
+    #bpm { width: 84px; text-align: center; font-variant-numeric: tabular-nums; font-size: 15px; }
+    .sep { flex: 1; }
+
+    /* Escenario */
+    #escenario { flex: 1 1 auto; position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; }
+    #svg { width: 100%; height: 100%; display: block; }
+    #indicadores { position: absolute; left: 16px; top: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .ind { width: 120px; text-align: center; padding: 8px 0; border-radius: 999px; font-weight: 700; letter-spacing: .08em;
+        border: 2px solid; opacity: .35; transition: opacity .25s, transform .25s; }
+    .ind.luz { opacity: 1; transform: scale(1.08); transition: none; }
+    #ind-agudo { color: var(--agudo); border-color: var(--agudo); }
+    #ind-grave { color: var(--grave); border-color: var(--grave); }
+    #aviso { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(15,23,42,.85);
+        border: 1px solid var(--borde); border-radius: 10px; padding: 10px 16px; color: var(--tenue); font-size: 15px;
+        text-align: center; max-width: 90%; }
+    #aviso.error { color: #fca5a5; border-color: #b91c1c; }
+    #aviso[hidden] { display: none; }
+    body.arrastrando #escenario { outline: 3px dashed var(--agudo); outline-offset: -10px; }
+
+    /* Cinta de golpes */
+    #cinta { flex: 0 0 auto; width: 100%; height: 22vh; min-height: 110px; max-height: 200px; display: block;
+        border-top: 1px solid var(--borde); background: #111c33; }
+
+    /* Panel de notas */
+    #panel-notas { position: absolute; right: 12px; top: 60px; z-index: 5; width: 340px; max-height: 70vh; overflow: auto;
+        background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 12px;
+        box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+    #panel-notas[hidden] { display: none; }
+    #panel-notas h3 { margin: 0 0 4px; font-size: 16px; }
+    #panel-notas p { margin: 0 0 10px; color: var(--tenue); font-size: 13px; }
+    .fila-nota { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--borde); }
+    .fila-nota .nn { flex: 1; font-size: 14px; }
+    .fila-nota .cant { color: var(--tenue); font-size: 12px; }
+    .seg { display: flex; border: 1px solid #475569; border-radius: 8px; overflow: hidden; }
+    .seg button { background: transparent; color: var(--tenue); border: 0; padding: 5px 10px; cursor: pointer; font-size: 13px; }
+    .seg button.sel-grave { background: var(--grave); color: #111; font-weight: 700; }
+    .seg button.sel-agudo { background: var(--agudo); color: #111; font-weight: 700; }
+    #b-restablecer { margin-top: 10px; background: #334155; color: var(--texto); border: 1px solid #475569;
+        border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+
+    /* Efectos del golpe */
+    .onda, .chispa { transform-box: fill-box; transform-origin: center; pointer-events: none; }
+    .onda { animation: onda .55s ease-out forwards; }
+    .chispa { animation: chispa .25s ease-out forwards; }
+    @keyframes onda { from { transform: scale(.15); opacity: 1; } to { transform: scale(1); opacity: 0; } }
+    @keyframes chispa { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.25); opacity: 0; } }
+    #cajon { transform-box: fill-box; transform-origin: 50% 100%; }
+    #cajon.vibra { animation: vibra .2s ease-out; }
+    @keyframes vibra { 0% { transform: scale(1.02, .985); } 50% { transform: scale(.995, 1.005); } 100% { transform: none; } }
+    #brillo { opacity: 0; }
+    #brillo.luz { animation: brillo .3s ease-out; }
+    @keyframes brillo { from { opacity: .35; } to { opacity: 0; } }
+</style>
+</head>
+<body>
+<header id="barra">
+    <button id="b-cargar" title="Cargar un MIDI desde el computador">📂 Cargar MIDI</button>
+    <button id="b-ejemplo" title="Cargar un ritmo de ejemplo">Ejemplo</button>
+    <span id="nombre"></span>
+    <div class="grupo">
+        <button id="b-inicio" title="Volver al inicio (Inicio)" disabled>⏮</button>
+        <button id="b-play" title="Tocar / pausa (Espacio)" disabled>▶</button>
+        <button id="b-repetir" class="on" title="Repetir al terminar">🔁</button>
+    </div>
+    <div class="grupo" title="Tempo">
+        <button id="b-menos" disabled>−</button>
+        <span id="bpm">— BPM</span>
+        <button id="b-mas" disabled>+</button>
+    </div>
+    <span class="sep"></span>
+    <button id="b-notas" title="Qué nota es grave y cuál aguda" disabled>🎚️ Notas</button>
+    <button id="b-pantalla" title="Pantalla completa">⛶</button>
+    <input type="file" id="archivo" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
+</header>
+
+<main id="escenario">
+    <svg id="svg" viewBox="0 0 600 530" preserveAspectRatio="xMidYMid meet" aria-label="Figura tocando cajón">
+        <defs>
+            <linearGradient id="g-madera" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#e9b77a"/><stop offset="1" stop-color="#b8743a"/>
+            </linearGradient>
+        </defs>
+        <ellipse cx="300" cy="508" rx="215" ry="13" fill="#000" opacity=".35"/>
+
+        <!-- Persona (detrás del cajón) -->
+        <g id="cabeza"><g transform="translate(0 -60)">
+            <rect x="287" y="132" width="26" height="40" fill="#c98f52"/>
+            <circle cx="300" cy="112" r="36" fill="#e0ac69"/>
+            <path d="M264 106 Q266 70 300 70 Q336 70 337 106 Q322 92 300 92 Q280 92 264 106 Z" fill="#1f2937"/>
+            <circle cx="287" cy="118" r="3.5" fill="#1f2937"/>
+            <circle cx="313" cy="118" r="3.5" fill="#1f2937"/>
+            <path d="M291 132 Q300 138 309 132" stroke="#7c4a24" stroke-width="3" fill="none" stroke-linecap="round"/>
+        </g></g>
+        <path d="M238 112 Q300 96 362 112 L376 262 L224 262 Z" fill="#2563eb"/>
+
+        <!-- Cajón -->
+        <g id="cajon">
+            <path d="M204 250 L222 234 L400 234 L396 250 Z" fill="#8a5a2b"/>
+            <rect x="204" y="250" width="192" height="254" rx="4" fill="url(#g-madera)" stroke="#6b4421" stroke-width="5"/>
+            <g stroke="#a9692f" stroke-width="1.5" opacity=".45" fill="none">
+                <path d="M222 290 Q300 282 378 296"/><path d="M222 350 Q300 344 378 356"/>
+                <path d="M222 420 Q300 412 378 426"/><path d="M222 470 Q300 466 378 476"/>
+            </g>
+            <g fill="#5b3a1a">
+                <circle cx="216" cy="262" r="3"/><circle cx="384" cy="262" r="3"/>
+                <circle cx="216" cy="492" r="3"/><circle cx="384" cy="492" r="3"/>
+                <circle cx="300" cy="262" r="3"/>
+            </g>
+            <rect id="brillo" x="204" y="250" width="192" height="254" rx="4" fill="#fdba74"/>
+        </g>
+
+        <!-- Piernas -->
+        <g stroke-linecap="round" fill="none">
+            <path d="M246 244 L172 290 L162 486" stroke="#334155" stroke-width="34" stroke-linejoin="round"/>
+            <path d="M354 244 L428 290 L438 486" stroke="#334155" stroke-width="34" stroke-linejoin="round"/>
+        </g>
+        <ellipse cx="150" cy="500" rx="30" ry="11" fill="#111827"/>
+        <ellipse cx="450" cy="500" rx="30" ry="11" fill="#111827"/>
+
+        <!-- Brazos (los mueve el código) -->
+        <g id="brazo-L" stroke-linecap="round" fill="none">
+            <path class="sup" stroke="#2563eb" stroke-width="26"/>
+            <path class="ant" stroke="#e0ac69" stroke-width="18"/>
+            <ellipse class="mano" rx="15" ry="13" fill="#e0ac69" stroke="#c98f52" stroke-width="2"/>
+        </g>
+        <g id="brazo-R" stroke-linecap="round" fill="none">
+            <path class="sup" stroke="#2563eb" stroke-width="26"/>
+            <path class="ant" stroke="#e0ac69" stroke-width="18"/>
+            <ellipse class="mano" rx="15" ry="13" fill="#e0ac69" stroke="#c98f52" stroke-width="2"/>
+        </g>
+        <g id="fx"></g>
+    </svg>
+    <div id="indicadores">
+        <span class="ind" id="ind-agudo">AGUDO</span>
+        <span class="ind" id="ind-grave">GRAVE</span>
+    </div>
+    <div id="aviso">Carga un MIDI de cajón (📂) o arrástralo aquí. También puedes probar el Ejemplo.</div>
+    <div id="panel-notas" hidden>
+        <h3>🎚️ Notas del MIDI</h3>
+        <p>Elige si cada nota suena grave (centro de la tapa) o aguda (borde de arriba). Se recuerda en este equipo.</p>
+        <div id="lista-notas"></div>
+        <button id="b-restablecer">Volver a la regla automática</button>
+    </div>
+</main>
+<canvas id="cinta"></canvas>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════════════════════════
+// LECTOR DE MIDI (propio, sin librerías): notas, tempo y compás
+// ═══════════════════════════════════════════════════════════════════════════
+function leerMidi(buf) {
+    const d = new Uint8Array(buf);
+    let p = 0;
+    const u16 = () => (d[p++] << 8) | d[p++];
+    const u32 = () => ((d[p++] << 24) | (d[p++] << 16) | (d[p++] << 8) | d[p++]) >>> 0;
+    const id4 = () => String.fromCharCode(d[p], d[p + 1], d[p + 2], d[p + 3]);
+    const vlq = () => { let v = 0, b; do { b = d[p++]; v = (v << 7) | (b & 0x7f); } while ((b & 0x80) && p < d.length); return v; };
+
+    if (d.length < 14 || id4() !== 'MThd') throw new Error('Ese archivo no es un MIDI.');
+    p += 4;
+    const largoCab = u32();
+    u16();                                  // formato (0 o 1: se leen igual)
+    const pistas = u16(), div = u16();
+    p = 8 + largoCab;
+    if (div & 0x8000) throw new Error('Este MIDI usa un tipo de tiempo que no se puede leer.');
+    const ppq = div || 480;
+
+    const notas = [], tempos = [], compases = [];
+    for (let k = 0; k < pistas && p + 8 <= d.length; k++) {
+        const id = id4(); p += 4;
+        const largo = u32(), fin = Math.min(p + largo, d.length);
+        if (id !== 'MTrk') { p = fin; continue; }
+        let tick = 0, estado = 0;
+        while (p < fin) {
+            tick += vlq();
+            const b = d[p];
+            if (b === 0xFF) {                                   // meta
+                p++; const tipo = d[p++]; const l = vlq();
+                if (tipo === 0x51 && l === 3) tempos.push({ tick, uspq: (d[p] << 16) | (d[p + 1] << 8) | d[p + 2] });
+                if (tipo === 0x58 && l >= 2) compases.push({ tick, num: d[p], den: Math.pow(2, d[p + 1]) });
+                p += l; continue;
+            }
+            if (b === 0xF0 || b === 0xF7) { p++; p += vlq(); continue; }   // sysex
+            if (b & 0x80) { estado = b; p++; }                  // si no, estado continuo
+            const tipo = estado & 0xF0;
+            if (tipo === 0xC0 || tipo === 0xD0) { p += 1; continue; }
+            const a = d[p++], v = d[p++];
+            if (tipo === 0x90 && v > 0) notas.push({ tick, pitch: a, vel: v, canal: estado & 0x0F });
+        }
+        p = fin;
+    }
+    if (!notas.length) throw new Error('El MIDI no tiene notas.');
+    notas.sort((x, y) => x.tick - y.tick || x.pitch - y.pitch);
+
+    // Mapa de tempo (ticks ↔ segundos)
+    tempos.sort((x, y) => x.tick - y.tick);
+    const segs = [];
+    if (!tempos.length || tempos[0].tick > 0) segs.push({ tick: 0, uspq: 500000 });
+    for (const t of tempos) {
+        if (segs.length && segs[segs.length - 1].tick === t.tick) segs[segs.length - 1].uspq = t.uspq;
+        else segs.push({ tick: t.tick, uspq: t.uspq });
+    }
+    let s = 0;
+    for (let i = 0; i < segs.length; i++) {
+        if (i) s += (segs[i].tick - segs[i - 1].tick) * segs[i - 1].uspq / 1e6 / ppq;
+        segs[i].seg = s;
+    }
+    const tickASeg = (t) => {
+        let i = segs.length - 1; while (i > 0 && segs[i].tick > t) i--;
+        return segs[i].seg + (t - segs[i].tick) * segs[i].uspq / 1e6 / ppq;
+    };
+    const segATick = (x) => {
+        let i = segs.length - 1; while (i > 0 && segs[i].seg > x) i--;
+        return segs[i].tick + (x - segs[i].seg) * 1e6 * ppq / segs[i].uspq;
+    };
+
+    const comp = compases.sort((x, y) => x.tick - y.tick)[0] || { num: 4, den: 4 };
+    const ticksCompas = ppq * 4 * comp.num / comp.den;
+    const ultimo = notas[notas.length - 1].tick;
+    const finTick = Math.max(ticksCompas, Math.ceil((ultimo + 1) / ticksCompas) * ticksCompas);
+
+    return {
+        ppq, notas, comp, ticksCompas, finTick,
+        fin: tickASeg(finTick),
+        bpmBase: 60e6 / segs[0].uspq,
+        tickASeg, segATick,
+        gm: notas.some(n => n.canal === 9),
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GRAVE / AGUDO por altura de nota
+// ═══════════════════════════════════════════════════════════════════════════
+const GM_GRAVES = new Set([35, 36, 41, 43, 45]);   // bombos y toms de piso
+const GM_NOMBRES = { 35: 'Bombo', 36: 'Bombo', 37: 'Aro', 38: 'Caja', 39: 'Palmas', 40: 'Caja', 41: 'Tom de piso',
+    42: 'Hi-hat', 43: 'Tom de piso', 44: 'Hi-hat', 45: 'Tom', 46: 'Hi-hat abierto', 47: 'Tom', 48: 'Tom', 49: 'Platillo',
+    50: 'Tom', 51: 'Ride', 54: 'Pandero', 56: 'Cencerro', 57: 'Platillo', 60: 'Bongó agudo', 61: 'Bongó grave',
+    62: 'Conga', 63: 'Conga', 64: 'Conga grave', 75: 'Claves', 76: 'Bloque', 77: 'Bloque' };
+const NOTAS_ES = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
+function nombreNota(p) {
+    const base = NOTAS_ES[p % 12] + (Math.floor(p / 12) - 1);
+    return datos && datos.gm && GM_NOMBRES[p] ? `${GM_NOMBRES[p]} (${base})` : base;
+}
+function mapaAutomatico(alturas, gm) {
+    const m = {};
+    if (gm) alturas.forEach(a => { m[a] = GM_GRAVES.has(a) ? 'grave' : 'agudo'; });
+    if (!gm || !alturas.some(a => m[a] === 'grave')) {
+        const baja = Math.min(...alturas);
+        alturas.forEach(a => { m[a] = a === baja ? 'grave' : 'agudo'; });
+    }
+    return m;
+}
+const claveMapa = () => 'profe_cajon_mapa:' + (datos ? datos.nombre : '');
+function leerMapaGuardado() { try { return JSON.parse(localStorage.getItem(claveMapa()) || 'null'); } catch (e) { return null; } }
+function guardarMapa() { try { localStorage.setItem(claveMapa(), JSON.stringify(mapa)); } catch (e) {} }
+function borrarMapa() { try { localStorage.removeItem(claveMapa()); } catch (e) {} }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SONIDO (sintetizado)
+// ═══════════════════════════════════════════════════════════════════════════
+let ctx = null, salida = null, ruidoBuf = null;
+function asegurarAudio() {
+    if (ctx) return;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const comp = ctx.createDynamicsCompressor();
+    salida = ctx.createGain(); salida.gain.value = 0.9;
+    salida.connect(comp).connect(ctx.destination);
+    const n = Math.ceil(ctx.sampleRate * 0.5);
+    ruidoBuf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const ch = ruidoBuf.getChannelData(0);
+    for (let i = 0; i < n; i++) ch[i] = Math.random() * 2 - 1;
+}
+function env(g, t, pico, caida) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(pico, 0.001), t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + caida);
+}
+function ruido(t, dur, filtro, freq, q, pico, caida) {
+    const src = ctx.createBufferSource(); src.buffer = ruidoBuf;
+    const f = ctx.createBiquadFilter(); f.type = filtro; f.frequency.value = freq; if (q) f.Q.value = q;
+    const g = ctx.createGain(); env(g, t, pico, caida);
+    src.connect(f).connect(g).connect(salida);
+    src.start(t); src.stop(t + dur);
+    return src;
+}
+// Grave: golpe sordo al centro de la tapa (bombo de madera) + un poco de cuerdas.
+function sonarGrave(t, v) {
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(115, t);
+    o.frequency.exponentialRampToValueAtTime(52, t + 0.17);
+    const g = ctx.createGain(); env(g, t, 1.15 * v, 0.42);
+    o.connect(g).connect(salida); o.start(t); o.stop(t + 0.45);
+    return [o, ruido(t, 0.08, 'lowpass', 700, 0, 0.55 * v, 0.06), ruido(t, 0.2, 'highpass', 3500, 0, 0.08 * v, 0.15)];
+}
+// Agudo: chasquido de madera en el borde + cuerdas (bordona) que chirrían.
+function sonarAgudo(t, v) {
+    const o = ctx.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(430, t);
+    o.frequency.exponentialRampToValueAtTime(300, t + 0.05);
+    const g = ctx.createGain(); env(g, t, 0.35 * v, 0.06);
+    o.connect(g).connect(salida); o.start(t); o.stop(t + 0.08);
+    return [o, ruido(t, 0.1, 'bandpass', 1900, 0.9, 1.0 * v, 0.075), ruido(t, 0.25, 'highpass', 4200, 0, 0.32 * v, 0.19)];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════════════════════════
+let datos = null;            // MIDI leído + nombre
+let mapa = {};               // altura → 'grave' | 'agudo'
+let golpes = [];             // [{ t (seg. del MIDI), tick, tipo, vel, mano }]
+let manos = { L: [], R: [] };
+let bpm = 120, ritmo = 1;    // ritmo = bpm elegido / bpm del MIDI
+let tocando = false, repetir = true;
+let ancla = { ctx0: 0, pos0: 0 }, anclaPrev = null;   // reloj: pos = pos0 + (ctx − ctx0) × ritmo
+let posPausa = 0, progPos = 0, idxProg = 0, programados = [], reloj = null;
+let idxFx = 0, ultVis = 0, ultGolpe = { t: -9, real: -9 };
+
+const $ = (id) => document.getElementById(id);
+const bPlay = $('b-play');
+
+function primerIdx(arr, t) { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m].t < t) lo = m + 1; else hi = m; } return lo; }
+
+function aviso(txt, error) { const a = $('aviso'); a.textContent = txt || ''; a.hidden = !txt; a.classList.toggle('error', !!error); }
+
+function cargar(buf, nombre) {
+    let m;
+    try { m = leerMidi(buf); } catch (e) { aviso(e.message || 'No se pudo leer el archivo.', true); return; }
+    detener();
+    datos = Object.assign(m, { nombre });
+    const alturas = [...new Set(m.notas.map(n => n.pitch))].sort((a, b) => a - b);
+    const auto = mapaAutomatico(alturas, m.gm);
+    const guardado = leerMapaGuardado();
+    mapa = {};
+    alturas.forEach(a => { mapa[a] = (guardado && guardado[a]) || auto[a]; });
+    bpm = Math.round(m.bpmBase); ritmo = bpm / m.bpmBase;
+    $('nombre').textContent = nombre; $('nombre').title = nombre;
+    ['b-inicio', 'b-play', 'b-menos', 'b-mas', 'b-notas'].forEach(id => $(id).disabled = false);
+    prepararGolpes();
+    pintarNotas();
+    pintarBpm();
+    aviso('');
+    posPausa = 0;
+}
+
+function prepararGolpes() {
+    const tol = datos.ppq / 24;
+    golpes = datos.notas.map(n => ({ t: datos.tickASeg(n.tick), tick: n.tick, tipo: mapa[n.pitch] || 'agudo', vel: n.vel / 127, mano: 'R' }));
+    // Manos: golpes simultáneos = una en cada mano; seguidos (< 0,5 s) se alternan; con tiempo, la derecha.
+    let ultMano = 'L', ultT = -9;
+    for (let i = 0; i < golpes.length;) {
+        let j = i; while (j < golpes.length && golpes[j].tick - golpes[i].tick <= tol) j++;
+        const grupo = golpes.slice(i, j).sort((a, b) => (a.tipo === 'grave' ? 0 : 1) - (b.tipo === 'grave' ? 0 : 1));
+        if (grupo.length > 1) { grupo.forEach((g, k) => { g.mano = k === 0 ? 'R' : 'L'; }); ultMano = 'L'; }
+        else { grupo[0].mano = (grupo[0].t - ultT < 0.5) ? (ultMano === 'R' ? 'L' : 'R') : 'R'; ultMano = grupo[0].mano; }
+        ultT = golpes[i].t; i = j;
+    }
+    manos = { L: golpes.filter(g => g.mano === 'L'), R: golpes.filter(g => g.mano === 'R') };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RELOJ Y PROGRAMACIÓN DEL SONIDO
+// ═══════════════════════════════════════════════════════════════════════════
+function posEn(ctxT) {
+    const a = (anclaPrev && ctxT < ancla.ctx0) ? anclaPrev : ancla;
+    return a.pos0 + (ctxT - a.ctx0) * ritmo;
+}
+function cancelarFuturos() {
+    const ahora = ctx ? ctx.currentTime : 0;
+    programados = programados.filter(p => {
+        if (p.ctxT > ahora) { p.nodos.forEach(n => { try { n.stop(0); } catch (e) {} }); return false; }
+        return p.ctxT > ahora - 1;
+    });
+}
+function programar() {
+    if (!tocando) return;
+    const hasta = ctx.currentTime + 0.12;
+    for (let vuelta = 0; vuelta < 4; vuelta++) {
+        const objetivo = ancla.pos0 + (hasta - ancla.ctx0) * ritmo;
+        const tope = Math.min(objetivo, datos.fin);
+        while (idxProg < golpes.length && golpes[idxProg].t < tope) {
+            const g = golpes[idxProg++];
+            if (g.t < progPos) continue;
+            const ctxT = Math.max(ctx.currentTime, ancla.ctx0 + (g.t - ancla.pos0) / ritmo);
+            programados.push({ ctxT, nodos: g.tipo === 'grave' ? sonarGrave(ctxT, 0.35 + 0.65 * g.vel) : sonarAgudo(ctxT, 0.35 + 0.65 * g.vel) });
+        }
+        progPos = tope;
+        if (objetivo >= datos.fin && repetir) {
+            anclaPrev = ancla;
+            ancla = { ctx0: ancla.ctx0 + (datos.fin - ancla.pos0) / ritmo, pos0: 0 };
+            progPos = 0; idxProg = 0;
+            continue;
+        }
+        break;
+    }
+    if (programados.length > 200) programados = programados.filter(p => p.ctxT > ctx.currentTime - 1);
+}
+function reanclar(pos) {
+    cancelarFuturos();
+    ancla = { ctx0: ctx.currentTime + 0.03, pos0: pos }; anclaPrev = null;
+    progPos = pos; idxProg = primerIdx(golpes, pos);
+    idxFx = idxProg;
+    programar();
+}
+function tocar() {
+    if (!datos || tocando) return;
+    asegurarAudio();
+    if (ctx.state === 'suspended') ctx.resume();
+    if (posPausa >= datos.fin) posPausa = 0;
+    tocando = true;
+    reanclar(posPausa);
+    reloj = setInterval(programar, 25);
+    pintarPlay();
+}
+function pausar() {
+    if (!tocando) return;
+    posPausa = Math.max(0, Math.min(posEn(ctx.currentTime), datos.fin));
+    tocando = false; clearInterval(reloj); reloj = null;
+    cancelarFuturos();
+    pintarPlay();
+}
+function detener() {
+    if (tocando) pausar();
+    posPausa = 0; idxFx = 0;
+}
+function alInicio() {
+    const seguia = tocando;
+    detener();
+    if (seguia) tocar();
+}
+function cambiarBpm(nuevo) {
+    if (!datos) return;
+    const pos = tocando ? posEn(ctx.currentTime) : posPausa;
+    bpm = Math.max(30, Math.min(300, nuevo));
+    ritmo = bpm / datos.bpmBase;
+    if (tocando) reanclar(Math.min(pos, datos.fin));
+    pintarBpm();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIGURA: brazos con articulación (hombro → codo → mano)
+// ═══════════════════════════════════════════════════════════════════════════
+const L1 = 122, L2 = 116;
+const HOMBRO = { L: { x: 250, y: 120 }, R: { x: 350, y: 120 } };
+const REPOSO = { L: { x: 268, y: 300, s: 1.12 }, R: { x: 332, y: 300, s: 1.12 } };
+const DESTINO = {
+    L: { grave: { x: 282, y: 356, s: 1 }, agudo: { x: 264, y: 268, s: 1 } },
+    R: { grave: { x: 318, y: 356, s: 1 }, agudo: { x: 336, y: 268, s: 1 } },
+};
+// Antes del golpe la mano sube y "se acerca" (más grande): da la sensación de profundidad.
+const prep = (h, tipo) => { const d = DESTINO[h][tipo]; return { x: d.x + (h === 'L' ? -8 : 8), y: d.y - (tipo === 'grave' ? 70 : 52), s: 1.22 }; };
+const mezclar = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, s: a.s + (b.s - a.s) * u });
+const suave = (u) => { u = Math.max(0, Math.min(1, u)); return u * u * (3 - 2 * u); };
+const entrar = (u) => { u = Math.max(0, Math.min(1, u)); return u * u; };
+const salir = (u) => { u = Math.max(0, Math.min(1, u)); return 1 - (1 - u) * (1 - u); };
+
+function poseMano(h, vis) {
+    const arr = manos[h];
+    if (!arr.length) return REPOSO[h];
+    const i = primerIdx(arr, vis + 1e-6);
+    let prev = arr[i - 1], next = arr[i];
+    const fin = datos.fin;
+    if (repetir && tocando) {
+        if (!next) next = { t: arr[0].t + fin, tipo: arr[0].tipo };
+        if (!prev) prev = { t: arr[arr.length - 1].t - fin, tipo: arr[arr.length - 1].tipo };
+    }
+    const dP = prev ? (vis - prev.t) / ritmo : Infinity;   // segundos reales
+    const dN = next ? (next.t - vis) / ritmo : Infinity;
+    const hueco = (prev && next) ? (next.t - prev.t) / ritmo : Infinity;
+    const R = Math.min(0.14, hueco * 0.4), A = Math.min(0.15, hueco * 0.4);
+    if (prev && dP < R) return mezclar(DESTINO[h][prev.tipo], prep(h, prev.tipo), salir(dP / R));
+    if (next && dN < A) return mezclar(prep(h, next.tipo), DESTINO[h][next.tipo], entrar(1 - dN / A));
+    // Entre golpes: si vienen seguidos va directo a preparar el siguiente; si hay tiempo, descansa.
+    if (prev && next && hueco < 1.0) return mezclar(prep(h, prev.tipo), prep(h, next.tipo), suave((dP - R) / (hueco - R - A)));
+    let desde = prev ? mezclar(prep(h, prev.tipo), REPOSO[h], suave((dP - R) / 0.4)) : REPOSO[h];
+    if (next && dN < A + 0.35) desde = mezclar(desde, prep(h, next.tipo), suave(1 - (dN - A) / 0.35));
+    return desde;
+}
+
+function dibujarBrazo(h, m) {
+    const g = $('brazo-' + h), s = HOMBRO[h];
+    let dx = m.x - s.x, dy = m.y - s.y, d = Math.hypot(dx, dy);
+    const max = L1 + L2 - 1;
+    if (d > max) { m = { x: s.x + dx / d * max, y: s.y + dy / d * max, s: m.s }; dx = m.x - s.x; dy = m.y - s.y; d = max; }
+    const a = Math.atan2(dy, dx);
+    const b = Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d))));
+    const ang = a + (h === 'L' ? b : -b);             // el codo hacia afuera
+    const cx = s.x + L1 * Math.cos(ang), cy = s.y + L1 * Math.sin(ang);
+    g.querySelector('.sup').setAttribute('d', `M${s.x} ${s.y} L${cx.toFixed(1)} ${cy.toFixed(1)}`);
+    g.querySelector('.ant').setAttribute('d', `M${cx.toFixed(1)} ${cy.toFixed(1)} L${m.x.toFixed(1)} ${m.y.toFixed(1)}`);
+    const mano = g.querySelector('.mano');
+    mano.setAttribute('cx', m.x.toFixed(1)); mano.setAttribute('cy', m.y.toFixed(1));
+    mano.setAttribute('rx', (15 * m.s).toFixed(1)); mano.setAttribute('ry', (13 * m.s).toFixed(1));
+}
+
+// ── Efectos del golpe
+const NS = 'http://www.w3.org/2000/svg';
+function efecto(g) {
+    const fx = $('fx'), d = DESTINO[g.mano][g.tipo], v = 0.5 + 0.5 * g.vel;
+    const quitar = (el) => el.addEventListener('animationend', () => el.remove());
+    if (g.tipo === 'grave') {
+        [0, 1].forEach(k => {
+            const c = document.createElementNS(NS, 'circle');
+            c.setAttribute('cx', d.x); c.setAttribute('cy', d.y); c.setAttribute('r', (80 - k * 30) * v);
+            c.setAttribute('fill', 'none'); c.setAttribute('stroke', '#f97316'); c.setAttribute('stroke-width', 7 - k * 2);
+            c.setAttribute('class', 'onda'); quitar(c); fx.appendChild(c);
+        });
+        reiniciarClase($('cajon'), 'vibra'); reiniciarClase($('brillo'), 'luz');
+        luzIndicador('ind-grave');
+    } else {
+        const gr = document.createElementNS(NS, 'g');
+        gr.setAttribute('class', 'chispa');
+        for (let k = 0; k < 8; k++) {
+            const a = k * Math.PI / 4, r1 = 10, r2 = 32 * v;
+            const l = document.createElementNS(NS, 'line');
+            l.setAttribute('x1', d.x + Math.cos(a) * r1); l.setAttribute('y1', d.y + Math.sin(a) * r1);
+            l.setAttribute('x2', d.x + Math.cos(a) * r2); l.setAttribute('y2', d.y + Math.sin(a) * r2);
+            l.setAttribute('stroke', '#22d3ee'); l.setAttribute('stroke-width', 4); l.setAttribute('stroke-linecap', 'round');
+            gr.appendChild(l);
+        }
+        quitar(gr); fx.appendChild(gr);
+        luzIndicador('ind-agudo');
+    }
+}
+function reiniciarClase(el, cls) { el.classList.remove(cls); void el.getBoundingClientRect(); el.classList.add(cls); }
+const timersInd = {};
+function luzIndicador(id) {
+    const el = $(id); el.classList.add('luz');
+    clearTimeout(timersInd[id]); timersInd[id] = setTimeout(() => el.classList.remove('luz'), 90);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CINTA: los golpes que vienen (fila agudo arriba, grave abajo) y la línea del "ahora"
+// ═══════════════════════════════════════════════════════════════════════════
+const cinta = $('cinta'), c2d = cinta.getContext('2d');
+function ajustarCinta() {
+    const r = cinta.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cinta.width = Math.round(r.width * dpr); cinta.height = Math.round(r.height * dpr);
+    c2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+new ResizeObserver(ajustarCinta).observe(cinta);
+
+function dibujarCinta(vis) {
+    const W = cinta.clientWidth, H = cinta.clientHeight;
+    c2d.clearRect(0, 0, W, H);
+    const yAg = H * 0.32, yGr = H * 0.7, xAhora = W * 0.2;
+    c2d.strokeStyle = 'rgba(148,163,184,.15)'; c2d.lineWidth = 1;
+    [yAg, yGr].forEach(y => { c2d.beginPath(); c2d.moveTo(0, y); c2d.lineTo(W, y); c2d.stroke(); });
+    if (datos) {
+        const ppq = datos.ppq, pxBeat = Math.max(60, W / 8);
+        const beatAhora = datos.segATick(Math.min(vis, datos.fin)) / ppq;
+        const xDe = (beat) => xAhora + (beat - beatAhora) * pxBeat;
+        const totalBeats = datos.finTick / ppq, beatsCompas = datos.ticksCompas / ppq;
+        const vueltas = repetir ? [-1, 0, 1, 2] : [0];
+        for (const k of vueltas) {
+            const off = k * totalBeats;
+            // tiempos y compases
+            const pasoBeat = 4 / datos.comp.den;
+            for (let b = 0; b < totalBeats - 1e-6; b += pasoBeat) {
+                const x = xDe(b + off); if (x < -5 || x > W + 5) continue;
+                const esCompas = Math.abs(b / beatsCompas - Math.round(b / beatsCompas)) < 1e-6;
+                c2d.strokeStyle = esCompas ? 'rgba(226,232,240,.45)' : 'rgba(148,163,184,.14)';
+                c2d.lineWidth = esCompas ? 2 : 1;
+                c2d.beginPath(); c2d.moveTo(x, 8); c2d.lineTo(x, H - 8); c2d.stroke();
+            }
+            for (const g of golpes) {
+                const beat = g.tick / ppq + off, x = xDe(beat);
+                if (x < -30 || x > W + 30) continue;
+                const pasado = beat < beatAhora - 1e-6;
+                const cerca = Math.abs(beat - beatAhora) * pxBeat < 14;
+                const grave = g.tipo === 'grave';
+                const r = (grave ? 14 : 10) * (0.75 + 0.35 * g.vel) * (cerca ? 1.35 : 1);
+                c2d.globalAlpha = pasado ? 0.25 : 1;
+                c2d.fillStyle = grave ? '#f97316' : '#22d3ee';
+                c2d.beginPath(); c2d.arc(x, grave ? yGr : yAg, r, 0, Math.PI * 2); c2d.fill();
+                c2d.globalAlpha = 1;
+            }
+        }
+    }
+    c2d.strokeStyle = '#fde047'; c2d.lineWidth = 3;
+    c2d.beginPath(); c2d.moveTo(xAhora, 4); c2d.lineTo(xAhora, H - 4); c2d.stroke();
+    // rótulos
+    const grad = c2d.createLinearGradient(0, 0, 110, 0);
+    grad.addColorStop(0, 'rgba(17,28,51,1)'); grad.addColorStop(0.7, 'rgba(17,28,51,.9)'); grad.addColorStop(1, 'rgba(17,28,51,0)');
+    c2d.fillStyle = grad; c2d.fillRect(0, 0, 110, H);
+    c2d.font = '700 14px system-ui, sans-serif'; c2d.textBaseline = 'middle';
+    c2d.fillStyle = '#22d3ee'; c2d.fillText('AGUDO', 12, yAg);
+    c2d.fillStyle = '#f97316'; c2d.fillText('GRAVE', 12, yGr);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CUADRO A CUADRO
+// ═══════════════════════════════════════════════════════════════════════════
+function cuadro() {
+    let vis = posPausa;
+    if (tocando && ctx) {
+        const lat = ctx.outputLatency || ctx.baseLatency || 0;
+        vis = Math.max(0, posEn(ctx.currentTime - lat));
+        if (!repetir && vis >= datos.fin) { tocando = false; clearInterval(reloj); reloj = null; posPausa = 0; vis = 0; idxFx = 0; pintarPlay(); }
+        else {
+            if (vis < ultVis - 1e-3) idxFx = primerIdx(golpes, vis);          // dio la vuelta
+            while (idxFx < golpes.length && golpes[idxFx].t <= vis) {
+                const g = golpes[idxFx++];
+                if (vis - g.t < 0.15 * ritmo) { efecto(g); ultGolpe = { real: performance.now() }; }
+            }
+        }
+    }
+    ultVis = vis;
+    if (datos) { dibujarBrazo('L', poseMano('L', vis)); dibujarBrazo('R', poseMano('R', vis)); }
+    else { dibujarBrazo('L', REPOSO.L); dibujarBrazo('R', REPOSO.R); }
+    // la cabeza acompaña cada golpe
+    const dt = (performance.now() - ultGolpe.real) / 1000;
+    $('cabeza').setAttribute('transform', `translate(0 ${(5 * Math.exp(-dt * 12)).toFixed(2)})`);
+    dibujarCinta(vis);
+    requestAnimationFrame(cuadro);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INTERFAZ
+// ═══════════════════════════════════════════════════════════════════════════
+function pintarPlay() { bPlay.textContent = tocando ? '⏸' : '▶'; bPlay.classList.toggle('pausa', tocando); }
+function pintarBpm() { $('bpm').textContent = datos ? `${bpm} BPM` : '— BPM'; }
+function pintarNotas() {
+    const lista = $('lista-notas'); lista.innerHTML = '';
+    const cuenta = {};
+    datos.notas.forEach(n => { cuenta[n.pitch] = (cuenta[n.pitch] || 0) + 1; });
+    Object.keys(mapa).map(Number).sort((a, b) => a - b).forEach(a => {
+        const fila = document.createElement('div'); fila.className = 'fila-nota';
+        fila.innerHTML = `<span class="nn">${nombreNota(a)} <span class="cant">· ${cuenta[a]} golpe${cuenta[a] === 1 ? '' : 's'}</span></span>
+            <span class="seg"><button data-t="grave">Grave</button><button data-t="agudo">Agudo</button></span>`;
+        fila.querySelectorAll('button').forEach(b => {
+            b.classList.toggle('sel-' + b.dataset.t, mapa[a] === b.dataset.t);
+            b.onclick = () => { mapa[a] = b.dataset.t; guardarMapa(); aplicarMapa(); };
+        });
+        lista.appendChild(fila);
+    });
+}
+function aplicarMapa() {
+    const pos = tocando ? posEn(ctx.currentTime) : posPausa;
+    prepararGolpes(); pintarNotas();
+    if (tocando) reanclar(pos);
+}
+
+$('b-cargar').onclick = () => $('archivo').click();
+$('archivo').onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    cargar(await f.arrayBuffer(), f.name.replace(/\.midi?$/i, ''));
+    e.target.value = '';
+};
+$('b-ejemplo').onclick = () => cargar(midiEjemplo(), 'Ejemplo — ritmo de cajón');
+bPlay.onclick = () => (tocando ? pausar() : tocar());
+$('b-inicio').onclick = alInicio;
+$('b-repetir').onclick = () => {
+    repetir = !repetir; $('b-repetir').classList.toggle('on', repetir);
+    if (tocando) reanclar(Math.min(posEn(ctx.currentTime), datos.fin));
+};
+$('b-menos').onclick = () => cambiarBpm(bpm - 5);
+$('b-mas').onclick = () => cambiarBpm(bpm + 5);
+$('b-notas').onclick = (e) => { e.stopPropagation(); $('panel-notas').hidden = !$('panel-notas').hidden; };
+$('b-restablecer').onclick = () => {
+    borrarMapa();
+    mapa = mapaAutomatico(Object.keys(mapa).map(Number), datos.gm);
+    aplicarMapa();
+};
+document.addEventListener('click', (e) => {
+    const p = $('panel-notas');
+    if (!p.hidden && !p.contains(e.target) && e.target !== $('b-notas')) p.hidden = true;
+});
+$('b-pantalla').onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+};
+// Los botones sueltan el foco: así Espacio siempre es tocar / pausa.
+document.querySelectorAll('#barra button').forEach(b => b.addEventListener('click', () => b.blur()));
+document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space') { e.preventDefault(); if (datos) bPlay.click(); }
+    else if (e.code === 'Home') { e.preventDefault(); if (datos) alInicio(); }
+    else if (e.code === 'Escape') $('panel-notas').hidden = true;
+});
+
+// Arrastrar un MIDI a la página
+window.addEventListener('dragover', (e) => { e.preventDefault(); document.body.classList.add('arrastrando'); });
+window.addEventListener('dragleave', (e) => { if (!e.relatedTarget) document.body.classList.remove('arrastrando'); });
+window.addEventListener('drop', async (e) => {
+    e.preventDefault(); document.body.classList.remove('arrastrando');
+    const f = e.dataTransfer.files[0]; if (!f) return;
+    cargar(await f.arrayBuffer(), f.name.replace(/\.midi?$/i, ''));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EJEMPLO (se arma un MIDI en memoria y pasa por el mismo lector)
+// ═══════════════════════════════════════════════════════════════════════════
+function midiEjemplo() {
+    const ppq = 480, s = ppq / 4;          // semicorchea
+    // Dos compases de 4/4, en semicorcheas: G = grave (36), A = agudo (38), a = agudo suave
+    const patron = 'G..aA.G.a.G.A..a' + 'G..aA.G.a.G.A.AA';
+    const ev = [];
+    [...patron].forEach((c, i) => {
+        if (c === '.') return;
+        const pitch = c === 'G' ? 36 : 38, vel = c === 'a' ? 70 : 115;
+        ev.push([i * s, 0x99, pitch, vel], [i * s + s / 2, 0x89, pitch, 0]);
+    });
+    ev.sort((a, b) => a[0] - b[0]);
+    const vlqB = (v) => { const out = [v & 0x7f]; while ((v >>= 7)) out.unshift((v & 0x7f) | 0x80); return out; };
+    const pista = [0, 0xFF, 0x51, 3, 0x09, 0x27, 0xC0,       // 100 BPM
+                   0, 0xFF, 0x58, 4, 4, 2, 24, 8];
+    let t = 0;
+    for (const [tick, st, a, b] of ev) { pista.push(...vlqB(tick - t), st, a, b); t = tick; }
+    pista.push(...vlqB(32 * s - t), 0xFF, 0x2F, 0);
+    const n = pista.length;
+    return new Uint8Array([0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, ppq >> 8, ppq & 0xff,
+        0x4D, 0x54, 0x72, 0x6B, (n >>> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff, ...pista]).buffer;
+}
+
+// ── ?midi=<url>&nombre=<texto>
+(async () => {
+    const q = new URLSearchParams(location.search);
+    const url = q.get('midi');
+    if (!url) return;
+    try {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error();
+        cargar(await r.arrayBuffer(), q.get('nombre') || decodeURIComponent(url.split('/').pop()).replace(/\.midi?$/i, ''));
+    } catch (e) { aviso('No se pudo abrir el MIDI de la dirección.', true); }
+})();
+
+requestAnimationFrame(cuadro);
+</script>
+</body>
+</html>
