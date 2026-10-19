@@ -4618,3 +4618,9 @@ de metalófono y ritmos.*
   Play / Stop sin errores. Entrenador con ese ritmo (sin guardarlo): dos líneas, Play, Partitura ↔ Infantil sin
   errores. No se guardó nada. Falta: escucharlo (el sonido del golpe grave) y la Pizarra en clase.
 - **Commit:** `8eee199` (subido).
+- **Corrección (2026-10-19, informada por el PO):** un ritmo nuevo de la Biblioteca no aparecía en el selector del Plan:
+  el Planificador leía la Biblioteca una sola vez. Ahora `PORTAL/index.html` escucha `repertorio_canciones` y
+  `repertorio_assets` al instante (`TiempoReal`, ya activos por `fase3_realtime.sql`), vuelve a leerla al abrir el
+  selector y al volver a la página, y repinta fichas, cuadros de la Presentación, vista de clase y el selector
+  abierto. Prueba (local): con el selector abierto en Ritmo, un ritmo de prueba creado en la base apareció solo en
+  ~4 s y al borrarlo desapareció solo; datos de prueba borrados.

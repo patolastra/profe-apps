@@ -4650,14 +4650,15 @@ function menuPlanCard(c, boton) {
 let bibCanciones = null;      // Map id → { id, nombre, artista } (toda la Biblioteca, se carga una vez)
 let bibRecursos = null;       // Map id → recurso de metalófono o ritmo { id, cancion_id, tipo, etiqueta, … }
 let bibCargando = null;
-function cargarBib() {
-    if (bibCanciones) return Promise.resolve(bibCanciones);
+// forzar: vuelve a leer la Biblioteca (al abrir el selector); mientras tanto se siguen viendo los datos que había.
+function cargarBib(forzar) {
+    if (bibCanciones && !forzar) return Promise.resolve(bibCanciones);
     if (!bibCargando) bibCargando = Promise.all([
         sb.from('repertorio_canciones').select('id, nombre, artista'),
         sb.from('repertorio_assets').select('id, cancion_id, tipo, etiqueta, dificultad, instrumento, tonalidad, orden').in('tipo', ['metalofono', 'ritmo'])
     ]).then(([rc, ra]) => {
         bibCargando = null;
-        if (rc.error) return new Map();
+        if (rc.error) return bibCanciones || new Map();
         bibCanciones = new Map((rc.data || []).map(r => [r.id, r]));
         bibRecursos = new Map((ra.data || []).map(r => [r.id, r]));
         return bibCanciones;
@@ -4680,6 +4681,29 @@ function vinculo(x) {
              ayuda: tipo === 'ritmo' ? 'Abrir el ritmo' : 'Abrir la melodía en el metalófono' };
 }
 const vincClave = x => x.cancion_id + (x.asset_id ? ':' + x.asset_id : '');
+// La Biblioteca cambió en otro equipo o pestaña (deuda BE): canciones y recursos de metalófono o ritmo nuevos,
+// editados o borrados se ven al instante en las actividades y en el selector abierto.
+let pcancRepintar = null;   // repinta el selector 🎵 si está abierto
+function bibRepintar() {
+    planCards.forEach(c => pintarCancionesCard(c));
+    pintarSecciones();
+    if (!document.getElementById('clase-panel')?.hidden) pintarClaseDer();
+    pcancRepintar?.();
+}
+TiempoReal.escuchar('repertorio_canciones', ({ evento, nuevo, viejo }) => {
+    if (!bibCanciones) return;
+    if (evento === 'DELETE') bibCanciones.delete(viejo?.id);
+    else if (nuevo?.id) bibCanciones.set(nuevo.id, { id: nuevo.id, nombre: nuevo.nombre, artista: nuevo.artista });
+    bibRepintar();
+});
+TiempoReal.escuchar('repertorio_assets', ({ evento, nuevo, viejo }) => {
+    if (!bibRecursos) return;
+    if (evento === 'DELETE') { if (!bibRecursos.delete(viejo?.id)) return; }
+    else if (nuevo?.id && ['metalofono', 'ritmo'].includes(nuevo.tipo)) bibRecursos.set(nuevo.id, nuevo);
+    else return;
+    bibRepintar();
+});
+TiempoReal.alVolver(() => { if (bibCanciones) cargarBib(true).then(bibRepintar); });
 // Canciones del repertorio del curso (en su orden), leídas al día.
 async function cancionesDelCurso() {
     if (!entrenamientoDefaultId) return [];
@@ -4767,21 +4791,23 @@ async function elegirCancion(c, boton) {
         q.focus();
         pintar();
     });
-    const [bib, curso] = await Promise.all([cargarBib(), cancionesDelCurso()]);
+    const [bib0, curso] = await Promise.all([cargarBib(true), cancionesDelCurso()]);
+    if (!pop.isConnected) return;
     const enCurso = new Set(curso);
     const norm = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     const ya = (id, aid) => cancionesDe(c).some(x => x.cancion_id === id && (x.asset_id || '') === (aid || ''));
     const fila = (id, aid) => {
-        const s = bib.get(id); if (!s) return '';
+        const s = bibCanciones.get(id); if (!s) return '';
         const v = vinculo({ cancion_id: id, asset_id: aid });
         const esta = ya(id, aid);
         return `<button class="pcanc-op${esta ? ' ya' : ''}" data-id="${id}" data-asset="${aid || ''}" ${esta ? 'disabled title="Ya está en la actividad"' : ''}>
             <b>${aid ? v.ico + ' ' : ''}${esc(s.nombre || '')}</b><small>${esc(v.sub)}</small></button>`;
     };
-    // Recursos del tipo elegido, en el orden de cada canción.
-    const recursos = [...(bibRecursos || new Map()).values()]
-        .sort((x, y) => (x.orden ?? 999) - (y.orden ?? 999) || (x.etiqueta || '').localeCompare(y.etiqueta || ''));
     pintar = () => {
+        const bib = bibCanciones || bib0;   // al día: la Biblioteca puede cambiar con el selector abierto
+        // Recursos del tipo elegido, en el orden de cada canción.
+        const recursos = [...(bibRecursos || new Map()).values()]
+            .sort((x, y) => (x.orden ?? 999) - (y.orden ?? 999) || (x.etiqueta || '').localeCompare(y.etiqueta || ''));
         const t = norm(q.value.trim());
         const pasaCanc = id => { const s = bib.get(id); return s && (!t || norm(s.nombre).includes(t) || norm(s.artista).includes(t)); };
         let delCurso, otras;
@@ -4808,6 +4834,7 @@ async function elegirCancion(c, boton) {
         pop.querySelector('.pcanc-lista').innerHTML = html;
     };
     pintar();
+    pcancRepintar = pintar;
     q.addEventListener('input', pintar);
     q.addEventListener('keydown', e => {
         if (e.key === 'Escape') cerrar();
@@ -4828,7 +4855,7 @@ async function elegirCancion(c, boton) {
         guardarCancionesCard(c);
     });
     function fuera(ev) { if (!pop.contains(ev.target)) cerrar(); }
-    function cerrar() { pop.remove(); document.removeEventListener('mousedown', fuera); }
+    function cerrar() { pop.remove(); pcancRepintar = null; document.removeEventListener('mousedown', fuera); }
     setTimeout(() => document.addEventListener('mousedown', fuera), 0);
 }
 
