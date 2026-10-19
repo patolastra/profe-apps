@@ -4855,5 +4855,6 @@ roadmap (§9, evolución del Entrenador de ritmos).*
   regla" deja 9. Ejemplo (batería): bombo grave, caja aguda, 100 BPM. Archivo que no es MIDI: aviso "Ese archivo no es
   un MIDI.". Dentro del Workspace abre como pestaña 🪘 Cajón. Sin errores en la consola. Falta: escucharlo y verlo en el
   proyector (en el panel de pruebas la animación iba a pocos cuadros por segundo, el sonido no).
+- **Commit:** `6f044da` (subido). Tarjeta en Notion: "Cajón peruano: animación que toca un MIDI" (Probar en clase).
   - **Alcance:** solo el archivo nuevo + la pestaña en `PC/workspace.html`. Sin cambios en Supabase, ni en el motor de
     ritmo, ni en los MIDI reales.
