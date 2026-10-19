@@ -4682,3 +4682,11 @@ de metalófono y ritmos.*
   una viñeta. Vista previa: la línea `1L` en una línea a 19 px mientras el párrafo queda a 22 px (dos líneas); lista
   1-2-3 y la viñeta aparte. Pizarra (1280×720): igual, la línea `1L` en una sola línea y más chica que el resto.
 - **Commit:** `b391460` (subido). Falta: uso en clase.
+
+### CB. Diapositivas — línea horizontal `'---`
+*Origen: pedido del PO (2026-10-19).* **DECISIÓN del PO:** una línea con `'---` (con la comilla, para no confundirla con
+`---`, que separa diapositivas) dibuja una línea horizontal dentro de la diapositiva.
+- **Implementación (2026-10-19):** `renderizarSlideHtml` de `PORTAL/index.html` y `PIZARRA/index.html` → `<hr class="slide-hr">`
+  (90 % del ancho, color del texto, suave); el separador de diapositivas sigue siendo solo `\n---\n`. Ayuda (?) al día.
+- **Prueba (local, sin guardar):** "# Ritmo / Escuchamos el pulso / '--- / 1. Palmas / 2. Pies" → línea de 458 px en
+  una diapositiva de 523 px, sin partir la diapositiva; la Pizarra genera `<h1>Ritmo</h1><hr class="slide-hr"><p>Texto</p>`.
