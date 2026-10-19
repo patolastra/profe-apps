@@ -4690,3 +4690,13 @@ de metalófono y ritmos.*
   (90 % del ancho, color del texto, suave); el separador de diapositivas sigue siendo solo `\n---\n`. Ayuda (?) al día.
 - **Prueba (local, sin guardar):** "# Ritmo / Escuchamos el pulso / '--- / 1. Palmas / 2. Pies" → línea de 458 px en
   una diapositiva de 523 px, sin partir la diapositiva; la Pizarra genera `<h1>Ritmo</h1><hr class="slide-hr"><p>Texto</p>`.
+
+### CC. Diapositivas — la línea en blanco deja espacio
+*Origen: pedido del PO (2026-10-19): "que se respete el Enter".* **DECISIÓN del PO:** **siempre**, cada línea en blanco
+dentro de una diapositiva deja un espacio del alto de una línea de texto (las diapositivas que ya tenían líneas en
+blanco quedan con más aire).
+- **Implementación (2026-10-19):** `renderizarSlideHtml` de `PORTAL/index.html` y `PIZARRA/index.html`: línea vacía →
+  `<div class="slide-esp">` (1,3 em, cierra la lista abierta); las diapositivas llegan sin blancos al comienzo ni al
+  final. Ayuda (?) al día.
+- **Prueba (local, sin guardar):** "# Ritmo / (blanco) / Escuchamos / (blanco) / - uno" → 2 espacios; distancia
+  título-párrafo 56 px contra 16 px sin la línea en blanco. Pizarra: `<h1>…</h1><div class="slide-esp"></div><p>…`.
