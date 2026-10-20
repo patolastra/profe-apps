@@ -5055,3 +5055,28 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   desempeños "1. Revisan…", "2. Montaje grupal" y Recursos "—". Al recargar, las casillas siguen como quedaron.
   Datos de prueba borrados.
 - **Commit:** `431f407` (subido). Falta: uso real.
+- **Validación del PO (2026-10-20):** generó la primera planificación real: "está bien".
+- **DECISIÓN del PO (2026-10-20) — viñetas y apartado Planificaciones:** (1) la tabla de planificación usa **viñetas**
+  en vez de números (en pantalla y en el Word), salvo **Tiempo**, que va con el texto solo; (2) apartado
+  **📚 Planificaciones** dentro de la misma pestaña, con selector "📚 Planificaciones | ✏️ Editar", y es la **primera
+  pantalla**: una tabla con los cursos 1° a 8° como filas y marzo a diciembre como columnas, **solo del año en
+  curso**; en cada cruce, **Visualizar** (solo lo marcado, en formato simple, con "✏️ Editar") y **Descargar** (el
+  Word institucional); una planificación de varios meses aparece en cada uno de sus meses con el aviso "Abr–May";
+  una celda vacía lleva "＋ Crear", que abre el editor en ese curso y mes. Desde el botón de Cursos (trae el curso)
+  se abre directo el editor. **Deuda (PO):** un archivo con las planificaciones de años anteriores.
+- **Implementación (2026-10-20):** `PLANIFICACION/index.html`. Viñetas "•" en la tabla (pantalla y Word) y Tiempo sin
+  marca. Encabezado con "📚 Planificaciones | ✏️ Editar" (`mostrarVista`); sin `?ctx` abre la tabla, con `?ctx` o
+  `ws-ir` (botón de Cursos) el editor. La tabla (`cargarPlanis` / `pintarPlanis`) lee `planificaciones` del año en
+  curso: filas 1° a 8°, columnas Mar–Dic (el mes actual resaltado); en cada cruce 👁 / ⬇ por cada planificación que
+  incluye ese mes (si se cruzan dos, se ven las dos; las de varios meses llevan "Abr–May"); sin planificación, "＋"
+  (abre el editor en ese curso y mes del año en curso). **Visualizar** (`verPlani`): ventana con solo lo marcado
+  (eje, OAT, OA con su número, actitud, tabla con viñetas, Tiempo sin marca) y botones ✏️ Editar / ⬇ Descargar.
+  **Descargar** usa el mismo Word institucional (`generarDoc(null, { modelo, curso, mes, anio })`), sin pasar por
+  el editor. **Corrección:** si se cambiaba de curso o mes antes de 1,5 s, lo último escrito no se guardaba
+  (`guardarAhora` comparaba con la clave nueva); ahora guarda bajo la clave que estaba en pantalla (`claveVistaObj`).
+- **Prueba (local):** la tabla mostró las dos planificaciones reales de Cuarto que el PO estaba armando (octubre, y
+  octubre + noviembre: en octubre se ven las dos, en noviembre "Oct–Nov"); Visualizar y Descargar (solo lectura)
+  dieron "Cuarto básico · Octubre 2026", `CUARTO - OCTUBRE.docx`, Tiempo "90 minutos por sesión." sin marca y
+  Recursos "• PowerPoint"…; una fila simulada de abril–mayo (sin guardar) se vio en las dos celdas con "Abr–May";
+  "＋" de Quinto noviembre abrió el editor en Quinto, Noviembre 2026 sin guardar nada. Corrección: escribir y
+  cambiar de mes al tiro dejó lo escrito guardado en el mes anterior (año 2099, borrado).
