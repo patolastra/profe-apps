@@ -80,6 +80,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 #barra .ruta { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #estado.err { color: #c4302b; }
+/* 📄 Planificación del mes del curso (deuda CI): espacio reservado, solo visible en 1°–8° */
+#btn-plani {
+    font-size: 13px; padding: 3px 9px; border-radius: 6px; color: var(--suave); font-weight: 500;
+    border: 1px solid var(--linea); background: #fff; white-space: nowrap; cursor: pointer;
+}
+#btn-plani:hover { background: var(--hover); color: var(--texto); }
 #pagina { max-width: 760px; margin: 0 auto; padding: 24px 72px 60vh; }
 #pag-titulo { font-size: 40px; font-weight: 700; line-height: 1.2; margin-bottom: 30px; }
 #vacio-ini { color: var(--suave); text-align: center; margin-top: 30vh; font-size: 15px; }
@@ -129,6 +135,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     <div id="barra">
         <span class="ruta" id="ruta"></span>
         <span id="estado"></span>
+        <button id="btn-plani" style="visibility:hidden" title="Planificación del mes de este curso para la UTP">📄 Planificación del mes</button>
     </div>
     <div id="pagina">
         <div id="vacio-ini">Elige un curso a la izquierda.</div>
@@ -212,6 +219,7 @@ async function abrirCurso(ctxId) {
     $('lista-ent').innerHTML = '<div class="lat-vacio">Cargando…</div>';
     $('pagina').innerHTML = '';
     $('ruta').textContent = `${info.icono} ${info.label}`;
+    pintarBtnPlani();
 
     const esGen = contextos.find(c => c.id === ctxId)?.nombre === 'GENERAL';
     const [pags, ses] = await Promise.all([
@@ -399,6 +407,19 @@ function marcarActiva(k) {
     const r = f.getBoundingClientRect(), c = $('col-entradas').getBoundingClientRect();
     if (r.top < c.top + 40 || r.bottom > c.bottom - 10) f.scrollIntoView({ block: 'center' });
 }
+
+// ── 📄 Planificación del mes (deuda CI): abre la pestaña del Workspace en este curso ──
+const CURSOS_PLANI = ['PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO', 'SEXTO', 'SEPTIMO', 'OCTAVO'];
+function nombreActual() { return contextos.find(c => c.id === ctxActual)?.nombre || ''; }
+function pintarBtnPlani() {
+    $('btn-plani').style.visibility = (window.parent !== window && CURSOS_PLANI.includes(nombreActual())) ? 'visible' : 'hidden';
+}
+$('btn-plani').addEventListener('click', () => {
+    const ctx = nombreActual();
+    if (!CURSOS_PLANI.includes(ctx)) return;
+    window.parent.postMessage({ tipo: 'ws-abrir', key: 'planificacion', titulo: 'Planificación', ico: '📄',
+        src: '../PLANIFICACION/index.html?ctx=' + encodeURIComponent(ctx), ir: { ctx } }, '*');
+});
 
 // ── Notas: crear, título, fecha, eliminar ───────────────────────────────
 $('btn-nota').addEventListener('click', async () => {

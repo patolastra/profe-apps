@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generador de Planificación — Música</title>
+  <title>📄 Planificación</title>
   <script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../supabase/config.js"></script>
+  <script src="../comun/nombre-asset.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -135,8 +138,21 @@
     .r-warn { color: #e67e22; }
     .r-muted{ color: #888; }
 
-    /* ── Campos que alimentan el .docx (ocultos en la UI) ── */
-    .campos-ocultos { display: none; }
+    /* ── Campos que alimentan el .docx: visibles para revisarlos y corregirlos (deuda CI) ── */
+    .campos-ocultos { display: grid; gap: 14px; margin: 14px 0; }
+    .campos-tit { font-size: 0.95rem; font-weight: 700; color: #2c3e50; margin: 16px 0 0; }
+    .campos-tit small { display: block; font-size: 0.78rem; font-weight: 400; color: #888; margin-top: 2px; }
+    .campos-ocultos .card { box-shadow: none; border: 1.5px solid #ececec; padding: 14px 16px; }
+
+    /* ── "Traer lo del mes" (deuda CI) ── */
+    .relato-cab { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 12px; }
+    .relato-cab label { margin: 0; }
+    .btn-traer { background: #2c3e50; color: #fff; border: none; border-radius: 8px; padding: 6px 12px;
+      font-size: 0.8rem; font-weight: 700; cursor: pointer; white-space: nowrap; min-width: 150px; }
+    .btn-traer:hover { background: #1f2d3a; }
+    .btn-traer:disabled { opacity: .6; cursor: default; }
+    .relato-nota { font-size: 0.75rem; color: #999; margin: 4px 0 6px; min-height: 1.1em; }
+    .relato-nota.err { color: #c0392b; }
 
     /* ── Relato ── */
     .relato-zone {
@@ -459,8 +475,8 @@
 <body>
 
 <header>
-  <h1>Planificación <em>Música</em></h1>
-  <p class="header-sub">Formatea tu relato para NotebookLM y convierte su respuesta en un .docx.</p>
+  <h1>📄 Planificación <em>del mes</em></h1>
+  <p class="header-sub">Trae lo trabajado en el mes, pásalo por NotebookLM y descarga el .docx para la UTP.</p>
 </header>
 
 <div class="tablero">
@@ -507,8 +523,12 @@
     </div>
   </div>
 
-  <label>Relato de la clase</label>
-  <textarea id="relato" rows="3" placeholder="Ej: Este mes trabajamos con 4° el metalófono. Lograron tocar IA IA OH y Dos por diez. Hubo dificultad con el ritmo de Zapatero…"></textarea>
+  <div class="relato-cab">
+    <label for="relato">Relato del mes</label>
+    <button type="button" class="btn-traer" id="btnTraer" onclick="traerDelMes()" title="Llena el relato con las clases del mes: actividades con su objetivo, canciones y bitácora">📥 Traer lo del mes</button>
+  </div>
+  <p class="relato-nota" id="relatoNota">Revisa que no queden nombres de estudiantes antes de copiar.</p>
+  <textarea id="relato" rows="12" placeholder="Ej: Este mes trabajamos con 4° el metalófono. Lograron tocar IA IA OH y Dos por diez. Hubo dificultad con el ritmo de Zapatero…"></textarea>
 
   <button type="button" class="btn-copiar-prompt" onclick="copiarPromptCompleto()">
     Copiar prompt para NotebookLM
@@ -527,8 +547,9 @@
     Pega el texto y aquí aparecerá el informe del formateo.
   </div>
 
-<!-- ══ CAMPOS QUE SE AUTOCOMPLETAN (ocultos: alimentan el .docx) ══ -->
+<!-- ══ CAMPOS QUE SE AUTOCOMPLETAN (alimentan el .docx; visibles para corregir) ══ -->
 <form id="planForm" onsubmit="generarDoc(event)">
+  <p class="campos-tit">Revisa y corrige antes de descargar<small>Se llenan solos al pegar la respuesta; puedes cambiar cualquier texto.</small></p>
   <div class="campos-ocultos" id="camposOcultos">
 
   <!-- Eje (se autocompleta al pegar) -->
@@ -705,10 +726,11 @@ function copiarPromptCompleto() {
   if (!mes)   { alert('Marca al menos un mes.'); return; }
 
   const parteRelato = relato
-    ? `Narración de la clase:\n${relato}\n\n`
+    ? `Lo trabajado en el mes:\n${relato}\n\n`
     : '';
 
   const prompt = `${parteRelato}Genera la planificación mensual de Música para ${curso}, ${mes} ${anio}.
+Los objetivos de las actividades son del profesor y no siempre son Objetivos de Aprendizaje (OA) del currículum: tradúcelos a los OA del currículum nacional de Música del nivel que mejor les correspondan.
 
 Usa español correcto con tildes y caracteres especiales (á, é, í, ó, ú, ñ, Á, É, Í, Ó, Ú, ü). No omitas tildes bajo ninguna circunstancia.
 
@@ -1327,6 +1349,157 @@ async function generarDoc(e) {
     statusEl.className = 'gen-status err';
   }
 }
+</script>
+
+<script>
+// ══════════════════════════════════════════════
+// PLANIFICACIÓN DEL MES — integración con Profe Apps (deuda CI, paso 1)
+// Curso por ?ctx=<NOMBRE> (o 'ws-ir' { ctx } del Workspace), mes actual por defecto
+// y "Traer lo del mes": arma el relato con las clases del curso en los meses marcados
+// (actividades del Plan con su objetivo "O:", canciones y recursos, bitácora).
+// Solo lee Supabase; no escribe nada. Sin conexión, todo lo demás sigue igual (a mano).
+// ══════════════════════════════════════════════
+const CURSO_CTX = {
+  'Primero básico': 'PRIMERO', 'Segundo básico': 'SEGUNDO', 'Tercero básico': 'TERCERO',
+  'Cuarto básico': 'CUARTO', 'Quinto básico': 'QUINTO', 'Sexto básico': 'SEXTO',
+  'Séptimo básico': 'SEPTIMO', 'Octavo básico': 'OCTAVO',
+};
+const MES_NUM = { Marzo: 3, Abril: 4, Mayo: 5, Junio: 6, Julio: 7, Agosto: 8,
+  Septiembre: 9, Octubre: 10, Noviembre: 11, Diciembre: 12 };
+const DIAS_PL  = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const MESES_PL = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+let sbPl = null;
+try { sbPl = supabase.createClient(SUPABASE_URL, SUPABASE_ANON); } catch (e) { sbPl = null; }
+
+function elegirCursoCtx(ctx) {
+  const nombre = String(ctx || '').toUpperCase();
+  const curso = Object.keys(CURSO_CTX).find(k => CURSO_CTX[k] === nombre);
+  const el = curso && document.querySelector(`#cursoGrid input[value="${curso}"]`);
+  if (el) el.checked = true;
+  return !!el;
+}
+
+// Texto por bloques (memorias / plan_cards) → texto simple, una línea por bloque.
+function textoPlano(t) {
+  return String(t || '').split('\n').map(l => l
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/^#+\s+/, '')
+      .replace(/^- \[[ xX]\]\s+/, '- ')
+      .replace(/\{[23]:(.*?)\}/g, '$1')
+      .replace(/\*\*(.*?)\*\*/g, '$1').replace(/__(.*?)__/g, '$1').replace(/\*(.*?)\*/g, '$1')
+      .trim())
+    .filter(l => l && l !== '---');
+}
+function fechaLarga(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return `${DIAS_PL[d.getDay()]} ${d.getDate()} de ${MESES_PL[d.getMonth()]}`;
+}
+function avisarRelato(t, err) {
+  const nota = document.getElementById('relatoNota');
+  nota.textContent = t;
+  nota.className = 'relato-nota' + (err ? ' err' : '');
+}
+
+async function traerDelMes() {
+  const btn = document.getElementById('btnTraer');
+  const curso = cursoValor();
+  const meses = mesesSeleccionados().map(m => MES_NUM[m]).filter(Boolean);
+  const anio = parseInt(document.getElementById('anio').value, 10);
+  if (!curso) { avisarRelato('Elige un curso.', true); return; }
+  if (!meses.length) { avisarRelato('Marca al menos un mes.', true); return; }
+  if (!sbPl) { avisarRelato('Sin conexión con Profe Apps: escribe el relato a mano.', true); return; }
+
+  const relatoEl = document.getElementById('relato');
+  if (relatoEl.value.trim() && !confirm('Esto reemplaza el relato que ya escribiste. ¿Seguir?')) return;
+
+  btn.disabled = true; btn.textContent = 'Trayendo…';
+  try {
+    const { data: ctx, error: e1 } = await sbPl.from('contextos').select('id').eq('nombre', CURSO_CTX[curso]).maybeSingle();
+    if (e1) throw e1;
+    if (!ctx) { avisarRelato('Ese curso no está en Profe Apps.', true); return; }
+
+    const pad = n => String(n).padStart(2, '0');
+    const desde = `${anio}-${pad(Math.min(...meses))}-01`;
+    const ultimo = Math.max(...meses);
+    const hasta = `${anio}-${pad(ultimo)}-${pad(new Date(anio, ultimo, 0).getDate())}`;
+    const { data: ses, error: e2 } = await sbPl.from('sesiones')
+      .select('id, fecha, memorias(contenido), plan_cards(titulo, contenido, canciones, orden)')
+      .eq('contexto_id', ctx.id).gte('fecha', desde).lte('fecha', hasta).order('fecha');
+    if (e2) throw e2;
+    const clases = (ses || []).filter(s => meses.includes(parseInt(s.fecha.slice(5, 7), 10)));
+
+    // Canciones y recursos vinculados a las actividades: { cancion_id } o { cancion_id, asset_id }.
+    const idsCan = new Set(), idsAsset = new Set();
+    clases.forEach(s => (s.plan_cards || []).forEach(c => (c.canciones || []).forEach(v => {
+      if (v.cancion_id) idsCan.add(v.cancion_id);
+      if (v.asset_id) idsAsset.add(v.asset_id);
+    })));
+    const [rc, ra] = await Promise.all([
+      idsCan.size ? sbPl.from('repertorio_canciones').select('id, nombre, artista').in('id', [...idsCan]) : { data: [] },
+      idsAsset.size ? sbPl.from('repertorio_assets').select('id, cancion_id, tipo, etiqueta, dificultad, instrumento, tonalidad').in('id', [...idsAsset]) : { data: [] },
+    ]);
+    const canPorId = {}; (rc.data || []).forEach(c => { canPorId[c.id] = c; });
+    const assetPorId = {}; (ra.data || []).forEach(a => { assetPorId[a.id] = a; });
+    const nombreVinculo = v => {
+      const can = canPorId[v.cancion_id];
+      const a = v.asset_id && assetPorId[v.asset_id];
+      if (a) return nombreAsset(a, can?.nombre);
+      return can ? can.nombre + (can.artista ? ` (${can.artista})` : '') : '';
+    };
+
+    const lineas = [];
+    let n = 0;
+    clases.forEach(s => {
+      const cards = (s.plan_cards || []).slice().sort((a, b) => (a.orden || 0) - (b.orden || 0));
+      const mem = Array.isArray(s.memorias) ? s.memorias[0] : s.memorias;
+      const bitacora = textoPlano(mem?.contenido);
+      if (!cards.length && !bitacora.length) return;
+      n++;
+      lineas.push(fechaLarga(s.fecha));
+      cards.forEach(c => {
+        const txt = textoPlano(c.contenido);
+        const esObj = l => /^O:/i.test(l);
+        lineas.push(`- Actividad: ${c.titulo || 'Sin título'}`);
+        txt.filter(esObj).forEach(l => lineas.push(`  Objetivo: ${l.replace(/^O:\s*/i, '')}`));
+        const resto = txt.filter(l => !esObj(l));
+        if (resto.length) lineas.push(`  ${resto.join(' ')}`);
+        const vinc = (c.canciones || []).map(nombreVinculo).filter(Boolean);
+        if (vinc.length) lineas.push(`  Canciones y recursos: ${vinc.join('; ')}`);
+      });
+      if (bitacora.length) lineas.push(`- Bitácora: ${bitacora.join(' ')}`);
+      lineas.push('');
+    });
+
+    if (!n) {
+      avisarRelato(clases.length ? 'Las clases de ese mes aún no tienen actividades ni bitácora.' : 'Ese curso no tiene clases en ese mes.', true);
+      return;
+    }
+    relatoEl.value = lineas.join('\n').trim();
+    avisarRelato(`Listo: ${n} clase${n === 1 ? '' : 's'}. Revisa que no queden nombres de estudiantes antes de copiar.`);
+  } catch (err) {
+    console.error(err);
+    avisarRelato('No se pudo traer lo del mes — revisa la conexión.', true);
+  } finally {
+    btn.disabled = false; btn.textContent = '📥 Traer lo del mes';
+  }
+}
+
+// Al abrir: curso de ?ctx, mes y año actuales.
+(function initPlanificacion() {
+  const prm = new URLSearchParams(location.search);
+  if (prm.get('ctx')) elegirCursoCtx(prm.get('ctx'));
+  const hoy = new Date();
+  const mesHoy = Object.keys(MES_NUM).find(m => MES_NUM[m] === hoy.getMonth() + 1);
+  if (mesHoy) document.querySelectorAll('#mesGrid input').forEach(el => { el.checked = el.value === mesHoy; });
+  document.getElementById('anio').value = hoy.getFullYear();
+})();
+
+// Workspace: la pestaña ya abierta recibe el curso desde Cursos ('ws-ir' { ctx }).
+window.addEventListener('message', e => {
+  if (e.source !== window.parent || e.data?.tipo !== 'ws-ir') return;
+  if (elegirCursoCtx(e.data.ctx)) avisarRelato('Revisa que no queden nombres de estudiantes antes de copiar.');
+});
 </script>
 
 </body>

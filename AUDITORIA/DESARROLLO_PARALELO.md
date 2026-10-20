@@ -4858,3 +4858,106 @@ roadmap (§9, evolución del Entrenador de ritmos).*
 - **Commit:** `6f044da` (subido). Tarjeta en Notion: "Cajón peruano: animación que toca un MIDI" (Probar en clase).
   - **Alcance:** solo el archivo nuevo + la pestaña en `PC/workspace.html`. Sin cambios en Supabase, ni en el motor de
     ritmo, ni en los MIDI reales.
+
+### CI. Planificación mensual para la UTP — integrar el generador `CAJON/` a Profe Apps
+*Origen: pedido del PO (2026-10-20): "hay un planificador que está en una carpeta que se llama 'cajon'; quiero que
+presentes una idea de cómo integrarlo de la mejor manera posible a profe-apps, considerando un flujo lógico". Se apoya
+en la DECISIÓN 3c (CAJÓN entra a V1 como motor de planificación con formatos por escuela, partiendo por plantillas
+predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No confundir con `CAJON-PERUANO/` (deuda CH).*
+- **Necesidad:** entregar cada mes a la UTP la planificación de cada curso en `.docx` sin escribir de cero lo que ya
+  quedó registrado en Profe Apps (clases, actividades, objetivos, canciones, evaluaciones).
+- **Auditoría (2026-10-20):**
+  - **Qué es hoy:** `CAJON/generador-planificacion.html` (un archivo, 1.334 líneas; además 5 imágenes sueltas de
+    bugs de otros módulos que no usa). **Nadie lo enlaza** (no está en el Workspace ni en ningún módulo). No usa
+    Supabase ni `localStorage`: todo es a mano y se pierde al cerrar.
+  - **Flujo actual (2 pasos):** (1) elegir curso (chips 1°–8° fijos, sin talleres), año y uno o varios meses, escribir
+    un **relato** de lo trabajado y copiar un *prompt* para **NotebookLM** (con un formato fijo de etiquetas: EJE,
+    OAT, 2 OA basales y 2 complementarios con número y texto, ACTITUD, META, DESEMPEÑOS, EVIDENCIAS, TIEMPO, RECURSOS,
+    EVALUACIÓN); (2) pegar la respuesta de NotebookLM: la página la lee por etiquetas (con tolerancia a variantes y un
+    restaurador de tildes), llena campos **ocultos** y muestra un informe de lo encontrado/faltante; "Generar" descarga
+    el `.docx`. Los campos no se pueden revisar ni corregir en pantalla antes de descargar.
+  - **El `.docx`:** librería `docx@7.8.2` desde jsdelivr (**sin internet no genera**). Carta apaisada, letra Aptos,
+    cabecera con 2 logos (en base64 dentro del archivo) y "ESCUELA N°325 'SANTA JUANA DE LESTONNAC'"; hoja 1 =
+    "PLANIFICACIÓN <año>" + tabla (Asignatura, Curso, Eje, **Docente fijo "Patricio Lastra"**, Mes, OAT, OA, Actitud);
+    hoja 2 = tabla azul de 6 columnas (Meta/Núcleo · Desempeños/Escenario · Evidencias · Tiempo · Recursos ·
+    Evaluación/Instrumento). Nombre del archivo: `CUARTO - ABRIL.docx`. Es **la plantilla de una escuela**, cableada.
+  - **Qué ya existe en el ecosistema y podría tomar solo:**
+    - **Curso:** `contextos` + `supabase/contextos.js` (ícono y nombre visible) y el protocolo `?ctx=` (hoy el generador
+      repite la lista de cursos a mano).
+    - **Clases del mes:** `sesiones` (contexto + fecha) — las fechas reales de cada clase.
+    - **Actividades y objetivos:** `plan_cards` de cada sesión (título + texto; el párrafo "O:" es el objetivo de la
+      actividad), con canciones/melodías/ritmos vinculados (`plan_cards.canciones`) y minutos del Tiempo libre.
+    - **Lo que pasó de verdad:** la bitácora de cada clase (`memorias.contenido`, con apartados por actividad) y las
+      notas de Cursos (`bitacora_paginas`).
+    - **Evaluaciones del mes:** `libro_evaluaciones` (nombre, fecha y **OA original**) — alimentan "Evaluación /
+      Instrumento" y dan OA ya escritos por el profe.
+    - **Recursos:** materiales del curso (`materiales_contexto`) y los instrumentos de las canciones vinculadas.
+    - **Lo que NO existe:** catálogo de OA/OAT/ejes del currículum de Música, ni "escuela" o "docente" como dato
+      (DECISIÓN #10 los vuelve datos en V1). Eso hoy lo pone NotebookLM o el profe.
+- **PROPUESTA de Claude (sin decisión del PO):**
+  - **Flujo lógico para el profe:** Cursos (o el Plan) → **📄 Planificación del mes** → se abre una pestaña del
+    Workspace con el curso y el mes ya puestos → la página arma sola el **resumen del mes** (clases con fecha,
+    actividades con su objetivo "O:", canciones y recursos, evaluaciones con su OA, y lo esencial de la bitácora) →
+    el profe lo revisa y agrega lo que quiera → copia el *prompt* para NotebookLM → pega la respuesta → **revisa y
+    corrige los campos en pantalla** → descarga el `.docx` para la UTP.
+  - **Paso 1 (acotado, útil ya; sin cambios en Supabase, solo lectura):**
+    1. Mover el generador a una carpeta con nombre propio (`PLANIFICACION/index.html`; nadie lo enlaza, así que no
+       rompe nada) y sumarlo al Workspace como pestaña **📄 Planificación** (menú ＋).
+    2. Curso desde `contextos` (los cursos 1°–8°, con `?ctx=`) y mes(es) como hoy.
+    3. Botón **"Traer lo del mes"**: llena el relato con el resumen del mes leído de Supabase (sesiones, `plan_cards`,
+       canciones, `libro_evaluaciones`, bitácora), editable antes de copiar el *prompt*.
+    4. Mostrar los campos que hoy están ocultos para revisarlos y corregirlos antes de generar.
+    5. Botón "📄 Planificación del mes" en la página del curso en Cursos (abre la pestaña con ese curso).
+  - **Paso 2:** guardar cada planificación generada (curso + mes) para reabrirla, corregirla y volver a descargarla
+    sin pasar de nuevo por NotebookLM (requiere una tabla nueva → autorización de Supabase). Guardar la librería
+    `docx` en `comun/` para que genere sin internet.
+  - **Paso 3 (DECISIÓN 3c):** sacar lo cableado (escuela, logos, docente, orden de tablas) a una **plantilla**
+    predefinida; la de la Escuela N°325 sería la primera. El editor de plantillas por escuela sigue siendo futuro.
+  - **Alternativas:**
+    - **A — solo trasladarlo** (pestaña del Workspace, sin leer datos): rápido, pero sigue pidiendo todo a mano.
+    - **B — paso 1 propuesto** (pestaña + "Traer lo del mes" + campos visibles): **recomendada**; aprovecha lo que ya
+      se registra y no toca Supabase.
+    - **C — sin NotebookLM:** Profe Apps arma el `.docx` directo desde los datos más un catálogo propio de OA de
+      Música por nivel. Más autónomo, pero exige cargar el currículum y redactar metas/evidencias a mano: después.
+- **Comentarios del PO en Notion (2026-10-20) y ajuste de la propuesta:**
+  1. *"Mis objetivos no son siempre los OA del currículum; habría que traducirlos a OA, parte del trabajo de la IA."*
+     → Los objetivos "O:" van al resumen como **material**, y el pedido a la IA dice explícitamente que los traduzca a
+     los OA del currículum del nivel.
+  2. *"Las evaluaciones del Libro: no sé si sea necesario incluirlas."* → Fuera del paso 1 (se podrán sumar después
+     como casilla opcional).
+  3. *"Me gustaría integrar una IA (NotebookLM razona sobre un conjunto acotado de documentos: el currículum
+     nacional), por API y gratis."* → **HECHO (búsqueda 2026-10-20):** NotebookLM no tiene una API pública anunciada
+     por Google. **PROPUESTA:** usar la **API de Gemini en su plan gratis** (la misma familia que ya usaba SRP) y
+     guardar en Profe Apps los **documentos del currículum de Música por nivel** (los mismos que el PO le da a
+     NotebookLM); cada pedido envía solo el documento del nivel del curso + el resumen del mes, con la instrucción de
+     responder solo con esos documentos. Efecto parecido a NotebookLM, costo cero. Cuidados: (a) en el plan gratis
+     Google puede usar lo enviado para mejorar sus productos → **no enviar nombres de estudiantes** (el resumen se
+     muestra y se revisa antes de enviar); (b) la llave de la API la pega el profe una vez en su equipo, **nunca en el
+     repo** (es público); (c) límites diarios bajos, pero sobran para ~15 planificaciones al mes; (d) sin internet no
+     hay IA (se mantiene copiar/pegar como respaldo).
+  - **Pasos ajustados:** **Paso 1** = pestaña 📄 Planificación + "Traer lo del mes" (clases, actividades con su "O:",
+    canciones/recursos, bitácora; sin evaluaciones) + campos visibles + copiar/pegar a NotebookLM como hoy.
+    **Paso 2** = botón **✨ Generar con IA** (Gemini gratis + currículum guardado) que llena los campos solo.
+    **Paso 3** = guardar las planificaciones (tabla nueva, con autorización). **Paso 4** = plantilla por escuela (3c).
+    Para el paso 2 el PO debe entregar los documentos del currículum que usa en NotebookLM.
+- **DECISIÓN del PO (2026-10-20):** aprueba el **paso 1 ajustado**; los documentos del currículum para el paso 2 los
+  entrega después.
+- **Implementación (2026-10-20):** `CAJON/generador-planificacion.html` → **`PLANIFICACION/index.html`** (`git mv`; las
+  imágenes sueltas de `CAJON/` quedan donde están). En la página: título "📄 Planificación del mes"; curso por `?ctx=`
+  (1°–8°, mapa `CURSO_CTX`) o por `ws-ir` { ctx } si la pestaña ya está abierta; mes y año actuales al abrir; botón
+  **📥 Traer lo del mes** (solo lectura: `contextos` → `sesiones` del curso en los meses marcados con `memorias` y
+  `plan_cards` embebidas → nombres de `repertorio_canciones` / `repertorio_assets` con `nombreAsset`), que arma el
+  relato por clase (fecha, actividad, "Objetivo:" por cada párrafo "O:", resto del texto, canciones y recursos,
+  bitácora en una línea; formato por bloques pasado a texto simple), pide confirmar si ya había relato y avisa
+  "Revisa que no queden nombres de estudiantes antes de copiar"; el *prompt* pide traducir los objetivos del profe a
+  OA del currículum del nivel; los campos del `.docx` quedan **visibles** ("Revisa y corrige antes de descargar").
+  Sin evaluaciones del Libro. `PC/workspace.html`: app 📄 Planificación en el menú ＋. `CURSOS/index.html`: botón
+  "📄 Planificación del mes" en la barra (espacio reservado; visible solo en 1°–8° y dentro del Workspace) que abre o
+  enfoca la pestaña en ese curso.
+- **Prueba (local, puerto 8971):** Cuarto, octubre 2026: "Traer lo del mes" arma 3 clases (dos solo con bitácora y una
+  con la actividad "Montaje: Anacleto", sus 3 objetivos, el texto y sus canciones/recursos con nombre de cortesía).
+  **Se confirmó que la bitácora trae nombres de estudiantes**: el aviso es necesario (y lo será más en el paso 2).
+  Pegar una respuesta llena los campos visibles y el informe marca lo que falta. En el Workspace: el botón de Cursos
+  abre la pestaña en Quinto; con la pestaña abierta, desde Octavo la cambia a Octavo sin abrir otra; en General el
+  botón no se ve; el menú ＋ muestra 📄 Planificación. Sin errores en la consola. No se probó la descarga del `.docx`
+  (código sin cambios).
