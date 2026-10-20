@@ -4974,3 +4974,23 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   OA de 8° y se mezclaban); el reparto por eje se confirmó por la posición de los títulos en la página. Texto literal
   salvo dos erratas del original corregidas ("tocan" → "tocar" en 4° OA 4; "Gofré" → "Grofé" en 3° OA 3) y la
   descripción de los ejes, que es un resumen propio. No se guardaron los PDF.
+- **DECISIÓN del PO (2026-10-20) — paso 2:** botón **"✨ Generar"** (sin "con IA", con las estrellas) que usa **Gemini en
+  su plan gratis** y el currículum guardado.
+- **Implementación paso 2 (2026-10-20):** `PLANIFICACION/index.html`: bajo el relato, **✨ Generar** (principal) junto a
+  "Copiar prompt para NotebookLM" (queda de respaldo) y 🔑 para cambiar la llave. Al generar: (1) **oculta nombres de
+  estudiantes**: toda palabra del relato que sea nombre, apellido o nombre social de algún estudiante del Libro
+  (`libro_estudiantes`, ≥ 3 letras, sin tildes) pasa a `[estudiante]`; si no se puede leer la lista, **no se envía
+  nada**; (2) lee `curriculo/musica-<nivel>.txt` y el OAT del ciclo; (3) arma el mismo pedido de NotebookLM
+  (`armarPrompt`, ahora compartido) precedido de la instrucción de usar solo esos documentos y copiar números y textos
+  tal cual (2 OA basales, 2 complementarios, OAT física y sociocultural, una actitud); (4) llama a Gemini
+  (`gemini-2.5-flash` → `-flash-lite` → `flash-latest` → `2.0-flash`; pasa al siguiente si uno no está o no tiene cuota),
+  con la llave en la cabecera, nunca en la dirección; (5) deja la respuesta en el cuadro de pegado y llena los campos
+  con la misma lectura que NotebookLM (`procesarRespuesta`, antes dentro del evento de pegar). La llave queda solo en el
+  equipo (`localStorage.gemini_api_key`, la misma clave que usaban SRP y ANALIZADOR); se pide con un cuadro la primera
+  vez. Mensajes claros para llave mala, sin cuota, sin conexión y currículum no disponible (en `file://` no se lee).
+- **Prueba (local, puerto 8971, Gemini simulado: no hay llave en este equipo):** Cuarto, octubre: el texto enviado no
+  lleva "Javier" ni "Muñoz" (5 nombres ocultos, Victoria incluida), sí lleva el currículum de 4° y los OAT; el primer
+  modelo respondió "sin cuota" y pasó al segundo; la respuesta llenó los campos (OA 4, actitud, desempeños) y el aviso
+  dijo cuántos nombres se ocultaron. Llave mala, sin cuota y sin relato dan su aviso. Botones en una fila, sin
+  desplazamiento lateral. **Falta: probarlo con la llave real del PO.** Ojo: como se tapa todo apellido del Libro,
+  palabras comunes que también son apellidos (Paz, Reyes, Campos, Ríos, Victoria…) pueden salir como `[estudiante]`.

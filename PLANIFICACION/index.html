@@ -218,7 +218,23 @@
 
     #relato::placeholder { color: #ccc; }
 
-    .btn-copiar-prompt { display: inline-block; margin-top: 14px; }
+    .btn-copiar-prompt { display: inline-block; }
+
+    /* ── ✨ Generar con Gemini (deuda CI, paso 2) ── */
+    .acciones-gen { display: flex; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+    .btn-generar {
+      background: #e67e22; color: #fff; border: none; border-radius: 8px; padding: 9px 18px;
+      font-size: 0.88rem; font-weight: 800; cursor: pointer; white-space: nowrap; min-width: 140px;
+    }
+    .btn-generar:hover { background: #d35400; }
+    .btn-generar:disabled { opacity: .65; cursor: default; }
+    .acciones-gen .btn-copiar-prompt { background: #fff; color: #444; border: 1.5px solid #ddd; }
+    .acciones-gen .btn-copiar-prompt:hover { background: #f3f3f3; }
+    .btn-llave { background: none; border: none; font-size: 1rem; cursor: pointer; opacity: .55; padding: 4px; }
+    .btn-llave:hover { opacity: 1; }
+    .gen-ia-estado { font-size: 0.8rem; color: #888; margin-top: 6px; min-height: 1.2em; line-height: 1.4; }
+    .gen-ia-estado.ok { color: #27ae60; }
+    .gen-ia-estado.err { color: #c0392b; }
 
     /* ── Zona de pegado ── */
     .paste-zone {
@@ -530,9 +546,14 @@
   <p class="relato-nota" id="relatoNota">Revisa que no queden nombres de estudiantes antes de copiar.</p>
   <textarea id="relato" rows="12" placeholder="Ej: Este mes trabajamos con 4° el metalófono. Lograron tocar IA IA OH y Dos por diez. Hubo dificultad con el ritmo de Zapatero…"></textarea>
 
-  <button type="button" class="btn-copiar-prompt" onclick="copiarPromptCompleto()">
-    Copiar prompt para NotebookLM
-  </button>
+  <div class="acciones-gen">
+    <button type="button" class="btn-generar" id="btnGenerar" onclick="generarConGemini()" title="Arma la planificación con el currículum oficial del curso y llena los campos del .docx">✨ Generar</button>
+    <button type="button" class="btn-copiar-prompt" onclick="copiarPromptCompleto()">
+      Copiar prompt para NotebookLM
+    </button>
+    <button type="button" class="btn-llave" onclick="pedirLlaveGemini(true)" title="Cambiar la llave de Gemini guardada en este equipo">🔑</button>
+  </div>
+  <p class="gen-ia-estado" id="genIaEstado"></p>
 </div>
 
 <!-- ══ PASO 2 — RESPUESTA DE NOTEBOOKLM → DOCX ══ -->
@@ -716,20 +737,20 @@ EVALUACION:
 [instrumento de evaluación 2 con descripción breve]
 [instrumento de evaluación 3 con descripción breve]`;
 
-function copiarPromptCompleto() {
-  const relato = (document.getElementById('relato').value || '').trim();
+// Pedido para NotebookLM / Gemini con el relato dado; null si falta curso o mes.
+function armarPrompt(relato) {
   const curso  = cursoValor();
   const mes    = mesTexto();
   const anio   = document.getElementById('anio').value;
 
-  if (!curso) { alert('Elige un curso.'); return; }
-  if (!mes)   { alert('Marca al menos un mes.'); return; }
+  if (!curso) { alert('Elige un curso.'); return null; }
+  if (!mes)   { alert('Marca al menos un mes.'); return null; }
 
   const parteRelato = relato
     ? `Lo trabajado en el mes:\n${relato}\n\n`
     : '';
 
-  const prompt = `${parteRelato}Genera la planificación mensual de Música para ${curso}, ${mes} ${anio}.
+  return `${parteRelato}Genera la planificación mensual de Música para ${curso}, ${mes} ${anio}.
 Los objetivos de las actividades son del profesor y no siempre son Objetivos de Aprendizaje (OA) del currículum: tradúcelos a los OA del currículum nacional de Música del nivel que mejor les correspondan.
 
 Usa español correcto con tildes y caracteres especiales (á, é, í, ó, ú, ñ, Á, É, Í, Ó, Ú, ü). No omitas tildes bajo ninguna circunstancia.
@@ -737,6 +758,11 @@ Usa español correcto con tildes y caracteres especiales (á, é, í, ó, ú, ñ
 Responde ÚNICAMENTE con el siguiente formato, sin texto adicional antes ni después, sin cambiar las etiquetas en MAYÚSCULAS, sin usar asteriscos ni negritas, reemplazando solo el contenido entre corchetes:
 
 ${FORMATO_FIJO}`;
+}
+
+function copiarPromptCompleto() {
+  const prompt = armarPrompt((document.getElementById('relato').value || '').trim());
+  if (!prompt) return;
 
   navigator.clipboard.writeText(prompt).then(() => {
     const btn = document.querySelector('.btn-copiar-prompt');
@@ -1042,33 +1068,36 @@ function mostrarReporte({ estado, cambios, faltantes }) {
 }
 
 // Auto-parseo + informe al pegar
-document.getElementById('pasteArea').addEventListener('paste', function() {
-  setTimeout(() => {
-    let texto = this.value.trim();
-    if (!texto) return;
+// Lee la respuesta (pegada de NotebookLM o traída por ✨ Generar) y llena los campos del .docx.
+// Devuelve cuántos campos se llenaron.
+function procesarRespuesta() {
+  const area = document.getElementById('pasteArea');
+  let texto = area.value.trim();
+  if (!texto) return 0;
 
-    // Restaurar tildes automáticamente
-    const { texto: corregido, cambios } = restaurarTildes(texto);
-    if (cambios > 0) {
-      this.value = corregido;
-      texto = corregido;
-    }
+  // Restaurar tildes automáticamente
+  const { texto: corregido, cambios } = restaurarTildes(texto);
+  if (cambios > 0) {
+    area.value = corregido;
+    texto = corregido;
+  }
 
-    const data = parsearTexto(texto);
-    const { ok } = aplicarParseo(data);   // llena los campos ocultos que alimentan el .docx
+  const data = parsearTexto(texto);
+  const { ok } = aplicarParseo(data);   // llena los campos que alimentan el .docx
 
-    if (ok === 0) {
-      mostrarReporte({ estado: 'err' });
-      return;
-    }
+  if (ok === 0) {
+    mostrarReporte({ estado: 'err' });
+    return 0;
+  }
 
-    const faltantes = CAMPOS_ESPERADOS
-      .filter(([id]) => !(id in data) || !String(data[id]).trim())
-      .map(([, label]) => label);
+  const faltantes = CAMPOS_ESPERADOS
+    .filter(([id]) => !(id in data) || !String(data[id]).trim())
+    .map(([, label]) => label);
 
-    mostrarReporte({ estado: 'ok', cambios, faltantes });
-  }, 0);
-});
+  mostrarReporte({ estado: 'ok', cambios, faltantes });
+  return ok;
+}
+document.getElementById('pasteArea').addEventListener('paste', () => setTimeout(procesarRespuesta, 0));
 
 // ══════════════════════════════════════════════
 // IMÁGENES INSTITUCIONALES (base64)
@@ -1500,6 +1529,153 @@ window.addEventListener('message', e => {
   if (e.source !== window.parent || e.data?.tipo !== 'ws-ir') return;
   if (elegirCursoCtx(e.data.ctx)) avisarRelato('Revisa que no queden nombres de estudiantes antes de copiar.');
 });
+
+// ══════════════════════════════════════════════
+// ✨ GENERAR — Gemini (plan gratis) + currículum guardado (deuda CI, paso 2)
+// Envía a Gemini el relato (sin nombres de estudiantes) junto con el currículum oficial
+// del curso (curriculo/musica-<n>.txt + OAT del ciclo) y le pide responder solo con esos
+// documentos, en el mismo formato de NotebookLM; la respuesta llena los campos del .docx.
+// La llave de Gemini vive solo en este equipo (localStorage 'gemini_api_key', la misma
+// que usaban SRP y ANALIZADOR); nunca va al repositorio.
+// ══════════════════════════════════════════════
+const GEMINI_MODELOS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-2.0-flash'];
+const NIVEL_CURSO = {
+  'Primero básico': 1, 'Segundo básico': 2, 'Tercero básico': 3, 'Cuarto básico': 4,
+  'Quinto básico': 5, 'Sexto básico': 6, 'Séptimo básico': 7, 'Octavo básico': 8,
+};
+// Palabras que no se tratan como nombres aunque formen parte de uno.
+const NO_NOMBRE = new Set(['del', 'las', 'los', 'san', 'santa', 'van', 'von', 'dos']);
+
+function estadoGen(t, cls) {
+  const el = document.getElementById('genIaEstado');
+  el.textContent = t;
+  el.className = 'gen-ia-estado' + (cls ? ' ' + cls : '');
+}
+function leerLlave() { try { return localStorage.getItem('gemini_api_key') || ''; } catch (e) { return ''; } }
+function pedirLlaveGemini(cambiar) {
+  const actual = leerLlave();
+  if (actual && !cambiar) return actual;
+  const nueva = prompt(
+    'Pega tu llave de Gemini (gratis en aistudio.google.com → "Get API key").\n' +
+    'Queda guardada solo en este equipo. Lo que se envía a Google no lleva nombres de estudiantes.',
+    actual);
+  if (nueva === null) return '';
+  const llave = nueva.trim();
+  try { if (llave) localStorage.setItem('gemini_api_key', llave); else localStorage.removeItem('gemini_api_key'); } catch (e) {}
+  if (cambiar) estadoGen(llave ? 'Llave guardada en este equipo.' : 'Llave borrada de este equipo.', llave ? 'ok' : '');
+  return llave;
+}
+
+const sinTilde = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+// Reemplaza por [estudiante] cada palabra que sea nombre o apellido de algún estudiante del Libro.
+async function ocultarNombres(texto) {
+  const { data, error } = await sbPl.from('libro_estudiantes').select('*');
+  if (error) throw new Error('nombres');
+  const palabras = new Set();
+  (data || []).forEach(e => [e.nombre, e.apellido, e.nombre_social].forEach(v =>
+    String(v || '').split(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+/).forEach(w => {
+      const n = sinTilde(w);
+      if (n.length >= 3 && !NO_NOMBRE.has(n)) palabras.add(n);
+    })));
+  let ocultos = 0;
+  let limpio = texto.replace(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+/g, w => {
+    if (!palabras.has(sinTilde(w))) return w;
+    ocultos++;
+    return '[estudiante]';
+  });
+  limpio = limpio.replace(/\[estudiante\](\s+\[estudiante\])+/g, '[estudiante]');
+  return { limpio, ocultos };
+}
+
+async function leerCurriculo(nivel) {
+  const oat = nivel <= 6 ? 'oat-1a6.txt' : 'oat-7a8.txt';
+  const [a, b] = await Promise.all([`curriculo/musica-${nivel}.txt`, `curriculo/${oat}`].map(async u => {
+    const r = await fetch(u, { cache: 'no-cache' });
+    if (!r.ok) throw new Error('curriculo');
+    return r.text();
+  }));
+  return a + '\n\n' + b;
+}
+
+async function llamarGemini(texto, llave) {
+  let ultimo = 'sin respuesta';
+  for (const modelo of GEMINI_MODELOS) {
+    let res;
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': llave },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: texto }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 8192 },
+        }),
+      });
+    } catch (e) { throw new Error('red'); }
+    if (res.status === 401 || res.status === 403) throw new Error('llave');
+    if (res.status === 400) {
+      const j = await res.json().catch(() => ({}));
+      if (/api key/i.test(j?.error?.message || '')) throw new Error('llave');
+      ultimo = j?.error?.message || 'HTTP 400';
+      continue;
+    }
+    if (!res.ok) { ultimo = res.status === 429 ? 'cuota' : 'HTTP ' + res.status; continue; }   // 404 / 429 / 5xx → otro modelo
+    const j = await res.json();
+    const out = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+    if (out) return out;
+    ultimo = 'respuesta vacía';
+  }
+  throw new Error(ultimo === 'cuota' ? 'cuota' : 'modelos');
+}
+
+async function generarConGemini() {
+  const btn = document.getElementById('btnGenerar');
+  const relato = (document.getElementById('relato').value || '').trim();
+  const nivel = NIVEL_CURSO[cursoValor()];
+  if (!nivel) { estadoGen('Elige un curso.', 'err'); return; }
+  if (!mesesSeleccionados().length) { estadoGen('Marca al menos un mes.', 'err'); return; }
+  if (!relato) { estadoGen('Primero trae lo del mes o escribe el relato.', 'err'); return; }
+  if (!sbPl) { estadoGen('Sin conexión con Profe Apps: usa "Copiar prompt para NotebookLM".', 'err'); return; }
+  const llave = pedirLlaveGemini(false);
+  if (!llave) { estadoGen('Falta la llave de Gemini (🔑).', 'err'); return; }
+
+  btn.disabled = true; btn.textContent = 'Generando…';
+  estadoGen('Ocultando nombres y leyendo el currículum del curso…');
+  try {
+    const [{ limpio, ocultos }, curriculo] = await Promise.all([ocultarNombres(relato), leerCurriculo(nivel)]);
+    const pedido = armarPrompt(limpio);
+    if (!pedido) return;
+    const texto =
+`Eres un asistente de planificación para un profesor de Música de una escuela pública de Chile.
+Usa SOLO los documentos oficiales del currículum que vienen abajo (entre DOCUMENTOS y FIN DOCUMENTOS) para los ejes, los OA, los OAT y la actitud: copia sus números y su texto tal como aparecen, sin inventar otros.
+Elige dos OA basales y dos OA complementarios del nivel que mejor correspondan a lo trabajado en el mes. Para OAT_FISICA usa un OAT de la dimensión física y para OAT_SOCIO uno de la dimensión sociocultural. Para ACTITUD elige una de las actitudes del nivel.
+Donde aparezca [estudiante] hubo un nombre que se ocultó: no lo menciones.
+
+DOCUMENTOS
+${curriculo}
+FIN DOCUMENTOS
+
+${pedido}`;
+    estadoGen('Pidiendo la planificación a Gemini…');
+    const respuesta = await llamarGemini(texto, llave);
+    document.getElementById('pasteArea').value = respuesta;
+    const ok = procesarRespuesta();
+    const nota = ocultos ? ` Se ocultaron ${ocultos} nombre${ocultos === 1 ? '' : 's'} de estudiantes.` : '';
+    if (ok) estadoGen(`✓ Listo: revisa los campos a la derecha y descarga el .docx.${nota}`, 'ok');
+    else estadoGen('Gemini respondió, pero no en el formato esperado. Prueba de nuevo o usa NotebookLM.', 'err');
+  } catch (err) {
+    console.error(err);
+    const m = String(err.message || '');
+    if (m === 'llave') estadoGen('La llave de Gemini no sirve. Cámbiala con 🔑.', 'err');
+    else if (m === 'cuota') estadoGen('Se acabó la cuota gratis de Gemini por ahora. Prueba más tarde o usa NotebookLM.', 'err');
+    else if (m === 'nombres') estadoGen('No se pudo revisar la lista de estudiantes: no se envió nada. Revisa la conexión.', 'err');
+    else if (m === 'curriculo') estadoGen('No se pudo leer el currículum del curso. Abre la versión en línea.', 'err');
+    else if (m === 'red') estadoGen('Sin conexión con Gemini. Revisa internet.', 'err');
+    else estadoGen('Gemini no pudo responder ahora. Prueba más tarde o usa NotebookLM.', 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '✨ Generar';
+  }
+}
 </script>
 
 </body>
