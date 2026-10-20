@@ -5054,3 +5054,4 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   "OAT Dimensión Sociocultural: —", "OA Basal 4: …", "OA Basal 6: …", complementarios "—", la actitud elegida,
   desempeños "1. Revisan…", "2. Montaje grupal" y Recursos "—". Al recargar, las casillas siguen como quedaron.
   Datos de prueba borrados.
+- **Commit:** `431f407` (subido). Falta: uso real.
