@@ -5080,3 +5080,4 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   Recursos "• PowerPoint"…; una fila simulada de abril–mayo (sin guardar) se vio en las dos celdas con "Abr–May";
   "＋" de Quinto noviembre abrió el editor en Quinto, Noviembre 2026 sin guardar nada. Corrección: escribir y
   cambiar de mes al tiro dejó lo escrito guardado en el mes anterior (año 2099, borrado).
+- **Commit:** `ffb024e` (subido). Falta: uso real. Deudas: archivo de años anteriores; plantilla por escuela.
