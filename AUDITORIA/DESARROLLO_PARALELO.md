@@ -4961,3 +4961,6 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   abre la pestaña en Quinto; con la pestaña abierta, desde Octavo la cambia a Octavo sin abrir otra; en General el
   botón no se ve; el menú ＋ muestra 📄 Planificación. Sin errores en la consola. No se probó la descarga del `.docx`
   (código sin cambios).
+- **Commit:** `7d46110` (subido). Tarjeta en Notion: "Planificación del mes para la UTP — deuda CI" (Probar en clase).
+  - **Alcance:** solo lectura de Supabase; sin tablas nuevas. Paso 2 (✨ Generar con IA) espera los documentos del
+    currículum del PO.
