@@ -4994,3 +4994,4 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   dijo cuántos nombres se ocultaron. Llave mala, sin cuota y sin relato dan su aviso. Botones en una fila, sin
   desplazamiento lateral. **Falta: probarlo con la llave real del PO.** Ojo: como se tapa todo apellido del Libro,
   palabras comunes que también son apellidos (Paz, Reyes, Campos, Ríos, Victoria…) pueden salir como `[estudiante]`.
+- **Commit paso 2:** `0078958` (subido). Currículum: `0cc4b41`.
