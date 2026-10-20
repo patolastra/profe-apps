@@ -5012,3 +5012,20 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   llevó Victoria y no llevó Anacleto ni Javier, y ambas correcciones quedaron guardadas. Con "Paz" en el relato ya no
   se tapa (nadie de Cuarto se llama así). Cancelar: Gemini no se llama y el aviso dice "No se envió nada".
 - **Commit del ajuste:** `04c2866` (subido).
+- **DECISIÓN del PO (2026-10-20) — paso 3:** aprueba la tabla nueva **`planificaciones`** (una por curso + año + meses,
+  con el relato y los campos del `.docx`; `supabase/planificaciones.sql`) **guardando también el relato**. Se guarda
+  sola (al generar, al pegar y al corregir), se abre sola al elegir curso y mes ("Guardada el …" + "Empezar de nuevo")
+  y un menú 📂 Guardadas lista las del curso.
+- **Implementación paso 3 (2026-10-20):** `supabase/planificaciones.sql` (aditiva e idempotente; **la corrió el PO** el
+  mismo día). `PLANIFICACION/index.html`: fila bajo los meses con **📂 Guardadas** (las del curso, por año y meses),
+  el estado ("Sin guardar todavía." / "✓ Guardada 20/10" / "Guardada el 20/10") y **Empezar de nuevo** (espacio
+  reservado; pide confirmar, borra la fila y deja la página en blanco). Guarda solo (`upsert` por
+  `contexto_id, anio, meses`) 1,5 s después de corregir el relato o un campo, y al instante tras "Traer lo del mes",
+  pegar la respuesta o ✨ Generar; no guarda una página vacía. Al cambiar curso, año o meses guarda lo pendiente,
+  deja la página en blanco y abre lo guardado de la nueva combinación. Guarda también al salir de la pestaña y al
+  cerrarla en el Workspace (`guardarAlCerrar` en la app 📄 y en el botón de Cursos). Sin la tabla o sin conexión, la
+  página sigue igual y lo avisa.
+- **Prueba (local, año ficticio 2099, Quinto):** sin la tabla avisaba "falta crear la tabla"; con la tabla: escribir
+  relato y eje → "✓ Guardada 20/10" y la fila en Supabase; 📂 Guardadas (1) "Octubre 2099"; noviembre abre en blanco;
+  elegir "Octubre 2099" en el menú vuelve a abrirla; al recargar la página se abre sola; Empezar de nuevo la borra
+  (0 filas en 2099) y deja la página en blanco. Datos de prueba borrados.

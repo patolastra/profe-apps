@@ -236,6 +236,16 @@
     .gen-ia-estado.ok { color: #27ae60; }
     .gen-ia-estado.err { color: #c0392b; }
 
+    /* ── Planificaciones guardadas ── */
+    .guardadas-fila { display: flex; align-items: center; gap: 10px; margin-top: 12px; min-height: 32px; }
+    #selGuardadas { width: 190px; flex-shrink: 0; padding: 5px 8px; font-size: 0.8rem; background: #fff; }
+    .guardada-estado { flex: 1; font-size: 0.78rem; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .guardada-estado.ok { color: #27ae60; }
+    .guardada-estado.err { color: #c0392b; white-space: normal; }
+    .btn-de-nuevo { flex-shrink: 0; width: 132px; background: #fff; color: #666; border: 1.5px solid #ddd; border-radius: 8px;
+      padding: 5px 8px; font-size: 0.76rem; font-weight: 700; cursor: pointer; }
+    .btn-de-nuevo:hover { background: #fdf3f2; color: #c0392b; border-color: #f2b8b0; }
+
     /* ── Vista previa de lo que se envía ── */
     .vp-fondo[hidden] { display: none; }
     .vp-fondo { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50;
@@ -557,6 +567,15 @@
       <label><input type="checkbox" value="Noviembre">Nov</label>
       <label><input type="checkbox" value="Diciembre">Dic</label>
     </div>
+  </div>
+
+  <!-- Planificaciones guardadas (deuda CI, paso 3): espacio fijo, lo que no aplica se oculta sin quitarse -->
+  <div class="guardadas-fila">
+    <select id="selGuardadas" title="Abrir una planificación guardada de este curso">
+      <option value="">📂 Guardadas</option>
+    </select>
+    <span class="guardada-estado" id="guardadaEstado"></span>
+    <button type="button" class="btn-de-nuevo" id="btnDeNuevo" style="visibility:hidden" onclick="empezarDeNuevo()" title="Borra la planificación guardada de este curso y mes y deja la página en blanco">Empezar de nuevo</button>
   </div>
 
   <div class="relato-cab">
@@ -1131,6 +1150,7 @@ function procesarRespuesta() {
     .map(([, label]) => label);
 
   mostrarReporte({ estado: 'ok', cambios, faltantes });
+  guardarPronto(0);
   return ok;
 }
 document.getElementById('pasteArea').addEventListener('paste', () => setTimeout(procesarRespuesta, 0));
@@ -1541,6 +1561,7 @@ async function traerDelMes() {
       return;
     }
     relatoEl.value = lineas.join('\n').trim();
+    guardarPronto(0);
     avisarRelato(`Listo: ${n} clase${n === 1 ? '' : 's'}. Revisa que no queden nombres de estudiantes antes de copiar.`);
   } catch (err) {
     console.error(err);
@@ -1563,7 +1584,10 @@ async function traerDelMes() {
 // Workspace: la pestaña ya abierta recibe el curso desde Cursos ('ws-ir' { ctx }).
 window.addEventListener('message', e => {
   if (e.source !== window.parent || e.data?.tipo !== 'ws-ir') return;
-  if (elegirCursoCtx(e.data.ctx)) avisarRelato('Revisa que no queden nombres de estudiantes antes de copiar.');
+  if (elegirCursoCtx(e.data.ctx)) {
+    avisarRelato('Revisa que no queden nombres de estudiantes antes de copiar.');
+    alCambiarClave();
+  }
 });
 
 // ══════════════════════════════════════════════
@@ -1774,6 +1798,170 @@ ${pedido}`;
     btn.disabled = false; btn.textContent = '✨ Generar';
   }
 }
+
+// ══════════════════════════════════════════════
+// GUARDAR — una planificación por curso + año + meses (tabla `planificaciones`, deuda CI, paso 3)
+// Se guarda sola (al traer, generar, pegar y corregir); al elegir curso y mes se abre la guardada;
+// 📂 Guardadas lista las del curso. Sin la tabla (o sin conexión) la página sigue igual y lo avisa.
+// ══════════════════════════════════════════════
+const NOMBRE_MES = Object.fromEntries(Object.entries(MES_NUM).map(([n, v]) => [v, n]));
+const ctxIdCache = {};
+let claveVista = null;        // 'CTX|anio|meses' de lo que se ve en pantalla
+let timerGuardar = null;
+let sinTabla = false;
+let cargando = false;         // mientras se llena la página desde lo guardado no se guarda
+
+function camposDoc() { return [...document.querySelectorAll('#camposOcultos input, #camposOcultos textarea')]; }
+// Valores iniciales de los campos (los que trae el formato): "página en blanco".
+const VALORES_INICIALES = {};
+camposDoc().forEach(el => { VALORES_INICIALES[el.id] = el.defaultValue; });
+
+function claveActual() {
+  const curso = cursoValor();
+  const meses = mesesSeleccionados().map(m => MES_NUM[m]).filter(Boolean).sort((a, b) => a - b);
+  const anio = parseInt(document.getElementById('anio').value, 10);
+  if (!curso || !meses.length || !anio) return null;
+  return { ctx: CURSO_CTX[curso], anio, meses, k: `${CURSO_CTX[curso]}|${anio}|${meses.join(',')}` };
+}
+async function ctxId(nombre) {
+  if (ctxIdCache[nombre]) return ctxIdCache[nombre];
+  const { data, error } = await sbPl.from('contextos').select('id').eq('nombre', nombre).maybeSingle();
+  if (error || !data) throw error || new Error('curso');
+  return (ctxIdCache[nombre] = data.id);
+}
+const fechaCorta = ts => { const d = new Date(ts); return `${d.getDate()}/${d.getMonth() + 1}`; };
+function estadoGuardada(t, cls) {
+  const el = document.getElementById('guardadaEstado');
+  el.textContent = t; el.className = 'guardada-estado' + (cls ? ' ' + cls : '');
+}
+function avisarSinTabla(err) {
+  const falta = err && (err.code === '42P01' || err.code === 'PGRST205' || /planificaciones/.test(err.message || ''));
+  if (falta) { sinTabla = true; estadoGuardada('No se está guardando: falta crear la tabla en Supabase (supabase/planificaciones.sql).', 'err'); }
+  else estadoGuardada('No se pudo guardar — revisa la conexión.', 'err');
+}
+function hayAlgo() {
+  return document.getElementById('relato').value.trim() ||
+    camposDoc().some(el => el.value.trim() !== String(VALORES_INICIALES[el.id] || '').trim());
+}
+
+function guardarPronto(ms = 1500) {
+  if (cargando || sinTabla || !sbPl) return;
+  clearTimeout(timerGuardar);
+  timerGuardar = setTimeout(guardarAhora, ms);
+}
+async function guardarAhora() {
+  clearTimeout(timerGuardar); timerGuardar = null;
+  const c = claveActual();
+  if (!c || sinTabla || !sbPl || !hayAlgo() || c.k !== claveVista) return;
+  const campos = {};
+  camposDoc().forEach(el => { campos[el.id] = el.value; });
+  try {
+    const fila = { contexto_id: await ctxId(c.ctx), anio: c.anio, meses: c.meses,
+      relato: document.getElementById('relato').value, campos, updated_at: new Date().toISOString() };
+    const { error } = await sbPl.from('planificaciones').upsert(fila, { onConflict: 'contexto_id,anio,meses' });
+    if (error) { avisarSinTabla(error); return; }
+    estadoGuardada(`✓ Guardada ${fechaCorta(fila.updated_at)}`, 'ok');
+    document.getElementById('btnDeNuevo').style.visibility = 'visible';
+    listarGuardadas(c);
+  } catch (e) { avisarSinTabla(e); }
+}
+
+function limpiarPagina() {
+  document.getElementById('relato').value = '';
+  document.getElementById('pasteArea').value = '';
+  camposDoc().forEach(el => { el.value = VALORES_INICIALES[el.id] || ''; });
+  const rep = document.getElementById('reporte');
+  rep.className = 'reporte idle';
+  rep.textContent = 'Pega el texto y aquí aparecerá el informe del formateo.';
+}
+
+// Curso, año o meses cambiaron: se guarda lo pendiente de lo anterior y se abre lo guardado del nuevo (o en blanco).
+async function alCambiarClave() {
+  if (timerGuardar) await guardarAhora();
+  const c = claveActual();
+  if (!c) { claveVista = null; return; }
+  if (c.k === claveVista) return;
+  claveVista = c.k;
+  cargando = true;
+  limpiarPagina();
+  estadoGuardada('');
+  document.getElementById('btnDeNuevo').style.visibility = 'hidden';
+  try {
+    if (!sbPl || sinTabla) return;
+    const id = await ctxId(c.ctx);
+    listarGuardadas(c);
+    const { data, error } = await sbPl.from('planificaciones').select('*')
+      .eq('contexto_id', id).eq('anio', c.anio).eq('meses', `{${c.meses.join(',')}}`).maybeSingle();
+    if (claveVista !== c.k) return;
+    if (error) { avisarSinTabla(error); return; }
+    if (!data) { estadoGuardada('Sin guardar todavía.'); return; }
+    document.getElementById('relato').value = data.relato || '';
+    Object.entries(data.campos || {}).forEach(([k, v]) => { const el = document.getElementById(k); if (el) el.value = v; });
+    estadoGuardada(`Guardada el ${fechaCorta(data.updated_at || data.created_at)}`, 'ok');
+    document.getElementById('btnDeNuevo').style.visibility = 'visible';
+  } catch (e) {
+    estadoGuardada('No se pudo abrir lo guardado — revisa la conexión.', 'err');
+  } finally {
+    cargando = false;
+  }
+}
+
+async function listarGuardadas(c) {
+  const sel = document.getElementById('selGuardadas');
+  try {
+    const { data, error } = await sbPl.from('planificaciones').select('anio, meses, updated_at')
+      .eq('contexto_id', await ctxId(c.ctx)).order('anio', { ascending: false });
+    if (error) { if (!sinTabla) avisarSinTabla(error); return; }
+    const filas = (data || []).sort((a, b) => b.anio - a.anio || (b.meses[0] || 0) - (a.meses[0] || 0));
+    sel.innerHTML = `<option value="">📂 Guardadas (${filas.length})</option>` + filas.map(f => {
+      const nombres = f.meses.map(m => NOMBRE_MES[m] || m);
+      const txt = (nombres.length > 1 ? nombres.slice(0, -1).join(', ') + ' y ' + nombres.at(-1) : nombres[0]) + ' ' + f.anio;
+      return `<option value="${f.anio}|${f.meses.join(',')}">${esc(txt)}</option>`;
+    }).join('');
+  } catch (e) { /* sin conexión: queda la lista anterior */ }
+}
+
+document.getElementById('selGuardadas').addEventListener('change', e => {
+  const v = e.target.value;
+  e.target.value = '';
+  if (!v) return;
+  const [anio, meses] = v.split('|');
+  document.getElementById('anio').value = anio;
+  const nums = meses.split(',').map(Number);
+  document.querySelectorAll('#mesGrid input').forEach(el => { el.checked = nums.includes(MES_NUM[el.value]); });
+  alCambiarClave();
+});
+
+async function empezarDeNuevo() {
+  const c = claveActual();
+  if (!c || !confirm('Se borra la planificación guardada de este curso y mes, y la página queda en blanco. ¿Seguir?')) return;
+  clearTimeout(timerGuardar); timerGuardar = null;
+  try {
+    const { error } = await sbPl.from('planificaciones').delete()
+      .eq('contexto_id', await ctxId(c.ctx)).eq('anio', c.anio).eq('meses', `{${c.meses.join(',')}}`);
+    if (error) { avisarSinTabla(error); return; }
+  } catch (e) { estadoGuardada('No se pudo borrar — revisa la conexión.', 'err'); return; }
+  cargando = true; limpiarPagina(); cargando = false;
+  estadoGuardada('Sin guardar todavía.');
+  document.getElementById('btnDeNuevo').style.visibility = 'hidden';
+  listarGuardadas(c);
+}
+
+// Corregir el relato o un campo → se guarda solo.
+document.getElementById('relato').addEventListener('input', () => guardarPronto());
+document.getElementById('camposOcultos').addEventListener('input', () => guardarPronto());
+// Cambiar curso, meses o año → se abre lo guardado de esa combinación.
+['cursoGrid', 'mesGrid'].forEach(id => document.getElementById(id).addEventListener('change', alCambiarClave));
+document.getElementById('anio').addEventListener('change', alCambiarClave);
+// Al salir o cambiar de pestaña, lo pendiente se guarda.
+document.addEventListener('visibilitychange', () => { if (document.hidden && timerGuardar) guardarAhora(); });
+window.addEventListener('message', e => {
+  if (e.data?.tipo !== 'ws-guardar' || e.source !== window.parent) return;
+  Promise.resolve(timerGuardar ? guardarAhora() : null).then(() =>
+    window.parent.postMessage({ tipo: 'ws-guardado', reqId: e.data.reqId, ok: true }, '*'));
+});
+
+alCambiarClave();
 </script>
 
 </body>
