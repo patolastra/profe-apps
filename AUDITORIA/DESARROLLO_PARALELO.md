@@ -5029,3 +5029,4 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   relato y eje → "✓ Guardada 20/10" y la fila en Supabase; 📂 Guardadas (1) "Octubre 2099"; noviembre abre en blanco;
   elegir "Octubre 2099" en el menú vuelve a abrirla; al recargar la página se abre sola; Empezar de nuevo la borra
   (0 filas en 2099) y deja la página en blanco. Datos de prueba borrados.
+- **Commit paso 3:** `a84021e` (subido). Falta: uso real. Sigue (cuando el PO decida): paso 4, plantilla por escuela.
