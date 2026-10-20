@@ -5030,3 +5030,27 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   elegir "Octubre 2099" en el menú vuelve a abrirla; al recargar la página se abre sola; Empezar de nuevo la borra
   (0 filas en 2099) y deja la página en blanco. Datos de prueba borrados.
 - **Commit paso 3:** `a84021e` (subido). Falta: uso real. Sigue (cuando el PO decida): paso 4, plantilla por escuela.
+- **DECISIÓN del PO (2026-10-20) — elegir qué va al Word:** (1) todos los cuadros de texto crecen hasta mostrar todo su
+  contenido (ni más chicos ni más grandes); (2) cada OAT, OA basal, OA complementario y actitud lleva una **casilla**:
+  Gemini propone más opciones (3 basales, 3 complementarios, 2 OAT por dimensión, 2 actitudes) y **todas parten
+  desmarcadas**: el profe elige; (3) en la tabla de planificación las 6 columnas van siempre, pero cada párrafo es un
+  **ítem numerado con casilla** y al desmarcar se **renumera** (también en el Word); (4) Recursos, uno por línea;
+  (5) un grupo sin nada marcado sale en el Word con su título y "—". Lo elegido queda guardado con la planificación.
+- **Implementación (2026-10-20):** `PLANIFICACION/index.html`. Los campos fijos se reemplazan por un **modelo**
+  (`P = { v: 2, eje, g: { grupo: [{ txt, num?, on }] } }`, grupos `oat_fisica`, `oat_socio`, `basal`, `comp`, `actitud`,
+  `meta`, `desempenos`, `evidencias`, `tiempo`, `recursos`, `evaluacion`) que se pinta como ítems: casilla, número de
+  OA (basales y complementarios), número de ítem (tabla: solo los marcados y con texto, de corrido), cuadro de texto,
+  ✕ quitar y "＋ agregar / ＋ ítem". Objetivos y actitudes parten **desmarcados**; ítems de la tabla, marcados.
+  Todos los cuadros (`textarea.auto`, también el eje, el relato y el cuadro de pegado) se ajustan a su contenido al
+  pintar, al escribir y al cambiar el ancho. El pedido (`FORMATO_FIJO`) pide `OAT_FISICA_1/2`, `OAT_SOCIO_1/2`,
+  `OA_BASAL_1..3`, `OA_COMP_1..3`, `ACTITUD_1/2` y Meta/Recursos con un ítem por línea; la lectura (`parsearTexto` →
+  `modeloDesdeBloques`) acepta también el formato anterior (una etiqueta sin número; recursos separados por comas).
+  Word: "Etiqueta: texto" por cada objetivo marcado y "Etiqueta: —" si no hay ninguno (OA: "—"); tabla con
+  "1. …", "2. …" de lo marcado y "—" en una columna vacía. Se guarda `P` en `planificaciones.campos` (las guardadas
+  antes se convierten al abrirlas). Sin cambios en Supabase.
+- **Prueba (local, año 2099, Cuarto; respuesta de ejemplo):** 2 + 2 OAT, 3 + 3 OA y 2 actitudes, todos desmarcados;
+  desempeños y recursos numerados 1–3; ningún cuadro con texto escondido. Marcando OAT física 2, OA basal 4 y 6 y la
+  actitud 2, y desmarcando el desempeño 2 y todos los recursos: el Word dice "OAT Dimensión Física: 2. …",
+  "OAT Dimensión Sociocultural: —", "OA Basal 4: …", "OA Basal 6: …", complementarios "—", la actitud elegida,
+  desempeños "1. Revisan…", "2. Montaje grupal" y Recursos "—". Al recargar, las casillas siguen como quedaron.
+  Datos de prueba borrados.
