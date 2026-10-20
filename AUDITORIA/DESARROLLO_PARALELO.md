@@ -5081,3 +5081,6 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   "＋" de Quinto noviembre abrió el editor en Quinto, Noviembre 2026 sin guardar nada. Corrección: escribir y
   cambiar de mes al tiro dejó lo escrito guardado en el mes anterior (año 2099, borrado).
 - **Commit:** `ffb024e` (subido). Falta: uso real. Deudas: archivo de años anteriores; plantilla por escuela.
+- **Corrección (PO, 2026-10-20):** al pasar de 📚 Planificaciones a ✏️ Editar aparecía la barra de desplazamiento y
+  todo se corría (regla 8b). `html { scrollbar-gutter: stable; }` reserva siempre su espacio; verificado: el
+  selector queda en el mismo lugar en ambas vistas.
