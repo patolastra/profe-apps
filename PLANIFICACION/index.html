@@ -236,6 +236,26 @@
     .gen-ia-estado.ok { color: #27ae60; }
     .gen-ia-estado.err { color: #c0392b; }
 
+    /* ── Vista previa de lo que se envía ── */
+    .vp-fondo[hidden] { display: none; }
+    .vp-fondo { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50;
+      display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .vp-caja { background: #fff; border-radius: 14px; width: min(760px, 100%); max-height: 88vh;
+      display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+    .vp-cab { padding: 16px 20px 10px; border-bottom: 1px solid #eee; }
+    .vp-titulo { font-size: 1.02rem; font-weight: 800; color: #2c3e50; }
+    .vp-sub { font-size: 0.8rem; color: #888; margin-top: 3px; line-height: 1.4; }
+    .vp-texto { padding: 14px 20px; overflow-y: auto; white-space: pre-wrap; font-size: 0.88rem; line-height: 1.65; color: #1a1a1a; }
+    .vp-w { cursor: pointer; border-radius: 4px; }
+    .vp-w:hover { background: #fdf0e1; }
+    .vp-w.tapada { background: #2c3e50; color: #fff; padding: 0 3px; }
+    .vp-w.tapada:hover { background: #46607a; }
+    .vp-pie { display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1px solid #eee; }
+    .vp-cuenta { flex: 1; font-size: 0.8rem; color: #666; }
+    .vp-cancelar { background: #fff; color: #444; border: 1.5px solid #ddd; border-radius: 8px; padding: 9px 16px;
+      font-size: 0.85rem; font-weight: 700; cursor: pointer; }
+    .vp-cancelar:hover { background: #f3f3f3; }
+
     /* ── Zona de pegado ── */
     .paste-zone {
       max-width: 860px;
@@ -681,6 +701,22 @@
 </div><!-- /fase Paso 2 -->
 
 </div><!-- /tablero -->
+
+<!-- ══ VISTA PREVIA DE LO QUE SE ENVÍA A GEMINI (deuda CI) ══ -->
+<div class="vp-fondo" id="vpModal" hidden>
+  <div class="vp-caja" role="dialog" aria-labelledby="vpTitulo">
+    <div class="vp-cab">
+      <div class="vp-titulo" id="vpTitulo">Esto es lo que se enviará a Gemini</div>
+      <div class="vp-sub">Lo tapado sale como [estudiante]. Haz clic en una palabra para taparla o destaparla (en todo el texto); se recuerda en este equipo.</div>
+    </div>
+    <div class="vp-texto" id="vpTexto"></div>
+    <div class="vp-pie">
+      <span class="vp-cuenta" id="vpCuenta"></span>
+      <button type="button" class="vp-cancelar" id="vpCancelar">Cancelar</button>
+      <button type="button" class="btn-generar" id="vpEnviar">✨ Enviar</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ══════════════════════════════════════════════
@@ -1557,7 +1593,7 @@ function pedirLlaveGemini(cambiar) {
   if (actual && !cambiar) return actual;
   const nueva = prompt(
     'Pega tu llave de Gemini (gratis en aistudio.google.com → "Get API key").\n' +
-    'Queda guardada solo en este equipo. Lo que se envía a Google no lleva nombres de estudiantes.',
+    'Queda guardada solo en este equipo. Antes de cada envío verás el texto con los nombres tapados.',
     actual);
   if (nueva === null) return '';
   const llave = nueva.trim();
@@ -1568,24 +1604,81 @@ function pedirLlaveGemini(cambiar) {
 
 const sinTilde = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-// Reemplaza por [estudiante] cada palabra que sea nombre o apellido de algún estudiante del Libro.
-async function ocultarNombres(texto) {
-  const { data, error } = await sbPl.from('libro_estudiantes').select('*');
-  if (error) throw new Error('nombres');
+const RE_PALABRA = /([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)/;
+
+// Nombres, apellidos y nombres sociales de los estudiantes del curso que se planifica (matrícula del año
+// elegido, activos y retirados), sin tildes. Error 'nombres' si no se puede leer: entonces no se envía nada.
+async function nombresDelCurso(curso, anio) {
+  const { data: ctx, error: e1 } = await sbPl.from('contextos').select('id').eq('nombre', CURSO_CTX[curso]).maybeSingle();
+  if (e1 || !ctx) throw new Error('nombres');
+  let { data: an, error: e2 } = await sbPl.from('libro_anios').select('id').eq('anio', anio).limit(1);
+  if (!e2 && !(an || []).length) ({ data: an, error: e2 } = await sbPl.from('libro_anios').select('id').eq('activo', true).limit(1));
+  if (e2) throw new Error('nombres');
   const palabras = new Set();
-  (data || []).forEach(e => [e.nombre, e.apellido, e.nombre_social].forEach(v =>
+  if (!(an || []).length) return palabras;
+  const { data: mats, error: e3 } = await sbPl.from('libro_matriculas').select('estudiante_id')
+    .eq('anio_id', an[0].id).eq('contexto_id', ctx.id);
+  if (e3) throw new Error('nombres');
+  const ids = [...new Set((mats || []).map(m => m.estudiante_id))];
+  if (!ids.length) return palabras;
+  const { data: est, error: e4 } = await sbPl.from('libro_estudiantes').select('*').in('id', ids);
+  if (e4) throw new Error('nombres');
+  (est || []).forEach(e => [e.nombre, e.apellido, e.nombre_social].forEach(v =>
     String(v || '').split(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+/).forEach(w => {
       const n = sinTilde(w);
       if (n.length >= 3 && !NO_NOMBRE.has(n)) palabras.add(n);
     })));
-  let ocultos = 0;
-  let limpio = texto.replace(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+/g, w => {
-    if (!palabras.has(sinTilde(w))) return w;
-    ocultos++;
-    return '[estudiante]';
+  return palabras;
+}
+
+// Correcciones del profe que se recuerdan en este equipo: palabras que nunca se tapan y que siempre se tapan.
+const CLAVE_NO_TAPAR = 'profe_plani_no_tapar', CLAVE_TAPAR = 'profe_plani_tapar';
+function leerLista(clave) { try { return new Set(JSON.parse(localStorage.getItem(clave) || '[]')); } catch (e) { return new Set(); } }
+function guardarLista(clave, set) { try { localStorage.setItem(clave, JSON.stringify([...set])); } catch (e) {} }
+
+// Vista previa: muestra el relato con lo tapado resaltado; un clic en una palabra la tapa o la destapa
+// (todas las veces que aparece). Resuelve con el texto a enviar, o null si el profe cancela.
+function vistaPrevia(texto, nombres) {
+  const noTapar = leerLista(CLAVE_NO_TAPAR), tapar = leerLista(CLAVE_TAPAR);
+  const tapada = n => tapar.has(n) || (nombres.has(n) && !noTapar.has(n));
+  const partes = texto.split(RE_PALABRA);   // impares = palabras
+  const caja = document.getElementById('vpTexto');
+  caja.innerHTML = partes.map((p, i) => i % 2
+    ? `<span class="vp-w" data-n="${esc(sinTilde(p))}">${esc(p)}</span>`
+    : esc(p)).join('');
+  const pintar = () => {
+    let k = 0;
+    caja.querySelectorAll('.vp-w').forEach(el => { const t = tapada(el.dataset.n); el.classList.toggle('tapada', t); if (t) k++; });
+    document.getElementById('vpCuenta').textContent = k
+      ? `${k} palabra${k === 1 ? '' : 's'} tapada${k === 1 ? '' : 's'}.`
+      : 'No hay nada tapado.';
+  };
+  pintar();
+  if (!nombres.size) document.getElementById('vpCuenta').textContent += ' (El curso no tiene lista en el Libro: revisa a mano.)';
+  caja.onclick = e => {
+    const el = e.target.closest('.vp-w');
+    if (!el) return;
+    const n = el.dataset.n;
+    if (tapada(n)) { tapar.delete(n); if (nombres.has(n)) noTapar.add(n); }
+    else { if (noTapar.has(n)) noTapar.delete(n); else tapar.add(n); }
+    pintar();
+  };
+  const modal = document.getElementById('vpModal');
+  modal.hidden = false;
+  return new Promise(resolve => {
+    const cerrar = ok => {
+      modal.hidden = true; caja.onclick = null;
+      document.getElementById('vpEnviar').onclick = document.getElementById('vpCancelar').onclick = null;
+      if (!ok) { resolve(null); return; }
+      guardarLista(CLAVE_NO_TAPAR, noTapar); guardarLista(CLAVE_TAPAR, tapar);
+      let n = 0;
+      const limpio = partes.map((p, i) => (i % 2 && tapada(sinTilde(p))) ? (n++, '[estudiante]') : p).join('')
+        .replace(/\[estudiante\](\s+\[estudiante\])+/g, '[estudiante]');
+      resolve({ limpio, ocultos: n });
+    };
+    document.getElementById('vpEnviar').onclick = () => cerrar(true);
+    document.getElementById('vpCancelar').onclick = () => cerrar(false);
   });
-  limpio = limpio.replace(/\[estudiante\](\s+\[estudiante\])+/g, '[estudiante]');
-  return { limpio, ocultos };
 }
 
 async function leerCurriculo(nivel) {
@@ -1640,9 +1733,14 @@ async function generarConGemini() {
   if (!llave) { estadoGen('Falta la llave de Gemini (🔑).', 'err'); return; }
 
   btn.disabled = true; btn.textContent = 'Generando…';
-  estadoGen('Ocultando nombres y leyendo el currículum del curso…');
+  estadoGen('Buscando los nombres del curso y leyendo su currículum…');
   try {
-    const [{ limpio, ocultos }, curriculo] = await Promise.all([ocultarNombres(relato), leerCurriculo(nivel)]);
+    const anio = parseInt(document.getElementById('anio').value, 10);
+    const [nombres, curriculo] = await Promise.all([nombresDelCurso(cursoValor(), anio), leerCurriculo(nivel)]);
+    estadoGen('Revisa lo que se va a enviar.');
+    const revisado = await vistaPrevia(relato, nombres);
+    if (!revisado) { estadoGen('No se envió nada.'); return; }
+    const { limpio, ocultos } = revisado;
     const pedido = armarPrompt(limpio);
     if (!pedido) return;
     const texto =
@@ -1660,7 +1758,7 @@ ${pedido}`;
     const respuesta = await llamarGemini(texto, llave);
     document.getElementById('pasteArea').value = respuesta;
     const ok = procesarRespuesta();
-    const nota = ocultos ? ` Se ocultaron ${ocultos} nombre${ocultos === 1 ? '' : 's'} de estudiantes.` : '';
+    const nota = ocultos ? ` Se enviaron ${ocultos} palabra${ocultos === 1 ? '' : 's'} tapada${ocultos === 1 ? '' : 's'}.` : '';
     if (ok) estadoGen(`✓ Listo: revisa los campos a la derecha y descarga el .docx.${nota}`, 'ok');
     else estadoGen('Gemini respondió, pero no en el formato esperado. Prueba de nuevo o usa NotebookLM.', 'err');
   } catch (err) {

@@ -4995,3 +4995,19 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   desplazamiento lateral. **Falta: probarlo con la llave real del PO.** Ojo: como se tapa todo apellido del Libro,
   palabras comunes que también son apellidos (Paz, Reyes, Campos, Ríos, Victoria…) pueden salir como `[estudiante]`.
 - **Commit paso 2:** `0078958` (subido). Currículum: `0cc4b41`.
+- **Validación del PO (2026-10-20):** probó ✨ Generar con su llave real: funciona.
+- **DECISIÓN del PO (2026-10-20) — ajuste del paso 2:** (1) **vista previa de lo que se envía**: al apretar ✨ Generar
+  se muestra el relato con lo tapado resaltado; un clic destapa lo que no era nombre o tapa lo que se escapó; las
+  palabras corregidas se recuerdan en el equipo; se envía solo al confirmar. (2) El filtro usa **solo los estudiantes
+  del curso** que se planifica.
+- **Implementación del ajuste (2026-10-20):** `PLANIFICACION/index.html`. `nombresDelCurso` reemplaza a
+  `ocultarNombres`: lee la matrícula del curso (`libro_matriculas` del año elegido —o el activo si ese año no existe—,
+  activos y retirados) y solo esos `libro_estudiantes`; si algo falla, no se envía nada. `vistaPrevia` abre un cuadro
+  con el relato y lo tapado en oscuro; un clic en cualquier palabra la tapa o la destapa en todo el texto; "✨ Enviar"
+  manda el texto con `[estudiante]` y guarda las correcciones en el equipo (`profe_plani_no_tapar` /
+  `profe_plani_tapar`: lo destapado nunca se vuelve a tapar y lo tapado a mano se tapa siempre); "Cancelar" no envía
+  nada. Si el curso no tiene lista en el Libro, la vista previa lo avisa para revisar a mano.
+- **Prueba (local, Gemini simulado):** Cuarto, octubre: 52 palabras-nombre del curso (Octavo tiene otras 30, sin
+  "Javier"); la vista previa tapó 5; destapar "Victoria" y tapar "Anacleto" cambió todas sus apariciones, lo enviado
+  llevó Victoria y no llevó Anacleto ni Javier, y ambas correcciones quedaron guardadas. Con "Paz" en el relato ya no
+  se tapa (nadie de Cuarto se llama así). Cancelar: Gemini no se llama y el aviso dice "No se envió nada".
