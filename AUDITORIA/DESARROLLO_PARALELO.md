@@ -4964,3 +4964,13 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
 - **Commit:** `7d46110` (subido). Tarjeta en Notion: "Planificación del mes para la UTP — deuda CI" (Probar en clase).
   - **Alcance:** solo lectura de Supabase; sin tablas nuevas. Paso 2 (✨ Generar con IA) espera los documentos del
     currículum del PO.
+- **Currículum para el paso 2 (2026-10-20, pedido del PO):** en vez de esperar sus documentos, el PO pidió buscar los
+  oficiales y extraer ejes, OA, OAT y actitudes por curso. Quedan en **`PLANIFICACION/curriculo/`**: `musica-1.txt` …
+  `musica-8.txt` (ejes, OA numerados por eje y actitudes del nivel) y `oat-1a6.txt` / `oat-7a8.txt` (OAT por dimensión,
+  comunes a todas las asignaturas de cada ciclo; los de 7°–8° no vienen numerados en el original y se numeraron por
+  orden). Fuentes (curriculumnacional.cl): Programas de Estudio de Música 1° a 8° (`articles-20704/20705/20708/20709/
+  20710/20711/20712/34941_programa.pdf`), Bases Curriculares 1° a 6° (`articles-22394_bases.pdf`) y 7° a 2° medio
+  (`articles-37136_bases.pdf`). Los OA de 7° y 8° se tomaron de las **Bases** (el programa de 7° trae en su anexo los
+  OA de 8° y se mezclaban); el reparto por eje se confirmó por la posición de los títulos en la página. Texto literal
+  salvo dos erratas del original corregidas ("tocan" → "tocar" en 4° OA 4; "Gofré" → "Grofé" en 3° OA 3) y la
+  descripción de los ejes, que es un resumen propio. No se guardaron los PDF.
