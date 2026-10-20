@@ -5011,3 +5011,4 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   "Javier"); la vista previa tapó 5; destapar "Victoria" y tapar "Anacleto" cambió todas sus apariciones, lo enviado
   llevó Victoria y no llevó Anacleto ni Javier, y ambas correcciones quedaron guardadas. Con "Paz" en el relato ya no
   se tapa (nadie de Cuarto se llama así). Cancelar: Gemini no se llama y el aviso dice "No se envió nada".
+- **Commit del ajuste:** `04c2866` (subido).
