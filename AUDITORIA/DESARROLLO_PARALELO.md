@@ -5084,3 +5084,7 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
 - **Corrección (PO, 2026-10-20):** al pasar de 📚 Planificaciones a ✏️ Editar aparecía la barra de desplazamiento y
   todo se corría (regla 8b). `html { scrollbar-gutter: stable; }` reserva siempre su espacio; verificado: el
   selector queda en el mismo lugar en ambas vistas.
+- **DECISIÓN del PO (2026-10-20):** el botón del editor **solo guarda**; el Word se descarga desde 📚 Planificaciones.
+  Hecho: "Generar planificación .docx" → **"💾 Guardar planificación"** (`guardarDesdeBoton`: guarda al instante y
+  dice "✓ Guardada. Descárgala desde 📚 Planificaciones."; avisa si no hay curso/mes o nada que guardar); la columna
+  pasa a "Revisa y guarda la planificación". Probado (año 2099, borrado): guarda y no descarga nada.

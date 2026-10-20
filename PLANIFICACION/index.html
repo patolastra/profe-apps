@@ -692,8 +692,8 @@
 <!-- ══ PASO 2 — RESPUESTA DE NOTEBOOKLM → DOCX ══ -->
 <div class="fase">
   <div class="fase-badge">PASO 2</div>
-  <div class="fase-titulo">Pega la respuesta y descarga el .docx</div>
-  <div class="fase-sub">Pega el texto que devolvió NotebookLM y genera el documento.</div>
+  <div class="fase-titulo">Revisa y guarda la planificación</div>
+  <div class="fase-sub">Llega sola con ✨ Generar (o pega aquí lo que devolvió NotebookLM). El Word se descarga desde 📚 Planificaciones.</div>
 
   <textarea id="pasteArea" class="auto" rows="3" placeholder="Pega aquí la planificación generada por NotebookLM…"></textarea>
 
@@ -702,7 +702,7 @@
   </div>
 
 <!-- ══ CAMPOS QUE SE AUTOCOMPLETAN (alimentan el .docx; visibles para corregir) ══ -->
-<form id="planForm" onsubmit="generarDoc(event)">
+<form id="planForm" onsubmit="guardarDesdeBoton(event)">
   <p class="campos-tit">Revisa y corrige antes de descargar<small>Se llenan solos al pegar la respuesta; puedes cambiar cualquier texto.</small></p>
   <div class="campos-ocultos" id="camposOcultos">
 
@@ -761,7 +761,7 @@
 
   </div><!-- /campos-ocultos -->
 
-  <button type="submit" class="btn-generate">Generar planificación .docx</button>
+  <button type="submit" class="btn-generate">💾 Guardar planificación</button>
   <p class="gen-status" id="genStatus"></p>
 
 </form>
@@ -2006,17 +2006,31 @@ function guardarPronto(ms = 1500) {
 async function guardarAhora() {
   clearTimeout(timerGuardar); timerGuardar = null;
   const c = claveVistaObj;
-  if (!c || sinTabla || !sbPl || !hayAlgo()) return;
+  if (!c || sinTabla || !sbPl || !hayAlgo()) return false;
   const campos = P;
   try {
     const fila = { contexto_id: await ctxId(c.ctx), anio: c.anio, meses: c.meses,
       relato: document.getElementById('relato').value, campos, updated_at: new Date().toISOString() };
     const { error } = await sbPl.from('planificaciones').upsert(fila, { onConflict: 'contexto_id,anio,meses' });
-    if (error) { avisarSinTabla(error); return; }
+    if (error) { avisarSinTabla(error); return false; }
     estadoGuardada(`✓ Guardada ${fechaCorta(fila.updated_at)}`, 'ok');
     document.getElementById('btnDeNuevo').style.visibility = 'visible';
     listarGuardadas(c);
-  } catch (e) { avisarSinTabla(e); }
+    return true;
+  } catch (e) { avisarSinTabla(e); return false; }
+}
+
+// Botón del editor: solo guarda (DECISIÓN del PO 2026-10-20); el Word se descarga desde 📚 Planificaciones.
+async function guardarDesdeBoton(e) {
+  e.preventDefault();
+  const st = document.getElementById('genStatus');
+  const decir = (t, cls) => { st.textContent = t; st.className = 'gen-status' + (cls ? ' ' + cls : ''); };
+  if (!claveActual()) { decir('Elige un curso y al menos un mes.', 'err'); return; }
+  if (!hayAlgo()) { decir('Todavía no hay nada que guardar.', 'err'); return; }
+  decir('Guardando…');
+  const ok = await guardarAhora();
+  if (ok) decir('✓ Guardada. Descárgala desde 📚 Planificaciones.', 'ok');
+  else decir(sinTabla ? 'No se pudo guardar: falta la tabla en Supabase.' : 'No se pudo guardar — revisa la conexión.', 'err');
 }
 
 function limpiarPagina() {
