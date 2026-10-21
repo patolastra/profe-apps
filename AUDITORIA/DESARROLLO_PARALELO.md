@@ -5333,6 +5333,19 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
     con "Se recuperó la rúbrica que estabas armando"; se borra al guardarla o al descartarla (Descartar ahora pide
     confirmar). Probado (local, planificación de prueba borrada): con la propuesta abierta y un criterio editado, el
     foco de la ventana ya no la borra; tras **recargar la página** volvió la propuesta con el texto editado.
+    Commit `bb1d893` (subido).
+  - **Ajuste (PO, 2026-10-21): celdas de 🗓️ Planificaciones más productivas.** Cada planificación lleva **dos botones**:
+    **📄 la planificación** (menú 👁 Ver · ⬇ Descargar) y **📋 su rúbrica de cierre**: si no existe, punteado con "＋"
+    (en rojo si el período ya pasó) y al tocarlo abre la planificación con "Crear evaluación de cierre" ya abierto (si
+    la evaluación existe sin rúbrica, la abre en el Libro); si existe, el mismo menú 👁 Ver (ventana con la tabla
+    criterios × niveles) · ⬇ Descargar (Word aparte); verde si la evaluación está cerrada; el avance va en la ayuda del
+    botón. Se quitó la línea "📝 sin evaluación" y las filas son más bajas: la página **no muestra barra de
+    desplazamiento** en la pantalla del Workspace. `leerRubricaDe` = lectura común de la rúbrica (Ver y Descargar).
+  - **Prueba (local, datos reales sin tocarlos; pantalla de 1900 × 870):** la tabla cabe sin desplazar (alto del
+    documento = alto de la ventana); 14 planificaciones con 📄 y 📋＋ (6 en rojo, las de septiembre); 📄 → menú Ver /
+    Descargar → Ver abre la planificación; 📋＋ de 1° septiembre abrió el editor con el formulario de cierre lleno
+    ("Evaluación de cierre · Septiembre"), sin guardar nada; con una rúbrica simulada, 📋 → Ver / Descargar → Ver
+    mostró la tabla en la ventana.
 - **Paso 3 — la rúbrica en Word (DECISIÓN del PO, 2026-10-21): en un Word aparte, con su propio botón** (no como anexo
   del Word de la planificación). Contenido: la misma cabecera institucional, "RÚBRICA DE EVALUACIÓN <año>", curso,
   período, evaluación, fecha y OA; tabla de criterios × 4 niveles (o ítem / Sí / No si es lista de cotejo), en hoja
