@@ -666,6 +666,7 @@
       <button type="button" class="vp-cancelar" id="verCerrar">Cerrar</button>
       <button type="button" class="vp-cancelar ver-borrar" id="verBorrar">🗑 Eliminar</button>
       <button type="button" class="vp-cancelar" id="verEditar">✏️ Editar</button>
+      <button type="button" class="vp-cancelar" id="verRubrica" style="visibility:hidden" title="La rúbrica de su evaluación de cierre, en un Word aparte">⬇ Rúbrica</button>
       <button type="button" class="btn-generar" id="verDescargar">⬇ Descargar</button>
     </div>
   </div>
@@ -1409,6 +1410,125 @@ function b64toArr(b64) {
 // ══════════════════════════════════════════════
 
 // Sin `datos`: la planificación del editor. Con `datos` { modelo, curso, mes, anio }: una guardada (🗓️ Planificaciones).
+// Cabecera institucional de los Word (planificación y rúbrica): logos y nombre de la escuela.
+function cabeceraDoc() {
+  const { Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, BorderStyle, WidthType, Header, ImageRun } = window.docx;
+    const NB = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+    const noBorders = { top: NB, bottom: NB, left: NB, right: NB };
+    const cabecera = new Header({
+      children: [
+        new Table({
+          width: { size: 13571, type: WidthType.DXA },
+          columnWidths: [2200, 9171, 1200],
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({
+                  borders: noBorders,
+                  width: { size: 2200, type: WidthType.DXA },
+                  children: [new Paragraph({ spacing: { after: 0 }, children: [
+                    new ImageRun({
+                      type: 'png',
+                      data: b64toArr(IMG_LOS_PARQUES),
+                      transformation: { width: 138, height: 77 },
+                      altText: { title: 'Logo Los Parques', description: 'Logo institucional', name: 'LogoParques' },
+                    }),
+                  ]})],
+                }),
+                new TableCell({
+                  borders: noBorders,
+                  width: { size: 9171, type: WidthType.DXA },
+                  verticalAlign: 'center',
+                  children: [new Paragraph({
+                    spacing: { after: 0 },
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({
+                      text: 'ESCUELA N°325 “SANTA JUANA DE LESTONNAC”',
+                      bold: true,
+                      font: 'Aptos',
+                      size: 18,
+                    })],
+                  })],
+                }),
+                new TableCell({
+                  borders: noBorders,
+                  width: { size: 1200, type: WidthType.DXA },
+                  children: [new Paragraph({ spacing: { after: 0 }, children: [
+                    new ImageRun({
+                      type: 'png',
+                      data: b64toArr(IMG_SANTA_JUANA),
+                      transformation: { width: 48, height: 64 },
+                      altText: { title: 'Logo Santa Juana', description: 'Logo Santa Juana de Lestonnac', name: 'LogoSantaJuana' },
+                    }),
+                  ]})],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+    return cabecera;
+}
+
+// ── Word de la rúbrica de la evaluación de cierre (deuda CK, paso 3; aparte del de la planificación, PO 2026-10-21) ──
+// Se toma la rúbrica de la evaluación del Libro (su copia, con lo ajustado allí). `pl` = { ctx, meses, anio, id }.
+async function descargarRubrica(pl, aviso) {
+  const decir = (t, err) => { if (aviso) { aviso.textContent = t; aviso.style.color = err ? '#c0392b' : ''; } };
+  try {
+    if (!window.docx) throw new Error('docx');
+    decir('Preparando la rúbrica…');
+    const { data: ev, error } = await sbPl.from('libro_evaluaciones').select('id, nombre, fecha, oa_original, instrumento_id')
+      .eq('planificacion_id', pl.id).maybeSingle();
+    if (error || !ev) { decir('Esta planificación todavía no tiene evaluación de cierre.', true); return; }
+    let ins = null;
+    if (ev.instrumento_id) ins = (await sbPl.from('libro_eval_instrumentos').select('id, nombre, tipo').eq('id', ev.instrumento_id).maybeSingle()).data;
+    if (!ins) ins = ((await sbPl.from('libro_eval_instrumentos').select('id, nombre, tipo').eq('evaluacion_id', ev.id).order('created_at').limit(1)).data || [])[0];
+    if (!ins) { decir('La evaluación de cierre todavía no tiene rúbrica: cárgala en el Libro.', true); return; }
+    const { data: its } = await sbPl.from('libro_eval_instrumento_items').select('texto, desc_n1, desc_n2, desc_n3, desc_n4, orden')
+      .eq('instrumento_id', ins.id).order('orden').order('created_at');
+    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, PageOrientation, WidthType, ShadingType, BorderStyle } = window.docx;
+    const FONT = 'Aptos';
+    const t = (text, o = {}) => new TextRun({ text: String(text ?? ''), font: FONT, size: 20, ...o });
+    const p = (runs, o = {}) => new Paragraph({ children: Array.isArray(runs) ? runs : [runs], spacing: { after: 0, line: 240 }, ...o });
+    const B = { style: BorderStyle.SINGLE, size: 4, color: '999999' };
+    const bordes = { top: B, bottom: B, left: B, right: B };
+    const celda = (runs, w, o = {}) => new TableCell({ borders: bordes, width: { size: w, type: WidthType.DXA },
+      margins: { top: 80, bottom: 80, left: 100, right: 100 }, children: [p(runs, o.para || {})], ...(o.cell || {}) });
+    const gris = { shading: { type: ShadingType.CLEAR, color: 'auto', fill: 'F2F2F2' } };
+    const curso = CURSO_DE_CTX[pl.ctx] || pl.ctx;
+    const f = String(ev.fecha || '').split('-').reverse().join('/');
+    const datos = [['Asignatura', 'Música'], ['Curso', curso], ['Período', `${textoMeses(pl.meses)} ${pl.anio}`],
+      ['Evaluación', ev.nombre], ['Fecha', f], ['Objetivo de aprendizaje', ev.oa_original || '—'], ['Instrumento', ins.nombre]];
+    const cotejo = ins.tipo === 'cotejo';
+    const W = 13470;
+    const cols = cotejo ? [W - 2400, 1200, 1200] : [3070, 2600, 2600, 2600, 2600];
+    const cab = cotejo ? ['Ítem', 'Sí', 'No'] : ['Criterio', 'Por lograr (1)', 'Medianamente logrado (2)', 'Logrado (3)', 'Logrado con distinción (4)'];
+    const filas = [new TableRow({ tableHeader: true, children: cab.map((h, i) => celda(t(h, { bold: true }), cols[i], { cell: gris })) }),
+      ...(its || []).map(it => new TableRow({ children: cotejo
+        ? [celda(t(it.texto), cols[0]), celda(t(''), cols[1]), celda(t(''), cols[2])]
+        : [celda(t(it.texto, { bold: true }), cols[0]), ...[it.desc_n1, it.desc_n2, it.desc_n3, it.desc_n4].map((d, j) => celda(t(d || ''), cols[j + 1]))] }))];
+    const doc = new Document({ sections: [{
+      properties: { page: { size: { width: 12240, height: 15840, orientation: PageOrientation.LANDSCAPE },
+        margin: { top: 1701, right: 1417, bottom: 1417, left: 1417 } } },
+      headers: { default: cabeceraDoc() },
+      children: [
+        p(t('RÚBRICA DE EVALUACIÓN ' + pl.anio, { bold: true, size: 32 }), { alignment: AlignmentType.CENTER, spacing: { after: 200 } }),
+        ...datos.map(([k, v]) => p([t(k + ': ', { bold: true }), t(v)], { spacing: { after: 40 } })),
+        p(t(''), { spacing: { after: 160 } }),
+        new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: cols, rows: filas }),
+      ] }] });
+    const blob = await Packer.toBlob(doc);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${pl.ctx} - ${textoMeses(pl.meses).toUpperCase()} - RUBRICA.docx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    decir('✓ Descargado: ' + a.download);
+    return a.download;
+  } catch (e) { decir(e.message === 'docx' ? 'La librería del Word no cargó: revisa internet y recarga.' : 'No se pudo armar la rúbrica — revisa la conexión.', true); }
+}
+
 async function generarDoc(e, datos) {
   if (e) e.preventDefault();
   const statusEl = document.getElementById('genStatus');
@@ -1570,62 +1690,7 @@ async function generarDoc(e, datos) {
       ],
     });
 
-    // ─── CABECERA INSTITUCIONAL ───
-    const NB = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
-    const noBorders = { top: NB, bottom: NB, left: NB, right: NB };
-    const cabecera = new Header({
-      children: [
-        new Table({
-          width: { size: 13571, type: WidthType.DXA },
-          columnWidths: [2200, 9171, 1200],
-          rows: [
-            new TableRow({
-              children: [
-                new TableCell({
-                  borders: noBorders,
-                  width: { size: 2200, type: WidthType.DXA },
-                  children: [new Paragraph({ spacing: { after: 0 }, children: [
-                    new ImageRun({
-                      type: 'png',
-                      data: b64toArr(IMG_LOS_PARQUES),
-                      transformation: { width: 138, height: 77 },
-                      altText: { title: 'Logo Los Parques', description: 'Logo institucional', name: 'LogoParques' },
-                    }),
-                  ]})],
-                }),
-                new TableCell({
-                  borders: noBorders,
-                  width: { size: 9171, type: WidthType.DXA },
-                  verticalAlign: 'center',
-                  children: [new Paragraph({
-                    spacing: { after: 0 },
-                    alignment: AlignmentType.CENTER,
-                    children: [new TextRun({
-                      text: 'ESCUELA N°325 “SANTA JUANA DE LESTONNAC”',
-                      bold: true,
-                      font: 'Aptos',
-                      size: 18,
-                    })],
-                  })],
-                }),
-                new TableCell({
-                  borders: noBorders,
-                  width: { size: 1200, type: WidthType.DXA },
-                  children: [new Paragraph({ spacing: { after: 0 }, children: [
-                    new ImageRun({
-                      type: 'png',
-                      data: b64toArr(IMG_SANTA_JUANA),
-                      transformation: { width: 48, height: 64 },
-                      altText: { title: 'Logo Santa Juana', description: 'Logo Santa Juana de Lestonnac', name: 'LogoSantaJuana' },
-                    }),
-                  ]})],
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-    });
+    const cabecera = cabeceraDoc();
 
     // ─── DOCUMENTO ───
     const doc = new Document({
@@ -2197,7 +2262,13 @@ async function pintarCierre() {
   const cerrada = ev.estado === 'cerrado';
   caja.innerHTML = `<div class="cierre-fila"><span class="txt ${cerrada ? 'cierre-ok' : ''}">${cerrada ? '✅' : '⏳'} <b>${esc(ev.nombre)}</b> · ${esc(String(ev.fecha || '').split('-').reverse().slice(0, 2).map(Number).join('/'))}
       · ${cerrada ? 'cerrada' : `${evaluados} de ${total} evaluados`}</span>
-    <button type="button" class="cierre-btn" onclick="abrirEvalEnLibro()">📒 Abrir en el Libro</button></div>`;
+    <button type="button" class="cierre-btn" onclick="rubricaDeCierre()" title="Descarga la rúbrica de esta evaluación en un Word aparte">⬇ Rúbrica</button>
+    <button type="button" class="cierre-btn" onclick="abrirEvalEnLibro()">📒 Abrir en el Libro</button></div>
+    <p class="cierre-msg" id="cierreAviso"></p>`;
+}
+function rubricaDeCierre() {
+  const c = claveVistaObj;
+  if (c && plId) descargarRubrica({ ctx: c.ctx, meses: c.meses, anio: c.anio, id: plId }, document.getElementById('cierreAviso'));
 }
 function abrirEvalEnLibro() {
   const ev = cierreEstado?.ev, c = claveVistaObj;
@@ -2685,6 +2756,7 @@ function abrirEnEditor(ctx, meses, anio) {
 
 function verPlani(f) {
   verActual = f;
+  document.getElementById('verRubrica').style.visibility = cierres[f.id] ? 'visible' : 'hidden';
   const M = desdeGuardado(f.campos);
   const its = g => (M.g[g] || []).filter(it => it.on && (it.txt || '').trim());
   const vacio = '<p class="vacio">—</p>';
@@ -2728,6 +2800,9 @@ document.getElementById('verBorrar').onclick = async () => {
   if (plId === f.id) { plId = null; claveVista = null; }
   document.getElementById('verModal').hidden = true;
   cargarPlanis();
+};
+document.getElementById('verRubrica').onclick = () => {
+  if (verActual) descargarRubrica({ ctx: verActual.ctx, meses: verActual.meses, anio: verActual.anio, id: verActual.id }, null);
 };
 document.getElementById('verEditar').onclick = () => {
   document.getElementById('verModal').hidden = true;

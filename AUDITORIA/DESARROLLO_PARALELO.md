@@ -5323,3 +5323,17 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
     relato); la propuesta llegó con 2 criterios y su nombre (con `**` en la respuesta); se agregó un 3.º y se guardó: la
     plantilla quedó con 3 criterios en orden y sus 4 niveles, elegida en "Rúbrica" con el aviso ✓. Falta: probarlo con
     Gemini de verdad (llave del PO).
+- **Paso 3 — la rúbrica en Word (DECISIÓN del PO, 2026-10-21): en un Word aparte, con su propio botón** (no como anexo
+  del Word de la planificación). Contenido: la misma cabecera institucional, "RÚBRICA DE EVALUACIÓN <año>", curso,
+  período, evaluación, fecha y OA; tabla de criterios × 4 niveles (o ítem / Sí / No si es lista de cotejo), en hoja
+  horizontal. Se toma de la evaluación de cierre del Libro (la copia de la evaluación, con lo que se haya ajustado allí).
+  Botón **⬇ Rúbrica** en el cuadro Evaluación de cierre y en la ventana 👁 Visualizar de la tabla (solo si hay
+  evaluación con instrumento). Archivo: `<CURSO> - <MES> - RUBRICA.docx`.
+  - **Implementación (2026-10-21):** `descargarRubrica(pl, aviso)` en `PLANIFICACION/index.html` (lee la evaluación por
+    `planificacion_id`, su instrumento —el asociado al OA o, si no, el primero— y sus ítems; arma el Word con `docx`); la
+    cabecera institucional pasó a una función común `cabeceraDoc()` que usan los dos Word. Botones: "⬇ Rúbrica" en el
+    cuadro de cierre (con aviso debajo) y en 👁 Visualizar (visible solo si la planificación tiene evaluación de cierre).
+  - **Prueba (local; planificación de 1° marzo + evaluación con rúbrica de 2 criterios, insertadas y borradas al final):**
+    "⬇ Rúbrica" descargó `PRIMERO - MARZO - RUBRICA.docx`; su contenido (leído del archivo): título, asignatura, curso,
+    período, evaluación, fecha 31/03/2026, OA, instrumento y la tabla Criterio × 4 niveles con sus textos. El Word de la
+    planificación sigue saliendo igual, con la cabecera de la escuela. En Visualizar el botón aparece solo con evaluación.
