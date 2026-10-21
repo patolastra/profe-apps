@@ -5323,6 +5323,16 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
     relato); la propuesta llegó con 2 criterios y su nombre (con `**` en la respuesta); se agregó un 3.º y se guardó: la
     plantilla quedó con 3 criterios en orden y sus 4 niveles, elegida en "Rúbrica" con el aviso ✓. Falta: probarlo con
     Gemini de verdad (llave del PO).
+  - **Incidente (PO, 2026-10-21): se perdió una rúbrica de Primero a medio armar** (propuesta de Gemini en "Crear
+    evaluación de cierre"). Revisado: no quedó nada guardado (ni plantilla ni evaluación). **Causa:** el cuadro de cierre se
+    redibujaba cada vez que la pestaña recuperaba el foco (volver desde otra pestaña o ventana, o un clic dentro de la
+    página del Workspace), y eso borraba el formulario abierto con la propuesta. No se pudo intentar rescatarla de la
+    pestaña del PO (la extensión de Chrome no estaba conectada). **Corrección:** `refrescarCierre()` no redibuja si el
+    formulario está abierto o hay una rúbrica en revisión; la rúbrica se guarda como **borrador en el equipo** con cada
+    cambio (`profe_rubrica_borrador:<planificación>`) y al volver a abrir la planificación el formulario se abre solo
+    con "Se recuperó la rúbrica que estabas armando"; se borra al guardarla o al descartarla (Descartar ahora pide
+    confirmar). Probado (local, planificación de prueba borrada): con la propuesta abierta y un criterio editado, el
+    foco de la ventana ya no la borra; tras **recargar la página** volvió la propuesta con el texto editado.
 - **Paso 3 — la rúbrica en Word (DECISIÓN del PO, 2026-10-21): en un Word aparte, con su propio botón** (no como anexo
   del Word de la planificación). Contenido: la misma cabecera institucional, "RÚBRICA DE EVALUACIÓN <año>", curso,
   período, evaluación, fecha y OA; tabla de criterios × 4 niveles (o ítem / Sí / No si es lista de cotejo), en hoja

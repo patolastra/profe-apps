@@ -2239,6 +2239,7 @@ async function estadoCierre(planId) {
   return { ev, total: (ns || []).length, evaluados: (ns || []).filter(n => n.nota != null).length };
 }
 async function pintarCierre() {
+  if (pintarCierre.ultimo !== plId) { rubProp = null; pintarCierre.ultimo = plId; }   // otra planificación: otra rúbrica
   const caja = document.getElementById('cierreCuerpo');
   const c = claveVistaObj;
   if (!caja) return;
@@ -2256,6 +2257,7 @@ async function pintarCierre() {
   if (!st.ev) {
     caja.innerHTML = `<div class="cierre-fila"><span class="txt cierre-falta">📝 Esta planificación todavía no tiene evaluación de cierre.</span>
       <button type="button" class="cierre-btn" onclick="formCierre()">＋ Crear evaluación de cierre</button></div><div id="cierreForm"></div>`;
+    if (leerBorradorRub()?.criterios?.length) formCierre();   // había una rúbrica a medio armar
     return;
   }
   const { ev, total, evaluados } = st;
@@ -2317,6 +2319,12 @@ async function formCierre() {
       <span class="txt cierre-msg">Se termina de crear en el Libro de ${esc(CURSO_DE_CTX[c.ctx])}, con la lista del curso.</span>
       <button type="button" class="cierre-btn prim" id="ciSeguir">Continuar en el Libro →</button></div>`;
   document.getElementById('ciProponer').onclick = () => proponerRubrica(c);
+  const borrador = leerBorradorRub();
+  if (borrador?.criterios?.length) {
+    rubProp = borrador;
+    pintarRubProp();
+    document.getElementById('rubMsg').textContent = 'Se recuperó la rúbrica que estabas armando. Revisa y guárdala.';
+  }
   document.getElementById('ciSeguir').onclick = async () => {
     if (bloqueo) return;
     if (timerGuardar) await guardarAhora();
@@ -2341,6 +2349,11 @@ async function formCierre() {
 // guarda como plantilla del Libro (la misma lista de "Plantillas" del Libro), que queda elegida para la evaluación.
 const NIVELES = ['Por lograr', 'Medianamente logrado', 'Logrado', 'Logrado con distinción'];
 let rubProp = null;   // { nombre, criterios: [{ texto, n: [4] }] }
+// Borrador de la rúbrica en el equipo (por planificación): sobrevive a recargar o cerrar la pestaña hasta guardarla o descartarla.
+const BORRADOR_RUB = () => 'profe_rubrica_borrador:' + plId;
+function guardarBorradorRub() { try { if (plId && rubProp) localStorage.setItem(BORRADOR_RUB(), JSON.stringify(rubProp)); } catch (_) {} }
+function olvidarBorradorRub() { try { if (plId) localStorage.removeItem(BORRADOR_RUB()); } catch (_) {} }
+function leerBorradorRub() { try { return plId ? JSON.parse(localStorage.getItem(BORRADOR_RUB()) || 'null') : null; } catch (_) { return null; } }
 function textoParaRubrica(c) {
   const its = g => (P.g[g] || []).filter(it => it.on && (it.txt || '').trim());
   const oas = ['basal', 'comp'].flatMap(g => its(g).map(it => `OA ${(it.num || '').trim()}: ${it.txt.trim()}`));
@@ -2397,6 +2410,7 @@ ${revisado.limpio}`;
     const r = parsearRubrica(await llamarGemini(texto, llave));
     if (!r.criterios.length) { decir('Gemini respondió, pero no en el formato esperado. Prueba de nuevo.', true); return; }
     rubProp = { nombre: r.nombre || `Rúbrica · ${CURSO_DE_CTX[c.ctx]} · ${textoMeses(c.meses)}`, criterios: r.criterios.slice(0, 6) };
+    guardarBorradorRub();
     pintarRubProp();
   } catch (err) {
     const m = String(err.message || '');
@@ -2429,10 +2443,13 @@ function pintarRubProp() {
       f.querySelectorAll('.rub-niv').forEach(t => { cr.n[+t.dataset.j] = t.value; });
     });
   };
-  caja.oninput = e => { if (e.target.tagName === 'TEXTAREA') ajustar(e.target); };
-  caja.querySelectorAll('.rub-quitar').forEach(b => b.onclick = () => { leer(); rubProp.criterios.splice(+b.closest('.rub-fila').dataset.i, 1); pintarRubProp(); });
-  document.getElementById('rubMas').onclick = () => { leer(); rubProp.criterios.push({ texto: '', n: ['', '', '', ''] }); pintarRubProp(); };
-  document.getElementById('rubDescartar').onclick = () => { rubProp = null; pintarRubProp(); };
+  caja.oninput = e => { if (e.target.tagName === 'TEXTAREA') ajustar(e.target); leer(); guardarBorradorRub(); };
+  caja.querySelectorAll('.rub-quitar').forEach(b => b.onclick = () => { leer(); rubProp.criterios.splice(+b.closest('.rub-fila').dataset.i, 1); guardarBorradorRub(); pintarRubProp(); });
+  document.getElementById('rubMas').onclick = () => { leer(); rubProp.criterios.push({ texto: '', n: ['', '', '', ''] }); guardarBorradorRub(); pintarRubProp(); };
+  document.getElementById('rubDescartar').onclick = () => {
+    if (!confirm('¿Descartar esta rúbrica? Se pierde lo escrito.')) return;
+    rubProp = null; olvidarBorradorRub(); pintarRubProp();
+  };
   document.getElementById('rubGuardar').onclick = async () => {
     leer();
     const crit = rubProp.criterios.filter(cr => cr.texto.trim());
@@ -2449,19 +2466,25 @@ function pintarRubProp() {
       const sel = document.getElementById('ciPlantilla');
       sel.insertAdjacentHTML('beforeend', `<option value="${pl.id}">${esc(pl.nombre)}</option>`);
       sel.value = pl.id;
-      rubProp = null;
+      rubProp = null; olvidarBorradorRub();
       document.getElementById('ciRubrica').innerHTML = `<p class="cierre-msg" style="color:#1e8449">✓ Rúbrica "${esc(pl.nombre)}" guardada en las plantillas del Libro y elegida.</p>`;
     } catch (e) { msg.textContent = 'No se pudo guardar — revisa la conexión.'; msg.classList.add('err'); }
   };
 }
 
 // El Libro avisa cuando liga una evaluación (o al volver a esta pestaña): se pone al día.
+// Nunca con el formulario de "Crear evaluación de cierre" abierto: borraba lo que se estaba armando (incidente del PO,
+// 2026-10-21: se perdió una rúbrica propuesta por Gemini al volver a la pestaña).
+function refrescarCierre() {
+  if (document.getElementById('cierreForm')?.innerHTML.trim() || rubProp) return;
+  pintarCierre();
+}
 window.addEventListener('storage', e => {
   if (e.key !== 'profe_cierre_cambio') return;
-  pintarCierre();
+  refrescarCierre();
   if (!document.getElementById('vistaPlanis').hidden) cargarPlanis();
 });
-window.addEventListener('focus', () => { if (plId && !document.getElementById('vistaEditar').hidden) pintarCierre(); });
+window.addEventListener('focus', () => { if (plId && !document.getElementById('vistaEditar').hidden) refrescarCierre(); });
 
 // Las planificaciones del curso en el año (id y meses), para revisar choques de meses.
 async function planisDelCurso(ctx, anio) {
