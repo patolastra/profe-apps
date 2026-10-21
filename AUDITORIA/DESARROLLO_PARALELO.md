@@ -5247,3 +5247,51 @@ navegar por él; ahí consta la fecha, lo escrito, las imágenes coloreadas que 
   H3) queda centrado solo (sin botón Centrar: el editor compartido no cambia). Solo CSS en `comun/cuaderno.css` (en la
   hoja y al escribirlo en el editor de la hoja). Probado: "# Las figuras rítmicas" y "## La corchea" centrados, el
   párrafo a la izquierda.
+
+### CK. Evaluación de cierre de cada planificación (rúbrica en el Libro)
+*Origen: pedido del PO (2026-10-21): "toda planificación debería cerrar con una evaluación, para lo cual está contemplada
+una rúbrica; ese proceso debe poder seguirse por dentro de la app: cada plani tiene una rúbrica asignada y esa rúbrica
+está dentro de una evaluación dentro del libro de clases del curso en cuestión".*
+- **Necesidad:** que cada planificación mensual (deuda CI) termine en una evaluación real del curso, con su rúbrica, y
+  poder ver desde la planificación si ya se evaluó (y cuánto falta).
+- **Auditoría (2026-10-21):**
+  - **Libro** (`LIBRO/index.html`): evaluaciones por curso y año (`libro_evaluaciones`: nombre, fecha, OA original,
+    estado abierto/cerrado; `sesion_creacion_id` obligatorio = la clase con que se abrió el Libro). Rúbricas: plantillas
+    globales (`libro_instrumento_plantillas` + `_items`, 4 niveles) que se **copian** a la evaluación
+    (`libro_eval_instrumentos` + `_items`, `origen_plantilla_id`) y se asocian al OA (`libro_evaluaciones.instrumento_id`);
+    la nota sale de la rúbrica. Crear una evaluación materializa la lista del curso (snapshot + reconciliación al abrir).
+  - **Libros** (`LIBROS/index.html`): pestaña fija que abre el Libro de un curso sobre su clase de hoy o la última;
+    recibe `ws-ir { ctx, sesion }`.
+  - **Planificación** (`PLANIFICACION/index.html`): la "Evaluación" es solo texto de la tabla (Gemini); no hay vínculo.
+- **DECISIÓN del PO (2026-10-21):** aprueba el diseño; **paso 1**: (1) cada planificación tiene una **Evaluación de
+  cierre** (cuadro en el editor: sin evaluación / abierta con avance / cerrada) y **una sola**; (2) se crea desde la
+  planificación con nombre, fecha (última clase del último mes), OA (de los marcados) y rúbrica (una plantilla), y se
+  termina de crear **en el Libro** (pestaña Libros con el formulario lleno), para que la lista de estudiantes y las notas
+  sigan en un solo lugar; (3) la evaluación muestra "🗓️ Planificación Oct–Nov" con enlace de vuelta; (4) la tabla de
+  🗓️ Planificaciones muestra el estado por celda (📝 sin evaluación —en rojo si el período ya pasó— · ⏳ abierta x/y ·
+  ✅ cerrada). Pasos siguientes: 2 = ✨ Gemini propone la rúbrica; 3 = la rúbrica como anexo del Word.
+- **Diseño técnico:** columna `libro_evaluaciones.planificacion_id` (→ `planificaciones`, `on delete set null`, única
+  cuando no es nula) en `supabase/planificacion_evaluacion.sql` (aditivo; lo corre el PO). La planificación deja un
+  pedido en el equipo (`localStorage` `profe_libro_nueva_eval`: curso, nombre, fecha, OA, plantilla, planificación) y
+  abre Libros en el curso; el Libro, al ver el pedido de su curso, abre "Nueva evaluación" lleno con un aviso; al crear,
+  guarda `planificacion_id`, copia la plantilla como instrumento y la asocia al OA.
+- **Implementación (2026-10-21):**
+  - `PLANIFICACION/index.html`: cuadro **Evaluación de cierre** al final del editor (`pintarCierre`): sin guardar →
+    "Guarda la planificación…"; falta el SQL → aviso; sin evaluación → "📝 …" + **＋ Crear evaluación de cierre**
+    (`formCierre`: nombre "Evaluación de cierre · <meses>", fecha = última clase del curso en el último mes
+    (`fechaCierreSugerida`), OA entre los marcados (o todos si no hay marcados), rúbrica entre las plantillas del Libro
+    o "sin rúbrica por ahora") → **Continuar en el Libro →** deja el pedido (`profe_libro_nueva_eval`) y abre Libros en
+    el curso; con evaluación → "⏳ nombre · fecha · x de y evaluados" o "✅ … cerrada" + **📒 Abrir en el Libro** (pedido
+    `profe_libro_abrir_eval` → el Libro abre esa evaluación). Se pone al día al volver a la pestaña y cuando el Libro
+    avisa (`profe_cierre_cambio`). Tabla 🗓️ Planificaciones: bajo los botones de cada planificación, "📝 sin evaluación"
+    (en rojo si su último mes ya pasó) · "⏳ x/y" · "✅ evaluada" (sin el SQL, la tabla sigue sin estados). `ws-ir` con
+    `meses` abre esa planificación (enlace desde el Libro).
+  - `LIBRO/index.html`: con un pedido de su curso y año (< 30 min), abre "Nueva evaluación" lleno, con el cuadro
+    destacado y el aviso "🗓️ Evaluación de cierre de la planificación … · rúbrica … (se carga al crear)" + "No, gracias";
+    al crear: `planificacion_id` (avisa si ya tenía otra o si falta el SQL), copia la plantilla como instrumento
+    (`copiarPlantillaAEval`, la misma pieza que usa "Cargar plantilla") y la asocia al OA. Detalle: botón
+    "🗓️ Planificación Oct–Nov" que abre la planificación; lista: "· 🗓️ cierre de planificación".
+- **Prueba parcial (local, sin el SQL aún):** la planificación de Cuarto (septiembre) muestra "Falta correr
+  supabase/planificacion_evaluacion.sql"; la tabla carga igual (14 planificaciones, sin estados); el Libro de Cuarto con un
+  pedido de prueba abrió "Nueva evaluación" con nombre, fecha, OA y el aviso (no se creó nada; pedido borrado); sin
+  errores en la consola. Falta: el PO corre el SQL; prueba completa (crear, ligar, rúbrica, estados).

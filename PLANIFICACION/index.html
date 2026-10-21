@@ -147,6 +147,25 @@
     .campos-tit { font-size: 0.95rem; font-weight: 700; color: #2c3e50; margin: 16px 0 0; }
     .campos-tit small { display: block; font-size: 0.78rem; font-weight: 400; color: #888; margin-top: 2px; }
     #anio[readonly] { background: transparent; border-color: transparent; color: #555; cursor: default; pointer-events: none; }
+    /* Evaluación de cierre (deuda CK) */
+    .cierre-card { border-color: #f3d1ae !important; }
+    .cierre-fila { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.9rem; }
+    .cierre-fila .txt { flex: 1; min-width: 200px; }
+    .cierre-falta { color: #b35900; }
+    .cierre-ok { color: #1e8449; }
+    .cierre-btn { border: 1.5px solid #e67e22; background: #fff; color: #b35900; border-radius: 8px; padding: 6px 12px;
+      font-weight: 700; cursor: pointer; white-space: nowrap; font: inherit; font-weight: 700; }
+    .cierre-btn:hover { background: #fff4e5; }
+    .cierre-btn.prim { background: #e67e22; color: #fff; }
+    .cierre-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 12px; }
+    .cierre-form label { display: block; font-size: 0.72rem; font-weight: 700; color: #888; margin-bottom: 3px; }
+    .cierre-form input, .cierre-form select { width: 100%; font: inherit; font-size: 0.88rem; padding: 6px 8px; border: 1.5px solid #e4e4e4; border-radius: 8px; }
+    .cierre-form .ancho { grid-column: 1 / -1; }
+    .cierre-msg { font-size: 0.8rem; color: #888; margin-top: 8px; }
+    .cierre-msg.err { color: #c0392b; }
+    .celda-eval { font-size: 0.68rem; font-weight: 700; color: #888; white-space: nowrap; }
+    .celda-eval.falta-pasada { color: #c0392b; }
+    .celda-eval.ok { color: #1e8449; }
     .ejes { display: flex; flex-wrap: wrap; gap: 8px 18px; }
     .eje-op { display: inline-flex; align-items: center; gap: 7px; font-size: 0.9rem; cursor: pointer; }
     .eje-op input { width: 17px; height: 17px; accent-color: #e67e22; cursor: pointer; }
@@ -792,6 +811,12 @@
     <hr>
     <label>Evaluación / Instrumento a utilizar</label>
     <div class="items" data-grupo="evaluacion"></div>
+  </div>
+
+  <!-- Evaluación de cierre (deuda CK): una evaluación del Libro del curso, con su rúbrica -->
+  <div class="card cierre-card" id="cierreCard">
+    <div class="card-title">Evaluación de cierre · en el Libro del curso</div>
+    <div id="cierreCuerpo"></div>
   </div>
 
   </div><!-- /campos-ocultos -->
@@ -1790,6 +1815,10 @@ async function traerDelMes() {
 // Workspace: la pestaña ya abierta recibe el curso desde Cursos ('ws-ir' { ctx }).
 window.addEventListener('message', e => {
   if (e.source !== window.parent || e.data?.tipo !== 'ws-ir') return;
+  if (Array.isArray(e.data.meses) && e.data.meses.length) {   // el Libro abre la planificación de una evaluación de cierre
+    abrirEnEditor(String(e.data.ctx).toUpperCase(), e.data.meses.map(Number), e.data.anio);
+    return;
+  }
   if (elegirCursoCtx(e.data.ctx)) {
     avisarRelato('Revisa que no queden nombres de estudiantes antes de copiar.');
     mostrarVista('editar');
@@ -2069,7 +2098,7 @@ async function guardarAhora() {
       ? await sbPl.from('planificaciones').update(fila).eq('id', plId).select('id').maybeSingle()
       : await sbPl.from('planificaciones').upsert(fila, { onConflict: 'contexto_id,anio,meses' }).select('id').maybeSingle();
     if (error) { avisarSinTabla(error); return false; }
-    if (data?.id) plId = data.id;
+    if (data?.id && plId !== data.id) { plId = data.id; pintarCierre(); }
     estadoGuardada(`✓ Guardada ${fechaCorta(fila.updated_at)}`, 'ok');
     document.getElementById('btnDeNuevo').style.visibility = 'visible';
     listarGuardadas(c);
@@ -2111,6 +2140,124 @@ function limpiarPagina() {
 }
 
 // Curso, año o meses cambiaron: se guarda lo pendiente de lo anterior y se abre lo guardado del nuevo (o en blanco).
+// ══════════════════════════════════════════════
+// EVALUACIÓN DE CIERRE (deuda CK): cada planificación cierra con UNA evaluación del Libro del curso, con su
+// rúbrica (libro_evaluaciones.planificacion_id). Se crea en el Libro: aquí se deja un pedido en el equipo
+// (localStorage) y se abre la pestaña Libros en el curso, donde "Nueva evaluación" aparece ya lleno.
+// ══════════════════════════════════════════════
+const PEDIDO_CIERRE_KEY = 'profe_libro_nueva_eval';
+const ABRIR_EVAL_KEY = 'profe_libro_abrir_eval';
+let cierreEstado = null;    // { ev, total, evaluados } | { ev: null } | { falta: true } (falta el SQL)
+function abrirLibros(ctx) {
+  const src = `../LIBROS/index.html?ctx=${encodeURIComponent(ctx)}`;
+  if (window.parent !== window) window.parent.postMessage({ tipo: 'ws-abrir', key: 'libros', titulo: 'Libros', ico: '📒', src, ir: { ctx } }, '*');
+  else window.open(src, '_blank');
+}
+async function estadoCierre(planId) {
+  const { data: ev, error } = await sbPl.from('libro_evaluaciones').select('id, nombre, fecha, estado')
+    .eq('planificacion_id', planId).maybeSingle();
+  if (error) return /planificacion_id|column/i.test(error.message || '') ? { falta: true } : null;
+  if (!ev) return { ev: null };
+  const { data: ns } = await sbPl.from('libro_evaluacion_notas').select('nota').eq('evaluacion_id', ev.id);
+  return { ev, total: (ns || []).length, evaluados: (ns || []).filter(n => n.nota != null).length };
+}
+async function pintarCierre() {
+  const caja = document.getElementById('cierreCuerpo');
+  const c = claveVistaObj;
+  if (!caja) return;
+  if (!c || !plId) {
+    caja.innerHTML = '<div class="cierre-fila"><span class="txt cierre-falta">Guarda la planificación para crearle su evaluación de cierre.</span></div>';
+    return;
+  }
+  const yo = plId;
+  let st = null;
+  try { st = await estadoCierre(yo); } catch (e) { st = null; }
+  if (yo !== plId) return;
+  cierreEstado = st;
+  if (!st) { caja.innerHTML = '<div class="cierre-fila"><span class="txt">No se pudo revisar la evaluación de cierre — revisa la conexión.</span></div>'; return; }
+  if (st.falta) { caja.innerHTML = '<div class="cierre-fila"><span class="txt cierre-falta">Falta correr <b>supabase/planificacion_evaluacion.sql</b> en Supabase.</span></div>'; return; }
+  if (!st.ev) {
+    caja.innerHTML = `<div class="cierre-fila"><span class="txt cierre-falta">📝 Esta planificación todavía no tiene evaluación de cierre.</span>
+      <button type="button" class="cierre-btn" onclick="formCierre()">＋ Crear evaluación de cierre</button></div><div id="cierreForm"></div>`;
+    return;
+  }
+  const { ev, total, evaluados } = st;
+  const cerrada = ev.estado === 'cerrado';
+  caja.innerHTML = `<div class="cierre-fila"><span class="txt ${cerrada ? 'cierre-ok' : ''}">${cerrada ? '✅' : '⏳'} <b>${esc(ev.nombre)}</b> · ${esc(String(ev.fecha || '').split('-').reverse().slice(0, 2).map(Number).join('/'))}
+      · ${cerrada ? 'cerrada' : `${evaluados} de ${total} evaluados`}</span>
+    <button type="button" class="cierre-btn" onclick="abrirEvalEnLibro()">📒 Abrir en el Libro</button></div>`;
+}
+function abrirEvalEnLibro() {
+  const ev = cierreEstado?.ev, c = claveVistaObj;
+  if (!ev || !c) return;
+  try { localStorage.setItem(ABRIR_EVAL_KEY, JSON.stringify({ ctx: c.ctx, evId: ev.id, ts: Date.now() })); } catch (_) {}
+  abrirLibros(c.ctx);
+}
+// Fecha sugerida: la última clase del curso en el último mes de la planificación (o el último día del mes).
+async function fechaCierreSugerida(c) {
+  const m = c.meses[c.meses.length - 1], mm = String(m).padStart(2, '0');
+  const fin = new Date(c.anio, m, 0).getDate();
+  try {
+    const { data } = await sbPl.from('sesiones').select('fecha').eq('contexto_id', await ctxId(c.ctx))
+      .gte('fecha', `${c.anio}-${mm}-01`).lte('fecha', `${c.anio}-${mm}-${fin}`).order('fecha', { ascending: false }).limit(1);
+    if (data && data[0]) return data[0].fecha;
+  } catch (_) {}
+  return `${c.anio}-${mm}-${fin}`;
+}
+async function formCierre() {
+  const c = claveVistaObj, caja = document.getElementById('cierreForm');
+  if (!c || !caja) return;
+  caja.innerHTML = '<p class="cierre-msg">Preparando…</p>';
+  const oas = ['basal', 'comp'].flatMap(g => (P.g[g] || []).filter(it => (it.txt || '').trim()).map(it => ({ ...it, g })));
+  const marcados = oas.filter(it => it.on);
+  const lista = marcados.length ? marcados : oas;
+  const oaTxt = it => `OA ${(it.num || '').trim()}: ${it.txt.trim()}`.replace(/^OA : /, '');
+  let plantillas = [];
+  try {
+    const { data } = await sbPl.from('libro_instrumento_plantillas').select('id, nombre, tipo').order('nombre');
+    plantillas = data || [];
+  } catch (_) {}
+  const fecha = await fechaCierreSugerida(c);
+  const rango = rangoTxt(c.meses);
+  caja.innerHTML = `<div class="cierre-form">
+      <div><label>Nombre</label><input id="ciNombre" value="${esc('Evaluación de cierre · ' + textoMeses(c.meses))}"></div>
+      <div><label>Fecha</label><input id="ciFecha" type="date" value="${fecha}"></div>
+      <div class="ancho"><label>OA de la evaluación${marcados.length ? ' (de los marcados)' : ''}</label>
+        <select id="ciOA">${lista.map((it, i) => `<option value="${i}">${esc(oaTxt(it))}</option>`).join('') || '<option value="">(sin OA en la planificación)</option>'}</select></div>
+      <div class="ancho"><label>Rúbrica</label>
+        <select id="ciPlantilla"><option value="">— Sin rúbrica por ahora (se elige en el Libro) —</option>${plantillas.map(pl =>
+          `<option value="${pl.id}">${pl.tipo === 'cotejo' ? '☑ ' : ''}${esc(pl.nombre)}</option>`).join('')}</select></div>
+    </div>
+    <div class="cierre-fila" style="margin-top:12px">
+      <span class="txt cierre-msg">Se termina de crear en el Libro de ${esc(CURSO_DE_CTX[c.ctx])}, con la lista del curso.</span>
+      <button type="button" class="cierre-btn prim" id="ciSeguir">Continuar en el Libro →</button></div>`;
+  document.getElementById('ciSeguir').onclick = async () => {
+    if (bloqueo) return;
+    if (timerGuardar) await guardarAhora();
+    if (!plId) return;
+    const sel = document.getElementById('ciPlantilla');
+    const it = lista[+document.getElementById('ciOA').value];
+    const pedido = {
+      ctx: c.ctx, anio: c.anio, rango, planificacionId: plId,
+      nombre: document.getElementById('ciNombre').value.trim() || 'Evaluación de cierre',
+      fecha: document.getElementById('ciFecha').value || fecha,
+      oa: it ? oaTxt(it) : '',
+      plantillaId: sel.value || null, plantillaNombre: sel.value ? sel.selectedOptions[0].textContent.replace(/^☑ /, '') : '',
+      ts: Date.now(),
+    };
+    try { localStorage.setItem(PEDIDO_CIERRE_KEY, JSON.stringify(pedido)); } catch (_) {}
+    abrirLibros(c.ctx);
+    caja.innerHTML = '<p class="cierre-msg">Abierto en la pestaña 📒 Libros: revisa y toca "Crear evaluación".</p>';
+  };
+}
+// El Libro avisa cuando liga una evaluación (o al volver a esta pestaña): se pone al día.
+window.addEventListener('storage', e => {
+  if (e.key !== 'profe_cierre_cambio') return;
+  pintarCierre();
+  if (!document.getElementById('vistaPlanis').hidden) cargarPlanis();
+});
+window.addEventListener('focus', () => { if (plId && !document.getElementById('vistaEditar').hidden) pintarCierre(); });
+
 // Las planificaciones del curso en el año (id y meses), para revisar choques de meses.
 async function planisDelCurso(ctx, anio) {
   const { data, error } = await sbPl.from('planificaciones').select('id, meses')
@@ -2151,6 +2298,7 @@ async function alCambiarClave(op) {
     // Lo que está en pantalla (ya guardado con sus meses anteriores) se queda; solo se avisa.
     bloqueo = { otra: choque };
     mostrarChoque(c, choque);
+    pintarCierre();
     estadoGuardada('');
     return;
   }
@@ -2162,6 +2310,7 @@ async function alCambiarClave(op) {
       if (error) { avisarSinTabla(error); return; }
       estadoGuardada(`✓ Ahora es de ${textoMeses(c.meses)}`, 'ok');
       listarGuardadas(c);
+      pintarCierre();
     } catch (e) { estadoGuardada('No se pudo cambiar los meses — revisa la conexión.', 'err'); }
     return;
   }
@@ -2178,8 +2327,9 @@ async function alCambiarClave(op) {
       .eq('contexto_id', id).eq('anio', c.anio).eq('meses', `{${c.meses.join(',')}}`).maybeSingle();
     if (claveVista !== c.k) return;
     if (error) { avisarSinTabla(error); return; }
-    if (!data) { estadoGuardada('Sin guardar todavía.'); return; }
+    if (!data) { estadoGuardada('Sin guardar todavía.'); pintarCierre(); return; }
     plId = data.id;
+    pintarCierre();
     document.getElementById('relato').value = data.relato || '';
     ajustar(document.getElementById('relato'));
     P = desdeGuardado(data.campos);
@@ -2272,7 +2422,8 @@ const CURSO_DE_CTX = Object.fromEntries(Object.entries(CURSO_CTX).map(([c, k]) =
 const ABREV_MES = { 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic' };
 let planisFilas = [];   // planificaciones del año en curso, con su contexto
 let verActual = null;
-let recienGuardada = null;   // { ctx, anio, meses } — se destaca en la tabla al volver a ella
+let recienGuardada = null;
+let cierres = {}, cierresOk = false;   // evaluación de cierre por planificación (deuda CK)   // { ctx, anio, meses } — se destaca en la tabla al volver a ella
 
 function mostrarVista(v) {
   const planis = v === 'planis';
@@ -2303,6 +2454,22 @@ async function cargarPlanis() {
     if (e1 || e2) throw e1 || e2;
     const nombreDe = Object.fromEntries((ctxs || []).map(c => [c.id, c.nombre]));
     planisFilas = (data || []).map(f => ({ ...f, ctx: nombreDe[f.contexto_id] })).filter(f => f.ctx);
+    // Evaluación de cierre de cada una (deuda CK); si falta el SQL, la tabla sigue sin estados.
+    cierres = {};
+    if (planisFilas.length) {
+      const { data: evs, error: e3 } = await sbPl.from('libro_evaluaciones').select('id, planificacion_id, estado')
+        .in('planificacion_id', planisFilas.map(f => f.id));
+      if (!e3) {
+        const abiertas = (evs || []).filter(ev => ev.estado !== 'cerrado').map(ev => ev.id);
+        const { data: ns } = abiertas.length
+          ? await sbPl.from('libro_evaluacion_notas').select('evaluacion_id, nota').in('evaluacion_id', abiertas) : { data: [] };
+        (evs || []).forEach(ev => {
+          const mias = (ns || []).filter(n => n.evaluacion_id === ev.id);
+          cierres[ev.planificacion_id] = { estado: ev.estado, total: mias.length, evaluados: mias.filter(n => n.nota != null).length };
+        });
+        cierresOk = true;
+      } else cierresOk = false;
+    }
     est.textContent = planisFilas.length ? '' : 'Todavía no hay planificaciones este año.';
   } catch (err) {
     planisFilas = [];
@@ -2312,7 +2479,7 @@ async function cargarPlanis() {
 }
 
 function pintarPlanis(anio) {
-  const mesHoy = new Date().getMonth() + 1;
+  const mesHoy = new Date().getMonth() + 1, anioHoy = new Date().getFullYear();
   const meses = Object.keys(ABREV_MES).map(Number);
   const cab = '<tr><th class="curso">Curso</th>' + meses.map(m =>
     `<th class="${m === mesHoy ? 'hoy' : ''}">${ABREV_MES[m]}</th>`).join('') + '</tr>';
@@ -2322,9 +2489,18 @@ function pintarPlanis(anio) {
       const rango = f.meses.length > 1 ? `<span class="celda-rango">${ABREV_MES[f.meses[0]]}–${ABREV_MES[f.meses.at(-1)]}</span>` : '';
       const nueva = recienGuardada && recienGuardada.ctx === ctx && +recienGuardada.anio === +f.anio
         && recienGuardada.meses.join() === (f.meses || []).join();
+      // Estado de su evaluación de cierre: 📝 sin evaluación (rojo si el período ya pasó) · ⏳ abierta · ✅ cerrada
+      let est = '';
+      if (cierresOk) {
+        const ci = cierres[f.id];
+        const pasada = +f.anio < anioHoy || (+f.anio === anioHoy && f.meses[f.meses.length - 1] < mesHoy);
+        est = !ci ? `<span class="celda-eval${pasada ? ' falta-pasada' : ''}" title="Sin evaluación de cierre">📝 sin evaluación</span>`
+          : ci.estado === 'cerrado' ? '<span class="celda-eval ok" title="Evaluación de cierre cerrada">✅ evaluada</span>'
+          : `<span class="celda-eval" title="Evaluación de cierre abierta">⏳ ${ci.evaluados}/${ci.total}</span>`;
+      }
       return `<div class="celda${nueva ? ' nueva' : ''}">${nueva ? '<span class="celda-nueva">✓ Nueva</span>' : ''}${rango}<span class="celda-btns">
         <button type="button" data-ver="${f.id}" title="Visualizar ${esc(curso)}, ${esc(textoMeses(f.meses))}">👁</button>
-        <button type="button" data-bajar="${f.id}" title="Descargar el Word">⬇</button></span></div>`;
+        <button type="button" data-bajar="${f.id}" title="Descargar el Word">⬇</button></span>${est}</div>`;
     };
     // Una planificación de varios meses seguidos va en una sola celda combinada (PO 2026-10-21), así no parecen
     // dos documentos. Solo si en esos meses no hay otra planificación del curso; si la hay, se muestra en cada mes.

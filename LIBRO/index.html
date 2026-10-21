@@ -44,6 +44,10 @@
   .btn.warn{background:#5a4a10;border-color:#7d6a2c}
   .btn.ghost{background:transparent}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+  /* Evaluación de cierre pedida desde una planificación (deuda CK) */
+  .card.nv-cierre{box-shadow:0 0 0 2px #e67e22}
+  .nv-cierre-aviso{margin:6px 0 12px;padding:8px 12px;border-radius:9px;background:rgba(230,126,34,.12);border:1px solid rgba(230,126,34,.45);line-height:1.5}
+  .nv-cierre-aviso .btn{margin-left:8px}
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   label{display:block;color:var(--mut);font-size:12px;margin:0 0 4px;text-transform:uppercase;letter-spacing:.03em}
   input,textarea,select{background:#0d1117;color:var(--txt);border:1px solid var(--line);
@@ -785,6 +789,69 @@ async function init(){
   }
   // CURSO: la pantalla principal es el PANEL DE CONTROL (no una sección directa).
   renderPanelCurso();
+  // Evaluación de cierre pedida desde una planificación (deuda CK): directo a "Nueva evaluación", ya lleno.
+  if (leerPedidoCierre()) renderLista();
+  else {   // "📒 Abrir en el Libro" desde una planificación: directo a esa evaluación
+    try {
+      const a = JSON.parse(localStorage.getItem('profe_libro_abrir_eval') || 'null');
+      if (a && String(a.ctx).toUpperCase() === String(ctxNombre).toUpperCase() && Date.now() - (a.ts || 0) < 10 * 60 * 1000) {
+        localStorage.removeItem('profe_libro_abrir_eval');
+        abrirDetalle(a.evId);
+      }
+    } catch (_) {}
+  }
+}
+
+// ── Evaluación de cierre de una planificación (deuda CK) ─────
+// La planificación (PLANIFICACION/) deja un pedido en el equipo y abre Libros en el curso; aquí se completa:
+// nombre, fecha y OA ya escritos; al crear, la evaluación queda ligada a la planificación (planificacion_id)
+// y su rúbrica (plantilla) se copia como instrumento del OA.
+const PEDIDO_CIERRE_KEY = 'profe_libro_nueva_eval';
+const MES_ABREV = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const rangoMeses = ms => (ms || []).length > 1 ? `${MES_ABREV[ms[0]]}–${MES_ABREV[ms[ms.length - 1]]}` : MES_ABREV[(ms || [])[0]] || '';
+let pedidoCierre = null;
+function leerPedidoCierre(){
+  try {
+    const p = JSON.parse(localStorage.getItem(PEDIDO_CIERRE_KEY) || 'null');
+    if (!p || String(p.ctx || '').toUpperCase() !== String(ctxNombre || '').toUpperCase()) return null;
+    if (String(p.anio) !== String(anioNum) || Date.now() - (p.ts || 0) > 30 * 60 * 1000) return null;
+    return (pedidoCierre = p);
+  } catch (_) { return null; }
+}
+function olvidarPedidoCierre(){ pedidoCierre = null; try { localStorage.removeItem(PEDIDO_CIERRE_KEY); } catch (_) {} }
+// Abre la planificación de la que viene una evaluación (pestaña 🗓️ Planificaciones del Workspace).
+function abrirPlanificacion(){
+  const pl = evalActual?._plan;
+  if (!pl) return;
+  const src = `../PLANIFICACION/index.html?ctx=${encodeURIComponent(ctxNombre)}`;
+  if (window.parent !== window) {
+    window.parent.postMessage({ tipo: 'ws-abrir', key: 'planificacion', titulo: 'Planificaciones', ico: '🗓️', guardarAlCerrar: true,
+      src, ir: { ctx: ctxNombre, meses: pl.meses, anio: pl.anio } }, '*');
+  } else window.open(src, '_blank');
+}
+// Copia una plantilla como instrumento de una evaluación (copia independiente). Devuelve el instrumento.
+async function copiarPlantillaAEval(evId, pid){
+  const [cp, ci] = await Promise.all([
+    sb.from('libro_instrumento_plantillas').select('*').eq('id', pid).single(),
+    sb.from('libro_plantilla_items').select('*').eq('plantilla_id', pid)
+      .order('orden', { ascending: true }).order('created_at', { ascending: true }),
+  ]);
+  if (cp.error) throw cp.error;
+  if (ci.error) throw ci.error;
+  const iid = idCreacion('cargarPl', { ev: evId, pid });
+  const { data: instr, yaEstaba } = await insertarUnaVez('libro_eval_instrumentos',
+    { id: iid, evaluacion_id: evId, tipo: cp.data.tipo, nombre: cp.data.nombre, origen_plantilla_id: pid });
+  const items = (ci.data || []).map(it => ({
+    instrumento_id: instr.id, orden: it.orden, texto: it.texto,
+    desc_n1: it.desc_n1, desc_n2: it.desc_n2, desc_n3: it.desc_n3, desc_n4: it.desc_n4,
+  }));
+  const yaTiene = yaEstaba && ((await sb.from('libro_eval_instrumento_items').select('id').eq('instrumento_id', instr.id).limit(1)).data || []).length;
+  if (items.length && !yaTiene) {
+    const { error: eit } = await sb.from('libro_eval_instrumento_items').insert(items);
+    if (eit) { if (!yaEstaba) await sb.from('libro_eval_instrumentos').delete().eq('id', instr.id); throw eit; }
+  }
+  creacionHecha('cargarPl');
+  return { instr, yaEstaba };
 }
 
 // ── Vista LISTA ──────────────────────────────────────────────
@@ -830,13 +897,25 @@ async function renderLista(){
       <p class="sec-title">Evaluaciones de ${esc(ctxTitulo())} · ${anioNum} (${evs.length})</p>
       <div id="lista-evs"></div>
     </div>`;
+  if (pedidoCierre || leerPedidoCierre()) {
+    const p = pedidoCierre;
+    document.getElementById('nv-nombre').value = p.nombre || '';
+    if (p.fecha) document.getElementById('nv-fecha').value = p.fecha;
+    document.getElementById('nv-oa').value = p.oa || '';
+    const card = document.getElementById('nv-nombre').closest('.card');
+    card.classList.add('nv-cierre');
+    card.querySelector('.sec-title').insertAdjacentHTML('afterend', `<div class="nv-cierre-aviso">🗓️ <b>Evaluación de cierre</b> de la
+      planificación ${esc(p.rango || '')}${p.plantillaNombre ? ` · rúbrica <b>${esc(p.plantillaNombre)}</b> (se carga al crear)` : ''}.
+      Revisa y toca <b>Crear evaluación</b>. <button class="btn mini" onclick="olvidarPedidoCierre(); renderLista()">No, gracias</button></div>`);
+    card.scrollIntoView({ block: 'start' });
+  }
   const cont = document.getElementById('lista-evs');
   if (!evs.length) { cont.innerHTML = '<p class="hint">Aún no hay evaluaciones.</p>'; return; }
   cont.innerHTML = evs.map(ev => `
     <div class="eval-item" onclick="abrirDetalle('${ev.id}')">
       <div>
         <div><b>${esc(ev.nombre)}</b></div>
-        <div class="meta">${esc(fechaCorta(ev.fecha))}${ev.descuento_toque != null ? ' · 📱 por toques' : ''}</div>
+        <div class="meta">${esc(fechaCorta(ev.fecha))}${ev.descuento_toque != null ? ' · 📱 por toques' : ''}${ev.planificacion_id ? ' · 🗓️ cierre de planificación' : ''}</div>
       </div>
       <span class="badge ${ev.estado}">${ev.estado}</span>
     </div>`).join('');
@@ -890,6 +969,21 @@ async function _crearEvaluacion(){
     }
     creacionHecha('evaluacion');
     msg(yaEstaba ? 'La evaluación ya estaba creada (no se duplicó).' : ('Evaluación creada (' + vigentes.length + ' estudiantes).'), 'ok');
+    const p = pedidoCierre;
+    if (p) {
+      olvidarPedidoCierre();
+      try {
+        const { error: ep } = await sb.from('libro_evaluaciones').update({ planificacion_id: p.planificacionId }).eq('id', evId);
+        if (ep) toast(/duplicate|unique/i.test(ep.message || '') ? 'Esa planificación ya tenía otra evaluación de cierre: esta quedó sin ligar.'
+          : /planificacion_id|column/i.test(ep.message || '') ? 'Falta correr supabase/planificacion_evaluacion.sql: la evaluación quedó sin ligar.'
+          : 'No se pudo ligar a la planificación: ' + ep.message, 'err');
+        try { localStorage.setItem('profe_cierre_cambio', String(Date.now())); } catch (_) {}   // la planificación se pone al día
+        if (p.plantillaId) {
+          const { instr } = await copiarPlantillaAEval(evId, p.plantillaId);
+          await sb.from('libro_evaluaciones').update({ instrumento_id: instr.id }).eq('id', evId);
+        }
+      } catch (e2) { toast('La evaluación se creó, pero no se pudo cargar la rúbrica: ' + avisoFallo(e2), 'err'); }
+    }
     abrirDetalle(evId);
   } catch (e) {
     msg(avisoFallo(e));
@@ -912,6 +1006,10 @@ async function abrirDetalle(evId){
     if (ca.error) throw ca.error;
     if (cm.error) throw cm.error;
     evalActual = ce.data;   // se necesita temprano para la reconciliación
+    if (evalActual.planificacion_id) {   // cierre de una planificación (deuda CK)
+      const { data: pl } = await sb.from('planificaciones').select('meses, anio').eq('id', evalActual.planificacion_id).maybeSingle();
+      if (pl) evalActual._plan = pl;
+    }
     matriculaActiva = new Set((cm.data || []).filter(m => m.estado === 'activo').map(m => m.estudiante_id));
     // Etapa 5 — Reconciliación de población (cambio de I13): con la evaluación
     // ABIERTA, incorporar automáticamente los estudiantes con matrícula ACTIVA que
@@ -1006,6 +1104,7 @@ function renderDetalle(){
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <p class="sec-title" style="margin:0">General · ${esc(ev.nombre)}</p>
+        ${ev._plan ? `<button class="btn mini" onclick="abrirPlanificacion()" title="Abrir la planificación de la que esta es la evaluación de cierre">🗓️ Planificación ${esc(rangoMeses(ev._plan.meses))}</button>` : ''}
       </div>
       <div class="grid2" style="margin-top:10px">
         <div><label>Nombre</label><input id="d-nombre" value="${esc(ev.nombre)}" ${dis}></div>
@@ -3020,26 +3119,7 @@ async function _cargarPlantillaEnEval(){
   const pid = sel ? sel.value : '';
   if (!pid) { toast('Elige una plantilla.', 'err'); return; }
   try {
-    const [cp, ci] = await Promise.all([
-      sb.from('libro_instrumento_plantillas').select('*').eq('id', pid).single(),
-      sb.from('libro_plantilla_items').select('*').eq('plantilla_id', pid)
-        .order('orden', { ascending: true }).order('created_at', { ascending: true }),
-    ]);
-    if (cp.error) throw cp.error;
-    if (ci.error) throw ci.error;
-    const iid = idCreacion('cargarPl', { ev: evalActual.id, pid });
-    const { data: instr, yaEstaba } = await insertarUnaVez('libro_eval_instrumentos',
-      { id: iid, evaluacion_id: evalActual.id, tipo: cp.data.tipo, nombre: cp.data.nombre, origen_plantilla_id: pid });
-    const items = (ci.data || []).map(it => ({
-      instrumento_id: instr.id, orden: it.orden, texto: it.texto,
-      desc_n1: it.desc_n1, desc_n2: it.desc_n2, desc_n3: it.desc_n3, desc_n4: it.desc_n4,
-    }));
-    const yaTiene = yaEstaba && ((await sb.from('libro_eval_instrumento_items').select('id').eq('instrumento_id', instr.id).limit(1)).data || []).length;
-    if (items.length && !yaTiene) {
-      const { error: eit } = await sb.from('libro_eval_instrumento_items').insert(items);
-      if (eit) { if (!yaEstaba) await sb.from('libro_eval_instrumentos').delete().eq('id', instr.id); throw eit; }
-    }
-    creacionHecha('cargarPl');
+    const { yaEstaba } = await copiarPlantillaAEval(evalActual.id, pid);
     toast(yaEstaba ? 'El instrumento ya estaba cargado (no se duplicó).' : 'Instrumento cargado (copia independiente).', 'ok');
     await recargarInstrumentos();
     renderInstrCard();
