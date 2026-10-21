@@ -5393,3 +5393,17 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
     Líneas y en Cuadros; el texto va de 100 a 778.
     Probado (local, Cuadros con zoom 400 %): la línea roja izquierda ocupa justo el lugar de una celeste y tiene su mismo
     grosor; la derecha cae en 790–792, también sobre la cuadrícula.
+- **Ajuste (PO, 2026-10-21): líneas nítidas en la vista 4 y zoom libre en las vistas de una página.**
+  - En la vista 4 las líneas rojas se veían gruesas (la hoja girada se dibujaba borrosa: el navegador la trata como capa
+    3D aunque no haya ninguna hoja girando). La profundidad 3D se activa **solo mientras una hoja gira**; quieto, el
+    cuaderno se dibuja plano y nítido.
+  - **Zoom** (DECISIÓN del PO, cambia la del paso 1 "arrastre que vuelve al centro"): en las vistas de una página
+    (**3 y 4**) se puede acercar y **recorrer toda la hoja** arrastrando, sin salirse de sus bordes, y se queda donde se
+    deja (ya no vuelve al centro). El recorrido se guarda en unidades de la hoja, así la Pizarra muestra el mismo lugar.
+  - **Implementación:** `.cdn-libro.en3d` (perspectiva y 3D) solo mientras gira una hoja (al pasar y al abrir la tapa);
+    zoom con `unaPagina()` (rueda, pellizco, + / −, ⟲, doble clic, teclas) en 3 y 4; `limitarPan()` acota el recorrido a
+    los bordes de la hoja (12 de aire) y no vuelve al centro al soltar; `panX/panY` en unidades de la hoja y enviados a la
+    Pizarra con el estado.
+  - **Prueba (local):** vista 4 con Líneas, quieta: la hoja se ve nítida (sin capa 3D) y las rojas, delgadas como las
+    celestes; zoom 248 % con la rueda en la vista 4; arrastrar muy lejos hacia un lado deja la hoja justo en su esquina
+    (12 de aire) y al otro lado, en la esquina opuesta; en la vista 3, lo mismo hacia abajo; el zoom se mantiene.

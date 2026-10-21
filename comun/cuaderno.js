@@ -142,7 +142,7 @@
             h = `<div class="cdn-slot izq${una && lado !== 'izq' ? ' otra' : ''}" style="left:0">${htmlPag(izqDe(k))}</div>
                  <div class="cdn-slot der${una && lado !== 'der' ? ' otra' : ''}" style="left:${PW}px">${htmlPag(derDe(k))}</div>` + espiral(PW);
         }
-        L.classList.remove('deslizar');
+        L.classList.remove('deslizar', 'en3d');
         L.innerHTML = h;
         S.desp = S.modo === 1 ? 0 : despDe(ladoDe(S.i));
         L.style.transform = `translateX(${-S.desp}px)`;
@@ -155,11 +155,23 @@
         const r = $('.cdn-escena').getBoundingClientRect();
         const gira = girado(), ancho = anchoVentana();
         const w = (gira ? PH : ancho) + 80, hh = (gira ? ancho : PH) + 40;
-        return Math.min(r.width / w, r.height / hh) * (S.modo === 3 ? S.zoom : 1);
+        return Math.min(r.width / w, r.height / hh) * (unaPagina() ? S.zoom : 1);
     }
     function transformar() {
         S.k = escala();
-        $('.cdn-ventana').style.transform = `translate(-50%, -50%) translate(${S.panX}px, ${S.panY}px)${girado() ? ' rotate(90deg)' : ''} scale(${S.k})`;
+        limitarPan();
+        $('.cdn-ventana').style.transform = `translate(-50%, -50%) translate(${S.panX * S.k}px, ${S.panY * S.k}px)${girado() ? ' rotate(90deg)' : ''} scale(${S.k})`;
+        emitirEstado();
+    }
+    // Con zoom (vistas 3 y 4) se recorre la hoja sin salirse de sus bordes: el recorrido (panX/panY, en unidades de
+    // la hoja, sin girar) no deja ver más allá del borde de la ventana. Sin zoom, centrado.
+    function limitarPan() {
+        if (!unaPagina() || S.zoom <= 1.001) { S.panX = S.panY = 0; return; }
+        const r = $('.cdn-escena').getBoundingClientRect();
+        const w = anchoVentana() * S.k, h = PH * S.k;
+        const [sw, sh] = girado() ? [h, w] : [w, h];
+        const mx = Math.max(0, (sw - r.width) / 2 + 12) / S.k, my = Math.max(0, (sh - r.height) / 2 + 12) / S.k;
+        S.panX = clamp(S.panX, -mx, mx); S.panY = clamp(S.panY, -my, my);
     }
     function ponerDesp(d) { S.desp = d; $('.cdn-libro').style.transform = `translateX(${-d}px)`; }
 
@@ -174,7 +186,7 @@
         raiz.classList.toggle('imprenta', S.pref.letra === 'imprenta');
         $('[data-accion="espirales"]').classList.toggle('on', S.espirales);
         $('[data-accion="sonido"]').textContent = S.sonido ? '🔈' : '🔇';
-        $('.cdn-zoom').style.visibility = S.modo === 3 ? 'visible' : 'hidden';
+        $('.cdn-zoom').style.visibility = unaPagina() ? 'visible' : 'hidden';
         $('.cdn-zoom-n').textContent = Math.round(S.zoom * 100) + '%';
         const h = hojaFoco();
         $('[data-accion="editar"]').style.visibility = h && S.modo !== 1 ? 'visible' : 'hidden';
@@ -210,7 +222,7 @@
     function claseAqui() { return !!(S && !S.op.espejo && S.op.sesionId && window.ClaseVivo && ClaseVivo.get()?.sesionId === S.op.sesionId); }
     function estadoProy() {
         return { contextoId: S.op.contextoId, ctxNombre: S.op.ctxNombre, anio: S.anio, modo: S.modo, modoAbierto: S.modoAbierto, i: S.i,
-            espirales: S.espirales, papel: S.pref.papel, letra: S.pref.letra, zoom: S.zoom };
+            espirales: S.espirales, papel: S.pref.papel, letra: S.pref.letra, zoom: S.zoom, panX: S.panX, panY: S.panY };
     }
     let ultimoProy = '';
     function emitirEstado(forzar) {
@@ -240,7 +252,7 @@
         if (S.anim) { S.pendEstado = e; return; }
         S.pendEstado = null;
         S.espirales = e.espirales; S.pref.papel = e.papel; S.pref.letra = e.letra;
-        S.zoom = e.zoom || 1; S.panX = S.panY = 0;
+        S.zoom = e.zoom || 1; S.panX = e.panX || 0; S.panY = e.panY || 0;
         S.modo = e.modo; S.modoAbierto = e.modoAbierto || 2;
         S.i = clamp(e.i | 0, 0, pags().length - 1);
         pintar();
@@ -294,6 +306,7 @@
         sI.innerHTML = htmlPag(abajo.izq);
         sD.innerHTML = htmlPag(abajo.der);
         sI.classList.remove('otra'); sD.classList.remove('otra');
+        L.classList.add('en3d');   // profundidad solo mientras gira (quieto, la hoja se dibuja plana y nítida)
         const v = document.createElement('div');
         v.className = 'cdn-volteo';
         v.style.left = x0 + 'px';
@@ -381,6 +394,7 @@
         const L = $('.cdn-libro');
         L.querySelector('.cdn-slot').classList.remove('cerrado');
         L.querySelector('.cdn-slot').innerHTML = htmlPag(pags()[0]);
+        L.classList.add('en3d');
         const v = document.createElement('div');
         v.className = 'cdn-volteo'; v.style.left = '0px';
         v.innerHTML = `<div class="cdn-cara frente">${htmlPag({ especial: 'tapa' })}</div><div class="cdn-cara atras">${htmlPag({ especial: 'tapa-int' })}</div>`;
@@ -466,7 +480,7 @@
     // Coordenadas de pantalla → coordenadas del libro (sin escala; forma 4 girada 90°; con el corrimiento del par).
     function aLibro(cx, cy) {
         const r = $('.cdn-escena').getBoundingClientRect();
-        const ox = cx - (r.left + r.width / 2) - S.panX, oy = cy - (r.top + r.height / 2) - S.panY;
+        const ox = cx - (r.left + r.width / 2) - S.panX * S.k, oy = cy - (r.top + r.height / 2) - S.panY * S.k;
         const [lx, ly] = girado() ? [oy, -ox] : [ox, oy];
         return { x: lx / S.k + anchoVentana() / 2 + (S.desp || 0), y: ly / S.k + PH / 2 };
     }
@@ -476,7 +490,7 @@
         if (!S || S.op.espejo || S.editando || e.button > 0 || e.target.closest('button')) return;
         punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
         try { $('.cdn-escena').setPointerCapture(e.pointerId); } catch (_) {}
-        if (punteros.size === 2 && S.modo === 3) {
+        if (punteros.size === 2 && unaPagina()) {
             const [p1, p2] = [...punteros.values()];
             G = { tipo: 'pellizco', d0: Math.hypot(p1.x - p2.x, p1.y - p2.y), z0: S.zoom };
             return;
@@ -495,7 +509,7 @@
         const dxS = e.clientX - G.x0, dyS = e.clientY - G.y0;
         if (G.tipo === 'nada') {
             if (Math.hypot(dxS, dyS) < 8 || S.anim) return;
-            if (S.modo === 3 && S.zoom > 1.01) G.tipo = 'pan';
+            if (unaPagina() && S.zoom > 1.01) G.tipo = 'pan';
             else {
                 const l = aLibro(e.clientX, e.clientY), dx = l.x - G.l0.x, dy = l.y - G.l0.y;
                 if (Math.abs(dx) < Math.abs(dy) * 0.8 || S.modo === 1) { G.tipo = S.modo === 1 ? 'tapa' : 'ignorar'; return; }
@@ -516,7 +530,7 @@
             }
         }
         if (G.tipo === 'pan') {
-            S.panX = G.pan0[0] + dxS; S.panY = G.pan0[1] + dyS;
+            S.panX = G.pan0[0] + dxS / S.k; S.panY = G.pan0[1] + dyS / S.k;
             transformar();
         } else if (G.tipo === 'desliza') {
             const [lx] = girado() ? [dyS] : [dxS];
@@ -540,7 +554,7 @@
         const g = G;
         if (g.tipo === 'pellizco') { if (!punteros.size) G = null; return; }
         G = null;
-        if (g.tipo === 'pan') { volverAlCentro(); return; }
+        if (g.tipo === 'pan') return;   // se queda donde se dejó (dentro de la hoja)
         if (g.tipo === 'desliza') {
             // Queda en la página más cercana (o en la otra si se lanzó rápido hacia ella).
             const vx = (girado() ? g.vy : g.vx) || 0;
@@ -586,7 +600,7 @@
     }
     function alRueda(e) {
         if (!S || S.op.espejo || S.editando) return;
-        if (S.modo === 3) { e.preventDefault(); ponerZoom(S.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12)); }
+        if (unaPagina()) { e.preventDefault(); ponerZoom(S.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12)); }
     }
     function alTecla(e) {
         if (!S || raiz.hidden || S.op.espejo) return;
@@ -597,9 +611,9 @@
         if (adelante.includes(e.key)) pasar(1);
         else if (atras.includes(e.key)) pasar(-1);
         else if (e.key === 'Escape') { if (!$('.cdn-indice').hidden) $('.cdn-indice').hidden = true; else cerrar(); }
-        else if (S.modo === 3 && (e.key === '+' || e.key === '=')) ponerZoom(S.zoom * 1.2);
-        else if (S.modo === 3 && e.key === '-') ponerZoom(S.zoom / 1.2);
-        else if (S.modo === 3 && e.key === '0') ponerZoom(1);
+        else if (unaPagina() && (e.key === '+' || e.key === '=')) ponerZoom(S.zoom * 1.2);
+        else if (unaPagina() && e.key === '-') ponerZoom(S.zoom / 1.2);
+        else if (unaPagina() && e.key === '0') ponerZoom(1);
         else return;
         e.preventDefault(); e.stopPropagation();   // la página de abajo (Planificador) no reacciona a estas teclas
     }
@@ -686,7 +700,7 @@
         esc_.addEventListener('pointerup', alSoltar);
         esc_.addEventListener('pointercancel', alSoltar);
         esc_.addEventListener('wheel', alRueda, { passive: false });
-        esc_.addEventListener('dblclick', e => { if (S?.modo === 3 && !e.target.closest('button')) ponerZoom(1); });
+        esc_.addEventListener('dblclick', e => { if (S && unaPagina() && !e.target.closest('button')) ponerZoom(1); });
         window.addEventListener('resize', () => { if (S && !raiz.hidden) { transformar(); if (S.editando) vistaPrevia(); } });
         document.addEventListener('keydown', alTecla, true);
         raiz.addEventListener('paste', alPegar);
