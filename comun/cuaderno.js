@@ -9,7 +9,9 @@
 // · 4 abierto y horizontal, una página (el cuaderno girado). Cada hoja tiene su orientación
 // ('v' | 'h'): una hoja escrita con el cuaderno girado se ve de lado en 1–3 y derecha en 4.
 // La hoja se pasa arrastrándola (sigue al dedo o al mouse), con clic en el borde, ← → o deslizando.
-// En las formas 3 y 4 se ve una franja de la página de al lado, para no perder la referencia.
+// Formas 3 y 4 = una página del par abierto vista de cerca (como la forma 2, recortada por una "ventana"): entre
+// las dos páginas del mismo par el cuaderno se desliza; entre pares se da vuelta la hoja y la vista la acompaña.
+// Se ve una franja de la otra página del par, al otro lado del espiral, para no perder la referencia.
 // Página en blanco: hoja sin fecha ni contenido (pieza { t: 'blanco' }), como saltarse una página.
 //
 // Uso:
@@ -41,7 +43,7 @@
     }
     const fechaCorta = iso => fechaCuaderno(iso).replace(/^(\S{3})\S*/, '$1');
     const sinFecha = h => (h?.contenido || []).some(p => p.t === 'blanco');   // página en blanco (sin fecha)
-    const FR = 130;   // ancho de la franja de la página de al lado (formas 3 y 4)
+    const FR = 130;   // ancho de la franja de la otra página del par (formas 3 y 4)
 
     // ── Preferencias (en este equipo): forma, espirales, sonido; papel y letra por curso ──
     function prefs() { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (_) { return {}; } }
@@ -119,42 +121,45 @@
         for (let i = 0; i < 34; i++) h += `<div class="cdn-anillo" style="top:${(i * PH / 34 + 9).toFixed(1)}px"></div>`;
         return h + '</div>';
     }
-    function anchoLibro() { return S.modo === 2 ? 2 * PW : PW; }
+    // Formas 3 y 4: el par completo dentro de una ventana que deja ver la página en foco + la franja de la otra.
+    const unaPagina = () => S.modo === 3 || S.modo === 4;
+    function anchoLibro() { return S.modo === 1 ? PW : 2 * PW; }
+    const ladoDe = i => (i % 2 ? 'izq' : 'der');          // en el par: impar = izquierda, par = derecha
+    function despDe(lado) { return unaPagina() && lado === 'der' ? PW - FR : 0; }   // cuánto se corre el par en la ventana
+    function anchoVentana() { return unaPagina() ? PW + FR : anchoLibro(); }
     function pintar() {
-        const L = $('.cdn-libro');
+        const Vn = $('.cdn-ventana'), L = $('.cdn-libro');
         L.style.width = anchoLibro() + 'px'; L.style.height = PH + 'px';
+        Vn.style.width = anchoVentana() + 'px'; Vn.style.height = PH + 'px';
+        Vn.classList.toggle('recorta', unaPagina());
         let h = '';
         if (S.modo === 1) {
             h = `<div class="cdn-slot der cerrado" style="left:0">${htmlPag({ especial: 'tapa' })}</div>` + espiral(0);
-        } else if (S.modo === 2) {
-            const k = pliego();
-            h = `<div class="cdn-slot izq" style="left:0">${htmlPag(izqDe(k))}</div>
-                 <div class="cdn-slot der" style="left:${PW}px">${htmlPag(derDe(k))}</div>` + espiral(PW);
         } else {
-            // Franja de la página de al lado (la anterior; antes de la primera, el interior de la tapa).
-            const ant = S.i > 0 ? pags()[S.i - 1] : { especial: 'tapa-int' };
-            h = `<div class="cdn-slot izq franja" style="left:${-PW}px">${htmlPag(ant)}</div>
-                 <div class="cdn-slot der" style="left:0">${htmlPag(pags()[S.i])}</div>` + espiral(0);
+            const k = pliego(), lado = ladoDe(S.i), una = unaPagina();
+            h = `<div class="cdn-slot izq${una && lado !== 'izq' ? ' otra' : ''}" style="left:0">${htmlPag(izqDe(k))}</div>
+                 <div class="cdn-slot der${una && lado !== 'der' ? ' otra' : ''}" style="left:${PW}px">${htmlPag(derDe(k))}</div>` + espiral(PW);
         }
+        L.classList.remove('deslizar');
         L.innerHTML = h;
+        S.desp = S.modo === 1 ? 0 : despDe(ladoDe(S.i));
+        L.style.transform = `translateX(${-S.desp}px)`;
         ajustar(L);
         transformar();
         pintarBarra();
     }
-    // Escala el libro a la pantalla (forma 4: girado); en la forma 3 suma el zoom y el arrastre.
+    // Escala la ventana a la pantalla (forma 4: girada); en la forma 3 suma el zoom y el arrastre.
     function escala() {
         const r = $('.cdn-escena').getBoundingClientRect();
-        const gira = S.modo === 4;
-        const ancho = anchoLibro() + (S.modo >= 3 ? FR : 0);
+        const gira = S.modo === 4, ancho = anchoVentana();
         const w = (gira ? PH : ancho) + 80, hh = (gira ? ancho : PH) + 40;
         return Math.min(r.width / w, r.height / hh) * (S.modo === 3 ? S.zoom : 1);
     }
     function transformar() {
-        const L = $('.cdn-libro');
         S.k = escala();
-        // Formas 3 y 4: el conjunto (franja + página) queda centrado.
-        L.style.transform = `translate(-50%, -50%) translate(${S.panX}px, ${S.panY}px)${S.modo === 4 ? ' rotate(90deg)' : ''} scale(${S.k})${S.modo >= 3 ? ` translateX(${FR / 2}px)` : ''}`;
+        $('.cdn-ventana').style.transform = `translate(-50%, -50%) translate(${S.panX}px, ${S.panY}px)${S.modo === 4 ? ' rotate(90deg)' : ''} scale(${S.k})`;
     }
+    function ponerDesp(d) { S.desp = d; $('.cdn-libro').style.transform = `translateX(${-d}px)`; }
 
     // ── Barra y pie ─────────────────────────────────────────────────────
     function hojaFoco() { const p = pags()[S.i]; return p && !p.especial ? p : null; }
@@ -269,30 +274,24 @@
 
     // ── Pasar la hoja ───────────────────────────────────────────────────
     // Una hoja que gira sobre el espiral: ángulo 0 = tendida a la derecha, −180 = tendida a la izquierda.
-    // Forma 2: frente = derecha del pliego a, dorso = izquierda del pliego a+1. Formas 3/4: frente = la
-    // hoja a, dorso = su reverso; debajo, la hoja a+1.
+    // Frente = derecha del pliego a, dorso = izquierda del pliego a+1 (las tres formas abiertas). En las formas 3 y 4
+    // la vista acompaña a la hoja: de la derecha del par a la izquierda del siguiente (o al revés al volver).
     function prepararVolteo(dir) {
         const L = $('.cdn-libro');
-        let a, frente, atras, abajo = {}, alTerminar, x0, desvanecer = false;
-        if (S.modo === 2) {
-            const k = pliego();
-            a = dir > 0 ? k : k - 1;
-            if (a < 0 || a + 1 > maxPliego()) return null;
-            frente = derDe(a); atras = izqDe(a + 1);
-            abajo = { izq: izqDe(a), der: derDe(a + 1) };
-            x0 = PW;
-            alTerminar = fin => { S.i = focoDePliego(fin ? (dir > 0 ? a + 1 : a) : k); };
-        } else if (S.modo === 3 || S.modo === 4) {
-            a = dir > 0 ? S.i : S.i - 1;
-            if (a < 0 || a + 1 > pags().length - 1) return null;
-            frente = pags()[a]; atras = { especial: 'reverso' };
-            abajo = { der: pags()[a + 1] };
-            x0 = 0; desvanecer = true;
-            const antes = S.i;
-            alTerminar = fin => { S.i = fin ? (dir > 0 ? a + 1 : a) : antes; };
-        } else return null;
-        if (abajo.izq) L.querySelector('.cdn-slot.izq').innerHTML = htmlPag(abajo.izq);
-        L.querySelector('.cdn-slot.der').innerHTML = htmlPag(abajo.der);
+        if (S.modo === 1) return null;
+        const k = pliego(), a = dir > 0 ? k : k - 1, una = unaPagina();
+        if (a < 0 || a + 1 > maxPliego()) return null;
+        const frente = derDe(a), atras = izqDe(a + 1), abajo = { izq: izqDe(a), der: derDe(a + 1) }, x0 = PW;
+        const antes = S.i;
+        const alTerminar = una
+            ? fin => { if (fin) S.i = antes + dir; }
+            : fin => { S.i = focoDePliego(fin ? (dir > 0 ? a + 1 : a) : k); };
+        // Formas 3 y 4: corrimiento del par al empezar y al terminar (de la derecha a la izquierda o al revés).
+        const d0 = S.desp || 0, d1 = una ? despDe(ladoDe(antes + dir)) : 0;
+        const sI = L.querySelector('.cdn-slot.izq'), sD = L.querySelector('.cdn-slot.der');
+        sI.innerHTML = htmlPag(abajo.izq);
+        sD.innerHTML = htmlPag(abajo.der);
+        sI.classList.remove('otra'); sD.classList.remove('otra');
         const v = document.createElement('div');
         v.className = 'cdn-volteo';
         v.style.left = x0 + 'px';
@@ -309,7 +308,7 @@
                 const p = -V.th / 180;                     // 0 → 1
                 sF.style.opacity = (p * 0.9).toFixed(3);
                 sA.style.opacity = ((1 - p) * 0.9).toFixed(3);
-                if (desvanecer) v.style.opacity = p > 0.5 ? (1 - (p - 0.5) * 2).toFixed(3) : '1';
+                if (una) ponerDesp(d0 + (d1 - d0) * (dir > 0 ? p : 1 - p));
             },
             terminar(completar, ms) {
                 const desde = V.th, hasta = completar ? (dir > 0 ? -180 : 0) : V.inicio;
@@ -337,6 +336,8 @@
     async function pasar(dir, ms) {
         if (S.anim || S.arrastre) return false;
         if (S.modo === 1) { if (dir > 0) { emitirPasar(1); await abrirTapa(); } return true; }
+        // Formas 3 y 4: hacia la otra página del mismo par, el cuaderno se desliza (no se da vuelta nada).
+        if (unaPagina() && (dir > 0) === (ladoDe(S.i) === 'izq')) return deslizar(dir, ms);
         const V = prepararVolteo(dir);
         if (!V) return false;
         S.anim = true;
@@ -346,6 +347,31 @@
         S.anim = false;
         if (S.pendEstado) aplicarEstado(S.pendEstado);
         return true;
+    }
+    // Deslizar el par hasta la otra página (formas 3 y 4).
+    async function deslizar(dir, ms) {
+        const j = S.i + dir;
+        if (j < 0 || j > pags().length - 1) return false;
+        S.anim = true;
+        emitirPasar(dir);
+        await moverPar(despDe(ladoDe(j)), j, ms);
+        S.i = j;
+        pintar();
+        S.anim = false;
+        if (S.pendEstado) aplicarEstado(S.pendEstado);
+        return true;
+    }
+    // Lleva el par a un corrimiento con transición (y apaga/enciende la página que pasa a ser franja).
+    function moverPar(d, iFoco, ms) {
+        const L = $('.cdn-libro');
+        const lado = ladoDe(iFoco);
+        L.querySelector('.cdn-slot.izq')?.classList.toggle('otra', lado !== 'izq');
+        L.querySelector('.cdn-slot.der')?.classList.toggle('otra', lado !== 'der');
+        const dur = ms ?? 420;
+        L.style.transitionDuration = dur + 'ms';
+        L.classList.add('deslizar');
+        ponerDesp(d);
+        return new Promise(res => setTimeout(() => { L.classList.remove('deslizar'); L.style.transitionDuration = ''; res(); }, dur + 30));
     }
     // Abrir el cuaderno cerrado: la tapa gira y queda la forma abierta que se usó la última vez.
     async function abrirTapa() {
@@ -383,7 +409,7 @@
         const actual = () => S.modo === 2 ? pliego() : S.i;
         const dir = Math.sign(destino - actual());
         let pasos = 0;
-        while (actual() !== destino && pasos < 6) {
+        while (actual() !== destino && pasos < (unaPagina() ? 10 : 6)) {
             if (!(await pasar(dir, 150))) break;
             pasos++;
         }
@@ -428,19 +454,19 @@
         transformar(); pintarBarra();
     }
     function volverAlCentro() {
-        const L = $('.cdn-libro');
-        L.classList.add('volver');
+        const Vn = $('.cdn-ventana');
+        Vn.classList.add('volver');
         S.panX = S.panY = 0; transformar();
-        setTimeout(() => L.classList.remove('volver'), 300);
+        setTimeout(() => Vn.classList.remove('volver'), 300);
     }
 
     // ── Gestos: arrastrar la hoja, clic en el borde, deslizar, pellizcar, rueda ──
-    // Coordenadas de pantalla → coordenadas del libro (sin escala; forma 4 girada 90°).
+    // Coordenadas de pantalla → coordenadas del libro (sin escala; forma 4 girada 90°; con el corrimiento del par).
     function aLibro(cx, cy) {
         const r = $('.cdn-escena').getBoundingClientRect();
         const ox = cx - (r.left + r.width / 2) - S.panX, oy = cy - (r.top + r.height / 2) - S.panY;
         const [lx, ly] = S.modo === 4 ? [oy, -ox] : [ox, oy];
-        return { x: lx / S.k + anchoLibro() / 2 - (S.modo >= 3 ? FR / 2 : 0), y: ly / S.k + PH / 2 };
+        return { x: lx / S.k + anchoVentana() / 2 + (S.desp || 0), y: ly / S.k + PH / 2 };
     }
     const punteros = new Map();
     let G = null;   // gesto en curso
@@ -472,18 +498,28 @@
                 const l = aLibro(e.clientX, e.clientY), dx = l.x - G.l0.x, dy = l.y - G.l0.y;
                 if (Math.abs(dx) < Math.abs(dy) * 0.8 || S.modo === 1) { G.tipo = S.modo === 1 ? 'tapa' : 'ignorar'; return; }
                 const dir = dx < 0 ? 1 : -1;
-                const V = prepararVolteo(dir);
-                if (!V) { G.tipo = 'ignorar'; return; }
-                const espina = S.modo === 2 ? PW : 0;
-                // Distancia del punto tomado al espiral: la hoja sigue al dedo (coseno del ángulo).
-                G.r = Math.max(PW * 0.45, dir > 0 ? G.l0.x - espina : (S.modo === 2 ? espina - G.l0.x : PW - G.l0.x));
-                G.V = V; G.tipo = 'hoja'; S.arrastre = true;
-                sonar();
+                // Formas 3 y 4, hacia la otra página del mismo par: el cuaderno sigue al dedo.
+                if (unaPagina() && (dir > 0) === (ladoDe(S.i) === 'izq')) {
+                    const j = S.i + dir;
+                    if (j < 0 || j > pags().length - 1) { G.tipo = 'ignorar'; return; }
+                    G.tipo = 'desliza'; G.dir = dir; G.d0 = S.desp; G.d1 = despDe(ladoDe(j)); S.arrastre = true;
+                } else {
+                    const V = prepararVolteo(dir);
+                    if (!V) { G.tipo = 'ignorar'; return; }
+                    // Distancia del punto tomado al espiral: la hoja sigue al dedo (coseno del ángulo).
+                    G.r = Math.max(PW * 0.45, dir > 0 ? G.l0.x - PW : PW - G.l0.x);
+                    G.V = V; G.tipo = 'hoja'; S.arrastre = true;
+                    sonar();
+                }
             }
         }
         if (G.tipo === 'pan') {
             S.panX = G.pan0[0] + dxS; S.panY = G.pan0[1] + dyS;
             transformar();
+        } else if (G.tipo === 'desliza') {
+            const [lx] = S.modo === 4 ? [dyS] : [dxS];
+            const lo = Math.min(G.d0, G.d1), hi = Math.max(G.d0, G.d1);
+            ponerDesp(clamp(G.d0 - lx / S.k, lo, hi));
         } else if (G.tipo === 'hoja') {
             const dx = aLibro(e.clientX, e.clientY).x - G.l0.x;
             const th = G.V.dir > 0
@@ -503,6 +539,21 @@
         if (g.tipo === 'pellizco') { if (!punteros.size) G = null; return; }
         G = null;
         if (g.tipo === 'pan') { volverAlCentro(); return; }
+        if (g.tipo === 'desliza') {
+            // Queda en la página más cercana (o en la otra si se lanzó rápido hacia ella).
+            const vx = (S.modo === 4 ? g.vy : g.vx) || 0;
+            const avance = Math.abs(S.desp - g.d0) / Math.max(1, Math.abs(g.d1 - g.d0));
+            const ir = avance > 0.35 || (g.dir > 0 ? vx < -0.5 : vx > 0.5);
+            S.anim = true;
+            const j = S.i + g.dir;
+            if (ir) emitirPasar(g.dir);
+            await moverPar(ir ? g.d1 : g.d0, ir ? j : S.i, 260);
+            if (ir) S.i = j;
+            pintar();
+            S.anim = false; S.arrastre = false;
+            if (S.pendEstado) aplicarEstado(S.pendEstado);
+            return;
+        }
         if (g.tipo === 'hoja') {
             // Se completa si pasó la mitad o si se lanzó rápido hacia su lado.
             const vx = (S.modo === 4 ? g.vy : g.vx) || 0;   // velocidad hacia la derecha del libro (forma 4: hacia abajo)
@@ -521,10 +572,12 @@
         if (S.anim) return;
         if (S.modo === 1) { pasar(1); return; }
         if (l.y < 0 || l.y > PH) return;
-        const W = anchoLibro();
-        if (l.x > W - PW * 0.16 && l.x <= W + 40) { pasar(1); return; }
-        if (l.x < PW * 0.16 && l.x >= -(S.modo >= 3 ? FR : 0) - 40) { pasar(-1); return; }
-        if (S.modo === 2 && l.x >= 0 && l.x <= W) {      // clic en una página = esa es la hoja en foco
+        // Bordes de la página en foco (formas 3 y 4) o del par (forma 2); la franja de la otra página también lleva a ella.
+        const [x0, x1] = unaPagina() ? (ladoDe(S.i) === 'izq' ? [0, PW + FR] : [PW - FR, 2 * PW]) : [0, anchoLibro()];
+        const [b0, b1] = unaPagina() ? (ladoDe(S.i) === 'izq' ? [0, PW] : [PW, 2 * PW]) : [0, anchoLibro()];
+        if (l.x > b1 - PW * 0.16 && l.x <= x1 + 40) { pasar(1); return; }
+        if (l.x < b0 + PW * 0.16 && l.x >= x0 - 40) { pasar(-1); return; }
+        if (S.modo === 2 && l.x >= 0 && l.x <= anchoLibro()) {      // clic en una página = esa es la hoja en foco
             const i = l.x < PW ? 2 * pliego() - 1 : 2 * pliego();
             if (i >= 0 && i < pags().length) { S.i = i; pintarBarra(); }
         }
@@ -588,7 +641,7 @@
             <button class="cdn-btn" data-accion="blanca" style="visibility:hidden" title="Dejar una página en blanco después de la que se está mirando">＋ Página en blanco</button>
             <button class="cdn-cerrar" data-accion="cerrar" title="Cerrar (Esc)">✕</button>
         </div>
-        <div class="cdn-escena"><div class="cdn-libro"></div></div>
+        <div class="cdn-escena"><div class="cdn-ventana"><div class="cdn-libro"></div></div></div>
         <div class="cdn-pie">
             <button class="nav" data-accion="ant" title="Hoja anterior (←)">◀</button>
             <span class="cdn-lbl"></span>

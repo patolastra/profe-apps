@@ -5337,3 +5337,29 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
     "⬇ Rúbrica" descargó `PRIMERO - MARZO - RUBRICA.docx`; su contenido (leído del archivo): título, asignatura, curso,
     período, evaluación, fecha 31/03/2026, OA, instrumento y la tabla Criterio × 4 niveles con sus textos. El Word de la
     planificación sigue saliendo igual, con la cabecera de la escuela. En Visualizar el botón aparece solo con evaluación.
+- **Ajuste (PO, 2026-10-21): en las vistas de una página, el cuaderno se comporta como el real.** Las páginas van de a dos
+  (izquierda = atrás de una hoja, derecha = adelante de la siguiente). **DECISIÓN del PO:** entre las dos páginas del
+  mismo par el cuaderno **se desliza** (pasa el espiral, no gira nada); entre pares **se da vuelta la hoja** (y la vista
+  acompaña a la hoja hasta la página que corresponde); la **franja** muestra siempre la **otra página del par**, al otro
+  lado del espiral. En la vista 4 (horizontal, espiral arriba) lo mismo pero hacia arriba/abajo: la izquierda queda
+  arriba del espiral y la derecha abajo; la hoja gira como un calendario de pared.
+  - **Diseño técnico:** en las vistas 3 y 4 se dibuja el par completo (como en la vista 2) dentro de una "ventana" que
+    recorta lo que no se ve (la página enfocada + la franja de la otra junto al espiral, con margen arriba/abajo para la
+    hoja que gira); deslizar = mover el par dentro de la ventana; dar vuelta = la misma hoja de la vista 2 mientras el par
+    se mueve hasta la página nueva. La forma 4 gira la ventana completa. Arrastrar: dentro del par, el cuaderno sigue al
+    dedo y al soltar queda en la página más cercana; entre pares, la hoja sigue al dedo como ahora.
+  - **Implementación (2026-10-21):** `comun/cuaderno.js`: nueva capa `.cdn-ventana` (lleva la escala, el giro de la forma
+    4, el zoom y el arrastre del zoom; en las formas 3 y 4 recorta solo de lado a lado con `clip-path`, así la hoja que gira
+    no se corta arriba/abajo); `.cdn-libro` dibuja siempre el par en las formas abiertas y se corre con `translateX(−desp)`
+    (`despDe`: izquierda = 0, derecha = PW − franja). `pasar`: en 3/4, hacia la otra página del par → `deslizar` (sin
+    sonido de papel) y entre pares → la misma hoja de la forma 2 mientras `ponerDesp` acompaña el giro. Arrastre:
+    `desliza` (el par sigue al dedo; al soltar, a la página más cercana o a la otra si se lanzó) u `hoja`. Clics: bordes de
+    la página en foco; la franja lleva a su página. La otra página del par se apaga un poco (`.cdn-slot.otra`). Se quitó
+    la franja anterior (siempre a la izquierda, con la hoja anterior). La Pizarra sigue igual (recibe "pasar" y hace lo
+    mismo).
+  - **Prueba (local, 4 hojas de prueba en memoria):** forma 3 desde la hoja 1 (derecha del primer par): ▶ dio vuelta la
+    hoja y quedó la hoja 2 a la izquierda; ▶ se deslizó (sin hoja girando) a la hoja 3 a la derecha; ◀ se deslizó a la 2;
+    ◀ dio vuelta a la 1. Medidas: la página en foco entra entera en la ventana y de la otra se ven solo los 130 de la
+    franja, al lado que corresponde. Forma 4: la izquierda queda arriba del espiral y la derecha abajo, con la franja
+    arriba; arrastrar hacia abajo desde la primera no hace nada (antes está la tapa), hacia arriba da vuelta la hoja y el
+    siguiente arrastre se desliza. Forma 2 y abrir la tapa siguen igual. (Sin captura de pantalla: el panel no dibujaba.)
