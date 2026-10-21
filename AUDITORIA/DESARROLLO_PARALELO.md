@@ -5177,3 +5177,4 @@ navegar por él; ahí consta la fecha, lo escrito, las imágenes coloreadas que 
     página):** 📽️ Pizarra visible y encendido; la Pizarra abrió el cuaderno encima (z 8400) sin barras; ▶ en el Plan
     pasó al pliego de las hojas 2–3 en ambos; forma 3 + zoom 120 % llegó a la Pizarra; forma 4 llegó girada; cerrar el
     cuaderno quitó el de la Pizarra y borró el aviso guardado. Falta: probar con el proyector y la clase real.
+  - **Commit:** `a81690c` (subido).
