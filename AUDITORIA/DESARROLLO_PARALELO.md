@@ -5383,3 +5383,7 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
   (antes 22), alineados con el texto. Probado (local): en la vista 5 las líneas cubren toda la hoja; en la 3, con
   cuadros, cada renglón de texto queda dentro de una fila de cuadros. No se pudo reproducir el corte en el navegador de
   pruebas; **el PO confirmó en su pantalla que ya no se corta** (2026-10-21). Commit `88d844a` (subido).
+- **Ajuste (PO, 2026-10-21): dos márgenes rojos** en "Líneas" y "Cuadros" (antes solo uno a la izquierda en Líneas y
+  ninguno en Cuadros): a 100 del borde izquierdo y a 70 del derecho (`--cdn-margenes`, la misma capa en ambos papeles);
+  el texto queda entre los dos (caja de contenido de 712 a 666 de ancho). Probado (local): en Líneas se ven los dos y el
+  texto largo baja de renglón antes del margen derecho; en Cuadros la hoja lleva las dos líneas rojas.
