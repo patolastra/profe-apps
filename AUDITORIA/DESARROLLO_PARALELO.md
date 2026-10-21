@@ -5407,3 +5407,9 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
   - **Prueba (local):** vista 4 con Líneas, quieta: la hoja se ve nítida (sin capa 3D) y las rojas, delgadas como las
     celestes; zoom 248 % con la rueda en la vista 4; arrastrar muy lejos hacia un lado deja la hoja justo en su esquina
     (12 de aire) y al otro lado, en la esquina opuesta; en la vista 3, lo mismo hacia abajo; el zoom se mantiene.
+- **Ajuste (PO, 2026-10-21): doble clic en una página de las vistas de dos páginas** (2 y 5) pasa a ver esa página sola
+  (2 → 3, 5 → 4). Para que el doble clic no pase la hoja, en esas vistas el clic simple en el borde espera un instante
+  (240 ms) por si es doble.
+  Probado (local, 3 hojas de prueba): doble clic en la izquierda de la vista 2 → vista 3 en la hoja 2; en la derecha →
+  vista 3 en la hoja 3; en la 5, arriba → vista 4 en la hoja 2 y abajo → vista 4 en la hoja 3; los dos clics previos al
+  doble clic (cerca del borde) no pasaron la hoja.

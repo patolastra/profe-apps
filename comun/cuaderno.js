@@ -485,6 +485,7 @@
         return { x: lx / S.k + anchoVentana() / 2 + (S.desp || 0), y: ly / S.k + PH / 2 };
     }
     const punteros = new Map();
+    let clicPend = null;
     let G = null;   // gesto en curso
     function alBajar(e) {
         if (!S || S.op.espejo || S.editando || e.button > 0 || e.target.closest('button')) return;
@@ -582,7 +583,12 @@
             return;
         }
         if (g.tipo === 'tapa') { pasar(1); return; }
-        if (g.tipo === 'nada' && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) < 8) clicLibro(g.l0);
+        if (g.tipo === 'nada' && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) < 8) {
+            // Vistas de dos páginas: se espera un instante por si es doble clic (que abre esa página sola).
+            clearTimeout(clicPend);
+            if (dosPag()) clicPend = setTimeout(() => clicLibro(g.l0), 240);
+            else clicLibro(g.l0);
+        }
     }
     function clicLibro(l) {
         if (S.anim) return;
@@ -700,7 +706,19 @@
         esc_.addEventListener('pointerup', alSoltar);
         esc_.addEventListener('pointercancel', alSoltar);
         esc_.addEventListener('wheel', alRueda, { passive: false });
-        esc_.addEventListener('dblclick', e => { if (S && unaPagina() && !e.target.closest('button')) ponerZoom(1); });
+        esc_.addEventListener('dblclick', e => {
+            if (!S || S.op.espejo || e.target.closest('button')) return;
+            if (unaPagina()) { ponerZoom(1); return; }
+            if (!dosPag() || S.anim) return;
+            // Doble clic en una página del par: pasa a verla sola (2 → 3, 5 → 4).
+            clearTimeout(clicPend);
+            const l = aLibro(e.clientX, e.clientY);
+            if (l.y < 0 || l.y > PH || l.x < 0 || l.x > 2 * PW) return;
+            const i = l.x < PW ? 2 * pliego() - 1 : 2 * pliego();
+            if (i < 0 || i >= pags().length) return;
+            S.i = i;
+            cambiarModo(S.modo === 2 ? 3 : 4);
+        });
         window.addEventListener('resize', () => { if (S && !raiz.hidden) { transformar(); if (S.editando) vistaPrevia(); } });
         document.addEventListener('keydown', alTecla, true);
         raiz.addEventListener('paste', alPegar);
