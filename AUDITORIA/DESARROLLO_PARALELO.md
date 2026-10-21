@@ -5088,6 +5088,10 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   Hecho: "Generar planificación .docx" → **"💾 Guardar planificación"** (`guardarDesdeBoton`: guarda al instante y
   dice "✓ Guardada. Descárgala desde 📚 Planificaciones."; avisa si no hay curso/mes o nada que guardar); la columna
   pasa a "Revisa y guarda la planificación". Probado (año 2099, borrado): guarda y no descarga nada.
+- **Ajuste (PO, 2026-10-21):** el texto largo que devuelve Gemini **no se muestra**; en "Revisa y guarda la planificación"
+  queda solo el informe (✓ Formato correcto…). El cuadro para pegar desde NotebookLM sigue como respaldo, plegado en
+  "📋 Pegar desde NotebookLM (respaldo)" (`<details id="pasteWrap">`; al abrirlo toma el alto de su texto). Probado
+  (local, Cuarto): plegado al abrir la página, el cuadro no se ve y el informe aparece igual al procesar una respuesta.
 
 ### CJ. Bitácora — Cuaderno de música del curso (1° a 8°)
 *Origen: pedido del PO (2026-10-21): "un registro de lo que se escribe en el cuaderno (físico) de la clase de música,
