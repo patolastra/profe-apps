@@ -15,6 +15,9 @@
 //     fecha: abre en la hoja de esa fecha (y es la fecha sugerida de una hoja nueva)
 //     crear: true en el Plan y la bitácora (＋ Nueva hoja); en Cursos solo ✏️ por hoja
 //   Cuaderno.cursos → nombres de los contextos que tienen cuaderno (1° a 8°)
+//   Cuaderno.espejoEnPizarra(sb, sesionId) → la Pizarra muestra el cuaderno que el profe proyecta (paso 2):
+//     con la clase en curso, 📽️ Pizarra en el cuaderno del Plan lo manda por el canal 'profe-espejo-cuaderno'
+//     (estado + cada hoja que se pasa); la Pizarra lo hojea igual, sin barras ni gestos.
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
     'use strict';
@@ -38,9 +41,10 @@
 
     // ── Preferencias (en este equipo): forma, espirales, sonido; papel y letra por curso ──
     function prefs() { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (_) { return {}; } }
-    function guardarPrefs(cambios) { try { localStorage.setItem(KEY, JSON.stringify({ ...prefs(), ...cambios })); } catch (_) {} }
+    function guardarPrefs(cambios) { if (S?.op.espejo) return; try { localStorage.setItem(KEY, JSON.stringify({ ...prefs(), ...cambios })); } catch (_) {} }
     function prefCurso(ctx) { return { papel: 'lineas', letra: 'ligada', ...((prefs().cursos || {})[ctx] || {}) }; }
     function guardarPrefCurso(ctx, cambios) {
+        if (S?.op.espejo) return;
         const p = prefs(); p.cursos = p.cursos || {};
         p.cursos[ctx] = { ...prefCurso(ctx), ...cambios };
         guardarPrefs({ cursos: p.cursos });
@@ -55,6 +59,7 @@
     function pags() {
         const p = S.hojas.slice();
         if (S.op.crear) p.push({ especial: 'nueva' });
+        else if (S.op.espejo) p.push({ especial: 'blanco' });   // la Pizarra cuenta las hojas igual que el Plan
         if (!p.length) p.push({ especial: 'vacia' });
         return p;
     }
@@ -78,6 +83,7 @@
         }
         if (h.especial === 'tapa-int') return '<div class="cdn-pag tapa-int"></div>';
         if (h.especial === 'reverso') return `<div class="cdn-pag reverso ${papel}"></div>`;
+        if (h.especial === 'blanco') return `<div class="cdn-pag ${papel}"></div>`;
         if (h.especial === 'nueva') return `<div class="cdn-pag nueva ${papel}"><button class="cdn-nueva-btn" data-accion="nueva">＋ Nueva hoja</button></div>`;
         if (h.especial === 'vacia') return `<div class="cdn-pag vacia ${papel}">Todavía no hay hojas en este cuaderno.</div>`;
         const piezas = (h.contenido || []).map(p => {
@@ -157,6 +163,9 @@
         const h = hojaFoco();
         $('[data-accion="editar"]').style.visibility = h && S.modo !== 1 ? 'visible' : 'hidden';
         $('[data-accion="crear"]').style.visibility = S.op.crear ? 'visible' : 'hidden';
+        const bp = $('[data-accion="pizarra"]');
+        bp.style.visibility = claseAqui() ? 'visible' : 'hidden';
+        bp.classList.toggle('on', !!S.proy);
         // Pie
         const n = S.hojas.length;
         let lbl = '';
@@ -174,6 +183,78 @@
         // ↻ Girar para leer: la hoja en foco tiene la otra orientación que la forma en que se mira
         const girar = h && S.modo !== 1 && ((h.orientacion === 'h') !== (S.modo === 4));
         $('.cdn-girar').style.visibility = girar ? 'visible' : 'hidden';
+        emitirEstado();
+    }
+
+    // ── En la Pizarra (paso 2) ──────────────────────────────────────────
+    const CANAL_P = 'profe-espejo-cuaderno', KEY_P = 'profe_espejo_cuaderno';
+    const canalP = 'BroadcastChannel' in window ? new BroadcastChannel(CANAL_P) : null;
+    // La clase de esta sesión está en curso en este equipo (solo ahí se proyecta).
+    function claseAqui() { return !!(S && !S.op.espejo && S.op.sesionId && window.ClaseVivo && ClaseVivo.get()?.sesionId === S.op.sesionId); }
+    function estadoProy() {
+        return { contextoId: S.op.contextoId, ctxNombre: S.op.ctxNombre, anio: S.anio, modo: S.modo, modoAbierto: S.modoAbierto, i: S.i,
+            espirales: S.espirales, papel: S.pref.papel, letra: S.pref.letra, zoom: S.zoom };
+    }
+    let ultimoProy = '';
+    function emitirEstado(forzar) {
+        if (!S?.proy) return;
+        const e = estadoProy(), j = JSON.stringify(e);
+        if (j === ultimoProy && !forzar) return;
+        ultimoProy = j;
+        const m = { tipo: 'estado', sesionId: S.op.sesionId, e };
+        try { localStorage.setItem(KEY_P, JSON.stringify(m)); } catch (_) {}
+        canalP?.postMessage(m);
+    }
+    function emitirPasar(dir) { if (S?.proy) canalP?.postMessage({ tipo: 'pasar', sesionId: S.op.sesionId, dir }); }
+    function proyectar(on) {
+        if (!S) return;
+        S.proy = !!on && claseAqui();
+        if (S.proy) emitirEstado(true);
+        else { ultimoProy = ''; try { localStorage.removeItem(KEY_P); } catch (_) {} canalP?.postMessage({ tipo: 'off' }); }
+        pintarBarra();
+    }
+    window.addEventListener('pagehide', () => { if (S?.proy) proyectar(false); });
+    if (window.ClaseVivo) ClaseVivo.onCambio(() => { if (!S || raiz?.hidden) return; if (S.proy && !claseAqui()) proyectar(false); else pintarBarra(); });
+
+    // Lado Pizarra: abre el mismo cuaderno a pantalla completa y sigue lo que hace el profe.
+    let abriendo = null;
+    function aplicarEstado(e) {
+        if (!S?.op.espejo) return;
+        if (S.anim) { S.pendEstado = e; return; }
+        S.pendEstado = null;
+        S.espirales = e.espirales; S.pref.papel = e.papel; S.pref.letra = e.letra;
+        S.zoom = e.zoom || 1; S.panX = S.panY = 0;
+        S.modo = e.modo; S.modoAbierto = e.modoAbierto || 2;
+        S.i = clamp(e.i | 0, 0, pags().length - 1);
+        pintar();
+    }
+    // `sb` puede ser una función: la Pizarra crea su cliente de Supabase después de cargar.
+    function espejoEnPizarra(sbODar, sesionId) {
+        if (!canalP || !sesionId) return;
+        const dar = typeof sbODar === 'function' ? sbODar : () => sbODar;
+        const mostrar = async e => {
+            if (abriendo) await abriendo;
+            if (!S || !S.op.espejo || S.op.contextoId !== e.contextoId || S.anio !== e.anio) {
+                let sb = dar();
+                for (let n = 0; !sb && n < 80; n++) { await new Promise(r => setTimeout(r, 250)); sb = dar(); }
+                if (!sb) return;
+                abriendo = abrir({ sb, contextoId: e.contextoId, ctxNombre: e.ctxNombre, anio: e.anio, espejo: true });
+                await abriendo; abriendo = null;
+                try { window.Recurrentes?.alProyectar?.(); } catch (_) {}
+            }
+            aplicarEstado(e);
+        };
+        canalP.onmessage = ev => {
+            const m = ev.data || {};
+            if (m.tipo === 'off') { if (S?.op.espejo) cerrar(); return; }
+            if (m.sesionId !== sesionId) return;
+            if (m.tipo === 'estado' && m.e) mostrar(m.e);
+            else if (m.tipo === 'pasar' && S?.op.espejo && !S.anim && !abriendo) pasar(m.dir);
+        };
+        try {
+            const m = JSON.parse(localStorage.getItem(KEY_P) || 'null');
+            if (m && m.sesionId === sesionId && m.e) mostrar(m.e);
+        } catch (_) {}
     }
 
     // ── Pasar la hoja ───────────────────────────────────────────────────
@@ -225,15 +306,18 @@
                 const dur = ms ?? Math.max(120, 520 * Math.abs(hasta - desde) / 180);
                 return new Promise(res => {
                     const t0 = performance.now();
+                    let listo = false;
+                    const fin = () => { if (listo) return; listo = true; alTerminar(completar); pintar(); res(); };
                     const paso = t => {
+                        if (listo) return;
                         const u = clamp((t - t0) / dur, 0, 1), e = 1 - Math.pow(1 - u, 3);
                         V.poner(desde + (hasta - desde) * e);
                         if (u < 1) return requestAnimationFrame(paso);
-                        alTerminar(completar);
-                        pintar();
-                        res();
+                        fin();
                     };
                     requestAnimationFrame(paso);
+                    // Ventana sin dibujar (minimizada o detrás): la hoja igual queda pasada.
+                    setTimeout(fin, dur + 400);
                 });
             },
         };
@@ -242,13 +326,15 @@
     }
     async function pasar(dir, ms) {
         if (S.anim || S.arrastre) return false;
-        if (S.modo === 1) { if (dir > 0) await abrirTapa(); return true; }
+        if (S.modo === 1) { if (dir > 0) { emitirPasar(1); await abrirTapa(); } return true; }
         const V = prepararVolteo(dir);
         if (!V) return false;
         S.anim = true;
+        emitirPasar(dir);
         sonar(ms);
         await V.terminar(true, ms);
         S.anim = false;
+        if (S.pendEstado) aplicarEstado(S.pendEstado);
         return true;
     }
     // Abrir el cuaderno cerrado: la tapa gira y queda la forma abierta que se usó la última vez.
@@ -272,10 +358,12 @@
                 if (u < 1) requestAnimationFrame(paso); else res();
             };
             requestAnimationFrame(paso);
+            setTimeout(res, 1000);
         });
         S.i = 0;
         cambiarModo(S.modoAbierto || 2);
         S.anim = false;
+        if (S.pendEstado) aplicarEstado(S.pendEstado);
     }
     // Índice: salta a una hoja pasando las hojas rápido (si son muchas, pasan algunas y llega).
     async function saltarA(i) {
@@ -296,7 +384,7 @@
     // Sonido suave de papel (ruido filtrado, sin archivos).
     let actx = null;
     function sonar(ms) {
-        if (!S.sonido) return;
+        if (!S.sonido || S.op.espejo) return;   // suena solo el computador del profe
         try {
             actx ||= new (window.AudioContext || window.webkitAudioContext)();
             const dur = Math.min(0.42, (ms || 420) / 1000 + 0.05), n = Math.floor(actx.sampleRate * dur);
@@ -347,7 +435,7 @@
     const punteros = new Map();
     let G = null;   // gesto en curso
     function alBajar(e) {
-        if (!S || S.editando || e.button > 0 || e.target.closest('button')) return;
+        if (!S || S.op.espejo || S.editando || e.button > 0 || e.target.closest('button')) return;
         punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
         try { $('.cdn-escena').setPointerCapture(e.pointerId); } catch (_) {}
         if (punteros.size === 2 && S.modo === 3) {
@@ -411,6 +499,7 @@
             const rapido = g.V.dir > 0 ? vx < -0.6 : vx > 0.6;
             const completar = g.V.dir > 0 ? g.V.th < -90 || rapido : g.V.th > -90 || rapido;
             S.anim = true;
+            if (completar) emitirPasar(g.V.dir);
             await g.V.terminar(completar);
             S.anim = false; S.arrastre = false;
             return;
@@ -431,11 +520,11 @@
         }
     }
     function alRueda(e) {
-        if (!S || S.editando) return;
+        if (!S || S.op.espejo || S.editando) return;
         if (S.modo === 3) { e.preventDefault(); ponerZoom(S.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12)); }
     }
     function alTecla(e) {
-        if (!S || raiz.hidden) return;
+        if (!S || raiz.hidden || S.op.espejo) return;
         if (S.editando) { if (e.key === 'Escape' && !EditorBloques.menuAbierto?.()) { e.preventDefault(); cerrarEditor(); } return; }
         if (e.target.closest?.('input, textarea, [contenteditable]')) return;
         const adelante = S.modo === 4 ? ['ArrowRight', 'ArrowUp', 'PageDown'] : ['ArrowRight', 'PageDown'];
@@ -483,6 +572,7 @@
             </span>
             <span class="cdn-esp"></span>
             <button class="cdn-btn" data-accion="sonido" title="Sonido al pasar la hoja">🔈</button>
+            <button class="cdn-btn" data-accion="pizarra" style="visibility:hidden" title="Mostrar el cuaderno en la Pizarra y hojearlo desde aquí">📽️ Pizarra</button>
             <button class="cdn-btn" data-accion="editar" style="visibility:hidden" title="Editar la hoja en foco">✏️ Editar hoja</button>
             <button class="cdn-btn" data-accion="crear" style="visibility:hidden" title="Agregar una hoja nueva">＋ Hoja</button>
             <button class="cdn-cerrar" data-accion="cerrar" title="Cerrar (Esc)">✕</button>
@@ -507,6 +597,7 @@
             if (b.dataset.ir != null) { $('.cdn-indice').hidden = true; saltarA(+b.dataset.ir); return; }
             switch (b.dataset.accion) {
                 case 'cerrar': cerrar(); break;
+                case 'pizarra': proyectar(!S.proy); break;
                 case 'ant': pasar(-1); break;
                 case 'sig': pasar(1); break;
                 case 'espirales': S.espirales = !S.espirales; guardarPrefs({ espirales: S.espirales }); pintarBarra(); break;
@@ -552,8 +643,9 @@
         S = {
             op, anio, hojas: [], i: 0,
             modo: p.modo || 2, modoAbierto: p.modoAbierto || 2, espirales: p.espirales !== false, sonido: p.sonido !== false,
-            zoom: p.zoom || 1, panX: 0, panY: 0, k: 1, pref: prefCurso(op.ctxNombre), anim: false, editando: null,
+            zoom: p.zoom || 1, panX: 0, panY: 0, k: 1, pref: prefCurso(op.ctxNombre), anim: false, editando: null, proy: false,
         };
+        raiz.classList.toggle('espejo', !!op.espejo);
         const info = typeof contextoInfo === 'function' ? contextoInfo(op.ctxNombre) : { label: op.ctxNombre, icono: '' };
         $('.cdn-tit').textContent = `📔 Cuaderno · ${info.icono} ${info.label} · ${anio}`;
         raiz.hidden = false;
@@ -586,6 +678,7 @@
     async function cerrar(silencioso) {
         if (!S) return;
         if (S.editando) await cerrarEditor();
+        if (S.proy) proyectar(false);
         const cb = S.op.alCerrar;
         raiz.hidden = true;
         $('.cdn-indice').hidden = true;
@@ -816,5 +909,5 @@
         imgs.forEach(subirImagen);
     }
 
-    window.Cuaderno = { abrir, cerrar: () => cerrar(), cursos: CURSOS, abierto: () => !!S };
+    window.Cuaderno = { abrir, cerrar: () => cerrar(), cursos: CURSOS, abierto: () => !!S, espejoEnPizarra };
 })();

@@ -5150,3 +5150,30 @@ navegar por él; ahí consta la fecha, lo escrito, las imágenes coloreadas que 
 - **Prueba con datos reales (2026-10-21, Cuarto, año 2099):** ＋ Hoja creó la fila con la fecha sugerida; texto e imagen
   (PNG achicado a webp) guardados solos; al reabrir, la hoja se leyó de Supabase con la imagen desde el bucket público;
   🗑 Eliminar hoja borró la fila y su imagen (0 filas, 0 archivos). Falta: uso real y pantalla táctil.
+- **Paso 2 — el cuaderno en la Pizarra (PO aprueba seguir, 2026-10-21; diseño ya decidido en el paso 1: botón 📔 con la
+  clase en curso, la Pizarra muestra el cuaderno y se hojea entero desde el Planificador; al soltarlo vuelve a su
+  diapositiva).**
+  - **Auditoría:** la Pizarra ya recibe copias por `BroadcastChannel` + `localStorage` (Libro: `profe-espejo-libro`,
+    capa z 8600; Entrenador: `profe-espejo-entrenador`, capa z 8500; recurrentes z 9000; tiempo perdido z 9999) y llama
+    `Recurrentes.alProyectar()` al mostrar algo nuevo. La Pizarra tiene `sb` y `TiempoReal`: puede leer las hojas ella
+    misma (no hace falta mandar el contenido por el canal). `ClaseVivo.get().sesionId` dice si la clase en curso aquí
+    es la de la sesión abierta.
+  - **Diseño:** en el cuaderno abierto desde el Plan, botón **📽️ Pizarra** (solo con esa clase en curso en este
+    equipo, espacio reservado). Encendido: canal `profe-espejo-cuaderno` con el estado (curso, año, forma, hoja,
+    espirales, papel, letra, zoom) y un aviso por cada hoja que se pasa, para que la Pizarra la pase con la misma
+    animación. La Pizarra abre el mismo cuaderno (`Cuaderno.espejoEnPizarra`) a pantalla completa, sin barras ni
+    gestos, encima de la diapositiva (z 8400: debajo del Libro, el Entrenador, las recurrentes y el tiempo perdido).
+    Se apaga con el mismo botón o al cerrar el cuaderno; una Pizarra abierta después lo retoma.
+  - **Implementación (2026-10-21):** `comun/cuaderno.js`: botón 📽️ Pizarra (visible si `ClaseVivo.get().sesionId` es la
+    sesión del cuaderno), `proyectar` / `emitirEstado` (deduplicado, también en `localStorage` `profe_espejo_cuaderno`)
+    / `emitirPasar` (botones, teclas, clic en el borde, arrastre completado y la tapa); se apaga al cerrar el cuaderno,
+    al salir de la página y al terminar la clase. `Cuaderno.espejoEnPizarra(() => sb, sesionId)`: abre el cuaderno con
+    `espejo: true` (clase `.cdn.espejo`: sin barra ni pie, sin gestos ni teclas, sin sonido, sin guardar preferencias;
+    al final una hoja en blanco en vez de "＋ Nueva hoja" para contar las hojas igual que el Plan), pasa la hoja con la
+    misma animación al recibir "pasar" y se pone al día con el estado (si llega en plena animación, al terminarla).
+    `PIZARRA/index.html` carga `editor-bloques` y `cuaderno` y llama `espejoEnPizarra`. Corrección: si la ventana no se
+    dibuja (minimizada o detrás) la animación igual termina (respaldo con `setTimeout`); antes la hoja quedaba trabada.
+  - **Prueba (local, dos pestañas, hojas del año 2099 en Cuarto, borradas al final; clase en curso simulada en la
+    página):** 📽️ Pizarra visible y encendido; la Pizarra abrió el cuaderno encima (z 8400) sin barras; ▶ en el Plan
+    pasó al pliego de las hojas 2–3 en ambos; forma 3 + zoom 120 % llegó a la Pizarra; forma 4 llegó girada; cerrar el
+    cuaderno quitó el de la Pizarra y borró el aviso guardado. Falta: probar con el proyector y la clase real.
