@@ -5092,6 +5092,12 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   queda solo el informe (✓ Formato correcto…). El cuadro para pegar desde NotebookLM sigue como respaldo, plegado en
   "📋 Pegar desde NotebookLM (respaldo)" (`<details id="pasteWrap">`; al abrirlo toma el alto de su texto). Probado
   (local, Cuarto): plegado al abrir la página, el cuadro no se ve y el informe aparece igual al procesar una respuesta.
+  Commit `138e47f` (subido).
+- **Ajuste (PO, 2026-10-21):** al guardar con "💾 Guardar planificación", la página **vuelve a 📚 Planificaciones** y la
+  recién guardada se destaca unos segundos (brillo verde y "✓ Nueva" encima de su celda, sin correr la tabla; se
+  desvanece solo). `recienGuardada` = { curso, año, meses } se marca en `pintarPlanis` una sola vez y la tabla se
+  desplaza hasta ella. Probado (local): guardar una de prueba en 8° diciembre volvió a la tabla con "✓ Nueva" en esa
+  celda; la prueba se borró.
 
 ### CJ. Bitácora — Cuaderno de música del curso (1° a 8°)
 *Origen: pedido del PO (2026-10-21): "un registro de lo que se escribe en el cuaderno (físico) de la clase de música,
