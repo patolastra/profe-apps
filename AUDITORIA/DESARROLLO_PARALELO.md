@@ -5178,3 +5178,16 @@ navegar por él; ahí consta la fecha, lo escrito, las imágenes coloreadas que 
     pasó al pliego de las hojas 2–3 en ambos; forma 3 + zoom 120 % llegó a la Pizarra; forma 4 llegó girada; cerrar el
     cuaderno quitó el de la Pizarra y borró el aviso guardado. Falta: probar con el proyector y la clase real.
   - **Commit:** `a81690c` (subido).
+- **Ajuste (PO, 2026-10-21): páginas en blanco y franja de la página de al lado.**
+  - **DECISIÓN del PO:** botón **"＋ Página en blanco"** (deja una hoja sin fecha ni contenido justo después de la que se
+    está mirando, como saltarse una página); en las formas 3 y 4 se ve **una franja de la página de al lado** para que
+    los niños no pierdan la referencia.
+  - **Implementación:** la página en blanco es una hoja con la pieza `{ t: 'blanco' }` (sin cambio en Supabase): misma
+    fecha que la hoja en foco, creada después, así queda justo detrás; no muestra la fecha; el pie dice "en blanco" y el
+    índice "Página en blanco"; el editor tiene la casilla "Sin fecha" (se puede escribir en ella o volver a ponerle
+    fecha). Franja: en las formas 3 y 4 se dibuja la página anterior (antes de la primera, el interior de la tapa)
+    recortada a 130 de ancho junto al espiral, un poco más apagada; el conjunto queda centrado (`translateX(65)` dentro
+    del libro, también en la forma 4, donde la franja queda arriba) y los clics se calculan con ese corrimiento.
+  - **Prueba (local, Cuarto, año 2099, borrado al final):** "＋ Página en blanco" desde la hoja 1 dejó la hoja 2 "en
+    blanco" sin fecha; la franja muestra el borde de la hoja anterior (con su fecha cortada) a la izquierda del espiral en
+    la forma 3 y arriba en la forma 4; la hoja principal cabe entera en pantalla.

@@ -9,6 +9,8 @@
 // · 4 abierto y horizontal, una página (el cuaderno girado). Cada hoja tiene su orientación
 // ('v' | 'h'): una hoja escrita con el cuaderno girado se ve de lado en 1–3 y derecha en 4.
 // La hoja se pasa arrastrándola (sigue al dedo o al mouse), con clic en el borde, ← → o deslizando.
+// En las formas 3 y 4 se ve una franja de la página de al lado, para no perder la referencia.
+// Página en blanco: hoja sin fecha ni contenido (pieza { t: 'blanco' }), como saltarse una página.
 //
 // Uso:
 //   Cuaderno.abrir({ sb, contextoId, ctxNombre, anio, fecha, sesionId, crear, alCerrar })
@@ -38,6 +40,8 @@
         return `${DIAS[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`;
     }
     const fechaCorta = iso => fechaCuaderno(iso).replace(/^(\S{3})\S*/, '$1');
+    const sinFecha = h => (h?.contenido || []).some(p => p.t === 'blanco');   // página en blanco (sin fecha)
+    const FR = 130;   // ancho de la franja de la página de al lado (formas 3 y 4)
 
     // ── Preferencias (en este equipo): forma, espirales, sonido; papel y letra por curso ──
     function prefs() { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (_) { return {}; } }
@@ -94,7 +98,7 @@
             return p.x && p.x.trim() ? `<div class="cdn-txt">${EditorBloques.html(p.x)}</div>` : '';
         }).join('');
         return `<div class="cdn-pag ${papel}" data-hoja="${h.id || ''}"><div class="cdn-cont${h.orientacion === 'h' ? ' h' : ''}">
-            <div class="cdn-ajuste"><div class="cdn-fecha">${esc(fechaCuaderno(h.fecha))}</div>${piezas}</div></div></div>`;
+            <div class="cdn-ajuste">${sinFecha(h) ? '' : `<div class="cdn-fecha">${esc(fechaCuaderno(h.fecha))}</div>`}${piezas}</div></div></div>`;
     }
     // Si lo escrito no cabe, la hoja completa se achica (como escribir más apretado).
     function ajustar(cont) {
@@ -127,7 +131,10 @@
             h = `<div class="cdn-slot izq" style="left:0">${htmlPag(izqDe(k))}</div>
                  <div class="cdn-slot der" style="left:${PW}px">${htmlPag(derDe(k))}</div>` + espiral(PW);
         } else {
-            h = `<div class="cdn-slot der" style="left:0">${htmlPag(pags()[S.i])}</div>` + espiral(0);
+            // Franja de la página de al lado (la anterior; antes de la primera, el interior de la tapa).
+            const ant = S.i > 0 ? pags()[S.i - 1] : { especial: 'tapa-int' };
+            h = `<div class="cdn-slot izq franja" style="left:${-PW}px">${htmlPag(ant)}</div>
+                 <div class="cdn-slot der" style="left:0">${htmlPag(pags()[S.i])}</div>` + espiral(0);
         }
         L.innerHTML = h;
         ajustar(L);
@@ -138,13 +145,15 @@
     function escala() {
         const r = $('.cdn-escena').getBoundingClientRect();
         const gira = S.modo === 4;
-        const w = (gira ? PH : anchoLibro()) + 80, hh = (gira ? anchoLibro() : PH) + 40;
+        const ancho = anchoLibro() + (S.modo >= 3 ? FR : 0);
+        const w = (gira ? PH : ancho) + 80, hh = (gira ? ancho : PH) + 40;
         return Math.min(r.width / w, r.height / hh) * (S.modo === 3 ? S.zoom : 1);
     }
     function transformar() {
         const L = $('.cdn-libro');
         S.k = escala();
-        L.style.transform = `translate(-50%, -50%) translate(${S.panX}px, ${S.panY}px)${S.modo === 4 ? ' rotate(90deg)' : ''} scale(${S.k})`;
+        // Formas 3 y 4: el conjunto (franja + página) queda centrado.
+        L.style.transform = `translate(-50%, -50%) translate(${S.panX}px, ${S.panY}px)${S.modo === 4 ? ' rotate(90deg)' : ''} scale(${S.k})${S.modo >= 3 ? ` translateX(${FR / 2}px)` : ''}`;
     }
 
     // ── Barra y pie ─────────────────────────────────────────────────────
@@ -163,6 +172,7 @@
         const h = hojaFoco();
         $('[data-accion="editar"]').style.visibility = h && S.modo !== 1 ? 'visible' : 'hidden';
         $('[data-accion="crear"]').style.visibility = S.op.crear ? 'visible' : 'hidden';
+        $('[data-accion="blanca"]').style.visibility = S.op.crear && S.modo !== 1 ? 'visible' : 'hidden';
         const bp = $('[data-accion="pizarra"]');
         bp.style.visibility = claseAqui() ? 'visible' : 'hidden';
         bp.classList.toggle('on', !!S.proy);
@@ -173,9 +183,9 @@
         else if (S.modo === 2) {
             const k = pliego(), a = izqDe(k), b = derDe(k);
             const fs = [a, b].filter(x => x && !x.especial);
-            lbl = fs.length ? fs.map(x => `${S.hojas.indexOf(x) + 1}`).join('–') + ` de ${n} · ` + fs.map(x => fechaCorta(x.fecha)).join(' · ') : (n ? `${n} hojas` : 'Sin hojas');
+            lbl = fs.length ? fs.map(x => `${S.hojas.indexOf(x) + 1}`).join('–') + ` de ${n} · ` + fs.map(x => sinFecha(x) ? 'en blanco' : fechaCorta(x.fecha)).join(' · ') : (n ? `${n} hojas` : 'Sin hojas');
         } else {
-            lbl = h ? `Hoja ${S.hojas.indexOf(h) + 1} de ${n} · ${fechaCuaderno(h.fecha)}` : (S.op.crear ? 'Nueva hoja' : 'Sin hojas');
+            lbl = h ? `Hoja ${S.hojas.indexOf(h) + 1} de ${n} · ${sinFecha(h) ? 'en blanco' : fechaCuaderno(h.fecha)}` : (S.op.crear ? 'Nueva hoja' : 'Sin hojas');
         }
         $('.cdn-lbl').textContent = lbl;
         $('[data-accion="ant"]').disabled = S.modo === 1 || (S.modo === 2 ? pliego() === 0 : S.i === 0);
@@ -430,7 +440,7 @@
         const r = $('.cdn-escena').getBoundingClientRect();
         const ox = cx - (r.left + r.width / 2) - S.panX, oy = cy - (r.top + r.height / 2) - S.panY;
         const [lx, ly] = S.modo === 4 ? [oy, -ox] : [ox, oy];
-        return { x: lx / S.k + anchoLibro() / 2, y: ly / S.k + PH / 2 };
+        return { x: lx / S.k + anchoLibro() / 2 - (S.modo >= 3 ? FR / 2 : 0), y: ly / S.k + PH / 2 };
     }
     const punteros = new Map();
     let G = null;   // gesto en curso
@@ -513,7 +523,7 @@
         if (l.y < 0 || l.y > PH) return;
         const W = anchoLibro();
         if (l.x > W - PW * 0.16 && l.x <= W + 40) { pasar(1); return; }
-        if (l.x < PW * 0.16 && l.x >= -40) { pasar(-1); return; }
+        if (l.x < PW * 0.16 && l.x >= -(S.modo >= 3 ? FR : 0) - 40) { pasar(-1); return; }
         if (S.modo === 2 && l.x >= 0 && l.x <= W) {      // clic en una página = esa es la hoja en foco
             const i = l.x < PW ? 2 * pliego() - 1 : 2 * pliego();
             if (i >= 0 && i < pags().length) { S.i = i; pintarBarra(); }
@@ -575,6 +585,7 @@
             <button class="cdn-btn" data-accion="pizarra" style="visibility:hidden" title="Mostrar el cuaderno en la Pizarra y hojearlo desde aquí">📽️ Pizarra</button>
             <button class="cdn-btn" data-accion="editar" style="visibility:hidden" title="Editar la hoja en foco">✏️ Editar hoja</button>
             <button class="cdn-btn" data-accion="crear" style="visibility:hidden" title="Agregar una hoja nueva">＋ Hoja</button>
+            <button class="cdn-btn" data-accion="blanca" style="visibility:hidden" title="Dejar una página en blanco después de la que se está mirando">＋ Página en blanco</button>
             <button class="cdn-cerrar" data-accion="cerrar" title="Cerrar (Esc)">✕</button>
         </div>
         <div class="cdn-escena"><div class="cdn-libro"></div></div>
@@ -609,6 +620,7 @@
                 case 'indice': abrirIndice(); break;
                 case 'editar': { const h = hojaFoco(); if (h) abrirEditor(h); break; }
                 case 'crear': case 'nueva': nuevaHoja(); break;
+                case 'blanca': paginaEnBlanco(); break;
             }
         });
         const esc_ = $('.cdn-escena');
@@ -628,8 +640,10 @@
         const foco = hojaFoco();
         caja.innerHTML = S.hojas.length ? S.hojas.map((h, i) => {
             const t = (h.contenido || []).find(p => p.t === 'txt' && p.x?.trim());
+            if (sinFecha(h) && !t && !(h.contenido || []).some(p => p.t === 'img'))
+                return `<button data-ir="${i}" class="${h === foco ? 'on' : ''}"><span class="f">—</span><span class="t" style="color:#9a988f">Página en blanco</span></button>`;
             const primera = t ? t.x.split('\n').find(l => l.trim()).replace(/^(#{1,3} |[-*•] \[[ xX]\] |[-*•] |\d+\. )/, '').replace(/[*_{}]|\{[23]:/g, '') : '🖼 Imagen';
-            return `<button data-ir="${i}" class="${h === foco ? 'on' : ''}"><span class="f">${esc(fechaCorta(h.fecha))}</span><span class="t">${esc(primera || '—')}</span></button>`;
+            return `<button data-ir="${i}" class="${h === foco ? 'on' : ''}"><span class="f">${sinFecha(h) ? '—' : esc(fechaCorta(h.fecha))}</span><span class="t">${esc(primera || '—')}</span></button>`;
         }).join('') : '<div class="vacio">Todavía no hay hojas.</div>';
         caja.hidden = false;
     }
@@ -651,7 +665,7 @@
         raiz.hidden = false;
         $('.cdn-libro').innerHTML = '';
         $('.cdn-lbl').textContent = 'Cargando…';
-        ['.cdn-zoom', '[data-accion="editar"]', '[data-accion="crear"]', '.cdn-girar'].forEach(q => { $(q).style.visibility = 'hidden'; });
+        ['.cdn-zoom', '[data-accion="editar"]', '[data-accion="crear"]', '[data-accion="blanca"]', '.cdn-girar'].forEach(q => { $(q).style.visibility = 'hidden'; });
         const ok = await cargar();
         if (!ok) { $('.cdn-lbl').textContent = 'No se pudo cargar el cuaderno — revisa conexión (¿se ejecutó cuaderno.sql?).'; return; }
         // Abre en la hoja de esa fecha; si no hay, en la última.
@@ -718,9 +732,25 @@
         abrirEditor(S.hojas[S.i], true);
     }
 
+    // Página en blanco: queda justo después de la hoja que se está mirando (misma fecha, creada después).
+    async function paginaEnBlanco() {
+        if (!S?.op.crear || S.anim) return;
+        const foco = hojaFoco() || (S.modo === 2 ? izqDe(pliego()) : null);
+        const base = foco && !foco.especial ? foco : S.hojas[S.hojas.length - 1];
+        const fecha = base?.fecha || S.op.fecha || hoyISO();
+        const fila = { contexto_id: S.op.contextoId, anio: S.anio, fecha, orientacion: 'v', contenido: [{ t: 'blanco' }], sesion_id: S.op.sesionId || null };
+        const { data, error } = await S.op.sb.from('cuaderno_hojas').insert(fila).select().single();
+        if (error) { $('.cdn-lbl').textContent = 'No se pudo agregar la página — revisa conexión.'; return; }
+        S.ultEnvio = data.updated_at;
+        S.hojas.push({ ...data, contenido: data.contenido || [] });
+        ordenar();
+        S.i = S.hojas.findIndex(h => h.id === data.id);
+        pintar();
+    }
+
     function abrirEditor(h, nueva) {
         const caja = $('.cdn-ed');
-        const E = S.editando = { h, nueva, fecha: h.fecha, orientacion: h.orientacion || 'v', piezas: [], sucio: false, timer: null, cadena: Promise.resolve() };
+        const E = S.editando = { h, nueva, fecha: h.fecha, orientacion: h.orientacion || 'v', sinFecha: sinFecha(h), piezas: [], sucio: false, timer: null, cadena: Promise.resolve() };
         caja.innerHTML = `<div class="cdn-ed-caja">
             <div class="cdn-ed-hdr">
                 <span class="tit">✏️ Hoja del cuaderno</span>
@@ -728,6 +758,7 @@
                 <span class="cdn-grupo" title="Orientación: horizontal = escrita con el cuaderno girado">
                     <button data-ori="v">▯ Vertical</button><button data-ori="h">▭ Horizontal</button>
                 </span>
+                <label title="Página en blanco: no muestra la fecha"><input type="checkbox" class="cdn-ed-sinfecha"${sinFecha(h) ? ' checked' : ''}> Sin fecha</label>
                 <span class="cdn-ed-estado"></span>
                 <span class="cdn-esp"></span>
                 <button class="cdn-ed-borrar" data-ed="borrar">🗑 Eliminar hoja</button>
@@ -740,7 +771,7 @@
                 <div class="cdn-ed-vista"></div>
             </div></div>`;
         caja.hidden = false;
-        (h.contenido || []).forEach(p => E.piezas.push({ ...p }));
+        (h.contenido || []).forEach(p => { if (p.t !== 'blanco') E.piezas.push({ ...p }); });
         if (!E.piezas.some(p => p.t === 'txt')) E.piezas.unshift({ t: 'txt', x: '' });
         pintarPiezas();
         pintarOri();
@@ -761,6 +792,7 @@
                 case 'quitar': recogerTextos(); E.piezas.splice(j, 1); pintarPiezas(); marcar(); break;
             }
         };
+        caja.querySelector('.cdn-ed-sinfecha').onchange = e => { E.sinFecha = e.target.checked; marcar(); };
         caja.querySelector('.cdn-ed-fecha').onchange = e => { if (e.target.value) { E.fecha = e.target.value; marcar(); } };
         caja.querySelector('input[type=file]').onchange = e => { [...e.target.files].forEach(subirImagen); e.target.value = ''; };
     }
@@ -790,7 +822,8 @@
     }
     function piezasParaGuardar() {
         recogerTextos();
-        return S.editando.piezas.filter(p => p.t === 'txt' ? true : !!p.path).map(p => p.t === 'img' ? { t: 'img', path: p.path, tam: p.tam || 'm' } : { t: 'txt', x: p.x || '' });
+        const piezas = S.editando.piezas.filter(p => p.t === 'txt' ? true : !!p.path).map(p => p.t === 'img' ? { t: 'img', path: p.path, tam: p.tam || 'm' } : { t: 'txt', x: p.x || '' });
+        return S.editando.sinFecha ? [{ t: 'blanco' }, ...piezas] : piezas;
     }
     let timerVista = null;
     function marcar() {
@@ -828,7 +861,7 @@
         if (!E) return;
         recogerTextos();
         const caja = $('.cdn-ed-vista');
-        const h = { ...E.h, fecha: E.fecha, orientacion: E.orientacion, contenido: E.piezas.map(p => ({ ...p, ed: undefined })) };
+        const h = { ...E.h, fecha: E.fecha, orientacion: E.orientacion, contenido: [...(E.sinFecha ? [{ t: 'blanco' }] : []), ...E.piezas.map(p => ({ ...p, ed: undefined }))] };
         const r = caja.getBoundingClientRect();
         const k = Math.min((r.width - 30) / PW, (r.height - 30) / PH);
         caja.innerHTML = `<div class="cdn-slot der" style="left:${(r.width - PW * k) / 2}px;top:${(r.height - PH * k) / 2}px;transform:scale(${k})">${htmlPag(h)}</div>`;
