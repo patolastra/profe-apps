@@ -5088,3 +5088,61 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   Hecho: "Generar planificación .docx" → **"💾 Guardar planificación"** (`guardarDesdeBoton`: guarda al instante y
   dice "✓ Guardada. Descárgala desde 📚 Planificaciones."; avisa si no hay curso/mes o nada que guardar); la columna
   pasa a "Revisa y guarda la planificación". Probado (año 2099, borrado): guarda y no descarga nada.
+
+### CJ. Bitácora — Cuaderno de música del curso (1° a 8°)
+*Origen: pedido del PO (2026-10-21): "un registro de lo que se escribe en el cuaderno (físico) de la clase de música,
+para cada curso, de 1ro a 8vo; mostrar un cuaderno que tenga tapas de color rosado, de manera vertical, y que se pueda
+navegar por él; ahí consta la fecha, lo escrito, las imágenes coloreadas que se hayan trabajado".*
+- **Necesidad:** que los niños vean qué trabajo tienen (o deberían tener) en su cuaderno; registro del profe y para la
+  UTP; revisar cuadernos. Es parte de la bitácora: se anota también *después* de la clase lo que se hizo en el cuaderno.
+- **Auditoría (2026-10-21):**
+  - **Cursos** (`CURSOS/index.html`): histórico del curso en una página; barra superior con 📄 Planificación del mes
+    (solo 1°–8°, espacio reservado). Ahí cabe un botón 📔 Cuaderno con la misma regla.
+  - **Planificador** (`PORTAL/index.html`): barra de la sesión con ✍🏼 Bitácora (`abrirMemoria`, ventana `#mem-modal`).
+    El cuaderno se abre desde la barra y desde la ventana de la bitácora.
+  - **Editor por bloques** (`comun/editor-bloques.js`): no maneja imágenes; sirve para los textos de la hoja (mismo
+    formato y 3 colores). Las imágenes van como piezas aparte de la hoja.
+  - **Letras**: `comun/fuentes/` ya tiene ligada (Playwrite CL) e imprenta (Andika), sin internet (deuda BL).
+  - **Supabase:** no hay tabla ni lugar para imágenes de este tipo; los buckets existentes son de la Biblioteca y de
+    los audios de la bitácora → tabla y bucket nuevos (aditivo).
+- **DECISIÓN del PO (2026-10-21), paso 1:**
+  - Un **cuaderno rosado por curso (1° a 8°) y por año**; tapa con curso, año y "Música". Los de años anteriores quedan.
+  - **Hojas libres** con fecha (no atadas a una clase): si nace del Plan o de la bitácora de una clase, parte con la
+    fecha de esa clase y se puede cambiar; se ordenan por fecha.
+  - Cada hoja: **texto** (letra ligada o imprenta, a elección, recordada por curso) e **imágenes** coloreadas, entre el
+    texto (chica, mediana, grande) o a hoja completa. **Tipo de hoja** con interruptor: lisa / líneas / cuadros (sin
+    pentagrama). Cada hoja tiene **su orientación** (vertical u horizontal), como el cuaderno real escrito girado.
+  - **Cuatro formas de verlo:** (1) cerrado y vertical; (2) abierto y vertical, las dos páginas; (3) abierto y vertical,
+    una página; (4) abierto y horizontal, una página. La hoja se ve como en el cuaderno físico: una horizontal en las
+    formas 1–3 se ve de lado y en la 4 derecha (y al revés). Aviso "↻ Girar para leer" que cambia de forma.
+  - **Mostrar/ocultar espirales.** **Pasar la hoja** lo más real posible: arrastrar la esquina (la hoja sigue al
+    dedo/mouse y vuelve si se suelta a medias), clic en el borde, ← →, deslizar; sonido suave de papel (apagable);
+    índice por fecha que salta pasando las hojas rápido.
+  - **Zoom en la forma 3:** rueda, pellizco o + / −, siempre con la hoja centrada; con zoom se puede arrastrar para mirar
+    un rincón y vuelve sola al centro al soltar; doble clic o ⟲ = tamaño normal; el zoom se mantiene al pasar de hoja.
+  - **Dónde:** se arma en el **Plan** y en la **bitácora** de la clase; en **Cursos** se ve (solo lectura, con ✏️ por
+    hoja). Paso 2: la Pizarra (📔 con la clase en curso, hojeando todo el cuaderno). Paso 3: celular, si se quiere.
+- **Implementación (2026-10-21):** pieza compartida **`comun/cuaderno.js`** (`Cuaderno.abrir({ sb, contextoId, ctxNombre,
+  anio, fecha, sesionId, crear })`) + `comun/cuaderno.css`; tabla `cuaderno_hojas` y bucket público `cuaderno-imagenes`
+  en **`supabase/cuaderno.sql`** (aditivo; lo corre el PO). La hoja se dibuja a tamaño fijo (860 × 1120) y el libro se
+  escala a la pantalla; forma 4 = el mismo libro girado 90°, así una hoja horizontal (`orientacion = 'h'`, contenido
+  girado −90°) se lee derecha ahí y de lado en las formas 1–3. Pasar la hoja: hoja que gira en 3D sobre el espiral con
+  sombra; al arrastrar, el punto tomado sigue al dedo/mouse (ángulo por coseno), y al soltar se completa si pasó la
+  mitad o se lanzó rápido; clic en el borde, ← → (forma 4 también ↑ ↓), ◀ ▶ y deslizar. Sonido de papel sintetizado
+  (🔈/🔇). Índice 📅 por fecha que pasa hasta 6 hojas rápido y llega. Zoom en la forma 3 (rueda, pellizco, + / −, ⟲,
+  doble clic), arrastre que vuelve al centro. Lo escrito que no cabe achica la hoja. Contenido de la hoja = piezas en
+  orden: textos (editor por bloques, mismas marcas) e imágenes (achicadas a 1600 px en webp al subir; chica, mediana,
+  grande u hoja completa; también se pegan con Ctrl + V). Editor de la hoja: fecha (del año del cuaderno),
+  Vertical/Horizontal, piezas con ▲ ▼ ✕, vista previa al lado, guardado solo, 🗑 Eliminar hoja (borra también sus
+  imágenes). Preferencias en el equipo: forma, espirales, sonido, zoom; papel (lisa/líneas/cuadros) y letra
+  (ligada/imprenta) por curso. Al instante entre equipos (Realtime de `cuaderno_hojas`). **Planificador:** 📔 en la
+  barra de la sesión y "📔 Cuaderno" en la ventana ✍🏼 (solo 1°–8°, espacio reservado): abre en la hoja de esa clase
+  (o la última), con ＋ Hoja / ＋ Nueva hoja con la fecha de la clase. **Cursos:** "📔 Cuaderno" en la barra (1°–8°),
+  sin crear hojas, con ✏️ Editar hoja.
+- **Prueba (local, puerto 8972, con hojas de prueba en memoria; la tabla aún no existe):** las 4 formas (tapa rosada con
+  "Música · Cuarto básico · 2026"; dos páginas con interior de tapa a la izquierda; una página; horizontal con espiral
+  arriba y la hoja horizontal derecha), "↻ Girar para leer" pasa de 3 a 4; arrastrar la esquina gira la hoja a −74° y al
+  soltar pasada la mitad queda en el pliego siguiente; zoom con rueda a 197 % y se mantiene al saltar con el índice;
+  editor: cambiar a Horizontal gira la vista previa y guarda; letra ligada en la hoja. En el Planificador, 📔 visible en
+  Cuarto y el cuaderno avisa "¿se ejecutó cuaderno.sql?" mientras falte la tabla. Falta: correr el SQL, subir imágenes
+  reales y probar con el dedo en pantalla táctil.

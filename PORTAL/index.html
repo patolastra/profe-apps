@@ -20,6 +20,8 @@
     <link rel="stylesheet" href="../comun/apoderados.css">
     <script src="../comun/apoderados.js"></script>
     <script src="../comun/tiempo-real.js"></script>
+    <link rel="stylesheet" href="../comun/cuaderno.css">
+    <script src="../comun/cuaderno.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -1342,6 +1344,7 @@
             <button class="hdr-btn ico" onclick="abrirLibro()" data-label="Libro" aria-label="Libro">📒</button>
             <button class="hdr-btn ico" onclick="abrirRepertorioCurso()" data-label="Repertorio" aria-label="Repertorio">🎵</button>
             <button class="hdr-btn ico" onclick="abrirMemoria()" data-label="Bitácora" aria-label="Bitácora">✍🏼</button>
+            <button class="hdr-btn ico" id="btn-cuaderno" onclick="abrirCuaderno()" data-label="Cuaderno" aria-label="Cuaderno" style="visibility:hidden">📔</button>
             <button class="hdr-btn ico" onclick="mostrarQRRemoto()" data-label="Remoto" aria-label="Remoto">📱</button>
             <span id="recu-wrap" hidden>
                 <button class="hdr-btn ico" id="btn-recu" onclick="recuMenu(event)" data-label="Diapositivas recurrentes" aria-label="Diapositivas recurrentes">🔔</button>
@@ -1479,7 +1482,10 @@
     <div id="mem-inner">
         <div id="mem-hdr">
             <span id="mem-titulo">✍🏼 Bitácora de la clase</span>
-            <button onclick="cerrarMemoria()">✕</button>
+            <span style="display:flex;gap:10px;align-items:center">
+                <button id="mem-cuaderno" onclick="abrirCuaderno()" title="Lo que se escribió en el cuaderno en esta clase" style="visibility:hidden">📔 Cuaderno</button>
+                <button onclick="cerrarMemoria()">✕</button>
+            </span>
         </div>
         <div id="mem-audios"></div>
         <div id="mem-editor"></div>
@@ -2170,6 +2176,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
     sesionActual = { id: sesion.id, contexto_id: cid, fecha: fechaStr, nombre };
     renderClase();
     renderBotonLista();
+    renderBotonCuaderno();
     logEvento('abrir_sesion', { contexto_id: cid, sesion_id: sesion.id });
 
     modoTriptico = 'pres';   // vista única: el Portal siempre entra en modo pres
@@ -2552,6 +2559,20 @@ window.addEventListener('message', (e) => {
 // (sesión, contexto, año) por URL; LIBRO NO reconstruye ni reinterpreta la sesión.
 // Preferencia: pestaña INTERNA del Workspace (una por curso, clave "libro:<ctx>").
 // Fallback (Portal suelto): pestaña de navegador como antes.
+// 📔 Cuaderno del curso (deuda CJ): solo 1°–8°. Abre en la hoja de esta clase (o la última) y una hoja
+// nueva parte con la fecha de la clase; sirve para planificar y para anotar después lo que quedó en el cuaderno.
+function ctxNombreActual() { return (contextos[sesionActual?.contexto_id]?.nombre || sesionActual?.nombre || '').toUpperCase(); }
+function renderBotonCuaderno() {
+    const v = sesionActual && Cuaderno.cursos.includes(ctxNombreActual()) ? 'visible' : 'hidden';
+    document.getElementById('btn-cuaderno').style.visibility = v;
+    document.getElementById('mem-cuaderno').style.visibility = v;
+}
+function abrirCuaderno() {
+    if (!sesionActual || !Cuaderno.cursos.includes(ctxNombreActual())) return;
+    Cuaderno.abrir({ sb, contextoId: sesionActual.contexto_id, ctxNombre: ctxNombreActual(),
+        fecha: sesionActual.fecha, sesionId: sesionActual.id, crear: true });
+}
+
 function abrirLibro() {
     if (!sesionActual) return;
     const ctx  = contextos[sesionActual.contexto_id]?.nombre || sesionActual.nombre || '';
