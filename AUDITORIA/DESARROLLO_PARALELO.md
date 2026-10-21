@@ -5146,3 +5146,4 @@ navegar por él; ahí consta la fecha, lo escrito, las imágenes coloreadas que 
   editor: cambiar a Horizontal gira la vista previa y guarda; letra ligada en la hoja. En el Planificador, 📔 visible en
   Cuarto y el cuaderno avisa "¿se ejecutó cuaderno.sql?" mientras falte la tabla. Falta: correr el SQL, subir imágenes
   reales y probar con el dedo en pantalla táctil.
+- **Commit:** `6f0f5bf` (subido). Falta: el PO corre `supabase/cuaderno.sql`; uso real.
