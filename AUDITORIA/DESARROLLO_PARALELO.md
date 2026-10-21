@@ -5110,6 +5110,12 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
 - **Ajuste (PO, 2026-10-21): el año no se elige.** Se planifica siempre para el año en ejercicio: el campo Año queda solo
   para mirar (`readonly`, sin borde, no recibe foco); lo pone la página (año en curso) y solo cambia al abrir una
   planificación guardada de otro año desde 📂 Guardadas.
+  Commit `6c74a8b` (subido).
+- **Ajuste (PO, 2026-10-21): planificaciones de varios meses en una sola celda.** En 📚 Planificaciones, una
+  planificación de meses seguidos (p. ej. Oct–Nov) se muestra **una sola vez**, en una celda combinada a lo ancho de sus
+  meses (con su rango y un fondo suave), para que no parezcan dos documentos. Si en alguno de esos meses el curso tiene
+  otra planificación, se mantiene la vista por mes (no se pueden superponer). Probado (local, datos reales): 4° Oct–Nov,
+  5° y 8° Sep–Oct quedan en una celda de 2 meses; las demás filas siguen con una celda por mes.
 
 ### CJ. Bitácora — Cuaderno de música del curso (1° a 8°)
 *Origen: pedido del PO (2026-10-21): "un registro de lo que se escribe en el cuaderno (físico) de la clase de música,

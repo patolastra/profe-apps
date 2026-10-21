@@ -289,8 +289,10 @@
     .celda + .celda { margin-top: 5px; padding-top: 5px; border-top: 1px dashed #eee; }
     /* Recién guardada (PO 2026-10-21): brillo y distintivo por unos segundos, encima (no corre la tabla) */
     .celda { position: relative; border-radius: 8px; }
+    /* Celda combinada: una planificación de varios meses, una sola vez */
+    td.combinada .celda { background: #fff8f0; border: 1.5px solid #f6d3ae; padding: 4px 0; margin: 0 6px; }
     .celda.nueva { animation: celdaNueva 9s ease-out forwards; }
-    @keyframes celdaNueva { 0%, 70% { box-shadow: 0 0 0 3px #27ae60; background: #eafaf0; } 100% { box-shadow: 0 0 0 3px transparent; background: transparent; } }
+    @keyframes celdaNueva { 0%, 70% { box-shadow: 0 0 0 3px #27ae60; background: #eafaf0; } 100% { box-shadow: 0 0 0 3px transparent; } }
     .celda-nueva { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none;
       background: #27ae60; color: #fff; font-size: 0.62rem; font-weight: 800; padding: 1px 6px; border-radius: 999px;
       animation: chipNueva 9s ease-out forwards; }
@@ -2235,21 +2237,39 @@ function pintarPlanis(anio) {
   const cab = '<tr><th class="curso">Curso</th>' + meses.map(m =>
     `<th class="${m === mesHoy ? 'hoy' : ''}">${ABREV_MES[m]}</th>`).join('') + '</tr>';
   const filas = Object.entries(CURSO_CTX).map(([curso, ctx], i) => {
-    const celdas = meses.map(m => {
+    const deCurso = planisFilas.filter(x => x.ctx === ctx);
+    const html = f => {
+      const rango = f.meses.length > 1 ? `<span class="celda-rango">${ABREV_MES[f.meses[0]]}–${ABREV_MES[f.meses.at(-1)]}</span>` : '';
+      const nueva = recienGuardada && recienGuardada.ctx === ctx && +recienGuardada.anio === +f.anio
+        && recienGuardada.meses.join() === (f.meses || []).join();
+      return `<div class="celda${nueva ? ' nueva' : ''}">${nueva ? '<span class="celda-nueva">✓ Nueva</span>' : ''}${rango}<span class="celda-btns">
+        <button type="button" data-ver="${f.id}" title="Visualizar ${esc(curso)}, ${esc(textoMeses(f.meses))}">👁</button>
+        <button type="button" data-bajar="${f.id}" title="Descargar el Word">⬇</button></span></div>`;
+    };
+    // Una planificación de varios meses seguidos va en una sola celda combinada (PO 2026-10-21), así no parecen
+    // dos documentos. Solo si en esos meses no hay otra planificación del curso; si la hay, se muestra en cada mes.
+    const combinable = f => {
+      const ms = f.meses || [];
+      if (ms.length < 2 || ms.some((m, j) => !meses.includes(m) || (j && m !== ms[j - 1] + 1))) return false;
+      return !deCurso.some(o => o !== f && (o.meses || []).some(m => ms.includes(m)));
+    };
+    let celdas = '';
+    for (let j = 0; j < meses.length; j++) {
+      const m = meses[j];
+      const span = deCurso.find(f => f.meses[0] === m && combinable(f));
+      if (span) {
+        const n = span.meses.length;
+        celdas += `<td colspan="${n}" class="combinada${span.meses.includes(mesHoy) ? ' hoy' : ''}">${html(span)}</td>`;
+        j += n - 1;
+        continue;
+      }
       // Puede haber más de una (p. ej. "Octubre" y "Octubre y Noviembre"): se muestran todas.
-      const fs = planisFilas.filter(x => x.ctx === ctx && (x.meses || []).includes(m))
-        .sort((a, b) => a.meses.length - b.meses.length);
+      const fs = deCurso.filter(x => (x.meses || []).includes(m)).sort((a, b) => a.meses.length - b.meses.length);
       const cls = m === mesHoy ? ' class="hoy"' : '';
-      if (!fs.length) return `<td${cls}><button type="button" class="celda-crear" data-crear="${ctx}|${m}" title="Crear la planificación de ${curso}, ${NOMBRE_MES[m]}">＋</button></td>`;
-      return `<td${cls}>` + fs.map(f => {
-        const rango = f.meses.length > 1 ? `<span class="celda-rango">${ABREV_MES[f.meses[0]]}–${ABREV_MES[f.meses.at(-1)]}</span>` : '';
-        const nueva = recienGuardada && recienGuardada.ctx === ctx && +recienGuardada.anio === +f.anio
-          && recienGuardada.meses.join() === (f.meses || []).join();
-        return `<div class="celda${nueva ? ' nueva' : ''}">${nueva ? '<span class="celda-nueva">✓ Nueva</span>' : ''}${rango}<span class="celda-btns">
-          <button type="button" data-ver="${f.id}" title="Visualizar ${esc(curso)}, ${esc(textoMeses(f.meses))}">👁</button>
-          <button type="button" data-bajar="${f.id}" title="Descargar el Word">⬇</button></span></div>`;
-      }).join('') + '</td>';
-    }).join('');
+      celdas += !fs.length
+        ? `<td${cls}><button type="button" class="celda-crear" data-crear="${ctx}|${m}" title="Crear la planificación de ${curso}, ${NOMBRE_MES[m]}">＋</button></td>`
+        : `<td${cls}>` + fs.map(html).join('') + '</td>';
+    }
     return `<tr><td class="curso" title="${curso}">${i + 1}°</td>${celdas}</tr>`;
   }).join('');
   document.getElementById('planisTabla').innerHTML = cab + filas;
