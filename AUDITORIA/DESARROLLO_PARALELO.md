@@ -5116,6 +5116,25 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   meses (con su rango y un fondo suave), para que no parezcan dos documentos. Si en alguno de esos meses el curso tiene
   otra planificación, se mantiene la vista por mes (no se pueden superponer). Probado (local, datos reales): 4° Oct–Nov,
   5° y 8° Sep–Oct quedan en una celda de 2 meses; las demás filas siguen con una celda por mes.
+  Commit `a9a2117` (subido).
+- **Ajuste (PO, 2026-10-21): nunca dos planificaciones del mismo curso en un mismo mes.** Causa: cada combinación de
+  meses es una planificación distinta y se guarda sola; si se escribe con Octubre marcado y luego se agrega Noviembre,
+  quedan "Octubre" y "Octubre y Noviembre". (Al revisar, hoy no hay ninguna repetida.) **DECISIÓN del PO** (aprueba los
+  4 cambios propuestos): (1) **regla:** cada mes de un curso pertenece a una sola planificación en el año; (2) cambiar
+  los meses de una planificación abierta **le cambia los meses a esa misma** (no crea otra); (3) si los meses elegidos
+  ya están en otra planificación, **aviso** "Octubre ya está en la planificación Oct–Nov de 4°" con **Abrir esa**, y no
+  se guarda nada mientras tanto; (4) **🗑 Eliminar** en la ventana de Visualizar.
+  - **Implementación:** `plId` = la planificación en pantalla; se guarda por su id (antes, por curso + año + meses).
+    `alCambiarClave({ mover })`: solo el cambio de meses marcados "mueve" (el curso, el año, 📂 Guardadas, la tabla y
+    "Abrir esa" abren). Antes de abrir o mover se leen las planificaciones del curso en el año (`planisDelCurso`): si los
+    meses chocan con otra, `bloqueo` + aviso "Mayo ya está en otra planificación de Primero básico (Mayo). Ábrela o
+    cambia los meses." con **Abrir esa** (espacio reservado bajo 📂 Guardadas, regla 8b); `guardarAhora` y el botón 💾 no
+    guardan mientras haya bloqueo. "Empezar de nuevo" borra por id. Visualizar suma **🗑 Eliminar** (confirma, borra por
+    id y redibuja la tabla).
+  - **Prueba (local, 1° marzo–mayo 2026, borradas al final):** escribir en Marzo la guardó; marcar Abril dejó **una sola**
+    "3,4" (la misma, sin duplicar); con otra de Mayo creada aparte, marcar Mayo mostró el aviso y no cambió nada en la
+    base ("3,4" y "5" intactas); "Abrir esa" abrió la de Mayo y quitó el aviso; 🗑 Eliminar desde Visualizar borró las
+    dos (0 restantes) y cerró la ventana.
 
 ### CJ. Bitácora — Cuaderno de música del curso (1° a 8°)
 *Origen: pedido del PO (2026-10-21): "un registro de lo que se escribe en el cuaderno (físico) de la clase de música,

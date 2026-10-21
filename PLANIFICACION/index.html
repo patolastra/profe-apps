@@ -317,8 +317,14 @@
     /* ── Planificaciones guardadas ── */
     .guardadas-fila { display: flex; align-items: center; gap: 10px; margin-top: 12px; min-height: 32px; }
     #selGuardadas { width: 190px; flex-shrink: 0; padding: 5px 8px; font-size: 0.8rem; background: #fff; }
+    .ver-borrar { color: #b42318 !important; margin-right: auto; }
     .guardada-estado { flex: 1; font-size: 0.78rem; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .guardada-estado.ok { color: #27ae60; }
+    .aviso-choque { display: flex; align-items: center; gap: 10px; margin: 6px 0 2px; padding: 7px 12px; border-radius: 9px;
+      background: #fff4e5; border: 1.5px solid #f5b971; color: #8a4b00; font-size: 0.82rem; min-height: 38px; }
+    .aviso-choque .txt { flex: 1; }
+    .aviso-choque button { border: 1.5px solid #e67e22; background: #fff; color: #b35900; border-radius: 7px; padding: 4px 10px;
+      font-weight: 700; cursor: pointer; white-space: nowrap; }
     .guardada-estado.err { color: #c0392b; white-space: normal; }
     .btn-de-nuevo { flex-shrink: 0; width: 132px; background: #fff; color: #666; border: 1.5px solid #ddd; border-radius: 8px;
       padding: 5px 8px; font-size: 0.76rem; font-weight: 700; cursor: pointer; }
@@ -627,6 +633,7 @@
     <div class="vp-pie">
       <span class="vp-cuenta"></span>
       <button type="button" class="vp-cancelar" id="verCerrar">Cerrar</button>
+      <button type="button" class="vp-cancelar ver-borrar" id="verBorrar">🗑 Eliminar</button>
       <button type="button" class="vp-cancelar" id="verEditar">✏️ Editar</button>
       <button type="button" class="btn-generar" id="verDescargar">⬇ Descargar</button>
     </div>
@@ -687,6 +694,11 @@
     </select>
     <span class="guardada-estado" id="guardadaEstado"></span>
     <button type="button" class="btn-de-nuevo" id="btnDeNuevo" style="visibility:hidden" onclick="empezarDeNuevo()" title="Borra la planificación guardada de este curso y mes y deja la página en blanco">Empezar de nuevo</button>
+  </div>
+  <!-- Meses que ya están en otra planificación del curso (PO 2026-10-21): espacio reservado -->
+  <div class="aviso-choque" id="avisoChoque" style="visibility:hidden">
+    <span class="txt">—</span>
+    <button type="button" onclick="abrirChoque()">Abrir esa</button>
   </div>
 
   <div class="relato-cab">
@@ -2006,6 +2018,9 @@ let claveVistaObj = null;     // la misma clave con { ctx, anio, meses, k }
 let timerGuardar = null;
 let sinTabla = false;
 let cargando = false;         // mientras se llena la página desde lo guardado no se guarda
+// Un mes de un curso pertenece a una sola planificación en el año (DECISIÓN del PO 2026-10-21).
+let plId = null;              // id de la planificación que está en pantalla (null = todavía no guardada)
+let bloqueo = null;           // { otra } si los meses elegidos ya están en otra planificación: no se guarda
 
 
 function claveActual() {
@@ -2045,13 +2060,16 @@ function guardarPronto(ms = 1500) {
 async function guardarAhora() {
   clearTimeout(timerGuardar); timerGuardar = null;
   const c = claveVistaObj;
-  if (!c || sinTabla || !sbPl || !hayAlgo()) return false;
+  if (!c || sinTabla || !sbPl || !hayAlgo() || bloqueo) return false;
   const campos = P;
   try {
     const fila = { contexto_id: await ctxId(c.ctx), anio: c.anio, meses: c.meses,
       relato: document.getElementById('relato').value, campos, updated_at: new Date().toISOString() };
-    const { error } = await sbPl.from('planificaciones').upsert(fila, { onConflict: 'contexto_id,anio,meses' });
+    const { data, error } = plId
+      ? await sbPl.from('planificaciones').update(fila).eq('id', plId).select('id').maybeSingle()
+      : await sbPl.from('planificaciones').upsert(fila, { onConflict: 'contexto_id,anio,meses' }).select('id').maybeSingle();
     if (error) { avisarSinTabla(error); return false; }
+    if (data?.id) plId = data.id;
     estadoGuardada(`✓ Guardada ${fechaCorta(fila.updated_at)}`, 'ok');
     document.getElementById('btnDeNuevo').style.visibility = 'visible';
     listarGuardadas(c);
@@ -2066,6 +2084,7 @@ async function guardarDesdeBoton(e) {
   const decir = (t, cls) => { st.textContent = t; st.className = 'gen-status' + (cls ? ' ' + cls : ''); };
   if (!claveActual()) { decir('Elige un curso y al menos un mes.', 'err'); return; }
   if (!hayAlgo()) { decir('Todavía no hay nada que guardar.', 'err'); return; }
+  if (bloqueo) { decir('Ese mes ya está en otra planificación de este curso: ábrela o cambia los meses.', 'err'); return; }
   decir('Guardando…');
   const c = claveVistaObj;
   const ok = await guardarAhora();
@@ -2092,14 +2111,62 @@ function limpiarPagina() {
 }
 
 // Curso, año o meses cambiaron: se guarda lo pendiente de lo anterior y se abre lo guardado del nuevo (o en blanco).
-async function alCambiarClave() {
+// Las planificaciones del curso en el año (id y meses), para revisar choques de meses.
+async function planisDelCurso(ctx, anio) {
+  const { data, error } = await sbPl.from('planificaciones').select('id, meses')
+    .eq('contexto_id', await ctxId(ctx)).eq('anio', anio);
+  if (error) throw error;
+  return data || [];
+}
+const MES_CORTO = m => (NOMBRE_MES[m] || String(m));
+function rangoTxt(meses) { return meses.length > 1 ? `${ABREV_MES[meses[0]]}–${ABREV_MES[meses.at(-1)]}` : MES_CORTO(meses[0]); }
+function mostrarChoque(c, otra) {
+  const comunes = c.meses.filter(m => otra.meses.includes(m)).map(MES_CORTO);
+  const caja = document.getElementById('avisoChoque');
+  caja.querySelector('.txt').textContent = `${comunes.length > 1 ? comunes.slice(0, -1).join(', ') + ' y ' + comunes.at(-1) + ' ya están'
+    : comunes[0] + ' ya está'} en otra planificación de ${CURSO_DE_CTX[c.ctx]} (${rangoTxt(otra.meses)}). Ábrela o cambia los meses.`;
+  caja.style.visibility = 'visible';
+}
+function quitarChoque() { bloqueo = null; document.getElementById('avisoChoque').style.visibility = 'hidden'; }
+
+// Cambio de curso, año o meses. Con `mover` (cambiaron los meses marcados) y una planificación en pantalla del
+// mismo curso y año: se le cambian los meses a esa misma, sin crear otra. Si los meses elegidos ya están en otra
+// planificación del curso: aviso con "Abrir esa" y no se guarda nada (DECISIÓN del PO 2026-10-21).
+async function alCambiarClave(op) {
+  const mover = op && op.mover === true;
   if (timerGuardar) await guardarAhora();
   const c = claveActual();
-  if (!c) { claveVista = null; claveVistaObj = null; return; }
+  if (!c) { claveVista = null; claveVistaObj = null; quitarChoque(); return; }
   if (c.k === claveVista) return;
+  const prev = claveVistaObj;
+  const mismoCurso = !!prev && prev.ctx === c.ctx && +prev.anio === +c.anio;
+  if (!mismoCurso || !mover) plId = null;
+  let otras = null;
+  if (sbPl && !sinTabla) { try { otras = await planisDelCurso(c.ctx, c.anio); } catch (e) { otras = null; } }
+  const exacta = otras?.find(o => o.id !== plId && o.meses.join() === c.meses.join());
+  const choque = otras?.find(o => o.id !== plId && !exacta && o.meses.some(m => c.meses.includes(m)));
   claveVista = c.k;
   claveVistaObj = c;
+  if (choque) {
+    // Lo que está en pantalla (ya guardado con sus meses anteriores) se queda; solo se avisa.
+    bloqueo = { otra: choque };
+    mostrarChoque(c, choque);
+    estadoGuardada('');
+    return;
+  }
+  quitarChoque();
+  if (mismoCurso && mover && plId && !exacta) {
+    // Mover: la misma planificación con los meses nuevos.
+    try {
+      const { error } = await sbPl.from('planificaciones').update({ meses: c.meses, updated_at: new Date().toISOString() }).eq('id', plId);
+      if (error) { avisarSinTabla(error); return; }
+      estadoGuardada(`✓ Ahora es de ${textoMeses(c.meses)}`, 'ok');
+      listarGuardadas(c);
+    } catch (e) { estadoGuardada('No se pudo cambiar los meses — revisa la conexión.', 'err'); }
+    return;
+  }
   cargando = true;
+  plId = null;
   limpiarPagina();
   estadoGuardada('');
   document.getElementById('btnDeNuevo').style.visibility = 'hidden';
@@ -2112,6 +2179,7 @@ async function alCambiarClave() {
     if (claveVista !== c.k) return;
     if (error) { avisarSinTabla(error); return; }
     if (!data) { estadoGuardada('Sin guardar todavía.'); return; }
+    plId = data.id;
     document.getElementById('relato').value = data.relato || '';
     ajustar(document.getElementById('relato'));
     P = desdeGuardado(data.campos);
@@ -2123,6 +2191,14 @@ async function alCambiarClave() {
   } finally {
     cargando = false;
   }
+}
+// "Abrir esa": la planificación que ya tiene esos meses.
+function abrirChoque() {
+  const o = bloqueo?.otra, c = claveVistaObj;
+  if (!o || !c) return;
+  quitarChoque();
+  document.querySelectorAll('#mesGrid input').forEach(el => { el.checked = o.meses.includes(MES_NUM[el.value]); });
+  alCambiarClave();
 }
 
 async function listarGuardadas(c) {
@@ -2156,9 +2232,12 @@ async function empezarDeNuevo() {
   if (!c || !confirm('Se borra la planificación guardada de este curso y mes, y la página queda en blanco. ¿Seguir?')) return;
   clearTimeout(timerGuardar); timerGuardar = null;
   try {
-    const { error } = await sbPl.from('planificaciones').delete()
-      .eq('contexto_id', await ctxId(c.ctx)).eq('anio', c.anio).eq('meses', `{${c.meses.join(',')}}`);
+    const { error } = plId
+      ? await sbPl.from('planificaciones').delete().eq('id', plId)
+      : await sbPl.from('planificaciones').delete()
+          .eq('contexto_id', await ctxId(c.ctx)).eq('anio', c.anio).eq('meses', `{${c.meses.join(',')}}`);
     if (error) { avisarSinTabla(error); return; }
+    plId = null;
   } catch (e) { estadoGuardada('No se pudo borrar — revisa la conexión.', 'err'); return; }
   cargando = true; limpiarPagina(); cargando = false;
   estadoGuardada('Sin guardar todavía.');
@@ -2170,8 +2249,9 @@ async function empezarDeNuevo() {
 document.getElementById('relato').addEventListener('input', () => guardarPronto());
 document.getElementById('camposOcultos').addEventListener('input', () => guardarPronto());
 // Cambiar curso, meses o año → se abre lo guardado de esa combinación.
-['cursoGrid', 'mesGrid'].forEach(id => document.getElementById(id).addEventListener('change', alCambiarClave));
-document.getElementById('anio').addEventListener('change', alCambiarClave);
+document.getElementById('cursoGrid').addEventListener('change', () => alCambiarClave());
+document.getElementById('mesGrid').addEventListener('change', () => alCambiarClave({ mover: true }));
+document.getElementById('anio').addEventListener('change', () => alCambiarClave());
 // Al salir o cambiar de pestaña, lo pendiente se guarda.
 document.addEventListener('visibilitychange', () => { if (document.hidden && timerGuardar) guardarAhora(); });
 window.addEventListener('message', e => {
@@ -2330,6 +2410,15 @@ document.getElementById('planisTabla').addEventListener('click', e => {
 });
 document.getElementById('verCerrar').onclick = () => { document.getElementById('verModal').hidden = true; };
 document.getElementById('verDescargar').onclick = () => { if (verActual) generarDoc(null, datosWord(verActual)); };
+document.getElementById('verBorrar').onclick = async () => {
+  const f = verActual;
+  if (!f || !confirm(`¿Eliminar la planificación de ${CURSO_DE_CTX[f.ctx]}, ${textoMeses(f.meses)} ${f.anio}? No se puede deshacer.`)) return;
+  const { error } = await sbPl.from('planificaciones').delete().eq('id', f.id);
+  if (error) { alert('No se pudo eliminar — revisa la conexión.'); return; }
+  if (plId === f.id) { plId = null; claveVista = null; }
+  document.getElementById('verModal').hidden = true;
+  cargarPlanis();
+};
 document.getElementById('verEditar').onclick = () => {
   document.getElementById('verModal').hidden = true;
   if (verActual) abrirEnEditor(verActual.ctx, verActual.meses, verActual.anio);
