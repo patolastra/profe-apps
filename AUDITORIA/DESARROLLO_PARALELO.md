@@ -5374,3 +5374,12 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
   - **Prueba (local, pantalla de 1920, hojas de prueba):** botones en orden 1, 2, 3, 5, 4; la barra quedó en una línea
     (alto 49, ✕ dentro); en la 5, la página izquierda arriba y la derecha abajo; ◀ dio vuelta la hoja al par anterior;
     con foco en una hoja horizontal en la 2, "↻ Girar para leer" pasó a la 5.
+  - **Commit:** `d63dc4f` (subido).
+- **Ajuste (PO, 2026-10-21): rayado que se cortaba y cuadros más grandes.** En la vista 5 el rayado del PO se cortaba
+  pasada la mitad de la hoja (las líneas verticales están bien, así queda el cuaderno real al girarlo). El rayado era un
+  degradado repetido largo, que el navegador puede dejar de dibujar en parte al girar y escalar la hoja; pasa a ser un
+  **mosaico simple** de 44 de alto (una línea por mosaico) con la franja de arriba tapada, que se dibuja igual en
+  cualquier vista. **Cuadros** (DECISIÓN del PO): del mismo alto y ancho que el renglón de las líneas, **44 × 44**
+  (antes 22), alineados con el texto. Probado (local): en la vista 5 las líneas cubren toda la hoja; en la 3, con
+  cuadros, cada renglón de texto queda dentro de una fila de cuadros. No se pudo reproducir el corte en el navegador de
+  pruebas: falta que el PO confirme en su pantalla.
