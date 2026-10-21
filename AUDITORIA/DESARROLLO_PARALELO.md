@@ -5146,4 +5146,7 @@ navegar por él; ahí consta la fecha, lo escrito, las imágenes coloreadas que 
   editor: cambiar a Horizontal gira la vista previa y guarda; letra ligada en la hoja. En el Planificador, 📔 visible en
   Cuarto y el cuaderno avisa "¿se ejecutó cuaderno.sql?" mientras falte la tabla. Falta: correr el SQL, subir imágenes
   reales y probar con el dedo en pantalla táctil.
-- **Commit:** `6f0f5bf` (subido). Falta: el PO corre `supabase/cuaderno.sql`; uso real.
+- **Commit:** `6f0f5bf` (subido). El PO corrió `supabase/cuaderno.sql` (2026-10-21).
+- **Prueba con datos reales (2026-10-21, Cuarto, año 2099):** ＋ Hoja creó la fila con la fecha sugerida; texto e imagen
+  (PNG achicado a webp) guardados solos; al reabrir, la hoja se leyó de Supabase con la imagen desde el bucket público;
+  🗑 Eliminar hoja borró la fila y su imagen (0 filas, 0 archivos). Falta: uso real y pantalla táctil.
