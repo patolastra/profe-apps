@@ -5363,3 +5363,14 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
     franja, al lado que corresponde. Forma 4: la izquierda queda arriba del espiral y la derecha abajo, con la franja
     arriba; arrastrar hacia abajo desde la primera no hace nada (antes está la tapa), hacia arriba da vuelta la hoja y el
     siguiente arrastre se desliza. Forma 2 y abrir la tapa siguen igual. (Sin captura de pantalla: el panel no dibujaba.)
+- **Ajuste (PO, 2026-10-21): vista 5 y barra en una línea.** **Vista 5** = el cuaderno horizontal con **las dos
+  páginas** (la vista 2 girada: espiral al medio en horizontal, la página izquierda arriba y la derecha abajo; la hoja
+  gira hacia arriba/abajo). Orden de los botones: 1, 2, 3, 5, 4. "↻ Girar para leer" alterna 2↔5 y 3↔4. **La barra del
+  cuaderno cabe en una sola línea** (antes "＋ Página en blanco" y ✕ bajaban a una segunda línea): botones más compactos
+  ("✏️ Editar", "＋ En blanco", ➰ solo con su ícono) y sin saltos de línea.
+  - **Implementación:** `dosPag()` (2 y 5) y `girado()` (4 y 5) reemplazan las comparaciones con 2 y 4; la 5 es la 2 con
+    la ventana girada 90°; ícono propio (dos páginas apiladas); girar alterna 2↔5 y 3↔4. Barra: `flex-wrap: nowrap`, menos
+    espacio entre botones, título que se acorta si falta lugar (y desplazamiento lateral como respaldo en pantallas angostas).
+  - **Prueba (local, pantalla de 1920, hojas de prueba):** botones en orden 1, 2, 3, 5, 4; la barra quedó en una línea
+    (alto 49, ✕ dentro); en la 5, la página izquierda arriba y la derecha abajo; ◀ dio vuelta la hoja al par anterior;
+    con foco en una hoja horizontal en la 2, "↻ Girar para leer" pasó a la 5.

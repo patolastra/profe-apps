@@ -123,6 +123,8 @@
     }
     // Formas 3 y 4: el par completo dentro de una ventana que deja ver la página en foco + la franja de la otra.
     const unaPagina = () => S.modo === 3 || S.modo === 4;
+    const dosPag = () => S.modo === 2 || S.modo === 5;    // vista 5 = la 2 girada (horizontal, dos páginas)
+    const girado = () => S.modo === 4 || S.modo === 5;    // cuaderno horizontal: espiral arriba / al medio
     function anchoLibro() { return S.modo === 1 ? PW : 2 * PW; }
     const ladoDe = i => (i % 2 ? 'izq' : 'der');          // en el par: impar = izquierda, par = derecha
     function despDe(lado) { return unaPagina() && lado === 'der' ? PW - FR : 0; }   // cuánto se corre el par en la ventana
@@ -151,13 +153,13 @@
     // Escala la ventana a la pantalla (forma 4: girada); en la forma 3 suma el zoom y el arrastre.
     function escala() {
         const r = $('.cdn-escena').getBoundingClientRect();
-        const gira = S.modo === 4, ancho = anchoVentana();
+        const gira = girado(), ancho = anchoVentana();
         const w = (gira ? PH : ancho) + 80, hh = (gira ? ancho : PH) + 40;
         return Math.min(r.width / w, r.height / hh) * (S.modo === 3 ? S.zoom : 1);
     }
     function transformar() {
         S.k = escala();
-        $('.cdn-ventana').style.transform = `translate(-50%, -50%) translate(${S.panX}px, ${S.panY}px)${S.modo === 4 ? ' rotate(90deg)' : ''} scale(${S.k})`;
+        $('.cdn-ventana').style.transform = `translate(-50%, -50%) translate(${S.panX}px, ${S.panY}px)${girado() ? ' rotate(90deg)' : ''} scale(${S.k})`;
     }
     function ponerDesp(d) { S.desp = d; $('.cdn-libro').style.transform = `translateX(${-d}px)`; }
 
@@ -185,7 +187,7 @@
         const n = S.hojas.length;
         let lbl = '';
         if (S.modo === 1) lbl = `Tapa · ${n} ${n === 1 ? 'hoja' : 'hojas'}`;
-        else if (S.modo === 2) {
+        else if (dosPag()) {
             const k = pliego(), a = izqDe(k), b = derDe(k);
             const fs = [a, b].filter(x => x && !x.especial);
             lbl = fs.length ? fs.map(x => `${S.hojas.indexOf(x) + 1}`).join('–') + ` de ${n} · ` + fs.map(x => sinFecha(x) ? 'en blanco' : fechaCorta(x.fecha)).join(' · ') : (n ? `${n} hojas` : 'Sin hojas');
@@ -193,10 +195,10 @@
             lbl = h ? `Hoja ${S.hojas.indexOf(h) + 1} de ${n} · ${sinFecha(h) ? 'en blanco' : fechaCuaderno(h.fecha)}` : (S.op.crear ? 'Nueva hoja' : 'Sin hojas');
         }
         $('.cdn-lbl').textContent = lbl;
-        $('[data-accion="ant"]').disabled = S.modo === 1 || (S.modo === 2 ? pliego() === 0 : S.i === 0);
-        $('[data-accion="sig"]').disabled = S.modo === 2 ? pliego() >= maxPliego() : S.modo !== 1 && S.i >= pags().length - 1;
+        $('[data-accion="ant"]').disabled = S.modo === 1 || (dosPag() ? pliego() === 0 : S.i === 0);
+        $('[data-accion="sig"]').disabled = dosPag() ? pliego() >= maxPliego() : S.modo !== 1 && S.i >= pags().length - 1;
         // ↻ Girar para leer: la hoja en foco tiene la otra orientación que la forma en que se mira
-        const girar = h && S.modo !== 1 && ((h.orientacion === 'h') !== (S.modo === 4));
+        const girar = h && S.modo !== 1 && ((h.orientacion === 'h') !== girado());
         $('.cdn-girar').style.visibility = girar ? 'visible' : 'hidden';
         emitirEstado();
     }
@@ -405,16 +407,16 @@
     async function saltarA(i) {
         if (S.anim) return;
         if (S.modo === 1) cambiarModo(S.modoAbierto || 2);
-        const destino = S.modo === 2 ? Math.floor((i + 1) / 2) : i;
-        const actual = () => S.modo === 2 ? pliego() : S.i;
+        const destino = dosPag() ? Math.floor((i + 1) / 2) : i;
+        const actual = () => dosPag() ? pliego() : S.i;
         const dir = Math.sign(destino - actual());
         let pasos = 0;
         while (actual() !== destino && pasos < (unaPagina() ? 10 : 6)) {
             if (!(await pasar(dir, 150))) break;
             pasos++;
         }
-        if (actual() !== destino) { if (S.modo === 2) S.i = focoDePliego(destino); else S.i = destino; pintar(); }
-        if (S.modo === 2) { S.i = i; pintarBarra(); }
+        if (actual() !== destino) { if (dosPag()) S.i = focoDePliego(destino); else S.i = destino; pintar(); }
+        if (dosPag()) { S.i = i; pintarBarra(); }
     }
 
     // Sonido suave de papel (ruido filtrado, sin archivos).
@@ -465,7 +467,7 @@
     function aLibro(cx, cy) {
         const r = $('.cdn-escena').getBoundingClientRect();
         const ox = cx - (r.left + r.width / 2) - S.panX, oy = cy - (r.top + r.height / 2) - S.panY;
-        const [lx, ly] = S.modo === 4 ? [oy, -ox] : [ox, oy];
+        const [lx, ly] = girado() ? [oy, -ox] : [ox, oy];
         return { x: lx / S.k + anchoVentana() / 2 + (S.desp || 0), y: ly / S.k + PH / 2 };
     }
     const punteros = new Map();
@@ -517,7 +519,7 @@
             S.panX = G.pan0[0] + dxS; S.panY = G.pan0[1] + dyS;
             transformar();
         } else if (G.tipo === 'desliza') {
-            const [lx] = S.modo === 4 ? [dyS] : [dxS];
+            const [lx] = girado() ? [dyS] : [dxS];
             const lo = Math.min(G.d0, G.d1), hi = Math.max(G.d0, G.d1);
             ponerDesp(clamp(G.d0 - lx / S.k, lo, hi));
         } else if (G.tipo === 'hoja') {
@@ -541,7 +543,7 @@
         if (g.tipo === 'pan') { volverAlCentro(); return; }
         if (g.tipo === 'desliza') {
             // Queda en la página más cercana (o en la otra si se lanzó rápido hacia ella).
-            const vx = (S.modo === 4 ? g.vy : g.vx) || 0;
+            const vx = (girado() ? g.vy : g.vx) || 0;
             const avance = Math.abs(S.desp - g.d0) / Math.max(1, Math.abs(g.d1 - g.d0));
             const ir = avance > 0.35 || (g.dir > 0 ? vx < -0.5 : vx > 0.5);
             S.anim = true;
@@ -556,7 +558,7 @@
         }
         if (g.tipo === 'hoja') {
             // Se completa si pasó la mitad o si se lanzó rápido hacia su lado.
-            const vx = (S.modo === 4 ? g.vy : g.vx) || 0;   // velocidad hacia la derecha del libro (forma 4: hacia abajo)
+            const vx = (girado() ? g.vy : g.vx) || 0;   // velocidad hacia la derecha del libro (forma 4: hacia abajo)
             const rapido = g.V.dir > 0 ? vx < -0.6 : vx > 0.6;
             const completar = g.V.dir > 0 ? g.V.th < -90 || rapido : g.V.th > -90 || rapido;
             S.anim = true;
@@ -577,7 +579,7 @@
         const [b0, b1] = unaPagina() ? (ladoDe(S.i) === 'izq' ? [0, PW] : [PW, 2 * PW]) : [0, anchoLibro()];
         if (l.x > b1 - PW * 0.16 && l.x <= x1 + 40) { pasar(1); return; }
         if (l.x < b0 + PW * 0.16 && l.x >= x0 - 40) { pasar(-1); return; }
-        if (S.modo === 2 && l.x >= 0 && l.x <= anchoLibro()) {      // clic en una página = esa es la hoja en foco
+        if (dosPag() && l.x >= 0 && l.x <= anchoLibro()) {      // clic en una página = esa es la hoja en foco
             const i = l.x < PW ? 2 * pliego() - 1 : 2 * pliego();
             if (i >= 0 && i < pags().length) { S.i = i; pintarBarra(); }
         }
@@ -590,8 +592,8 @@
         if (!S || raiz.hidden || S.op.espejo) return;
         if (S.editando) { if (e.key === 'Escape' && !EditorBloques.menuAbierto?.()) { e.preventDefault(); cerrarEditor(); } return; }
         if (e.target.closest?.('input, textarea, [contenteditable]')) return;
-        const adelante = S.modo === 4 ? ['ArrowRight', 'ArrowUp', 'PageDown'] : ['ArrowRight', 'PageDown'];
-        const atras = S.modo === 4 ? ['ArrowLeft', 'ArrowDown', 'PageUp'] : ['ArrowLeft', 'PageUp'];
+        const adelante = girado() ? ['ArrowRight', 'ArrowUp', 'PageDown'] : ['ArrowRight', 'PageDown'];
+        const atras = girado() ? ['ArrowLeft', 'ArrowDown', 'PageUp'] : ['ArrowLeft', 'PageUp'];
         if (adelante.includes(e.key)) pasar(1);
         else if (atras.includes(e.key)) pasar(-1);
         else if (e.key === 'Escape') { if (!$('.cdn-indice').hidden) $('.cdn-indice').hidden = true; else cerrar(); }
@@ -608,6 +610,7 @@
         2: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1.5" y="4" width="10" height="16" rx="1"/><rect x="12.5" y="4" width="10" height="16" rx="1"/><path d="M4 8h5M4 11h5M15 8h5M15 11h5"/></svg>',
         3: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="3" width="12" height="18" rx="1"/><path d="M9 7h6M9 10h6M9 13h6"/></svg>',
         4: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="12" rx="1"/><path d="M7 10h10M7 13h10"/></svg>',
+        5: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="1.5" width="18" height="10" rx="1"/><rect x="3" y="12.5" width="18" height="10" rx="1"/><path d="M7 5h10M7 8h10M7 16h10M7 19h10"/></svg>',
     };
     function crearRaiz() {
         raiz = document.createElement('div');
@@ -620,9 +623,10 @@
                 <button data-modo="1" title="Cerrado">${ICO[1]}</button>
                 <button data-modo="2" title="Abierto, dos páginas">${ICO[2]}</button>
                 <button data-modo="3" title="Abierto, una página (con zoom)">${ICO[3]}</button>
+                <button data-modo="5" title="Abierto y horizontal, dos páginas (cuaderno girado)">${ICO[5]}</button>
                 <button data-modo="4" title="Abierto y horizontal, una página (cuaderno girado)">${ICO[4]}</button>
             </span>
-            <button class="cdn-btn" data-accion="espirales" title="Mostrar u ocultar los espirales">➰ Espirales</button>
+            <button class="cdn-btn" data-accion="espirales" title="Mostrar u ocultar los espirales">➰</button>
             <span class="cdn-grupo" title="Tipo de hoja">
                 <button data-papel="lisa">Lisa</button><button data-papel="lineas">Líneas</button><button data-papel="cuadros">Cuadros</button>
             </span>
@@ -636,9 +640,9 @@
             <span class="cdn-esp"></span>
             <button class="cdn-btn" data-accion="sonido" title="Sonido al pasar la hoja">🔈</button>
             <button class="cdn-btn" data-accion="pizarra" style="visibility:hidden" title="Mostrar el cuaderno en la Pizarra y hojearlo desde aquí">📽️ Pizarra</button>
-            <button class="cdn-btn" data-accion="editar" style="visibility:hidden" title="Editar la hoja en foco">✏️ Editar hoja</button>
+            <button class="cdn-btn" data-accion="editar" style="visibility:hidden" title="Editar la hoja en foco">✏️ Editar</button>
             <button class="cdn-btn" data-accion="crear" style="visibility:hidden" title="Agregar una hoja nueva">＋ Hoja</button>
-            <button class="cdn-btn" data-accion="blanca" style="visibility:hidden" title="Dejar una página en blanco después de la que se está mirando">＋ Página en blanco</button>
+            <button class="cdn-btn" data-accion="blanca" style="visibility:hidden" title="Dejar una página en blanco después de la que se está mirando">＋ En blanco</button>
             <button class="cdn-cerrar" data-accion="cerrar" title="Cerrar (Esc)">✕</button>
         </div>
         <div class="cdn-escena"><div class="cdn-ventana"><div class="cdn-libro"></div></div></div>
@@ -669,7 +673,7 @@
                 case 'zoom-': ponerZoom(S.zoom / 1.2); break;
                 case 'zoom+': ponerZoom(S.zoom * 1.2); break;
                 case 'zoom0': ponerZoom(1); break;
-                case 'girar': cambiarModo(S.modo === 4 ? 3 : 4); break;
+                case 'girar': cambiarModo({ 2: 5, 5: 2, 3: 4, 4: 3 }[S.modo] || 4); break;
                 case 'indice': abrirIndice(); break;
                 case 'editar': { const h = hojaFoco(); if (h) abrirEditor(h); break; }
                 case 'crear': case 'nueva': nuevaHoja(); break;
@@ -724,7 +728,7 @@
         // Abre en la hoja de esa fecha; si no hay, en la última.
         const fi = op.fecha ? S.hojas.findIndex(h => h.fecha === op.fecha) : -1;
         S.i = fi >= 0 ? fi : Math.max(0, S.hojas.length - 1);
-        if (S.modo === 2) S.i = focoDePliego(pliego());
+        if (dosPag()) S.i = focoDePliego(pliego());
         if (fi >= 0) S.i = fi;
         pintar();
         if (window.TiempoReal && !abrir.escuchando) {
@@ -788,7 +792,7 @@
     // Página en blanco: queda justo después de la hoja que se está mirando (misma fecha, creada después).
     async function paginaEnBlanco() {
         if (!S?.op.crear || S.anim) return;
-        const foco = hojaFoco() || (S.modo === 2 ? izqDe(pliego()) : null);
+        const foco = hojaFoco() || (dosPag() ? izqDe(pliego()) : null);
         const base = foco && !foco.especial ? foco : S.hojas[S.hojas.length - 1];
         const fecha = base?.fecha || S.op.fecha || hoyISO();
         const fila = { contexto_id: S.op.contextoId, anio: S.anio, fecha, orientacion: 'v', contenido: [{ t: 'blanco' }], sesion_id: S.op.sesionId || null };
