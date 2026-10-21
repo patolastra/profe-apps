@@ -162,6 +162,18 @@
     .cierre-form input, .cierre-form select { width: 100%; font: inherit; font-size: 0.88rem; padding: 6px 8px; border: 1.5px solid #e4e4e4; border-radius: 8px; }
     .cierre-form .ancho { grid-column: 1 / -1; }
     .cierre-msg { font-size: 0.8rem; color: #888; margin-top: 8px; }
+    .ci-rub-fila { display: flex; gap: 8px; align-items: center; }
+    .ci-rub-fila select { flex: 1; }
+    .rub-prop { margin-top: 10px; padding: 10px; border: 1.5px dashed #f3d1ae; border-radius: 10px; background: #fffaf4; }
+    .rub-cab input { width: 100%; }
+    .rub-tabla { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .rub-fila { display: grid; grid-template-columns: 1.2fr repeat(4, 1fr) 26px; gap: 6px; align-items: start; }
+    .rub-tit span { font-size: 0.68rem; font-weight: 800; color: #b35900; text-transform: uppercase; letter-spacing: .04em; }
+    .rub-fila textarea { width: 100%; font: inherit; font-size: 0.8rem; padding: 5px 7px; border: 1.5px solid #e9e2d8; border-radius: 7px;
+      resize: none; background: #fff; line-height: 1.35; }
+    .rub-crit { font-weight: 700; }
+    .rub-quitar { border: 0; background: none; color: #aaa; cursor: pointer; font-size: 0.9rem; padding: 4px; }
+    .rub-quitar:hover { color: #c0392b; }
     .cierre-msg.err { color: #c0392b; }
     .celda-eval { font-size: 0.68rem; font-weight: 700; color: #888; white-space: nowrap; }
     .celda-eval.falta-pasada { color: #c0392b; }
@@ -2225,12 +2237,15 @@ async function formCierre() {
       <div class="ancho"><label>OA de la evaluación${marcados.length ? ' (de los marcados)' : ''}</label>
         <select id="ciOA">${lista.map((it, i) => `<option value="${i}">${esc(oaTxt(it))}</option>`).join('') || '<option value="">(sin OA en la planificación)</option>'}</select></div>
       <div class="ancho"><label>Rúbrica</label>
-        <select id="ciPlantilla"><option value="">— Sin rúbrica por ahora (se elige en el Libro) —</option>${plantillas.map(pl =>
-          `<option value="${pl.id}">${pl.tipo === 'cotejo' ? '☑ ' : ''}${esc(pl.nombre)}</option>`).join('')}</select></div>
+        <div class="ci-rub-fila"><select id="ciPlantilla"><option value="">— Sin rúbrica por ahora (se elige en el Libro) —</option>${plantillas.map(pl =>
+          `<option value="${pl.id}">${pl.tipo === 'cotejo' ? '☑ ' : ''}${esc(pl.nombre)}</option>`).join('')}</select>
+          <button type="button" class="cierre-btn" id="ciProponer" title="Gemini propone una rúbrica a partir de esta planificación">✨ Proponer con Gemini</button></div>
+        <div id="ciRubrica"></div></div>
     </div>
     <div class="cierre-fila" style="margin-top:12px">
       <span class="txt cierre-msg">Se termina de crear en el Libro de ${esc(CURSO_DE_CTX[c.ctx])}, con la lista del curso.</span>
       <button type="button" class="cierre-btn prim" id="ciSeguir">Continuar en el Libro →</button></div>`;
+  document.getElementById('ciProponer').onclick = () => proponerRubrica(c);
   document.getElementById('ciSeguir').onclick = async () => {
     if (bloqueo) return;
     if (timerGuardar) await guardarAhora();
@@ -2250,6 +2265,125 @@ async function formCierre() {
     caja.innerHTML = '<p class="cierre-msg">Abierto en la pestaña 📒 Libros: revisa y toca "Crear evaluación".</p>';
   };
 }
+// ── ✨ Rúbrica propuesta por Gemini (deuda CK, paso 2) ──
+// Con lo de la planificación (sin el relato) Gemini propone 3–4 criterios con sus 4 niveles; se revisa aquí y se
+// guarda como plantilla del Libro (la misma lista de "Plantillas" del Libro), que queda elegida para la evaluación.
+const NIVELES = ['Por lograr', 'Medianamente logrado', 'Logrado', 'Logrado con distinción'];
+let rubProp = null;   // { nombre, criterios: [{ texto, n: [4] }] }
+function textoParaRubrica(c) {
+  const its = g => (P.g[g] || []).filter(it => it.on && (it.txt || '').trim());
+  const oas = ['basal', 'comp'].flatMap(g => its(g).map(it => `OA ${(it.num || '').trim()}: ${it.txt.trim()}`));
+  const lista = g => (P.g[g] || []).filter(it => (it.txt || '').trim()).map(it => '- ' + it.txt.trim()).join('\n');
+  return [`Curso: ${CURSO_DE_CTX[c.ctx]}`, `Período: ${textoMeses(c.meses)} ${c.anio}`, `Ejes: ${P.eje || '—'}`,
+    `Objetivos de aprendizaje:\n${oas.map(o => '- ' + o).join('\n') || '—'}`,
+    `Meta de comprensión:\n${lista('meta') || '—'}`, `Desempeños:\n${lista('desempenos') || '—'}`,
+    `Evidencias:\n${lista('evidencias') || '—'}`].join('\n\n');
+}
+function parsearRubrica(t) {
+  const out = { nombre: '', criterios: [] };
+  let cur = null;
+  String(t || '').replace(/\*\*/g, '').split('\n').forEach(l => {
+    const m = l.trim().match(/^(NOMBRE|CRITERIO|N([1-4]))\s*[:：]\s*(.*)$/i);
+    if (!m) return;
+    const k = m[1].toUpperCase(), v = m[3].trim();
+    if (k === 'NOMBRE') out.nombre = v;
+    else if (k === 'CRITERIO') { cur = { texto: v, n: ['', '', '', ''] }; out.criterios.push(cur); }
+    else if (cur) cur.n[+m[2] - 1] = v;
+  });
+  out.criterios = out.criterios.filter(x => x.texto);
+  return out;
+}
+async function proponerRubrica(c) {
+  const caja = document.getElementById('ciRubrica'), btn = document.getElementById('ciProponer');
+  const decir = (t, err) => { caja.innerHTML = `<p class="cierre-msg${err ? ' err' : ''}">${t}</p>`; };
+  const llave = pedirLlaveGemini(false);
+  if (!llave) { decir('Falta la llave de Gemini (🔑 arriba).', true); return; }
+  btn.disabled = true; btn.textContent = 'Proponiendo…';
+  try {
+    const nombres = await nombresDelCurso(CURSO_DE_CTX[c.ctx], c.anio);
+    const revisado = await vistaPrevia(textoParaRubrica(c), nombres);
+    if (!revisado) { decir('No se envió nada.'); return; }
+    decir('Pidiendo la rúbrica a Gemini…');
+    const texto =
+`Eres un asistente de evaluación para un profesor de Música de una escuela pública de Chile.
+Con la planificación de abajo, propón UNA rúbrica para la evaluación de cierre: entre 3 y 4 criterios observables en clase,
+coherentes con los objetivos de aprendizaje, los desempeños y las evidencias, y adecuados a la edad del curso.
+Cada criterio con sus 4 niveles: N1 = Por lograr, N2 = Medianamente logrado, N3 = Logrado, N4 = Logrado con distinción.
+Cada descripción de nivel en una sola línea, breve (máximo 25 palabras), en español de Chile, sin notas ni puntajes.
+Donde aparezca [estudiante] hubo un nombre que se ocultó: no lo menciones.
+Responde SOLO en este formato, sin nada más:
+NOMBRE: [nombre corto de la rúbrica]
+CRITERIO: [criterio 1]
+N1: [descripción]
+N2: [descripción]
+N3: [descripción]
+N4: [descripción]
+CRITERIO: [criterio 2]
+(y así con cada criterio)
+
+PLANIFICACIÓN
+${revisado.limpio}`;
+    const r = parsearRubrica(await llamarGemini(texto, llave));
+    if (!r.criterios.length) { decir('Gemini respondió, pero no en el formato esperado. Prueba de nuevo.', true); return; }
+    rubProp = { nombre: r.nombre || `Rúbrica · ${CURSO_DE_CTX[c.ctx]} · ${textoMeses(c.meses)}`, criterios: r.criterios.slice(0, 6) };
+    pintarRubProp();
+  } catch (err) {
+    const m = String(err.message || '');
+    decir(m === 'llave' ? 'La llave de Gemini no sirve. Cámbiala con 🔑.' : m === 'cuota' ? 'Se acabó la cuota gratis de Gemini por ahora. Prueba más tarde.'
+      : m === 'nombres' ? 'No se pudo revisar la lista de estudiantes: no se envió nada.' : m === 'red' ? 'Sin conexión con Gemini. Revisa internet.'
+      : 'Gemini no pudo responder ahora. Prueba más tarde.', true);
+  } finally { btn.disabled = false; btn.textContent = '✨ Proponer con Gemini'; }
+}
+function pintarRubProp() {
+  const caja = document.getElementById('ciRubrica');
+  if (!rubProp) { caja.innerHTML = ''; return; }
+  caja.innerHTML = `<div class="rub-prop">
+    <div class="rub-cab"><label>Nombre de la rúbrica</label><input class="rub-nombre" value="${esc(rubProp.nombre)}"></div>
+    <div class="rub-tabla"><div class="rub-fila rub-tit"><span>Criterio</span>${NIVELES.map(n => `<span>${n}</span>`).join('')}<span></span></div>
+    ${rubProp.criterios.map((cr, i) => `<div class="rub-fila" data-i="${i}">
+      <textarea class="auto rub-crit" rows="2">${esc(cr.texto)}</textarea>
+      ${cr.n.map((d, j) => `<textarea class="auto rub-niv" data-j="${j}" rows="3">${esc(d)}</textarea>`).join('')}
+      <button type="button" class="rub-quitar" title="Quitar este criterio">✕</button></div>`).join('')}</div>
+    <div class="cierre-fila" style="margin-top:8px">
+      <button type="button" class="cierre-btn" id="rubMas">＋ Criterio</button>
+      <span class="txt cierre-msg" id="rubMsg">Revisa y corrige; se guarda en las plantillas del Libro (sirve para otras veces).</span>
+      <button type="button" class="cierre-btn" id="rubDescartar">Descartar</button>
+      <button type="button" class="cierre-btn prim" id="rubGuardar">💾 Guardar como plantilla y usarla</button></div></div>`;
+  caja.querySelectorAll('textarea').forEach(ajustar);
+  const leer = () => {
+    rubProp.nombre = caja.querySelector('.rub-nombre').value;
+    caja.querySelectorAll('.rub-fila[data-i]').forEach(f => {
+      const cr = rubProp.criterios[+f.dataset.i];
+      cr.texto = f.querySelector('.rub-crit').value;
+      f.querySelectorAll('.rub-niv').forEach(t => { cr.n[+t.dataset.j] = t.value; });
+    });
+  };
+  caja.oninput = e => { if (e.target.tagName === 'TEXTAREA') ajustar(e.target); };
+  caja.querySelectorAll('.rub-quitar').forEach(b => b.onclick = () => { leer(); rubProp.criterios.splice(+b.closest('.rub-fila').dataset.i, 1); pintarRubProp(); });
+  document.getElementById('rubMas').onclick = () => { leer(); rubProp.criterios.push({ texto: '', n: ['', '', '', ''] }); pintarRubProp(); };
+  document.getElementById('rubDescartar').onclick = () => { rubProp = null; pintarRubProp(); };
+  document.getElementById('rubGuardar').onclick = async () => {
+    leer();
+    const crit = rubProp.criterios.filter(cr => cr.texto.trim());
+    const msg = document.getElementById('rubMsg');
+    if (!rubProp.nombre.trim() || !crit.length) { msg.textContent = 'Falta el nombre o al menos un criterio.'; msg.classList.add('err'); return; }
+    msg.textContent = 'Guardando…'; msg.classList.remove('err');
+    try {
+      const { data: pl, error } = await sbPl.from('libro_instrumento_plantillas').insert({ tipo: 'rubrica', nombre: rubProp.nombre.trim() }).select('id, nombre').single();
+      if (error) throw error;
+      const { error: ei } = await sbPl.from('libro_plantilla_items').insert(crit.map((cr, k) => ({
+        plantilla_id: pl.id, orden: k + 1, texto: cr.texto.trim(),
+        desc_n1: cr.n[0].trim(), desc_n2: cr.n[1].trim(), desc_n3: cr.n[2].trim(), desc_n4: cr.n[3].trim() })));
+      if (ei) { await sbPl.from('libro_instrumento_plantillas').delete().eq('id', pl.id); throw ei; }
+      const sel = document.getElementById('ciPlantilla');
+      sel.insertAdjacentHTML('beforeend', `<option value="${pl.id}">${esc(pl.nombre)}</option>`);
+      sel.value = pl.id;
+      rubProp = null;
+      document.getElementById('ciRubrica').innerHTML = `<p class="cierre-msg" style="color:#1e8449">✓ Rúbrica "${esc(pl.nombre)}" guardada en las plantillas del Libro y elegida.</p>`;
+    } catch (e) { msg.textContent = 'No se pudo guardar — revisa la conexión.'; msg.classList.add('err'); }
+  };
+}
+
 // El Libro avisa cuando liga una evaluación (o al volver a esta pestaña): se pone al día.
 window.addEventListener('storage', e => {
   if (e.key !== 'profe_cierre_cambio') return;

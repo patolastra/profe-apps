@@ -5306,3 +5306,20 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
   evaluación", en rojo las de septiembre, ya pasado); 📒 Abrir en el Libro abrió esa evaluación. Al borrar la evaluación
   se fueron su rúbrica copiada y sus notas (0 restantes). Falta: uso real (y que el PO vea el aviso rojo de las de
   septiembre).
+- **Paso 2 — ✨ Gemini propone la rúbrica (PO aprueba seguir, 2026-10-21; diseño ya aprobado):**
+  - **Diseño:** en "＋ Crear evaluación de cierre", junto a Rúbrica, botón **✨ Proponer con Gemini**. Se le envía lo
+    de la planificación (curso, meses, ejes, OA marcados, meta, desempeños y evidencias), pasando por la misma vista
+    previa que tapa nombres de estudiantes; pide 3–4 criterios con sus 4 niveles (Por lograr · Medianamente logrado ·
+    Logrado · Logrado con distinción) en un formato fijo (`NOMBRE:` / `CRITERIO:` / `N1:`…`N4:`). La propuesta se revisa
+    en pantalla (nombre, criterios y niveles editables, quitar o agregar criterios) y **💾 Guardar como plantilla y
+    usarla** la crea en las plantillas del Libro (`libro_instrumento_plantillas` + `_items`, tipo rúbrica) y la deja
+    elegida para la evaluación. Sin cambios en Supabase.
+  - **Implementación (2026-10-21):** `PLANIFICACION/index.html`: `proponerRubrica` (llave de Gemini del equipo, nombres
+    del curso, `vistaPrevia` para tapar, `llamarGemini`), `textoParaRubrica` (sin el relato), `parsearRubrica` (tolera
+    `**`), `pintarRubProp` (tabla editable: criterio + 4 niveles, ✕ quitar, ＋ Criterio, Descartar, 💾 Guardar como
+    plantilla y usarla → inserta plantilla + ítems en orden; si fallan los ítems, borra la plantilla).
+  - **Prueba (local, respuesta de Gemini simulada —no hay llave en el navegador de pruebas—; planificación de 1° marzo y
+    plantilla de prueba, borradas al final):** apareció la vista previa de lo que se envía (con el OA marcado, sin el
+    relato); la propuesta llegó con 2 criterios y su nombre (con `**` en la respuesta); se agregó un 3.º y se guardó: la
+    plantilla quedó con 3 criterios en orden y sus 4 niveles, elegida en "Rúbrica" con el aviso ✓. Falta: probarlo con
+    Gemini de verdad (llave del PO).
