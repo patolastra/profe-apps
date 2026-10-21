@@ -5413,3 +5413,16 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
   Probado (local, 3 hojas de prueba): doble clic en la izquierda de la vista 2 → vista 3 en la hoja 2; en la derecha →
   vista 3 en la hoja 3; en la 5, arriba → vista 4 en la hoja 2 y abajo → vista 4 en la hoja 3; los dos clics previos al
   doble clic (cerca del borde) no pasaron la hoja.
+- **Ajuste (PO, 2026-10-21): índice como página aparte.** El menú del índice no se veía bien (quedaba recortado dentro
+  de la barra, que ahora es de una sola línea). **DECISIÓN del PO:** 📅 Índice abre una **página** sobre el cuaderno,
+  **separada por meses**; cada hoja en una fila: **día y número** ("Miércoles 21"), **resumen del texto** e
+  **indicación de imágenes** si las hay; se cierra con **✕** (o Esc); tocar una fila lleva a esa hoja. **Las páginas en
+  blanco no se listan.**
+  - **Implementación:** `.cdn-idx` (capa bajo la barra) con `abrirIndice` / `cerrarIndice`; meses en orden; fila =
+    "Miércoles 21" + `resumenHoja` (líneas del texto sin marcas, unidas con " · ", hasta ~170 letras) + "🖼 n imágenes";
+    la hoja en foco destacada; se omiten las hojas sin fecha (páginas en blanco). Se quitó el menú desplegable anterior.
+  - **Prueba (local, 4 hojas de prueba: texto con título y viñetas, solo 2 imágenes, una en blanco, texto + imagen):**
+    "septiembre" con "Miércoles 30 · Las cualidades del sonido · Altura: agudo y grave · Intensidad: fuerte y suave";
+    "octubre" con "Miércoles 7 · Sin texto · 🖼 2 imágenes" y "Miércoles 21 · Cantamos Cuncuna amarilla completa ·
+    🖼 1 imagen"; la página en blanco no aparece; tocar el 21 cerró el índice y llevó a esa hoja; al reabrir, esa fila
+    destacada; ✕ lo cierra.

@@ -616,7 +616,7 @@
         const atras = girado() ? ['ArrowLeft', 'ArrowDown', 'PageUp'] : ['ArrowLeft', 'PageUp'];
         if (adelante.includes(e.key)) pasar(1);
         else if (atras.includes(e.key)) pasar(-1);
-        else if (e.key === 'Escape') { if (!$('.cdn-indice').hidden) $('.cdn-indice').hidden = true; else cerrar(); }
+        else if (e.key === 'Escape') { if (!$('.cdn-idx').hidden) cerrarIndice(); else cerrar(); }
         else if (unaPagina() && (e.key === '+' || e.key === '=')) ponerZoom(S.zoom * 1.2);
         else if (unaPagina() && e.key === '-') ponerZoom(S.zoom / 1.2);
         else if (unaPagina() && e.key === '0') ponerZoom(1);
@@ -653,7 +653,7 @@
             <span class="cdn-grupo" title="Letra (se recuerda por curso)">
                 <button data-letra="ligada" style="font-family:'Cuaderno Ligada',cursive;font-size:12px">Ligada</button><button data-letra="imprenta" style="font-family:'Cuaderno Imprenta',sans-serif">Imprenta</button>
             </span>
-            <span class="cdn-indice-wrap"><button class="cdn-btn" data-accion="indice" title="Ir a una hoja por su fecha">📅 Índice</button><div class="cdn-indice" hidden></div></span>
+            <button class="cdn-btn" data-accion="indice" title="Índice del cuaderno: todas las hojas por mes">📅 Índice</button>
             <span class="cdn-grupo cdn-zoom" style="visibility:hidden" title="Zoom (rueda, pellizco, + / −; doble clic = normal)">
                 <button data-accion="zoom-" title="Alejar">−</button><span class="cdn-zoom-n">100%</span><button data-accion="zoom+" title="Acercar">+</button><button data-accion="zoom0" title="Tamaño normal">⟲</button>
             </span>
@@ -672,17 +672,17 @@
             <button class="nav" data-accion="sig" title="Hoja siguiente (→)">▶</button>
             <button class="cdn-girar" data-accion="girar" style="visibility:hidden" title="Esta hoja está escrita con el cuaderno girado">↻ Girar para leer</button>
         </div>
+        <div class="cdn-idx" hidden></div>
         <div class="cdn-ed" hidden></div>`;
         document.body.appendChild(raiz);
 
         raiz.addEventListener('click', e => {
             const b = e.target.closest('button');
             if (!b || !S) return;
-            if (!b.closest('.cdn-indice-wrap')) $('.cdn-indice').hidden = true;
             if (b.dataset.modo) { cambiarModo(+b.dataset.modo); return; }
             if (b.dataset.papel) { S.pref.papel = b.dataset.papel; guardarPrefCurso(S.op.ctxNombre, { papel: S.pref.papel }); pintar(); return; }
             if (b.dataset.letra) { S.pref.letra = b.dataset.letra; guardarPrefCurso(S.op.ctxNombre, { letra: S.pref.letra }); pintar(); return; }
-            if (b.dataset.ir != null) { $('.cdn-indice').hidden = true; saltarA(+b.dataset.ir); return; }
+            if (b.dataset.ir != null) { cerrarIndice(); saltarA(+b.dataset.ir); return; }
             switch (b.dataset.accion) {
                 case 'cerrar': cerrar(); break;
                 case 'pizarra': proyectar(!S.proy); break;
@@ -695,6 +695,7 @@
                 case 'zoom0': ponerZoom(1); break;
                 case 'girar': cambiarModo({ 2: 5, 5: 2, 3: 4, 4: 3 }[S.modo] || 4); break;
                 case 'indice': abrirIndice(); break;
+                case 'idx-cerrar': cerrarIndice(); break;
                 case 'editar': { const h = hojaFoco(); if (h) abrirEditor(h); break; }
                 case 'crear': case 'nueva': nuevaHoja(); break;
                 case 'blanca': paginaEnBlanco(); break;
@@ -723,19 +724,42 @@
         document.addEventListener('keydown', alTecla, true);
         raiz.addEventListener('paste', alPegar);
     }
-    function abrirIndice() {
-        const caja = $('.cdn-indice');
-        if (!caja.hidden) { caja.hidden = true; return; }
-        const foco = hojaFoco();
-        caja.innerHTML = S.hojas.length ? S.hojas.map((h, i) => {
-            const t = (h.contenido || []).find(p => p.t === 'txt' && p.x?.trim());
-            if (sinFecha(h) && !t && !(h.contenido || []).some(p => p.t === 'img'))
-                return `<button data-ir="${i}" class="${h === foco ? 'on' : ''}"><span class="f">—</span><span class="t" style="color:#9a988f">Página en blanco</span></button>`;
-            const primera = t ? t.x.split('\n').find(l => l.trim()).replace(/^(#{1,3} |[-*•] \[[ xX]\] |[-*•] |\d+\. )/, '').replace(/[*_{}]|\{[23]:/g, '') : '🖼 Imagen';
-            return `<button data-ir="${i}" class="${h === foco ? 'on' : ''}"><span class="f">${sinFecha(h) ? '—' : esc(fechaCorta(h.fecha))}</span><span class="t">${esc(primera || '—')}</span></button>`;
-        }).join('') : '<div class="vacio">Todavía no hay hojas.</div>';
-        caja.hidden = false;
+    // Índice (PO 2026-10-21): una página sobre el cuaderno, por meses; cada hoja con su día ("Miércoles 21"), un
+    // resumen de lo escrito y cuántas imágenes tiene. Las páginas en blanco (sin fecha) no se listan.
+    const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    function resumenHoja(h) {
+        const lineas = (h.contenido || []).filter(p => p.t === 'txt' && p.x).flatMap(p => p.x.split('\n'))
+            .map(l => l.replace(/<br>/g, ' ').replace(/^(#{1,3} |[-*•] \[[ xX]\] |[-*•] |\d+\. |---$)/, '')
+                .replace(/\{[23]:/g, '').replace(/\\([*_{}\\])/g, '$1').replace(/\*\*|__|[*{}]/g, '').trim())
+            .filter(Boolean);
+        const t = lineas.join(' · ');
+        return t.length > 170 ? t.slice(0, 168).replace(/\s+\S*$/, '') + '…' : t;
     }
+    function abrirIndice() {
+        const caja = $('.cdn-idx');
+        if (!caja.hidden) { cerrarIndice(); return; }
+        const foco = hojaFoco();
+        const info = typeof contextoInfo === 'function' ? contextoInfo(S.op.ctxNombre) : { label: S.op.ctxNombre, icono: '' };
+        let html = '', mes = -1;
+        S.hojas.forEach((h, i) => {
+            if (sinFecha(h)) return;
+            const d = new Date(String(h.fecha).slice(0, 10) + 'T12:00:00');
+            if (d.getMonth() !== mes) { mes = d.getMonth(); html += `<h3>${MESES[mes]}</h3>`; }
+            const imgs = (h.contenido || []).filter(p => p.t === 'img').length;
+            const res = resumenHoja(h);
+            html += `<button class="cdn-idx-fila${h === foco ? ' on' : ''}" data-ir="${i}">
+                <span class="dia">${DIAS[d.getDay()]} ${d.getDate()}</span>
+                <span class="res">${res ? esc(res) : '<i>Sin texto</i>'}</span>
+                <span class="img">${imgs ? `🖼 ${imgs} ${imgs === 1 ? 'imagen' : 'imágenes'}` : ''}</span></button>`;
+        });
+        caja.innerHTML = `<div class="cdn-idx-caja">
+            <div class="cdn-idx-cab"><span>📅 Índice · ${esc(info.icono || '')} ${esc(info.label)} · ${S.anio}</span>
+                <button class="cdn-cerrar" data-accion="idx-cerrar" title="Cerrar el índice (Esc)">✕</button></div>
+            <div class="cdn-idx-cuerpo">${html || '<p class="vacio">Todavía no hay hojas con fecha.</p>'}</div></div>`;
+        caja.hidden = false;
+        caja.querySelector('.cdn-idx-fila.on')?.scrollIntoView({ block: 'center' });
+    }
+    function cerrarIndice() { const c = raiz && $('.cdn-idx'); if (c) { c.hidden = true; c.innerHTML = ''; } }
 
     // ── Abrir / cerrar ──────────────────────────────────────────────────
     async function abrir(op) {
@@ -784,7 +808,7 @@
         if (S.proy) proyectar(false);
         const cb = S.op.alCerrar;
         raiz.hidden = true;
-        $('.cdn-indice').hidden = true;
+        cerrarIndice();
         S = null;
         if (!silencioso && cb) cb();
     }
