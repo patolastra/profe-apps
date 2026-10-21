@@ -5098,6 +5098,14 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   desvanece solo). `recienGuardada` = { curso, año, meses } se marca en `pintarPlanis` una sola vez y la tabla se
   desplaza hasta ella. Probado (local): guardar una de prueba en 8° diciembre volvió a la tabla con "✓ Nueva" en esa
   celda; la prueba se borró.
+  Commit `b85475e` (subido).
+- **Ajuste (PO, 2026-10-21): ejes solo con su nombre y a elección.** Los ejes de Música son 3 e iguales de 1° a 8°
+  (Escuchar y apreciar · Interpretar y crear · Reflexionar y contextualizar). El cuadro Eje pasa de texto libre a **3
+  casillas** con solo el nombre; lo marcado se guarda como antes (`campos.eje`, nombres separados por "; "), así el Word y
+  Visualizar no cambian. A Gemini se le pide solo el nombre de el o los ejes, sin definiciones; si igual las manda (o en
+  planificaciones guardadas con definiciones), `ejesDe` deja solo los nombres reconocidos (sin reconocer ninguno, deja el
+  texto tal cual). Probado (local, sin guardar): un eje con definición quedó en su nombre; marcar/desmarcar cambia el
+  eje; las planificaciones guardadas de Cuarto no se tocaron.
 
 ### CJ. Bitácora — Cuaderno de música del curso (1° a 8°)
 *Origen: pedido del PO (2026-10-21): "un registro de lo que se escribe en el cuaderno (físico) de la clase de música,

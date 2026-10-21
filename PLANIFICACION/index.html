@@ -146,6 +146,9 @@
     .campos-ocultos { display: grid; gap: 14px; margin: 14px 0; }
     .campos-tit { font-size: 0.95rem; font-weight: 700; color: #2c3e50; margin: 16px 0 0; }
     .campos-tit small { display: block; font-size: 0.78rem; font-weight: 400; color: #888; margin-top: 2px; }
+    .ejes { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+    .eje-op { display: inline-flex; align-items: center; gap: 7px; font-size: 0.9rem; cursor: pointer; }
+    .eje-op input { width: 17px; height: 17px; accent-color: #e67e22; cursor: pointer; }
     .campos-ocultos .card { box-shadow: none; border: 1.5px solid #ececec; padding: 14px 16px; }
 
     /* ── "Traer lo del mes" (deuda CI) ── */
@@ -724,7 +727,8 @@
   <!-- Eje -->
   <div class="card">
     <div class="card-title">Eje</div>
-    <textarea id="eje" class="auto" rows="1"></textarea>
+    <!-- Los 3 ejes de Música (iguales en 1° a 8°), solo con su nombre: se marcan los que se trabajan (PO 2026-10-21) -->
+    <div class="ejes" id="ejes"></div>
   </div>
 
   <!-- Objetivos: cada uno con su casilla; solo lo marcado va al Word (deuda CI) -->
@@ -828,7 +832,7 @@ function cursoValor() {
 
 const FORMATO_FIJO = `CURSO: [nombre del curso]
 MES: [mes de la planificación]
-EJE: [eje o ejes temáticos del currículum]
+EJE: [solo el NOMBRE de el o los ejes que se trabajan, separados por punto y coma, elegidos entre: Escuchar y apreciar; Interpretar y crear; Reflexionar y contextualizar. Sin definiciones ni explicaciones]
 OAT_FISICA_1: [un OAT de la dimensión física, con su número y texto completo, una sola línea]
 OAT_FISICA_2: [otro OAT distinto de la dimensión física, una sola línea]
 OAT_SOCIO_1: [un OAT de la dimensión sociocultural, con su número y texto completo, una sola línea]
@@ -940,7 +944,17 @@ const GRUPOS = {
   recursos:   { nombre: 'Recursos',             marca: true, tabla: true },
   evaluacion: { nombre: 'Evaluación',           marca: true, tabla: true },
 };
-const EJE_INICIAL = 'Escuchar y Apreciar; Interpretar y Crear';
+// Los 3 ejes de Música son los mismos de 1° a 8° (PO 2026-10-21): se guarda solo su nombre, separados por "; ".
+const EJES = ['Escuchar y apreciar', 'Interpretar y crear', 'Reflexionar y contextualizar'];
+const EJE_INICIAL = 'Escuchar y apreciar; Interpretar y crear';
+const sinTildeEje = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+// Texto con ejes (con o sin definiciones, de Gemini o guardado) → solo los nombres reconocidos, en orden.
+// Si no reconoce ninguno, deja el texto tal cual (para no perder algo escrito a mano).
+function ejesDe(texto) {
+  const t = sinTildeEje(texto);
+  const hay = EJES.filter(e => t.includes(sinTildeEje(e)));
+  return hay.length ? hay.join('; ') : String(texto || '').trim();
+}
 function vacio() {
   const g = {};
   Object.keys(GRUPOS).forEach(k => { g[k] = []; });
@@ -1016,7 +1030,7 @@ function modeloDesdeBloques(bloques) {
     const r = reglaDe(k);
     if (!r || !r.grupo || !lineas.length) continue;
     const { grupo, m } = r;
-    if (grupo === 'eje') { Q.eje = lineas.join(' '); llenos.add('eje'); continue; }
+    if (grupo === 'eje') { Q.eje = ejesDe(lineas.join(' ')); llenos.add('eje'); continue; }
     const G = GRUPOS[grupo];
     if (G.tabla) {
       if (!visto.has(grupo)) { Q.g[grupo] = []; visto.add(grupo); }
@@ -1047,12 +1061,12 @@ function desdeGuardado(c) {
   if (!c) return vacio();
   if (c.v === 2 && c.g) {
     const Q = vacio();
-    Q.eje = c.eje ?? Q.eje;
+    Q.eje = c.eje != null ? ejesDe(c.eje) : Q.eje;
     Object.keys(GRUPOS).forEach(g => { if (Array.isArray(c.g[g])) Q.g[g] = c.g[g].map(it => ({ txt: it.txt || '', num: it.num || '', on: !!it.on })); });
     return Q;
   }
   const Q = vacio();
-  if (c.eje) Q.eje = c.eje;
+  if (c.eje) Q.eje = ejesDe(c.eje);
   const uno = (g, txt, num) => { if ((txt || '').trim()) Q.g[g].push({ txt: txt.trim(), num: num || '', on: true }); };
   uno('oat_fisica', c.oat_fisica); uno('oat_socio', c.oat_socio);
   uno('basal', c.oa_b1_txt, c.oa_b1_num); uno('basal', c.oa_b2_txt, c.oa_b2_num);
@@ -1102,8 +1116,9 @@ function pintarGrupo(grupo) {
   renumerar(grupo);
 }
 function pintarCampos() {
-  const eje = document.getElementById('eje');
-  eje.value = P.eje || '';
+  const marcados = sinTildeEje(P.eje);
+  document.getElementById('ejes').innerHTML = EJES.map(e =>
+    `<label class="eje-op"><input type="checkbox" value="${e}"${marcados.includes(sinTildeEje(e)) ? ' checked' : ''}> ${e}</label>`).join('');
   Object.keys(GRUPOS).forEach(pintarGrupo);
   ajustarTodo();
 }
@@ -1115,7 +1130,10 @@ function pintarCampos() {
     return caja ? { grupo: caja.dataset.grupo, i: item ? +item.dataset.i : -1, item } : null;
   };
   raiz.addEventListener('input', e => {
-    if (e.target.id === 'eje') { P.eje = e.target.value; guardarPronto(); return; }
+    if (e.target.closest('#ejes')) {
+      P.eje = [...document.querySelectorAll('#ejes input:checked')].map(x => x.value).join('; ');
+      guardarPronto(); return;
+    }
     const u = ubicar(e.target);
     if (!u || u.i < 0) return;
     const it = P.g[u.grupo][u.i];
