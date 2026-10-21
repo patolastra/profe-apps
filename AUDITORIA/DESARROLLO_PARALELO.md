@@ -5191,3 +5191,8 @@ navegar por él; ahí consta la fecha, lo escrito, las imágenes coloreadas que 
   - **Prueba (local, Cuarto, año 2099, borrado al final):** "＋ Página en blanco" desde la hoja 1 dejó la hoja 2 "en
     blanco" sin fecha; la franja muestra el borde de la hoja anterior (con su fecha cortada) a la izquierda del espiral en
     la forma 3 y arriba en la forma 4; la hoja principal cabe entera en pantalla.
+  - **Commit:** `ae27235` (subido).
+- **Ajuste (PO, 2026-10-21): títulos centrados.** DECISIÓN del PO: en el cuaderno, todo lo marcado como Título (H1, H2,
+  H3) queda centrado solo (sin botón Centrar: el editor compartido no cambia). Solo CSS en `comun/cuaderno.css` (en la
+  hoja y al escribirlo en el editor de la hoja). Probado: "# Las figuras rítmicas" y "## La corchea" centrados, el
+  párrafo a la izquierda.
