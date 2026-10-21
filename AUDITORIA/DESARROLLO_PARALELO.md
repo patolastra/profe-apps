@@ -5382,4 +5382,4 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
   cualquier vista. **Cuadros** (DECISIÓN del PO): del mismo alto y ancho que el renglón de las líneas, **44 × 44**
   (antes 22), alineados con el texto. Probado (local): en la vista 5 las líneas cubren toda la hoja; en la 3, con
   cuadros, cada renglón de texto queda dentro de una fila de cuadros. No se pudo reproducir el corte en el navegador de
-  pruebas: falta que el PO confirme en su pantalla.
+  pruebas; **el PO confirmó en su pantalla que ya no se corta** (2026-10-21). Commit `88d844a` (subido).
