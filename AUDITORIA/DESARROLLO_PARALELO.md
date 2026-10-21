@@ -5106,6 +5106,10 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
   planificaciones guardadas con definiciones), `ejesDe` deja solo los nombres reconocidos (sin reconocer ninguno, deja el
   texto tal cual). Probado (local, sin guardar): un eje con definición quedó en su nombre; marcar/desmarcar cambia el
   eje; las planificaciones guardadas de Cuarto no se tocaron.
+  Commit `022e8e6` (subido).
+- **Ajuste (PO, 2026-10-21): el año no se elige.** Se planifica siempre para el año en ejercicio: el campo Año queda solo
+  para mirar (`readonly`, sin borde, no recibe foco); lo pone la página (año en curso) y solo cambia al abrir una
+  planificación guardada de otro año desde 📂 Guardadas.
 
 ### CJ. Bitácora — Cuaderno de música del curso (1° a 8°)
 *Origen: pedido del PO (2026-10-21): "un registro de lo que se escribe en el cuaderno (físico) de la clase de música,
