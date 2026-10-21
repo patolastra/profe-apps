@@ -5346,6 +5346,12 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
     Descargar → Ver abre la planificación; 📋＋ de 1° septiembre abrió el editor con el formulario de cierre lleno
     ("Evaluación de cierre · Septiembre"), sin guardar nada; con una rúbrica simulada, 📋 → Ver / Descargar → Ver
     mostró la tabla en la ventana.
+    Commit `4e7e927` (subido).
+  - **Ajuste (PO): la tabla quedó muy chica → que llene la pantalla disponible.** Con `body.en-planis` la vista usa todo
+    el ancho; `altoPlanis()` le da todo el alto bajo el encabezado (al mostrarla y al cambiar el tamaño de la ventana) y
+    las filas se reparten ese alto; letra y botones crecen con la pantalla (`clamp` según el alto). La vista ✏️ Editar
+    no cambia. Probado (local): en 1900 × 870, filas de 79 y botones de 18 px, sin desplazamiento (alto del documento =
+    alto de la ventana); en 1366 × 640 también cabe sin desplazar.
 - **Paso 3 — la rúbrica en Word (DECISIÓN del PO, 2026-10-21): en un Word aparte, con su propio botón** (no como anexo
   del Word de la planificación). Contenido: la misma cabecera institucional, "RÚBRICA DE EVALUACIÓN <año>", curso,
   período, evaluación, fecha y OA; tabla de criterios × 4 niveles (o ítem / Sí / No si es lista de cotejo), en hoja
