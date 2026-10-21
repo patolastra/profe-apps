@@ -5295,3 +5295,14 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
   supabase/planificacion_evaluacion.sql"; la tabla carga igual (14 planificaciones, sin estados); el Libro de Cuarto con un
   pedido de prueba abrió "Nueva evaluación" con nombre, fecha, OA y el aviso (no se creó nada; pedido borrado); sin
   errores en la consola. Falta: el PO corre el SQL; prueba completa (crear, ligar, rúbrica, estados).
+- **Commit:** `f73b852` (subido). El PO corrió `supabase/planificacion_evaluacion.sql` (2026-10-21).
+- **Prueba completa (local, datos reales; planificación de prueba de 1° marzo 2026 y su evaluación, borradas al final):**
+  el cuadro mostró "📝 … todavía no tiene evaluación de cierre"; ＋ Crear propuso "Evaluación de cierre · Marzo", fecha
+  31/3 (1° no tiene clases en marzo: último día del mes), el OA marcado y la plantilla "Rúbrica para canto y ritmo";
+  Continuar dejó el pedido; el Libro de Primero abrió "Nueva evaluación" lleno con el aviso; Crear evaluación la ligó
+  (`planificacion_id`), copió la rúbrica (4 criterios, `origen_plantilla_id` = la plantilla), la asoció al OA
+  (`instrumento_id`) y materializó 23 estudiantes; el detalle muestra "🗓️ Planificación Mar"; el pedido se borró. De
+  vuelta: el cuadro dice "⏳ … · 31/3 · 0 de 23 evaluados" y la tabla "⏳ 0/23" en 1° marzo (las demás "📝 sin
+  evaluación", en rojo las de septiembre, ya pasado); 📒 Abrir en el Libro abrió esa evaluación. Al borrar la evaluación
+  se fueron su rúbrica copiada y sus notas (0 restantes). Falta: uso real (y que el PO vea el aviso rojo de las de
+  septiembre).
