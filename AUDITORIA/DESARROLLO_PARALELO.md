@@ -5387,3 +5387,9 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
   ninguno en Cuadros): a 100 del borde izquierdo y a 70 del derecho (`--cdn-margenes`, la misma capa en ambos papeles);
   el texto queda entre los dos (caja de contenido de 712 a 666 de ancho). Probado (local): en Líneas se ven los dos y el
   texto largo baja de renglón antes del margen derecho; en Cuadros la hoja lleva las dos líneas rojas.
+  - **Corrección (PO):** en Cuadros cada línea roja debe **reemplazar justo una línea celeste**, y las dos rojas, delgadas y
+    del **mismo grosor** (la izquierda se veía más delgada que la derecha), en todas las vistas y papeles. Los márgenes
+    pasan a posiciones fijas sobre la cuadrícula de 44: **86–88 y 790–792** (2 de grosor, igual que las celestes), en
+    Líneas y en Cuadros; el texto va de 100 a 778.
+    Probado (local, Cuadros con zoom 400 %): la línea roja izquierda ocupa justo el lugar de una celeste y tiene su mismo
+    grosor; la derecha cae en 790–792, también sobre la cuadrícula.
