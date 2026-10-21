@@ -5135,6 +5135,10 @@ predefinidas; el editor de plantillas por escuela es futuro, §8–§9). No conf
     "3,4" (la misma, sin duplicar); con otra de Mayo creada aparte, marcar Mayo mostró el aviso y no cambió nada en la
     base ("3,4" y "5" intactas); "Abrir esa" abrió la de Mayo y quitó el aviso; 🗑 Eliminar desde Visualizar borró las
     dos (0 restantes) y cerró la ventana.
+  - **Commit:** `4c207c5` (subido).
+- **Ajuste (PO, 2026-10-21): nombre e ícono.** La pestaña del Workspace se llama **"Planificaciones"** y usa el ícono
+  **🗓️** (elegido por el PO entre 🗓️ / 🗂️ / 📋 / 📑), el mismo del botón de la página (antes 📚, que es el de la
+  Biblioteca) y del botón "🗓️ Planificación del mes" de Cursos.
 
 ### CJ. Bitácora — Cuaderno de música del curso (1° a 8°)
 *Origen: pedido del PO (2026-10-21): "un registro de lo que se escribe en el cuaderno (físico) de la clase de música,
