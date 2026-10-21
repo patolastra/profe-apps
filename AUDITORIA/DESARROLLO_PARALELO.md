@@ -5352,6 +5352,8 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
     las filas se reparten ese alto; letra y botones crecen con la pantalla (`clamp` según el alto). La vista ✏️ Editar
     no cambia. Probado (local): en 1900 × 870, filas de 79 y botones de 18 px, sin desplazamiento (alto del documento =
     alto de la ventana); en 1366 × 640 también cabe sin desplazar.
+  - **Ajuste (PO):** sin el título "Planificaciones 2026" (el año ya está en la página) ni la raya bajo 8°, y ese
+    espacio va a la tabla; **el ancho vuelve a ser el de antes** (1120): solo se aprovecha el alto.
 - **Paso 3 — la rúbrica en Word (DECISIÓN del PO, 2026-10-21): en un Word aparte, con su propio botón** (no como anexo
   del Word de la planificación). Contenido: la misma cabecera institucional, "RÚBRICA DE EVALUACIÓN <año>", curso,
   período, evaluación, fecha y OA; tabla de criterios × 4 niveles (o ítem / Sí / No si es lista de cotejo), en hoja
