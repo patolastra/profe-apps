@@ -5458,6 +5458,13 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
     🖼 1 imagen"; la página en blanco no aparece; tocar el 21 cerró el índice y llevó a esa hoja; al reabrir, esa fila
     destacada; ✕ lo cierra.
 
+- **Ajuste (PO, 2026-10-22): una rúbrica de una evaluación se puede guardar como plantilla** (Libro). En la tarjeta de
+  instrumentos de la evaluación, cada instrumento lleva **💾 Guardar como plantilla** (también con la evaluación cerrada):
+  pide el nombre (propone el del instrumento), avisa si ya hay una plantilla con ese nombre y guarda una **copia** en
+  Plantillas (tipo, criterios en orden y sus 4 niveles); lo que se cambie después en una no toca a la otra.
+  `instrAPlantilla` en `LIBRO/index.html`. Probado (local, instrumento de prueba en memoria, plantilla borrada al final):
+  quedó la plantilla tipo rúbrica con sus 2 criterios en orden y sus niveles.
+
 ### CL. Plan — el Historial al lado del Plan
 *Origen: pedido del PO (2026-10-21): "el botón historial muestra el historial en el mismo espacio donde se renderiza el
 plan; quiero poder ver el historial en el espacio de la presentación, porque para planificar me sirve mucho tener a la
