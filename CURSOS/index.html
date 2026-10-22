@@ -127,6 +127,14 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .ent-pend { margin: 0 0 10px; padding-left: 2px; }
 .ent-pend .pp-tit { font-size: 12px; color: var(--suave); margin-bottom: 2px; }
 .ent-pend[hidden] { display: none; }
+/* Listas de pendientes plegadas al abrir (PO 2026-10-22, deuda CN): se despliegan tocando su título */
+.plegable > .pp-tit { cursor: pointer; user-select: none; }
+.plegable > .pp-tit:hover { color: var(--texto); }
+.plegable.plegado > .pp-lista { display: none; }
+.plegable.plegado > .pp-tit { margin-bottom: 0; }
+.pp-fl { display: inline-block; width: 12px; transition: transform .15s; }
+.plegable:not(.plegado) .pp-fl { transform: rotate(90deg); }
+#pag-pend.plegado { padding-bottom: 10px; }
 /* Citas a apoderados del curso (comun/apoderados.js, BK); General no tiene estudiantes */
 #pag-apo { border: 1px solid var(--linea); border-radius: 10px; padding: 10px 12px 8px; margin: -14px 0 26px; }
 #pag-apo .pp-tit { font-size: 13px; font-weight: 600; color: var(--suave); margin-bottom: 6px; display: flex; gap: 8px; }
@@ -455,7 +463,7 @@ function pintarPendientes() {
         if (!box) return;
         listasPend.push(Pendientes.lista(box.querySelector('.pp-lista'), {
             filtro: p => p.sesion_id === E.sesionId, todosCompletados: true, botonAgregar: false, completadosAbiertos: false,
-            alCambiar: n => { box.hidden = !(n.activos + n.completados); },
+            alCambiar: n => { box.hidden = !(n.activos + n.completados); box.querySelector('.pp-n').textContent = n.activos ? `· ${n.activos}` : ''; },
         }));
     });
 }
@@ -463,7 +471,7 @@ function pintarPendientes() {
 function pintarHistorico() {
     const info = nombreCtx(ctxActual);
     let html = `<div id="pag-titulo">${esc(info.icono + ' ' + info.label)}</div>
-        <div id="pag-pend"><div class="pp-tit">☑ Pendientes <span class="pp-n"></span></div><div class="pp-lista"></div></div>`;
+        <div id="pag-pend" class="plegable plegado"><div class="pp-tit" title="Mostrar u ocultar"><span class="pp-fl">▸</span> ☑ Pendientes <span class="pp-n"></span></div><div class="pp-lista"></div></div>`;
     if (!esGeneralActual()) html += `<div id="pag-apo"><div class="pp-tit">👪 Apoderados <span class="pp-n"></span></div><div class="pp-lista"></div></div>`;
     if (!entradas.length) html += '<div class="lat-vacio" style="padding:0">Todavía no hay clases ni notas. Crea una con ＋ Nota.</div>';
     entradas.forEach(E => {
@@ -474,7 +482,7 @@ function pintarHistorico() {
                <button class="ent-menu" data-eb-menu title="Opciones de la nota">⋯</button></div>`;
         html += `<section class="entrada ${E.tipo}" data-k="${E.k}">
             <div class="ent-cab">${cab}</div>
-            ${E.tipo === 'clase' ? '<div class="ent-pend" hidden><div class="pp-tit">☑ Pendientes de esta clase</div><div class="pp-lista"></div></div>' : ''}
+            ${E.tipo === 'clase' ? '<div class="ent-pend plegable plegado" hidden><div class="pp-tit" title="Mostrar u ocultar"><span class="pp-fl">▸</span> ☑ Pendientes de esta clase <span class="pp-n"></span></div><div class="pp-lista"></div></div>' : ''}
             <div class="ent-audios"></div>
             <div class="ent-editor"></div>
         </section>`;
@@ -544,6 +552,12 @@ $('btn-plani').addEventListener('click', () => {
     if (!CURSOS_PLANI.includes(ctx)) return;
     window.parent.postMessage({ tipo: 'ws-abrir', key: 'planificacion', titulo: 'Planificaciones', ico: '🗓️', guardarAlCerrar: true,
         src: '../PLANIFICACION/index.html?ctx=' + encodeURIComponent(ctx), ir: { ctx } }, '*');
+});
+
+// Pendientes plegados (deuda CN): tocar el título los muestra u oculta.
+$('pagina').addEventListener('click', e => {
+    const t = e.target.closest('.plegable > .pp-tit');
+    if (t) t.parentElement.classList.toggle('plegado');
 });
 
 // ── Notas: crear, título, fecha, eliminar ───────────────────────────────

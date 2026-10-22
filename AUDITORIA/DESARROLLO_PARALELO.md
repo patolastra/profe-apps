@@ -5517,3 +5517,13 @@ Hoy; se muestran, como si fueran una página, las bitácoras de los contextos".*
   Octavo y Castigadas en el orden del horario; ◀ → miércoles 21 con Primero y su bitácora; ◀ ◀ → lunes 19 con
   Orientación, Tercero, Cuarto y Taller de Cuerdas; "Abrir curso →" de Cuarto abrió su página en la clase del 19.
   Falta: escribir en una clase sin sesión (se crea al guardar) en uso real.
+
+### CN. Cursos — listas de pendientes siempre plegadas
+*Origen: deuda anotada por el PO (2026-10-21, Notion "Cursos: listas de pendientes siempre plegadas"); el PO pide hacerla
+(2026-10-22). Solo Cursos: el Historial del Plan no muestra pendientes.*
+- **Decisión del PO:** en la página de un curso, el cuadro **☑ Pendientes** del curso y los pendientes de **cada
+  clase** aparecen **plegados** al abrir; se despliegan tocando su título (con la cantidad a la vista).
+- **Implementación (2026-10-22):** `CURSOS/index.html`: los cuadros llevan `plegable plegado` (▸ que gira al abrir); el
+  de cada clase muestra "· n" pendientes activos; un clic en el título alterna; al volver a abrir el curso parten
+  plegados otra vez. Probado (local, Cuarto): "▸ ☑ Pendientes · 2" plegado, 4 clases con pendientes plegadas
+  ("· 2" en la primera); clic abre y vuelve a cerrar.
