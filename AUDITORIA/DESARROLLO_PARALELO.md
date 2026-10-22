@@ -5465,6 +5465,12 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
   `instrAPlantilla` en `LIBRO/index.html`. Probado (local, instrumento de prueba en memoria, plantilla borrada al final):
   quedó la plantilla tipo rúbrica con sus 2 criterios en orden y sus niveles.
 
+- **Ajuste (PO, 2026-10-22): editores de rúbrica más amplios y con cuadros de texto grandes** (Libro: editor de la
+  plantilla y ventana "Instrumento" de la evaluación). Criterio y niveles pasan de líneas sueltas a **cuadros de texto
+  que crecen con lo escrito** (letra 14–15, se lee todo); los 4 niveles van uno al lado del otro con más ancho. La ventana
+  del instrumento llega a 1400 de ancho (antes 660) y la página de Plantillas a 1400 (antes 1000). Probado (local, 1600
+  de ancho): plantilla con cuadros de nivel de 305 de ancho que muestran todo su texto; ventana del instrumento de 1334.
+
 ### CL. Plan — el Historial al lado del Plan
 *Origen: pedido del PO (2026-10-21): "el botón historial muestra el historial en el mismo espacio donde se renderiza el
 plan; quiero poder ver el historial en el espacio de la presentación, porque para planificar me sirve mucho tener a la

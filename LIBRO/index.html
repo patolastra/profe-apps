@@ -137,8 +137,14 @@
   /* ── PLANTILLAS (Instrumentos) ── */
   #vista[data-cat="plant"] .card{border-top:3px solid #1fb0b0}
   .pl-item{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;background:rgba(255,255,255,.02)}
-  .pl-niveles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px;padding-left:28px}
-  .pl-niveles label{font-size:11px;color:var(--mut)}
+  .pl-niveles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:8px;padding-left:28px}
+  .pl-niveles label{font-size:12px;color:var(--mut)}
+  /* Editores de rúbrica más amplios (PO 2026-10-22): ventana ancha y cuadros de texto grandes que crecen */
+  #instr-edit-card{max-width:min(1400px,96vw);max-height:92vh}
+  textarea.rub-crit,textarea.rub-niv{width:100%;resize:vertical;font:inherit;line-height:1.45;overflow:hidden}
+  textarea.rub-crit{font-size:15px;font-weight:600;min-height:2.6em}
+  textarea.rub-niv{font-size:14px;min-height:6.2em}
+  main:has(#vista[data-cat="plant"]){max-width:1400px}   /* Plantillas: más ancho para editar rúbricas */
   .instr-ver{margin:6px 0 0 28px}
   .instr-desc{font-size:12px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:6px;padding:4px 6px;min-height:20px}
   /* Filas de actividad abierta: MISMO lenguaje visual que .fila-ok (fondo tintado
@@ -2827,15 +2833,16 @@ function renderPlItems(){
     <div class="pl-item">
       <div class="row" style="gap:8px;align-items:center">
         <span class="ix">${idx + 1}</span>
-        <input class="pl-texto" data-id="${it.id}" data-k="texto" value="${esc(it.texto)}" placeholder="${esRub ? 'Criterio' : 'Ítem'}" style="flex:1">
+        <textarea class="pl-texto rub-crit" rows="1" data-id="${it.id}" data-k="texto" placeholder="${esRub ? 'Criterio' : 'Ítem'}" style="flex:1">${esc(it.texto)}</textarea>
         <button class="btn mini danger" onclick="eliminarPlItem('${it.id}')" title="Eliminar">✕</button>
       </div>
       ${esRub ? `<div class="pl-niveles">${PL_NIVELES.map(([k, lab, n]) =>
-        `<div><label>${lab} (${n})</label><input data-id="${it.id}" data-k="${k}" value="${esc(it[k] || '')}" placeholder="Descripción (opcional)"></div>`).join('')}</div>` : ''}
+        `<div><label>${lab} (${n})</label><textarea class="rub-niv" rows="3" data-id="${it.id}" data-k="${k}" placeholder="Descripción (opcional)">${esc(it[k] || '')}</textarea></div>`).join('')}</div>` : ''}
     </div>`).join('');
-  cont.querySelectorAll('input[data-id]').forEach(el => {
+  cont.querySelectorAll('[data-id][data-k]').forEach(el => {
     el.addEventListener('change', () => guardarPlItemCampo(el.dataset.id, el.dataset.k, el.value));
   });
+  crecerTextos(cont);
 }
 
 async function renombrarPlantilla(){
@@ -3202,17 +3209,25 @@ function cerrarInstrEdit(){
   recargarInstrumentos().then(() => renderInstrCard());   // refresca la tarjeta (lista + estudiantes reflejan el instrumento)
 }
 
+// Editores de rúbrica (PO 2026-10-22): cuadros de texto que crecen con lo escrito, para leerlo entero.
+function crecerTextos(raiz){
+  const ajustar = t => { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; };
+  raiz.querySelectorAll('textarea.rub-crit, textarea.rub-niv').forEach(t => {
+    ajustar(t);
+    t.addEventListener('input', () => ajustar(t));
+  });
+}
 // Fila de criterio/ítem en el editor (mismo patrón visual que Plantillas: .pl-item + PL_NIVELES).
 function instrEditItemRowHTML(it, idx, esRub, bloqueado){
   const dis = bloqueado ? 'disabled' : '';
   return `<div class="pl-item">
       <div class="row" style="gap:8px;align-items:center">
         <span class="ix">${idx + 1}</span>
-        <input data-id="${it.id}" data-k="texto" value="${esc(it.texto)}" placeholder="${esRub ? 'Criterio' : 'Ítem'}" style="flex:1" ${dis}>
+        <textarea class="rub-crit" rows="1" data-id="${it.id}" data-k="texto" placeholder="${esRub ? 'Criterio' : 'Ítem'}" style="flex:1" ${dis}>${esc(it.texto)}</textarea>
         ${bloqueado ? '' : `<button class="btn mini danger" onclick="instrEditEliminarItem('${it.id}')" title="Eliminar">✕</button>`}
       </div>
       ${esRub ? `<div class="pl-niveles">${PL_NIVELES.map(([k, lab, n]) =>
-        `<div><label>${lab} (${n})</label><input data-id="${it.id}" data-k="${k}" value="${esc(it[k] || '')}" placeholder="Descripción (opcional)" ${dis}></div>`).join('')}</div>` : ''}
+        `<div><label>${lab} (${n})</label><textarea class="rub-niv" rows="3" data-id="${it.id}" data-k="${k}" placeholder="Descripción (opcional)" ${dis}>${esc(it[k] || '')}</textarea></div>`).join('')}</div>` : ''}
     </div>`;
 }
 
@@ -3265,7 +3280,8 @@ function renderInstrEdit(){
     </div>`}
     <div class="mm-actions"><button class="btn primary" onclick="cerrarInstrEdit()">Listo</button></div>`;
   card.innerHTML = html;
-  card.querySelectorAll('#ie-items input[data-id]').forEach(el => {
+  crecerTextos(card);
+  card.querySelectorAll('#ie-items [data-id][data-k]').forEach(el => {
     el.addEventListener('change', () => instrEditGuardarCampo(el.dataset.id, el.dataset.k, el.value));
   });
 }
