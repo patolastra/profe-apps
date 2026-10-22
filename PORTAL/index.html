@@ -667,6 +667,17 @@
         .cl-bit-pie button { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 4px 12px; cursor: pointer; font-weight: 700; }
         .cl-vacio { color: var(--muted); font-size: 1.1rem; padding: 40px; text-align: center; }
         #prev-mini { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 20; display: flex; flex-direction: column; background: #0f172a; }
+        /* 🕘 Historial al lado del Plan (deuda CL): encima de la Presentación, la Vista previa, el Entrenador mínimo y el panel de clase */
+        #hist-lado { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 25; display: flex; flex-direction: column;
+            background: #fff; border-left: 1px solid var(--border); }
+        #hist-lado[hidden] { display: none; }
+        .hist-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px;
+            border-bottom: 1px solid var(--border); background: #f8fafc; font-weight: 800; font-size: 0.85rem; color: var(--text, #1e293b); }
+        .hist-cab button { border: 0; background: none; font-size: 1rem; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+        .hist-cab button:hover { background: #e2e8f0; color: var(--text, #1e293b); }
+        .hist-cuerpo { flex: 1; overflow-y: auto; padding: 10px 22px 40px; }
+        #hist-lado .cur-ent-body, #hist-lado .cur-ent-body .eb-lectura { font-size: 14px; }
+        .ptab.lado-on { color: var(--accent); background: #eff6ff; border-color: #bfdbfe; }
         #prev-mini[hidden] { display: none; }
         #prev-mini iframe { flex: 1; width: 100%; border: 0; }
         /* Canciones de la actividad: en su propia fila, bajo el título (el título queda entero) */
@@ -1425,7 +1436,6 @@
                 <div class="s-col-body" id="col-plan-body">
                     <div class="ptab-pane" id="pane-plan"></div>
                     <div class="ptab-pane" id="pane-clase" hidden></div>
-                    <div class="ptab-pane" id="pane-curso" hidden></div>
                     <div class="ptab-pane" id="pane-pend" hidden><div id="ses-pend-lista"></div></div>
                     <div class="ptab-pane" id="pane-apo" hidden><div id="ses-apo-lista"></div></div>
                 </div>
@@ -1472,6 +1482,11 @@
             <div id="clase-panel" hidden></div>
             <div id="prev-mini" hidden>
                 <iframe allow="window-management; autoplay; fullscreen"></iframe>
+            </div>
+            <!-- 🕘 Historial del curso al lado del Plan (deuda CL): sobre Presentación y Vista previa; 🕘 o ✕ lo cierra -->
+            <div id="hist-lado" hidden>
+                <div class="hist-cab"><span>🕘 Historial del curso</span><button onclick="cerrarHistorial()" title="Cerrar el historial">✕</button></div>
+                <div class="hist-cuerpo"><div id="pane-curso"></div></div>
             </div>
         </div>
     </div>
@@ -2192,6 +2207,7 @@ async function abrirSesion(cid, fechaStr, nombre) {
     ]);
     planTab('plan');        // al abrir una clase, parte en el Plan (deuda BO)
     cursoPintado = false;   // la página del curso se arma al abrir su pestaña
+    if (!document.getElementById('hist-lado').hidden) cargarCurso();   // Historial abierto al lado: el del curso nuevo
 }
 
 // Pre-resuelve la sesión de entrenamiento por defecto del contexto (o null). No crea
@@ -4548,19 +4564,32 @@ function memAudioHtml(a, i) {
 // 📋 Plan (actividades de esta clase, tabla plan_cards; "O:" = objetivo) · 🕘 Historial (página del curso como en
 // Cursos: clases y notas, solo lectura con ✏️ por entrada) · Pendientes · Apoderados.
 // ═══════════════════════════════════════════════════════════
-const PLAN_TABS = ['plan', 'curso', 'pend', 'apo'];
+const PLAN_TABS = ['plan', 'pend', 'apo'];
 function planTab(t) {
+    if (t === 'curso') { if (document.getElementById('hist-lado').hidden) abrirHistorial(); else cerrarHistorial(); return; }
     if (!PLAN_TABS.includes(t)) return;
-    document.querySelectorAll('#plan-tabs .ptab').forEach(b => b.classList.toggle('activa', b.dataset.tab === t));
+    document.querySelectorAll('#plan-tabs .ptab').forEach(b => { if (b.dataset.tab !== 'curso') b.classList.toggle('activa', b.dataset.tab === t); });
     PLAN_TABS.forEach(x => { const el = document.getElementById('pane-' + x); if (el) el.hidden = x !== t; });
     document.getElementById('col-plan-body').scrollTop = 0;
-    if (t === 'curso' && !cursoPintado) cargarCurso();
     pintarClase();
+}
+// 🕘 Historial al lado del Plan (deuda CL): tapa Presentación + Vista previa (también en clase) y la columna izquierda
+// sigue donde estaba. 🕘 de nuevo o ✕ lo cierra.
+function abrirHistorial() {
+    document.getElementById('hist-lado').hidden = false;
+    document.querySelector('#plan-tabs .ptab[data-tab="curso"]').classList.add('lado-on');
+    miniUbicar();
+    if (!cursoPintado) cargarCurso();
+}
+function cerrarHistorial() {
+    document.getElementById('hist-lado').hidden = true;
+    document.querySelector('#plan-tabs .ptab[data-tab="curso"]').classList.remove('lado-on');
 }
 document.getElementById('plan-tabs').addEventListener('click', e => {
     const b = e.target.closest('.ptab'); if (b) planTab(b.dataset.tab);
 });
 EditorBloques.zona(document.getElementById('col-plan-body'));
+EditorBloques.zona(document.querySelector('#hist-lado .hist-cuerpo'));
 
 // ── 📋 Plan de la clase: actividades (título + texto por bloques; párrafo "O:" = objetivo) ──
 let planCards = [];          // [{ id, orden, titulo, contenido, updated_at, ed, sucio, timer, ultEnvio }]
@@ -5120,7 +5149,7 @@ async function abrirMini(cancionId, actId, assetId) {
 function miniUbicar() {
     const ed = document.querySelector('.s-col-editor');
     if (!ed) return;
-    ['prev-mini', 'clase-panel'].forEach(id => {
+    ['prev-mini', 'clase-panel', 'hist-lado'].forEach(id => {
         const box = document.getElementById(id);
         if (box && !box.hidden) box.style.left = ed.offsetLeft + 'px';
     });
@@ -5478,7 +5507,7 @@ async function cargarCurso() {
         || String(b.creado).localeCompare(String(a.creado)));
     lista.forEach(E => { cursoEnt[E.k] = E; });
 
-    const body = document.getElementById('col-plan-body');
+    const body = document.querySelector('#hist-lado .hist-cuerpo');
     const y = yaHabia ? body.scrollTop : 0;
     if (!lista.length) { pane.innerHTML = '<div class="plan-vacio">Este curso aún no tiene clases ni notas anteriores.</div>'; return; }
     let html = '', mes = '';

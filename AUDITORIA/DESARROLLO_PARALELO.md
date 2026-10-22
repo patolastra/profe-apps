@@ -5457,3 +5457,25 @@ está dentro de una evaluación dentro del libro de clases del curso en cuestió
     "octubre" con "Miércoles 7 · Sin texto · 🖼 2 imágenes" y "Miércoles 21 · Cantamos Cuncuna amarilla completa ·
     🖼 1 imagen"; la página en blanco no aparece; tocar el 21 cerró el índice y llevó a esa hoja; al reabrir, esa fila
     destacada; ✕ lo cierra.
+
+### CL. Plan — el Historial al lado del Plan
+*Origen: pedido del PO (2026-10-21): "el botón historial muestra el historial en el mismo espacio donde se renderiza el
+plan; quiero poder ver el historial en el espacio de la presentación, porque para planificar me sirve mucho tener a la
+vista el historial, pero no puedo ver las dos cosas al mismo tiempo".*
+- **Necesidad:** planificar la clase mirando qué se hizo en las anteriores (Plan e Historial a la vez).
+- **Auditoría:** el Historial (deuda BO) es la pestaña 🕘 de la columna izquierda (`#pane-curso`, `cargarCurso`, ✏️ por
+  entrada) y reemplaza al Plan. Las columnas Presentación + Vista previa ya se tapan con capas propias (Entrenador
+  mínimo `#prev-mini`, vista de clase `#clase-panel`) que siguen al ancho de la columna del Plan (`miniUbicar`).
+- **DECISIÓN del PO (2026-10-21):** el Historial se abre **sobre Presentación + Vista previa** (el Plan sigue a la
+  izquierda); **🕘 Historial lo abre y lo cierra** (o ✕) sin cambiar la columna izquierda; se puede abrir también **con
+  la clase en curso** (tapa un momento el panel de la clase); **✏️ por entrada** como hoy. **Queda en revisión** si este
+  uso es cómodo.
+- **Implementación (2026-10-22):** `PORTAL/index.html`: `#pane-curso` sale de la columna izquierda a la capa
+  **`#hist-lado`** (encabezado "🕘 Historial del curso" + ✕, cuerpo con su propio desplazamiento, letra un poco mayor),
+  ubicada como el Entrenador mínimo (`miniUbicar`, sigue el ancho de la columna del Plan) y encima de él y del panel de
+  clase (z 25). `planTab('curso')` abre/cierra (`abrirHistorial` / `cerrarHistorial`) sin tocar la pestaña activa de
+  la izquierda; el botón 🕘 se marca mientras está abierto. Al abrir otra clase con el Historial abierto, se arma el
+  del curso nuevo. ✏️ por entrada igual que antes.
+- **Prueba (local, Cuarto, clase del 12/10, sin editar nada):** 🕘 abrió el Historial a la derecha (22 entradas),
+  justo desde donde empieza la Presentación hasta el borde, con el 📋 Plan visible a la izquierda; cambiar a Pendientes
+  dejó el Historial abierto; 🕘 de nuevo lo cerró y ✕ también. **PENDIENTE (PO):** revisar en uso si es cómodo.
