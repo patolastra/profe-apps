@@ -95,6 +95,18 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .fila.hoy .ico { color: #e0a106; }
 .ent-ir { font-size: 12.5px; padding: 2px 8px; border-radius: 6px; color: var(--suave); border: 1px solid var(--linea) !important; background: #fff !important; }
 .ent-ir:hover { color: var(--texto); background: var(--hover) !important; }
+/* 🐞 Mejoras de la app (deuda CO) */
+.mj-ayuda { color: var(--suave); font-size: 14px; line-height: 1.5; margin: -14px 0 16px; }
+.mj-barra { display: flex; gap: 6px; margin-bottom: 10px; }
+.mj-filtro { font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--linea) !important; color: var(--suave); }
+.mj-filtro.on { background: var(--activo); color: var(--texto); font-weight: 600; }
+.mj-nueva { width: 100%; font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--linea); border-radius: 8px; margin-bottom: 12px; }
+.mj-fila { display: grid; grid-template-columns: 1fr auto auto 28px; gap: 12px; align-items: baseline; padding: 9px 4px; border-bottom: 1px solid var(--linea); }
+.mj-txt { line-height: 1.45; }
+.mj-org, .mj-f { font-size: 12.5px; color: var(--suave); white-space: nowrap; }
+.mj-borrar { visibility: hidden; color: var(--suave); border-radius: 6px; }
+.mj-fila:hover .mj-borrar { visibility: visible; }
+.mj-borrar:hover { background: var(--hover); }
 /* 📔 Cuaderno del curso (deuda CJ): mismo espacio reservado, solo 1°–8° */
 #btn-cuaderno {
     font-size: 13px; padding: 3px 9px; border-radius: 6px; color: var(--suave); font-weight: 500;
@@ -197,6 +209,8 @@ const porK = {};             // k → entrada
 // Entrada: { k, tipo:'clase'|'nota', fecha, sesionId | id, titulo, contenido, audios, updated, creado, ed (EditorBloques), sucio, timer }
 let cadenaGuardado = Promise.resolve();
 let modoHoy = null;          // fecha (YYYY-MM-DD) mientras se mira ☀ Hoy; null = un curso
+let modoMejoras = false;     // mirando 🐞 Mejoras de la app (deuda CO)
+let filtroMejoras = 'todo';
 let sinColumnaFecha = false;
 
 const $ = id => document.getElementById(id);
@@ -226,22 +240,26 @@ function pintarCursos() {
         <span class="ico">☀</span><span class="nom">Hoy</span></div><div class="sep-lat"></div>`;
     contextos.forEach((c, i) => {
         const info = contextoInfo(c.nombre);
-        html += `<div class="fila${c.id === ctxActual && !modoHoy ? ' activa' : ''}" data-id="${c.id}" title="${esc(info.label)}">
+        html += `<div class="fila${c.id === ctxActual && !modoHoy && !modoMejoras ? ' activa' : ''}" data-id="${c.id}" title="${esc(info.label)}">
             <span class="ico">${info.icono || '📁'}</span><span class="nom">${esc(info.label)}</span></div>`;
         if (c.nombre === 'GENERAL' && i < contextos.length - 1) html += '<div class="sep-lat"></div>';
     });
+    html += `<div class="sep-lat"></div><div class="fila mejoras${modoMejoras ? ' activa' : ''}" data-id="__mejoras" title="🐞 Mejoras de la app: bugs e ideas anotados con /bug o /mejora">
+        <span class="ico">🐞</span><span class="nom">Mejoras</span></div>`;
     $('lista-ctx').innerHTML = html;
 }
 $('lista-ctx').addEventListener('click', e => {
     const f = e.target.closest('.fila'); if (!f) return;
-    if (f.dataset.id === '__hoy') abrirHoy(hoyISO()); else abrirCurso(f.dataset.id);
+    if (f.dataset.id === '__hoy') abrirHoy(hoyISO());
+    else if (f.dataset.id === '__mejoras') abrirMejoras();
+    else abrirCurso(f.dataset.id);
 });
 function nombreCtx(ctxId) { const c = contextos.find(x => x.id === ctxId); return c ? contextoInfo(c.nombre) : { label: '', icono: '' }; }
 
 // ── Abrir un curso: arma su histórico ───────────────────────────────────
 async function abrirCurso(ctxId) {
     await guardarTodo();
-    modoHoy = null;
+    modoHoy = null; modoMejoras = false;
     $('hoy-nav').style.display = 'none';
     $('btn-nota').style.visibility = '';
     ctxActual = ctxId;
@@ -287,12 +305,81 @@ async function abrirCurso(ctxId) {
     pintarHistorico();
 }
 
+// ── 🐞 Mejoras de la app (deuda CO) ────────────────────────────────────────────────────────────
+// Lo anotado con /bug o /mejora en cualquier pendiente (categoría 'mejora_app'): solo para no perder las ideas en la
+// marcha (no se gestiona aquí). Claude las lee al comenzar cada sesión, las pasa a Notion y, con aprobación del PO,
+// las borra.
+async function abrirMejoras() {
+    await guardarTodo();
+    modoMejoras = true; modoHoy = null; ctxActual = null;
+    entradas.forEach(E => E.ed?.destruir()); entradas = [];
+    Object.keys(porK).forEach(k => delete porK[k]);
+    pintarCursos();
+    $('col-entradas').hidden = true;
+    $('hoy-nav').style.display = 'none';
+    $('btn-plani').style.visibility = 'hidden';
+    $('btn-cuaderno').style.visibility = 'hidden';
+    $('ruta').textContent = '🐞 Mejoras de la app';
+    const { data, error } = await sb.from('pendientes').select('id, contexto_id, sesion_id, texto, created_at, sesiones(fecha)')
+        .eq('categoria', 'mejora_app').order('created_at', { ascending: false });
+    if (!modoMejoras) return;
+    if (error) { $('pagina').innerHTML = '<div class="lat-vacio" style="padding:0">No se pudo cargar — revisa conexión.</div>'; return; }
+    pintarMejoras(data || []);
+}
+function pintarMejoras(lista) {
+    const tipo = t => /^🐞/.test(t) ? 'bug' : 'mejora';
+    const n = { todo: lista.length, bug: lista.filter(m => tipo(m.texto) === 'bug').length };
+    n.mejora = n.todo - n.bug;
+    const ver = lista.filter(m => filtroMejoras === 'todo' || tipo(m.texto) === filtroMejoras);
+    const origen = m => {
+        if (!m.contexto_id) return '';
+        const info = nombreCtx(m.contexto_id), f = m.sesiones?.fecha;
+        return `${info.icono} ${info.label}${f ? ' · ' + cortoFecha(f) : ''}`;
+    };
+    $('pagina').innerHTML = `<div id="pag-titulo">🐞 Mejoras de la app</div>
+        <p class="mj-ayuda">Escribe <b>/bug</b> o <b>/mejora</b> al comienzo de cualquier pendiente y queda anotado aquí, con el curso y la clase
+        donde lo escribiste. Claude las lee al comenzar cada sesión y las pasa a Notion.</p>
+        <div class="mj-barra">
+            ${[['todo', 'Todas'], ['bug', '🐞 Bugs'], ['mejora', '✨ Mejoras']].map(([k, l]) =>
+                `<button class="mj-filtro${filtroMejoras === k ? ' on' : ''}" data-f="${k}">${l} · ${n[k]}</button>`).join('')}
+        </div>
+        <input id="mj-nueva" class="mj-nueva" placeholder="Anotar… (/bug o /mejora al comienzo; si no, queda como ✨ mejora) y Enter">
+        <div class="mj-lista">${ver.length ? ver.map(m => `<div class="mj-fila" data-id="${m.id}">
+            <span class="mj-txt">${esc(m.texto)}</span>
+            <span class="mj-org">${esc(origen(m))}</span>
+            <span class="mj-f" title="Anotado">${esc(cortoFecha(isoLocal(m.created_at)))}</span>
+            <button class="mj-borrar" title="Borrar">🗑</button></div>`).join('')
+            : '<div class="lat-vacio" style="padding:8px 0">Nada anotado.</div>'}</div>`;
+    $('mj-nueva').addEventListener('keydown', async e => {
+        if (e.key !== 'Enter' || !e.target.value.trim()) return;
+        let t = e.target.value.trim();
+        const m = t.match(/^\/(bug|mejora)(?![a-záéíóúñ])[\s:.-]*/i);
+        t = (m && m[1].toLowerCase() === 'bug' ? '🐞 ' : '✨ ') + (m ? t.slice(m[0].length) : t).trim();
+        e.target.disabled = true;
+        const { error } = await sb.from('pendientes').insert({ contexto_id: null, sesion_id: null, categoria: 'mejora_app', texto: t, estado: 'activo' });
+        if (error) { estado('No se pudo anotar — revisa conexión.', true); e.target.disabled = false; return; }
+        abrirMejoras();
+    });
+}
+$('pagina').addEventListener('click', async e => {
+    if (!modoMejoras) return;
+    const f = e.target.closest('.mj-filtro');
+    if (f) { filtroMejoras = f.dataset.f; abrirMejoras(); return; }
+    const b = e.target.closest('.mj-borrar');
+    if (!b) return;
+    const fila = b.closest('.mj-fila');
+    if (!confirm('¿Borrar esta anotación?')) return;
+    const { error } = await sb.from('pendientes').delete().eq('id', fila.dataset.id);
+    if (error) { estado('No se pudo borrar — revisa conexión.', true); return; }
+    fila.remove();
+});
+
 // ── ☀ Hoy (deuda CM): las bitácoras de todas las clases de un día, en una página ──────────────
 // Clases del día = el horario de ese día de la semana (lun–jue = 0–3) + las sesiones de esa fecha que no estén en él.
 // Una clase sin sesión todavía se ve vacía y la sesión se crea al escribir (como en el Planificador).
 async function abrirHoy(fecha) {
     await guardarTodo();
-    modoHoy = fecha; ctxActual = null;
+    modoHoy = fecha; ctxActual = null; modoMejoras = false;
     try { localStorage.setItem('profe_cursos_ultimo', '__hoy'); } catch (e) {}
     pintarCursos();
     // Segunda columna: las clases del día, para saltar entre ellas (PO 2026-10-22)
@@ -735,6 +822,7 @@ document.addEventListener('focusout', () => setTimeout(() => {
 // Cambios de estructura (nota nueva o borrada, clase nueva): se rearma el curso, sin moverse de lugar.
 let recargaPend = false;
 async function recargarCurso() {
+    if (modoMejoras) { abrirMejoras(); return; }
     if (!ctxActual && !modoHoy) return;
     if (document.activeElement?.closest?.('#pagina [contenteditable], #pagina input') || entradas.some(x => x.sucio)) { recargaPend = true; return; }
     recargaPend = false;

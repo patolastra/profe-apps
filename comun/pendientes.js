@@ -65,7 +65,7 @@
             sb.channel('profe-pendientes')
               .on('postgres_changes', { event: '*', schema: 'public', table: 'pendientes' }, pl => {
                   if (pl.eventType === 'DELETE') { if (pl.old?.id) quitarLocal(pl.old.id); return; }
-                  if (pl.new && pl.new.categoria === CAT) ponerLocal(pl.new);
+                  if (pl.new) { if (pl.new.categoria === CAT) ponerLocal(pl.new); else if (filas.has(pl.new.id)) quitarLocal(pl.new.id); }
               })
               .subscribe();
         } catch (_) {}
@@ -207,7 +207,22 @@
     const nuevoId = () => (crypto.randomUUID ? crypto.randomUUID()
         : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
 
+    // 🐞 Mejoras de la app (deuda CO): un pendiente que empieza con /bug o /mejora deja de ser pendiente y se anota en
+    // esa lista (categoría 'mejora_app', con su marca 🐞 / ✨ adelante); conserva el curso y la clase donde se escribió.
+    const CAT_MEJORA = 'mejora_app';
+    function comoMejora(texto) {
+        const m = String(texto || '').match(/^\s*\/(bug|mejora)(?![a-záéíóúñ])[\s:.-]*/i);
+        return m ? (m[1].toLowerCase() === 'bug' ? '🐞 ' : '✨ ') + String(texto).slice(m[0].length).trim() : null;
+    }
     async function crear({ contexto_id, sesion_id, fecha, texto = '', hoy = null, padre_id = null, resolver = false }) {
+        const mejora = comoMejora(texto);
+        if (mejora) {
+            const fila = { contexto_id, sesion_id: sesion_id || null, categoria: CAT_MEJORA, texto: mejora, estado: 'activo' };
+            if (conCola) encolar({ tipo: 'crear', fila: { id: nuevoId(), ...fila, semanas_pendiente: 0, hoy: null, completado_en: null, padre_id: null, created_at: new Date().toISOString() } });
+            else if ((await sb.from('pendientes').insert(fila)).error) { aviso('No se pudo anotar la mejora — revisa la conexión.'); return null; }
+            aviso('Anotado en 🐞 Mejoras de la app.');
+            return null;
+        }
         if (conCola) {
             const fila = { id: nuevoId(), contexto_id, sesion_id: sesion_id || null, categoria: CAT, texto, estado: 'activo',
                 semanas_pendiente: 0, hoy, completado_en: null, padre_id, created_at: new Date().toISOString() };
@@ -227,6 +242,25 @@
     async function cambiar(id, cambios) {
         const p = filas.get(id);
         if (!p) return;
+        const mejora = 'texto' in cambios ? comoMejora(cambios.texto) : null;
+        if (mejora) {   // escrito con /bug o /mejora: sale de la lista y queda en 🐞 Mejoras de la app
+            const pasa = { categoria: CAT_MEJORA, texto: mejora, padre_id: null, hoy: null };
+            clearTimeout(timers[id]?.t); delete timers[id];
+            filas.delete(id);
+            avisar({ tipo: 'quitar', id });
+            repintarTodo();
+            if (conCola) {
+                const cola = leerJSON(COLA_KEY, []);
+                const cr = cola.find(o => o.tipo === 'crear' && o.fila.id === id);
+                if (cr && !subiendo) { Object.assign(cr.fila, pasa); escribirJSON(COLA_KEY, cola); }
+                else encolar({ tipo: 'cambiar', id, cambios: pasa });
+            } else if ((await sb.from('pendientes').update(pasa).eq('id', id)).error) {
+                filas.set(id, p); repintarTodo(); avisar({ tipo: 'poner', p });
+                aviso('No se pudo anotar la mejora — revisa la conexión.'); return;
+            }
+            aviso('Anotado en 🐞 Mejoras de la app.');
+            return;
+        }
         if (conCola) {
             cambiarLocal(id, cambios);
             // un pendiente aún sin subir: el cambio va dentro de su "crear"

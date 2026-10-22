@@ -5532,3 +5532,30 @@ Hoy; se muestran, como si fueran una página, las bitácoras de los contextos".*
   de cada clase muestra "· n" pendientes activos; un clic en el título alterna; al volver a abrir el curso parten
   plegados otra vez. Probado (local, Cuarto): "▸ ☑ Pendientes · 2" plegado, 4 clases con pendientes plegadas
   ("· 2" en la primera); clic abre y vuelve a cerrar.
+
+### CO. 🐞 Mejoras de la app — anotar bugs e ideas al vuelo desde cualquier pendiente
+*Origen: pedido del PO (2026-10-22): "un nuevo tipo de pendientes que me permita ir registrando aquí mismo las
+iteraciones importantes, los bugs que necesito arreglar". No es para gestionar el desarrollo en la app: es para anotar
+en contexto las ideas que aparecen en la marcha.*
+- **DECISIÓN del PO (2026-10-22):** en **cualquier pendiente**, si el texto empieza con **`/bug`** o **`/mejora`**, deja
+  de ser pendiente y va a la lista **🐞 Mejoras de la app** (botón corto: "🐞 Mejoras"); esa lista es una **página en
+  Cursos, al final del menú, separada por una línea**. Cada anotación guarda **de dónde salió** (curso y clase) como
+  etiqueta; **una sola lista** con marca 🐞 bug / ✨ mejora y filtro; **sin estados** (no se gestiona aquí). **Flujo:**
+  Claude la lee al comenzar cada sesión, las pasa al Backlog de Notion y, **con aprobación previa del PO**, las borra.
+- **Diseño técnico:** misma tabla `pendientes` con `categoria = 'mejora_app'` (texto libre, sin cambio en Supabase) y el
+  texto con su marca 🐞 / ✨ adelante; conserva `contexto_id` y `sesion_id` de donde se escribió. Las listas de pendientes
+  solo muestran `tarea_proxima`, así que la anotación sale de ellas sola. Funciona también en el celular (misma pieza,
+  con la cola sin señal).
+- **Implementación (2026-10-22):** `comun/pendientes.js`: `comoMejora` (texto que empieza con `/bug` o `/mejora`, sin
+  confundir con "/bugs…") → al **crear** se anota directo como `mejora_app` y al **editar** un pendiente existente sale
+  de las listas y se convierte (sin padre ni ☀ Hoy); aviso "Anotado en 🐞 Mejoras de la app."; en el tiempo real, un
+  pendiente que cambia de categoría se quita de las listas de otros equipos. `CURSOS/index.html`: fila **🐞 Mejoras**
+  al final del menú, tras una línea; página con ayuda, filtros Todas / 🐞 Bugs / ✨ Mejoras (con su cantidad), un cuadro
+  para anotar directo (sin comando queda ✨) y cada anotación con su origen ("4️⃣ Cuarto · Lun 19 oct"), la fecha en que
+  se anotó y 🗑. Sin cambios en Supabase.
+- **Prueba (local, datos reales; anotaciones de prueba borradas al final):** crear "/bug …" en un pendiente de Cuarto
+  (clase del 19/10) lo anotó como "🐞 …" sin pasar por la lista; editar un pendiente nuevo a "/mejora …" lo sacó de la
+  lista y lo dejó "✨ …"; ambos aparecen en 🐞 Mejoras con "4️⃣ Cuarto · Lun 19 oct"; el filtro 🐞 dejó solo el bug;
+  anotar directo dejó "✨ …"; 🗑 lo borró.
+- **Regla de trabajo (DECISIÓN del PO):** al comenzar cada sesión, Claude lee 🐞 Mejoras, las pasa al Backlog de Notion
+  y **pide aprobación** antes de borrarlas de la app.
