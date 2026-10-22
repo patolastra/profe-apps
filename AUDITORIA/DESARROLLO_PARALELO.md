@@ -5492,3 +5492,28 @@ vista el historial, pero no puedo ver las dos cosas al mismo tiempo".*
 - **Prueba (local, Cuarto, clase del 12/10, sin editar nada):** 🕘 abrió el Historial a la derecha (22 entradas),
   justo desde donde empieza la Presentación hasta el borde, con el 📋 Plan visible a la izquierda; cambiar a Pendientes
   dejó el Historial abierto; 🕘 de nuevo lo cerró y ✕ también. **PENDIENTE (PO):** revisar en uso si es cómodo.
+
+### CM. Cursos — vista ☀ Hoy (las bitácoras del día en una página)
+*Origen: pedido del PO (2026-10-22): "en Cursos necesito una vista que me permita ver las bitácoras del día, una vista
+Hoy; se muestran, como si fueran una página, las bitácoras de los contextos".*
+- **Necesidad:** al terminar (o durante) el día, escribir y revisar la bitácora de todas las clases del día en un solo
+  lugar, sin entrar curso por curso.
+- **Auditoría:** Cursos (`CURSOS/index.html`, deuda BA) arma la página de **un** curso (clases = `memorias` por sesión +
+  notas). El horario del día sale de `horario` (`dia_semana` 0–3 = lun–jue, `orden`, `hora_inicio`); una clase tiene
+  bitácora solo si existe su `sesion` (la crea el Planificador al abrirla: `contexto_id` + `fecha`, única).
+- **DECISIÓN del PO (2026-10-22):** fila **☀ Hoy** arriba de la lista de cursos; abre una página con **todas las clases
+  del día** (todos los cursos, talleres y jefaturas del horario de ese día, en orden), cada una con su bitácora
+  **editable como en Cursos** (la misma bitácora del curso y del Plan); **◀ ▶** para ir a otros días; **nada más**
+  (sin notas ni pendientes).
+- **Diseño técnico:** las clases del día = el horario de ese día de la semana + las sesiones de esa fecha que no estén
+  en el horario; si la clase aún no tiene sesión, la bitácora se ve vacía y la sesión se crea **al escribir** (igual que
+  el Planificador). Mismo guardado, tiempo real y "bloque → pendiente" (a la clase siguiente de ese curso).
+- **Implementación (2026-10-22):** `CURSOS/index.html`: fila **☀ Hoy** sobre General; `abrirHoy(fecha)` (horario del
+  día ordenado por hora y orden + sesiones extra de esa fecha, sin General), `pintarHoy` (una sección por clase con
+  "ícono + curso", **Abrir curso →** y su editor por bloques), barra con ◀ Hoy ▶ (`moverDia`), `asegurarSesion` (crea la
+  sesión al primer guardado si la clase aún no la tiene), tiempo real de `memorias` también en ☀ Hoy, y se recuerda
+  ☀ Hoy como última vista. Sin cambios en Supabase.
+- **Prueba (local, datos reales, sin escribir nada):** ☀ Hoy (jueves 22/10) mostró Segundo, Séptimo, Kids Castigadas,
+  Octavo y Castigadas en el orden del horario; ◀ → miércoles 21 con Primero y su bitácora; ◀ ◀ → lunes 19 con
+  Orientación, Tercero, Cuarto y Taller de Cuerdas; "Abrir curso →" de Cuarto abrió su página en la clase del 19.
+  Falta: escribir en una clase sin sesión (se crea al guardar) en uso real.

@@ -88,6 +88,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     border: 1px solid var(--linea); background: #fff; white-space: nowrap; cursor: pointer;
 }
 #btn-plani:hover, #btn-cuaderno:hover { background: var(--hover); color: var(--texto); }
+/* ☀ Hoy (deuda CM): las bitácoras de todas las clases del día en una página */
+#hoy-nav { display: inline-flex; gap: 4px; }
+#hoy-nav button { font-size: 13px; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--linea); background: #fff; color: var(--texto); }
+#hoy-nav button:hover { background: var(--hover); }
+.fila.hoy .ico { color: #e0a106; }
+.ent-ir { font-size: 12.5px; padding: 2px 8px; border-radius: 6px; color: var(--suave); border: 1px solid var(--linea) !important; background: #fff !important; }
+.ent-ir:hover { color: var(--texto); background: var(--hover) !important; }
 /* 📔 Cuaderno del curso (deuda CJ): mismo espacio reservado, solo 1°–8° */
 #btn-cuaderno {
     font-size: 13px; padding: 3px 9px; border-radius: 6px; color: var(--suave); font-weight: 500;
@@ -141,6 +148,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 <main id="principal">
     <div id="barra">
         <span class="ruta" id="ruta"></span>
+        <span id="hoy-nav" style="display:none">
+            <button id="hoy-ant" title="Día anterior">◀</button><button id="hoy-hoy" title="Volver a hoy">Hoy</button><button id="hoy-sig" title="Día siguiente">▶</button>
+        </span>
         <span id="estado"></span>
         <button id="btn-cuaderno" style="visibility:hidden" title="Cuaderno de música del curso (lo que está escrito en el cuaderno)">📔 Cuaderno</button>
         <button id="btn-plani" style="visibility:hidden" title="Planificación del mes de este curso para la UTP">🗓️ Planificación del mes</button>
@@ -178,6 +188,7 @@ let entradas = [];           // ordenadas: lo más nuevo arriba
 const porK = {};             // k → entrada
 // Entrada: { k, tipo:'clase'|'nota', fecha, sesionId | id, titulo, contenido, audios, updated, creado, ed (EditorBloques), sucio, timer }
 let cadenaGuardado = Promise.resolve();
+let modoHoy = null;          // fecha (YYYY-MM-DD) mientras se mira ☀ Hoy; null = un curso
 let sinColumnaFecha = false;
 
 const $ = id => document.getElementById(id);
@@ -203,21 +214,27 @@ async function cargarContextos() {
     pintarCursos();
 }
 function pintarCursos() {
-    let html = '';
+    let html = `<div class="fila hoy${modoHoy ? ' activa' : ''}" data-id="__hoy" title="Las bitácoras de todas las clases del día">
+        <span class="ico">☀</span><span class="nom">Hoy</span></div><div class="sep-lat"></div>`;
     contextos.forEach((c, i) => {
         const info = contextoInfo(c.nombre);
-        html += `<div class="fila${c.id === ctxActual ? ' activa' : ''}" data-id="${c.id}" title="${esc(info.label)}">
+        html += `<div class="fila${c.id === ctxActual && !modoHoy ? ' activa' : ''}" data-id="${c.id}" title="${esc(info.label)}">
             <span class="ico">${info.icono || '📁'}</span><span class="nom">${esc(info.label)}</span></div>`;
         if (c.nombre === 'GENERAL' && i < contextos.length - 1) html += '<div class="sep-lat"></div>';
     });
     $('lista-ctx').innerHTML = html;
 }
-$('lista-ctx').addEventListener('click', e => { const f = e.target.closest('.fila'); if (f) abrirCurso(f.dataset.id); });
+$('lista-ctx').addEventListener('click', e => {
+    const f = e.target.closest('.fila'); if (!f) return;
+    if (f.dataset.id === '__hoy') abrirHoy(hoyISO()); else abrirCurso(f.dataset.id);
+});
 function nombreCtx(ctxId) { const c = contextos.find(x => x.id === ctxId); return c ? contextoInfo(c.nombre) : { label: '', icono: '' }; }
 
 // ── Abrir un curso: arma su histórico ───────────────────────────────────
 async function abrirCurso(ctxId) {
     await guardarTodo();
+    modoHoy = null;
+    $('hoy-nav').style.display = 'none';
     ctxActual = ctxId;
     try { localStorage.setItem('profe_cursos_ultimo', ctxId); } catch (e) {}
     pintarCursos();
@@ -259,6 +276,100 @@ async function abrirCurso(ctxId) {
     entradas.forEach(E => { porK[E.k] = E; });
     ordenar();
     pintarHistorico();
+}
+
+// ── ☀ Hoy (deuda CM): las bitácoras de todas las clases de un día, en una página ──────────────
+// Clases del día = el horario de ese día de la semana (lun–jue = 0–3) + las sesiones de esa fecha que no estén en él.
+// Una clase sin sesión todavía se ve vacía y la sesión se crea al escribir (como en el Planificador).
+async function abrirHoy(fecha) {
+    await guardarTodo();
+    modoHoy = fecha; ctxActual = null;
+    try { localStorage.setItem('profe_cursos_ultimo', '__hoy'); } catch (e) {}
+    pintarCursos();
+    $('col-entradas').hidden = true;
+    $('btn-plani').style.visibility = 'hidden';
+    $('btn-cuaderno').style.visibility = 'hidden';
+    $('hoy-nav').style.display = '';
+    $('ruta').textContent = '☀ Hoy · ' + tituloFecha(fecha);
+    $('pagina').innerHTML = '<div class="lat-vacio" style="padding:0">Cargando…</div>';
+    const dow = fechaD(fecha).getDay() - 1;
+    const [hor, ses] = await Promise.all([
+        dow >= 0 && dow <= 3 ? sb.from('horario').select('contexto_id, orden, hora_inicio, activo').eq('dia_semana', dow) : Promise.resolve({ data: [] }),
+        sb.from('sesiones').select('id, contexto_id, fecha, memorias(contenido, audios, updated_at)').eq('fecha', fecha),
+    ]);
+    if (modoHoy !== fecha) return;
+    if (hor.error || ses.error) estado('No se pudo cargar todo — revisa conexión.', true); else estado('');
+    const valido = cid => { const c = contextos.find(x => x.id === cid); return c && c.nombre !== 'GENERAL'; };
+    const orden = [];
+    (hor.data || []).filter(h => h.activo !== false && valido(h.contexto_id))
+        .sort((a, b) => String(a.hora_inicio || '').localeCompare(String(b.hora_inicio || '')) || (a.orden ?? 0) - (b.orden ?? 0))
+        .forEach(h => { if (!orden.includes(h.contexto_id)) orden.push(h.contexto_id); });
+    (ses.data || []).forEach(sx => { if (valido(sx.contexto_id) && !orden.includes(sx.contexto_id)) orden.push(sx.contexto_id); });
+    entradas.forEach(E => E.ed?.destruir());
+    entradas = [];
+    Object.keys(porK).forEach(k => delete porK[k]);
+    orden.forEach(cid => {
+        const sx = (ses.data || []).find(x => x.contexto_id === cid);
+        const m = sx ? (Array.isArray(sx.memorias) ? sx.memorias[0] : sx.memorias) : null;
+        const info = nombreCtx(cid);
+        entradas.push({ k: sx ? 'c' + sx.id : 'h' + cid, tipo: 'clase', cid, sesionId: sx?.id || null, fecha,
+            titulo: `${info.icono} ${info.label}`, contenido: m?.contenido || '', audios: m?.audios || [], updated: m?.updated_at || null, creado: '' });
+    });
+    entradas.forEach(E => { porK[E.k] = E; });
+    pintarHoy();
+}
+function pintarHoy() {
+    let html = `<div id="pag-titulo">☀ ${esc(tituloFecha(modoHoy))}</div>`;
+    if (!entradas.length) html += '<div class="lat-vacio" style="padding:0">No hay clases este día.</div>';
+    entradas.forEach(E => {
+        html += `<section class="entrada clase" data-k="${E.k}">
+            <div class="ent-cab"><div class="ent-tit">${esc(E.titulo)}</div>
+                <div class="ent-meta"><button class="ent-ir" data-ctx="${E.cid}" title="Abrir la página de este curso">Abrir curso →</button></div></div>
+            <div class="ent-audios"></div>
+            <div class="ent-editor"></div>
+        </section>`;
+    });
+    $('pagina').innerHTML = html;
+    $('principal').scrollTop = 0;
+    entradas.forEach(E => {
+        const sec = secDe(E.k);
+        pintarAudios(E);
+        E.ed = EditorBloques.crear(sec.querySelector('.ent-editor'), {
+            texto: E.contenido, actualizado: E.updated, vacio: 'Sin bitácora — clic para escribir',
+            alCambiar: () => marcarSucio(E),
+            alPendiente: async texto => {
+                const destino = await Pendientes.proximaClase(E.cid, { despuesDe: E.fecha });
+                const pd = await Pendientes.crear({ ...destino, texto });
+                estado(!pd ? 'No se pudo crear el pendiente — revisa conexión.'
+                    : destino.fecha ? `Pendiente para la clase del ${Pendientes.fechaCorta(destino.fecha)} ✓` : 'Pendiente creado ✓', !pd);
+            },
+        });
+    });
+}
+function moverDia(n) {
+    if (!modoHoy) return;
+    const d = fechaD(modoHoy);
+    d.setDate(d.getDate() + n);
+    abrirHoy(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+}
+$('hoy-ant').addEventListener('click', () => moverDia(-1));
+$('hoy-sig').addEventListener('click', () => moverDia(1));
+$('hoy-hoy').addEventListener('click', () => abrirHoy(hoyISO()));
+$('pagina').addEventListener('click', async e => {
+    const b = e.target.closest('.ent-ir');
+    if (!b) return;
+    const E = entradas.find(x => x.cid === b.dataset.ctx);
+    await abrirCurso(b.dataset.ctx);
+    if (E?.sesionId) { secDe('c' + E.sesionId)?.scrollIntoView({ block: 'start' }); marcarActiva('c' + E.sesionId); }
+});
+// La sesión de una clase del horario que aún no la tiene (la misma que crea el Planificador al abrirla).
+async function asegurarSesion(E) {
+    if (E.sesionId) return E.sesionId;
+    const { data: ex } = await sb.from('sesiones').select('id').eq('contexto_id', E.cid).eq('fecha', E.fecha).maybeSingle();
+    if (ex) return (E.sesionId = ex.id);
+    const { data: nueva, error } = await sb.from('sesiones').insert({ contexto_id: E.cid, fecha: E.fecha }).select('id').single();
+    if (error) throw error;
+    return (E.sesionId = nueva.id);
 }
 
 // Lo más nuevo arriba; el mismo día, las notas sobre la clase (y la nota más nueva primero).
@@ -526,6 +637,7 @@ async function guardar(E, contenido, titulo, fecha) {
     E.ultEnvio = ahora;          // el aviso al instante de este guardado es eco propio (no es "otro equipo")
     try {
         if (E.tipo === 'clase') {
+            await asegurarSesion(E);
             const { error } = await sb.from('memorias').upsert(
                 { sesion_id: E.sesionId, contenido, updated_at: ahora }, { onConflict: 'sesion_id' });
             if (error) throw error;
@@ -595,18 +707,19 @@ document.addEventListener('focusout', () => setTimeout(() => {
 // Cambios de estructura (nota nueva o borrada, clase nueva): se rearma el curso, sin moverse de lugar.
 let recargaPend = false;
 async function recargarCurso() {
-    if (!ctxActual) return;
+    if (!ctxActual && !modoHoy) return;
     if (document.activeElement?.closest?.('#pagina [contenteditable], #pagina input') || entradas.some(x => x.sucio)) { recargaPend = true; return; }
     recargaPend = false;
     const y = $('principal').scrollTop;
-    await abrirCurso(ctxActual);
+    if (modoHoy) await abrirHoy(modoHoy); else await abrirCurso(ctxActual);
     $('principal').scrollTop = y;
 }
 TiempoReal.escuchar('memorias', async ({ nuevo }) => {
-    if (!nuevo?.sesion_id || !ctxActual) return;
+    if (!nuevo?.sesion_id || (!ctxActual && !modoHoy)) return;
     const E = entradas.find(x => x.tipo === 'clase' && x.sesionId === nuevo.sesion_id);
     if (E) { aplicarRemoto(E, { contenido: nuevo.contenido || '', updated: nuevo.updated_at }); return; }
     const { data } = await sb.from('sesiones').select('contexto_id, fecha').eq('id', nuevo.sesion_id).maybeSingle();
+    if (modoHoy) { if (data?.fecha === modoHoy) recargarCurso(); return; }
     if (data?.contexto_id === ctxActual && data.fecha <= hoyISO() && !esGeneralActual()) recargarCurso();
 });
 TiempoReal.escuchar('bitacora_paginas', ({ evento, nuevo, viejo }) => {
@@ -632,6 +745,7 @@ Apoderados.conectar(sb);
     try { ultimo = localStorage.getItem('profe_cursos_ultimo'); } catch (e) {}
     const elegido = (q && contextos.find(c => c.nombre === q.toUpperCase())) || contextos.find(c => c.id === ultimo);
     if (elegido) irA(elegido.nombre, prm.get('nota'));
+    else if (ultimo === '__hoy') abrirHoy(hoyISO());
 })();
 </script>
 </body>
