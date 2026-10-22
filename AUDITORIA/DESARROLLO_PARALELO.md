@@ -5517,6 +5517,11 @@ Hoy; se muestran, como si fueran una página, las bitácoras de los contextos".*
   Octavo y Castigadas en el orden del horario; ◀ → miércoles 21 con Primero y su bitácora; ◀ ◀ → lunes 19 con
   Orientación, Tercero, Cuarto y Taller de Cuerdas; "Abrir curso →" de Cuarto abrió su página en la clase del 19.
   Falta: escribir en una clase sin sesión (se crea al guardar) en uso real.
+- **Ajuste (PO, 2026-10-22):** en ☀ Hoy la segunda columna no se esconde: muestra **las clases del día** ("☀ Jue 22 oct"
+  arriba; punto azul = con bitácora) y al tocar una la página salta a ella; al recorrer la página se marca la clase que
+  se está viendo. "＋ Nota" se oculta en ☀ Hoy (vuelve al abrir un curso). `pintarEntradasHoy`. Probado (local, jueves
+  22): Segundo, Séptimo, Kids Castigadas (sin bitácora), Octavo y Castigadas; tocar Octavo llevó a su bitácora y la
+  marcó; al abrir Cuarto volvió la lista por meses y "＋ Nota".
 
 ### CN. Cursos — listas de pendientes siempre plegadas
 *Origen: deuda anotada por el PO (2026-10-21, Notion "Cursos: listas de pendientes siempre plegadas"); el PO pide hacerla

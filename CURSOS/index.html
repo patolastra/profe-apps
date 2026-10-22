@@ -243,6 +243,7 @@ async function abrirCurso(ctxId) {
     await guardarTodo();
     modoHoy = null;
     $('hoy-nav').style.display = 'none';
+    $('btn-nota').style.visibility = '';
     ctxActual = ctxId;
     try { localStorage.setItem('profe_cursos_ultimo', ctxId); } catch (e) {}
     pintarCursos();
@@ -294,7 +295,11 @@ async function abrirHoy(fecha) {
     modoHoy = fecha; ctxActual = null;
     try { localStorage.setItem('profe_cursos_ultimo', '__hoy'); } catch (e) {}
     pintarCursos();
-    $('col-entradas').hidden = true;
+    // Segunda columna: las clases del día, para saltar entre ellas (PO 2026-10-22)
+    $('col-entradas').hidden = false;
+    $('ent-curso').textContent = '☀ ' + cortoFecha(fecha);
+    $('btn-nota').style.visibility = 'hidden';
+    $('lista-ent').innerHTML = '<div class="lat-vacio">Cargando…</div>';
     $('btn-plani').style.visibility = 'hidden';
     $('btn-cuaderno').style.visibility = 'hidden';
     $('hoy-nav').style.display = '';
@@ -325,6 +330,7 @@ async function abrirHoy(fecha) {
     });
     entradas.forEach(E => { porK[E.k] = E; });
     pintarHoy();
+    pintarEntradas();
 }
 function pintarHoy() {
     let html = `<div id="pag-titulo">☀ ${esc(tituloFecha(modoHoy))}</div>`;
@@ -391,6 +397,7 @@ function ordenar() {
 function tieneAlgo(E) { return (E.ed ? E.ed.tieneAlgo() : !!E.contenido.trim()) || (E.audios || []).length; }
 
 function pintarEntradas() {
+    if (modoHoy) { pintarEntradasHoy(); return; }
     if (!entradas.length) {
         $('lista-ent').innerHTML = '<div class="lat-vacio">Todavía no hay clases ni notas. Crea una con ＋ Nota.</div>';
         return;
@@ -408,6 +415,13 @@ function pintarEntradas() {
         }
     });
     $('lista-ent').innerHTML = html;
+    marcarVisible();
+}
+// ☀ Hoy: las clases del día (punto azul = con bitácora); al tocar una, la página salta a ella.
+function pintarEntradasHoy() {
+    $('lista-ent').innerHTML = entradas.length ? entradas.map(E => `<div class="fila clase${tieneAlgo(E) ? ' con' : ' vacia'}" data-k="${E.k}"
+        title="${esc(E.titulo)}${tieneAlgo(E) ? '' : ' — sin bitácora'}"><span class="punto"></span><span class="nom">${esc(E.titulo)}</span></div>`).join('')
+        : '<div class="lat-vacio">No hay clases este día.</div>';
     marcarVisible();
 }
 $('lista-ent').addEventListener('click', e => {
