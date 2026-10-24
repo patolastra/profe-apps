@@ -5609,3 +5609,8 @@ Pendientes ocultable, alineada con las clases".*
   alineadas; ☀ Hoy del 19/10: Orientación 3, Tercero 1, Cuarto 2, Cuerdas 9; General: 61 en el cuadro de arriba con ＋;
   apagar lo oculta todo; sin errores.
 
+- **Arreglo (2026-10-24, reportado por el PO):** al escribir "/bug …" o "/mejora …" en un pendiente, el guardado
+  automático (600 ms sin escribir) lo pasaba a 🐞 Mejoras a mitad de escribir, cortado. Ahora `guardarTexto` no lo
+  convierte en el guardado automático: pasa recién con Enter o al salir del cuadro (o al cerrar, `guardarTodo`).
+  Probado: escribiendo con pausas de 1,2 s el pendiente siguió en la lista; al salir quedó "🐞 prueba … borrar" completo
+  (borrado después).

@@ -321,8 +321,10 @@
     function guardarTexto(id, el, ahora) {
         clearTimeout(timers[id]?.t);
         const ir = () => {
-            delete timers[id];
             const texto = el.value.trim();
+            // /bug o /mejora: pasa a 🐞 Mejoras recién al terminar (Enter o salir), no a mitad de escribir
+            if (!ahora && comoMejora(texto)) { timers[id] = { t: null, el }; return; }
+            delete timers[id];
             if (filas.get(id) && filas.get(id).texto !== texto) cambiar(id, { texto });
         };
         if (ahora) ir(); else timers[id] = { t: setTimeout(ir, 600), el };
