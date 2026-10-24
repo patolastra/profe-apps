@@ -5511,7 +5511,7 @@ function abrirEntrenador(songId) {
     document.getElementById('ent-vel-label').textContent = entFmtVel(entrenadorVelocidad);
     entPitchSemitones = 0;
     entCerrarPitchInput();
-    document.getElementById('ent-btn-ocultar').classList.remove('oculto');
+    entPintarBtnLetra();   // marcado si la canción abre con versos escondidos
     document.getElementById('ent-btn-play').textContent = '▶';
 
     entRenderChips(cfg.assetActivoId);
@@ -6484,6 +6484,7 @@ function entToggleOculta(i) {
     if (entrenadorLineasOcultas.has(i)) entrenadorLineasOcultas.delete(i);
     else entrenadorLineasOcultas.add(i);
     entAplicarOcultas();
+    entGuardarMarcasSesion();
 }
 
 // Estrofa completa del verso i. Sin estado mixto (igual que el coloreado por estrofa):
@@ -6494,6 +6495,7 @@ function entToggleOcultaEstrofa(i) {
     const todas = estrofa.every(l => entrenadorLineasOcultas.has(l.origIdx));
     estrofa.forEach(l => todas ? entrenadorLineasOcultas.delete(l.origIdx) : entrenadorLineasOcultas.add(l.origIdx));
     entAplicarOcultas();
+    entGuardarMarcasSesion();
 }
 
 // Shift+doble click en cualquier parte del Entrenador → quitar todos los coloreados.
@@ -6533,8 +6535,8 @@ function entToggleLectura() {
 function entPintarBtnLectura() { document.getElementById('ent-btn-lectura')?.classList.toggle('activo', entLectura); }
 entPintarBtnLectura();
 
-// Versos pintados en una sesión (deuda CS): se guardan en la canción de la sesión, como la velocidad y el tono.
-function entGuardarColoreadosSesion() {
+// Versos pintados y escondidos en una sesión (deuda CS): se guardan en la canción de la sesión, como la velocidad y el tono.
+function entGuardarMarcasSesion() {
     if (ESPEJO || !entModoSesion || !entSesionActual) return;
     entPersistirConfigSesion();
 }
@@ -6545,7 +6547,7 @@ function entToggleColoreado(i) {
     const el = document.querySelector(`.ent-lyric-line[data-orig="${i}"]`);
     if (el) el.classList.toggle('coloreado', entrenadorLineasColoreadas.has(i));
     entResyncGlow();
-    entGuardarColoreadosSesion();
+    entGuardarMarcasSesion();
 }
 
 function entLimpiarColoreados() {
@@ -6553,7 +6555,7 @@ function entLimpiarColoreados() {
     entrenadorLineasColoreadas.clear();
     document.querySelectorAll('.ent-lyric-line.coloreado')
         .forEach(el => el.classList.remove('coloreado'));
-    entGuardarColoreadosSesion();
+    entGuardarMarcasSesion();
 }
 
 // Colorea/descolorea la estrofa completa del verso i. Reutiliza entrenadorStanzas
@@ -6571,7 +6573,7 @@ function entToggleColoreadoEstrofa(i) {
         if (el) el.classList.toggle('coloreado', colorear);
     });
     entResyncGlow();
-    entGuardarColoreadosSesion();
+    entGuardarMarcasSesion();
 }
 
 // Flag global: hay una edición rápida de verso en curso (contenteditable). El manejador
@@ -6873,6 +6875,7 @@ function entrenadorToggleOcultar() {
     if (entrenadorLineasOcultas.size) entrenadorLineasOcultas.clear();
     else entrenadorLines.forEach((l, i) => { if ((l.text || '').trim()) entrenadorLineasOcultas.add(i); });
     entAplicarOcultas();
+    entGuardarMarcasSesion();
 }
 // El botón "Letra" queda marcado mientras haya versos escondidos.
 function entPintarBtnLetra() {
@@ -7758,7 +7761,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     // Config persistida por sesión+ítem (pitch/velocidad). Defaults intactos: 1.0 / 0.
     entrenadorVelocidad     = sesionItem.velocidad ?? 1.0;
     entrenadorOcultar       = false;
-    entrenadorLineasOcultas = new Set();
+    entrenadorLineasOcultas = new Set(sesionItem.ocultas || []);         // lo escondido en esta sesión (deuda CS)
     entPintarBtnLetra();
     entrenadorLineasColoreadas = new Set(sesionItem.coloreadas || []);   // lo pintado en esta sesión (deuda CS)
 
@@ -7789,7 +7792,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     // Restaurar pitch persistido del ítem. Si es 0 no se toca el motor pesado (SoundTouch).
     const pitchGuardado = sesionItem.pitch ?? 0;
     if (pitchGuardado !== 0) entrenadorSetPitch(pitchGuardado);
-    document.getElementById('ent-btn-ocultar').classList.remove('oculto');
+    entPintarBtnLetra();   // marcado si la canción abre con versos escondidos
     document.getElementById('ent-btn-play').textContent = '▶';
     document.getElementById('ent-loop-toggle').classList.remove('on');
 
@@ -7993,6 +7996,7 @@ function entPersistirConfigSesion() {
     item.pitch     = entPitchSemitones;
     item.velocidad = entrenadorVelocidad;
     item.coloreadas = [...entrenadorLineasColoreadas];   // versos pintados (deuda CS)
+    item.ocultas    = [...entrenadorLineasOcultas];      // versos escondidos (deuda CS)
     // Sincronizar el array sesiones en memoria para que el próximo practicarSesion lo lea
     const sIdx = sesiones.findIndex(s => s.id === entSesionActual.id);
     if (sIdx >= 0) sesiones[sIdx] = JSON.parse(JSON.stringify(entSesionActual));

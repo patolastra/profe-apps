@@ -5664,3 +5664,8 @@ Notion: "Entrenador: modo solo lectura (versos con ↑ ↓, sin audio)". PO: "da
 - **Prueba (local, sesión real Cuarto 2026, deshecho al final):** pintar el primer verso de El Dinosaurio Anacleto lo
   guardó en la sesión (`coloreadas: [0]` en Supabase) y al recargar volvió pintado; despintarlo dejó `coloreadas: []`.
   📖 Lectura: ↓ ↓ llevó al verso 2 con el audio en 0:00; espacio, K, → y L no reprodujeron ni cambiaron de canción.
+- **Ajuste (2026-10-24, PO):** también se guardan en la sesión los **versos y estrofas escondidos** (`ocultas`): Alt+clic,
+  Alt+doble clic y el botón "Letra" guardan con `entGuardarMarcasSesion` (antes `entGuardarColoreadosSesion`) y al abrir
+  la canción de la sesión vuelven escondidos. El botón "Letra" ahora queda marcado al abrir una canción con versos
+  escondidos (dos líneas antiguas lo apagaban siempre). Probado con Cuarto 2026: escondida la primera estrofa de
+  Anacleto, al recargar volvió escondida con "Letra" marcado; mostrada otra vez (`ocultas: []`).
