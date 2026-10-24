@@ -603,11 +603,18 @@
                 <button data-c="#000001" class="eb-col-a" title="Color 1 (normal)">A</button>
                 <button data-c="#ea580c" class="eb-col-a" style="color:var(--eb-c2)" title="Color 2 (naranjo)">A</button>
                 <button data-c="#2563eb" class="eb-col-a" style="color:var(--eb-c3)" title="Color 3 (azul)">A</button>
+                <span class="eb-sep"></span>
+                <button data-a="mas" title="Más opciones del bloque">⋯</button>
             </div>`;
         document.body.append(...d.children);
         F = { tip: document.getElementById('eb-tip'), marco: document.getElementById('eb-marco'), menu: document.getElementById('eb-menu'),
               sub: document.getElementById('eb-submenu'), formato: document.getElementById('eb-formato') };
-        F.menu.addEventListener('click', e => { const b = e.target.closest('.eb-m-it'); if (b) elegir(+b.dataset.k); });
+        F.menu.addEventListener('mousedown', e => { if (e.target.closest('.eb-m-fmt')) e.preventDefault(); });
+        F.menu.addEventListener('click', e => {
+            const fb = e.target.closest('.eb-m-fmt button');
+            if (fb) { aplicarFormato(fb); return; }
+            const b = e.target.closest('.eb-m-it'); if (b) elegir(+b.dataset.k);
+        });
         F.menu.addEventListener('mouseover', e => {
             const b = e.target.closest('.eb-m-it');
             if (!b) return;
@@ -618,7 +625,10 @@
         F.formato.addEventListener('mousedown', e => e.preventDefault());
         F.formato.addEventListener('click', e => {
             const btn = e.target.closest('button');
-            if (!btn || !txtDeSeleccion()) return;
+            const txt = txtDeSeleccion();
+            if (!btn || !txt) return;
+            // ⋯: el menú completo del bloque, que sigue actuando sobre el texto seleccionado (deuda CP)
+            if (btn.dataset.a === 'mas') { const r = F.formato.getBoundingClientRect(); F.formato.style.display = 'none'; menuBloque(txt.parentElement.dataset.id, { getBoundingClientRect: () => r }); return; }
             document.execCommand('styleWithCSS', false, false);
             if (btn.dataset.f) document.execCommand(btn.dataset.f);
             if (btn.dataset.c) document.execCommand('foreColor', false, btn.dataset.c);
@@ -649,7 +659,7 @@
     function actualizarFormato() {
         if (!F) return;
         const txt = txtDeSeleccion();
-        if (!txt || marcando || txt.closest('.eb-tactil')) { F.formato.style.display = 'none'; return; }
+        if (!txt || marcando || txt.closest('.eb-tactil') || menuAbierto()) { F.formato.style.display = 'none'; return; }
         const r = getSelection().getRangeAt(0).getBoundingClientRect();
         F.formato.style.display = 'flex';
         ['bold', 'italic', 'underline'].forEach(f => F.formato.querySelector(`[data-f="${f}"]`).classList.toggle('eb-on', document.queryCommandState(f)));
@@ -661,15 +671,24 @@
     document.addEventListener('selectionchange', actualizarFormato);
 
     // ── Menús ───────────────────────────────────────────────────────────
-    let menuItems = [], menuFoco = 0, menuCierre = null, menuBloqueId = null;
+    let menuItems = [], menuFoco = 0, menuCierre = null, menuBloqueId = null, menuFormato = null;
     function menuAbierto() { return !!F && F.menu.style.display === 'block'; }
-    function abrirMenu(items, ancla, { titulo = '', pie = '', alCerrar = null, alDerecha = false } = {}) {
+    // formato: { ids, txt, rango } → fila B I U · A A A arriba (deuda CP). Con rango actúa sobre ese
+    // texto seleccionado; sin rango, sobre los bloques enteros.
+    function abrirMenu(items, ancla, { titulo = '', pie = '', alCerrar = null, alDerecha = false, formato = null } = {}) {
         asegurarFlotantes();
         cerrarMenus();
         const m = F.menu;
         menuItems = items.filter(it => !it.sep);
-        menuFoco = 0; menuCierre = alCerrar;
+        menuFoco = 0; menuCierre = alCerrar; menuFormato = formato;
         let k = 0, h = titulo ? `<div class="eb-m-tit">${esc(titulo)}</div>` : '';
+        if (formato) h += `<div class="eb-m-fmt">
+                <button data-f="bold" title="Negrita (Ctrl+B)"><b>B</b></button>
+                <button data-f="italic" title="Cursiva (Ctrl+I)"><i>I</i></button>
+                <button data-f="underline" title="Subrayado (Ctrl+U)"><u>U</u></button>
+                <span class="eb-sep"></span>
+                ${COLORES.map(k => `<button data-c="${k.c}" class="eb-col-a"${k.c > 1 ? ` style="color:var(--eb-c${k.c})"` : ''} title="${esc(k.lbl)}">A</button>`).join('')}
+            </div><div class="eb-m-sep"></div>`;
         items.forEach(it => {
             if (it.sep) { h += '<div class="eb-m-sep"></div>'; return; }
             h += `<button class="eb-m-it${it.peligro ? ' eb-peligro' : ''}" data-k="${k++}">
@@ -686,6 +705,47 @@
         if (left + m.offsetWidth > innerWidth - 8) left = innerWidth - m.offsetWidth - 8;
         m.style.left = Math.max(8, left) + 'px'; m.style.top = top + 'px';
         focoMenu(0);
+        estadoFormato();
+    }
+    function estadoFormato() {
+        const fm = menuFormato, fila = F.menu.querySelector('.eb-m-fmt');
+        if (!fm || !fila) return;
+        ['bold', 'italic', 'underline'].forEach(f => fila.querySelector(`[data-f="${f}"]`).classList.toggle('eb-on', !!fm.rango && document.queryCommandState(f)));
+        const I = insDeId(fm.ids[0]), uno = !fm.rango && fm.ids.length === 1 ? I?.bloques[idx(I, fm.ids[0])] : null;
+        fila.querySelectorAll('[data-c]').forEach(b => b.classList.toggle('eb-on', !!uno && !!uno.x && colorDe(uno.x) === +b.dataset.c));
+    }
+    function aplicarFormato(btn) {
+        const fm = menuFormato;
+        if (!fm) return;
+        const f = btn.dataset.f, c = +btn.dataset.c;
+        if (fm.rango && fm.txt.isConnected) {
+            fm.txt.focus();
+            const s = getSelection();
+            s.removeAllRanges(); s.addRange(fm.rango);
+            document.execCommand('styleWithCSS', false, false);
+            if (f) document.execCommand(f); else document.execCommand('foreColor', false, c === 1 ? '#000001' : COLOR_HEX[c]);
+            if (s.rangeCount) fm.rango = s.getRangeAt(0).cloneRange();
+        } else if (f) formatoBloques(fm.ids, f);
+        else { colorear(fm.ids, c); fm.ids.forEach(id => elDe(id)?.classList.add('eb-sel')); }
+        estadoFormato();
+    }
+    // Negrita/cursiva/subrayado a bloques enteros: si el primero ya lo tiene, se quita en todos.
+    function formatoBloques(ids, f) {
+        const s = getSelection();
+        let quitar = null;
+        ids.forEach(id => {
+            const txt = txtDe(id);
+            if (!txt || !txt.textContent) return;
+            txt.focus();
+            const r = document.createRange(); r.selectNodeContents(txt);
+            s.removeAllRanges(); s.addRange(r);
+            document.execCommand('styleWithCSS', false, false);
+            const tiene = document.queryCommandState(f);
+            if (quitar === null) quitar = tiene;
+            if (tiene === quitar) document.execCommand(f);
+        });
+        s.removeAllRanges(); document.activeElement?.blur?.();
+        ids.forEach(id => elDe(id)?.classList.add('eb-sel'));
     }
     function focoMenu(k) {
         menuFoco = (k + menuItems.length) % menuItems.length;
@@ -697,7 +757,7 @@
         F.menu.style.display = 'none'; F.sub.style.display = 'none';
         if (estaba) limpiarSeleccion();
         if (estaba && menuCierre) { const f = menuCierre; menuCierre = null; f(); }
-        menuBloqueId = null;
+        menuBloqueId = null; menuFormato = null;
     }
     function elegir(k) {
         const it = menuItems[k];
@@ -733,7 +793,7 @@
         if (e.key === 'ArrowUp')   { focoMenu(menuFoco - 1); return corta(); }
         if (e.key === 'Enter')     { elegir(menuFoco); return corta(); }
         if (e.key === 'Escape')    { cerrarMenus(); return corta(); }
-        if (menuBloqueId) {
+        if (menuBloqueId && !menuFormato?.rango) {
             const ids = menuBloqueId;
             if (e.key === 'Delete' || e.key === 'Backspace') { menuCierre = null; cerrarMenus(); eliminar(ids); return corta(); }
             if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) { menuCierre = null; cerrarMenus(); duplicar(ids); return corta(); }
@@ -745,11 +805,6 @@
     function itemsTipos(id) {
         const I = insDeId(id), b = I?.bloques[idx(I, id)];
         return TIPOS.map(x => ({ ico: x.ico, lbl: x.lbl, activo: b && b.t === x.t, accion: () => convertir(id, x.t) }));
-    }
-    function itemsColor(ids) {
-        const I = insDeId(ids[0]);
-        const uno = ids.length === 1 ? I?.bloques[idx(I, ids[0])] : null;
-        return COLORES.map(k => ({ ico: k.ico, html: true, lbl: k.lbl, activo: uno && colorDe(uno.x) === k.c, accion: () => colorear(ids, k.c) }));
     }
     function menuTipos(id) {
         const el = txtDe(id);
@@ -768,9 +823,11 @@
         if (seleccion.includes(id) && seleccion.length > 1) return menuGrupo(seleccion.slice(), asa);
         const plano = mdAPlano(b.x).trim();
         const palabras = plano ? plano.split(/\s+/).length : 0;
+        // Texto seleccionado dentro del bloque (clic derecho sobre él o ⋯ de la barra): el formato va a ese texto.
+        const s = getSelection(), txt = txtDe(id);
+        const rango = txt && s.rangeCount && !s.isCollapsed && txt.contains(s.anchorNode) && txt.contains(s.focusNode) ? s.getRangeAt(0).cloneRange() : null;
         abrirMenu([
             { ico: '⇄', lbl: 'Convertir en', sub: itemsTipos(id) },
-            ...(b.t === 'hr' ? [] : [{ ico: '🎨', lbl: 'Color', sub: itemsColor([id]) }]),
             ...(I.op.alPendiente && plano ? [{ ico: '☑', lbl: 'Convertir en pendiente', accion: () => aPendiente([id]) }] : []),
             ...(I.op.tactil ? [{ sep: true },
                 { ico: '↑', lbl: 'Subir', accion: () => mover(id, -1) },
@@ -781,10 +838,11 @@
         ], asa, {
             titulo: TIPOS.find(x => x.t === b.t)?.lbl || 'Texto',
             pie: `${I.actualizado ? 'Última edición: ' + cuando(I.actualizado) + '<br>' : ''}${palabras} palabra${palabras === 1 ? '' : 's'}, ${plano.length} caractere${plano.length === 1 ? '' : 's'}`,
+            formato: b.t === 'hr' ? null : { ids: [id], txt, rango },
         });
         menuBloqueId = [id];
         elDe(id)?.classList.add('eb-sel');
-        document.activeElement?.blur?.();
+        if (!rango) document.activeElement?.blur?.();
     }
     // Celular: mover un bloque un lugar (reemplaza arrastrar).
     function mover(id, d) {
@@ -808,12 +866,11 @@
         const I = insDeId(ids[0]);
         abrirMenu([
             { ico: '⇄', lbl: 'Convertir en', sub: TIPOS.filter(x => x.t !== 'hr').map(x => ({ ico: x.ico, lbl: x.lbl, accion: () => convertirGrupo(ids, x.t) })) },
-            { ico: '🎨', lbl: 'Color', sub: itemsColor(ids) },
             ...(I?.op.alPendiente ? [{ ico: '☑', lbl: 'Convertir en pendientes', accion: () => aPendiente(ids) }] : []),
             { sep: true },
             { ico: '⧉', lbl: 'Duplicar', atajo: 'Ctrl+D', accion: () => duplicar(ids) },
             { ico: '🗑', lbl: 'Eliminar', atajo: 'Supr', peligro: true, accion: () => eliminar(ids) },
-        ], asa, { titulo: `${ids.length} bloques`, alCerrar: () => seleccionar(ids) });
+        ], asa, { titulo: `${ids.length} bloques`, alCerrar: () => seleccionar(ids), formato: { ids, txt: null, rango: null } });
         menuBloqueId = ids;
         ids.forEach(id => elDe(id)?.classList.add('eb-sel'));
     }

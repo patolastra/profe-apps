@@ -5559,3 +5559,25 @@ en contexto las ideas que aparecen en la marcha.*
   anotar directo dejó "✨ …"; 🗑 lo borró.
 - **Regla de trabajo (DECISIÓN del PO):** al comenzar cada sesión, Claude lee 🐞 Mejoras, las pasa al Backlog de Notion
   y **pide aprobación** antes de borrarlas de la app.
+
+### CP. Editor por bloques — un solo menú (formato + acciones del bloque)
+*Origen: 🐞 Mejoras de la app (PO, 2026-10-22): "hay dos menús que aparecen, que deberían ser uno solo: uno de bold,
+itálica y colores, y el otro con convertir, color, duplicar, eliminar. NECESITAMOS UN SOLO MENÚ". Notion: tarjeta
+"Cursos: un solo menú (formato + acciones del bloque)".*
+- **Auditoría:** `comun/editor-bloques.js` tiene dos flotantes: la barra `#eb-formato` (B I U + 3 colores, al seleccionar
+  texto) y el menú `#eb-menu` del bloque (⋮⋮ / clic derecho: Convertir en, 🎨 Color, Convertir en pendiente, Duplicar,
+  Eliminar). La pieza es compartida: el cambio se ve en Cursos, la Bitácora del Planificador, las Actividades del Plan y el
+  Cuaderno. El celular (`tactil`) usa su propia barra sobre el teclado y no cambia.
+- **DECISIÓN del PO (2026-10-24):** un menú único con la fila **B I U · A A A** arriba. Al seleccionar texto aparece
+  **solo esa fila** con un **⋯** que despliega el resto; con ⋮⋮ o clic derecho se abre **completo**. Los 3 colores
+  reemplazan a "🎨 Color": con texto seleccionado pintan ese texto, sin selección pintan el bloque entero.
+- **Implementación (2026-10-24):** `comun/editor-bloques.js`: `abrirMenu` acepta `formato: { ids, txt, rango }` y dibuja la
+  fila B I U · A A A arriba del menú; con `rango` (texto seleccionado al abrir con clic derecho o con el **⋯** nuevo de la
+  barra chica) actúa sobre ese texto y el menú queda abierto; sin él, B/I/U van al bloque entero (`formatoBloques`: si el
+  primero ya lo tiene, se quita en todos) y los colores pintan los bloques (`colorear`). Fuera "🎨 Color" del menú del
+  bloque y del de varios bloques. Con el menú abierto la barra chica no aparece; con texto seleccionado, Supr no borra el
+  bloque. `editor-bloques.css`: estilos de `.eb-m-fmt`. El celular no cambia.
+- **Prueba (local, página de prueba sin datos reales):** seleccionar texto → barra chica con ⋯; ⋯ abre el menú completo
+  (Convertir en, Convertir en pendiente, Duplicar, Eliminar) y azul + negrita quedaron solo en lo seleccionado
+  (`Primera {3:**línea**} de prueba`); ⋮⋮ sin selección: naranjo + negrita al bloque entero (`{2:**Segunda línea**}`);
+  2 bloques seleccionados: cursiva a los dos y otra vez la quita en los dos.
