@@ -5614,3 +5614,31 @@ Pendientes ocultable, alineada con las clases".*
   convierte en el guardado automático: pasa recién con Enter o al salir del cuadro (o al cerrar, `guardarTodo`).
   Probado: escribiendo con pausas de 1,2 s el pendiente siguió en la lista; al salir quedó "🐞 prueba … borrar" completo
   (borrado después).
+
+### CR. Pizarra con el Entrenador encima — flechas, letra que se detiene y dos Entrenadores
+*Origen: bitácoras revisadas con el PO (2026-10-24; Notion: tarjetas "Pizarra: flechas ↑ ↓ no mueven la letra y ← →
+sacan de la canción", "Pizarra: con audio sonando, al salir de la pantalla la letra deja de avanzar" y "Dos sesiones del
+Entrenador en la Pizarra: la última pisa a la anterior"). PO: "deberían pisarse nomás".*
+- **Auditoría:** (1) en la Pizarra, las flechas iban a las diapositivas de abajo (invisibles) y, con una letra "dejada",
+  ← → la soltaban; dentro de la copia, ↑/↓ cambiaban el verso solo un instante, porque el Entrenador del profe la
+  devolvía a su verso cada 300 ms; además, en 15 canciones hay versos sin tiempo dentro de una letra sincronizada, y ↓
+  sobre ellos saltaba de vuelta al anterior (también en el Entrenador del profe). (2) La copia en modo Scroll copia el
+  desplazamiento del Entrenador del profe; si ese queda oculto (escribiendo la bitácora), deja de moverse y la Pizarra
+  también. (3) Dos Entrenadores proyectando mandan su estado a la vez y la Pizarra salta entre ambos.
+- **Arreglo:** (1) en la Pizarra con el Entrenador encima, ↑/↓ mueven el verso en el Entrenador del profe (o en la
+  copia si ya no proyecta) y ← → no hacen nada; los versos sin tiempo se eligen sin mover el audio y el aviso de tiempo
+  siguiente no los cambia. (2) Sonando una letra sincronizada, la copia centra sola su verso activo; detenida, sigue
+  copiando la vista del profe. (3) El último Entrenador que proyecta manda; el anterior deja de proyectar solo.
+- **Implementación (2026-10-24):** `REPERTORIO/index.html`: versos con `sinTiempo` (los de una letra sincronizada que
+  no encontraron su tiempo); ↑/↓ y el clic los eligen sin mover el audio, y `entLineaManualHasta` evita que el aviso de
+  tiempo siguiente cambie el verso elegido con el audio detenido. Copia (`?espejo=1`): las flechas van a `espejoTecla`
+  (↑/↓ → mensaje `tecla` al Entrenador del profe si está proyectando, o el verso local si la letra quedó "dejada"; ← →
+  nada); sonando una letra sincronizada, la copia centra sola su verso (`espejoSigueSola`) y solo detenida copia el
+  desplazamiento del profe; el profe con la pestaña oculta no manda desplazamiento. Profe: atiende `tecla` y, si otro
+  Entrenador manda `on`, deja de proyectar. `PIZARRA/index.html`: con el Entrenador encima, las flechas se pasan a la
+  copia (`espejoEntrenador.tecla`) y no mueven las diapositivas.
+- **Prueba (local, clase simulada solo en el navegador, sin tocar Supabase):** El Guatón Loyola: un verso sin tiempo se
+  recorre con ↓ ↓ ↑ (7, 8, 7) sin volver atrás; en la copia, ↓ llevó al profe del verso 3 al 4 y → no cambió de
+  canción; un segundo Entrenador proyectando el verso 12 tomó la Pizarra y el primero se apagó solo; con el profe en
+  otra pestaña y la canción sonando, la copia pidió centrar cada verso (14, 15, 17… 20). No probado: la Pizarra real en
+  el proyector (requiere clase en curso).

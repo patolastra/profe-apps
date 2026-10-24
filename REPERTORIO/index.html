@@ -5014,6 +5014,7 @@ function entrenadorAjustarVelocidad(delta) {
 
 // Teclado del Entrenador
 document.addEventListener('keydown', e => {
+    if (ESPEJO && /^Arrow(Up|Down|Left|Right)$/.test(e.key)) { e.preventDefault(); espejoTecla(e.key); return; }
     if (document.getElementById('entrenador-overlay').classList.contains('visible')) {
         // Edición rápida de verso en curso: el contenteditable gestiona sus teclas
         // (Enter/Escape + escritura). No interceptamos ningún atajo del Entrenador.
@@ -5914,7 +5915,7 @@ function entCargarAsset(asset, userInitiated = false) {
                 const text = raw.trim();
                 const cola = lrcMap.get(text);
                 const ts   = cola?.shift();
-                return { time: ts?.time ?? i * 3000, timeOut: ts?.timeOut, text };
+                return { time: ts?.time ?? i * 3000, timeOut: ts?.timeOut, text, sinTiempo: !ts };
             });
         } else {
             entrenadorLines = (asset.contenido || '').split('\n').map((t, i) => ({ time: i * 3000, text: t.trim() }));
@@ -6455,7 +6456,8 @@ function entClickLinea(e, i) {
     const linea = entrenadorLines[i];
     if (!linea) return;
     const audioEl = entAudio();
-    if (audioEl.duration) audioEl.currentTime = linea.time / 1000;
+    entLineaManualHasta = Date.now() + 600;
+    if (audioEl.duration && !linea.sinTiempo) audioEl.currentTime = linea.time / 1000;
     entActualizarLinea(i);
 }
 
@@ -6640,12 +6642,15 @@ function entActualizarLinea(idx) {
     });
     const activa = document.querySelector('.ent-lyric-line.activa');
     // En la copia de la Pizarra (modo Scroll) manda el desplazamiento del profe (espejoAplicarScroll).
-    if (activa && entViewMode !== 'pantalla' && !(ESPEJO && entViewMode === 'scroll'))
+    if (activa && entViewMode !== 'pantalla' && !(ESPEJO && entViewMode === 'scroll' && espejoVivo() && !espejoSigueSola()))
         activa.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 // Navegación de verso con ↑/↓. Salta al verso anterior/siguiente y posiciona el audio
 // en su TIMESTAMP EXACTO — mismo comportamiento que el click del verso.
+// Verso elegido a mano (↑/↓ o clic) con el audio detenido: el aviso de tiempo que sigue al salto no lo
+// cambia por otro (deuda CR: los versos sin tiempo de una letra sincronizada devolvían al anterior).
+let entLineaManualHasta = 0;
 function entNavVerso(dir) {
     if (!entrenadorLines.length) return;
     let i = entrenadorLineIdx;
@@ -6655,7 +6660,8 @@ function entNavVerso(dir) {
     if (j < 0 || j >= entrenadorLines.length) return;
     const linea = entrenadorLines[j];
     const audioEl = entAudio();
-    if (audioEl.duration) { audioEl.currentTime = linea.time / 1000; entPitchSyncPos(); }
+    entLineaManualHasta = Date.now() + 600;
+    if (audioEl.duration && !linea.sinTiempo) { audioEl.currentTime = linea.time / 1000; entPitchSyncPos(); }
     entActualizarLinea(j);
 }
 
@@ -6698,7 +6704,7 @@ function entOnTimeUpdate() {
             `${Math.floor(seg/60)}:${String(seg%60).padStart(2,'0')} / ${Math.floor(dur/60)}:${String(dur%60).padStart(2,'0')}`;
     }
 
-    if (entrenadorAssetActivo?.synced && entrenadorLines.length) {
+    if (entrenadorAssetActivo?.synced && entrenadorLines.length && !(audioEl.paused && Date.now() < entLineaManualHasta)) {
         let newIdx = -1, bestTime = -1;
         for (let i = 0; i < entrenadorLines.length; i++) {
             // Solo los versos reales compiten por línea activa. Los separadores de estrofa
@@ -8423,6 +8429,21 @@ if (MINI) document.body.classList.add('mini');
 const ESPEJO_KEY = 'profe_espejo_entrenador';
 const espejoCanal = ('BroadcastChannel' in window) ? new BroadcastChannel('profe-espejo-entrenador') : null;
 let espejoOn = false, espejoTimer = null;
+// Copia de la Pizarra (deuda CR): hora del último estado recibido del Entrenador del profe.
+let espejoUltimoEstado = 0;
+const espejoVivo = () => Date.now() - espejoUltimoEstado < 2000;
+// Sonando una letra sincronizada, la copia sigue su propio verso activo (no el desplazamiento del profe,
+// que se detiene si su Entrenador queda oculto mientras escribe la bitácora).
+const espejoSigueSola = () => ESPEJO && entSonando() && !!entrenadorAssetActivo?.synced;
+// Flechas en la Pizarra (deuda CR): ↑/↓ mueven el verso en el Entrenador del profe (o aquí, si el profe ya no
+// proyecta: letra dejada); ← → no hacen nada, para no sacar de la canción mientras se canta.
+function espejoTecla(k) {
+    if (k !== 'ArrowUp' && k !== 'ArrowDown') return;
+    const dir = k === 'ArrowUp' ? -1 : 1;
+    if (espejoVivo() && espejoCanal) espejoCanal.postMessage({ tipo: 'tecla', dir });
+    else entNavVerso(dir);
+}
+window.espejoTecla = espejoTecla;
 
 function espejoEstado() {
     const a = entAudio();
@@ -8507,7 +8528,7 @@ function espejoCancLayout() {
 // que no se copia la posición en píxeles sino un ancla: el verso más cercano al centro de la vista
 // del profe y a qué altura relativa está. La copia ubica ese mismo verso a la misma altura.
 function espejoAnclaScroll() {
-    if (entViewMode !== 'scroll') return null;
+    if (entViewMode !== 'scroll' || document.hidden) return null;   // oculto: su vista no dice nada (deuda CR)
     const z = document.getElementById('ent-zona');
     if (!z || !z.clientHeight) return null;
     const zr = z.getBoundingClientRect(), cy = zr.top + z.clientHeight / 2;
@@ -8634,7 +8655,7 @@ function espejoAplicar(e) {
     }
     // Detenido: el verso activo puede cambiar sin audio (clic en un verso, ↑/↓).
     if (!e.sonando && e.linea >= 0 && e.linea !== entrenadorLineIdx) entActualizarLinea(e.linea);
-    espejoAplicarScroll(e.scroll);
+    if (!espejoSigueSola()) espejoAplicarScroll(e.scroll);
     // Metalófono: se muestra si el profe lo abrió o si el recurso activo es un metalófono
     // (aunque el profe aún no apriete "Abrir en Metalófono"): nunca queda ese botón proyectado.
     const metalActivo = entrenadorAssetActivo?.tipo === 'metalofono' && !!entrenadorAssetActivo.storage_path;
@@ -8810,7 +8831,7 @@ if (ESPEJO) {
     document.body.classList.add('espejo');
     if (espejoCanal) espejoCanal.onmessage = ev => {
         const m = ev.data || {};
-        if (m.tipo === 'estado') espejoAplicar(m);
+        if (m.tipo === 'estado') { espejoUltimoEstado = Date.now(); espejoAplicar(m); }
         else if (m.tipo === 'scroll') espejoAplicarScroll(m.s);
         else if (m.tipo === 'scroll-pizarra') return;
         else if (m.tipo === 'ritmo') espejoRitmo(m);
@@ -8837,7 +8858,13 @@ if (ESPEJO) {
 } else {
     ['play', 'pause', 'seeked', 'ratechange'].forEach(t => entAudio().addEventListener(t, espejoEmitir));
     // La letra se desplazó en la Pizarra: el Entrenador del profe la sigue.
-    espejoCanal?.addEventListener('message', ev => { if (ev.data?.tipo === 'scroll-pizarra' && espejoOn) espejoAplicarScroll(ev.data.s); });
+    espejoCanal?.addEventListener('message', ev => {
+        const m = ev.data || {};
+        if (m.tipo === 'scroll-pizarra' && espejoOn) espejoAplicarScroll(m.s);
+        if (m.tipo === 'tecla' && espejoOn) { entNavVerso(m.dir); espejoEmitir(); }
+        // Otro Entrenador (otra pestaña o el mínimo del Planificador) empezó a proyectar: ese manda (deuda CR).
+        if (m.tipo === 'on' && espejoOn) { espejoOn = false; clearInterval(espejoTimer); espejoTimer = null; espejoPintarBoton(); }
+    });
     let espejoScrollRaf = 0;
     document.getElementById('ent-zona').addEventListener('scroll', () => {
         if (!espejoOn || !espejoCanal || espejoScrollRaf || espejoCongelado) return;
