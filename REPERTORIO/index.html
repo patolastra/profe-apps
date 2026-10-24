@@ -8,6 +8,7 @@
     <script src="../supabase/config.js"></script>
     <script src="../supabase/contextos.js"></script>
     <script src="../comun/clase-vivo.js"></script>
+    <script src="../comun/puntero.js"></script>
     <script src="../comun/nombre-asset.js"></script>
     <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
@@ -2056,7 +2057,7 @@
         body.espejo #ent-loops-panel, body.espejo #ent-sesion-lista,
         body.espejo .ent-ritmo-controls { display: none !important; }
         /* Controles header — mismo estilo que .ent-chip */
-        #ent-btn-espejo, #ent-btn-atajos, #ent-btn-pitch, #ent-btn-audio, #ent-btn-tema, #ent-vel-label,
+        #ent-btn-espejo, #ent-btn-puntero, #ent-btn-atajos, #ent-btn-pitch, #ent-btn-audio, #ent-btn-tema, #ent-vel-label,
         #ent-btn-ocultar, #ent-btn-lectura, #ent-btn-sync, #ent-btn-sync-save, #ent-btn-editar {
             background: #334155; border: 1.5px solid #475569;
             color: #94a3b8; border-radius: 20px; padding: 4px 12px;
@@ -2064,7 +2065,8 @@
             white-space: nowrap; transition: all 0.15s; flex-shrink: 0; line-height: 1;
         }
         #ent-vel-label { cursor: default; font-variant-numeric: tabular-nums; }
-        #ent-btn-espejo:hover, #ent-btn-atajos:hover, #ent-btn-pitch:hover, #ent-btn-audio:hover, #ent-btn-tema:hover, #ent-btn-ocultar:hover, #ent-btn-lectura:hover,
+        #ent-btn-puntero.on { background: #dc2626; border-color: #dc2626; color: #fff; }
+        #ent-btn-espejo:hover, #ent-btn-puntero:hover, #ent-btn-atajos:hover, #ent-btn-pitch:hover, #ent-btn-audio:hover, #ent-btn-tema:hover, #ent-btn-ocultar:hover, #ent-btn-lectura:hover,
         #ent-btn-sync:hover, #ent-btn-editar:hover { border-color: #64748b; color: #cbd5e1; }
         #ent-btn-pitch.activo, #ent-btn-audio.activo, #ent-btn-ocultar.oculto,
         #ent-btn-sync.on, #ent-btn-editar.activo, #ent-btn-espejo.on, #ent-btn-lectura.activo {
@@ -2263,6 +2265,7 @@
         #entrenador-overlay.ent-light .ent-chip:hover { border-color: #94a3b8; color: #1e293b; }
         /* Botones tipo pill del header */
         #entrenador-overlay.ent-light #ent-btn-espejo:not(.on),
+        #entrenador-overlay.ent-light #ent-btn-puntero:not(.on),
         #entrenador-overlay.ent-light #ent-btn-atajos,
         #entrenador-overlay.ent-light #ent-btn-pitch, #entrenador-overlay.ent-light #ent-btn-audio,
         #entrenador-overlay.ent-light #ent-btn-tema,
@@ -2981,6 +2984,7 @@
         <div id="ent-header-tools">
             <button id="ent-btn-pedir" onclick="pedirAbrir()" title="Anotar una canción pedida para esta sesión" style="display:none">🙋 Pedir canción</button>
             <button id="ent-btn-espejo" onclick="entToggleEspejo()" style="display:none">📽️ Pizarra</button>
+            <button id="ent-btn-puntero" onclick="Puntero.alternar()" style="visibility:hidden" title="Puntero: lo que señalas con el mouse en la letra se ve en la Pizarra como un punto rojo">🔴 Puntero</button>
             <button id="ent-btn-tema" onclick="entToggleTema()" title="Modo claro">☀️</button>
             <button id="ent-btn-atajos" onclick="entAbrirAtajos()" title="Atajos de teclado">⌨</button>
             <button id="ent-btn-audio" onclick="entCambiarAudio()" style="display:none">🎤 Melodía</button>
@@ -8643,6 +8647,9 @@ function espejoPintarBoton() {
     if (!hayClase && espejoOn) { espejoApagar(); return; }
     b.style.display = hayClase ? '' : 'none';
     b.classList.toggle('on', espejoOn);
+    // 🔴 Puntero (deuda CT): solo sirve mientras se proyecta; espacio reservado (barra estable).
+    const bp = document.getElementById('ent-btn-puntero');
+    if (bp) bp.style.visibility = hayClase && espejoOn ? 'visible' : 'hidden';
     b.title = espejoOn ? 'Dejar de proyectar: la Pizarra vuelve a su diapositiva'
                        : 'Proyectar esta vista del Entrenador en la Pizarra';
 }
@@ -8871,6 +8878,13 @@ function espejoCerrar() {
 
 if (ESPEJO) {
     document.body.classList.add('espejo');
+    // 🔴 Puntero (deuda CT): el punto rojo en el mismo verso y en la misma parte del verso que el mouse del profe.
+    Puntero.receptor(m => {
+        if (m.donde !== 'letra') return null;
+        const el = document.querySelector(`#ent-zona .ent-lyric-line[data-orig="${m.orig}"]`);
+        const r = el?.getBoundingClientRect();
+        return r && r.width ? { x: r.left + m.rx * r.width, y: r.top + m.ry * r.height } : null;
+    });
     if (espejoCanal) espejoCanal.onmessage = ev => {
         const m = ev.data || {};
         if (m.tipo === 'estado') { espejoUltimoEstado = Date.now(); espejoAplicar(m); }
@@ -8918,6 +8932,23 @@ if (ESPEJO) {
         });
     }, { passive: true });
     document.getElementById('metal-iframe').addEventListener('load', espejoMetalObservar);
+    // 🔴 Puntero (deuda CT): mientras se proyecta, dónde está el mouse sobre la letra (verso + posición dentro del verso).
+    Puntero.alCambiar(on => document.getElementById('ent-btn-puntero')?.classList.toggle('on', on));
+    Puntero.emisor(document.getElementById('ent-zona'), ev => {
+        if (!espejoOn) return null;
+        const zona = document.getElementById('ent-zona');
+        let el = ev.target.closest?.('.ent-lyric-line[data-orig]');
+        if (!el) {   // entre versos: el más cercano en altura
+            let bd = Infinity;
+            zona.querySelectorAll('.ent-lyric-line[data-orig]').forEach(x => {
+                const r = x.getBoundingClientRect(), d = Math.abs(r.top + r.height / 2 - ev.clientY);
+                if (r.width && d < bd) { bd = d; el = x; }
+            });
+        }
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { donde: 'letra', orig: +el.dataset.orig, rx: (ev.clientX - r.left) / r.width, ry: (ev.clientY - r.top) / r.height };
+    });
     ClaseVivo.onCambio(espejoPintarBoton);
     espejoPintarBoton();
     window.addEventListener('pagehide', () => { if (espejoOn) espejoApagar(); });

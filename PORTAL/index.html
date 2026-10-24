@@ -9,6 +9,7 @@
     <script src="../supabase/config.js"></script>
     <script src="../supabase/contextos.js"></script>
     <script src="../comun/clase-vivo.js"></script>
+    <script src="../comun/puntero.js"></script>
     <script src="../comun/nombre-asset.js"></script>
     <script src="../comun/asistencia.js"></script>
     <script src="../comun/recurrentes.js"></script>
@@ -93,6 +94,9 @@
         #recu-wrap { position: relative; display: inline-flex; }
         #recu-wrap[hidden] { display: none; }
         #btn-recu.on { background: #f59e0b; border-radius: 10px; }
+        /* 🔴 Puntero en la Pizarra (deuda CT): apagado se ve tenue; encendido, con marco rojo */
+        #btn-puntero { opacity: .55; }
+        #btn-puntero.on { opacity: 1; background: #fee2e2; border-radius: 10px; box-shadow: inset 0 0 0 2px #ef4444; }
         #recu-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 3000; min-width: 230px;
             background: #fff; color: #0f172a; border: 1px solid #e2e8f0; border-radius: 10px;
             box-shadow: 0 10px 28px rgba(0,0,0,.18); padding: 6px; }
@@ -1359,6 +1363,7 @@
             <button class="hdr-btn ico" onclick="mostrarQRRemoto()" data-label="Remoto" aria-label="Remoto">📱</button>
             <span id="recu-wrap" hidden>
                 <button class="hdr-btn ico" id="btn-recu" onclick="recuMenu(event)" data-label="Diapositivas recurrentes" aria-label="Diapositivas recurrentes">🔔</button>
+                <button class="hdr-btn ico" id="btn-puntero" onclick="Puntero.alternar()" data-label="Puntero en la Pizarra" aria-label="Puntero en la Pizarra">🔴</button>
                 <div id="recu-menu" hidden></div>
                 <div id="fecha-sub" hidden></div>
             </span>
@@ -2770,6 +2775,20 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ◀ ▶ de la barra: lo mismo que las flechas del teclado en la Pizarra.
+// ── 🔴 Puntero (deuda CT): con el puntero encendido, el mouse sobre la diapositiva que está en la Pizarra
+// (Vista previa o vista de clase) se ve allá como un punto rojo, en la misma posición proporcional.
+(function () {
+    const ancla = ev => {
+        const sl = ev.target.closest?.('.slide-prev.en-pizarra, .cl-slide.en-pizarra');
+        if (!sl) return null;
+        const r = sl.getBoundingClientRect();
+        return { donde: 'diapo', idx: +sl.dataset.idx, rx: (ev.clientX - r.left) / r.width, ry: (ev.clientY - r.top) / r.height };
+    };
+    Puntero.emisor(document.getElementById('prev-body'), ancla);
+    Puntero.emisor(document.getElementById('clase-panel'), ancla);
+    Puntero.alCambiar(on => document.getElementById('btn-puntero')?.classList.toggle('on', on));
+})();
+
 // ── Diapositivas recurrentes (deuda AX): 🔔 abre el menú; elegir una la muestra en la Pizarra
 // encima de la diapositiva hasta quitarla (aquí mismo o con Esc en la Pizarra).
 // La 📅 Fecha también es una recurrente (deuda BL): se prende/apaga aquí, con sus opciones debajo.

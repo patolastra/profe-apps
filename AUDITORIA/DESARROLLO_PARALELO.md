@@ -5679,3 +5679,38 @@ Notion: "Entrenador: modo solo lectura (versos con ↑ ↓, sin audio)". PO: "da
   no proyecta (letra dejada), se hace en la copia. `entAltLinea` reúne la lógica del verso / estrofa. Probado con dos
   pestañas (clase simulada en el navegador): Alt+clic en la copia escondió el verso 2 y siguió escondido; otro Alt+clic
   lo mostró.
+
+### CT. 🔴 Puntero en la Pizarra — mostrar a qué parte me refiero
+*Origen: PO 2026-10-24: "en el mini entrenador del planer estoy haciendo referencia a cierta parte de la canción y ocupo
+el mouse para mostrar eso, pensando en que el mouse se ve en la pizarra y claramente no se ve… no tiene que ser un
+mouse… habría que pensar en qué otras partes del ecosistema necesitaríamos una funcionalidad tal". Notion: "Puntero en
+la Pizarra: mostrar a qué parte me refiero".*
+- **Auditoría:** todo lo que se proyecta desde la pantalla del profe (LUGARES_DE_USO.md): letra del Entrenador (completo,
+  mínimo; copia `?espejo=1`), diapositivas (Vista previa y vista de clase del Plan → Pizarra), Cuaderno, Libro
+  proyectado, Pasar lista, Metalófono / ritmos del Entrenador. Las pantallas miden distinto: la posición se manda
+  relativa a lo señalado (verso + posición dentro del verso; diapositiva + posición proporcional).
+- **DECISIÓN del PO (2026-10-24):** se enciende con un **botón 🔴 Puntero** (solo con la clase en curso); en la Pizarra
+  se ve un **punto láser rojo** con estela corta, que se desvanece al dejar de mover el mouse; se parte por la **letra**
+  (Entrenador completo y mínimo) y las **diapositivas** (Vista previa y vista de clase); después Cuaderno, Libro, Pasar
+  lista y Metalófono.
+- **Diseño técnico:** pieza nueva `comun/puntero.js` (`Puntero`): estado encendido compartido entre pestañas del equipo
+  (`localStorage` + evento `storage`), emisor (posición relativa, máx. una vez por cuadro) y receptor que dibuja el punto
+  (canal `profe-puntero`, misma computadora, sin internet). Emisores: Entrenador del profe (solo mientras proyecta) y
+  Plan (solo sobre la diapositiva marcada "en Pizarra"). Receptores: copia del Entrenador (letra) y Pizarra
+  (diapositiva, solo si no hay Entrenador encima).
+- **Implementación (2026-10-24):** `comun/puntero.js` (nombre `Puntero` revisado en todo el repo: libre). Entrenador
+  (`REPERTORIO/`): botón `#ent-btn-puntero` "🔴 Puntero" junto a 📽️ Pizarra, con espacio reservado y visible solo
+  mientras se proyecta; el emisor manda verso (`orig`) + posición relativa dentro del verso (entre versos, el más
+  cercano); la copia (`?espejo=1`) dibuja el punto. Plan (`PORTAL/`): botón 🔴 al lado de 🔔 (con la clase en curso),
+  emisor sobre la diapositiva marcada `en-pizarra` en la Vista previa y en la vista de clase. Pizarra: dibuja el punto si
+  el aviso es de su diapositiva actual y no hay Entrenador encima. Encendido compartido entre pestañas del equipo.
+  Los avisos salen a lo más cada 25 ms (con intervalo y no por cuadro de animación, para que no se detengan con la
+  ventana tapada).
+- **Prueba (local, clase simulada solo en el navegador; Pizarra y Plan de una clase pasada solo mirando):** letra: el
+  mouse en el verso 3 al 25 % dejó el punto en la copia en (331, 266), con el verso en (332, 267), y se desvaneció a los
+  1,5 s; diapositiva: un aviso de la diapositiva 0 al (50 %, 25 %) quedó en (512, 212) de la Pizarra (esperado 512, 213);
+  un aviso de otra diapositiva no lo mostró; Plan: el mouse sobre la diapositiva "en Pizarra" mandó `diapo 0 0.30 0.60`
+  y al apagar avisó "fuera". No probado: proyector real.
+- **Lugares de uso (regla 11):** Entrenador completo, mínimo del Plan, canción del Plan y sesión → sí (mismo archivo);
+  copia de la Pizarra → receptor; Pizarra con la tecla T → no tiene botón visible sin proyectar (se elimina); Cuaderno,
+  Libro, Pasar lista y Metalófono → fase 2 (decisión del PO).

@@ -49,6 +49,7 @@
 | `recurrentes.js` / `fecha-pizarra.js` | Plan (🔔) · Pizarra |
 | `clase-vivo.js` | Plan · Pizarra · Libro · Biblioteca/Entrenador · Workspace · Bitácora (MEMORIA) · celular (inicio, Cursos, Evaluar) |
 | `tiempo-real.js` | Plan · Pizarra · Libro · Biblioteca/Entrenador · Cursos · celular (Cursos, Evaluar) |
+| `puntero.js` | Entrenador del profe (completo y mínimo, mientras proyecta) → copia en la Pizarra · Plan: Vista previa y vista de clase → Pizarra · *pendiente (fase 2): Cuaderno, Libro, Pasar lista, Metalófono* |
 | `nombre-asset.js` | Biblioteca/Entrenador · Lector · Plan · Planificaciones · Workspace |
 
 ## Libro de clases (`LIBRO/index.html`)
