@@ -5674,3 +5674,8 @@ Notion: "Entrenador: modo solo lectura (versos con ↑ ↓, sin audio)". PO: "da
   (`body:not(.espejo) .ent-lyric-line.oculta:hover`); la copia de la Pizarra no cambia. Lugares revisados (ver
   `LUGARES_DE_USO.md`): Biblioteca, sesión del curso, canción del Plan, mínimo y tecla T → sí; copia en la Pizarra → no, a
   propósito (lo ven los estudiantes). Pendiente de decisión del PO: Alt+clic dentro de la copia de la Pizarra.
+- **Ajuste (2026-10-24, PO: "que funcione"):** Alt+clic y Alt+doble clic dentro de la copia de la Pizarra se le pasan al
+  Entrenador del profe (mensaje `alt`, igual que las flechas), que esconde o muestra y la copia lo sigue; si el profe ya
+  no proyecta (letra dejada), se hace en la copia. `entAltLinea` reúne la lógica del verso / estrofa. Probado con dos
+  pestañas (clase simulada en el navegador): Alt+clic en la copia escondió el verso 2 y siguió escondido; otro Alt+clic
+  lo mostró.

@@ -6428,8 +6428,10 @@ function entClickLinea(e, i) {
         // primero se deshace lo que hizo el 1er click y luego se aplica a la estrofa.
         e.preventDefault();
         if (entSyncMode || entModoEdicion) return;
-        if (e.detail === 1) entToggleOculta(i);
-        else if (e.detail === 2) { entToggleOculta(i); entToggleOcultaEstrofa(i); }
+        // Copia de la Pizarra (PO 2026-10-24): el cambio lo hace el Entrenador del profe, que manda; si ya no
+        // proyecta (letra dejada), se hace aquí.
+        if (ESPEJO && espejoVivo() && espejoCanal) { espejoCanal.postMessage({ tipo: 'alt', i, detail: e.detail }); return; }
+        entAltLinea(i, e.detail);
         return;
     }
     if (e.shiftKey) {
@@ -6478,6 +6480,12 @@ function entAplicarOcultas() {
         el.classList.toggle('oculta', entrenadorOcultar || entrenadorLineasOcultas.has(i));
     });
     entPintarBtnLetra();
+}
+
+// Alt+clic (detail 1): el verso; Alt+doble clic (detail 2): primero deshace el 1er clic y luego la estrofa.
+function entAltLinea(i, detail) {
+    if (detail === 1) entToggleOculta(i);
+    else if (detail === 2) { entToggleOculta(i); entToggleOcultaEstrofa(i); }
 }
 
 function entToggleOculta(i) {
@@ -8896,6 +8904,7 @@ if (ESPEJO) {
         const m = ev.data || {};
         if (m.tipo === 'scroll-pizarra' && espejoOn) espejoAplicarScroll(m.s);
         if (m.tipo === 'tecla' && espejoOn) { entNavVerso(m.dir, entLectura); espejoEmitir(); }
+        if (m.tipo === 'alt' && espejoOn && !entSyncMode && !entModoEdicion) { entAltLinea(m.i, m.detail); espejoEmitir(); }
         // Otro Entrenador (otra pestaña o el mínimo del Planificador) empezó a proyectar: ese manda (deuda CR).
         if (m.tipo === 'on' && espejoOn) { espejoOn = false; clearInterval(espejoTimer); espejoTimer = null; espejoPintarBoton(); }
     });
