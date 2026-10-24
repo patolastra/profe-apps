@@ -5581,3 +5581,31 @@ itálica y colores, y el otro con convertir, color, duplicar, eliminar. NECESITA
   (Convertir en, Convertir en pendiente, Duplicar, Eliminar) y azul + negrita quedaron solo en lo seleccionado
   (`Primera {3:**línea**} de prueba`); ⋮⋮ sin selección: naranjo + negrita al bloque entero (`{2:**Segunda línea**}`);
   2 bloques seleccionados: cursiva a los dos y otra vez la quita en los dos.
+
+### CQ. Cursos — 4ª columna "Pendientes" (ocultable), alineada con las clases
+*Origen: 🐞 Mejoras de la app (PO, 2026-10-22): un botón "Pendientes" en Cursos que muestra una cuarta columna a la
+derecha con los pendientes que se derivan de cada sesión a la siguiente, alineados con las sesiones; sacar el plegable
+"Pendientes" de cada sesión, que dificulta la lectura; parte desactivado. Notion: tarjeta "Cursos: 4ª columna
+Pendientes ocultable, alineada con las clases".*
+- **Auditoría:** `CURSOS/index.html` muestra arriba el cuadro "☑ Pendientes" del curso (plegado, deuda CN) y, en cada
+  clase, "☑ Pendientes de esta clase" (los que tienen `sesion_id` de esa clase). Los pendientes ya traen la fecha de su
+  clase (`Pendientes`), así que se pueden alinear por fecha, sin consultas nuevas. ☀ Hoy hoy no muestra pendientes.
+- **DECISIÓN del PO (2026-10-24):** (1) al lado de cada clase van **los que deja para la siguiente**: los pendientes de
+  las clases que vienen después de esa y hasta la próxima que aparece en la página (al lado de la última clase, todo lo
+  que está para más adelante, aunque esa clase todavía no ocurra); (2) la columna **también en ☀ Hoy**; (3) el cuadro
+  "☑ Pendientes" de arriba **se va a la columna**; también se quitan los plegables de cada clase. Botón en la barra,
+  parte **desactivado**.
+- **Implementación (2026-10-24):** `CURSOS/index.html`: botón **☑ Pendientes** en la barra (espacio reservado, visible en
+  un curso y en ☀ Hoy; resaltado mientras está activo; parte apagado y no se recuerda). Activo, cada entrada pasa a dos
+  partes (bitácora | columna de 320 px con línea a la izquierda). En un curso, cada pendiente va al lado de la **última
+  clase anterior a la suya** (por la fecha de su clase): la más nueva tiene todo lo que viene y el ＋ (a la clase siguiente
+  a ella); las demás, sin ＋. Lo que no tiene una clase anterior en la página va arriba, en "Pendientes sin una clase
+  anterior" (solo si hay); en General (solo notas) ese cuadro es la lista completa con ＋. En ☀ Hoy, al lado de cada clase
+  del día, los pendientes de sus clases siguientes, con ＋. Fuera el cuadro "☑ Pendientes" de arriba y los plegables de
+  cada clase (con eso queda sin uso el plegado de la deuda CN). En la columna angosta, la fecha de la clase y las semanas
+  van bajo el texto. El celular no cambia.
+- **Prueba (local, datos reales, solo mirando):** Cuarto: apagado no se ve nada; al activar, Lun 19/10 tiene los 2 del
+  lun 26/10 y el ＋, Lun 12/10 el del 19/10, Lun 28/9 los 5 del 5/10, y las clases sin pendientes quedan en blanco
+  alineadas; ☀ Hoy del 19/10: Orientación 3, Tercero 1, Cuarto 2, Cuerdas 9; General: 61 en el cuadro de arriba con ＋;
+  apagar lo oculta todo; sin errores.
+

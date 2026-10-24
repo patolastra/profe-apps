@@ -133,20 +133,23 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .ent-audios .aud-lbl { font-size: 12px; color: var(--suave); margin-bottom: 2px; }
 .ent-fin { min-height: 22px; cursor: text; }
 
-/* Pendientes del curso (arriba) y de cada clase (comun/pendientes.js) */
-#pag-pend { border: 1px solid var(--linea); border-radius: 10px; padding: 10px 12px 8px; margin: -12px 0 26px; }
-#pag-pend .pp-tit { font-size: 13px; font-weight: 600; color: var(--suave); margin-bottom: 4px; display: flex; gap: 8px; }
-.ent-pend { margin: 0 0 10px; padding-left: 2px; }
-.ent-pend .pp-tit { font-size: 12px; color: var(--suave); margin-bottom: 2px; }
-.ent-pend[hidden] { display: none; }
-/* Listas de pendientes plegadas al abrir (PO 2026-10-22, deuda CN): se despliegan tocando su título */
-.plegable > .pp-tit { cursor: pointer; user-select: none; }
-.plegable > .pp-tit:hover { color: var(--texto); }
-.plegable.plegado > .pp-lista { display: none; }
-.plegable.plegado > .pp-tit { margin-bottom: 0; }
-.pp-fl { display: inline-block; width: 12px; transition: transform .15s; }
-.plegable:not(.plegado) .pp-fl { transform: rotate(90deg); }
-#pag-pend.plegado { padding-bottom: 10px; }
+/* ☑ Pendientes en una 4ª columna ocultable (deuda CQ): al lado de cada clase, los que deja para la
+   siguiente (comun/pendientes.js). Parte oculta. */
+#btn-pend {
+    font-size: 13px; padding: 3px 9px; border-radius: 6px; color: var(--suave); font-weight: 500;
+    border: 1px solid var(--linea); background: #fff; white-space: nowrap; cursor: pointer;
+}
+#btn-pend:hover { background: var(--hover); color: var(--texto); }
+#btn-pend.on { background: var(--activo); color: var(--texto); }
+.ent-pcol, #pend-otros { display: none; }
+body.con-pend #pagina { max-width: 1140px; padding-right: 32px; }
+body.con-pend .entrada, body.con-pend #pend-otros:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) 320px; column-gap: 28px; }
+body.con-pend .ent-pcol { display: block; border-left: 1px solid var(--linea); padding-left: 16px; font-size: 14px; min-width: 0; }
+/* columna angosta: la fecha de la clase y las semanas van bajo el texto, para que el texto tenga el ancho */
+.ent-pcol .pd-fila { flex-wrap: wrap; }
+.ent-pcol .pd-meta { order: 9; flex-basis: 100%; padding: 0 0 2px 41px; }
+#pend-otros { padding: 0 0 18px; }
+#pend-otros .ent-cuerpo { color: var(--suave); font-size: 14px; padding-top: 2px; }
 /* Citas a apoderados del curso (comun/apoderados.js, BK); General no tiene estudiantes */
 #pag-apo { border: 1px solid var(--linea); border-radius: 10px; padding: 10px 12px 8px; margin: -14px 0 26px; }
 #pag-apo .pp-tit { font-size: 13px; font-weight: 600; color: var(--suave); margin-bottom: 6px; display: flex; gap: 8px; }
@@ -172,6 +175,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
             <button id="hoy-ant" title="Día anterior">◀</button><button id="hoy-hoy" title="Volver a hoy">Hoy</button><button id="hoy-sig" title="Día siguiente">▶</button>
         </span>
         <span id="estado"></span>
+        <button id="btn-pend" style="visibility:hidden" title="Mostrar u ocultar la columna de pendientes (al lado de cada clase, los que deja para la siguiente)">☑ Pendientes</button>
         <button id="btn-cuaderno" style="visibility:hidden" title="Cuaderno de música del curso (lo que está escrito en el cuaderno)">📔 Cuaderno</button>
         <button id="btn-plani" style="visibility:hidden" title="Planificación del mes de este curso para la UTP">🗓️ Planificación del mes</button>
     </div>
@@ -262,6 +266,7 @@ async function abrirCurso(ctxId) {
     modoHoy = null; modoMejoras = false;
     $('hoy-nav').style.display = 'none';
     $('btn-nota').style.visibility = '';
+    $('btn-pend').style.visibility = 'visible';
     ctxActual = ctxId;
     try { localStorage.setItem('profe_cursos_ultimo', ctxId); } catch (e) {}
     pintarCursos();
@@ -314,8 +319,11 @@ async function abrirMejoras() {
     modoMejoras = true; modoHoy = null; ctxActual = null;
     entradas.forEach(E => E.ed?.destruir()); entradas = [];
     Object.keys(porK).forEach(k => delete porK[k]);
+    soltarPendientes();
+    document.body.classList.remove('con-pend');
     pintarCursos();
     $('col-entradas').hidden = true;
+    $('btn-pend').style.visibility = 'hidden';
     $('hoy-nav').style.display = 'none';
     $('btn-plani').style.visibility = 'hidden';
     $('btn-cuaderno').style.visibility = 'hidden';
@@ -389,6 +397,7 @@ async function abrirHoy(fecha) {
     $('lista-ent').innerHTML = '<div class="lat-vacio">Cargando…</div>';
     $('btn-plani').style.visibility = 'hidden';
     $('btn-cuaderno').style.visibility = 'hidden';
+    $('btn-pend').style.visibility = 'visible';
     $('hoy-nav').style.display = '';
     $('ruta').textContent = '☀ Hoy · ' + tituloFecha(fecha);
     $('pagina').innerHTML = '<div class="lat-vacio" style="padding:0">Cargando…</div>';
@@ -423,12 +432,12 @@ function pintarHoy() {
     let html = `<div id="pag-titulo">☀ ${esc(tituloFecha(modoHoy))}</div>`;
     if (!entradas.length) html += '<div class="lat-vacio" style="padding:0">No hay clases este día.</div>';
     entradas.forEach(E => {
-        html += `<section class="entrada clase" data-k="${E.k}">
+        html += `<section class="entrada clase" data-k="${E.k}"><div class="ent-cuerpo">
             <div class="ent-cab"><div class="ent-tit">${esc(E.titulo)}</div>
                 <div class="ent-meta"><button class="ent-ir" data-ctx="${E.cid}" title="Abrir la página de este curso">Abrir curso →</button></div></div>
             <div class="ent-audios"></div>
             <div class="ent-editor"></div>
-        </section>`;
+        </div>${COL_PEND}</section>`;
     });
     $('pagina').innerHTML = html;
     $('principal').scrollTop = 0;
@@ -446,6 +455,7 @@ function pintarHoy() {
             },
         });
     });
+    pintarPendientes();
 }
 function moverDia(n) {
     if (!modoHoy) return;
@@ -539,9 +549,14 @@ async function bloqueAPendiente(texto, E) {
         : destino.fecha ? `Pendiente para la clase del ${Pendientes.fechaCorta(destino.fecha)} ✓` : 'Pendiente creado ✓', !p);
 }
 let listaApo = null;
-function pintarPendientes() {
+let colPend = false;          // 4ª columna de pendientes (deuda CQ); parte oculta
+const COL_PEND = '<aside class="ent-pcol"><div class="pp-lista"></div></aside>';
+function soltarPendientes() {
     listasPend.forEach(l => l.destruir());
     listasPend = [];
+}
+function pintarPendientes() {
+    soltarPendientes();
     listaApo?.destruir(); listaApo = null;
     const cajaApo = $('pag-apo');
     if (cajaApo) {
@@ -550,30 +565,49 @@ function pintarPendientes() {
             contextoId: ctxActual, alCambiar: c => { n.textContent = c.total ? `· ${c.total}` : ''; },
         });
     }
-    const caja = $('pag-pend');
-    if (caja) {
-        const cuenta = caja.querySelector('.pp-n');
-        listasPend.push(Pendientes.lista(caja.querySelector('.pp-lista'), {
-            filtro: delCurso, alta: destinoPendiente, mostrarClase: true, vacio: 'Sin pendientes.', completadosAbiertos: false,
-            alCambiar: n => { cuenta.textContent = n.activos ? `· ${n.activos}` : ''; },
-        }));
+    document.body.classList.toggle('con-pend', colPend);
+    $('btn-pend').classList.toggle('on', colPend);
+    if (!colPend) return;
+    if (modoHoy) {
+        // ☀ Hoy: al lado de cada clase del día, lo que hay para sus clases siguientes.
+        const cids = entradas.map(E => E.cid);
+        if (cids.length) Pendientes.cargar(c => c.from('pendientes').select(Pendientes.COLS).eq('categoria', Pendientes.CAT)
+            .in('estado', ['activo', 'completado']).in('contexto_id', cids));
+        entradas.forEach(E => {
+            const caja = secDe(E.k)?.querySelector('.ent-pcol .pp-lista');
+            if (caja) listasPend.push(Pendientes.lista(caja, {
+                filtro: p => p.contexto_id === E.cid && !!p.fecha && p.fecha > E.fecha, alta: () => Pendientes.proximaClase(E.cid, { despuesDe: E.fecha }),
+                mostrarClase: true, todosCompletados: true, completadosAbiertos: false,
+            }));
+        });
+        return;
     }
-    entradas.forEach(E => {
-        if (E.tipo !== 'clase') return;
-        const box = secDe(E.k)?.querySelector('.ent-pend');
-        if (!box) return;
-        listasPend.push(Pendientes.lista(box.querySelector('.pp-lista'), {
-            filtro: p => p.sesion_id === E.sesionId, todosCompletados: true, botonAgregar: false, completadosAbiertos: false,
-            alCambiar: n => { box.hidden = !(n.activos + n.completados); box.querySelector('.pp-n').textContent = n.activos ? `· ${n.activos}` : ''; },
+    // Curso: cada pendiente va al lado de la última clase anterior a la suya (lo que esa clase deja para la
+    // siguiente; al lado de la más nueva, todo lo que viene). Sin clase anterior en la página → arriba.
+    const clases = entradas.filter(E => E.tipo === 'clase');        // lo más nuevo primero
+    const celdaDe = p => (p.fecha && clases.find(E => E.fecha < p.fecha)?.k) || 'otros';
+    const otros = $('pend-otros');
+    if (otros) listasPend.push(Pendientes.lista(otros.querySelector('.pp-lista'), {
+        filtro: p => delCurso(p) && celdaDe(p) === 'otros', alta: clases.length ? null : destinoPendiente,
+        mostrarClase: true, vacio: clases.length ? '' : 'Sin pendientes.', completadosAbiertos: false,
+        alCambiar: n => { otros.hidden = !!clases.length && !(n.activos + n.completados); },
+    }));
+    clases.forEach((E, i) => {
+        const caja = secDe(E.k)?.querySelector('.ent-pcol .pp-lista');
+        if (!caja) return;
+        listasPend.push(Pendientes.lista(caja, {
+            filtro: p => delCurso(p) && celdaDe(p) === E.k, mostrarClase: true, todosCompletados: true, completadosAbiertos: false,
+            ...(i === 0 ? { alta: () => Pendientes.proximaClase(ctxActual, { despuesDe: E.fecha }) } : { botonAgregar: false }),
         }));
     });
 }
+$('btn-pend').addEventListener('click', () => { colPend = !colPend; pintarPendientes(); });
 
 function pintarHistorico() {
     const info = nombreCtx(ctxActual);
-    let html = `<div id="pag-titulo">${esc(info.icono + ' ' + info.label)}</div>
-        <div id="pag-pend" class="plegable plegado"><div class="pp-tit" title="Mostrar u ocultar"><span class="pp-fl">▸</span> ☑ Pendientes <span class="pp-n"></span></div><div class="pp-lista"></div></div>`;
+    let html = `<div id="pag-titulo">${esc(info.icono + ' ' + info.label)}</div>`;
     if (!esGeneralActual()) html += `<div id="pag-apo"><div class="pp-tit">👪 Apoderados <span class="pp-n"></span></div><div class="pp-lista"></div></div>`;
+    html += `<div id="pend-otros"><div class="ent-cuerpo">${entradas.some(E => E.tipo === 'clase') ? 'Pendientes sin una clase anterior en esta página' : ''}</div>${COL_PEND}</div>`;
     if (!entradas.length) html += '<div class="lat-vacio" style="padding:0">Todavía no hay clases ni notas. Crea una con ＋ Nota.</div>';
     entradas.forEach(E => {
         const cab = E.tipo === 'clase'
@@ -581,12 +615,11 @@ function pintarHistorico() {
             : `<div class="ent-tit" contenteditable="plaintext-only" spellcheck="true"></div>
                <div class="ent-meta">📝 Nota · <input type="date" value="${E.fecha}" max="${hoyISO()}" title="Fecha de la nota: muévela en el histórico">
                <button class="ent-menu" data-eb-menu title="Opciones de la nota">⋯</button></div>`;
-        html += `<section class="entrada ${E.tipo}" data-k="${E.k}">
+        html += `<section class="entrada ${E.tipo}" data-k="${E.k}"><div class="ent-cuerpo">
             <div class="ent-cab">${cab}</div>
-            ${E.tipo === 'clase' ? '<div class="ent-pend plegable plegado" hidden><div class="pp-tit" title="Mostrar u ocultar"><span class="pp-fl">▸</span> ☑ Pendientes de esta clase <span class="pp-n"></span></div><div class="pp-lista"></div></div>' : ''}
             <div class="ent-audios"></div>
             <div class="ent-editor"></div>
-        </section>`;
+        </div>${COL_PEND}</section>`;
     });
     $('pagina').innerHTML = html;
     entradas.forEach(E => {
@@ -653,12 +686,6 @@ $('btn-plani').addEventListener('click', () => {
     if (!CURSOS_PLANI.includes(ctx)) return;
     window.parent.postMessage({ tipo: 'ws-abrir', key: 'planificacion', titulo: 'Planificaciones', ico: '🗓️', guardarAlCerrar: true,
         src: '../PLANIFICACION/index.html?ctx=' + encodeURIComponent(ctx), ir: { ctx } }, '*');
-});
-
-// Pendientes plegados (deuda CN): tocar el título los muestra u oculta.
-$('pagina').addEventListener('click', e => {
-    const t = e.target.closest('.plegable > .pp-tit');
-    if (t) t.parentElement.classList.toggle('plegado');
 });
 
 // ── Notas: crear, título, fecha, eliminar ───────────────────────────────
