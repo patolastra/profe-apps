@@ -2278,6 +2278,7 @@ async function cargarPresentacion(sid) {
     };
 }
 
+const presPropios = TiempoReal.propios();   // textos de diapositivas guardados desde aquí (deuda CU)
 async function guardarPres(sid) {
     presTimer = null;          // ya no hay cambios esperando (presTimer = "hay algo sin guardar")
     const contenido = document.getElementById('pres-area').value;
@@ -2288,6 +2289,7 @@ async function guardarPres(sid) {
         pushUndoSlides(presAreaTextoGuardado);
     }
     presAreaTextoGuardado = contenido;
+    presPropios.anotar(contenido);   // su eco al instante es propio (deuda CU)
     setSyncState('saving');
     try {
         await sb.from('presentaciones').upsert(
@@ -4611,6 +4613,7 @@ EditorBloques.zona(document.getElementById('col-plan-body'));
 EditorBloques.zona(document.querySelector('#hist-lado .hist-cuerpo'));
 
 // ── 📋 Plan de la clase: actividades (título + texto por bloques; párrafo "O:" = objetivo) ──
+const planPropios = TiempoReal.propios();   // guardados recientes de las actividades: su eco es propio (deuda CU)
 let planCards = [];          // [{ id, orden, titulo, contenido, updated_at, ed, sucio, timer, ultEnvio }]
 let planSid = null;          // sesión de las cards cargadas
 let planRemotoPend = false;  // llegó un cambio de otro equipo mientras se escribía aquí
@@ -4654,7 +4657,7 @@ async function guardarMinutos(c, v) {
     const n = Math.round(Number(v));
     if (!Number.isFinite(n) || n < 1) return;
     const ahora = new Date().toISOString();
-    c.minutos = n; c.ultEnvio = ahora; c.updated_at = ahora;
+    c.minutos = n; c.ultEnvio = ahora; c.updated_at = ahora; planPropios.anotar(ahora);
     presTitulos();
     const { error } = await sb.from('plan_cards').update({ minutos: n, updated_at: ahora }).eq('id', c.id);
     if (error) planEstado('No se pudo guardar la duración. ¿Falta correr supabase/plan_cards_minutos.sql?', true);
@@ -4783,7 +4786,7 @@ async function guardarPlanCard(c) {
     c.sucio = false;
     const ahora = new Date().toISOString();
     c.contenido = c.ed ? c.ed.texto() : c.contenido;
-    c.ultEnvio = ahora; c.updated_at = ahora;
+    c.ultEnvio = ahora; c.updated_at = ahora; planPropios.anotar(ahora);
     const { error } = await sb.from('plan_cards').update({ titulo: c.titulo || '', contenido: c.contenido, updated_at: ahora }).eq('id', c.id);
     if (error) { c.sucio = true; planEstado('No se pudo guardar — revisa la conexión.', true); return; }
     c.ed?.guardado(ahora);
@@ -4804,7 +4807,7 @@ async function moverPlanCard(desde, antes) {
     presReordenar();   // sus diapositivas se mueven con ellas (BS)
     const ahora = new Date().toISOString();
     const res = await Promise.all(planCards.map(x => {
-        x.ultEnvio = ahora; x.updated_at = ahora;
+        x.ultEnvio = ahora; x.updated_at = ahora; planPropios.anotar(ahora);
         return sb.from('plan_cards').update({ orden: x.orden, updated_at: ahora }).eq('id', x.id);
     }));
     if (res.some(r => r.error)) planEstado('No se pudo guardar el orden — revisa la conexión.', true);
@@ -4861,7 +4864,7 @@ async function nuevaPlanCard() {
         .insert({ sesion_id: sesionActual.id, orden, titulo: '', contenido: '', updated_at: ahora }).select().single();
     if (error) { planEstado('No se pudo crear la actividad — revisa la conexión.', true); return; }
     await guardarPlanTodo();
-    planCards.push({ ...data, ultEnvio: data.updated_at });
+    planCards.push({ ...data, ultEnvio: data.updated_at }); planPropios.anotar(data.updated_at);
     pintarPlan();
     document.querySelector(`.pcard[data-id="${data.id}"] .pcard-tit`)?.focus();
 }
@@ -5001,7 +5004,7 @@ function pintarCancionesCard(c, el) {
 
 async function guardarCancionesCard(c) {
     const ahora = new Date().toISOString();
-    c.ultEnvio = ahora; c.updated_at = ahora;
+    c.ultEnvio = ahora; c.updated_at = ahora; planPropios.anotar(ahora);
     const { error } = await sb.from('plan_cards').update({ canciones: cancionesDe(c), updated_at: ahora }).eq('id', c.id);
     if (error) planEstado('No se pudo guardar la canción. ¿Falta correr supabase/plan_cards_canciones.sql?', true);
     else planEstado('Guardado ✓');
@@ -5391,7 +5394,7 @@ async function guardarClaseBit(B) {
     const nuevo = bitPoner(data?.contenido || '', B.titulo, cuerpo);
     if (nuevo === (data?.contenido || '')) { if (est()) est().textContent = ''; return; }
     const ahora = new Date().toISOString();
-    memUltEnvio = ahora;   // eco propio
+    memUltEnvio = ahora; memPropios.anotar(ahora);   // eco propio
     const { error: e2 } = await sb.from('memorias').upsert({ sesion_id: B.sid, contenido: nuevo, updated_at: ahora }, { onConflict: 'sesion_id' });
     if (e2) { B.sucio = true; if (est()) est().textContent = 'No se pudo guardar — revisa la conexión.'; return; }
     if (est() && claseBit === B) { est().textContent = 'Guardado ✓'; setTimeout(() => { if (est()?.textContent === 'Guardado ✓') est().textContent = ''; }, 2000); }
@@ -5483,7 +5486,7 @@ TiempoReal.escuchar('plan_cards', ({ evento, nuevo, viejo }) => {
     if (evento === 'DELETE') { if (planCards.some(c => c.id === viejo?.id)) planRemoto(); return; }
     if (nuevo?.sesion_id !== sesionActual.id) return;
     const c = planCards.find(x => x.id === nuevo.id);
-    if (c && (TiempoReal.mismaHora(c.ultEnvio, nuevo.updated_at) || TiempoReal.mismaHora(c.updated_at, nuevo.updated_at))) return;   // eco propio
+    if (c && (planPropios.es(nuevo.updated_at) || TiempoReal.mismaHora(c.updated_at, nuevo.updated_at))) return;   // eco propio
     if (c?.sucio) { TiempoReal.aviso('Una actividad del plan cambió en otro equipo mientras escribías: quedó tu versión.'); return; }
     planRemoto();
 });
@@ -5663,7 +5666,7 @@ async function guardarMemoria(sid) {
     memTimer = null;           // ya no hay cambios esperando (memTimer = "hay algo sin guardar")
     const contenido = memEd.texto();
     const ahora = new Date().toISOString();
-    memUltEnvio = ahora;       // el aviso al instante de este guardado es eco propio
+    memUltEnvio = ahora; memPropios.anotar(ahora);   // el aviso al instante de este guardado es eco propio
     try {
         const { error } = await sb.from('memorias').upsert(
             { sesion_id: sid, contenido, updated_at: ahora },
@@ -5683,8 +5686,9 @@ async function guardarMemoria(sid) {
 // con cambios sin guardar aquí, queda lo de aquí (se guarda después) y se avisa.
 // "Clase anterior" del panel izquierdo: se vuelve a pintar.
 let memUltEnvio = null, memRemoto = null;
+const memPropios = TiempoReal.propios();   // todos los guardados recientes, no solo el último (deuda CU)
 function memAplicarRemoto(r) {
-    if (!memEd || TiempoReal.mismaHora(memUltEnvio, r.updated)) return;
+    if (!memEd || memPropios.es(r.updated)) return;
     if (r.contenido === memEd.texto()) return;
     if (memTimer) { TiempoReal.aviso('La bitácora cambió en otro equipo mientras escribías: quedó tu versión.'); return; }
     if (document.activeElement?.closest?.('#mem-editor')) { memRemoto = r; return; }
@@ -5722,7 +5726,7 @@ TiempoReal.alVolver(async () => {
 let presRemoto = null;
 function presAplicarRemoto(contenido) {
     const area = document.getElementById('pres-area');
-    if (!area || contenido === area.value) return;
+    if (!area || contenido === area.value || presPropios.es(contenido)) return;   // igual o eco de un guardado propio
     if (presTimer) { TiempoReal.aviso('Las diapositivas cambiaron en otro equipo mientras escribías: quedó tu versión.'); return; }
     if (presEscribiendo()) { presRemoto = contenido; return; }
     presRemoto = null;

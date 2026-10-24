@@ -812,13 +812,16 @@
         S = null;
         if (!silencioso && cb) cb();
     }
+    // Guardados propios recientes (deuda CU): se crea al usarse, cuando TiempoReal ya cargó.
+    let propiosC = null;
+    const propiosCdn = () => propiosC || (propiosC = TiempoReal.propios());
     // Otro equipo cambió una hoja: se recarga si aquí no se está editando ni pasando una hoja.
     let remotoPend = false;
     async function alCambioRemoto({ nuevo, viejo }) {
         if (!S) return;
         const fila = nuevo || viejo;
         if (fila?.contexto_id && fila.contexto_id !== S.op.contextoId) return;
-        if (nuevo && S.ultEnvio && TiempoReal.mismaHora(nuevo.updated_at, S.ultEnvio)) return;   // eco propio
+        if (nuevo && propiosCdn().es(nuevo.updated_at)) return;   // eco propio (cualquier guardado reciente, deuda CU)
         if (S.editando || S.anim || S.arrastre) { remotoPend = true; return; }
         remotoPend = false;
         const id = hojaFoco()?.id;
@@ -836,7 +839,7 @@
         const fila = { contexto_id: S.op.contextoId, anio: S.anio, fecha, orientacion: 'v', contenido: [{ t: 'txt', x: '' }], sesion_id: S.op.sesionId || null };
         const { data, error } = await S.op.sb.from('cuaderno_hojas').insert(fila).select().single();
         if (error) { $('.cdn-lbl').textContent = 'No se pudo crear la hoja — revisa conexión.'; return; }
-        S.ultEnvio = data.updated_at;
+        S.ultEnvio = data.updated_at; propiosCdn().anotar(data.updated_at);
         S.hojas.push({ ...data, contenido: data.contenido || [] });
         ordenar();
         if (S.modo === 1) S.modo = S.modoAbierto || 2;
@@ -854,7 +857,7 @@
         const fila = { contexto_id: S.op.contextoId, anio: S.anio, fecha, orientacion: 'v', contenido: [{ t: 'blanco' }], sesion_id: S.op.sesionId || null };
         const { data, error } = await S.op.sb.from('cuaderno_hojas').insert(fila).select().single();
         if (error) { $('.cdn-lbl').textContent = 'No se pudo agregar la página — revisa conexión.'; return; }
-        S.ultEnvio = data.updated_at;
+        S.ultEnvio = data.updated_at; propiosCdn().anotar(data.updated_at);
         S.hojas.push({ ...data, contenido: data.contenido || [] });
         ordenar();
         S.i = S.hojas.findIndex(h => h.id === data.id);
@@ -960,7 +963,7 @@
         const sb = S.op.sb, h = E.h, s = S;
         E.cadena = E.cadena.then(async () => {
             estadoEd('Guardando…');
-            s.ultEnvio = cambios.updated_at;
+            s.ultEnvio = cambios.updated_at; propiosCdn().anotar(cambios.updated_at);
             const { error } = await sb.from('cuaderno_hojas').update(cambios).eq('id', h.id);
             if (error) { E.sucio = true; estadoEd('No se pudo guardar — revisa conexión.', true); return; }
             Object.assign(h, cambios);

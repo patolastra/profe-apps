@@ -14,6 +14,7 @@
 //                                  // apagar la pantalla o cambiar de app) o volvió la señal
 //   TiempoReal.aviso('Cambió en otro equipo…')
 //   TiempoReal.mismaHora(a, b)     // dos fechas-hora iguales aunque vengan escritas distinto
+//   const p = TiempoReal.propios(); p.anotar(horaOTexto); p.es(horaOTexto)   // ecos de guardados propios (deuda CU)
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
     'use strict';
@@ -74,5 +75,17 @@
 
     const mismaHora = (a, b) => !!a && !!b && Date.parse(a) === Date.parse(b);
 
-    window.TiempoReal = { conectar, escuchar, alVolver, aviso, mismaHora };
+    // Guardados propios recientes (deuda CU): cada página anota lo que guarda (la fecha-hora del guardado o el texto
+    // enviado) y el aviso al instante de cualquiera de ellos es eco propio, aunque llegue tarde y ya se haya guardado
+    // otra vez (con internet lento). Antes se recordaba solo el último y se avisaba "cambió en otro equipo".
+    function propios(max = 30) {
+        const vistos = [];
+        const clave = x => (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(x) && !isNaN(Date.parse(x))) ? 'h' + Date.parse(x) : 't' + x;
+        return {
+            anotar(x) { if (x == null) return; vistos.push(clave(x)); if (vistos.length > max) vistos.shift(); },
+            es(x) { return x != null && vistos.includes(clave(x)); },
+        };
+    }
+
+    window.TiempoReal = { conectar, escuchar, alVolver, aviso, mismaHora, propios };
 })();

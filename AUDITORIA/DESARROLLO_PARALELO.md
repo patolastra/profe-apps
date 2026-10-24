@@ -5714,3 +5714,26 @@ la Pizarra: mostrar a qué parte me refiero".*
 - **Lugares de uso (regla 11):** Entrenador completo, mínimo del Plan, canción del Plan y sesión → sí (mismo archivo);
   copia de la Pizarra → receptor; Pizarra con la tecla T → no tiene botón visible sin proyectar (se elimina); Cuaderno,
   Libro, Pasar lista y Metalófono → fase 2 (decisión del PO).
+
+### CU. "La bitácora cambió en otro equipo mientras escribías" con un solo computador
+*Origen: bitácora 15/10 Segundo ("aparece mucho y no sé si tengo otra sesión abierta… es molesto") y PO 2026-10-24.
+Notion: "\"La bitácora cambió mientras escribías\" aparece con un solo computador".*
+- **Auditoría:** al guardar, cada página anota la hora del guardado para reconocer su propio aviso al instante (eco) que
+  vuelve de Supabase; pero anota **solo el último**. Con internet lento, el eco de un guardado anterior llega cuando ya
+  se guardó otra vez y se sigue escribiendo: no coincide con la hora anotada, el texto difiere y se avisa "cambió en
+  otro equipo". Supabase no cambia la hora (se revisó: conserva la de la app). Mismo método en: bitácora ✍🏼 y por
+  actividad del Plan, actividades del Plan, Cursos y Cuaderno; las **diapositivas** del Plan no reconocen su eco en
+  absoluto (cualquier eco tardío mientras se escribe avisa "las diapositivas cambiaron…"). El celular (Cursos) ya lo
+  hace bien: recuerda todos sus guardados recientes.
+- **Arreglo (regla 11, todos los lugares):** pieza `TiempoReal.propios()` en `comun/tiempo-real.js` que recuerda los
+  últimos 30 guardados (por hora o por texto); cada lugar anota cada guardado y descarta como propio el eco de
+  cualquiera de ellos. Diapositivas: por el texto enviado.
+- **Implementación (2026-10-24):** `TiempoReal.propios()` (últimos 30; por fecha-hora, que compara igual aunque venga
+  escrita distinto, o por texto). Usado en: Plan — bitácora ✍🏼 y por actividad (`memPropios`), actividades
+  (`planPropios`), diapositivas (`presPropios`, por el texto enviado); Cursos (`curPropios`); Cuaderno (`propiosCdn`).
+  El celular ya tenía su propio conjunto (`enviados`), sin cambios.
+- **Prueba (local, Cursos de Cuarto, sin guardar nada):** con dos guardados anotados, el eco tardío del primero (texto
+  distinto, entrada con cambios sin guardar) no avisó; un cambio con otra hora sí avisó "cambió en otro equipo".
+  `propios` reconoce la misma hora escrita de otra forma y olvida la más vieja al pasar el máximo.
+- **Lugares de uso (regla 11):** los seis lugares que muestran el aviso o reciben ecos (Plan ×3, Cursos PC, celular,
+  Cuaderno) quedan con el mismo método.
