@@ -5642,3 +5642,25 @@ Entrenador en la Pizarra: la última pisa a la anterior"). PO: "deberían pisars
   canción; un segundo Entrenador proyectando el verso 12 tomó la Pizarra y el primero se apagó solo; con el profe en
   otra pestaña y la canción sonando, la copia pidió centrar cada verso (14, 15, 17… 20). No probado: la Pizarra real en
   el proyector (requiere clase en curso).
+
+### CS. Entrenador — versos pintados guardados en la sesión y modo 📖 Lectura
+*Origen: bitácora 22/10 Séptimo ("pinté algunos coros, eso debería ser función del sistema y que persista por sesión") y
+PO 2026-10-24 (modo "solo lectura": ↑ ↓ por los versos, sin play con espacio ni ← →, para leer la letra sin audio).
+Notion: "Entrenador: modo solo lectura (versos con ↑ ↓, sin audio)". PO: "dale con esto".*
+- **Auditoría:** los versos pintados (Shift+clic, estrofa con Ctrl+Shift+clic) se guardan solo en este equipo y por
+  canción suelta (`entrenador_config_<id>`); al practicar una **sesión** (repertorio del curso) cada canción parte sin
+  pintar. La sesión ya guarda por canción la velocidad, el tono y los loops dentro de `canciones` (JSON), con guardado
+  diferido (`entPersistirConfigSesion`): ahí cabe también lo pintado, **sin cambio en Supabase**. Teclado: ↑ ↓ mueven el
+  verso y el audio, ← → cambian de canción en la sesión, espacio y K reproducen, J / L saltan 5 s.
+- **Diseño:** (1) en una sesión, lo pintado se guarda en la canción de la sesión (`coloreadas`) y vuelve al abrirla, en
+  este equipo y en los demás; fuera de sesión sigue como antes. (2) Botón **📖 Lectura** junto a "Letra" (se recuerda en
+  este equipo hasta apagarlo): ↑ ↓ cambian de verso sin mover el audio; espacio, K, J, L, ← y → no hacen nada; al
+  activarlo se pausa el audio. El botón ▶ en pantalla sigue funcionando (es un clic deliberado).
+- **Implementación (2026-10-24):** `REPERTORIO/index.html`: `entGuardarColoreadosSesion` (al pintar, despintar, pintar
+  estrofa o limpiar) guarda con `entPersistirConfigSesion`, que ahora escribe también `coloreadas` en la canción de la
+  sesión; al abrir una canción de la sesión se cargan. Botón `#ent-btn-lectura` (estilo de los botones del header,
+  naranjo activo), `entLectura` en `localStorage` (`profe_ent_lectura`); con él, el teclado solo recorre versos
+  (`entNavVerso(dir, true)`, sin mover el audio) e ignora espacio, K, J, L, ← y →; ↑ ↓ desde la Pizarra respetan el modo.
+- **Prueba (local, sesión real Cuarto 2026, deshecho al final):** pintar el primer verso de El Dinosaurio Anacleto lo
+  guardó en la sesión (`coloreadas: [0]` en Supabase) y al recargar volvió pintado; despintarlo dejó `coloreadas: []`.
+  📖 Lectura: ↓ ↓ llevó al verso 2 con el audio en 0:00; espacio, K, → y L no reprodujeron ni cambiaron de canción.

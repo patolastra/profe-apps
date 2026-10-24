@@ -2057,17 +2057,17 @@
         body.espejo .ent-ritmo-controls { display: none !important; }
         /* Controles header — mismo estilo que .ent-chip */
         #ent-btn-espejo, #ent-btn-atajos, #ent-btn-pitch, #ent-btn-audio, #ent-btn-tema, #ent-vel-label,
-        #ent-btn-ocultar, #ent-btn-sync, #ent-btn-sync-save, #ent-btn-editar {
+        #ent-btn-ocultar, #ent-btn-lectura, #ent-btn-sync, #ent-btn-sync-save, #ent-btn-editar {
             background: #334155; border: 1.5px solid #475569;
             color: #94a3b8; border-radius: 20px; padding: 4px 12px;
             font-size: 0.72rem; font-weight: 600; cursor: pointer;
             white-space: nowrap; transition: all 0.15s; flex-shrink: 0; line-height: 1;
         }
         #ent-vel-label { cursor: default; font-variant-numeric: tabular-nums; }
-        #ent-btn-espejo:hover, #ent-btn-atajos:hover, #ent-btn-pitch:hover, #ent-btn-audio:hover, #ent-btn-tema:hover, #ent-btn-ocultar:hover,
+        #ent-btn-espejo:hover, #ent-btn-atajos:hover, #ent-btn-pitch:hover, #ent-btn-audio:hover, #ent-btn-tema:hover, #ent-btn-ocultar:hover, #ent-btn-lectura:hover,
         #ent-btn-sync:hover, #ent-btn-editar:hover { border-color: #64748b; color: #cbd5e1; }
         #ent-btn-pitch.activo, #ent-btn-audio.activo, #ent-btn-ocultar.oculto,
-        #ent-btn-sync.on, #ent-btn-editar.activo, #ent-btn-espejo.on {
+        #ent-btn-sync.on, #ent-btn-editar.activo, #ent-btn-espejo.on, #ent-btn-lectura.activo {
             background: #ea580c; border-color: #ea580c; color: #fff;
         }
         #ent-pitch-input {
@@ -2268,6 +2268,7 @@
         #entrenador-overlay.ent-light #ent-btn-tema,
         #entrenador-overlay.ent-light #ent-vel-label,
         #entrenador-overlay.ent-light #ent-btn-ocultar,
+        #entrenador-overlay.ent-light #ent-btn-lectura:not(.activo),
         #entrenador-overlay.ent-light #ent-btn-sync,
         #entrenador-overlay.ent-light #ent-btn-sync-save,
         #entrenador-overlay.ent-light #ent-btn-editar {
@@ -2988,6 +2989,7 @@
                    style="display:none" onkeydown="entPitchInputKey(event)" onblur="entPitchInputBlur()">
             <span id="ent-vel-label">1.0x</span>
             <div id="ent-mode-btns">
+                <button id="ent-btn-lectura" onclick="entToggleLectura()" title="Modo lectura: ↑ ↓ pasan de verso sin mover el audio; el teclado no reproduce ni cambia de canción">📖 Lectura</button>
                 <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()" title="Esconder toda la letra (luego Alt+clic muestra un verso y Alt+doble clic una estrofa) · si hay versos escondidos, mostrarla toda">Letra</button>
                 <button id="ent-btn-sync" onclick="entToggleSync()">Sync</button>
                 <button id="ent-btn-sync-save" onclick="entGuardarSyncAsset()" style="display:none">Guardar</button>
@@ -5025,6 +5027,12 @@ document.addEventListener('keydown', e => {
             if (e.key === 'o' || e.key === 'O') { e.preventDefault(); entTapOut(); return; }
             if (e.key === 'Backspace')           { e.preventDefault(); entTapUndo(); return; }
         }
+        if (!editando && entLectura && !entSyncMode && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')
+            && !document.activeElement?.isContentEditable) {
+            // 📖 Lectura (deuda CS): solo se recorren los versos; nada reproduce ni cambia de canción.
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); entNavVerso(e.key === 'ArrowUp' ? -1 : 1, true); return; }
+            if (/^([jJlLkK ]|ArrowLeft|ArrowRight)$/.test(e.key)) { e.preventDefault(); return; }
+        }
         if (!editando) {
             if (e.key === 'j' || e.key === 'J') { e.preventDefault(); entrenadorSkip(-5); return; }
             if (e.key === 'l' || e.key === 'L') { e.preventDefault(); entrenadorSkip(5);  return; }
@@ -6513,12 +6521,31 @@ function entResyncGlow() {
     els.forEach(el => { el.style.animation = ''; });          // reanudan desde fase 0, juntos
 }
 
+// 📖 Lectura (deuda CS): se recuerda en este equipo hasta apagarlo.
+let entLectura = false;
+try { entLectura = localStorage.getItem('profe_ent_lectura') === '1'; } catch (_) {}
+function entToggleLectura() {
+    entLectura = !entLectura;
+    try { localStorage.setItem('profe_ent_lectura', entLectura ? '1' : '0'); } catch (_) {}
+    if (entLectura && entSonando()) entrenadorTogglePlay();
+    entPintarBtnLectura();
+}
+function entPintarBtnLectura() { document.getElementById('ent-btn-lectura')?.classList.toggle('activo', entLectura); }
+entPintarBtnLectura();
+
+// Versos pintados en una sesión (deuda CS): se guardan en la canción de la sesión, como la velocidad y el tono.
+function entGuardarColoreadosSesion() {
+    if (ESPEJO || !entModoSesion || !entSesionActual) return;
+    entPersistirConfigSesion();
+}
+
 function entToggleColoreado(i) {
     if (entrenadorLineasColoreadas.has(i)) entrenadorLineasColoreadas.delete(i);
     else entrenadorLineasColoreadas.add(i);
     const el = document.querySelector(`.ent-lyric-line[data-orig="${i}"]`);
     if (el) el.classList.toggle('coloreado', entrenadorLineasColoreadas.has(i));
     entResyncGlow();
+    entGuardarColoreadosSesion();
 }
 
 function entLimpiarColoreados() {
@@ -6526,6 +6553,7 @@ function entLimpiarColoreados() {
     entrenadorLineasColoreadas.clear();
     document.querySelectorAll('.ent-lyric-line.coloreado')
         .forEach(el => el.classList.remove('coloreado'));
+    entGuardarColoreadosSesion();
 }
 
 // Colorea/descolorea la estrofa completa del verso i. Reutiliza entrenadorStanzas
@@ -6543,6 +6571,7 @@ function entToggleColoreadoEstrofa(i) {
         if (el) el.classList.toggle('coloreado', colorear);
     });
     entResyncGlow();
+    entGuardarColoreadosSesion();
 }
 
 // Flag global: hay una edición rápida de verso en curso (contenteditable). El manejador
@@ -6651,7 +6680,7 @@ function entActualizarLinea(idx) {
 // Verso elegido a mano (↑/↓ o clic) con el audio detenido: el aviso de tiempo que sigue al salto no lo
 // cambia por otro (deuda CR: los versos sin tiempo de una letra sincronizada devolvían al anterior).
 let entLineaManualHasta = 0;
-function entNavVerso(dir) {
+function entNavVerso(dir, sinAudio = false) {
     if (!entrenadorLines.length) return;
     let i = entrenadorLineIdx;
     if (i < 0) i = entrenadorLines.findIndex(l => l.text.trim());
@@ -6661,7 +6690,7 @@ function entNavVerso(dir) {
     const linea = entrenadorLines[j];
     const audioEl = entAudio();
     entLineaManualHasta = Date.now() + 600;
-    if (audioEl.duration && !linea.sinTiempo) { audioEl.currentTime = linea.time / 1000; entPitchSyncPos(); }
+    if (audioEl.duration && !linea.sinTiempo && !sinAudio) { audioEl.currentTime = linea.time / 1000; entPitchSyncPos(); }
     entActualizarLinea(j);
 }
 
@@ -7731,7 +7760,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     entrenadorOcultar       = false;
     entrenadorLineasOcultas = new Set();
     entPintarBtnLetra();
-    entrenadorLineasColoreadas = new Set();
+    entrenadorLineasColoreadas = new Set(sesionItem.coloreadas || []);   // lo pintado en esta sesión (deuda CS)
 
     document.getElementById('ent-song-nombre').textContent  = song.nombre;
     document.getElementById('ent-song-artista').textContent = song.artista || '';
@@ -7963,6 +7992,7 @@ function entPersistirConfigSesion() {
     if (!item) return;
     item.pitch     = entPitchSemitones;
     item.velocidad = entrenadorVelocidad;
+    item.coloreadas = [...entrenadorLineasColoreadas];   // versos pintados (deuda CS)
     // Sincronizar el array sesiones en memoria para que el próximo practicarSesion lo lea
     const sIdx = sesiones.findIndex(s => s.id === entSesionActual.id);
     if (sIdx >= 0) sesiones[sIdx] = JSON.parse(JSON.stringify(entSesionActual));
@@ -8861,7 +8891,7 @@ if (ESPEJO) {
     espejoCanal?.addEventListener('message', ev => {
         const m = ev.data || {};
         if (m.tipo === 'scroll-pizarra' && espejoOn) espejoAplicarScroll(m.s);
-        if (m.tipo === 'tecla' && espejoOn) { entNavVerso(m.dir); espejoEmitir(); }
+        if (m.tipo === 'tecla' && espejoOn) { entNavVerso(m.dir, entLectura); espejoEmitir(); }
         // Otro Entrenador (otra pestaña o el mínimo del Planificador) empezó a proyectar: ese manda (deuda CR).
         if (m.tipo === 'on' && espejoOn) { espejoOn = false; clearInterval(espejoTimer); espejoTimer = null; espejoPintarBoton(); }
     });
