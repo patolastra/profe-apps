@@ -5669,3 +5669,8 @@ Notion: "Entrenador: modo solo lectura (versos con ↑ ↓, sin audio)". PO: "da
   la canción de la sesión vuelven escondidos. El botón "Letra" ahora queda marcado al abrir una canción con versos
   escondidos (dos líneas antiguas lo apagaban siempre). Probado con Cuarto 2026: escondida la primera estrofa de
   Anacleto, al recargar volvió escondida con "Letra" marcado; mostrada otra vez (`ocultas: []`).
+- **Ajuste (2026-10-24, PO, primera aplicación de la regla 11):** el verso escondido que se deja leer tenue al pasar el
+  mouse (antes solo en el Entrenador mínimo del Plan) ahora vale en **todos** los Entrenadores del profe
+  (`body:not(.espejo) .ent-lyric-line.oculta:hover`); la copia de la Pizarra no cambia. Lugares revisados (ver
+  `LUGARES_DE_USO.md`): Biblioteca, sesión del curso, canción del Plan, mínimo y tecla T → sí; copia en la Pizarra → no, a
+  propósito (lo ven los estudiantes). Pendiente de decisión del PO: Alt+clic dentro de la copia de la Pizarra.

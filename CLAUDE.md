@@ -171,6 +171,7 @@ Estas son **reglas**, no recomendaciones:
 8b. **Barras estables (DECISIÓN del PO 2026-10-13):** ninguna interacción en una barra de herramientas puede hacer "bailar" sus elementos: anchos fijos para lo que cambia de texto y espacio reservado (oculto, no quitado) para lo que aparece y desaparece.
 9. **Antes de un cambio relevante:** consultar esta Fuente de Verdad (§ *Regla de uso*).
 10. **Reimplementar, no rescatar legacy:** una funcionalidad futura que resulte deseable se **reimplementa sobre la arquitectura vigente**; **no** se conserva código legacy únicamente como fallback.
+11. **Una mejora llega a todos los lugares de uso (DECISIÓN del PO 2026-10-24):** una mejora pedida pensando en un lugar se aplica en **todos** los lugares donde se usa esa pieza (p. ej. el Entrenador: Biblioteca, sesión del curso, Plan, mínimo, copia en la Pizarra). Antes de cerrar, la ficha anota los lugares afectados y se revisa cada uno; si uno debe quedar distinto, se dice por qué. Mapa en `AUDITORIA/LUGARES_DE_USO.md` (se actualiza cuando una pieza gana o pierde un lugar).
 
 ---
 
