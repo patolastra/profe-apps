@@ -5917,3 +5917,4 @@ celular".*
 - **Prueba (local, La Señora Interesante, sin guardar nada):** franja de 57 px (antes ~95) con ⏪ ▶ ⏩ dibujados,
   "0:02" · barra con punto · "2:28" · volumen; ▶ → ⏸ al reproducir y de vuelta; el punto sigue el avance; volumen al
   40 % pinta su barra hasta la mitad; tema claro (captura) y oscuro (colores revisados). Sin audio la franja no aparece.
+- **Ajuste del PO (2026-10-24, "no sirven, sácalos"):** fuera ⏪ ⏩ (saltaban 10 s). Siguen J / L (5 s) y ↑ ↓ por verso.
