@@ -5896,3 +5896,6 @@ celular".*
 - **Prueba (local, sesión de Segundo, sin guardar nada):** La vicuñita (sin audio): reproductor de abajo oculto, Pitch,
   velocidad y 🔊 ocultos con su espacio; ↓ pasó al verso 1; Espacio no hizo nada. La Señora Interesante (con audio): todo
   a la vista y en las mismas posiciones (los botones de arriba no se movieron un píxel entre una y otra). Captura.
+- **Ajuste del PO (2026-10-24, "está bien y es deseable, pero feo"):** el reproductor de abajo **desaparece** (la letra
+  ocupa ese espacio) y lo de audio de la barra de arriba queda **deshabilitado** (atenuado, sin responder, en su lugar).
+  Probado: la letra llega al borde inferior (720 de 720); Pitch, velocidad, 🔊 y Sync al 35 %. Captura.
