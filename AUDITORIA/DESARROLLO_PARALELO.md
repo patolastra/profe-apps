@@ -6045,3 +6045,9 @@ opciones propuestas eligió solo las citas a apoderados).*
   anotada aparece "🔄 Hay una versión nueva — Cargar" y el punto en el menú; "Cargar versión nueva" recargó y el aviso
   se fue. Menú: 📚 Biblioteca · ✍🏼 Bitácora · 🔄 Cargar versión nueva. Biblioteca: 12 cursos / Otras sesiones (Cuecas
   2026 13, Mine 2, Pancho Morales 4, Salsas 3); Cuecas → 13 canciones; atrás vuelve a la pestaña Otras. Capturas.
+- **Ajustes del PO (2026-10-25):** (1) menú **abajo a la izquierda**: botón ☰ redondo fijo y la lista encima de él (el
+  encabezado queda solo con la fecha). (2) "No se ven las dos pestañas" de la Biblioteca: el celular abría una copia
+  anterior de la Biblioteca guardada por el navegador; ahora la Biblioteca (menú y botón en clase) se abre con la
+  versión en la dirección (`&v=`), así siempre llega la última. (3) **Con Pitch no sonaba**: con el tono cambiado el
+  sonido sale por otro camino (`entPitchSalida`) que seguía usando el volumen guardado en el celular (en silencio);
+  ahora todo el Entrenador del celular usa `entNivelVolumen()` = 1, y ▶ reanuda ese camino en el mismo toque.

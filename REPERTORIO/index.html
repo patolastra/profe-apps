@@ -5465,13 +5465,15 @@ let entViewMode     = 'scroll';
 let entPitchVol = null;
 function entPitchSalida() {
     if (!entPitchVol || entPitchVol.context !== entPitchCtx) { entPitchVol = entPitchCtx.createGain(); entPitchVol.connect(entPitchCtx.destination); }
-    entPitchVol.gain.value = Volumen.nivel();
+    entPitchVol.gain.value = entNivelVolumen();
     return entPitchVol;
 }
+// En el celular (DG) todo suena a todo volumen (canción, tono cambiado, ritmos, Metalófono): se maneja con los botones
+// del teléfono, sin importar lo que haya quedado guardado en el equipo.
+function entNivelVolumen() { return MOVIL ? 1 : Volumen.nivel(); }
 function entAplicarVolumen() {
     if (ESPEJO) return;
-    // En el celular (DG) suena a todo volumen: se maneja con los botones del teléfono.
-    const n = MOVIL ? 1 : Volumen.nivel(), st = MOVIL ? { v: 100, mudo: false } : Volumen.estado();
+    const n = entNivelVolumen(), st = MOVIL ? { v: 100, mudo: false } : Volumen.estado();
     try { entAudio().volume = n; } catch (_) {}
     if (entPitchVol) entPitchVol.gain.value = n;
     try { RITMO_UI.volumen(n); } catch (_) {}
@@ -6957,6 +6959,8 @@ function entrenadorTogglePlay() {
     if (entrenadorAssetActivo && entrenadorAssetActivo.tipo === 'ritmo') { entRitmoTogglePlay(); return; }
     const audioEl = entAudio();
     const btn = document.getElementById('ent-btn-play');
+    // Tono cambiado: el sonido sale por otro camino que el celular deja en pausa hasta un toque; se reanuda aquí mismo.
+    if (audioEl.paused && entPitchCtx && entPitchSemitones !== 0 && entPitchCtx.state === 'suspended') entPitchCtx.resume();
     if (audioEl.paused) { audioEl.play(); entPintarPlay('pausa'); }
     else                { audioEl.pause(); entPintarPlay('play'); }
 }

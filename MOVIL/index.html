@@ -47,11 +47,17 @@
             padding: calc(18px + env(safe-area-inset-top, 0px)) 18px 14px;
             background: linear-gradient(180deg, var(--bg) 50%, var(--surface) 100%);
         }
-        #btn-menu { background: none; border: 0; color: var(--text); font-size: 1.5rem; padding: 0 6px 0 0; line-height: 1; cursor: pointer; align-self: center; }
+        /* Menú abajo a la izquierda (PO 2026-10-25): el botón y la lista, al alcance del pulgar */
+        #btn-menu { position: fixed; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 902; width: 56px; height: 56px;
+            border-radius: 50%; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 1.6rem; line-height: 1;
+            box-shadow: 0 6px 18px rgba(0,0,0,.45); cursor: pointer; }
+        #btn-menu.abierto { background: #253455; }
+        body { padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
         #menu-fondo { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 900; }
         #menu-fondo[hidden], #menu[hidden], #aviso-version[hidden] { display: none; }
-        #menu { position: fixed; top: 0; left: 0; bottom: 0; width: min(80vw, 300px); z-index: 901; background: var(--surface);
-            border-right: 1px solid var(--border); padding: calc(18px + env(safe-area-inset-top, 0px)) 10px 20px; display: flex; flex-direction: column; gap: 4px; }
+        #menu { position: fixed; left: 16px; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); width: min(78vw, 290px); z-index: 901;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+            display: flex; flex-direction: column; gap: 2px; }
         .mn-it { display: flex; align-items: center; gap: 10px; padding: 14px 12px; border-radius: 12px; color: var(--text); text-decoration: none;
             font: inherit; font-size: 1.05rem; font-weight: 600; background: none; border: 0; text-align: left; cursor: pointer; }
         .mn-it:active { background: var(--card); }
@@ -242,15 +248,15 @@
 
 <!-- HEADER -->
 <div id="header">
-    <button type="button" id="btn-menu" aria-label="Menú">☰</button>
     <div id="hdr-line">—</div>
     <span id="red"></span>
 </div>
 <button type="button" id="aviso-version" hidden>🔄 Hay una versión nueva — Cargar</button>
 <!-- Menú (PO 2026-10-25): lo primero, la Biblioteca -->
+<button type="button" id="btn-menu" aria-label="Menú">☰</button>
 <div id="menu-fondo" hidden></div>
 <nav id="menu" hidden>
-    <a class="mn-it" href="../REPERTORIO/index.html?movil=1">📚 Biblioteca</a>
+    <a class="mn-it" id="mn-biblioteca" href="../REPERTORIO/index.html?movil=1">📚 Biblioteca</a>
     <a class="mn-it" href="cursos.html">✍🏼 Bitácora</a>
     <div class="mn-sep"></div>
     <button type="button" class="mn-it" id="mn-version">🔄 Cargar versión nueva <span id="mn-version-n"></span></button>
@@ -377,7 +383,7 @@ function decidir() {
     $('sin-clase').hidden = nuevo !== 'libre';
     if (c) {
         $('en-clase-curso').textContent = etiqueta(c.ctx);
-        $('acc-ent-clase').href = '../REPERTORIO/index.html?movil=1&ctx=' + encodeURIComponent(c.ctx || '');   // canciones del curso en curso (DG)
+        $('acc-ent-clase').href = '../REPERTORIO/index.html?movil=1&ctx=' + encodeURIComponent(c.ctx || '') + conVersion();   // canciones del curso en curso (DG)
         if (modo !== 'clase') Volumen.pedir();   // al entrar en clase, el nivel del PC
         revisarEvaluar(c.ctx);
     }
@@ -404,13 +410,16 @@ async function revisarEvaluar(ctx) {
 ClaseVivo.onCambio(decidir);
 
 // ── Menú ☰ (PO 2026-10-25) ──
-function menu(abrir) { $('menu').hidden = !abrir; $('menu-fondo').hidden = !abrir; }
-$('btn-menu').addEventListener('click', () => menu(true));
+function menu(abrir) { $('menu').hidden = !abrir; $('menu-fondo').hidden = !abrir; $('btn-menu').classList.toggle('abierto', abrir); }
+$('btn-menu').addEventListener('click', () => menu($('menu').hidden));
 $('menu-fondo').addEventListener('click', () => menu(false));
 
 // ── Versión nueva (PO 2026-10-25, como "Recargar" del PC): version.json cambia en cada subida. Se revisa al abrir,
 // al volver a la app y cada 5 min; "Cargar" pide al servidor las páginas y piezas del celular al día y recarga. ──
 const VERSION_KEY = 'movil_version_cargada';
+// La Biblioteca se abre con la versión en la dirección: el navegador no puede entregar una copia anterior.
+function conVersion() { let v = null; try { v = localStorage.getItem('movil_version_cargada'); } catch (_) {} return '&v=' + encodeURIComponent(v || Date.now()); }
+document.getElementById('mn-biblioteca').href = '../REPERTORIO/index.html?movil=1' + conVersion();
 let versionServidor = null;
 async function revisarVersion() {
     try {
