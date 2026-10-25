@@ -6179,3 +6179,6 @@ opciones propuestas eligió solo las citas a apoderados).*
   borrar. El tapeo sigue igual (un tap corto dura hasta el siguiente). Prueba: teclas → 0:4 acortada a 0:2 (silencio),
   movida a 2:2, tope contra la nota siguiente, dividir 4:4 → 4:2 + 6:2, unir y borrar; mouse (pestaña local) → borde de
   la 1ª nota arrastrado: 0:2 y silencio de corchea en el pentagrama; 2ª nota arrastrada hasta pegarse (2:4).
+- **Bug (PO 2026-10-25):** Detener no paraba el sonido (las notas ya estaban programadas) y al volver a escuchar sonaban
+  dos veces. Ahora cada escucha suena por su propia salida y Detener la corta de una vez. Medido: nivel 0,099 sonando →
+  0 al detener y nada en el segundo siguiente.

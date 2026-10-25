@@ -243,9 +243,12 @@ function audio() {
     return ctx;
 }
 const latencia = () => ctx ? (ctx.outputLatency || 0) + (ctx.baseLatency || 0) : 0;
+// Mientras se programa una escucha, todo suena por su propia salida: Detener la corta de una vez
+let salida = null;
+const destino = c => salida || c.destination;
 function tono(midi, cuando, dur, vol = 0.22) {
     const c = audio(), f = 440 * Math.pow(2, (midi - 69) / 12);
-    const g = c.createGain(); g.connect(c.destination);
+    const g = c.createGain(); g.connect(destino(c));
     const o1 = c.createOscillator(); o1.type = 'triangle'; o1.frequency.value = f; o1.connect(g);
     const g2 = c.createGain(); g2.gain.value = 0.25; g2.connect(g);
     const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2; o2.connect(g2);
@@ -261,7 +264,7 @@ function clic(cuando, fuerte, vol = 0.3) {
     const c = audio();
     const o = c.createOscillator(), g = c.createGain();
     o.type = 'square'; o.frequency.value = fuerte ? 1650 : 1100;
-    o.connect(g); g.connect(c.destination);
+    o.connect(g); g.connect(destino(c));
     g.gain.setValueAtTime(vol, cuando); g.gain.exponentialRampToValueAtTime(0.0001, cuando + 0.04);
     o.start(cuando); o.stop(cuando + 0.05);
 }
@@ -269,7 +272,7 @@ function golpe(cuando) {       // nota sin grado: un toque de madera
     const c = audio();
     const o = c.createOscillator(), g = c.createGain();
     o.type = 'sine'; o.frequency.setValueAtTime(820, cuando); o.frequency.exponentialRampToValueAtTime(420, cuando + 0.06);
-    o.connect(g); g.connect(c.destination);
+    o.connect(g); g.connect(destino(c));
     g.gain.setValueAtTime(0.35, cuando); g.gain.exponentialRampToValueAtTime(0.0001, cuando + 0.09);
     o.start(cuando); o.stop(cuando + 0.1);
 }
@@ -285,6 +288,7 @@ let repro = null;   // { inicio, desdeTick, timer, raf }
 function detenerRepro() {
     if (!repro) return;
     clearTimeout(repro.timer); cancelAnimationFrame(repro.raf);
+    try { repro.salida.gain.setValueAtTime(0, audio().currentTime); repro.salida.disconnect(); } catch (_) {}
     repro = null;
     pintarSonando(-1);
     pintarBotones();
@@ -297,10 +301,13 @@ function escuchar() {
     const inicio = c.currentTime + 0.12;
     const st = segTick();
     const fin = totalCompases() * tpc();
+    const sal = c.createGain(); sal.connect(c.destination);
+    salida = sal;
     if (paso === 1) for (let k = Math.ceil(desde / 4) * 4; k < fin; k += 4) clic(inicio + (k - desde) * st, k % tpc() === 0, 0.18);
     for (const n of M.notas) if (n.t >= desde) sonarNota(n, inicio + (n.t - desde) * st, n.d * st * 0.95);
     const ultimo = Math.max(...M.notas.map(n => n.t + n.d));
-    repro = { inicio, desde };
+    salida = null;
+    repro = { inicio, desde, salida: sal };
     repro.timer = setTimeout(detenerRepro, ((ultimo - desde) * st + 0.4) * 1000);
     const cuadro = () => {
         if (!repro) return;
