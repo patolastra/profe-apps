@@ -6110,3 +6110,5 @@ opciones propuestas eligió solo las citas a apoderados).*
   pasar el mouse; "Sexto - no hay pendientes" con el mismo espacio a ambos lados del guion (la fecha vacía ya no suma
   espacio). Medido: 11 px arriba / 10 px abajo en Sexto; 6 px entre el nombre y el guion; "2 completados ▸" abre y
   cierra sus 2.
+- **Ajuste (PO 2026-10-25):** al pasar el mouse sobre un pendiente ya no aparece el cuadro del texto ni el puntero de
+  escribir; se edita al hacer clic (ahí sí se marca el cuadro azul). Vale para todas las listas.
