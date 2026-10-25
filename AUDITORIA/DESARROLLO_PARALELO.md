@@ -6186,3 +6186,6 @@ opciones propuestas eligió solo las citas a apoderados).*
   escala, sin alteración; suena al cambiar); a los lados sigue moviéndolo en el tiempo (el primer movimiento decide);
   llevarlo a la fila "ritmo" lo deja sin nota y subir uno sin nota le da la de esa fila. Prueba: do → sol, "?" → la,
   mi♯ → re (sin ♯) y re → fila ritmo ("?"); pentagrama al día.
+- **Escuchar desde el compás elegido (PO 2026-10-25):** ▶ Escuchar / Espacio parte en el compás elegido (clic en el
+  compás o en una nota; ← → y poner un grado lo siguen); sin compás elegido, desde el comienzo. Vale en ① y ③.
+  Prueba: clic en el compás 2 → parte en el tick 16; flecha a una nota del compás 1 → 0; sin elegir → 0.
