@@ -474,6 +474,14 @@ function pintarBloques() {
     const msj = document.getElementById('mensaje');
     msj.textContent = !M.notas.length && !rec ? 'Pulsa ● Grabar: suena un compás de precuenta y luego tapeas el ritmo con Espacio (mantener = nota larga). Enter termina.' : '';
     lienzo.dataset.yritmo = yRitmo;
+    filasVista = { lo, hi };
+}
+let filasVista = { lo: 0, hi: 7 };
+// Fila bajo una altura del lienzo: un escalón de la escala, o null = fila de ritmo (sin nota)
+function filaEn(y) {
+    const r = Math.floor((y - TOPE) / ALTO);
+    if (r > filasVista.hi - filasVista.lo) return null;
+    return filasVista.hi - Math.max(0, r);
 }
 function pintarVivo() {
     if (!rec) return;
@@ -589,7 +597,7 @@ function pintarPartitura() {
 const AYUDA = {
     1: '<b>● Grabar</b>: precuenta de 1 compás · <b>Espacio</b> tapear (mantener = larga) · <b>Enter</b> terminar · Corregir: <b>Shift+← →</b> acortar/alargar (o arrastrar el borde) · <b>Alt+← →</b> mover (o arrastrar) · <b>D</b> dividir · <b>U</b> unir · <b>Supr</b> borrar · clic en un compás para regrabarlo',
     2: 'Elige la tónica y el modo. El <b>1°</b> es siempre la tónica; cambiar la tonalidad mueve toda la melodía.',
-    3: '<b>1–7</b> grado (y avanza) · <b>0</b> silencio · <b>↑ ↓</b> octava · <b>+ −</b> medio tono · <b>← →</b> moverse · <b>Retroceso</b> borrar · <b>Shift / Alt+← →</b> ritmo · <b>Espacio</b> escuchar desde aquí · <b>Ctrl+S</b> guardar',
+    3: '<b>1–7</b> grado (y avanza) · <b>0</b> silencio · <b>↑ ↓</b> octava · <b>+ −</b> medio tono · <b>← →</b> moverse · <b>arrastrar arriba/abajo</b> cambia la nota · <b>Retroceso</b> borrar · <b>Shift / Alt+← →</b> ritmo · <b>Espacio</b> escuchar desde aquí · <b>Ctrl+S</b> guardar',
 };
 function pintarBotones() {
     document.querySelectorAll('.pasos button').forEach(b => {
@@ -759,16 +767,32 @@ document.getElementById('lienzo').addEventListener('pointerdown', e => {
     if (rec || !el || e.button !== 0) return;
     e.preventDefault();
     const i = +el.dataset.i, n = M.notas[i];
-    arrastre = { i, el, x0: e.clientX, t0: n.t, fin0: n.t + n.d, modo: e.clientX > el.getBoundingClientRect().right - 11 ? 'fin' : 'mover', movio: false };
+    arrastre = { i, el, x0: e.clientX, y0: e.clientY, t0: n.t, fin0: n.t + n.d, modo: e.clientX > el.getBoundingClientRect().right - 11 ? 'fin' : null, movio: false };
     el.setPointerCapture(e.pointerId);
 });
 document.getElementById('lienzo').addEventListener('pointermove', e => {
     if (!arrastre) return;
     const a = arrastre, n = M.notas[a.i];
-    if (!a.movio && Math.abs(e.clientX - a.x0) < 4) return;
+    const dx = e.clientX - a.x0, dy = e.clientY - a.y0;
+    if (!a.movio && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+    // El primer movimiento decide: a los lados = ritmo, arriba/abajo = altura
+    if (!a.modo) a.modo = Math.abs(dy) > Math.abs(dx) ? 'altura' : 'mover';
     a.movio = true;
     a.el.classList.add('arrastrando');
-    const dt = (e.clientX - a.x0) / PX;
+    if (a.modo === 'altura') {
+        const fila = filaEn(e.clientY - document.getElementById('lienzo').getBoundingClientRect().top);
+        const antes = n.g > 0 ? n.o * 7 + n.g - 1 : null;
+        if (fila === antes) return;
+        if (fila === null) { if (n.g === null) return; n.g = null; n.o = 0; n.a = 0; }
+        else { n.g = ((fila % 7) + 7) % 7 + 1; n.o = Math.floor(fila / 7); n.a = 0; sonarNota(n); }
+        const y = fila === null ? +document.getElementById('lienzo').dataset.yritmo : TOPE + (filasVista.hi - fila) * ALTO;
+        a.el.style.top = (y + 1) + 'px';
+        a.el.firstChild.textContent = etiquetaNota(n);
+        a.el.classList.toggle('sin', n.g === null);
+        a.el.classList.remove('silencio');
+        return;
+    }
+    const dt = dx / PX;
     if (a.modo === 'fin') fijarFin(a.i, a.fin0 + dt); else fijarInicio(a.i, a.t0 + dt);
     a.el.style.left = (n.t * PX + 1) + 'px';
     a.el.style.width = Math.max(6, n.d * PX - 2) + 'px';

@@ -6182,3 +6182,7 @@ opciones propuestas eligió solo las citas a apoderados).*
 - **Bug (PO 2026-10-25):** Detener no paraba el sonido (las notas ya estaban programadas) y al volver a escuchar sonaban
   dos veces. Ahora cada escucha suena por su propia salida y Detener la corta de una vez. Medido: nivel 0,099 sonando →
   0 al detener y nada en el segundo siguiente.
+- **Cambiar la nota arrastrando (PO 2026-10-25):** arrastrar un bloque **arriba/abajo** lo cambia de nota (fila de la
+  escala, sin alteración; suena al cambiar); a los lados sigue moviéndolo en el tiempo (el primer movimiento decide);
+  llevarlo a la fila "ritmo" lo deja sin nota y subir uno sin nota le da la de esa fila. Prueba: do → sol, "?" → la,
+  mi♯ → re (sin ♯) y re → fila ritmo ("?"); pentagrama al día.
