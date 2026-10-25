@@ -2039,6 +2039,38 @@
         }
         /* Entrenador mínimo (?mini=1, dentro del Planificador, deuda BU): solo el Entrenador de una canción,
            sin cancionero ni volver; la barra de herramientas de siempre */
+        /* ══ Entrenador en el celular, docente (deuda DG, etapa 1): ?movil=1 ══
+           Cursos → canciones → letra grande con su audio. Sin edición (eso queda en el PC). */
+        body.movil { overflow: hidden; background: #0b1120; }
+        body.movil > *:not(#entrenador-overlay):not(#movil-inicio):not(#toast):not(script) { display: none !important; }
+        body.movil #ent-sesion-lista, body.movil #ent-btn-toggle-lista, body.movil #ent-sesion-nav, body.movil #ent-btn-pedir,
+        body.movil #ent-btn-espejo, body.movil #ent-btn-atajos, body.movil #ent-btn-pitch, body.movil #ent-pitch-input,
+        body.movil #ent-vel-label, body.movil #ent-btn-sync, body.movil #ent-btn-sync-save, body.movil #ent-btn-editar,
+        body.movil #ent-btn-buscar-letra, body.movil #ent-btn-vista, body.movil #ent-btn-toggle-loops, body.movil #ent-loops-panel,
+        body.movil #ent-asset-chips, body.movil #ent-btn-mini-x, body.movil #ent-link, body.movil #ent-vol { display: none !important; }
+        body.movil #ent-header { height: auto; min-height: 52px; padding: calc(6px + env(safe-area-inset-top, 0px)) 8px 6px; flex-wrap: wrap; row-gap: 6px; }
+        body.movil #ent-header-tools, body.movil #ent-mode-btns { flex-wrap: wrap; row-gap: 6px; flex-shrink: 1; min-width: 0; }
+        body.movil #ent-header-tools button, body.movil #ent-mode-btns button { font-size: 0.85rem; padding: 7px 12px; }
+        body.movil #ent-btn-cerrar { font-size: 1.4rem; padding: 4px 10px; }
+        body.movil #ent-controles { padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
+        body.movil #ent-btn-play { width: 52px; height: 52px; }
+        body.movil .ent-rep-btn { width: 44px; height: 44px; }
+        body.movil #ent-progress-bar { height: 8px; }
+        body.movil .ent-lyric-line { -webkit-tap-highlight-color: transparent; }
+        #movil-inicio { position: fixed; inset: 0; z-index: 50; display: none; flex-direction: column; background: #0b1120; color: #f1f5f9;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+        body.movil #movil-inicio { display: flex; }
+        #movil-inicio .mi-cab { display: flex; align-items: center; gap: 10px; padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 12px; }
+        #movil-inicio .mi-cab a, #movil-inicio .mi-cab button { color: #f1f5f9; text-decoration: none; background: none; border: 0; font-size: 1.5rem; padding: 2px 8px; cursor: pointer; }
+        #movil-inicio .mi-tit { font-size: 1.3rem; font-weight: 700; flex: 1; min-width: 0; }
+        #movil-inicio .mi-lista { flex: 1; overflow-y: auto; padding: 4px 16px 24px; display: flex; flex-direction: column; gap: 10px; }
+        #movil-inicio .mi-it { display: flex; align-items: center; gap: 12px; padding: 16px 18px; background: #1a2540; border: 1px solid #253455;
+            border-radius: 16px; color: inherit; font: inherit; font-size: 1.05rem; font-weight: 600; text-align: left; cursor: pointer; }
+        #movil-inicio .mi-it:active { background: #253455; }
+        #movil-inicio .mi-ico { font-size: 1.4rem; width: 1.6em; text-align: center; flex-shrink: 0; }
+        #movil-inicio .mi-sub { display: block; font-size: 0.8rem; font-weight: 500; color: #7a8ba8; margin-top: 2px; }
+        #movil-inicio .mi-n { margin-left: auto; color: #7a8ba8; font-weight: 500; font-size: 0.9rem; }
+        #movil-inicio .mi-vacio { color: #7a8ba8; padding: 20px 4px; }
         body.mini { overflow: hidden; }
         body.mini > *:not(#entrenador-overlay):not(#metal-overlay):not(#toast):not(script) { display: none !important; }
         body.mini #ent-btn-cerrar, body.mini #ent-btn-toggle-lista, body.mini #ent-sesion-lista,
@@ -9440,6 +9472,53 @@ async function bibRefrescar() {
 TiempoReal.alVolver(bibAvisar);
 TiempoReal.conectar(sb);
 
+// ══ Entrenador en el celular, docente (deuda DG, etapa 1) ══════════════════════
+// ?movil=1: pantalla de cursos → canciones del curso (su sesión) → el Entrenador en grande, sin edición.
+// ?movil=1&ctx=NOMBRE: parte en las canciones de ese curso (el celular lo pide así con la clase en curso).
+// Deslizar ← → sobre la letra cambia de canción. ← del Entrenador vuelve a la lista de canciones.
+const MOVIL = new URLSearchParams(location.search).get('movil') === '1';
+if (MOVIL) document.body.classList.add('movil');
+let movilCurso = null;   // id del contexto cuya lista de canciones se ve
+function movilSesionDe(cid) { return sesiones.find(s => s.contexto_id === cid && (s.canciones || []).length); }
+function movilPintar() {
+    let el = document.getElementById('movil-inicio');
+    if (!el) { el = document.createElement('div'); el.id = 'movil-inicio'; document.body.appendChild(el); }
+    const escH = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const info = n => (typeof ctxDisplay === 'function' ? ctxDisplay(n) : n) || n;
+    const ico = n => (typeof ctxIcono === 'function' ? ctxIcono(n) : '') || '🎵';
+    if (!movilCurso) {
+        const ORDEN = ['PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO', 'SEXTO', 'SEPTIMO', 'OCTAVO'];
+        const pos = n => { const i = ORDEN.indexOf(n); return i < 0 ? 100 : i; };
+        const cursos = contextosDB.filter(c => movilSesionDe(c.id)).sort((a, b) => pos(a.nombre) - pos(b.nombre) || a.nombre.localeCompare(b.nombre));
+        el.innerHTML = `<div class="mi-cab"><a href="../MOVIL/index.html" aria-label="Volver">←</a><span class="mi-tit">🎵 Entrenador</span></div>
+            <div class="mi-lista">${cursos.length ? cursos.map(c => `<button class="mi-it" data-c="${escH(c.id)}"><span class="mi-ico">${escH(ico(c.nombre))}</span>
+                <span>${escH(info(c.nombre))}</span><span class="mi-n">${movilSesionDe(c.id).canciones.length}</span></button>`).join('')
+                : '<div class="mi-vacio">No hay cursos con canciones.</div>'}</div>`;
+        el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { movilCurso = b.dataset.c; movilPintar(); });
+        return;
+    }
+    const c = contextosDB.find(x => x.id === movilCurso), s = movilSesionDe(movilCurso);
+    const items = (s?.canciones || []).map(it => ({ it, song: canciones.find(x => x.id === it.cancion_id) })).filter(x => x.song);
+    el.innerHTML = `<div class="mi-cab"><button type="button" class="mi-volver" aria-label="Cursos">←</button><span class="mi-tit">${escH(ico(c?.nombre))} ${escH(info(c?.nombre || ''))}</span></div>
+        <div class="mi-lista">${items.length ? items.map(({ it, song }) => `<button class="mi-it" data-s="${escH(song.id)}"><span class="mi-ico">${(song.assets || []).some(a => a.tipo === 'audio') ? '🎵' : '📄'}</span>
+            <span>${escH(song.nombre)}<span class="mi-sub">${escH(song.artista || '')}</span></span></button>`).join('')
+            : '<div class="mi-vacio">Este curso no tiene canciones.</div>'}</div>`;
+    el.querySelector('.mi-volver').onclick = () => { movilCurso = null; movilPintar(); };
+    el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => practicarSesion(s.id, b.dataset.s));
+}
+if (MOVIL) {
+    // Deslizar ← → sobre la letra: canción siguiente / anterior de la sesión.
+    let x0 = null, y0 = null;
+    const zona = document.getElementById('ent-zona');
+    zona.addEventListener('touchstart', e => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
+    zona.addEventListener('touchend', e => {
+        if (x0 == null) return;
+        const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+        x0 = null;
+        if (Math.abs(dx) > 80 && Math.abs(dy) < 60) { if (dx < 0) entSesionSiguiente(); else entSesionAnterior(); }
+    }, { passive: true });
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 (async () => {
     try {
@@ -9457,6 +9536,11 @@ TiempoReal.conectar(sb);
     const ctxParam = params.get('ctx');
     if (ctxParam) filtroCurso = ctxParam.toUpperCase();
     render();
+    if (MOVIL) {   // celular (DG): con ?ctx= parte en las canciones de ese curso
+        const c = ctxParam && contextosDB.find(x => x.nombre === ctxParam.toUpperCase());
+        if (c && movilSesionDe(c.id)) movilCurso = c.id;
+        movilPintar();
+    }
     // Deep-link Entrenador: ?vista=sesiones abre directo la vista de sesiones
     if (params.get('vista') === 'sesiones' && vistaActual !== 'sesiones') toggleVistaSesiones();
 

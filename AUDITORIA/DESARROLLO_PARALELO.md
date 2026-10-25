@@ -5998,3 +5998,24 @@ opciones propuestas eligió solo las citas a apoderados).*
 - **Arreglo (PO 2026-10-24):** en "De días anteriores" del celular el texto quedaba en ~90 px (en la misma fila iban el
   curso y Aceptar / Rechazar). Ahora los botones van en una segunda línea a la derecha y el texto usa todo el ancho
   (solo en esa lista del celular, `#sug`). Captura.
+
+### DG. Entrenador en el celular (docente) y para alumnos (enlace / QR por canción)
+*Origen: PO 2026-10-24 ("muy importante para implementar pronto: el entrenador versión móvil").*
+- **Auditoría:** el Entrenador (`REPERTORIO/index.html?practicar=…`) en un celular (375 px) no sirve: la barra de
+  arriba se sale de la pantalla, la lista de la sesión ocupa una columna fija y la letra queda chica. El Metalófono ya
+  tiene un "modo alumno" en el mismo archivo (sin Supabase, enlace corto `m/?a=&n=`). Las canciones y sus recursos se
+  leen con la llave pública (como la Biblioteca); los recursos tienen estado editorial (publicado / borrador…).
+- **Decisión del PO (2026-10-24):** dos usos: (B) el docente en su celular y (C) los alumnos por enlace o QR, **solo
+  por canción**. Orden: **primero el docente, luego los alumnos**.
+- **Etapa 1 (docente), diseño:** el mismo Entrenador con un **modo celular** (`?movil=1`, mismo archivo: una mejora
+  llega a ambos, regla 11). Entrada: 🎵 ENTRENADOR en el inicio del celular (en clase abre el curso en curso). Pantalla
+  de cursos → canciones del curso (su sesión) en lista grande → letra grande con su audio: arriba ← volver, nombre,
+  📖 Lectura, Letra y ☀/🌙; abajo la franja (⏮ ▶ ⏭, avance, Melodía / Karaoke); tocar un verso va ahí; deslizar ← →
+  cambia de canción. Sin edición (Editar, Sync, loops, Pitch, Pizarra, puntero quedan en el PC). Sin señal: más adelante.
+- **Etapa 2 (alumnos):** la misma vista sin PIN ni datos del curso, solo una canción y solo con recursos publicados;
+  "Compartir" (enlace + QR) en la canción.
+- **Avance etapa 1 (2026-10-24, sin cerrar):** modo `?movil=1` en el Entrenador (pantalla de cursos → canciones,
+  Entrenador sin herramientas de edición, deslizar ← → cambia de canción) y 🎵 ENTRENADOR en el inicio del celular (en
+  clase con `&ctx=` del curso en curso). Probado solo el recorrido: 12 cursos → 2 canciones → Entrenador abierto con la
+  lista lateral oculta. **Falta:** revisar cómo se ve la letra y la barra en el teléfono (capturas), probar deslizar y
+  el audio en un celular real; luego la etapa 2 (alumnos).
