@@ -5947,3 +5947,35 @@ personas específicas".*
   Claude" + Enter bajó de línea; mensaje + Enter (y salir) → aviso "Anotado en ✉️ Mensajes para Prueba Claude.", salió
   de los pendientes y apareció en ✉️ agrupado ("Prueba Claude 1", 💼 · 24/10); ✓ lo dejó tachado y el número en 0; ↺ lo
   devolvió; ✕ lo borró (Supabase sin rastro). Celular: pestaña ✉️ sin errores. Captura del Dashboard.
+
+### DE. Comandos /pdte, /msj, /bug y /mejora en el editor de bloques; /msj con dos puntos
+*Origen: PO 2026-10-24 (tras DD). Notion: "Comandos /pdte, /msj, /bug, /mejora en el editor de bloques".*
+- **Auditoría:** el editor de bloques (`comun/editor-bloques.js`) ya convierte un bloque en pendiente desde ⋮⋮ / clic
+  derecho (opción `alPendiente`, el texto queda), solo en la bitácora ✍🏼 del Plan y en Cursos (curso y ☀ Hoy). No la
+  tienen: actividades del Plan, bitácora por actividad (vista de clase), Historial del Plan y Cursos del celular. "/" en
+  un bloque vacío abre el menú de tipos y se come la barra (no se puede escribir "/pdte"). `Pendientes.crear` devuelve
+  `null` cuando el texto es /bug, /mejora o /mensaje (las páginas lo leen como error).
+- **Decisiones del PO (2026-10-24):** `/msj` = `/mensaje`; sintaxis única en todas partes: `/msj destinatario: mensaje`
+  (una línea). En los cuadros de pendientes el comando sigue sacando el texto de la lista; en el editor de bloques el
+  texto **se queda** marcado (☑ / ✉️ / 🐞 / ✨) y genera el pendiente / mensaje / mejora. Comando nuevo `/pdte`.
+- **Diseño:** `pendientes.js`: `partesMensaje` con "destinatario: mensaje" (acepta `/msj` y `/mensaje`); sin el Enter
+  que bajaba de línea; `crear` devuelve `{ otra, aviso }` para lo que no es pendiente; `Pendientes.desdeTexto(texto,
+  { cid, sesionId, despuesDe | desde })` = crear desde un texto del editor con la regla de destino de siempre (el
+  pendiente va a la clase siguiente; mensaje / mejora quedan con el curso y la clase de origen) y devuelve el aviso.
+  Editor: Enter en un bloque que empieza con un comando completo lo envía y deja el bloque marcado; "/" en un bloque
+  vacío escribe la barra y abre el menú (con "Anotar: ☑ Pendiente · ✉️ Mensaje · 🐞 Bug · ✨ Mejora", que escribe el
+  comando); seguir escribiendo cierra el menú.
+- **Lugares de uso (regla 11):** los 8 editores: bitácora ✍🏼 del Plan, actividades del Plan, bitácora por actividad,
+  Historial del Plan, Cursos (curso y ☀ Hoy), Cursos del celular. El Historial del Plan y Cursos siguen la regla de
+  Cursos (clase → siguiente; nota → desde su fecha).
+- **Implementación (2026-10-24):** `pendientes.js`: `partesMensaje` con dos puntos (`/msj` y `/mensaje`; sin dos puntos,
+  un salto de línea separa), sin el Enter que bajaba de línea, `crear` devuelve `{ otra, aviso }` y `desdeTexto`.
+  `editor-bloques.js`: `comandoDe` + Enter (envía, deja el bloque marcado al confirmar; si falla, el comando queda
+  escrito), "/" escrita + menú con sección "Anotar" (títulos de sección en `abrirMenu`), elegir un tipo borra la "/".
+  Conectado en los 8 editores (CURSOS ×2 con `desdeTexto`; PORTAL: bitácora ✍🏼, actividades, bitácora por actividad e
+  Historial con `planPendienteDesde`; MOVIL/cursos.html carga `pendientes.js` con cola sin señal).
+- **Prueba (local):** editor en un cuadro aparte con envío simulado: "/pdte Revisar flautas" ⏎ → "☑ Revisar flautas";
+  "/msj UTP: traer la planificación" ⏎ → "✉️ UTP: …"; "/bug …" ⏎ → "🐞 …"; "/msj sin dos puntos" ⏎ → no se envía (queda
+  igual); "/" → menú con "Anotar"; Pendiente → escribe "/pdte "; Título 1 → la "/" se borra (captura del menú). Envío
+  real: `/msj Prueba Claude: …` → ✉️ Mensajes; un pendiente de Segundo desde el 22/10 → clase del jue 29/10; ambos
+  borrados. Cursos y Cursos del celular cargan sin errores. No probado: escribir con el teclado real del celular.

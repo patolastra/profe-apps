@@ -4682,6 +4682,16 @@ const planPropios = TiempoReal.propios();   // guardados recientes de las activi
 let planCards = [];          // [{ id, orden, titulo, contenido, updated_at, ed, sucio, timer, ultEnvio }]
 let planSid = null;          // sesión de las cards cargadas
 let planRemotoPend = false;  // llegó un cambio de otro equipo mientras se escribía aquí
+// Texto del editor → pendiente / ✉️ mensaje / 🐞 mejora (deuda DE): del curso de esta clase; el pendiente va a la clase
+// siguiente a esta (o según `donde`, en el Historial). `mostrar(r)` deja el aviso a la vista.
+async function planPendienteDesde(texto, mostrar, donde = null) {
+    if (!sesionActual) return { ok: false };
+    const cid = sesionActual.contexto_id;
+    const r = await Pendientes.desdeTexto(texto, { cid, general: (contextos[cid]?.nombre || '').toUpperCase() === 'GENERAL',
+        ...(donde || { sesionId: sesionActual.id, despuesDe: sesionActual.fecha }) });
+    try { mostrar(r); } catch (_) {}
+    return r;
+}
 const planEstado = (t, err) => {
     const el = document.getElementById('plan-estado'); if (!el) return;
     el.textContent = t; el.style.color = err ? '#dc2626' : '';
@@ -4820,6 +4830,7 @@ function pintarPlan() {
             vacio: 'O: objetivo de la actividad · luego qué vas a hacer: pasos, viñetas, párrafos…',
             objetivo: true,
             alCambiar: () => planCambio(c),
+            alPendiente: texto => planPendienteDesde(texto, r => planEstado(r.aviso, !r.ok)),
         });
         verLibre();   // ya con su editor
     });
@@ -5423,6 +5434,7 @@ async function abrirClaseBit() {
     B.ed = EditorBloques.crear(caja.querySelector('.cl-bit-ed'), {
         texto: bitCuerpo(data?.contenido, titulo),
         vacio: 'Lo que vas rescatando de esta actividad…',
+        alPendiente: texto => planPendienteDesde(texto, r => { est.textContent = r.aviso; setTimeout(() => { if (est.textContent === r.aviso) est.textContent = ''; }, 4000); }),
         alCambiar: () => { B.sucio = true; est.textContent = 'Sin guardar…'; clearTimeout(B.timer); B.timer = setTimeout(() => guardarClaseBit(B), 1200); },
     });
     claseBit = B;
@@ -5618,6 +5630,9 @@ function editarCursoEnt(k) {
         texto: E.contenido, actualizado: E.updated,
         vacio: E.tipo === 'clase' ? '¿Qué ocurrió en esta clase?' : 'Escribe la nota…',
         alCambiar: () => { E.sucio = true; clearTimeout(E.timer); E.timer = setTimeout(() => guardarCursoEnt(E), 1200); },
+        // Historial = Cursos: de una clase, a la siguiente; de una nota, desde su fecha (deuda DE)
+        alPendiente: texto => planPendienteDesde(texto, r => planEstado(r.aviso, !r.ok),
+            E.tipo === 'clase' ? { sesionId: E.sesionId, despuesDe: E.fecha } : { sesionId: null, desde: E.fecha }),
     });
     E.ed.enfocar('fin');
 }
@@ -5688,15 +5703,11 @@ async function abrirMemoria() {
         },
         // Bloque → pendiente (se copia; el texto queda en la Bitácora). Va a la clase SIGUIENTE a esta;
         // si ya pasó, a la próxima que aún no ocurre (DECISIÓN del PO 2026-10-13), y se avisa cuál.
-        alPendiente: async texto => {
-            const destino = await Pendientes.proximaClase(sesionActual.contexto_id, { despuesDe: sesionActual.fecha });
-            if (!destino.sesion_id) { alert('Este curso no tiene una próxima clase en el horario.'); return; }
-            const p = await Pendientes.crear({ ...destino, texto });
-            if (!p) { alert('No se pudo crear el pendiente — revisa la conexión.'); return; }
+        alPendiente: texto => planPendienteDesde(texto, r => {
             const st = document.getElementById('mem-status');
-            st.textContent = `Pendiente para la clase del ${Pendientes.fechaCorta(destino.fecha)} ✓`;
-            setTimeout(() => { if (st.textContent.startsWith('Pendiente para')) st.textContent = ''; }, 4000);
-        },
+            st.textContent = r.aviso;
+            setTimeout(() => { if (st.textContent === r.aviso) st.textContent = ''; }, 4000);
+        }),
     });
     if (!memEd.tieneAlgo()) memEd.enfocar('inicio');
     const audios = Array.isArray(data?.audios) ? data.audios : [];

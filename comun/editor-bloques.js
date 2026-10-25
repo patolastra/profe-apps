@@ -16,6 +16,9 @@
 //   EditorBloques.zona(elemento)   → ahí se puede arrastrar un marco para seleccionar bloques
 //   EditorBloques.html(texto, op)  → vista de solo lectura (HTML); op.objetivo como en crear
 //   objetivo: un párrafo que empieza con "O:" (o "OA:") es el objetivo y se destaca (Actividades del Plan, deuda BP)
+//   alPendiente(texto) → { ok } (o nada): convertir bloques en pendiente (⋮⋮ / clic derecho) y los comandos (deuda DE):
+//     Enter en un bloque que empieza con /pdte texto · /msj destinatario: mensaje · /bug texto · /mejora texto lo
+//     envía y el bloque se queda marcado (☑ / ✉️ / 🐞 / ✨). "/" en un bloque vacío abre el menú, con "Anotar".
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
     'use strict';
@@ -355,7 +358,7 @@
         if (I.op.objetivo) txt.parentElement.classList.toggle('eb-objetivo', esObjetivo(b));
         if (e.inputType === 'insertText' && e.data) {
             const plano = txt.textContent, pos = cursorEn(txt);
-            if (I.op.tactil && plano === '/') { txt.innerHTML = ''; b.x = ''; marcarSolo(I); menuTipos(id); return; }
+            if (I.op.tactil && plano === '/') menuTipos(id);   // la "/" queda escrita: así se puede seguir con /pdte… (deuda DE)
             if (b.t === 'p' && plano === '---') { b.x = ''; txt.innerHTML = ''; convertir(id, 'hr'); return; }
             if (e.data.includes(' ')) {
                 const partes = partirLista(b);
@@ -420,13 +423,29 @@
         if (e.key === 'ArrowLeft' && colapsada && off === 0 && !e.shiftKey) { const a = anterior(); if (a) { e.preventDefault(); enfocar(a.id, 'fin'); return; } }
         if (e.key === 'ArrowRight' && colapsada && off === largo && !e.shiftKey) { const s = siguiente(); if (s) { e.preventDefault(); enfocar(s.id, 0); return; } }
         if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); duplicar(id); return; }
-        if (e.key === '/' && !b.x) { e.preventDefault(); menuTipos(id); return; }
+        if (e.key === '/' && !b.x) { setTimeout(() => menuTipos(id), 0); return; }   // la "/" queda escrita (deuda DE)
     }, true);
 
     // Enter: parte el bloque en el cursor (en una lista vacía, vuelve a texto).
     function alEnter(txt) {
         const I = insDe(txt), id = txt.parentElement.dataset.id, i = idx(I, id), b = I?.bloques[i];
         if (!b) return;
+        const cmd = I.op.alPendiente && b.t !== 'hr' ? comandoDe(mdAPlano(mdDeDom(txt).replace(/<br>/g, ' ')).trim()) : null;
+        if (cmd) {   // deuda DE: se envía; el bloque se queda (marcado) y se sigue escribiendo en uno nuevo
+            b.x = mdDeDom(txt);
+            const nuevo = insertar(I, i + 1, { id: nid(), t: LISTAS.has(b.t) ? b.t : 'p', x: '', c: false, m: b.m });
+            enfocar(nuevo.id, 0);
+            Promise.resolve(I.op.alPendiente(cmd.enviar)).then(r => {
+                if (r === false || r?.ok === false) return;   // falló: el comando queda escrito para reintentar
+                const bb = I.bloques[idx(I, id)];
+                if (!bb) return;
+                bb.x = cmd.marca;
+                const t = txtDe(id);
+                if (t && document.activeElement !== t) t.innerHTML = mdAHtml(bb.x);
+                cambio(I);
+            }).catch(() => {});
+            return;
+        }
         const sel = getSelection();
         if (LISTAS.has(b.t) && !b.x) { convertir(id, 'p'); return; }
         if (!sel.isCollapsed) sel.deleteFromDocument();
@@ -679,7 +698,7 @@
         asegurarFlotantes();
         cerrarMenus();
         const m = F.menu;
-        menuItems = items.filter(it => !it.sep);
+        menuItems = items.filter(it => !it.sep && !it.tit);
         menuFoco = 0; menuCierre = alCerrar; menuFormato = formato;
         let k = 0, h = titulo ? `<div class="eb-m-tit">${esc(titulo)}</div>` : '';
         if (formato) h += `<div class="eb-m-fmt">
@@ -691,6 +710,7 @@
             </div><div class="eb-m-sep"></div>`;
         items.forEach(it => {
             if (it.sep) { h += '<div class="eb-m-sep"></div>'; return; }
+            if (it.tit) { h += `<div class="eb-m-tit">${esc(it.tit)}</div>`; return; }
             h += `<button class="eb-m-it${it.peligro ? ' eb-peligro' : ''}" data-k="${k++}">
                 <span class="eb-m-ico">${it.html ? it.ico : esc(it.ico || '')}</span><span class="eb-m-lbl">${esc(it.lbl)}</span>
                 ${it.atajo ? `<span class="eb-m-atajo">${esc(it.atajo)}</span>` : ''}${it.sub ? '<span class="eb-m-chev">›</span>' : ''}</button>`;
@@ -806,10 +826,37 @@
         const I = insDeId(id), b = I?.bloques[idx(I, id)];
         return TIPOS.map(x => ({ ico: x.ico, lbl: x.lbl, activo: b && b.t === x.t, accion: () => convertir(id, x.t) }));
     }
+    // Menú de "/": tipos de bloque y, donde se pueden crear pendientes, "Anotar" (escribe el comando; deuda DE).
+    // Elegir un tipo borra la "/" escrita.
     function menuTipos(id) {
-        const el = txtDe(id);
-        if (!el) return;
-        abrirMenu(itemsTipos(id).map(x => ({ ...x, activo: false })), el, { titulo: 'Bloques básicos', alCerrar: () => enfocar(id, 'fin') });
+        const el = txtDe(id), I = insDeId(id);
+        if (!el || !I) return;
+        const sinBarra = fn => () => { const b = I.bloques[idx(I, id)]; if (b && mdAPlano(b.x).trim() === '/') b.x = ''; fn(); };
+        const escribir = cmd => () => {
+            const b = I.bloques[idx(I, id)]; if (!b) return;
+            b.x = cmd; pintar(I); cambio(I); enfocar(id, 'fin');
+        };
+        const tipos = itemsTipos(id).map(x => ({ ...x, activo: false, accion: sinBarra(x.accion) }));
+        const anotar = I.op.alPendiente ? [{ tit: 'Anotar' },
+            { ico: '☑', lbl: 'Pendiente', atajo: '/pdte', accion: escribir('/pdte ') },
+            { ico: '✉️', lbl: 'Mensaje (a quién: qué)', atajo: '/msj', accion: escribir('/msj ') },
+            { ico: '🐞', lbl: 'Bug de la app', atajo: '/bug', accion: escribir('/bug ') },
+            { ico: '✨', lbl: 'Mejora de la app', atajo: '/mejora', accion: escribir('/mejora ') }] : [];
+        abrirMenu([...tipos, ...anotar], el, { titulo: 'Bloques básicos', alCerrar: () => enfocar(id, 'fin') });
+    }
+    // Comandos al comienzo de un bloque (deuda DE): qué se envía y cómo queda marcado el bloque.
+    const RE_CMD = /^\s*\/(pdte|pendiente|msj|mensaje|bug|mejora)(?![a-záéíóúñ])\s*/i;
+    function comandoDe(plano) {
+        const m = plano.match(RE_CMD);
+        if (!m) return null;
+        const cmd = m[1].toLowerCase(), resto = plano.slice(m[0].length).trim();
+        if (!resto) return null;
+        if (cmd === 'pdte' || cmd === 'pendiente') return { enviar: resto, marca: '☑ ' + resto };
+        if (cmd === 'msj' || cmd === 'mensaje') {
+            const i = resto.indexOf(':'), para = i > 0 ? resto.slice(0, i).trim() : '', msg = i > 0 ? resto.slice(i + 1).trim() : '';
+            return para && msg ? { enviar: `/msj ${para}: ${msg}`, marca: `✉️ ${para}: ${msg}` } : null;
+        }
+        return { enviar: `/${cmd} ${resto}`, marca: (cmd === 'bug' ? '🐞 ' : '✨ ') + resto };
     }
     function cuando(iso) {
         const d = new Date(iso), hoy = new Date();

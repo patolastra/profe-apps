@@ -13,6 +13,7 @@
 <script src="../comun/clase-vivo.js"></script>
 <link rel="stylesheet" href="../comun/editor-bloques.css">
 <script src="../comun/editor-bloques.js"></script>
+<script src="../comun/pendientes.js"></script>
 <script src="../comun/tiempo-real.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -104,6 +105,7 @@ body.menu-abierto #velo { opacity: 1; pointer-events: auto; }
 // Mismas tablas que el PC: `memorias` (bitácora de cada clase) y `bitacora_paginas` (notas).
 // ═══════════════════════════════════════════════════════════════════════
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+Pendientes.conectar(sb, { sinSenal: true });   // /pdte y los demás comandos del editor (deuda DE)
 ClaseVivo.conectar(sb);
 
 const $ = id => document.getElementById(id);
@@ -286,6 +288,15 @@ function pintarPagina() {
             texto: E.contenido, actualizado: E.actualizado, tactil: true,
             vacio: E.tipo === 'clase' ? 'Sin bitácora — toca para escribir' : 'Escribe la nota…',
             alCambiar: () => cambio(E),
+            // /pdte, /msj, /bug, /mejora (deuda DE): de una clase, a la siguiente; de una nota, desde su fecha
+            alPendiente: async texto => {
+                const r = await Pendientes.desdeTexto(texto, { cid: ctxActual, general: esGeneral(ctxActual),
+                    sesionId: E.tipo === 'clase' ? (E.sesionId || null) : null,
+                    ...(E.tipo === 'clase' ? { despuesDe: E.fecha } : { desde: E.fecha }) });
+                estado(r.aviso, r.ok ? '' : 'err');
+                setTimeout(() => { if ($('estado').textContent === r.aviso) estado(''); }, 4000);
+                return r;
+            },
         });
     });
     $('btn-nota').onclick = nuevaNota;

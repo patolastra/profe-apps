@@ -448,10 +448,9 @@ function pintarHoy() {
             texto: E.contenido, actualizado: E.updated, vacio: 'Sin bitácora — clic para escribir',
             alCambiar: () => marcarSucio(E),
             alPendiente: async texto => {
-                const destino = await Pendientes.proximaClase(E.cid, { despuesDe: E.fecha });
-                const pd = await Pendientes.crear({ ...destino, texto });
-                estado(!pd ? 'No se pudo crear el pendiente — revisa conexión.'
-                    : destino.fecha ? `Pendiente para la clase del ${Pendientes.fechaCorta(destino.fecha)} ✓` : 'Pendiente creado ✓', !pd);
+                const r = await Pendientes.desdeTexto(texto, { cid: E.cid, sesionId: E.sesionId, despuesDe: E.fecha });
+                estado(r.aviso, !r.ok);
+                return r;
             },
         });
     });
@@ -540,13 +539,13 @@ async function destinoPendiente() {
 }
 // Texto de la bitácora → pendiente (DECISIÓN del PO 2026-10-13): de una clase, va a la clase SIGUIENTE
 // a esa (si ya pasó, a la próxima que aún no ocurre); de una nota, a la primera clase desde su fecha.
+// También los comandos /pdte, /msj, /bug, /mejora del editor (deuda DE): Pendientes.desdeTexto.
 async function bloqueAPendiente(texto, E) {
-    const cid = ctxActual;
-    const destino = esGeneralActual() ? { contexto_id: cid, sesion_id: null }
-        : await Pendientes.proximaClase(cid, E?.tipo === 'clase' ? { despuesDe: E.fecha } : { desde: E?.fecha });
-    const p = await Pendientes.crear({ ...destino, texto });
-    estado(!p ? 'No se pudo crear el pendiente — revisa conexión.'
-        : destino.fecha ? `Pendiente para la clase del ${Pendientes.fechaCorta(destino.fecha)} ✓` : 'Pendiente creado ✓', !p);
+    const r = await Pendientes.desdeTexto(texto, { cid: ctxActual, general: esGeneralActual(),
+        sesionId: E?.tipo === 'clase' ? E.sesionId : null,
+        ...(E?.tipo === 'clase' ? { despuesDe: E.fecha } : { desde: E?.fecha }) });
+    estado(r.aviso, !r.ok);
+    return r;
 }
 let listaApo = null;
 let colPend = false;          // 4ª columna de pendientes (deuda CQ); parte oculta

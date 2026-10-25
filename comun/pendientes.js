@@ -25,6 +25,8 @@
 //     sin opciones: la próxima clase desde hoy (hoy incluida). despuesDe: la clase siguiente a esa fecha
 //     (un texto de la bitácora de esa clase); desde: desde esa fecha (una nota). Nunca una clase ya pasada.
 //   Pendientes.fechaCorta(iso)   → "mar 20/10"
+//   Pendientes.desdeTexto(texto, { cid, sesionId, general, despuesDe | desde })   → { ok, aviso } (editor de bloques, deuda DE)
+//   Comandos al comienzo de un texto: /bug · /mejora (🐞 Mejoras) · /msj o /mensaje destinatario: mensaje (✉️ Mensajes)
 //   Pendientes.guardarTodo()   (antes de cerrar una ventana)
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
@@ -214,13 +216,17 @@
         const m = String(texto || '').match(/^\s*\/(bug|mejora)(?![a-záéíóúñ])[\s:.-]*/i);
         return m ? (m[1].toLowerCase() === 'bug' ? '🐞 ' : '✨ ') + String(texto).slice(m[0].length).trim() : null;
     }
-    // ✉️ Mensajes (deuda DD): "/mensaje destinatario⏎mensaje⏎". Mientras se escribe falta el mensaje (msg vacío).
+    // ✉️ Mensajes (deudas DD y DE): "/msj destinatario: mensaje" (o "/mensaje …"), en una línea. Mientras se escribe
+    // falta el mensaje (msg vacío). Sin dos puntos, un salto de línea también separa.
     const CAT_MENSAJE = 'mensaje';
     function partesMensaje(texto) {
-        const m = String(texto || '').match(/^\s*\/mensaje(?![a-záéíóúñ])[ \t:.-]*/i);
+        const m = String(texto || '').match(/^\s*\/(mensaje|msj)(?![a-záéíóúñ])\s*/i);
         if (!m) return null;
-        const lineas = String(texto).slice(m[0].length).split('\n').map(l => l.trim()).filter(Boolean);
-        return { para: lineas[0] || '', msg: lineas.slice(1).join(' ') };
+        const resto = String(texto).slice(m[0].length);
+        let i = resto.indexOf(':');
+        if (i < 0) i = resto.indexOf('\n');
+        if (i < 0) return { para: resto.trim(), msg: '' };
+        return { para: resto.slice(0, i).trim(), msg: resto.slice(i + 1).replace(/\s*\n\s*/g, ' ').trim() };
     }
     // Un texto con /bug, /mejora o /mensaje (completo) deja de ser pendiente: a qué categoría va, con qué texto y qué aviso.
     function comoOtra(texto) {
@@ -237,7 +243,7 @@
             if (conCola) encolar({ tipo: 'crear', fila: { id: nuevoId(), ...fila, semanas_pendiente: 0, hoy: null, completado_en: null, padre_id: null, created_at: new Date().toISOString() } });
             else if ((await sb.from('pendientes').insert(fila)).error) { aviso(otra.error); return null; }
             aviso(otra.aviso);
-            return null;
+            return { otra: otra.categoria, aviso: otra.aviso };   // no es pendiente: no entra a la lista
         }
         if (conCola) {
             const fila = { id: nuevoId(), contexto_id, sesion_id: sesion_id || null, categoria: CAT, texto, estado: 'activo',
@@ -574,13 +580,6 @@
             const q = yo();
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                // /mensaje (deuda DD): mientras falte el mensaje, Enter baja de línea (destinatario ⏎ mensaje ⏎).
-                const pm = partesMensaje(txt.value);
-                if (pm && !pm.msg) {
-                    txt.setRangeText('\n', txt.selectionStart, txt.selectionEnd, 'end');
-                    crecer(txt); guardarTexto(p.id, txt, false);
-                    return;
-                }
                 // En un subpendiente con texto, Enter crea el siguiente.
                 if (q.padre_id && txt.value.trim() && filas.has(q.padre_id)) { guardarTexto(p.id, txt, true); agregarHijo(L, filas.get(q.padre_id)); return; }
                 txt.blur(); return;
@@ -679,8 +678,24 @@
     const ro = 'ResizeObserver' in window
         ? new ResizeObserver(ents => ents.forEach(e => e.target.querySelectorAll('.pd-txt').forEach(crecer))) : null;
 
+    // Desde un texto del editor de bloques (deuda DE): /bug, /mejora y /msj quedan con el curso y la clase de origen;
+    // un pendiente va a la clase siguiente (despuesDe: la fecha de esa clase) o desde una fecha (desde: una nota).
+    // Sin curso o en General: sin clase. Devuelve { ok, aviso } para mostrarlo en la página.
+    async function desdeTexto(texto, { cid = null, sesionId = null, general = false, despuesDe = null, desde = null } = {}) {
+        try {
+            if (comoOtra(texto)) {
+                const r = await crear({ contexto_id: cid, sesion_id: sesionId, texto });
+                return r ? { ok: true, aviso: r.aviso } : { ok: false, aviso: 'No se pudo anotar — revisa la conexión.' };
+            }
+            const destino = !cid || general ? { contexto_id: cid, sesion_id: null } : await proximaClase(cid, despuesDe ? { despuesDe } : desde ? { desde } : {});
+            const r = await crear({ ...destino, texto });
+            if (!r) return { ok: false, aviso: 'No se pudo crear el pendiente — revisa la conexión.' };
+            return { ok: true, aviso: destino.fecha ? `Pendiente para la clase del ${fechaCorta(destino.fecha)} ✓` : 'Pendiente creado ✓' };
+        } catch (_) { return { ok: false, aviso: 'No se pudo crear el pendiente — revisa la conexión.' }; }
+    }
+
     window.Pendientes = {
-        conectar, cargar, lista, guardarTodo, crear, cambiar, borrar, restaurar, proximaClase, hoyISO, fechaCorta,
+        conectar, cargar, lista, guardarTodo, crear, cambiar, borrar, restaurar, proximaClase, hoyISO, fechaCorta, desdeTexto,
         get: id => filas.get(id), restaurarCopia, subirCola, enCola, alCola: fn => { avisarCola = fn; },
         COLS, CAT,
     };

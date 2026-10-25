@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════
 // Mensajes — qué decirle a quién (deuda DD, 2026-10-24)
-// Se anotan escribiendo "/mensaje destinatario ⏎ mensaje ⏎" en cualquier pendiente (comun/pendientes.js):
+// Se anotan con "/msj destinatario: mensaje" (o /mensaje) en un pendiente o en el editor de bloques (deuda DE):
 // quedan en la tabla `pendientes`, categoría 'mensaje', texto "destinatario\nmensaje" (con el curso y la
 // clase donde se escribió). Aquí se ven agrupados por persona; ✓ Dado los deja en gris y se dejan de ver
 // a las 2 semanas, como los pendientes. Al instante entre equipos (Realtime de `pendientes`).
@@ -110,7 +110,7 @@
             </div>`;
         }).join('') : `<div class="msj-vacio">No hay mensajes por dar.</div>`;
         L.caja.innerHTML = `<div class="msj">${cuerpo}
-            <p class="msj-ayuda">Escribe <b>/mensaje</b> en cualquier pendiente: primero a quién, Enter, el mensaje y Enter.</p>
+            <p class="msj-ayuda">Escribe <b>/msj a quién: mensaje</b> en cualquier pendiente o en la bitácora, y Enter.</p>
             <div class="msj-aviso"></div></div>`;
         if (L.op.alCambiar) { try { L.op.alCambiar({ activos, personas }); } catch (_) {} }
     }
