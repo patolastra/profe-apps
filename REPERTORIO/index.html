@@ -5467,7 +5467,8 @@ function entPitchSalida() {
 }
 function entAplicarVolumen() {
     if (ESPEJO) return;
-    const n = Volumen.nivel(), st = Volumen.estado();
+    // En el celular (DG) suena a todo volumen: se maneja con los botones del teléfono.
+    const n = MOVIL ? 1 : Volumen.nivel(), st = MOVIL ? { v: 100, mudo: false } : Volumen.estado();
     try { entAudio().volume = n; } catch (_) {}
     if (entPitchVol) entPitchVol.gain.value = n;
     try { RITMO_UI.volumen(n); } catch (_) {}
@@ -5673,6 +5674,8 @@ function abrirEntrenador(songId) {
 }
 
 function cerrarEntrenador() {
+    // Celular (DG): ← del Entrenador = atrás del teléfono, así el historial queda en orden (popstate lo cierra).
+    if (MOVIL && !movilCerrando && history.state?.movil === 'cancion') { history.back(); return; }
     // Entrenador mínimo: la copia de la Pizarra se congela en la letra (no recibe "cerrado"); el Planificador
     // decide después si la suelta o la deja a la vista (deuda BU).
     if (MINI) espejoCongelado = true;
@@ -8705,6 +8708,9 @@ const ESPEJO     = new URLSearchParams(location.search).get('espejo') === '1';
 // proyecta la letra en la Pizarra al abrir (el mismo espejo de "📽️ Pizarra").
 const MINI       = new URLSearchParams(location.search).get('mini') === '1';
 if (MINI) document.body.classList.add('mini');
+// Entrenador en el celular, docente (deuda DG): ?movil=1 (ver más abajo).
+const MOVIL = new URLSearchParams(location.search).get('movil') === '1';
+if (MOVIL) document.body.classList.add('movil');
 const ESPEJO_KEY = 'profe_espejo_entrenador';
 const espejoCanal = ('BroadcastChannel' in window) ? new BroadcastChannel('profe-espejo-entrenador') : null;
 let espejoOn = false, espejoTimer = null;
@@ -9476,8 +9482,6 @@ TiempoReal.conectar(sb);
 // ?movil=1: pantalla de cursos → canciones del curso (su sesión) → el Entrenador en grande, sin edición.
 // ?movil=1&ctx=NOMBRE: parte en las canciones de ese curso (el celular lo pide así con la clase en curso).
 // Deslizar ← → sobre la letra cambia de canción. ← del Entrenador vuelve a la lista de canciones.
-const MOVIL = new URLSearchParams(location.search).get('movil') === '1';
-if (MOVIL) document.body.classList.add('movil');
 let movilCurso = null;   // id del contexto cuya lista de canciones se ve
 function movilSesionDe(cid) { return sesiones.find(s => s.contexto_id === cid && (s.canciones || []).length); }
 function movilPintar() {
@@ -9491,21 +9495,28 @@ function movilPintar() {
         const pos = n => { const i = ORDEN.indexOf(n); return i < 0 ? 100 : i; };
         const cursos = contextosDB.filter(c => movilSesionDe(c.id)).sort((a, b) => pos(a.nombre) - pos(b.nombre) || a.nombre.localeCompare(b.nombre));
         el.innerHTML = `<div class="mi-cab"><a href="../MOVIL/index.html" aria-label="Volver">←</a><span class="mi-tit">🎵 Entrenador</span></div>
-            <div class="mi-lista">${cursos.length ? cursos.map(c => `<button class="mi-it" data-c="${escH(c.id)}"><span class="mi-ico">${escH(ico(c.nombre))}</span>
+            <div class="mi-lista">${cursos.length ? cursos.map(c => `<button class="mi-it" data-c="${escH(c.id)}">
                 <span>${escH(info(c.nombre))}</span><span class="mi-n">${movilSesionDe(c.id).canciones.length}</span></button>`).join('')
                 : '<div class="mi-vacio">No hay cursos con canciones.</div>'}</div>`;
-        el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { movilCurso = b.dataset.c; movilPintar(); });
+        el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { movilCurso = b.dataset.c; history.pushState({ movil: 'curso' }, ''); movilPintar(); });
         return;
     }
     const c = contextosDB.find(x => x.id === movilCurso), s = movilSesionDe(movilCurso);
     const items = (s?.canciones || []).map(it => ({ it, song: canciones.find(x => x.id === it.cancion_id) })).filter(x => x.song);
-    el.innerHTML = `<div class="mi-cab"><button type="button" class="mi-volver" aria-label="Cursos">←</button><span class="mi-tit">${escH(ico(c?.nombre))} ${escH(info(c?.nombre || ''))}</span></div>
+    el.innerHTML = `<div class="mi-cab"><button type="button" class="mi-volver" aria-label="Cursos">←</button><span class="mi-tit">${escH(info(c?.nombre || ''))}</span></div>
         <div class="mi-lista">${items.length ? items.map(({ it, song }) => `<button class="mi-it" data-s="${escH(song.id)}"><span class="mi-ico">${(song.assets || []).some(a => a.tipo === 'audio') ? '🎵' : '📄'}</span>
             <span>${escH(song.nombre)}<span class="mi-sub">${escH(song.artista || '')}</span></span></button>`).join('')
             : '<div class="mi-vacio">Este curso no tiene canciones.</div>'}</div>`;
-    el.querySelector('.mi-volver').onclick = () => { movilCurso = null; movilPintar(); };
-    el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => practicarSesion(s.id, b.dataset.s));
+    el.querySelector('.mi-volver').onclick = () => history.back();
+    el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { history.pushState({ movil: 'cancion' }, ''); practicarSesion(s.id, b.dataset.s); });
 }
+// Atrás del teléfono (o ← de la pantalla): de la canción a la lista de canciones, de ahí a los cursos y recién
+// entonces al inicio del celular. Cada pantalla deja un paso en el historial.
+if (MOVIL) window.addEventListener('popstate', () => {
+    if (document.getElementById('entrenador-overlay').classList.contains('visible')) { movilCerrando = true; cerrarEntrenador(); movilCerrando = false; return; }
+    if (movilCurso) { movilCurso = null; movilPintar(); }
+});
+let movilCerrando = false;
 if (MOVIL) {
     // Deslizar ← → sobre la letra: canción siguiente / anterior de la sesión.
     let x0 = null, y0 = null;

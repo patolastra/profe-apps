@@ -6019,3 +6019,10 @@ opciones propuestas eligió solo las citas a apoderados).*
   clase con `&ctx=` del curso en curso). Probado solo el recorrido: 12 cursos → 2 canciones → Entrenador abierto con la
   lista lateral oculta. **Falta:** revisar cómo se ve la letra y la barra en el teléfono (capturas), probar deslizar y
   el audio en un celular real; luego la etapa 2 (alumnos).
+- **Prueba del PO en su celular (2026-10-25) y arreglos:** (1) la flecha atrás del teléfono sacaba al inicio del
+  celular: ahora cada pantalla deja un paso en el historial (cursos → canciones → canción); atrás y la ← de la pantalla
+  vuelven un paso. (2) Ícono del curso repetido (ctxDisplay ya lo trae): fuera el extra. (3) **Los audios no sonaban**:
+  el inicio del celular guardaba en el equipo el volumen que le informaba el PC (p. ej. en silencio) y el Entrenador del
+  mismo celular lo tomaba como propio. Ahora el control del celular no lo guarda y el Entrenador en el celular suena a
+  todo volumen (se maneja con los botones del teléfono). Probado con el volumen guardado "en silencio": audio a 1, sin
+  silenciar; atrás: canción → lista de Segundo → cursos; ← de pantalla igual. Captura del Entrenador en el teléfono.

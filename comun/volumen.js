@@ -31,7 +31,8 @@
 
     function nivel() { return est.mudo ? 0 : est.v / 100; }
     function estado() { return { ...est }; }
-    function guardar() { try { localStorage.setItem(KEY, JSON.stringify(est)); } catch (_) {} }
+    // El celular (control) no guarda el nivel del PC: si no, el Entrenador del mismo celular lo tomaría como propio.
+    function guardar() { if (control) return; try { localStorage.setItem(KEY, JSON.stringify(est)); } catch (_) {} }
     function poner(c, desdeRed) {
         est = { v: lim(c.v ?? est.v), mudo: c.mudo ?? est.mudo };
         if (c.v != null && c.mudo == null && est.v > 0) est.mudo = false;   // subir el volumen quita el silencio
