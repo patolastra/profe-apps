@@ -715,6 +715,10 @@
             }
         });
         // Clic derecho = menú del pendiente (solo PC; el celular tiene sus gestos).
+        // El clic derecho no entra a escribir (PO 2026-10-25): solo abre el menú.
+        if (!L.op.tactil && !L.op.sugerencias) fila.addEventListener('mousedown', e => {
+            if (e.button === 2 && e.target === txt && document.activeElement !== txt) e.preventDefault();
+        });
         if (!L.op.tactil && !L.op.sugerencias) fila.addEventListener('contextmenu', e => {
             if (e.target.closest('.pd-acc')) return;
             e.preventDefault();

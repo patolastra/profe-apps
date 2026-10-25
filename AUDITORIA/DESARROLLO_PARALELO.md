@@ -6112,3 +6112,4 @@ opciones propuestas eligió solo las citas a apoderados).*
   cierra sus 2.
 - **Ajuste (PO 2026-10-25):** al pasar el mouse sobre un pendiente ya no aparece el cuadro del texto ni el puntero de
   escribir; se edita al hacer clic (ahí sí se marca el cuadro azul). Vale para todas las listas.
+- **Ajuste (PO 2026-10-25):** el clic derecho sobre un pendiente ya no entra a escribir: solo abre el menú (DJ).
