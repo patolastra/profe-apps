@@ -16,6 +16,8 @@
     <link rel="stylesheet" href="../comun/pendientes.css">
     <link rel="stylesheet" href="../comun/mensajes.css">
     <script src="../comun/pendientes.js"></script>
+    <link rel="stylesheet" href="../comun/apoderados.css">
+    <script src="../comun/apoderados.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
         :root {
@@ -94,7 +96,37 @@
         .vistas button.activa { background: var(--card); color: var(--text); }
         #hoy-n { color: var(--yellow); font-weight: 700; }
         #hoy-n:empty { display: none; }
-        #v-hoy[hidden], #v-todos[hidden], #sug[hidden] { display: none; }
+        #v-hoy[hidden], #v-todos[hidden], #sug[hidden], #v-msj[hidden], #v-apo[hidden], #citas-hoy[hidden] { display: none; }
+        #apo-n { color: var(--yellow); font-weight: 700; }
+        #apo-n:empty { display: none; }
+        #citas-hoy { background: #0f2238; border: 1px solid #1d4ed8; border-radius: 14px; padding: 8px 12px 10px; margin-bottom: 10px; }
+        #citas-hoy .tit { font-size: 0.75rem; font-weight: 700; color: #93c5fd; margin-bottom: 6px; }
+        /* 👪 Apoderados en el celular (deuda DF): colores oscuros y botones para el dedo */
+        #v-apo .panel, #citas-hoy { --ap-borde: var(--border); }
+        .ap-lista { color: var(--text); font-size: 0.95rem; gap: 8px; }
+        .ap-sec { color: var(--muted); font-size: 0.72rem; }
+        .ap-sec-por { color: #fbbf24; } .ap-sec-cit { color: #93c5fd; }
+        button.ap-sec:hover { color: var(--text); }
+        .ap-fila { background: var(--card); border-color: var(--border); padding: 10px 12px; border-radius: 12px; }
+        .ap-citado.ap-vencida { background: #2a1416; }
+        .ap-atendido { background: var(--surface); color: var(--muted); }
+        .ap-fecha { background: #172a4a; color: #93c5fd; font-size: 0.82rem; padding: 4px 9px; }
+        .ap-vencida .ap-fecha { background: #3b1518; color: #fca5a5; }
+        .ap-btn { background: var(--surface); border-color: var(--border); color: var(--text); font-size: 0.85rem; padding: 7px 12px; border-radius: 10px; }
+        .ap-btn:hover { background: var(--surface); }
+        .ap-btn.ap-prim { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .ap-del { opacity: .6; color: var(--muted); font-size: 0.95rem; padding: 4px 8px; }
+        .ap-motivo, .ap-acuerdos, .ap-motivo-n { font-size: 0.92rem; }
+        .ap-motivo:focus, .ap-acuerdos:focus, .ap-motivo-n:focus, .ap-acuerdos, .ap-motivo-n { background: var(--bg); border-color: var(--border); color: var(--text); }
+        .ap-dt, .ap-accion-txt, .ap-buscar { background: var(--bg); border-color: var(--border); color: var(--text); font-size: 0.92rem; padding: 8px 10px; color-scheme: dark; }
+        .ap-add { color: #93c5fd; font-size: 0.92rem; padding: 6px 0; }
+        .ap-form { background: var(--surface); border-color: #1d4ed8; }
+        .ap-cur { background: var(--card); border-color: var(--border); font-size: 1.2rem; padding: 4px 8px; }
+        .ap-cur.activo { background: #172a4a; border-color: #2563eb; }
+        .ap-sug { color: var(--text); font-size: 0.92rem; padding: 8px; }
+        .ap-sug:hover { background: var(--card); }
+        .ap-cuando-at, .ap-vacio { color: var(--muted); }
+        .ap-aviso { color: #fbbf24; }
         .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 6px 12px 10px 16px; }
         #sug { background: #2a2210; border: 1px solid #5c4813; border-radius: 14px; padding: 8px 12px 4px; margin-bottom: 10px; }
         #sug .tit { font-size: 0.75rem; font-weight: 700; color: #fcd34d; margin-bottom: 2px; }
@@ -229,14 +261,17 @@
                 <button type="button" data-vista="hoy">☀️ Hoy <span id="hoy-n"></span></button>
                 <button type="button" data-vista="todos">Todos</button>
                 <button type="button" data-vista="msj" title="Mensajes por dar">✉️ <span id="msj-n"></span></button>
+                <button type="button" data-vista="apo" title="Citas a apoderados">👪 <span id="apo-n"></span></button>
             </div>
         </div>
         <div id="v-hoy" hidden>
+            <div id="citas-hoy" hidden><div class="tit">👪 Llamadas y citas de hoy</div><div id="citas-hoy-lista"></div></div>
             <div id="sug" hidden><div class="tit">De días anteriores · ¿siguen para hoy?</div><div id="sug-lista"></div></div>
             <div class="panel"><div id="hoy-lista"></div></div>
         </div>
         <div id="v-todos" hidden><div class="panel" id="grupos"></div></div>
         <div id="v-msj" hidden><div class="panel" id="msj-lista"></div></div>
+        <div id="v-apo" hidden><div class="panel" id="apo-lista"></div></div>
         <div id="aviso-gesto">Desliza → ☀️ Hoy · ← borrar · mantén presionado y arrastra sobre otro para hacerlo subpendiente</div>
     </div>
 </section>
@@ -404,6 +439,7 @@ function mostrarVista(v) {
     $('v-hoy').hidden = v !== 'hoy';
     $('v-todos').hidden = v !== 'todos';
     $('v-msj').hidden = v !== 'msj';
+    $('v-apo').hidden = v !== 'apo';
     document.querySelectorAll('.vistas button').forEach(b => b.classList.toggle('activa', b.dataset.vista === v));
 }
 document.querySelector('.vistas').addEventListener('click', e => {
@@ -501,6 +537,10 @@ async function iniciarPendientes() {
         curso: cid => { const c = contextos.find(x => x.id === cid); return c ? { texto: typeof ctxMinimo === 'function' ? ctxMinimo(c.nombre) : c.nombre, titulo: c.nombre } : null; },
         alCambiar: n => { $('msj-n').textContent = n.activos || ''; },
     });
+    // 👪 Citas a apoderados (deuda DF): las de hoy arriba de ☀ Hoy y todas en su pestaña, como en el Dashboard.
+    Apoderados.conectar(sb);
+    Apoderados.lista($('citas-hoy-lista'), { soloHoy: true, alCambiar: n => { $('citas-hoy').hidden = !n.citados; } });
+    Apoderados.lista($('apo-lista'), { alCambiar: n => { $('apo-n').textContent = n.total || ''; } });
     const habiaCopia = Pendientes.restaurarCopia();
     armarListas();
     if (habiaCopia) elegirVista();
@@ -512,7 +552,7 @@ async function iniciarPendientes() {
 }
 // Abre en Hoy si ya hay algo para hoy (o sugerencias); si no, en Todos.
 function elegirVista() {
-    const hay = $('hoy-lista').querySelector('.pd-activos').children.length || !$('sug').hidden;
+    const hay = $('hoy-lista').querySelector('.pd-activos').children.length || !$('sug').hidden || !$('citas-hoy').hidden;
     mostrarVista(hay ? 'hoy' : 'todos');
 }
 

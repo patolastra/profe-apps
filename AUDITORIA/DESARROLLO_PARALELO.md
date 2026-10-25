@@ -5979,3 +5979,19 @@ personas específicas".*
   igual); "/" → menú con "Anotar"; Pendiente → escribe "/pdte "; Título 1 → la "/" se borra (captura del menú). Envío
   real: `/msj Prueba Claude: …` → ✉️ Mensajes; un pendiente de Segundo desde el 22/10 → clase del jue 29/10; ambos
   borrados. Cursos y Cursos del celular cargan sin errores. No probado: escribir con el teclado real del celular.
+
+### DF. Celular — 👪 citas a apoderados
+*Origen: PO 2026-10-24 ("hemos desarrollado algunas cosas… deberían poder reflejarse también en la PWA móvil"; de las
+opciones propuestas eligió solo las citas a apoderados).*
+- **Auditoría:** el celular ya tenía ✉️ (sin clase), 🔊 (en clase) y los comandos en pendientes y Cursos. Las citas a
+  apoderados (`comun/apoderados.js`, BK) solo estaban en el PC (Dashboard, Plan, Cursos). La pieza funciona con toques;
+  sus estilos son claros (el celular es oscuro). Sin señal no guarda (avisa), como en el PC.
+- **Decisión del PO (2026-10-24):** llevar las citas a apoderados al celular.
+- **Implementación:** inicio del celular sin clase: pestaña 👪 (todas, con su número) y "👪 Llamadas y citas de hoy"
+  arriba de ☀ Hoy (abre en Hoy si hay); estilos oscuros y botones más grandes para el dedo (solo en el celular, sin
+  tocar la pieza); `sw-movil.js` copia v9 con `apoderados.js` / `.css`.
+- **Lugares de uso (regla 11):** `apoderados.js` gana un lugar (celular); LUGARES_DE_USO actualizado.
+- **Prueba (local, tamaño celular; una cita de prueba creada y borrada):** sin citas, la pestaña 👪 muestra "Sin citas
+  pendientes" y ＋ Cita; con una llamada para hoy, el celular abrió en ☀ Hoy con "👪 Llamadas y citas de hoy" arriba
+  (No contestó / ✓ Atendido) y la pestaña 👪 con 1. Captura. Observado (ya existía, no se tocó): en "De días anteriores"
+  el texto largo queda en una columna angosta.

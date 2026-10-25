@@ -42,7 +42,7 @@
 |---|---|
 | `editor-bloques.js` | Cursos (curso y ☀ Hoy) · Plan: Actividades, ✍🏼 Bitácora, bitácora por actividad, Historial · celular Cursos (`tactil`) · Cuaderno · Pizarra (solo lectura) |
 | `pendientes.js` | Dashboard (☀ Hoy y Todos) · Plan (pestaña Pendientes) · ✍🏼 Bitácora (Pendientes → fecha) · Cursos (columna ☑ Pendientes, curso y Hoy) · celular inicio |
-| `apoderados.js` | Dashboard (👪 y citas de hoy) · Plan (👪) · Cursos |
+| `apoderados.js` | Dashboard (👪 y citas de hoy) · Plan (👪) · Cursos · celular sin clase (👪 y citas de hoy) |
 | `asistencia.js` | Plan (Pasar lista) · Libro · Pizarra (espejo) · celular Evaluar · Workspace |
 | `libro-proyeccion.js` | Libro (📽️ Proyectar) · Pizarra · Workspace |
 | `cuaderno.js` | Plan (📔) · Cursos (📔 Cuaderno) · Pizarra (espejo) |
