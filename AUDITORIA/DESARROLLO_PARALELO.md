@@ -6051,3 +6051,8 @@ opciones propuestas eligió solo las citas a apoderados).*
   versión en la dirección (`&v=`), así siempre llega la última. (3) **Con Pitch no sonaba**: con el tono cambiado el
   sonido sale por otro camino (`entPitchSalida`) que seguía usando el volumen guardado en el celular (en silencio);
   ahora todo el Entrenador del celular usa `entNivelVolumen()` = 1, y ▶ reanuda ese camino en el mismo toque.
+- **Confirmado por el PO (2026-10-25):** Pitch y pestañas funcionan en su celular. **Ajustes:** letra de **tamaño fijo**
+  en el celular (24 px, `ENT_MOVIL_FS`; el verso largo se parte en dos líneas) en vez de achicarla para que quepa el
+  verso más largo; el nombre y artista ya no se repiten (queda la portada de la letra, sale el de la barra); sin
+  📖 Lectura en el celular (botón fuera y apagada aunque haya quedado encendida). Probado con "Si Antes Te Hubiera
+  Conocido" (Séptimo): letra a 24 px, versos partidos, barra solo con ←, tema y Letra. Captura.
