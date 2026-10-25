@@ -5817,3 +5817,21 @@ Pizarra: botón 🎲 al azar + revisar que se vean todas las canciones".*
   pasa a la letra). El estado del sorteo viaja en el espejo (`sorteo`) y la Pizarra lo anima con su propio reloj.
 - **Prueba CX (local):** Séptimo: recorrió 13 canciones, cayó en la elegida (late), la abrió, cerró la lista y el
   segundo sorteo no repitió. Copia de la Pizarra con 15 tarjetas: recorrido en amarillo y la elegida latiendo, visible.
+
+### CY. Libro — nombre sin apellido cuando el repetido se retiró · "OA:" como objetivo
+*Origen: bitácora 08/10 Séptimo (dos Agustina, una se retiró) y PO 2026-10-24. Notion: "Libro: nombre con apellido
+aunque ya quede un solo estudiante con ese nombre" y "Objetivo: \"OA:\" funciona igual que \"O:\"".*
+- **Auditoría:** el Libro contaba los nombres repetidos con toda la matrícula del año, retirados incluidos
+  (`cargarNombresRepes`). Pasar lista, Evaluar del celular y el tablero de Participación (abierta) ya contaban solo a los
+  activos. El objetivo se reconocía solo con "O:" (`EditorBloques`, opción `objetivo`; "📥 Traer lo del mes" de
+  Planificaciones).
+- **Decisión del PO (2026-10-24):** si hay dos nombres iguales se muestran con apellido; si uno se retira de la escuela,
+  la otra se muestra sin apellido. "OA:" funciona igual que "O:".
+- **Implementación:** `cargarNombresRepes` cuenta solo la matrícula activa (talleres: pertenencias, sin cambio).
+  `esObjetivo` acepta "O:" u "OA:"; en Planificaciones, "OA:" llega al relato como "Objetivo de aprendizaje (OA)". Texto
+  de ayuda del Plan actualizado.
+- **Lugares de uso (regla 11):** nombres → Libro (todas sus vistas usan `nombresRepes`); Pasar lista, Evaluar y
+  Participación ya seguían la regla. Objetivo → actividades del Plan (editar y vista de clase, misma pieza) y
+  Planificaciones.
+- **Prueba:** Séptimo: antes salían con apellido "Agustina" y "Camila"; ahora solo "Camila" (dos activas). Editor:
+  "OA: …" y "O: …" destacados, "OAX: …" no.

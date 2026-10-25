@@ -15,7 +15,7 @@
 //   ed.texto() · ed.poner(texto) · ed.tieneAlgo() · ed.enfocar('inicio'|'fin') · ed.guardado(isoFecha)
 //   EditorBloques.zona(elemento)   → ahí se puede arrastrar un marco para seleccionar bloques
 //   EditorBloques.html(texto, op)  → vista de solo lectura (HTML); op.objetivo como en crear
-//   objetivo: un párrafo que empieza con "O:" es el objetivo y se destaca (Actividades del Plan, deuda BP)
+//   objetivo: un párrafo que empieza con "O:" (o "OA:") es el objetivo y se destaca (Actividades del Plan, deuda BP)
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
     'use strict';
@@ -167,7 +167,7 @@
     }
 
     // ── Bloques en pantalla ─────────────────────────────────────────────
-    const esObjetivo = b => b.t === 'p' && /^\s*O:/.test(mdAPlano(b.x));
+    const esObjetivo = b => b.t === 'p' && /^\s*OA?:/.test(mdAPlano(b.x));   // "O:" u "OA:" (PO 2026-10-24)
     function htmlBloque(b, num, editable, vacio, op) {
         let marca = '';
         if (b.t === 'ul')   marca = '<span class="eb-marca">•</span>';
