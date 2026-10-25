@@ -20,6 +20,8 @@
     <script src="../comun/pendientes.js"></script>
     <link rel="stylesheet" href="../comun/apoderados.css">
     <script src="../comun/apoderados.js"></script>
+    <link rel="stylesheet" href="../comun/mensajes.css">
+    <script src="../comun/mensajes.js"></script>
     <script src="../comun/tiempo-real.js"></script>
     <link rel="stylesheet" href="../comun/cuaderno.css">
     <script src="../comun/cuaderno.js"></script>
@@ -264,7 +266,8 @@
             color: var(--muted); padding: 4px 12px; border-radius: 6px;
         }
         .dash-pend-vistas button.activa { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
-        #dash-pend-body[hidden], #dash-pend-hoy[hidden], #dash-pend-apo[hidden] { display: none; }
+        #dash-pend-body[hidden], #dash-pend-hoy[hidden], #dash-pend-apo[hidden], #dash-pend-msj[hidden] { display: none; }
+        #dash-pend-msj { padding: 4px 2px 12px; }
         #dash-apo-n { font-weight: 700; color: #b45309; }
         #dash-apo-n:empty { display: none; }
         /* Citas a apoderados de hoy (BK), arriba de la lista Hoy */
@@ -1422,6 +1425,7 @@
                         <button type="button" data-vista="hoy">☀️ Hoy <span id="dash-hoy-n"></span></button>
                         <button type="button" data-vista="todos">Todos</button>
                         <button type="button" data-vista="apo" title="Citas a apoderados">👪 Apoderados <span id="dash-apo-n"></span></button>
+                        <button type="button" data-vista="msj" title="Mensajes por dar (/mensaje en cualquier pendiente)">✉️ <span id="dash-msj-n"></span></button>
                     </div>
                 </div>
                 <div id="dash-pend-hoy" hidden>
@@ -1437,6 +1441,7 @@
                 </div>
                 <div id="dash-pend-body"></div>
                 <div id="dash-pend-apo" hidden></div>
+                <div id="dash-pend-msj" hidden></div>
             </aside>
         </div>
     </div>
@@ -1612,6 +1617,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ClaseVivo.conectar(sb);           // clase en curso compartida con otros equipos (AM)
         Pendientes.conectar(sb);          // pendientes al instante en todo el sistema (BB)
         Apoderados.conectar(sb);          // citas a apoderados (BK)
+        Mensajes.conectar(sb);            // ✉️ mensajes por dar (DD)
         TiempoReal.conectar(sb);          // bitácora al instante entre equipos (BE)
         Asistencia.iniciar(sb);           // Pasar lista: listas que quedaron sin subir
         await Promise.all([loadContextos(), loadHorario(), cargarAnioActivo()]);
@@ -2082,12 +2088,14 @@ async function cierreSemanalPendientes() {
 // ＋ en cada grupo agrega a la próxima clase de ese curso (hoy incluida).
 let dashPendListas = [];
 let dashApoListas = [];   // citas a apoderados (BK)
-let dashPendVista = null;   // 'hoy' | 'todos' (se elige al abrir; luego la cambia el profe)
+let dashPendVista = null;
+let dashMsjLista = null;   // ✉️ Mensajes (deuda DD)   // 'hoy' | 'todos' (se elige al abrir; luego la cambia el profe)
 function mostrarVistaPend(v) {
     dashPendVista = v;
     document.getElementById('dash-pend-hoy').hidden = v !== 'hoy';
     document.getElementById('dash-pend-body').hidden = v !== 'todos';
     document.getElementById('dash-pend-apo').hidden = v !== 'apo';
+    document.getElementById('dash-pend-msj').hidden = v !== 'msj';
     document.querySelectorAll('.dash-pend-vistas button').forEach(b => b.classList.toggle('activa', b.dataset.vista === v));
 }
 document.querySelector('.dash-pend-vistas')?.addEventListener('click', e => {
@@ -2181,6 +2189,12 @@ function renderPendientesDashboard() {
             alCambiar: n => { document.getElementById('dash-apo-n').textContent = n.total || ''; },
         }),
     ];
+    // ✉️ Mensajes (deuda DD): qué decirle a quién, anotado con /mensaje en cualquier pendiente.
+    dashMsjLista?.destruir();
+    dashMsjLista = Mensajes.lista(document.getElementById('dash-pend-msj'), {
+        curso: cid => cid && contextos[cid] ? cursoDe({ contexto_id: cid }) : null,
+        alCambiar: n => { document.getElementById('dash-msj-n').textContent = n.activos || ''; },
+    });
     if (!dashPendVista) dashPendVista = cajaHoy.querySelector('.pd-activos').children.length || nSug || nCitasHoy ? 'hoy' : 'todos';
     mostrarVistaPend(dashPendVista);
     grupo(ctxIcono('GENERAL') + ' Generales', p => p.contexto_id == null || p.contexto_id === GENERAL_ID, GENERAL_ID);

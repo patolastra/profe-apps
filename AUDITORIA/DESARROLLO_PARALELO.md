@@ -5922,3 +5922,28 @@ celular".*
   la canción (audio a 0, sin verso activo, letra arriba) y ⏭ al primer verso de la estrofa siguiente a la del verso
   activo (`entIrAlComienzo`, `entSiguienteEstrofa`). Probado (La Señora Interesante): ⏭ → verso 0 (0,1 s), ⏭ → verso 5,
   estrofa 2 (17,6 s); ⏮ → 0,0 s sin verso activo.
+
+### DD. ✉️ Mensajes — qué decirle a quién (/mensaje en cualquier pendiente)
+*Origen: bitácora 22/10 Séptimo ("iterar mensajes a profes") y PO 2026-10-24. Notion: "Mensajes pendientes para
+personas específicas".*
+- **Auditoría:** los pendientes (`comun/pendientes.js`) ya reconocen comandos al comienzo: `/bug` y `/mejora` sacan
+  el texto de la lista y lo anotan en 🐞 Mejoras (categoría `mejora_app`), recién al terminar de escribir (Enter o
+  salir). El cuadro del pendiente es de varias líneas; hoy Enter termina.
+- **Decisión del PO (2026-10-24):** `/mensaje` en cualquier pendiente: primero el destinatario, Enter, el mensaje y
+  Enter final. Se ven en el **Dashboard** (pestaña ✉️, junto a Hoy / Todos / Apoderados) y en el **celular sin clase**.
+- **Diseño:** sin cambios en Supabase: misma tabla `pendientes`, categoría `mensaje`, texto = "destinatario⏎mensaje"
+  (conserva el curso y la clase donde se escribió). Pieza `comun/mensajes.js` (`Mensajes`) + `comun/mensajes.css`:
+  lista agrupada por persona, ✓ Dado (queda en gris y se deja de ver a las 2 semanas, como los pendientes), ✕ borrar,
+  al instante entre equipos (Realtime de `pendientes`, ya activo). En el pendiente, con `/mensaje` el primer Enter baja
+  de línea y el segundo lo envía; si queda sin mensaje, sigue como pendiente (no se pierde).
+- **Lugares de uso (regla 11):** todo cuadro de pendientes (Dashboard, Plan, Bitácora, Cursos, celular) por la pieza
+  compartida; la lista en Dashboard y celular (sin clase).
+- **Implementación (2026-10-24):** `pendientes.js`: `partesMensaje` / `comoOtra` (una sola salida para /bug, /mejora y
+  /mensaje, al crear y al cambiar); con `/mensaje` y sin mensaje aún, Enter baja de línea. `comun/mensajes.js` +
+  `mensajes.css`: lista por persona (pendientes primero, con su número), curso y fecha de origen al margen, ✓ Dado / ↺,
+  ✕ borrar, copia en el equipo para verla sin señal, al instante por Realtime. Dashboard: pestaña ✉️ con el número por
+  dar. Celular (sin clase): tercera pestaña ✉️; `sw-movil.js` copia v8 con las dos piezas nuevas.
+- **Prueba (local; un mensaje de prueba en Supabase, borrado al final):** en Generales del Dashboard, "/mensaje Prueba
+  Claude" + Enter bajó de línea; mensaje + Enter (y salir) → aviso "Anotado en ✉️ Mensajes para Prueba Claude.", salió
+  de los pendientes y apareció en ✉️ agrupado ("Prueba Claude 1", 💼 · 24/10); ✓ lo dejó tachado y el número en 0; ↺ lo
+  devolvió; ✕ lo borró (Supabase sin rastro). Celular: pestaña ✉️ sin errores. Captura del Dashboard.

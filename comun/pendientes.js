@@ -214,13 +214,29 @@
         const m = String(texto || '').match(/^\s*\/(bug|mejora)(?![a-záéíóúñ])[\s:.-]*/i);
         return m ? (m[1].toLowerCase() === 'bug' ? '🐞 ' : '✨ ') + String(texto).slice(m[0].length).trim() : null;
     }
-    async function crear({ contexto_id, sesion_id, fecha, texto = '', hoy = null, padre_id = null, resolver = false }) {
+    // ✉️ Mensajes (deuda DD): "/mensaje destinatario⏎mensaje⏎". Mientras se escribe falta el mensaje (msg vacío).
+    const CAT_MENSAJE = 'mensaje';
+    function partesMensaje(texto) {
+        const m = String(texto || '').match(/^\s*\/mensaje(?![a-záéíóúñ])[ \t:.-]*/i);
+        if (!m) return null;
+        const lineas = String(texto).slice(m[0].length).split('\n').map(l => l.trim()).filter(Boolean);
+        return { para: lineas[0] || '', msg: lineas.slice(1).join(' ') };
+    }
+    // Un texto con /bug, /mejora o /mensaje (completo) deja de ser pendiente: a qué categoría va, con qué texto y qué aviso.
+    function comoOtra(texto) {
         const mejora = comoMejora(texto);
-        if (mejora) {
-            const fila = { contexto_id, sesion_id: sesion_id || null, categoria: CAT_MEJORA, texto: mejora, estado: 'activo' };
+        if (mejora) return { categoria: CAT_MEJORA, texto: mejora, aviso: 'Anotado en 🐞 Mejoras de la app.', error: 'No se pudo anotar la mejora — revisa la conexión.' };
+        const m = partesMensaje(texto);
+        if (m && m.para && m.msg) return { categoria: CAT_MENSAJE, texto: m.para + '\n' + m.msg, aviso: `Anotado en ✉️ Mensajes para ${m.para}.`, error: 'No se pudo anotar el mensaje — revisa la conexión.' };
+        return null;
+    }
+    async function crear({ contexto_id, sesion_id, fecha, texto = '', hoy = null, padre_id = null, resolver = false }) {
+        const otra = comoOtra(texto);
+        if (otra) {
+            const fila = { contexto_id, sesion_id: sesion_id || null, categoria: otra.categoria, texto: otra.texto, estado: 'activo' };
             if (conCola) encolar({ tipo: 'crear', fila: { id: nuevoId(), ...fila, semanas_pendiente: 0, hoy: null, completado_en: null, padre_id: null, created_at: new Date().toISOString() } });
-            else if ((await sb.from('pendientes').insert(fila)).error) { aviso('No se pudo anotar la mejora — revisa la conexión.'); return null; }
-            aviso('Anotado en 🐞 Mejoras de la app.');
+            else if ((await sb.from('pendientes').insert(fila)).error) { aviso(otra.error); return null; }
+            aviso(otra.aviso);
             return null;
         }
         if (conCola) {
@@ -242,9 +258,9 @@
     async function cambiar(id, cambios) {
         const p = filas.get(id);
         if (!p) return;
-        const mejora = 'texto' in cambios ? comoMejora(cambios.texto) : null;
-        if (mejora) {   // escrito con /bug o /mejora: sale de la lista y queda en 🐞 Mejoras de la app
-            const pasa = { categoria: CAT_MEJORA, texto: mejora, padre_id: null, hoy: null };
+        const otra = 'texto' in cambios ? comoOtra(cambios.texto) : null;
+        if (otra) {   // escrito con /bug, /mejora o /mensaje: sale de la lista (🐞 Mejoras de la app · ✉️ Mensajes)
+            const pasa = { categoria: otra.categoria, texto: otra.texto, padre_id: null, hoy: null };
             clearTimeout(timers[id]?.t); delete timers[id];
             filas.delete(id);
             avisar({ tipo: 'quitar', id });
@@ -256,9 +272,9 @@
                 else encolar({ tipo: 'cambiar', id, cambios: pasa });
             } else if ((await sb.from('pendientes').update(pasa).eq('id', id)).error) {
                 filas.set(id, p); repintarTodo(); avisar({ tipo: 'poner', p });
-                aviso('No se pudo anotar la mejora — revisa la conexión.'); return;
+                aviso(otra.error); return;
             }
-            aviso('Anotado en 🐞 Mejoras de la app.');
+            aviso(otra.aviso);
             return;
         }
         if (conCola) {
@@ -323,7 +339,7 @@
         const ir = () => {
             const texto = el.value.trim();
             // /bug o /mejora: pasa a 🐞 Mejoras recién al terminar (Enter o salir), no a mitad de escribir
-            if (!ahora && comoMejora(texto)) { timers[id] = { t: null, el }; return; }
+            if (!ahora && (comoMejora(texto) || partesMensaje(texto))) { timers[id] = { t: null, el }; return; }
             delete timers[id];
             if (filas.get(id) && filas.get(id).texto !== texto) cambiar(id, { texto });
         };
@@ -558,6 +574,13 @@
             const q = yo();
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                // /mensaje (deuda DD): mientras falte el mensaje, Enter baja de línea (destinatario ⏎ mensaje ⏎).
+                const pm = partesMensaje(txt.value);
+                if (pm && !pm.msg) {
+                    txt.setRangeText('\n', txt.selectionStart, txt.selectionEnd, 'end');
+                    crecer(txt); guardarTexto(p.id, txt, false);
+                    return;
+                }
                 // En un subpendiente con texto, Enter crea el siguiente.
                 if (q.padre_id && txt.value.trim() && filas.has(q.padre_id)) { guardarTexto(p.id, txt, true); agregarHijo(L, filas.get(q.padre_id)); return; }
                 txt.blur(); return;
