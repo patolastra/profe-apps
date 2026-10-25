@@ -76,8 +76,8 @@
         font-size: 14px; padding: 0 6px; }
 
     /* Bloques */
-    #bloques-wrap { overflow: hidden; flex: 0 0 auto; height: 46%; min-height: 200px; display: flex; border-bottom: 1px solid var(--borde); position: relative; }
-    #filas { flex: 0 0 52px; border-right: 1px solid var(--borde); overflow: hidden; position: relative; background: #131c2e; }
+    #bloques-wrap { overflow: hidden; flex: 1 1 auto; min-height: 160px; display: flex; border-bottom: 1px solid var(--borde); position: relative; }
+    #filas { flex: 0 0 var(--izq, 90px); border-right: 1px solid var(--borde); overflow: hidden; position: relative; background: #131c2e; }
     #filas > div > div { position: absolute; left: 0; right: 0; font-size: 12px; color: var(--tenue); text-align: right;
         padding-right: 6px; display: flex; align-items: center; justify-content: flex-end; }
     #filas > div > div.tonica { color: var(--texto); font-weight: 600; }
@@ -107,7 +107,10 @@
         width: 60px; text-align: center; visibility: hidden; }
 
     /* Pentagrama */
-    #partitura { flex: 1 1 auto; overflow: auto; background: #f8fafc; min-height: 0; }
+    /* Pentagrama en una sola línea, alineado compás a compás con los bloques de arriba */
+    #partitura { flex: 0 0 150px; display: flex; background: #f8fafc; }
+    #part-izq { flex: 0 0 var(--izq, 90px); overflow: hidden; }
+    #part-der { flex: 1; overflow: hidden; position: relative; }
     #partitura svg { display: block; }
 
     #ayuda { flex: 0 0 auto; padding: 6px 12px; font-size: 12.5px; color: var(--tenue); background: var(--panel);
@@ -173,7 +176,7 @@
     <div id="mensaje"></div>
     <div id="precuenta"></div>
 </div>
-<div id="partitura"></div>
+<div id="partitura"><div id="part-izq"></div><div id="part-der"></div></div>
 <div id="ayuda"></div>
 <div id="toast"></div>
 
@@ -544,34 +547,41 @@ function segmentosCompas(c) {
     if (t < fin) seg.push({ t, d: fin - t, n: null });
     return seg;
 }
+const STAVE_Y = 32;
 function pintarPartitura() {
-    const div = document.getElementById('partitura');
-    div.innerHTML = '';
-    if (!window.Vex || !M.notas.length) return;
+    if (!window.Vex) return;
     const VF = Vex.Flow;
-    const W = Math.max(400, div.clientWidth - 16);
-    const nC = totalCompases();
-    const anchoC = 230, extra = 90;
-    const porLinea = Math.max(1, Math.floor((W - extra) / anchoC));
-    const lineas = Math.ceil(nC / porLinea);
-    const altoLinea = 120;
-    const renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
-    renderer.resize(W, lineas * altoLinea + 30);
-    const vctx = renderer.getContext();
     const clave = M.tonica + (M.modo === 'menor' ? 'm' : '');
+    // Columna izquierda: clave, armadura y compás; su ancho es también el de los nombres de las filas
+    const izq = document.getElementById('part-izq');
+    izq.innerHTML = '';
+    const ri = new VF.Renderer(izq, VF.Renderer.Backends.SVG);
+    const sti = new VF.Stave(0, STAVE_Y, 400).addClef('treble').addKeySignature(clave).addTimeSignature(`${M.compas}/4`);
+    sti.setEndBarType(VF.Barline.type.NONE);
+    const ancho = Math.max(64, Math.ceil(sti.getNoteStartX()) + 4);
+    document.documentElement.style.setProperty('--izq', ancho + 'px');
+    sti.setWidth(ancho);
+    ri.resize(ancho, 150);
+    sti.setContext(ri.getContext()).draw();
+
+    // Derecha: cada compás mide lo mismo que arriba y cada figura cae en su casilla
+    const der = document.getElementById('part-der');
+    der.innerHTML = '';
+    const BAR = tpc() * PX;
+    const nC = totalCompases();
+    const rd = new VF.Renderer(der, VF.Renderer.Backends.SVG);
+    rd.resize((nC + 1) * BAR + 40, 150);
+    const vctx = rd.getContext();
+    const ligas = [];
     let previa = null;      // última pieza con nota (para ligar)
-    for (let c = 0; c < nC; c++) {
-        const li = Math.floor(c / porLinea), col = c % porLinea;
-        const primero = col === 0;
-        const anchoLinea = (W - 10 - extra) / Math.min(porLinea, nC - li * porLinea);
-        const x = 5 + (primero ? 0 : extra + col * anchoLinea);
-        const st = new VF.Stave(x, 10 + li * altoLinea, primero ? anchoLinea + extra : anchoLinea);
-        if (primero) { st.addClef('treble').addKeySignature(clave); if (c === 0) st.addTimeSignature(`${M.compas}/4`); }
+    for (let c = 0; c < (M.notas.length ? nC : 0); c++) {
+        const st = new VF.Stave(c * BAR, STAVE_Y, BAR);
+        if (c === 0) st.setBegBarType(VF.Barline.type.NONE);
         st.setContext(vctx).draw();
-        const notas = [], ligas = [];
+        const notas = [], xs = [];
         for (const s of segmentosCompas(c)) {
-            const piezas = partir(s.t, s.d);
-            piezas.forEach((p, k) => {
+            let t = s.t;
+            partir(s.t, s.d).forEach((p, k) => {
                 const conNota = s.n && s.n.g > 0;
                 let sn;
                 if (conNota) {
@@ -579,30 +589,31 @@ function pintarPartitura() {
                     sn = new VF.StaveNote({ keys: [`${LETRAS[h.letra].toLowerCase()}/${h.oct}`], duration: VF_DUR[p], auto_stem: true });
                     if (s.n.a !== 0 && k === 0 && !s.viene) sn.addModifier(new VF.Accidental(ACC_VF[h.acc]), 0);
                     if (s.n === M.notas[cursor] && paso === 3) sn.setStyle({ fillStyle: '#d97706', strokeStyle: '#d97706' });
-                    if (previa && previa.n === s.n) ligas.push([previa.sn, sn, previa.li !== li]);
-                    previa = { sn, n: s.n, li };
+                    if (previa && previa.n === s.n) ligas.push([previa.sn, sn]);
+                    previa = { sn, n: s.n };
                 } else {
                     sn = new VF.StaveNote({ keys: ['b/4'], duration: VF_DUR[p] + 'r' });
                     if (s.n && s.n.g === null) sn.setStyle({ fillStyle: '#94a3b8', strokeStyle: '#94a3b8' });
                     previa = null;
                 }
-                notas.push(sn);
+                notas.push(sn); xs.push(t * PX + 3);
+                t += p;
             });
         }
         const voz = new VF.Voice({ num_beats: M.compas, beat_value: 4 }).setStrict(false).addTickables(notas);
-        new VF.Formatter().joinVoices([voz]).format([voz], st.getNoteEndX() - st.getNoteStartX() - 10);
+        new VF.Formatter().joinVoices([voz]).format([voz], BAR - 20);
+        notas.forEach(sn => sn.setStave(st));
+        // Cada figura en la posición de su tiempo (no la que reparte el formateador)
+        notas.forEach((sn, i) => {
+            const tc = sn.getTickContext();
+            tc.setX(tc.getX() + xs[i] - sn.getAbsoluteX());
+        });
         const vigas = VF.Beam.generateBeams(notas.filter(n => !n.isRest()), { groups: [new VF.Fraction(1, 4)] });
         voz.draw(vctx, st);
         vigas.forEach(b => b.setContext(vctx).draw());
-        // Ligas: las de una línea a la siguiente se dibujan en dos mitades
-        for (const [a, b, salto] of ligas) {
-            if (!salto) new VF.StaveTie({ first_note: a, last_note: b, first_indices: [0], last_indices: [0] }).setContext(vctx).draw();
-            else {
-                new VF.StaveTie({ first_note: a, last_note: null, first_indices: [0], last_indices: [0] }).setContext(vctx).draw();
-                new VF.StaveTie({ first_note: null, last_note: b, first_indices: [0], last_indices: [0] }).setContext(vctx).draw();
-            }
-        }
     }
+    for (const [a, b] of ligas) new VF.StaveTie({ first_note: a, last_note: b, first_indices: [0], last_indices: [0] }).setContext(vctx).draw();
+    der.scrollLeft = document.getElementById('bloques').scrollLeft;
 }
 
 const AYUDA = {
@@ -800,7 +811,15 @@ document.getElementById('b-oct-baja').onclick = e => { trasponerOctava(-1); e.ta
 document.getElementById('b-oct-sube').onclick = e => { trasponerOctava(1); e.target.blur(); };
 document.getElementById('b-guardar').onclick = () => guardar();
 document.getElementById('b-limpiar').onclick = e => { limpiar(); e.target.blur(); };
-document.getElementById('bloques').addEventListener('scroll', e => { document.getElementById('filas').scrollTop = e.target.scrollTop; });
+document.getElementById('bloques').addEventListener('scroll', e => {
+    document.getElementById('filas').scrollTop = e.target.scrollTop;
+    document.getElementById('part-der').scrollLeft = e.target.scrollLeft;
+});
+// La rueda sobre el pentagrama corre los compases (junto con los bloques)
+document.getElementById('partitura').addEventListener('wheel', e => {
+    e.preventDefault();
+    document.getElementById('bloques').scrollLeft += e.deltaY || e.deltaX;
+}, { passive: false });
 // Arrastrar: el borde derecho cambia el final (lo que se acorta queda como silencio); el bloque se mueve.
 let arrastre = null;
 document.getElementById('lienzo').addEventListener('pointerdown', e => {

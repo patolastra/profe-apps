@@ -6196,3 +6196,9 @@ opciones propuestas eligió solo las citas a apoderados).*
   todo el ritmo a la mitad / al doble (la figura más corta acompaña; no deja nada más corto que una semicorchea); en ③
   **Octava ↓ / Octava ↑** mueven toda la melodía (sin salir del rango). Prueba: 4 negras → ½× corcheas → ½×
   semicorcheas → ½× avisa; 2× 2× → negras; octava ↑ hasta el tope avisa; nota sonando rgb(249, 115, 22).
+- **Pentagrama en una línea, alineado con los bloques (PO 2026-10-25):** una sola fila horizontal; cada compás mide lo
+  mismo que arriba y cada figura cae en la posición de su tiempo (se corrige la que reparte VexFlow); clave, armadura y
+  compás quedan fijos a la izquierda, del mismo ancho que la columna de nombres de filas (se ajusta a la armadura); se
+  desplaza junto con los bloques (y con la rueda sobre el pentagrama). Los bloques ganan el alto sobrante. Medido:
+  barras de compás en las mismas x (101 / 341 / 581) y cada cabeza de nota a +2 px del inicio de su bloque; desplazamiento
+  igual en ambos. No revisado con captura (el panel estaba oculto).
