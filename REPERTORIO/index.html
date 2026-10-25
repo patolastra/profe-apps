@@ -2457,6 +2457,18 @@
         #entrenador-overlay.ent-light #ent-btn-pedir { background: #e2e8f0; border-color: #cbd5e1; color: #475569; }
         #entrenador-overlay.ent-light #ent-btn-pedir:hover { border-color: #ea580c; color: #ea580c; }
         #entrenador-overlay.ent-light .esl-sep { color: #64748b; border-top-color: #e2e8f0; }
+        /* 🎲 Sorteo de la siguiente canción (deuda CX): amarillo mientras recorre, la elegida late en naranjo */
+        #esl-azar { margin-left: auto; padding: 3px 8px; border-radius: 6px; border: 1px solid #334155; background: transparent;
+            color: inherit; font: inherit; font-size: 0.7rem; cursor: pointer; letter-spacing: 0.04em; }
+        #esl-azar:hover { border-color: #ea580c; color: #ea580c; }
+        #esl-azar:disabled { opacity: .45; cursor: default; }
+        #entrenador-overlay.ent-light #esl-azar { border-color: #cbd5e1; }
+        #entrenador-overlay .esl-item.sorteo, #entrenador-overlay.ent-light .esl-item.sorteo { background: #facc15; }
+        #entrenador-overlay .esl-item.sorteo .esl-item-nombre { color: #0f172a; }
+        #entrenador-overlay .esl-item.sorteo-gana { animation: sorteoGana .5s ease-in-out infinite alternate; }
+        #espejo-cancionero .ec-card.sorteo { background: #facc15; color: #0f172a; border-color: #facc15; transform: scale(1.04); }
+        #espejo-cancionero .ec-card.sorteo-gana { animation: sorteoGana .5s ease-in-out infinite alternate; }
+        @keyframes sorteoGana { from { transform: scale(1); } to { transform: scale(1.06); box-shadow: 0 0 0 6px rgba(234,88,12,.55); } }
         #entrenador-overlay.ent-light .esl-item.esl-pedido { border-left-color: #cbd5e1; }
         #entrenador-overlay.ent-light .esl-item.esl-pedido:hover { background: transparent; }
         #entrenador-overlay.ent-light .esl-descartar { border-color: #cbd5e1; color: #64748b; }
@@ -3013,7 +3025,7 @@
     </div>
     <div id="ent-main">
         <div id="ent-sesion-lista" style="display:none">
-            <div id="esl-header">SESIÓN</div>
+            <div id="esl-header">SESIÓN<button id="esl-azar" onclick="entSortear()" title="Elegir la siguiente canción al azar (no repite las que ya salieron hoy)">🎲 Al azar</button></div>
             <div id="esl-list"></div>
         </div>
         <div id="ent-left">
@@ -7926,6 +7938,71 @@ function entIrACancionSesion(idx) {
     abrirEntrenadorConConfig(song, item);
 }
 
+// ── 🎲 Sorteo de la siguiente canción (deuda CX): recorre las canciones de la sesión frenando unos 3 s,
+// cae en una y la abre; tras una pausa cierra la lista (la Pizarra pasa del cancionero a la letra).
+// No repite las que ya salieron hoy en esta sesión (cuando salieron todas, parte de nuevo).
+const SORTEO_DUR = 3000, SORTEO_PAUSA = 2000;
+let entSorteo = null;   // { id, pasos: [{ i, t }], fin, t0 }
+function sorteoClave() { return 'profe_sorteo_' + entSesionActual.id + '_' + new Date().toLocaleDateString('sv'); }
+function entSortear() {
+    if (!entModoSesion || !entSesionActual || entSorteo) return;
+    const n = entSesionActual.canciones.length;
+    if (n < 2) { toast('La sesión necesita al menos dos canciones'); return; }
+    let ya = [];
+    try { ya = JSON.parse(localStorage.getItem(sorteoClave()) || '[]'); } catch (_) {}
+    const todos = [...Array(n).keys()].filter(i => i !== entSesionCIdx);
+    let cand = todos.filter(i => !ya.includes(entSesionActual.canciones[i].cancion_id));
+    if (!cand.length) { ya = []; cand = todos; }
+    const fin = cand[Math.floor(Math.random() * cand.length)];
+    const mezcla = () => {
+        const a = [...Array(n).keys()].filter(i => i !== fin);
+        for (let k = a.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [a[k], a[j]] = [a[j], a[k]]; }
+        return a;
+    };
+    // Pasa por todas (en desorden) al menos una vez, sin repetir la misma dos veces seguidas.
+    let orden = mezcla();
+    while (orden.length < 14) {
+        const m = mezcla();
+        if (m.length > 1 && m[0] === orden[orden.length - 1]) m.push(m.shift());
+        orden = orden.concat(m);
+    }
+    orden.push(fin);
+    const ult = orden.length - 1;
+    const pasos = orden.map((i, k) => ({ i, t: Math.round(SORTEO_DUR * Math.pow(k / ult, 2.2)) }));
+    const s = entSorteo = { id: Date.now(), pasos, fin, t0: Date.now() };
+    try { localStorage.setItem(sorteoClave(), JSON.stringify([...ya, entSesionActual.canciones[fin].cancion_id])); } catch (_) {}
+    document.getElementById('esl-azar').disabled = true;
+    sorteoAnimar(s, '#esl-list .esl-item', () => entSorteo);
+    espejoEmitir();
+    setTimeout(() => { if (entSorteo === s) entIrACancionSesion(fin); }, SORTEO_DUR);
+    setTimeout(() => {
+        if (entSorteo !== s) return;
+        entSorteo = null;
+        document.getElementById('esl-azar').disabled = false;
+        if (document.getElementById('ent-sesion-lista').style.display !== 'none') entToggleLista();
+        espejoEmitir();
+    }, SORTEO_DUR + SORTEO_PAUSA);
+}
+// Pinta el sorteo sobre una lista (la del profe o las tarjetas de la Pizarra) con su propio reloj: así se ve
+// parejo aunque la Pizarra reciba el estado cada 300 ms. `vigente()` dice si el sorteo sigue en pie.
+function sorteoAnimar(s, sel, vigente) {
+    const limpiar = () => document.querySelectorAll(sel).forEach(el => el.classList.remove('sorteo', 'sorteo-gana'));
+    const paso = () => {
+        if (vigente() !== s) { limpiar(); return; }
+        const ms = Date.now() - s.t0;
+        if (ms >= SORTEO_DUR + SORTEO_PAUSA) { limpiar(); return; }
+        let i = s.pasos[0].i;
+        for (const p of s.pasos) { if (p.t <= ms) i = p.i; else break; }
+        const cayo = ms >= SORTEO_DUR;
+        document.querySelectorAll(sel).forEach((el, k) => {
+            el.classList.toggle('sorteo', !cayo && k === i);
+            el.classList.toggle('sorteo-gana', cayo && k === i);
+        });
+        setTimeout(paso, 30);
+    };
+    paso();
+}
+
 // Workspace: 'ws-ir' { practicar, cancion } = una actividad del Plan pide la sesión del curso en esa canción
 // (deuda BT), con esta pestaña ya abierta. La lista se lee al día: la canción pudo sumarse recién desde el Plan.
 window.addEventListener('message', async e => {
@@ -8531,6 +8608,7 @@ function espejoEstado() {
         t: a.currentTime || 0, sonando: !a.paused && !a.ended, vel: a.playbackRate || 1,
         scroll: espejoAnclaScroll(),
         cancionero: espejoCancioneroDatos(),
+        sorteo: entSorteo,
         rol: entAudioRol,
         enviado: Date.now(),
     };
@@ -8686,8 +8764,14 @@ function espejoPintarBoton() {
 
 // ── Lado Pizarra (?espejo=1): aplica el estado recibido ──
 const espejoIgual = (set, arr) => set.size === arr.length && arr.every(x => set.has(x));
+let espejoSorteo = null;   // 🎲 sorteo que se está mostrando en las tarjetas (deuda CX)
 function espejoAplicar(e) {
     espejoCancionero(e.cancionero, e.claro);
+    if (!e.sorteo) espejoSorteo = null;
+    else if (!espejoSorteo || espejoSorteo.id !== e.sorteo.id) {
+        espejoSorteo = e.sorteo;
+        sorteoAnimar(e.sorteo, '#espejo-cancionero .ec-card', () => espejoSorteo);
+    }
     if (!canciones.length) { espejoMetalVista(!!e.metal); return; }   // aún cargando la biblioteca
     const ov = document.getElementById('entrenador-overlay');
     if (!e.songId) { espejoMetalVista(!!e.metal); if (ov.classList.contains('visible')) espejoCerrar(); return; }
