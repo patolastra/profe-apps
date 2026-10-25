@@ -6189,3 +6189,6 @@ opciones propuestas eligió solo las citas a apoderados).*
 - **Escuchar desde el compás elegido (PO 2026-10-25):** ▶ Escuchar / Espacio parte en el compás elegido (clic en el
   compás o en una nota; ← → y poner un grado lo siguen); sin compás elegido, desde el comienzo. Vale en ① y ③.
   Prueba: clic en el compás 2 → parte en el tick 16; flecha a una nota del compás 1 → 0; sin elegir → 0.
+- **Escuchar en la barra de arriba (PO 2026-10-25):** un solo botón ▶ Escuchar, entre ③ Notas y Limpiar, verde y más
+  grande (ancho fijo; ■ Detener en ámbar mientras suena); se quitó de los paneles de ① y ③. La barra completa necesita
+  ~1030 px de ancho.
