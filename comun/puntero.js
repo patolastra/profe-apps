@@ -10,7 +10,10 @@
 // Uso:
 //   Puntero.encendido() · Puntero.alternar([sí/no]) · Puntero.alCambiar(on => …)
 //   Puntero.emisor(zona, ev => ({ donde, …datos }) | null)   → null = fuera de lo proyectado
-//   Puntero.receptor(m => ({ x, y }) | null)                 → posición en esta pantalla
+//   Puntero.receptor(m => ({ x, y }) | null)                 → posición en esta pantalla (varios por página)
+//   Puntero.relativo(el, ev) → { rx, ry } · Puntero.enElemento(el, m[, iframe]) → { x, y }
+// Un solo botón 🔴, en la barra del Plan, lo enciende para todo (DECISIÓN del PO 2026-10-24): letra del
+// Entrenador, diapositivas, Pasar lista, Cuaderno, Metalófono del Entrenador y Participación del Libro.
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
     'use strict';
@@ -51,14 +54,33 @@
     }
 
     // ── Receptor y dibujo ───────────────────────────────────────────────
-    function receptor(ubicar) {
-        canal?.addEventListener('message', ev => {
-            const m = ev.data;
-            if (!m || m.tipo !== 'puntero') return;
-            if (m.fuera) { ocultar(); return; }
-            const p = ubicar(m);
-            if (p) mostrar(p.x, p.y); else ocultar();
-        });
+    // Una página puede tener varios receptores (la Pizarra: diapositiva, Pasar lista, Cuaderno, Participación):
+    // el primero que ubica el aviso lo dibuja; si ninguno, el punto se va.
+    const ubicadores = [];
+    canal?.addEventListener('message', ev => {
+        const m = ev.data;
+        if (!m || m.tipo !== 'puntero' || !ubicadores.length) return;
+        if (m.fuera) { ocultar(); return; }
+        for (const u of ubicadores) {
+            let p = null;
+            try { p = u(m); } catch (_) {}
+            if (p) { mostrar(p.x, p.y); return; }
+        }
+        ocultar();
+    });
+    function receptor(ubicar) { ubicadores.push(ubicar); }
+
+    // Ayudas (fase 2): dónde está el mouse dentro de un elemento (proporción) y el punto de vuelta en otra pantalla.
+    // `marco` (opcional): el <iframe> que contiene al elemento, para pasar a la posición de la página.
+    function relativo(el, ev) {
+        const r = el.getBoundingClientRect();
+        return r.width && r.height ? { rx: (ev.clientX - r.left) / r.width, ry: (ev.clientY - r.top) / r.height } : null;
+    }
+    function enElemento(el, m, marco) {
+        const r = el?.getBoundingClientRect();
+        if (!r || !r.width || !r.height) return null;
+        const f = marco ? marco.getBoundingClientRect() : { left: 0, top: 0 };
+        return { x: f.left + r.left + m.rx * r.width, y: f.top + r.top + m.ry * r.height };
     }
     const N = 6;                       // puntos de la estela
     let punto = null, estela = [], pasos = [], timer = 0;
@@ -107,5 +129,5 @@
         estela.forEach(e => { e.style.opacity = '0'; });
     }
 
-    window.Puntero = { encendido, alternar, alCambiar, emisor, receptor };
+    window.Puntero = { encendido, alternar, alCambiar, emisor, receptor, relativo, enElemento };
 })();

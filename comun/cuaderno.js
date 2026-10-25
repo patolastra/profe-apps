@@ -257,9 +257,20 @@
         S.i = clamp(e.i | 0, 0, pags().length - 1);
         pintar();
     }
+    // 🔴 Puntero (deuda CT, fase 2): las páginas a la vista, en orden. Ambas pantallas muestran lo mismo (forma, hoja,
+    // zoom), así que la misma posición en esta lista es la misma página; una hoja con id se busca por su id.
+    function paginasPuntero() {
+        return raiz ? [...raiz.querySelectorAll('.cdn-pag')].filter(p => { const r = p.getBoundingClientRect(); return r.width > 0 && r.height > 0; }) : [];
+    }
     // `sb` puede ser una función: la Pizarra crea su cliente de Supabase después de cargar.
     function espejoEnPizarra(sbODar, sesionId) {
         if (!canalP || !sesionId) return;
+        if (window.Puntero) Puntero.receptor(m => {
+            if (m.donde !== 'cuaderno' || !S?.op.espejo || raiz?.hidden || S.anim) return null;
+            const pags = paginasPuntero();
+            const pag = (m.hoja && pags.find(p => p.dataset.hoja === m.hoja)) || pags[m.i];
+            return pag ? Puntero.enElemento(pag, m) : null;
+        });
         const dar = typeof sbODar === 'function' ? sbODar : () => sbODar;
         const mostrar = async e => {
             if (abriendo) await abriendo;
@@ -675,6 +686,14 @@
         <div class="cdn-idx" hidden></div>
         <div class="cdn-ed" hidden></div>`;
         document.body.appendChild(raiz);
+        // 🔴 Puntero (deuda CT, fase 2): proyectando, el mouse sobre una página se ve en la Pizarra en la misma página.
+        if (window.Puntero) Puntero.emisor(raiz, ev => {
+            if (!S || S.op.espejo || !S.proy || S.anim) return null;
+            const pag = ev.target.closest?.('.cdn-pag');
+            const i = pag ? paginasPuntero().indexOf(pag) : -1;
+            const r = i >= 0 && Puntero.relativo(pag, ev);
+            return r ? { donde: 'cuaderno', i, hoja: pag.dataset.hoja || '', ...r } : null;
+        });
 
         raiz.addEventListener('click', e => {
             const b = e.target.closest('button');

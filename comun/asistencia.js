@@ -285,6 +285,12 @@
           </div>
           <div class="asis-board"><div class="asis-msg">Cargando la lista…</div></div>`;
         document.body.appendChild(el);
+        // 🔴 Puntero (deuda CT, fase 2): el mouse sobre una tarjeta se ve en la Pizarra sobre la misma tarjeta.
+        if (!espejo && window.Puntero) Puntero.emisor(el, ev => {
+            const t = ev.target.closest?.('.asis-tile[data-id]');
+            const r = t && Puntero.relativo(t, ev);
+            return r ? { donde: 'lista', id: t.dataset.id, ...r } : null;
+        });
         return el;
     }
     // Deja el tablero listo para pintar (lista ya cargada).
@@ -313,6 +319,8 @@
     // Pizarra: muestra el tablero mientras otra ventana pasa lista.
     function espejo() {
         if (!canal) return;
+        if (window.Puntero) Puntero.receptor(m => m.donde === 'lista' && _ui && _ui.espejo
+            ? Puntero.enElemento(_ui.el.querySelector(`.asis-tile[data-id="${window.CSS.escape(String(m.id))}"]`), m) : null);
         canal.addEventListener('message', ev => {
             const m = ev.data || {};
             if (m.tipo === 'cerrar') { if (_ui && _ui.espejo) cerrar(); return; }

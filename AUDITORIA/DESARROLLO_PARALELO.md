@@ -5750,6 +5750,27 @@ Notion: "\"La bitácora cambió mientras escribías\" aparece con un solo comput
   está en (580, 325) en la copia y el punto cayó en (579, 325), visible (captura).
 - **Validación del PO (2026-10-24):** en la Pizarra real el punto se ve sobre la letra (Entrenador mínimo) y sobre las
   diapositivas. Queda la fase 2.
+- **Fase 2 — auditoría (2026-10-24):** Pasar lista (mismo tablero en el Plan y en la Pizarra, tarjeta por estudiante
+  `data-id`), Cuaderno (mismo cuaderno, misma hoja, zoom y desplazamiento), Metalófono del Entrenador (misma copia de las
+  placas `data-midi`) y Participación del Libro (mismo tablero, tarjeta `data-eid`): en los cuatro se puede ubicar el
+  punto sobre lo mismo. Evaluaciones y Entregas del Libro proyectan una lámina distinta a la pantalla del profe: quedan
+  fuera. El Metalófono suelto (pestaña) no se proyecta: no aplica.
+- **Decisión del PO (2026-10-24):** **un solo botón 🔴, el de la barra del Plan**, para todos los casos (letra,
+  diapositivas, Pasar lista, Cuaderno, Metalófono, Participación); se quita el botón 🔴 Puntero del Entrenador. Pasar
+  lista y el Cuaderno tapan la barra y la Participación está en la pestaña 📒 Libros: se enciende antes y puede quedar
+  encendido toda la clase (el punto solo aparece al mover el mouse sobre lo proyectado).
+- **Implementación fase 2 (2026-10-24):** `Puntero` admite varios receptores por página (el primero que ubica el aviso lo
+  dibuja) y suma `relativo` / `enElemento`. Emisores: Pasar lista (`asistencia.js`, tarjeta `data-id`), Cuaderno
+  (`cuaderno.js`, página a la vista: por id de hoja o por orden, solo proyectando), Metalófono del Entrenador (placa
+  `data-midi` dentro de su marco, solo proyectando) y Participación del Libro (`ppro-tile` `data-eid`, solo proyectando
+  a la Pizarra; el Libro carga ahora `puntero.js`). Receptores en la Pizarra (Pasar lista, Participación, Cuaderno) y en
+  la copia del Entrenador (Metalófono). Fuera el botón "🔴 Puntero" del Entrenador.
+- **Prueba fase 2 (local, sin clase):** avisos enviados a mano a la Pizarra de prueba: Pasar lista (tarjeta 8 al 25 %):
+  punto en (433, 320,5), esperado (433, 321); Participación (tarjeta 6 al centro): (837, 317,5), esperado (837, 318);
+  Cuaderno de Primero (hoja con dibujo, 50 % · 30 %): (756,6, 256,6), esperado (757, 257); Metalófono de la copia
+  (placa 94): (542,9, 225,4), esperado (543, 225). Visible en captura en los cuatro. Entrenador sin el botón y Libro sin
+  errores al cargar. Hallazgo: en `asistencia.js` y `libro-proyeccion.js` el nombre `CSS` es su hoja de estilos (se usa
+  `window.CSS.escape`). No probado: el emisor con el mouse real y el proyector.
 
 ### CV. Plan — el recurso de una actividad se abre como en la Presentación
 *Origen: 🐞 Mejoras (Segundo, clase del 22/10/26), PO 2026-10-24. Notion: "Recurso de una actividad: abrirlo como en

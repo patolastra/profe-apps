@@ -312,6 +312,9 @@
     function espejo() {
         if (!canal) return;
         const miSesion = new URLSearchParams(location.search).get('sesion');
+        // 🔴 Puntero (deuda CT, fase 2): el mouse del profe sobre una tarjeta de su tablero de Participación.
+        if (window.Puntero) Puntero.receptor(m => m.donde === 'part' && tab
+            ? Puntero.enElemento(tab.querySelector(`.ppro-tile[data-eid="${window.CSS.escape(String(m.id))}"]`), m) : null);
         const mostrar = f => {
             if (f.tipo === 'part' && f.tablero) {   // Participación: el tablero idéntico al del profe
                 if (vista) { vista.remove(); vista = null; }
