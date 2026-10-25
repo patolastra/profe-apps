@@ -492,6 +492,7 @@
         caja.classList.toggle('pd-sugerencias', !!op.sugerencias);
         if (op.elegirCurso) caja.dataset.elegir = '1';
         caja.classList.toggle('pd-tactil', !!op.tactil);
+        caja.classList.toggle('pd-comp-fuera', !!op.compEnTitulo);   // "N completados" lo muestra la página (en su título)
         caja.innerHTML = `<div class="pd-activos"></div>
             ${op.botonAgregar === false || !op.alta ? '' : '<button class="pd-add" type="button">＋ Agregar pendiente</button>'}
             <div class="pd-cursos" hidden></div>
@@ -523,6 +524,7 @@
         return {
             agregar: () => agregar(L),
             repintar: () => pintar(L),
+            completados: () => { L.abiertoComp = !L.abiertoComp; pintar(L); return L.abiertoComp; },   // abrir / cerrar
             destruir: () => { listas.delete(L); ro?.unobserve(caja); },
             cuenta: () => contar(L),
         };
@@ -638,7 +640,7 @@
         const vacio = L.caja.querySelector('.pd-vacio');
         vacio.textContent = !act.length && L.op.vacio ? L.op.vacio : '';
         vacio.hidden = !vacio.textContent;
-        if (L.op.alCambiar) L.op.alCambiar({ activos: activos.length, completados: comp.length });
+        if (L.op.alCambiar) L.op.alCambiar({ activos: activos.length, completados: comp.length, compAbierto: L.abiertoComp });
     }
     // Pone las filas en orden sin mover las que ya están en su lugar (no se pierde el cursor).
     function colocar(L, cont, lista, padre) {

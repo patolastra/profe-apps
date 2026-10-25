@@ -394,16 +394,23 @@
         }
 
         /* ── DASHBOARD · Etapa 4B: panel de Pendientes ─────────────────────── */
-        #dash-pend-body { display: flex; flex-direction: column; gap: 14px; }
+        #dash-pend-body { display: flex; flex-direction: column; gap: 10px; }
         .pend-vacio { font-size: 0.82rem; color: var(--muted); padding: 6px 2px; }
         .pend-grupo { display: flex; flex-direction: column; gap: 4px; }
         .pend-grupo-hdr {
-            display: flex; align-items: baseline; gap: 4px;
+            display: flex; align-items: baseline;
             font-size: 0.82rem; font-weight: 800; color: var(--text);
-            padding: 2px 2px 4px; margin-bottom: 2px;
+            padding: 3px 2px; gap: 6px;
         }
-        /* La línea separa un curso del siguiente, no el título de sus pendientes (PO 2026-10-25) */
-        .pend-grupo + .pend-grupo { border-top: 1px solid var(--border); padding-top: 12px; }
+        /* La línea separa un curso del siguiente, no el título de sus pendientes; el mismo aire arriba y abajo (PO 2026-10-25) */
+        .pend-grupo + .pend-grupo { border-top: 1px solid var(--border); padding-top: 10px; }
+        .pend-grupo.sin-lista > div:last-child { display: none; }
+        .pend-grupo-fecha:empty { display: none; }
+        .pend-grupo-comp { background: none; border: none; cursor: pointer; font: inherit; font-size: 0.72rem; font-style: italic;
+            font-weight: 400; color: #b6c0cc; padding: 0 4px; opacity: 0; transition: opacity .12s; }
+        .pend-grupo-comp:hover { color: #64748b; }
+        .pend-grupo-comp[hidden] { display: none; }
+        .pend-grupo:hover .pend-grupo-comp, .pend-grupo-comp.abierto, .pend-grupo:hover .pend-grupo-add { opacity: 1; }
         .pend-item {
             display: flex; align-items: flex-start; gap: 8px;
             padding: 5px 4px; border-radius: 7px;
@@ -423,7 +430,7 @@
         .pend-grupo-vacio { flex: 1; font-size: 0.8rem; color: #b6c0cc; font-style: italic; font-weight: 400; }
         .pend-grupo-add {
             background: none; border: none; cursor: pointer; color: var(--muted); font-size: 0.95rem; line-height: 1;
-            padding: 0 6px; border-radius: 6px; font-family: inherit;
+            padding: 0 6px; border-radius: 6px; font-family: inherit; opacity: 0; transition: opacity .12s;   /* al pasar el mouse */
         }
         .pend-grupo-add:hover { color: var(--accent); background: #eef4ff; }
         .pend-sem { font-size: 0.74rem; font-weight: 700; color: #b45309; white-space: nowrap; }
@@ -2140,6 +2147,7 @@ function renderPendientesDashboard() {
         const grp = document.createElement('div');
         grp.className = 'pend-grupo' + (extra.clase ? ' ' + extra.clase : '');
         grp.innerHTML = `<div class="pend-grupo-hdr"><span></span><span class="pend-grupo-fecha"></span><span class="pend-grupo-vacio"></span>
+            <button class="pend-grupo-comp" type="button" hidden></button>
             <button class="pend-grupo-add" title="${extra.tituloAdd || 'Agregar un pendiente a la próxima clase'}">＋</button></div><div></div>`;
         grp.querySelector('.pend-grupo-hdr span').textContent = label;
         const vacio = grp.querySelector('.pend-grupo-vacio');
@@ -2150,9 +2158,18 @@ function renderPendientesDashboard() {
             botonAgregar: false, completadosAbiertos: false,
             // Si todos van a la misma clase, la fecha va aquí, una vez (PO 2026-10-25)
             fechaEnGrupo: extra.mostrarCurso ? null : f => { grp.querySelector('.pend-grupo-fecha').textContent = f ? '· ' + f : ''; },
-            alCambiar: n => { vacio.textContent = n.activos ? '' : (extra.vacio || ' - no hay pendientes'); },
+            compEnTitulo: true,   // "N completados" va en el título, al pasar el mouse (PO 2026-10-25)
+            alCambiar: n => {
+                vacio.textContent = n.activos ? '' : (extra.vacio || '- no hay pendientes');
+                const bc = grp.querySelector('.pend-grupo-comp');
+                bc.hidden = !n.completados;
+                bc.textContent = `${n.completados} completado${n.completados === 1 ? '' : 's'} ${n.compAbierto ? '▾' : '▸'}`;
+                bc.classList.toggle('abierto', !!n.compAbierto);
+                grp.classList.toggle('sin-lista', !n.activos && !n.compAbierto);   // mismo espacio arriba y abajo
+            },
         });
         grp.querySelector('.pend-grupo-add').onclick = () => l.agregar();
+        grp.querySelector('.pend-grupo-comp').onclick = () => l.completados();
         dashPendListas.push(l);
         body.appendChild(grp);
     };

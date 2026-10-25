@@ -6104,3 +6104,9 @@ opciones propuestas eligió solo las citas a apoderados).*
   gris claro y alineado con el texto de los pendientes (sin el recuadro negro al tocarlo; igual el cuadro ⏳); la línea
   divisoria pasa a separar un curso del siguiente (ya no está entre el título y sus pendientes); "no hay pendientes"
   más tenue. Revisado: título sin línea, línea arriba de cada curso desde el segundo, "8 completados".
+- **Más ajustes (PO 2026-10-25):** "N completados" sin negrita, en cursiva y solo al pasar el mouse; en el Dashboard va
+  en el título del curso, a la derecha (opción `compEnTitulo` + `lista.completados()`), así un curso sin pendientes
+  queda con el mismo aire arriba y abajo (la lista no ocupa espacio si no hay nada a la vista); el ＋ también solo al
+  pasar el mouse; "Sexto - no hay pendientes" con el mismo espacio a ambos lados del guion (la fecha vacía ya no suma
+  espacio). Medido: 11 px arriba / 10 px abajo en Sexto; 6 px entre el nombre y el guion; "2 completados ▸" abre y
+  cierra sus 2.
