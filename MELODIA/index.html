@@ -88,6 +88,9 @@
     .nota { position: absolute; border-radius: 5px; background: var(--nota); color: #fff; font-size: 12px;
         display: flex; align-items: center; padding: 0 5px; overflow: hidden; white-space: nowrap; cursor: pointer;
         border: 2px solid transparent; }
+    .nota { cursor: grab; touch-action: none; }
+    .nota .borde { position: absolute; top: 0; right: 0; width: 10px; height: 100%; cursor: ew-resize; }
+    .nota.arrastrando { cursor: grabbing; opacity: .85; z-index: 2; }
     .nota.sin { background: #475569; color: #cbd5e1; }
     .nota.silencio { background: transparent; border: 2px dashed #64748b; color: var(--tenue); }
     .nota.cur { border-color: var(--cursor); box-shadow: 0 0 0 2px rgba(245,158,11,.35); }
@@ -451,7 +454,7 @@ function pintarBloques() {
     M.notas.forEach((n, i) => {
         const y = n.g > 0 ? yFila(n.o * 7 + n.g - 1) : yRitmo;
         const cls = n.g === null ? ' sin' : n.g === 0 ? ' silencio' : '';
-        h += `<div class="nota${cls}${i === cursor && !rec ? ' cur' : ''}" data-i="${i}" style="left:${n.t * PX + 1}px;width:${Math.max(6, n.d * PX - 2)}px;top:${y + 1}px;height:${ALTO - 2}px">${etiquetaNota(n)}</div>`;
+        h += `<div class="nota${cls}${i === cursor && !rec ? ' cur' : ''}" data-i="${i}" style="left:${n.t * PX + 1}px;width:${Math.max(6, n.d * PX - 2)}px;top:${y + 1}px;height:${ALTO - 2}px">${etiquetaNota(n)}<span class="borde"></span></div>`;
     });
     h += '<div id="vivo"></div>';
     lienzo.innerHTML = h;
@@ -577,9 +580,9 @@ function pintarPartitura() {
 }
 
 const AYUDA = {
-    1: '<b>● Grabar</b>: precuenta de 1 compás · <b>Espacio</b> tapear (mantener = larga) · <b>Enter</b> terminar · Fuera de la grabación: <b>← →</b> elegir golpe · <b>Supr</b> borrar golpe · <b>Espacio</b> escuchar · clic en un compás para regrabarlo',
+    1: '<b>● Grabar</b>: precuenta de 1 compás · <b>Espacio</b> tapear (mantener = larga) · <b>Enter</b> terminar · Corregir: <b>Shift+← →</b> acortar/alargar (o arrastrar el borde) · <b>Alt+← →</b> mover (o arrastrar) · <b>D</b> dividir · <b>U</b> unir · <b>Supr</b> borrar · clic en un compás para regrabarlo',
     2: 'Elige la tónica y el modo. El <b>1°</b> es siempre la tónica; cambiar la tonalidad mueve toda la melodía.',
-    3: '<b>1–7</b> grado (y avanza) · <b>0</b> silencio · <b>↑ ↓</b> octava · <b>+ −</b> medio tono · <b>← →</b> moverse · <b>Retroceso</b> borrar · <b>Espacio</b> escuchar desde aquí · <b>Ctrl+S</b> guardar',
+    3: '<b>1–7</b> grado (y avanza) · <b>0</b> silencio · <b>↑ ↓</b> octava · <b>+ −</b> medio tono · <b>← →</b> moverse · <b>Retroceso</b> borrar · <b>Shift / Alt+← →</b> ritmo · <b>Espacio</b> escuchar desde aquí · <b>Ctrl+S</b> guardar',
 };
 function pintarBotones() {
     document.querySelectorAll('.pasos button').forEach(b => {
@@ -664,6 +667,41 @@ function limpiar() {
     M.notas = []; cursor = 0; compasSel = null; paso = 1;
     huboCambio(); pintarTodo();
 }
+// ── Corregir el ritmo (de a una figura más corta; nunca se pisan dos notas) ──
+const finAnterior = i => i > 0 ? M.notas[i - 1].t + M.notas[i - 1].d : 0;
+const inicioSiguiente = i => i < M.notas.length - 1 ? M.notas[i + 1].t : Infinity;
+const ajustar = v => Math.round(v / M.fig) * M.fig;
+function fijarFin(i, fin) {          // el final de la nota: lo que se quita queda como silencio
+    const n = M.notas[i];
+    n.d = Math.max(M.fig, Math.min(inicioSiguiente(i), ajustar(fin)) - n.t);
+}
+function fijarInicio(i, t) {         // mover la nota entera dentro del espacio libre
+    const n = M.notas[i];
+    n.t = Math.max(finAnterior(i), Math.min(inicioSiguiente(i) - n.d, ajustar(t)));
+}
+function editarRitmo(fn) {
+    const n = M.notas[cursor]; if (!n) return;
+    fn(n);
+    huboCambio(); pintarTodo();
+}
+const alargar = dir => editarRitmo(n => fijarFin(cursor, n.t + n.d + dir * M.fig));
+const desplazar = dir => editarRitmo(n => fijarInicio(cursor, n.t + dir * M.fig));
+function dividir() {
+    editarRitmo(n => {
+        if (n.d < 2 * M.fig) return toast('Muy corta para dividirla');
+        const mitad = Math.max(M.fig, ajustar(n.d / 2));
+        M.notas.splice(cursor + 1, 0, { t: n.t + mitad, d: n.d - mitad, g: n.g, o: n.o, a: n.a });
+        n.d = mitad;
+    });
+}
+function unir() {
+    editarRitmo(n => {
+        const sig = M.notas[cursor + 1];
+        if (!sig) return;
+        n.d = sig.t + sig.d - n.t;
+        M.notas.splice(cursor + 1, 1);
+    });
+}
 function irPaso(p) {
     if (rec) return;
     if (p === 3 && !M.notas.length) return;
@@ -707,10 +745,36 @@ document.querySelectorAll('.b-escuchar').forEach(b => b.onclick = () => { escuch
 document.getElementById('b-guardar').onclick = () => guardar();
 document.getElementById('b-limpiar').onclick = e => { limpiar(); e.target.blur(); };
 document.getElementById('bloques').addEventListener('scroll', e => { document.getElementById('filas').scrollTop = e.target.scrollTop; });
+// Arrastrar: el borde derecho cambia el final (lo que se acorta queda como silencio); el bloque se mueve.
+let arrastre = null;
+document.getElementById('lienzo').addEventListener('pointerdown', e => {
+    const el = e.target.closest('.nota[data-i]');
+    if (rec || !el || e.button !== 0) return;
+    e.preventDefault();
+    const i = +el.dataset.i, n = M.notas[i];
+    arrastre = { i, el, x0: e.clientX, t0: n.t, fin0: n.t + n.d, modo: e.clientX > el.getBoundingClientRect().right - 11 ? 'fin' : 'mover', movio: false };
+    el.setPointerCapture(e.pointerId);
+});
+document.getElementById('lienzo').addEventListener('pointermove', e => {
+    if (!arrastre) return;
+    const a = arrastre, n = M.notas[a.i];
+    if (!a.movio && Math.abs(e.clientX - a.x0) < 4) return;
+    a.movio = true;
+    a.el.classList.add('arrastrando');
+    const dt = (e.clientX - a.x0) / PX;
+    if (a.modo === 'fin') fijarFin(a.i, a.fin0 + dt); else fijarInicio(a.i, a.t0 + dt);
+    a.el.style.left = (n.t * PX + 1) + 'px';
+    a.el.style.width = Math.max(6, n.d * PX - 2) + 'px';
+});
+document.getElementById('lienzo').addEventListener('pointerup', () => {
+    if (!arrastre) return;
+    const a = arrastre; arrastre = null;
+    cursor = a.i; compasSel = Math.floor(M.notas[cursor].t / tpc());
+    if (a.movio) huboCambio(); else sonarNota(M.notas[cursor]);
+    pintarTodo();
+});
 document.getElementById('lienzo').addEventListener('click', e => {
-    if (rec) return;
-    const n = e.target.closest('.nota[data-i]');
-    if (n) { cursor = +n.dataset.i; compasSel = Math.floor(M.notas[cursor].t / tpc()); sonarNota(M.notas[cursor]); pintarTodo(); return; }
+    if (rec || e.target.closest('.nota[data-i]')) return;
     const c = e.target.closest('.compas');
     const x = e.clientX - document.getElementById('lienzo').getBoundingClientRect().left;
     const ci = c ? +c.dataset.c : Math.floor(x / (tpc() * PX));
@@ -724,16 +788,23 @@ document.addEventListener('keydown', e => {
     const enCampo = e.target.closest?.('input, select, textarea');
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); guardar(); return; }
     if (enCampo) { if (e.key === 'Escape' || e.key === 'Enter') e.target.blur(); return; }
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey) return;
     if (rec) {
         if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) tapAbajo(); }
         else if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); terminarGrabacion(); }
         return;
     }
     const k = e.key;
+    if (k === 'ArrowLeft' || k === 'ArrowRight') {
+        e.preventDefault();
+        const dir = k === 'ArrowLeft' ? -1 : 1;
+        if (e.shiftKey) alargar(dir); else if (e.altKey) desplazar(dir); else moverCursor(dir);
+        return;
+    }
+    if (e.altKey) return;
     if (e.code === 'Space') { e.preventDefault(); escuchar(); return; }
-    if (k === 'ArrowLeft') { e.preventDefault(); moverCursor(-1); return; }
-    if (k === 'ArrowRight') { e.preventDefault(); moverCursor(1); return; }
+    if (k === 'd' || k === 'D') { e.preventDefault(); dividir(); return; }
+    if (k === 'u' || k === 'U') { e.preventDefault(); unir(); return; }
     if (paso === 1) {
         if (k === 'Delete') { e.preventDefault(); borrarGolpe(); }
         else if (k === 'r' || k === 'R') grabar(null);

@@ -6173,3 +6173,9 @@ opciones propuestas eligió solo las citas a apoderados).*
   guardado en la Biblioteca no cambia hasta Guardar. **Para más adelante (PO):** "Ajustar retraso" (8 clics tapeados
   para medir el retraso del parlante, recordado por equipo); con Bluetooth el tapeo llega 0,15–0,3 s tarde y el navegador
   no lo informa bien. Por ahora el PO usa parlante con cable.
+- **Corregir el ritmo (PO 2026-10-25):** los silencios se arman **arrastrando el final de la nota** (borde derecho del
+  bloque), siempre saltando a la figura más corta; el bloque entero se arrastra para moverlo; nunca se pisan dos notas.
+  Teclas (pasos ① y ③): Shift+← → acortar/alargar · Alt+← → mover · D dividir en dos · U unir con la siguiente · Supr
+  borrar. El tapeo sigue igual (un tap corto dura hasta el siguiente). Prueba: teclas → 0:4 acortada a 0:2 (silencio),
+  movida a 2:2, tope contra la nota siguiente, dividir 4:4 → 4:2 + 6:2, unir y borrar; mouse (pestaña local) → borde de
+  la 1ª nota arrastrado: 0:2 y silencio de corchea en el pentagrama; 2ª nota arrastrada hasta pegarse (2:4).
