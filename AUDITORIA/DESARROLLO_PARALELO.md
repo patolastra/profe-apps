@@ -6260,3 +6260,7 @@ opciones propuestas eligió solo las citas a apoderados).*
   horizontal 740×360: dedos visibles. Ficha: 🎹 🎼 ⬇ ✏️ 🗑 ("PRUEBA CLAUDE · Do mayor"); publicada → 🔗 Compartir copia
   `https://patolastra.github.io/profe-apps/p/?a=…&n=…`. **No probado:** un celular real, el sonido real, iPhone. Las
   melodías guardadas antes de esto no tienen archivo público: se crea al guardarlas de nuevo.
+- **Melodía al centro (PO 2026-10-25, captura de "COQUETA — Mambo"):** el teclado ya no parte en el do de abajo y se
+  alarga hacia arriba (la melodía quedaba a la izquierda): se cuenta en teclas blancas, una de aire a cada lado y se
+  completa alternando izquierda/derecha hasta 14 blancas (dos octavas). Medido en Coqueta (do5–sol♯5): 216 px a la
+  izquierda y 254 a la derecha en 756 px (la diferencia es menos de una tecla).
