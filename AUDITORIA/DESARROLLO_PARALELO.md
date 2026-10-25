@@ -6169,3 +6169,7 @@ opciones propuestas eligió solo las citas a apoderados).*
   🗑; cambiar a Sol mayor y guardar → el Metalófono la abrió sin aviso de rango y a 100 de tempo; en el Workspace se
   abrió como pestaña cerrable y al cerrarla con un cambio sin guardar (tempo 104) se guardó solo. El borrador se
   recuperó al recargar. **No probado:** el sonido real (en la prueba no se escucha) ni el tapeo con una persona.
+- **Ajuste (PO 2026-10-25):** botón **Limpiar** en la barra (con confirmación): borra ritmo y notas y vuelve a ①; lo
+  guardado en la Biblioteca no cambia hasta Guardar. **Para más adelante (PO):** "Ajustar retraso" (8 clics tapeados
+  para medir el retraso del parlante, recordado por equipo); con Bluetooth el tapeo llega 0,15–0,3 s tarde y el navegador
+  no lo informa bien. Por ahora el PO usa parlante con cable.
