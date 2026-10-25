@@ -236,13 +236,13 @@
         if (m && m.para && m.msg) return { categoria: CAT_MENSAJE, texto: m.para + '\n' + m.msg, aviso: `Anotado en ✉️ Mensajes para ${m.para}.`, error: 'No se pudo anotar el mensaje — revisa la conexión.' };
         return null;
     }
-    async function crear({ contexto_id, sesion_id, fecha, texto = '', hoy = null, padre_id = null, resolver = false }) {
+    async function crear({ contexto_id, sesion_id, fecha, texto = '', hoy = null, padre_id = null, resolver = false, silencioso = false }) {
         const otra = comoOtra(texto);
         if (otra) {
             const fila = { contexto_id, sesion_id: sesion_id || null, categoria: otra.categoria, texto: otra.texto, estado: 'activo' };
             if (conCola) encolar({ tipo: 'crear', fila: { id: nuevoId(), ...fila, semanas_pendiente: 0, hoy: null, completado_en: null, padre_id: null, created_at: new Date().toISOString() } });
-            else if ((await sb.from('pendientes').insert(fila)).error) { aviso(otra.error); return null; }
-            aviso(otra.aviso);
+            else if ((await sb.from('pendientes').insert(fila)).error) { if (!silencioso) aviso(otra.error); return null; }
+            if (!silencioso) aviso(otra.aviso, true);   // desde el editor, la página muestra su propio aviso
             return { otra: otra.categoria, aviso: otra.aviso };   // no es pendiente: no entra a la lista
         }
         if (conCola) {
@@ -280,7 +280,7 @@
                 filas.set(id, p); repintarTodo(); avisar({ tipo: 'poner', p });
                 aviso(otra.error); return;
             }
-            aviso(otra.aviso);
+            aviso(otra.aviso, true);
             return;
         }
         if (conCola) {
@@ -353,7 +353,18 @@
     }
     function guardarTodo() { Object.entries(timers).forEach(([id, x]) => guardarTexto(id, x.el, true)); }
 
-    function aviso(t) { listas.forEach(L => { const a = L.caja.querySelector('.pd-aviso'); if (a) { a.textContent = t; setTimeout(() => { a.textContent = ''; }, 5000); } }); }
+    // El aviso sale solo en la lista donde se está escribiendo (no en todas las de la página: en el Dashboard hay una por
+    // curso). `ok`: confirmación (verde), no error (rojo).
+    let listaActiva = null;
+    function aviso(t, ok = false) {
+        const vivas = [...listas].filter(L => L.caja.isConnected);
+        const donde = listaActiva && vivas.includes(listaActiva) ? [listaActiva] : vivas.slice(0, 1);
+        donde.forEach(L => {
+            const a = L.caja.querySelector('.pd-aviso'); if (!a) return;
+            a.textContent = t; a.classList.toggle('ok', ok);
+            clearTimeout(a._t); a._t = setTimeout(() => { a.textContent = ''; }, 5000);
+        });
+    }
 
     // Próxima clase de un curso (hoy incluida); si aún no existe, la próxima fecha de su
     // horario (se crea la sesión). Sin horario (General, por ejemplo): sin clase.
@@ -487,6 +498,7 @@
     }
 
     async function agregar(L, curso) {
+        listaActiva = L;
         if (!L.op.alta) return;
         const destino = await L.op.alta(curso);
         if (!destino) { aviso(L.op.sinDestino || 'Este curso no tiene una próxima clase en el horario.'); return; }
@@ -495,6 +507,7 @@
         enfocarFila(L, p.id);
     }
     async function agregarHijo(L, padre) {            // queda al final de sus subpendientes
+        listaActiva = L;
         plegados.delete(padre.id); guardarPlegados();
         const p = await crear({ contexto_id: padre.contexto_id, sesion_id: padre.sesion_id, fecha: padre.fecha, padre_id: padre.id });
         if (!p) { aviso('No se pudo crear el pendiente — revisa la conexión.'); return; }
@@ -571,7 +584,8 @@
             guardarTexto(p.id, txt, true);
             cambiar(p.id, chk.checked ? { estado: 'completado', completado_en: new Date().toISOString() } : { estado: 'activo', completado_en: null });
         });
-        txt.addEventListener('input', () => { crecer(txt); guardarTexto(p.id, txt, false); });
+        txt.addEventListener('focus', () => { listaActiva = L; });
+        txt.addEventListener('input', () => { listaActiva = L; crecer(txt); guardarTexto(p.id, txt, false); });
         txt.addEventListener('blur', () => {
             if (!txt.value.trim() && !hijosDe(L, p.id).length) { borrar(p.id); return; }
             guardarTexto(p.id, txt, true);
@@ -684,7 +698,7 @@
     async function desdeTexto(texto, { cid = null, sesionId = null, general = false, despuesDe = null, desde = null } = {}) {
         try {
             if (comoOtra(texto)) {
-                const r = await crear({ contexto_id: cid, sesion_id: sesionId, texto });
+                const r = await crear({ contexto_id: cid, sesion_id: sesionId, texto, silencioso: true });
                 return r ? { ok: true, aviso: r.aviso } : { ok: false, aviso: 'No se pudo anotar — revisa la conexión.' };
             }
             const destino = !cid || general ? { contexto_id: cid, sesion_id: null } : await proximaClase(cid, despuesDe ? { despuesDe } : desde ? { desde } : {});

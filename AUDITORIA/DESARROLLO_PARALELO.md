@@ -6056,3 +6056,7 @@ opciones propuestas eligió solo las citas a apoderados).*
   verso más largo; el nombre y artista ya no se repiten (queda la portada de la letra, sale el de la barra); sin
   📖 Lectura en el celular (botón fuera y apagada aunque haya quedado encendida). Probado con "Si Antes Te Hubiera
   Conocido" (Séptimo): letra a 24 px, versos partidos, barra solo con ←, tema y Letra. Captura.
+- **Arreglo (PO 2026-10-25, captura del Dashboard):** "Anotado en ✉️ Mensajes para …" salía en rojo bajo **todas** las
+  listas de la página (una por curso). Ahora sale solo en la lista donde se escribió y en verde (es confirmación, no
+  error); desde el editor de bloques no se repite (la página ya muestra su aviso). Probado: un /msj en el 4° grupo del
+  Dashboard → un solo aviso, verde, en ese grupo; mensaje de prueba borrado.
