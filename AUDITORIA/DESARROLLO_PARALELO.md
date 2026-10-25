@@ -6060,3 +6060,25 @@ opciones propuestas eligió solo las citas a apoderados).*
   listas de la página (una por curso). Ahora sale solo en la lista donde se escribió y en verde (es confirmación, no
   error); desde el editor de bloques no se repite (la página ya muestra su aviso). Probado: un /msj en el 4° grupo del
   Dashboard → un solo aviso, verde, en ese grupo; mensaje de prueba borrado.
+
+### DI. Pendientes menos ruidosos · encabezado fijo · clic con la rueda en una clase
+*Origen: PO 2026-10-25 (captura de los pendientes del Dashboard: "muy ruidosa visualmente") y del encabezado y calendario.*
+- **Auditoría:** cada fila repetía la fecha de la clase (casi siempre la misma en el grupo) y la marca naranja
+  "(N sem)"; los que llevan 3 semanas o más se pintaban con fondo naranjo y sumaban una fila "Lleva N semanas · Sigue ·
+  Archivar". El encabezado "Pendientes / Hoy / Todos / Apoderados / ✉️" se iba al bajar. El clic en una clase del
+  calendario siempre lleva a su Plan; no hay "abrir sin ir".
+- **Decisión del PO (2026-10-25):** aplicar la propuesta: fecha una vez en el título del grupo (en la fila solo si es
+  distinta); marca de semanas solo desde 3, como ⏳ gris; los de 3 semanas o más juntos al final, en un cuadro plegado
+  con Sigue / Archivar. Además: el encabezado de Pendientes siempre a la vista; clic con la rueda en una clase = abrir
+  su Plan en una pestaña sin ir a ella.
+- **Implementación:** `pendientes.js`: cuadro plegado "⏳ Llevan 3 semanas o más · N" (`pd-viejos`), opción
+  `fechaEnGrupo(fecha)` (la lista avisa la fecha común), marca ⏳ desde 3 semanas, Sigue / Archivar solo dentro del
+  cuadro, sin fondo naranjo. Dashboard: fecha en el título de cada grupo, encabezado fijo (`position: sticky`), clic con
+  la rueda (o Ctrl + clic) → `ws-abrir` con `fondo`; el Workspace abre la pestaña sin activarla.
+- **Lugares de uso (regla 11):** la lista es la misma en Dashboard, Plan, Cursos y celular: en todas, ⏳ y el cuadro de
+  los de 3 semanas o más; la fecha en el título solo donde la página tiene título de grupo (Dashboard); en las demás,
+  la fecha sigue en la fila como antes.
+- **Prueba (local):** Dashboard, vista Todos: 11 grupos con la fecha en el título ("· lun 26/10", "· jue 29/10"…; los
+  Generales sin fecha), 0 fechas y 0 marcas de semana en las filas; Taller de Cuerdas con "⏳ Llevan 3 semanas o más ·
+  2" plegado al final. Encabezado: tras bajar 600 px sigue arriba del panel. Workspace: clic con la rueda en
+  "Orientación" de la semana en curso → pestaña "Plan" nueva (5 pestañas) y la activa sigue siendo el Dashboard.

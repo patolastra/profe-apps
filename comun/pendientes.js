@@ -419,6 +419,10 @@
             ${op.botonAgregar === false || !op.alta ? '' : '<button class="pd-add" type="button">＋ Agregar pendiente</button>'}
             <div class="pd-cursos" hidden></div>
             <div class="pd-vacio"></div>
+            <div class="pd-viejos" hidden>
+                <button class="pd-viejos-hdr" type="button"><span class="pd-viejos-lbl"></span><span class="pd-viejos-chev"></span></button>
+                <div class="pd-viejos-body"></div>
+            </div>
             <div class="pd-comp" hidden>
                 <button class="pd-comp-hdr" type="button"><span class="pd-comp-lbl"></span><span class="pd-comp-chev"></span></button>
                 <div class="pd-comp-body"></div>
@@ -435,6 +439,7 @@
             if (fila) abrirCursos(L, fila.dataset.id, fila.parentElement);
         });
         caja.querySelector('.pd-comp-hdr').addEventListener('click', () => { L.abiertoComp = !L.abiertoComp; pintar(L); });
+        caja.querySelector('.pd-viejos-hdr').addEventListener('click', () => { L.abiertoViejos = !L.abiertoViejos; pintar(L); });
         listas.add(L);
         ro?.observe(caja);
         pintar(L);
@@ -454,6 +459,7 @@
         return Date.now() - new Date(p.completado_en).getTime() < DIAS_VISIBLE_COMP * 864e5;
     }
     const esDeCat = p => !p.categoria || p.categoria === CAT;
+    const esViejo = p => !p.padre_id && p.estado === 'activo' && (Number(p.semanas_pendiente) || 0) >= SEM_ARRASTRE;
     // Pendientes principales de la lista (los subpendientes van con su padre; si el padre no
     // está cargado, se muestran sueltos).
     function items(L) {
@@ -527,12 +533,25 @@
 
     function pintar(L) {
         const it = items(L).sort(porFecha);
-        const act = it.filter(p => p.estado === 'activo'), comp = it.filter(p => p.estado === 'completado');
-        const cAct = L.caja.querySelector('.pd-activos'), cComp = L.caja.querySelector('.pd-comp-body');
+        const activos = it.filter(p => p.estado === 'activo'), comp = it.filter(p => p.estado === 'completado');
+        // Menos ruido (PO 2026-10-25): los que llevan 3 semanas o más van juntos al final, en un cuadro plegado con
+        // Sigue / Archivar (en las sugerencias de Hoy, no).
+        const viejos = L.op.sugerencias ? [] : activos.filter(esViejo), act = activos.filter(p => !viejos.includes(p));
+        // Fecha de la clase: si todos van a la misma, se dice una vez (en el título del grupo) y no en cada fila.
+        const fechas = new Set(activos.map(p => p.fecha || ''));
+        L.fechaComun = L.op.fechaEnGrupo && activos.length && fechas.size === 1 ? [...fechas][0] || null : null;
+        if (L.op.fechaEnGrupo) { try { L.op.fechaEnGrupo(L.fechaComun ? fechaCorta(L.fechaComun) : ''); } catch (_) {} }
+        const cAct = L.caja.querySelector('.pd-activos'), cComp = L.caja.querySelector('.pd-comp-body'), cViejos = L.caja.querySelector('.pd-viejos-body');
         const vivos = new Set();
         it.forEach(p => { vivos.add(p.id); hijosDe(L, p.id).forEach(h => vivos.add(h.id)); });
         L.filasEl.forEach((el, id) => { if (!vivos.has(id)) { el.remove(); L.filasEl.delete(id); } });
         colocar(L, cAct, act);
+        colocar(L, cViejos, viejos);
+        const cajaV = L.caja.querySelector('.pd-viejos');
+        cajaV.hidden = !viejos.length;
+        cajaV.classList.toggle('pd-cerrado', !L.abiertoViejos);
+        L.caja.querySelector('.pd-viejos-lbl').textContent = `⏳ Llevan 3 semanas o más · ${viejos.length}`;
+        L.caja.querySelector('.pd-viejos-chev').textContent = L.abiertoViejos ? '▾' : '▸';
         colocar(L, cComp, comp);
         const caja = L.caja.querySelector('.pd-comp');
         caja.hidden = !comp.length;
@@ -542,7 +561,7 @@
         const vacio = L.caja.querySelector('.pd-vacio');
         vacio.textContent = !act.length && L.op.vacio ? L.op.vacio : '';
         vacio.hidden = !vacio.textContent;
-        if (L.op.alCambiar) L.op.alCambiar({ activos: act.length, completados: comp.length });
+        if (L.op.alCambiar) L.op.alCambiar({ activos: activos.length, completados: comp.length });
     }
     // Pone las filas en orden sin mover las que ya están en su lugar (no se pierde el cursor).
     function colocar(L, cont, lista, padre) {
@@ -666,21 +685,21 @@
         const sem = Number(p.semanas_pendiente) || 0;
         const partes = [];
         if (plegado) partes.push(`<span class="pd-cuenta" title="Subpendientes hechos">${hijos.filter(h => h.estado === 'completado').length}/${hijos.length}</span>`);
-        if (!esHijo && !hecho && sem > 0) partes.push(`<span class="pd-sem" title="${sem === 1 ? 'Trasladado 1 semana' : `Trasladado ${sem} semanas`}">(${sem} sem)</span>`);
+        if (!esHijo && !hecho && sem >= SEM_ARRASTRE) partes.push(`<span class="pd-sem" title="Trasladado ${sem} semanas">⏳ ${sem}</span>`);
         if (!esHijo && L.op.marcaHoy && p.hoy === hoyISO()) partes.push('<span class="pd-marca-hoy" title="Está en Hoy">☀️</span>');
         if (!esHijo && L.op.mostrarCurso) {
             const c = L.op.mostrarCurso(p);                       // texto, o { texto, titulo }
             const tx = c && typeof c === 'object' ? c.texto : c, ti = c && typeof c === 'object' ? c.titulo : 'Curso';
             if (tx) partes.push(`<span class="pd-curso" title="${esc(ti)}">${esc(tx)}</span>`);
         }
-        if (!esHijo && L.op.mostrarClase && p.fecha) partes.push(`<span class="pd-clase" title="Clase a la que pertenece">${fechaCorta(p.fecha)}</span>`);
+        if (!esHijo && L.op.mostrarClase && p.fecha && p.fecha !== L.fechaComun) partes.push(`<span class="pd-clase" title="Clase a la que pertenece">${fechaCorta(p.fecha)}</span>`);
         fila.querySelector('.pd-meta').innerHTML = partes.join(' ');
         fila.querySelector('.pd-sol').hidden = esHijo;
         fila.querySelector('.pd-sol').title = p.hoy === hoyISO() ? 'Quitar de HOY' : 'Agregar a HOY';
         fila.querySelector('.pd-sub').hidden = esHijo;
         const arrastrado = !esHijo && !hecho && sem >= SEM_ARRASTRE;
         fila.classList.toggle('pd-arrastrado', arrastrado);
-        n.querySelector('.pd-arr').hidden = !arrastrado;
+        n.querySelector('.pd-arr').hidden = !arrastrado;   // Sigue / Archivar: solo se ven dentro del cuadro ⏳ (CSS)
         if (arrastrado) n.querySelector('.pd-arr-txt').textContent = `Lleva ${sem} semanas.`;
     }
     function crecer(t) {

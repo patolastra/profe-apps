@@ -253,12 +253,12 @@ window.addEventListener('blur', cerrarLauncher);
 // (Planes). Ambos por defecto false.
 // `cursoOrigen`: curso de la pestaña que pidió abrir esta (deuda AP: lo que se abre desde un
 // Plan es de ese curso, p. ej. la Sesión del Entrenador, cuya dirección no trae el curso).
-function abrirInstancia({ key, titulo, ico, src, fijo = false, guardarAlCerrar = false, cursoOrigen = null }) {
+function abrirInstancia({ key, titulo, ico, src, fijo = false, guardarAlCerrar = false, cursoOrigen = null, fondo = false }) {
     // Un Plan también se reconoce por su clase (curso + fecha de la dirección), venga de
     // donde venga (Dashboard o insignia de clase en curso): nunca se abre dos veces.
     const clase = clasePlan(src);
     const existente = tabs.find(t => t.key === key) || (clase && tabs.find(t => t.clase === clase));
-    if (existente) { activar(existente.key); return; }
+    if (existente) { if (!fondo) activar(existente.key); return; }
 
     // iframe persistente: se crea UNA vez y se mantiene vivo en el DOM
     const iframe = document.createElement('iframe');
@@ -304,7 +304,7 @@ function abrirInstancia({ key, titulo, ico, src, fijo = false, guardarAlCerrar =
 
     const curso = (clase && clase.split('|')[0]) || ctxDeSrc(src) || cursoOrigen || null;
     tabs.push({ key, titulo, ico, tabEl, iframeEl: iframe, fijo, guardarAlCerrar, clase, curso });
-    activar(key);
+    if (!fondo) activar(key);
 }
 
 // "NOMBRE|fecha" de una pestaña de Plan (PORTAL/index.html?ctx=…&fecha=…); null si no es un Plan.
@@ -468,6 +468,7 @@ window.addEventListener('message', (e) => {
             ico: String(m.ico || '📄'),
             src: m.src,
             guardarAlCerrar: !!m.guardarAlCerrar,
+            fondo: !!m.fondo,   // abrir sin ir a ella (clic con la rueda en una clase del Dashboard)
             cursoOrigen: (tabs.find(t => t.iframeEl.contentWindow === e.source) || {}).curso || null,
             // `fijo` NO se acepta por postMessage: solo las iniciales locales son fijas.
         });

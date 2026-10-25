@@ -254,7 +254,9 @@
         }
         .dash-pend-hdr {
             display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+            position: sticky; top: -12px; z-index: 6; background: #fff; padding: 12px 0 8px; margin-top: -12px;   /* siempre a la vista (PO 2026-10-25) */
         }
+        .pend-grupo-fecha { font-size: 0.72rem; font-weight: 600; color: var(--muted); margin-left: 6px; }
         .dash-pend-tit {
             flex: 1; font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
             letter-spacing: 0.08em; color: var(--muted);
@@ -1996,7 +1998,10 @@ function renderCalSemanas() {
                 chip.className = 'cal-clase';
                 chip.textContent = ctxDisplay(ctx.nombre);
                 chip.title = ctxNombreVisible(ctx.nombre);
-                chip.addEventListener('click', () => abrirPlanEnWorkspace(h.contexto_id, dStr, ctx.nombre));
+                chip.addEventListener('click', e => abrirPlanEnWorkspace(h.contexto_id, dStr, ctx.nombre, e.ctrlKey || e.metaKey));
+                // Clic con la rueda (o Ctrl + clic): se abre en su pestaña sin ir a ella (PO 2026-10-25)
+                chip.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });   // sin el desplazamiento automático
+                chip.addEventListener('auxclick', e => { if (e.button !== 1) return; e.preventDefault(); abrirPlanEnWorkspace(h.contexto_id, dStr, ctx.nombre, true); });
                 celda.appendChild(chip);
             });
 
@@ -2132,7 +2137,7 @@ function renderPendientesDashboard() {
     const grupo = (label, esDelGrupo, cid, extra = {}) => {
         const grp = document.createElement('div');
         grp.className = 'pend-grupo' + (extra.clase ? ' ' + extra.clase : '');
-        grp.innerHTML = `<div class="pend-grupo-hdr"><span></span><span class="pend-grupo-vacio"></span>
+        grp.innerHTML = `<div class="pend-grupo-hdr"><span></span><span class="pend-grupo-fecha"></span><span class="pend-grupo-vacio"></span>
             <button class="pend-grupo-add" title="${extra.tituloAdd || 'Agregar un pendiente a la próxima clase'}">＋</button></div><div></div>`;
         grp.querySelector('.pend-grupo-hdr span').textContent = label;
         const vacio = grp.querySelector('.pend-grupo-vacio');
@@ -2141,6 +2146,8 @@ function renderPendientesDashboard() {
             alta: extra.alta || (() => destinoPendienteDashboard(cid, cid === GENERAL_ID)),
             mostrarClase: !extra.mostrarCurso, mostrarCurso: extra.mostrarCurso,
             botonAgregar: false, completadosAbiertos: false,
+            // Si todos van a la misma clase, la fecha va aquí, una vez (PO 2026-10-25)
+            fechaEnGrupo: extra.mostrarCurso ? null : f => { grp.querySelector('.pend-grupo-fecha').textContent = f ? '· ' + f : ''; },
             alCambiar: n => { vacio.textContent = n.activos ? '' : (extra.vacio || ' - no hay pendientes'); },
         });
         grp.querySelector('.pend-grupo-add').onclick = () => l.agregar();
@@ -2583,7 +2590,8 @@ function cidPorNombre(nombre) {
 // clase = contexto_id + fecha → key determinística "plan:<cid>|<fecha>". El Portal
 // abierto así arranca en modo Plan (?ctx=&fecha=). Fallback (Portal suelto o sin
 // shell): abrir la sesión aquí mismo, como antes.
-function abrirPlanEnWorkspace(cid, fechaStr, nombre) {
+// `fondo`: abrir en su pestaña sin ir a ella (clic con la rueda o Ctrl + clic, PO 2026-10-25).
+function abrirPlanEnWorkspace(cid, fechaStr, nombre, fondo = false) {
     const url = `../PORTAL/index.html?ctx=${encodeURIComponent(nombre)}&fecha=${encodeURIComponent(fechaStr)}`;
     const enviado = wsAbrir({
         key:    `plan:${cid}|${fechaStr}`,
@@ -2591,7 +2599,9 @@ function abrirPlanEnWorkspace(cid, fechaStr, nombre) {
         ico:    '📋',
         src:    url,
         guardarAlCerrar: true,
+        fondo,
     });
+    if (!enviado && fondo) { window.open(url, '_blank'); return; }   // suelto (sin Workspace): pestaña nueva del navegador
     if (!enviado) abrirSesion(cid, fechaStr, nombre);   // fallback: Portal fuera del Workspace
 }
 
