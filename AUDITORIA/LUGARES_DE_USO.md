@@ -41,7 +41,8 @@
 | Lugar | Cómo se abre |
 |---|---|
 | Biblioteca, ficha de la canción | "+ Agregar asset" → ♬ Melodía (`?cancion=`) y ✏️ en cada melodía (`?asset=`): pestaña cerrable del Workspace (`ws-abrir`, guarda al cerrar) o ventana nueva |
-| Entrenador, Plan, celular, enlace de alumnos | aún no abren "Melodía" (el Entrenador la esconde de su desplegable); su MIDI sí se abre en el Metalófono desde la ficha |
+| Piano del estudiante (`PIANO/`, deuda DL) | 🎹 en la ficha (pestaña del Workspace) y enlace `p/?a=&n=` (🔗 Compartir, solo publicadas); lee `melodia/<id>.json`, sin base de datos |
+| Entrenador, Plan, celular | aún no abren "Melodía" (el Entrenador la esconde de su desplegable); su MIDI sí se abre en el Metalófono desde la ficha |
 
 ## Piezas compartidas (`comun/`)
 

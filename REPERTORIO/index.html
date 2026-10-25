@@ -3356,14 +3356,14 @@ function sbSubirArchivo(tipo, assetId, file, onProgress) {
 
 // Eliminar asset
 async function sbEliminarAsset(a) {
-    if (a.storage_path) await sb.storage.from(BUCKET).remove([a.storage_path]);
+    if (a.storage_path) await sb.storage.from(BUCKET).remove(a.tipo === 'melodia' ? [a.storage_path, `melodia/${a.id}.json`] : [a.storage_path]);
     await sb.from('repertorio_assets').delete().eq('id', a.id);
 }
 
 // Eliminar canción (CASCADE elimina assets y contextos en DB, pero Storage hay que limpiar)
 async function sbEliminarCancion(c) {
     const archivos = (c.assets || []).filter(a => a.storage_path);
-    if (archivos.length) await sb.storage.from(BUCKET).remove(archivos.map(a => a.storage_path));
+    if (archivos.length) await sb.storage.from(BUCKET).remove(archivos.flatMap(a => a.tipo === 'melodia' ? [a.storage_path, `melodia/${a.id}.json`] : [a.storage_path]));
     await sb.from('repertorio_canciones').delete().eq('id', c.id);
 }
 
@@ -3813,6 +3813,10 @@ function assetItemHTML(a, i) {
         const isMetal   = a.tipo === 'metalofono';
         const isMelodia = a.tipo === 'melodia';
         const subMel = isMelodia ? [pa.descripcion, a.tonalidad].filter(Boolean).join(' · ') : '';
+        // Melodía (DL): para qué instrumentos es; el piano se abre si es para Piano o Melódica
+        const instMel = isMelodia ? instrumentosMelodia(a) : [];
+        const conPiano = instMel.includes('piano') || instMel.includes('melodica');
+        const conMetal = !instMel.length || instMel.includes('metalofono');
         return `
         <div class="asset-item" data-id="${a.id}" draggable="true">
             <span class="asset-grip" title="Arrastra para ordenar">⋮⋮</span>
@@ -3823,7 +3827,9 @@ function assetItemHTML(a, i) {
             </div>
             <div class="asset-item-actions">
                 ${estadoBadgeHTML(a)}
-                ${isMetal || isMelodia ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${nombreAsset(a, songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">🎹</button>` : ''}
+                ${conPiano ? `<button class="btn-icon" onclick="abrirPiano('${a.id}')" title="Abrir en el piano (como lo ve el estudiante)">🎹</button>` : ''}
+                ${conPiano && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirPiano('${a.id}')" title="Compartir link del piano para el estudiante">🔗 Compartir</button>` : ''}
+                ${isMetal || (isMelodia && conMetal) ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${nombreAsset(a, songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">${isMelodia ? '🎼' : '🎹'}</button>` : ''}
                 ${isMetal && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirMetalofono('${a.id}')" title="Compartir link para el celular del alumno">🔗 Compartir</button>` : ''}
                 ${isAudio ? '' : `<a class="btn-icon" href="${url}" download="${descFile}" title="Descargar">⬇</a>`}
                 ${isMelodia
@@ -4988,6 +4994,42 @@ function parseLRC(text) {
         lines.push({ time, timeOut, text: m[7].trim() });
     }
     return lines.sort((a, b) => a.time - b.time);
+}
+
+// Instrumentos marcados en una melodía (en su contenido)
+function instrumentosMelodia(a) {
+    try { return JSON.parse(a.contenido || '{}').inst || []; } catch (_) { return []; }
+}
+const PIANO_LINK_ALUMNO = 'https://patolastra.github.io/profe-apps/p/';
+function nombreMelodia(assetId) {
+    for (const c of canciones) {
+        const a = (c.assets || []).find(x => x.id === assetId);
+        if (a) { const e = (a.etiqueta || '').trim(); return e ? `${c.nombre} — ${e}` : c.nombre; }
+    }
+    return 'Piano';
+}
+// Piano del estudiante (deuda DL): pestaña cerrable del Workspace; fuera de él, ventana nueva
+function abrirPiano(assetId) {
+    const nombre = nombreMelodia(assetId);
+    const src = `../PIANO/index.html?a=${encodeURIComponent(assetId)}&n=${encodeURIComponent(nombre)}`;
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ tipo: 'ws-abrir', key: `piano:${assetId}`, titulo: `${nombre} · Piano`, ico: '🎹', src }, '*'); return; } catch (_) {}
+    }
+    window.open(src, '_blank');
+}
+async function compartirPiano(assetId) {
+    const nombre = nombreMelodia(assetId);
+    const url = `${PIANO_LINK_ALUMNO}?a=${encodeURIComponent(assetId)}&n=${encodeURIComponent(nombre)}`;
+    if (navigator.share) {
+        try { await navigator.share({ title: nombre, url }); }
+        catch (e) {
+            if (e.name === 'NotAllowedError') toast('Vuelve a tocar Compartir');
+            else if (e.name !== 'AbortError') toast('No se pudo compartir: ' + e.message);
+        }
+    } else {
+        try { await navigator.clipboard.writeText(url); toast('Link copiado'); }
+        catch (e) { toast('No se pudo copiar el link'); }
+    }
 }
 
 // Editor de Melodías (deuda DK): pestaña cerrable del Workspace; fuera de él, ventana nueva.

@@ -6207,3 +6207,56 @@ opciones propuestas eligió solo las citas a apoderados).*
   si la canción tiene audio (espacio reservado si no): abre la canción en el Entrenador (`REPERTORIO/?cancion=`) en una
   pestaña cerrable del Workspace (o ventana nueva). Prueba: Estrellita (sin audio) → oculto; Invincible (con audio) →
   visible; clic → pestaña "Estrellita ¿Dónde Estás?" con el Entrenador.
+
+### DL. Piano para estudiantes (estilo Synthesia) + instrumentos y digitaciones en el Editor de Melodías
+*Origen: PO 2026-10-25 ("el piano synthesia-like, este sí que es de frentón para compartir con estudiantes").*
+- **Necesidad:** que el estudiante practique una melodía en casa viendo las notas caer sobre un teclado, con la
+  digitación puesta por el profe y pudiendo ir subiendo la velocidad.
+- **Decisión del PO (2026-10-25):**
+  - En el editor se dice **para qué instrumentos es la melodía** (piano, metalófono, etc.) y **en cada instrumento por
+    separado** se definen sus digitaciones.
+  - El estudiante **solo mira**: las notas caen y suenan; toca a la par en su instrumento real.
+  - Velocidad **como el Metalófono**: − / + a mano y 🔁 +5 por vuelta (con precuenta entre vueltas) hasta un tope.
+  - Llega por **enlace / QR**, como el Metalófono del alumno (sin clave, sin base de datos).
+- **Auditoría (2026-10-25):** el modo alumno del Metalófono se abre con `m/?a=<id>&n=<nombre>` y solo baja un archivo
+  público del bucket; el botón 🔗 Compartir de la ficha usa `navigator.share` o copia el enlace y solo aparece en lo
+  **publicado**. La melodía (DK) guarda sus notas en `repertorio_assets.contenido`, que un estudiante sin base de datos
+  no puede leer → hace falta un archivo público de la melodía. 🔁 +5 del Metalófono: botón encendido/apagado + tope,
+  recordados en el equipo; al detener vuelve a la velocidad inicial. No hace falta cambiar Supabase.
+- **Diseño (aprobado por el PO 2026-10-25):**
+  - **Editor — paso ④ Digitación:** arriba, los instrumentos de la melodía (Piano · Melódica · Metalófono · Guitarra ·
+    Ukelele · Bajo; se marcan los que correspondan) y una pestaña por instrumento marcado. En la pestaña, se recorren las
+    notas y se pone el dedo con **1–5** (0 = sin dedo); se ve el número sobre cada bloque y en el pentagrama. Cada
+    instrumento guarda su propia digitación (en la misma melodía, nota a nota, así sobrevive a correcciones del ritmo).
+  - **Archivo público:** al guardar, además del MIDI, `repertorio-assets/melodia/<id>.json` (notas ya en alturas reales,
+    tempo, compás, tonalidad, digitaciones y nombre).
+  - **Piano (`PIANO/index.html`, página nueva):** teclado del rango de la melodía (octavas completas, mínimo 2); las notas
+    caen como barras con su dedo adentro (y do re mi, opcional) y la tecla se ilumina al sonar; sonido de piano
+    sintetizado; precuenta de 1 compás; tempo con − / + y 🔁 +5 hasta un tope; celular horizontal y PC. Usa la digitación
+    de Piano (si no hay, la de Melódica; si no, sin números).
+  - **Compartir:** en la ficha, cada melodía con Piano o Melódica marcado tiene 🎹 (abre el piano) y, si está publicada,
+    🔗 Compartir → enlace corto `p/?a=<id>&n=<nombre>` (como `m/`).
+  - **Etapas:** ① instrumentos y digitación en el editor + archivo público · ② el piano · ③ compartir.
+- **Lugares de uso (regla 11):** Editor de Melodías (paso ④), ficha de la Biblioteca (🎹 y 🔗), piano del estudiante
+  (enlace). Entrenador, Plan y Pizarra: fuera de esta etapa.
+- **Implementación (2026-10-25):** Editor: paso **④ Digitación** ("Para": instrumentos marcados; "Digitación de":
+  una pestaña por instrumento; 1–5 pone el dedo y avanza a la nota siguiente, 0 / Retroceso lo quita; el dedo se ve en
+  el bloque y sobre la nota del pentagrama); en la melodía: `inst` y cada nota con `dig` ({ piano: 3, … }; dividir lo
+  conserva); `repertorio_assets.instrumento` = los instrumentos; al guardar sube también `melodia/<id>.json` (alturas
+  reales, nombres, dedos, tempo, compás, tonalidad). **`PIANO/index.html`** (página nueva, sin base de datos, lee ese
+  archivo): teclado de octavas completas (mín. 2) del rango de la melodía, notas que caen (dos compases a la vista; en
+  pantallas bajas menos, ≥ 45 px por pulso) con el dedo en un círculo (se achica para caber), la que suena y su tecla en
+  naranja con el dedo encima, "do" marcado en cada do, do re mi opcional, precuenta grande, sonido de piano sintetizado,
+  − / + y 🔁 +5 con tope (se recuerdan en el equipo; al detener vuelve a la velocidad inicial; las vueltas se revisan
+  con un reloj propio, no con el dibujo), ⛶ pantalla completa, aviso "Gira el celular" en vertical. Usa la digitación de
+  Piano (si no hay, la de Melódica). **`p/index.html`**: enlace corto que redirige al piano. Biblioteca: en cada melodía
+  con Piano o Melódica, 🎹 (pestaña cerrable del Workspace) y, si está publicada, 🔗 Compartir (`p/?a=&n=`); el
+  Metalófono de la melodía pasa a 🎼 y solo aparece si está marcado Metalófono (o si no tiene instrumentos); al borrar
+  una melodía (o su canción) se borra también su archivo público.
+- **Prueba (local; una melodía de prueba en "Estrellita", borrada al final con su MIDI y su archivo):** sin instrumento
+  avisa "Primero marca para qué instrumento es"; Piano + Metalófono con dedos distintos por instrumento → el archivo
+  trae ambos; el piano abrió por `p/` con el nombre, 24 teclas (do4–si5), dedos de Piano, tecla y nota en naranja al
+  sonar; 🔁 +5 a 200 con tope 210 → 200 → 205 → 210 y queda en 210; Detener vuelve a 200; sin 🔁 termina solo; celular
+  horizontal 740×360: dedos visibles. Ficha: 🎹 🎼 ⬇ ✏️ 🗑 ("PRUEBA CLAUDE · Do mayor"); publicada → 🔗 Compartir copia
+  `https://patolastra.github.io/profe-apps/p/?a=…&n=…`. **No probado:** un celular real, el sonido real, iPhone. Las
+  melodías guardadas antes de esto no tienen archivo público: se crea al guardarlas de nuevo.
