@@ -5748,3 +5748,5 @@ Notion: "\"La bitácora cambió mientras escribías\" aparece con un solo comput
   la letra el punto se ubica por la **letra (carácter)** bajo el mouse (`punteroLetraEn` / `punteroRectLetra`): en la
   Pizarra la letra es más grande y la proporción del verso no caía sobre la misma palabra. Probado: la "g" de "guatón"
   está en (580, 325) en la copia y el punto cayó en (579, 325), visible (captura).
+- **Validación del PO (2026-10-24):** en la Pizarra real el punto se ve sobre la letra (Entrenador mínimo) y sobre las
+  diapositivas. Queda la fase 2.
