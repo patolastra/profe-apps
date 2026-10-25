@@ -8491,6 +8491,31 @@ function espejoTecla(k) {
 }
 window.espejoTecla = espejoTecla;
 
+// 🔴 Puntero (deuda CT): posición de la letra (carácter) del verso bajo el mouse, y su rectángulo en esta pantalla.
+function punteroLetraEn(el, x, y) {
+    let nodo = null, off = 0;
+    if (document.caretPositionFromPoint) { const q = document.caretPositionFromPoint(x, y); if (q) { nodo = q.offsetNode; off = q.offset; } }
+    else if (document.caretRangeFromPoint) { const q = document.caretRangeFromPoint(x, y); if (q) { nodo = q.startContainer; off = q.startOffset; } }
+    if (!nodo || nodo.nodeType !== 3 || !el.contains(nodo)) return null;
+    let i = 0;
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) { if (n === nodo) return i + Math.min(off, Math.max(0, n.length - 1)); i += n.length; }
+    return null;
+}
+function punteroRectLetra(el, car) {
+    let i = 0;
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+        if (car < i + n.length) {
+            const r = document.createRange();
+            r.setStart(n, car - i); r.setEnd(n, car - i + 1);
+            return r.getBoundingClientRect();
+        }
+        i += n.length;
+    }
+    return null;
+}
+
 function espejoEstado() {
     const a = entAudio();
     const abierto = document.getElementById('entrenador-overlay').classList.contains('visible');
@@ -8887,6 +8912,8 @@ if (ESPEJO) {
     Puntero.receptor(m => {
         if (m.donde !== 'letra') return null;
         const el = document.querySelector(`#ent-zona .ent-lyric-line[data-orig="${m.orig}"]`);
+        const c = el && m.car != null ? punteroRectLetra(el, m.car) : null;
+        if (c && c.height) return { x: c.left + m.fx * c.width, y: c.top + m.fy * c.height };
         const r = el?.getBoundingClientRect();
         return r && r.width ? { x: r.left + m.rx * r.width, y: r.top + m.ry * r.height } : null;
     });
@@ -8952,7 +8979,12 @@ if (ESPEJO) {
         }
         if (!el) return null;
         const r = el.getBoundingClientRect();
-        return { donde: 'letra', orig: +el.dataset.orig, rx: (ev.clientX - r.left) / r.width, ry: (ev.clientY - r.top) / r.height };
+        const m = { donde: 'letra', orig: +el.dataset.orig, rx: (ev.clientX - r.left) / r.width, ry: (ev.clientY - r.top) / r.height };
+        // La letra exacta bajo el mouse: en la Pizarra la letra es más grande y la proporción del verso no cae sobre la
+        // misma palabra; con la letra, sí (también si el verso se parte en dos renglones).
+        const car = punteroLetraEn(el, ev.clientX, ev.clientY), c = car != null ? punteroRectLetra(el, car) : null;
+        if (c && c.width && c.height) Object.assign(m, { car, fx: (ev.clientX - c.left) / c.width, fy: (ev.clientY - c.top) / c.height });
+        return m;
     });
     ClaseVivo.onCambio(espejoPintarBoton);
     espejoPintarBoton();

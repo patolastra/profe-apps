@@ -5741,3 +5741,10 @@ Notion: "\"La bitácora cambió mientras escribías\" aparece con un solo comput
   Entrenador solo se mostraba mientras ese Entrenador proyectaba, y la decisión del PO era "solo con la clase en
   curso" (como en el Plan). Ahora se ve con la clase en curso, igual que 📽️ Pizarra; el punto se dibuja mientras ese
   Entrenador proyecta (el título del botón lo explica). Probado: sin clase, oculto; con clase y sin proyectar, visible.
+- **Arreglo (2026-10-24, reportado por el PO: "sobre diapos sí se ve; sobre entrenador no"):** la copia de la Pizarra
+  esconde todo lo que cuelga directo del `body` salvo la letra (`body.espejo > *:not(...) { display: none }`), y el punto
+  se agregaba ahí: quedaba dibujado pero invisible. La prueba anterior miraba solo su opacidad y posición, no si se veía.
+  Ahora `puntero.js` cuelga el punto y la estela del `<html>`, fuera del `body` (vale para cualquier página). Además, en
+  la letra el punto se ubica por la **letra (carácter)** bajo el mouse (`punteroLetraEn` / `punteroRectLetra`): en la
+  Pizarra la letra es más grande y la proporción del verso no caía sobre la misma palabra. Probado: la "g" de "guatón"
+  está en (580, 325) en la copia y el punto cayó en (579, 325), visible (captura).

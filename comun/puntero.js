@@ -71,15 +71,18 @@
                 box-shadow: 0 0 1.2vh .5vh rgba(255, 40, 40, .85), 0 0 .3vh .15vh #fff inset; }
             .pnt-estela { width: 1.6vh; height: 1.6vh; margin: -.8vh 0 0 -.8vh; background: rgba(255, 50, 50, .55); }`;
         document.head.appendChild(css);
+        // Fuera del <body>: algunas páginas esconden todo lo que no es suyo en el body (la copia del Entrenador en la
+        // Pizarra oculta "body > *" salvo la letra), y ahí el punto quedaba dibujado pero invisible.
+        const raiz = document.documentElement;
         for (let i = 0; i < N; i++) {
             const e = document.createElement('div');
             e.className = 'pnt-estela';
-            document.body.appendChild(e);
+            raiz.appendChild(e);
             estela.push(e);
         }
         punto = document.createElement('div');
         punto.className = 'pnt-punto';
-        document.body.appendChild(punto);
+        raiz.appendChild(punto);
     }
     function mostrar(x, y) {
         asegurar();
