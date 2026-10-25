@@ -5750,3 +5750,15 @@ Notion: "\"La bitácora cambió mientras escribías\" aparece con un solo comput
   está en (580, 325) en la copia y el punto cayó en (579, 325), visible (captura).
 - **Validación del PO (2026-10-24):** en la Pizarra real el punto se ve sobre la letra (Entrenador mínimo) y sobre las
   diapositivas. Queda la fase 2.
+
+### CV. Plan — el recurso de una actividad se abre como en la Presentación
+*Origen: 🐞 Mejoras (Segundo, clase del 22/10/26), PO 2026-10-24. Notion: "Recurso de una actividad: abrirlo como en
+Presentación, no en pestaña nueva".*
+- **Auditoría:** el chip de una canción o recurso en la card de la actividad (columna Plan) llama `abrirCancionCurso`,
+  que abre el Entrenador del curso en una pestaña del Workspace; el mismo chip en el cuadro de la actividad de la
+  Presentación llama `abrirMini` (Entrenador mínimo sobre Presentación + Vista previa y, con la clase en curso, la letra
+  en la Pizarra). La vista de clase ya usaba `abrirMini`.
+- **Decisión del PO (2026-10-24):** que el chip del Plan haga lo mismo que el de la Presentación.
+- **Implementación:** el clic del chip en la card llama `abrirMini(cancion, actividad, asset)`.
+- **Lugares de uso (regla 11):** chip en la card del Plan, chip del cuadro de la Presentación y panel de la vista de
+  clase: los tres abren ahora el Entrenador mínimo. `abrirCancionCurso` quedó sin uso y se retiró (regla 10).
