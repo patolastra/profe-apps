@@ -5737,3 +5737,7 @@ Notion: "\"La bitácora cambió mientras escribías\" aparece con un solo comput
   `propios` reconoce la misma hora escrita de otra forma y olvida la más vieja al pasar el máximo.
 - **Lugares de uso (regla 11):** los seis lugares que muestran el aviso o reciben ecos (Plan ×3, Cursos PC, celular,
   Cuaderno) quedan con el mismo método.
+- **Arreglo (2026-10-24, reportado por el PO en clase: "no aparece, estoy en el entrenador mínimo"):** el botón 🔴 del
+  Entrenador solo se mostraba mientras ese Entrenador proyectaba, y la decisión del PO era "solo con la clase en
+  curso" (como en el Plan). Ahora se ve con la clase en curso, igual que 📽️ Pizarra; el punto se dibuja mientras ese
+  Entrenador proyecta (el título del botón lo explica). Probado: sin clase, oculto; con clase y sin proyectar, visible.
