@@ -40,8 +40,6 @@
         }
 
         /* ── AUTH GATE ── */
-        #auth-gate { position: fixed; inset: 0; background: var(--bg); z-index: 9999; }
-        #auth-gate.desbloqueado { display: none; }
 
         /* ── HEADER ── */
         #header {
@@ -49,6 +47,19 @@
             padding: calc(18px + env(safe-area-inset-top, 0px)) 18px 14px;
             background: linear-gradient(180deg, var(--bg) 50%, var(--surface) 100%);
         }
+        #btn-menu { background: none; border: 0; color: var(--text); font-size: 1.5rem; padding: 0 6px 0 0; line-height: 1; cursor: pointer; align-self: center; }
+        #menu-fondo { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 900; }
+        #menu-fondo[hidden], #menu[hidden], #aviso-version[hidden] { display: none; }
+        #menu { position: fixed; top: 0; left: 0; bottom: 0; width: min(80vw, 300px); z-index: 901; background: var(--surface);
+            border-right: 1px solid var(--border); padding: calc(18px + env(safe-area-inset-top, 0px)) 10px 20px; display: flex; flex-direction: column; gap: 4px; }
+        .mn-it { display: flex; align-items: center; gap: 10px; padding: 14px 12px; border-radius: 12px; color: var(--text); text-decoration: none;
+            font: inherit; font-size: 1.05rem; font-weight: 600; background: none; border: 0; text-align: left; cursor: pointer; }
+        .mn-it:active { background: var(--card); }
+        .mn-sep { height: 1px; background: var(--border); margin: 8px 4px; }
+        #mn-version-n { margin-left: auto; width: 10px; height: 10px; border-radius: 50%; background: #f97316; display: none; }
+        #mn-version-n.on { display: inline-block; }
+        #aviso-version { display: block; width: calc(100% - 36px); margin: 10px 18px 0; padding: 12px; border-radius: 12px; border: 1px solid #f97316;
+            background: #2a1708; color: #fdba74; font: inherit; font-weight: 700; cursor: pointer; }
         #hdr-line { flex: 1; font-size: 1.4rem; font-weight: 700; color: var(--text); }
         #red { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
         #red.pend { color: var(--yellow); }
@@ -63,8 +74,6 @@
         .acceso:active { background: #253455; }
         .acceso[hidden] { display: none; }
         .acceso.chico { padding: 12px; font-size: 0.95rem; border-radius: 14px; }
-        .accesos-fila { display: flex; gap: 10px; margin: 14px 18px 0; }
-        .accesos-fila .acceso { flex: 1; margin: 0; }
         /* 🔊 Volumen (deuda DA) */
         .acceso.vol { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px 18px; }
         .acceso.vol:active { background: var(--card); }
@@ -230,20 +239,28 @@
 </head>
 <body>
 
-<!-- AUTH GATE -->
-<div id="auth-gate"></div>
 
 <!-- HEADER -->
 <div id="header">
+    <button type="button" id="btn-menu" aria-label="Menú">☰</button>
     <div id="hdr-line">—</div>
     <span id="red"></span>
 </div>
+<button type="button" id="aviso-version" hidden>🔄 Hay una versión nueva — Cargar</button>
+<!-- Menú (PO 2026-10-25): lo primero, la Biblioteca -->
+<div id="menu-fondo" hidden></div>
+<nav id="menu" hidden>
+    <a class="mn-it" href="../REPERTORIO/index.html?movil=1">📚 Biblioteca</a>
+    <a class="mn-it" href="cursos.html">✍🏼 Bitácora</a>
+    <div class="mn-sep"></div>
+    <button type="button" class="mn-it" id="mn-version">🔄 Cargar versión nueva <span id="mn-version-n"></span></button>
+</nav>
 
 <!-- CON CLASE EN CURSO: curso, Bitácora y Evaluar (si hay evaluaciones por toques) -->
 <section id="en-clase" hidden>
     <div id="en-clase-tit"><small>En clase</small><span id="en-clase-curso"></span></div>
     <a class="acceso" href="cursos.html">✍🏼 BITÁCORA</a>
-    <a class="acceso" id="acc-ent-clase" href="../REPERTORIO/index.html?movil=1">🎵 ENTRENADOR</a>
+    <a class="acceso" id="acc-ent-clase" href="../REPERTORIO/index.html?movil=1">📚 BIBLIOTECA</a>
     <a class="acceso" id="acc-evaluar" href="evaluar.html" hidden>📝 EVALUAR</a>
     <!-- 🔊 Volumen del Entrenador en el PC de la clase (deuda DA) -->
     <div class="acceso vol" id="acc-vol">
@@ -259,7 +276,6 @@
 
 <!-- SIN CLASE: Bitácora y pendientes -->
 <section id="sin-clase" hidden>
-    <div class="accesos-fila"><a class="acceso chico" href="cursos.html">✍🏼 BITÁCORA</a><a class="acceso chico" href="../REPERTORIO/index.html?movil=1">🎵 ENTRENADOR</a></div>
     <div id="pend">
         <div id="pend-hdr">
             <span class="tit">Pendientes</span>
@@ -286,39 +302,8 @@
 <div id="toast" hidden><span id="toast-txt"></span><button type="button" id="toast-btn">Deshacer</button></div>
 
 <script>
-// ── AUTH GATE ──────────────────────────────────────────────────────────────
-(function() {
-    const gate  = document.getElementById('auth-gate');
-    const CLAVE = new Date().getDate().toString();
-
-    if (sessionStorage.getItem('profe_auth') === '1') {
-        gate.classList.add('desbloqueado'); return;
-    }
-
-    const desbloquear = () => { sessionStorage.setItem('profe_auth', '1'); gate.classList.add('desbloqueado'); };
-    const decoy = () => { window.location.href = 'https://www.google.com'; };
-
-    const inp = document.createElement('input');
-    inp.type = 'tel'; inp.setAttribute('inputmode', 'numeric'); inp.setAttribute('autocomplete', 'off');
-    inp.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;opacity:0;font-size:16px;cursor:default;border:none;outline:none;background:transparent;z-index:10000;';
-    gate.appendChild(inp);
-
-    inp.addEventListener('input', function() {
-        const val = this.value.replace(/\D/g, '');
-        this.value = val;
-        if (val.length >= CLAVE.length) { val === CLAVE ? desbloquear() : decoy(); }
-    });
-
-    let acum = '';
-    document.addEventListener('keydown', function handler(e) {
-        if (e.key >= '0' && e.key <= '9') {
-            acum += e.key;
-            if (acum.length === CLAVE.length) {
-                acum === CLAVE ? (document.removeEventListener('keydown', handler), desbloquear()) : decoy();
-            }
-        } else { decoy(); }
-    });
-})();
+// Sin clave en el celular (DECISIÓN del PO 2026-10-25: el celular lo usa solo el PO); el PC la mantiene.
+sessionStorage.setItem('profe_auth', '1');
 
 // ── CONSTANTES ─────────────────────────────────────────────────────────────
 const DIAS  = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
@@ -417,6 +402,46 @@ async function revisarEvaluar(ctx) {
     $('acc-evaluar').hidden = !(evs && evs.length);
 }
 ClaseVivo.onCambio(decidir);
+
+// ── Menú ☰ (PO 2026-10-25) ──
+function menu(abrir) { $('menu').hidden = !abrir; $('menu-fondo').hidden = !abrir; }
+$('btn-menu').addEventListener('click', () => menu(true));
+$('menu-fondo').addEventListener('click', () => menu(false));
+
+// ── Versión nueva (PO 2026-10-25, como "Recargar" del PC): version.json cambia en cada subida. Se revisa al abrir,
+// al volver a la app y cada 5 min; "Cargar" pide al servidor las páginas y piezas del celular al día y recarga. ──
+const VERSION_KEY = 'movil_version_cargada';
+let versionServidor = null;
+async function revisarVersion() {
+    try {
+        const r = await fetch('../version.json?t=' + Date.now(), { cache: 'no-store' });
+        const v = r.ok ? (await r.json()).version : null;
+        if (!v) return;
+        versionServidor = v;
+        const cargada = localStorage.getItem(VERSION_KEY);
+        if (!cargada) { localStorage.setItem(VERSION_KEY, v); return; }
+        const hay = v !== cargada;
+        $('aviso-version').hidden = !hay;
+        $('mn-version-n').classList.toggle('on', hay);
+    } catch (_) {}
+}
+async function cargarVersion() {
+    const b = $('aviso-version'); b.textContent = '🔄 Cargando…';
+    const urls = ['index.html', 'cursos.html', 'evaluar.html', '../REPERTORIO/index.html', '../ritmo.js?v=by1', '../ritmo-render.js?v=da1',
+        '../comun/clase-vivo.js', '../comun/pendientes.js', '../comun/pendientes.css', '../comun/mensajes.js', '../comun/mensajes.css',
+        '../comun/apoderados.js', '../comun/apoderados.css', '../comun/volumen.js', '../comun/editor-bloques.js', '../comun/editor-bloques.css',
+        '../comun/tiempo-real.js', '../comun/asistencia.js', '../comun/puntero.js', '../comun/nombre-asset.js', '../supabase/config.js', '../supabase/contextos.js'];
+    await Promise.all(urls.map(u => fetch(new URL(u, location.href).href, { cache: 'reload' }).catch(() => {})));
+    try { const reg = await navigator.serviceWorker?.getRegistration('../'); await reg?.update(); } catch (_) {}
+    try { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('profe-movil-')).map(k => caches.delete(k))); } catch (_) {}
+    try { if (versionServidor) localStorage.setItem(VERSION_KEY, versionServidor); } catch (_) {}
+    location.reload();
+}
+$('aviso-version').addEventListener('click', cargarVersion);
+$('mn-version').addEventListener('click', () => { menu(false); cargarVersion(); });
+revisarVersion();
+setInterval(revisarVersion, 5 * 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) revisarVersion(); });
 
 // ── 🔊 Volumen del Entrenador en el PC de la clase (deuda DA): por internet, comun/volumen.js ──
 Volumen.conectar(sb, { control: true });

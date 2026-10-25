@@ -6026,3 +6026,22 @@ opciones propuestas eligió solo las citas a apoderados).*
   mismo celular lo tomaba como propio. Ahora el control del celular no lo guarda y el Entrenador en el celular suena a
   todo volumen (se maneja con los botones del teléfono). Probado con el volumen guardado "en silencio": audio a 1, sin
   silenciar; atrás: canción → lista de Segundo → cursos; ← de pantalla igual. Captura del Entrenador en el teléfono.
+
+### DH. Celular — sin clave, menú ☰ con la Biblioteca, "Cargar versión nueva"; Biblioteca con Cursos / Otras sesiones
+*Origen: PO 2026-10-25, tras probar DG en su celular ("todo funciona, ahora algunos detalles").*
+- **Decisiones del PO:** (1) **sin clave en el celular** (lo usa solo el PO; en el PC sigue); (2) en las sesiones del
+  Entrenador del celular, un selector **Cursos / Otras sesiones**; (3) sin clase, la página principal son los
+  pendientes y se agrega un **menú** cuyo primer ítem es el Entrenador, que en el celular se llama **"Biblioteca"**
+  (para estudiar las canciones de las sesiones; no para subir canciones, tablaturas ni MIDI; más adelante quizá letras
+  y administrar las canciones de las sesiones); (4) **"Cargar versión nueva"** como el "Recargar" del PC.
+- **Implementación:** `MOVIL/index.html` sin la pantalla de clave (también `cursos.html` y `evaluar.html` dejan de
+  pedirla); ☰ en el encabezado con 📚 Biblioteca · ✍🏼 Bitácora · 🔄 Cargar versión nueva (punto naranjo si hay);
+  aviso "🔄 Hay una versión nueva — Cargar" arriba (revisa `version.json` al abrir, al volver y cada 5 min; cargar pide
+  al servidor las páginas y piezas del celular y la Biblioteca, renueva el modo sin señal y recarga); sin clase sale la
+  fila Bitácora / Entrenador (todo está en el menú); en clase el botón se llama 📚 BIBLIOTECA. Biblioteca del celular
+  (`REPERTORIO/?movil=1`): título 📚 Biblioteca, pestañas Cursos (la sesión de cada curso) / Otras sesiones (las demás
+  con canciones); la lista es por sesión.
+- **Prueba (local, tamaño celular):** sin la sesión guardada, el inicio abre directo (sin clave); con una versión vieja
+  anotada aparece "🔄 Hay una versión nueva — Cargar" y el punto en el menú; "Cargar versión nueva" recargó y el aviso
+  se fue. Menú: 📚 Biblioteca · ✍🏼 Bitácora · 🔄 Cargar versión nueva. Biblioteca: 12 cursos / Otras sesiones (Cuecas
+  2026 13, Mine 2, Pancho Morales 4, Salsas 3); Cuecas → 13 canciones; atrás vuelve a la pestaña Otras. Capturas.

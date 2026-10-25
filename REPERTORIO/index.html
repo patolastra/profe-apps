@@ -2063,6 +2063,9 @@
         #movil-inicio .mi-cab { display: flex; align-items: center; gap: 10px; padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 12px; }
         #movil-inicio .mi-cab a, #movil-inicio .mi-cab button { color: #f1f5f9; text-decoration: none; background: none; border: 0; font-size: 1.5rem; padding: 2px 8px; cursor: pointer; }
         #movil-inicio .mi-tit { font-size: 1.3rem; font-weight: 700; flex: 1; min-width: 0; }
+        #movil-inicio .mi-pest { display: flex; gap: 4px; margin: 0 16px 10px; padding: 4px; background: #131c2e; border: 1px solid #253455; border-radius: 12px; }
+        #movil-inicio .mi-pest button { flex: 1; padding: 10px; border: 0; border-radius: 9px; background: none; color: #7a8ba8; font: inherit; font-weight: 600; }
+        #movil-inicio .mi-pest button.on { background: #1a2540; color: #f1f5f9; }
         #movil-inicio .mi-lista { flex: 1; overflow-y: auto; padding: 4px 16px 24px; display: flex; flex-direction: column; gap: 10px; }
         #movil-inicio .mi-it { display: flex; align-items: center; gap: 12px; padding: 16px 18px; background: #1a2540; border: 1px solid #253455;
             border-radius: 16px; color: inherit; font: inherit; font-size: 1.05rem; font-weight: 600; text-align: left; cursor: pointer; }
@@ -9478,35 +9481,49 @@ async function bibRefrescar() {
 TiempoReal.alVolver(bibAvisar);
 TiempoReal.conectar(sb);
 
-// ══ Entrenador en el celular, docente (deuda DG, etapa 1) ══════════════════════
+// ══ Biblioteca en el celular (Entrenador para estudiar las canciones; deuda DG, etapa 1) ══════════════════════
 // ?movil=1: pantalla de cursos → canciones del curso (su sesión) → el Entrenador en grande, sin edición.
 // ?movil=1&ctx=NOMBRE: parte en las canciones de ese curso (el celular lo pide así con la clase en curso).
 // Deslizar ← → sobre la letra cambia de canción. ← del Entrenador vuelve a la lista de canciones.
-let movilCurso = null;   // id del contexto cuya lista de canciones se ve
-function movilSesionDe(cid) { return sesiones.find(s => s.contexto_id === cid && (s.canciones || []).length); }
+let movilSesion = null;            // id de la sesión cuya lista de canciones se ve
+let movilPestana = 'cursos';      // 'cursos' | 'otras' (PO 2026-10-25)
+const conCanciones = s => (s.canciones || []).length > 0;
+function movilSesionDe(cid) { return sesiones.find(s => s.contexto_id === cid && conCanciones(s)); }
+// Cursos: la sesión de cada curso (la primera con canciones). Otras: todas las demás sesiones con canciones.
+function movilListas() {
+    const ORDEN = ['PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO', 'SEXTO', 'SEPTIMO', 'OCTAVO'];
+    const pos = n => { const i = ORDEN.indexOf(n); return i < 0 ? 100 : i; };
+    const cursos = contextosDB.filter(c => movilSesionDe(c.id)).sort((a, b) => pos(a.nombre) - pos(b.nombre) || a.nombre.localeCompare(b.nombre))
+        .map(c => ({ ctx: c, s: movilSesionDe(c.id) }));
+    const usadas = new Set(cursos.map(x => x.s.id));
+    const otras = sesiones.filter(s => conCanciones(s) && !usadas.has(s.id)).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+    return { cursos, otras };
+}
 function movilPintar() {
     let el = document.getElementById('movil-inicio');
     if (!el) { el = document.createElement('div'); el.id = 'movil-inicio'; document.body.appendChild(el); }
     const escH = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const info = n => (typeof ctxDisplay === 'function' ? ctxDisplay(n) : n) || n;
-    const ico = n => (typeof ctxIcono === 'function' ? ctxIcono(n) : '') || '🎵';
-    if (!movilCurso) {
-        const ORDEN = ['PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO', 'SEXTO', 'SEPTIMO', 'OCTAVO'];
-        const pos = n => { const i = ORDEN.indexOf(n); return i < 0 ? 100 : i; };
-        const cursos = contextosDB.filter(c => movilSesionDe(c.id)).sort((a, b) => pos(a.nombre) - pos(b.nombre) || a.nombre.localeCompare(b.nombre));
-        el.innerHTML = `<div class="mi-cab"><a href="../MOVIL/index.html" aria-label="Volver">←</a><span class="mi-tit">🎵 Entrenador</span></div>
-            <div class="mi-lista">${cursos.length ? cursos.map(c => `<button class="mi-it" data-c="${escH(c.id)}">
-                <span>${escH(info(c.nombre))}</span><span class="mi-n">${movilSesionDe(c.id).canciones.length}</span></button>`).join('')
-                : '<div class="mi-vacio">No hay cursos con canciones.</div>'}</div>`;
-        el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { movilCurso = b.dataset.c; history.pushState({ movil: 'curso' }, ''); movilPintar(); });
+    const nombreSesion = s => { const c = s && contextosDB.find(x => x.id === s.contexto_id); return c && movilSesionDe(c.id)?.id === s.id ? info(c.nombre) : (s?.nombre || 'Sesión'); };
+    if (!movilSesion) {
+        const { cursos, otras } = movilListas();
+        const fila = (id, txt, n) => `<button class="mi-it" data-ses="${escH(id)}"><span>${escH(txt)}</span><span class="mi-n">${n}</span></button>`;
+        const lista = movilPestana === 'cursos'
+            ? (cursos.length ? cursos.map(x => fila(x.s.id, info(x.ctx.nombre), x.s.canciones.length)).join('') : '<div class="mi-vacio">No hay cursos con canciones.</div>')
+            : (otras.length ? otras.map(s => fila(s.id, s.nombre || 'Sesión', s.canciones.length)).join('') : '<div class="mi-vacio">No hay otras sesiones.</div>');
+        el.innerHTML = `<div class="mi-cab"><a href="../MOVIL/index.html" aria-label="Volver">←</a><span class="mi-tit">📚 Biblioteca</span></div>
+            <div class="mi-pest"><button type="button" data-p="cursos" class="${movilPestana === 'cursos' ? 'on' : ''}">Cursos</button><button type="button" data-p="otras" class="${movilPestana === 'otras' ? 'on' : ''}">Otras sesiones</button></div>
+            <div class="mi-lista">${lista}</div>`;
+        el.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { movilPestana = b.dataset.p; movilPintar(); });
+        el.querySelectorAll('[data-ses]').forEach(b => b.onclick = () => { movilSesion = b.dataset.ses; history.pushState({ movil: 'sesion' }, ''); movilPintar(); });
         return;
     }
-    const c = contextosDB.find(x => x.id === movilCurso), s = movilSesionDe(movilCurso);
+    const s = sesiones.find(x => x.id === movilSesion);
     const items = (s?.canciones || []).map(it => ({ it, song: canciones.find(x => x.id === it.cancion_id) })).filter(x => x.song);
-    el.innerHTML = `<div class="mi-cab"><button type="button" class="mi-volver" aria-label="Cursos">←</button><span class="mi-tit">${escH(info(c?.nombre || ''))}</span></div>
-        <div class="mi-lista">${items.length ? items.map(({ it, song }) => `<button class="mi-it" data-s="${escH(song.id)}"><span class="mi-ico">${(song.assets || []).some(a => a.tipo === 'audio') ? '🎵' : '📄'}</span>
+    el.innerHTML = `<div class="mi-cab"><button type="button" class="mi-volver" aria-label="Volver">←</button><span class="mi-tit">${escH(nombreSesion(s))}</span></div>
+        <div class="mi-lista">${items.length ? items.map(({ song }) => `<button class="mi-it" data-s="${escH(song.id)}"><span class="mi-ico">${(song.assets || []).some(a => a.tipo === 'audio') ? '🎵' : '📄'}</span>
             <span>${escH(song.nombre)}<span class="mi-sub">${escH(song.artista || '')}</span></span></button>`).join('')
-            : '<div class="mi-vacio">Este curso no tiene canciones.</div>'}</div>`;
+            : '<div class="mi-vacio">Esta sesión no tiene canciones.</div>'}</div>`;
     el.querySelector('.mi-volver').onclick = () => history.back();
     el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { history.pushState({ movil: 'cancion' }, ''); practicarSesion(s.id, b.dataset.s); });
 }
@@ -9514,7 +9531,7 @@ function movilPintar() {
 // entonces al inicio del celular. Cada pantalla deja un paso en el historial.
 if (MOVIL) window.addEventListener('popstate', () => {
     if (document.getElementById('entrenador-overlay').classList.contains('visible')) { movilCerrando = true; cerrarEntrenador(); movilCerrando = false; return; }
-    if (movilCurso) { movilCurso = null; movilPintar(); }
+    if (movilSesion) { movilSesion = null; movilPintar(); }
 });
 let movilCerrando = false;
 if (MOVIL) {
@@ -9549,7 +9566,7 @@ if (MOVIL) {
     render();
     if (MOVIL) {   // celular (DG): con ?ctx= parte en las canciones de ese curso
         const c = ctxParam && contextosDB.find(x => x.nombre === ctxParam.toUpperCase());
-        if (c && movilSesionDe(c.id)) movilCurso = c.id;
+        if (c && movilSesionDe(c.id)) { movilSesion = movilSesionDe(c.id).id; history.replaceState({ movil: 'base' }, ''); history.pushState({ movil: 'sesion' }, ''); }
         movilPintar();
     }
     // Deep-link Entrenador: ?vista=sesiones abre directo la vista de sesiones
