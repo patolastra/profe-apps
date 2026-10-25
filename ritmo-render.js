@@ -407,6 +407,17 @@
         if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
         return _actx;
     }
+    // Volumen general (deuda DA, autorizado por el PO 2026-10-24): un solo nodo a la salida, entre los buses
+    // y los parlantes. No cambia tiempos ni sonidos. volumen(v): 0..1.
+    let _vol = 1, _salida = null;
+    function salidaGeneral(c) {
+        if (!_salida || _salida.context !== c) { _salida = c.createGain(); _salida.gain.value = _vol; _salida.connect(c.destination); }
+        return _salida;
+    }
+    function volumen(v) {
+        _vol = Math.max(0, Math.min(1, +v || 0));
+        if (_salida) _salida.gain.setTargetAtTime(_vol, _salida.context.currentTime, 0.02);
+    }
     // Ruido con envolvente de PALMADA (clap): varias micro-ráfagas seguidas de
     // una cola corta, imitando el rebote de las manos al aplaudir. Sustituye al
     // tick anterior (ruido con caída simple). Reutiliza el mismo mecanismo de
@@ -573,8 +584,8 @@
             if (c.state === 'suspended') c.resume();
             playing = true; fired = -1;
             // Buses independientes: patrón ↔ metrónomo/precuenta.
-            busPatron = c.createGain(); busPatron.gain.value = 1.0; busPatron.connect(c.destination);
-            busMetro  = c.createGain(); busMetro.gain.value  = 1.0; busMetro.connect(c.destination);
+            busPatron = c.createGain(); busPatron.gain.value = 1.0; busPatron.connect(salidaGeneral(c));
+            busMetro  = c.createGain(); busMetro.gain.value  = 1.0; busMetro.connect(salidaGeneral(c));
             const pm = sinPrecuenta ? 0 : precountMeasures;
             offActual = sinPrecuenta ? 0 : offsetPatron;
             t0 = c.currentTime + 0.12;
@@ -630,6 +641,6 @@
         return { play, stop, get playing() { return playing; } };
     }
 
-    root.RITMO_UI = { render, crearPlayer, audioCtx };
+    root.RITMO_UI = { render, crearPlayer, audioCtx, volumen };
 
 })(typeof window !== 'undefined' ? window : this);

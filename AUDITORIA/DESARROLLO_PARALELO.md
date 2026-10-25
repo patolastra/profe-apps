@@ -5851,3 +5851,32 @@ acordado (2026-10-24): reproducir, arreglar solo lo que falle.*
   vuelta → cerrada.
 - **Lugares de uso (regla 11):** el cambio es del Entrenador (Biblioteca y pestaña de la sesión del curso); el mínimo
   del Plan no tiene lista; la copia de la Pizarra no está en modo sesión.
+
+### DA. Entrenador — volumen en la barra y desde el celular
+*Origen: bitácora 13/10 Sexto y PO 2026-10-24. Notion: "Entrenador: barra de volumen y control de volumen desde el
+celular".*
+- **Auditoría:** el Entrenador no tiene control de volumen. Suenan tres cosas: la canción (elemento de audio, o el
+  tono cambiado por `entPitchCtx`), los ritmos (`ritmo-render.js`, sus buses salen directo a los parlantes) y el
+  Metalófono del Entrenador (su marco, con Tone.js). La copia de la Pizarra siempre va muda. El celular y el PC son
+  equipos distintos: solo se pueden hablar por internet (Supabase); ya existe un canal así (Pizarra remota,
+  `pizarra:<sesión>`), sin tablas.
+- **Decisión del PO (2026-10-24):** el volumen aplica a **todo** lo que suena en el Entrenador, **incluidos los
+  ritmos** (autoriza tocar el motor de ritmo protegido, solo para esto); en el celular, **🔊 Volumen en el inicio con la
+  clase en curso**.
+- **Diseño:** pieza `comun/volumen.js` (`Volumen`): nivel 0–100 y silencio, recordado en el equipo (`localStorage`,
+  todas las pestañas al tiempo); con la clase en curso escucha y avisa por un canal de Supabase sin tablas
+  (`profe-volumen`), así el celular lo cambia y ve el nivel del PC. Entrenador: barra 🔊 (ancho fijo) junto a la
+  velocidad; aplica el nivel a la canción, a los ritmos y al Metalófono. Motor de ritmo: un solo nodo de volumen a la
+  salida (`RITMO_UI.volumen(v)`), sin tocar tiempos ni sonidos. Celular: botón 🔊 VOLUMEN con − / + / 🔇 y la barra.
+- **Lugares de uso (regla 11):** Entrenador de la Biblioteca, de la sesión del curso y mínimo del Plan (mismo archivo,
+  mismo nivel); copia de la Pizarra: sigue muda.
+- **Implementación (2026-10-24):** `comun/volumen.js`; Entrenador: barra 🔊 (118 px fijos) junto a la velocidad,
+  `entAplicarVolumen` (audio, `entPitchSalida` para el tono cambiado, `RITMO_UI.volumen`, `Tone.Destination` del
+  Metalófono); `ritmo-render.js`: `salidaGeneral` + `volumen(v)` (los buses pasan por un nodo más; tiempos y sonidos
+  iguales), cargado como `?v=da1`; celular: tarjeta 🔊 VOLUMEN en "En clase" (`MOVIL/index.html`), `volumen.js` en la
+  lista sin señal (`sw-movil.js`, copia v7). Mientras se toca en el celular, las respuestas atrasadas del PC no pisan lo
+  tocado (1,5 s) y luego se pide el nivel real.
+- **Prueba (local; la clase solo simulada en la memoria de la pestaña del PC, sin publicarla):** canción 60/30/silencio
+  → volumen del audio 0,6 / 0,3 / 0; ritmo: un solo nodo a los parlantes, 0,40 → 0,80 al cambiar sonando; Metalófono:
+  50 % = −6 dB, silencio = mudo; celular ↔ PC: el celular mostró "PC: 100 %", tres "−" rápidos → PC 70 % (audio 0,7),
+  🔇 → "en silencio", de nuevo → 70 %. Captura del celular y de la barra. No probado: dos equipos reales y el proyector.

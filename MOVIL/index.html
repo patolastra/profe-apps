@@ -11,6 +11,7 @@
     <script src="../supabase/config.js"></script>
     <script src="../supabase/contextos.js"></script>
     <script src="../comun/clase-vivo.js"></script>
+    <script src="../comun/volumen.js"></script>
     <link rel="stylesheet" href="../comun/pendientes.css">
     <script src="../comun/pendientes.js"></script>
     <style>
@@ -58,6 +59,18 @@
         .acceso:active { background: #253455; }
         .acceso[hidden] { display: none; }
         .acceso.chico { padding: 12px; font-size: 0.95rem; border-radius: 14px; }
+        /* 🔊 Volumen (deuda DA) */
+        .acceso.vol { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px 18px; }
+        .acceso.vol:active { background: var(--card); }
+        .vol-tit { display: flex; align-items: baseline; gap: 8px; }
+        .vol-tit small { margin-left: auto; font-size: 0.75rem; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+        .vol-tit small.ok { color: #86efac; }
+        .vol-fila { display: flex; align-items: center; gap: 10px; }
+        .vol-fila button { flex: 0 0 52px; height: 52px; border-radius: 14px; border: 1px solid var(--border); background: #1b2740;
+            color: var(--text); font-size: 1.6rem; font-weight: 700; line-height: 1; }
+        .vol-fila button:active { background: #253455; }
+        .vol-fila button.on { background: #7f1d1d; border-color: #ef4444; }
+        #vol-barra { flex: 1; min-width: 0; height: 36px; accent-color: #ea580c; }
 
         /* ── Con clase en curso ── */
         #en-clase-tit {
@@ -192,6 +205,16 @@
     <div id="en-clase-tit"><small>En clase</small><span id="en-clase-curso"></span></div>
     <a class="acceso" href="cursos.html">✍🏼 BITÁCORA</a>
     <a class="acceso" id="acc-evaluar" href="evaluar.html" hidden>📝 EVALUAR</a>
+    <!-- 🔊 Volumen del Entrenador en el PC de la clase (deuda DA) -->
+    <div class="acceso vol" id="acc-vol">
+        <div class="vol-tit">🔊 VOLUMEN <small id="vol-pc">Buscando el PC…</small></div>
+        <div class="vol-fila">
+            <button type="button" id="vol-menos" aria-label="Bajar">−</button>
+            <input type="range" id="vol-barra" min="0" max="100" step="5" value="100" aria-label="Volumen">
+            <button type="button" id="vol-mas" aria-label="Subir">＋</button>
+            <button type="button" id="vol-mudo" aria-label="Silenciar">🔇</button>
+        </div>
+    </div>
 </section>
 
 <!-- SIN CLASE: Bitácora y pendientes -->
@@ -324,6 +347,7 @@ function decidir() {
     $('sin-clase').hidden = nuevo !== 'libre';
     if (c) {
         $('en-clase-curso').textContent = etiqueta(c.ctx);
+        if (modo !== 'clase') Volumen.pedir();   // al entrar en clase, el nivel del PC
         revisarEvaluar(c.ctx);
     }
     if (nuevo === 'libre' && modo !== 'libre') iniciarPendientes();
@@ -347,6 +371,26 @@ async function revisarEvaluar(ctx) {
     $('acc-evaluar').hidden = !(evs && evs.length);
 }
 ClaseVivo.onCambio(decidir);
+
+// ── 🔊 Volumen del Entrenador en el PC de la clase (deuda DA): por internet, comun/volumen.js ──
+Volumen.conectar(sb, { control: true });
+Volumen.alCambiar(st => {
+    const barra = $('vol-barra');
+    if (document.activeElement !== barra) barra.value = st.v;
+    $('vol-mudo').classList.toggle('on', st.mudo);
+    pintarVolPC();
+});
+function pintarVolPC() {
+    const el = $('vol-pc'), st = Volumen.estado();
+    const ok = Date.now() - Volumen.vistoPC() < 15000;
+    el.textContent = ok ? `PC: ${st.mudo ? 'en silencio' : st.v + ' %'}` : 'Buscando el PC…';
+    el.classList.toggle('ok', ok);
+}
+$('vol-barra').addEventListener('input', e => Volumen.poner({ v: +e.target.value }));
+$('vol-menos').addEventListener('click', () => Volumen.poner({ v: Volumen.estado().v - 10 }));
+$('vol-mas').addEventListener('click', () => Volumen.poner({ v: Volumen.estado().v + 10 }));
+$('vol-mudo').addEventListener('click', () => Volumen.poner({ mudo: !Volumen.estado().mudo }));
+setInterval(() => { if (modo === 'clase') { Volumen.pedir(); pintarVolPC(); } }, 10000);
 
 // ── Pendientes ──
 let listas = [];

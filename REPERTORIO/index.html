@@ -9,12 +9,13 @@
     <script src="../supabase/contextos.js"></script>
     <script src="../comun/clase-vivo.js"></script>
     <script src="../comun/puntero.js"></script>
+    <script src="../comun/volumen.js"></script>
     <script src="../comun/nombre-asset.js"></script>
     <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
     <script src="../ritmo.js?v=by1"></script>
-    <script src="../ritmo-render.js?v=by1"></script>
+    <script src="../ritmo-render.js?v=da1"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -2065,6 +2066,12 @@
             white-space: nowrap; transition: all 0.15s; flex-shrink: 0; line-height: 1;
         }
         #ent-vel-label { cursor: default; font-variant-numeric: tabular-nums; }
+        /* 🔊 Volumen (deuda DA): ancho fijo, la barra no baila */
+        #ent-vol { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; width: 118px; }
+        #ent-vol-mudo { width: 26px; padding: 0; border: 0; background: none; font-size: 0.95rem; cursor: pointer; line-height: 1; }
+        #ent-vol-barra { width: 86px; accent-color: #ea580c; cursor: pointer; }
+        #ent-vol.mudo #ent-vol-barra { opacity: .4; }
+        body.espejo #ent-vol { display: none; }
         #ent-btn-espejo:hover, #ent-btn-atajos:hover, #ent-btn-pitch:hover, #ent-btn-audio:hover, #ent-btn-tema:hover, #ent-btn-ocultar:hover, #ent-btn-lectura:hover,
         #ent-btn-sync:hover, #ent-btn-editar:hover { border-color: #64748b; color: #cbd5e1; }
         #ent-btn-pitch.activo, #ent-btn-audio.activo, #ent-btn-ocultar.oculto,
@@ -3001,6 +3008,7 @@
             <input id="ent-pitch-input" type="number" min="-6" max="6" step="1" value="0"
                    style="display:none" onkeydown="entPitchInputKey(event)" onblur="entPitchInputBlur()">
             <span id="ent-vel-label">1.0x</span>
+            <span id="ent-vol" title="Volumen de lo que suena en el Entrenador (con la clase en curso, también desde el celular)"><button id="ent-vol-mudo" onclick="Volumen.poner({ mudo: !Volumen.estado().mudo })" title="Silenciar / volver a oír">🔊</button><input id="ent-vol-barra" type="range" min="0" max="100" step="5" value="100" oninput="Volumen.poner({ v: +this.value })"></span>
             <div id="ent-mode-btns">
                 <button id="ent-btn-lectura" onclick="entToggleLectura()" title="Modo lectura: ↑ ↓ pasan de verso sin mover el audio; el teclado no reproduce ni cambia de canción">📖 Lectura</button>
                 <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()" title="Esconder toda la letra (luego Alt+clic muestra un verso y Alt+doble clic una estrofa) · si hay versos escondidos, mostrarla toda">Letra</button>
@@ -5346,7 +5354,7 @@ async function entActivarPitch() {
     entPitchFilter.sourcePosition = Math.floor(audioEl.currentTime * entPitchBuffer.sampleRate);
 
     entPitchNode = lib.getWebAudioNode(entPitchCtx, entPitchFilter);
-    entPitchNode.connect(entPitchCtx.destination);
+    entPitchNode.connect(entPitchSalida());   // pasa por el volumen (deuda DA)
 
     // 5. Silenciar <audio> (sigue controlando tiempo/seek)
     audioEl.muted = true;
@@ -5389,6 +5397,30 @@ let entModoEdicion         = false;
 //   'pantalla' → vista Diapositiva (estrofas grandes que encajan en el alto).
 let entViewMode     = 'scroll';
 
+// ── 🔊 Volumen (deuda DA): un nivel para todo lo que suena en el Entrenador — canción (también con el tono
+// cambiado), ritmos (motor ritmo-render.js) y Metalófono. Lo cambia la barra o el celular (comun/volumen.js).
+// La copia de la Pizarra sigue muda.
+let entPitchVol = null;
+function entPitchSalida() {
+    if (!entPitchVol || entPitchVol.context !== entPitchCtx) { entPitchVol = entPitchCtx.createGain(); entPitchVol.connect(entPitchCtx.destination); }
+    entPitchVol.gain.value = Volumen.nivel();
+    return entPitchVol;
+}
+function entAplicarVolumen() {
+    if (ESPEJO) return;
+    const n = Volumen.nivel(), st = Volumen.estado();
+    try { entAudio().volume = n; } catch (_) {}
+    if (entPitchVol) entPitchVol.gain.value = n;
+    try { RITMO_UI.volumen(n); } catch (_) {}
+    try {
+        const T = document.getElementById('metal-iframe')?.contentWindow?.Tone;
+        if (T) { T.Destination.mute = n === 0; if (n > 0) T.Destination.volume.value = 20 * Math.log10(n); }
+    } catch (_) {}
+    const barra = document.getElementById('ent-vol-barra'), mudo = document.getElementById('ent-vol-mudo');
+    if (barra && document.activeElement !== barra) barra.value = st.v;
+    if (mudo) mudo.textContent = n === 0 ? '🔇' : st.v < 50 ? '🔉' : '🔊';
+    document.getElementById('ent-vol')?.classList.toggle('mudo', n === 0);
+}
 let entListaAntesDiapo = true;   // la lista de la sesión estaba abierta al pasar a Diapositiva
 function entSetViewMode(m) {
     if (entModoEdicion) return;   // borraría el cuadro de edición
@@ -9056,6 +9088,9 @@ if (ESPEJO) {
         });
     }, { passive: true });
     document.getElementById('metal-iframe').addEventListener('load', espejoMetalObservar);
+    document.getElementById('metal-iframe').addEventListener('load', entAplicarVolumen);   // Metalófono recién cargado: con el volumen de ahora
+    Volumen.alCambiar(entAplicarVolumen);
+    Volumen.conectar(sb);   // el celular lo maneja con la clase en curso
     // 🔴 Puntero (deuda CT): mientras se proyecta, dónde está el mouse sobre la letra (verso + posición dentro del verso).
     // Se enciende con el único botón 🔴, el de la barra del Plan (DECISIÓN del PO 2026-10-24).
     Puntero.emisor(document.getElementById('ent-zona'), ev => {
