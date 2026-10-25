@@ -11,7 +11,7 @@
 // Se arma al vuelo con los datos existentes: no hay columna nueva en Supabase.
 (function () {
     const TIPO = { letra: 'Letra', audio: 'Audio', tab: 'Tab', metalofono: 'Metalófono',
-                   flauta: 'Flauta', cifrado: 'Cifrado', ritmo: 'Ritmo' };
+                   flauta: 'Flauta', cifrado: 'Cifrado', ritmo: 'Ritmo', melodia: 'Melodía' };
     const DIFIC = { inicial: 'Inicial', media: 'Media', dificil: 'Difícil', experto: 'Experto' };
 
     const cap  = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';

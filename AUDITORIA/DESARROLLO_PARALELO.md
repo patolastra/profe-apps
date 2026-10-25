@@ -6113,3 +6113,59 @@ opciones propuestas eligió solo las citas a apoderados).*
 - **Ajuste (PO 2026-10-25):** al pasar el mouse sobre un pendiente ya no aparece el cuadro del texto ni el puntero de
   escribir; se edita al hacer clic (ahí sí se marca el cuadro azul). Vale para todas las listas.
 - **Ajuste (PO 2026-10-25):** el clic derecho sobre un pendiente ya no entra a escribir: solo abre el menú (DJ).
+
+### DK. Editor de Melodías — ritmo con Espacio, notas por grado (1–7)
+*Origen: PO 2026-10-25 ("un editor de melodías, sencillo, eficaz y rápido").*
+- **Necesidad:** escribir rápido la melodía de una canción del repertorio, pensando en grados de la escala (do re mi
+  = 1° 2° 3°) y no en nombres con sostenidos; que quede en la Biblioteca junto a la canción.
+- **Decisión del PO (2026-10-25):**
+  - Instrumento **general** por ahora (piano, guitarra, ukelele, bajo, metalófono, melódica); el registro de cada
+    instrumento se trabaja después.
+  - **Ritmo primero:** se eligen tempo, compás y la **figura más corta** (cada vez); metrónomo con precuenta; se
+    tapea con **Espacio** (mantener = nota larga); se cuantiza y se revisa.
+  - **Tonalidad:** cualquier tónica, **mayor o menor**; 1° = tónica.
+  - **Notas:** se recorren los golpes y se asigna el grado con las **teclas 1 a 7**; ↑↓ octava; una tecla sube/baja
+    medio tono solo esa nota.
+  - **Vista:** bloques (largo = duración, alto = nota, con do re mi o 1° 2° 3°, a elección) **y** pentagrama abajo.
+  - **Ritmo:** figuras simples (redonda, blanca, negra, corchea, semicorchea y silencios; 2/4, 3/4, 4/4).
+  - **Se abre** desde la ficha de la canción ("＋ Melodía"), en una **pestaña del Workspace no fija**.
+  - **Se guarda** como recurso **nuevo "Melodía"** de esa canción.
+  - **Para más adelante (anotado):** tapear sobre el audio de la canción de la Biblioteca; registros por instrumento;
+    que Entrenador, Plan y enlace de alumnos abran "Melodía".
+- **Auditoría (2026-10-25):** los recursos viven en `repertorio_assets` (`tipo` es texto libre, sin restricción; la
+  definición de un ritmo ya se guarda como texto en `contenido`), los archivos en el bucket `repertorio-assets`
+  (`storage_path`); `TIPOS_ASSET` / `TIPO_ORD` de `REPERTORIO/index.html` dan ícono y orden. El Metalófono abre un MIDI
+  por dirección (`abrirMetalofono`). VexFlow ya está guardado en `vendor/vexflow.js` (sin internet). El Workspace abre
+  pestañas cerrables con `ws-abrir` (`guardarAlCerrar` para el aviso de guardado). **No hace falta cambiar Supabase.**
+- **Diseño (aprobado por el PO 2026-10-25):**
+  - Página nueva `MELODIA/index.html` (`?cancion=<id>` para crear, `?asset=<id>` para editar). Tres pasos en la misma
+    pantalla: **① Ritmo** → **② Tonalidad** → **③ Notas**; se puede volver a ① sin perder las notas ya puestas.
+  - ① Barra: tempo, compás, figura más corta, ● Grabar (precuenta de 1 compás). Al soltar, cuantiza; los huecos
+    quedan como silencios. Corrección: elegir un compás y volver a tapear **solo ese compás**; escuchar el ritmo.
+  - ③ Cursor en un golpe: 1–7 pone el grado y avanza; 0 = silencio; ↑↓ octava; + / − medio tono; ← → mover; Espacio
+    escucha desde el cursor. Sonido sintetizado propio (sin bibliotecas nuevas).
+  - Guardado: `repertorio_assets` con `tipo = 'melodia'`, `contenido` = la melodía en texto (compás, tempo, tónica,
+    modo y cada nota como grado + octava + alteración + duración, así se puede transponer) y `tonalidad`; además un
+    **MIDI** generado en `repertorio-assets/melodia/<id>.mid` (`storage_path`) para que el Metalófono lo abra desde
+    el primer día.
+  - Biblioteca: tipo "Melodía" en `TIPOS_ASSET`; en la ficha, "＋ Melodía" y en cada melodía ✏️ Editar, 🎹 Abrir en
+    Metalófono y ⬇ MIDI.
+- **Lugares de uso (regla 11):** ficha de la canción de la Biblioteca (PC, dentro y fuera del Workspace). Entrenador,
+  Plan, celular y enlace de alumnos: **fuera de esta etapa** (decisión del PO).
+- **Implementación (2026-10-25):** `MELODIA/index.html` (página nueva). Al tapear, un golpe corto dura hasta el
+  siguiente y solo queda un silencio si se suelta y se espera ¾ de pulso o más (si no, todo tap corto quedaba como
+  corchea + silencio); se compensa el retardo de los parlantes. Al poner un grado se elige la **octava más cercana a la
+  nota anterior** (↑↓ corrige). Borrador en el equipo mientras no se guarda (se recupera al volver a abrir si nadie lo
+  cambió). Pentagrama: clave de sol, armadura, figuras simples con ligaduras alineadas al pulso; la nota del cursor en
+  naranjo. **MIDI:** el Metalófono solo acepta sus placas (MIDI 81–105, La5–La7), así que el MIDI se sube o baja de
+  octava hasta caber (la melodía guardada no cambia) y, si igual no cabe, se avisa al guardar. Biblioteca: `TIPOS_ASSET`
+  / `TIPO_ORD` + botón ♬ Melodía en "+ Agregar asset", `abrirEditorMelodia` (pestaña `melodia:<id>` con
+  `guardarAlCerrar`), en la ficha 🎹 / ⬇ / ✏️ (el MIDI con marca `?v=` para no abrir una copia vieja); Entrenador:
+  esconde las melodías de su desplegable; `comun/nombre-asset.js`: tipo "Melodía".
+- **Prueba (local; un recurso de prueba en "Estrellita", borrado al final con su MIDI):** grabación con taps simulados
+  a 120 → negras, blanca y silencio en su lugar; regrabar el compás 2 con 4 golpes conservó sus 4 notas; teclas 1–7,
+  ← →, + y ↑↓ en Re mayor → re re la la si si la♯ sol, con pentagrama y ligadura entre compases; guardar → fila
+  `melodia` + MIDI `MThd` en `melodia/<id>.mid`, la dirección pasa a `?asset=`; la ficha muestra ♬ Melodía con 🎹 ⬇ ✏️
+  🗑; cambiar a Sol mayor y guardar → el Metalófono la abrió sin aviso de rango y a 100 de tempo; en el Workspace se
+  abrió como pestaña cerrable y al cerrarla con un cambio sin guardar (tempo 104) se guardó solo. El borrador se
+  recuperó al recargar. **No probado:** el sonido real (en la prueba no se escucha) ni el tapeo con una persona.

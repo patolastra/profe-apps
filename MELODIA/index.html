@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de Melodías</title>
+<!--
+  Editor de Melodías (deuda DK). Tres pasos en la misma pantalla:
+    ① Ritmo: tempo, compás y figura más corta; metrónomo con precuenta; se tapea con Espacio
+       (mantener = nota larga) y se ajusta a la figura más corta. Un compás se puede regrabar solo.
+    ② Tonalidad: tónica, mayor o menor (1° = tónica).
+    ③ Notas: a cada golpe se le da un grado con 1–7 (0 = silencio), ↑↓ octava, + / − medio tono.
+  Vista: bloques (do re mi o 1° 2° 3°) y pentagrama (VexFlow, vendor/). Sonido sintetizado propio.
+  Se guarda como recurso `melodia` de la canción (repertorio_assets: contenido = la melodía en
+  grados, en texto JSON) y un MIDI en repertorio-assets/melodia/<id>.mid para el Metalófono.
+  Dirección: ?cancion=<id> (nueva) · ?asset=<id> (editar).
+-->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
+<script src="../vendor/vexflow.js"></script>
+<style>
+    :root {
+        --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8;
+        --acento: #22d3ee; --nota: #6366f1; --cursor: #f59e0b; --rec: #dc2626;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+    body { display: flex; flex-direction: column; }
+    button { font: inherit; }
+
+    /* Barra superior (estable: anchos fijos) */
+    #barra { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel);
+        border-bottom: 1px solid var(--borde); flex: 0 0 auto; }
+    #cancion { width: 240px; min-width: 60px; flex-shrink: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #etiqueta { width: 180px; min-width: 90px; flex-shrink: 1; height: 34px; background: #0f172a; color: var(--texto); border: 1px solid #475569;
+        border-radius: 8px; padding: 0 10px; font-size: 14px; }
+    .pasos { display: flex; gap: 4px; }
+    .pasos button { height: 34px; width: 116px; border-radius: 8px; border: 1px solid #475569; background: #334155;
+        color: var(--texto); cursor: pointer; font-size: 14px; }
+    .pasos button.on { background: #0e7490; border-color: var(--acento); }
+    .pasos button:disabled { opacity: .4; cursor: default; }
+    .sep { flex: 1; }
+    #estado { flex: 0 0 auto; width: 96px; text-align: right; color: var(--tenue); font-size: 13px; }
+    #b-guardar { flex: 0 0 auto; height: 34px; width: 110px; border-radius: 8px; border: 1px solid #22c55e; background: #15803d;
+        color: #fff; cursor: pointer; font-weight: 600; }
+    #b-guardar:disabled { opacity: .45; cursor: default; }
+
+    /* Panel del paso (alto fijo; solo uno visible) */
+    #panel { height: 54px; flex: 0 0 auto; display: flex; align-items: center; padding: 0 12px;
+        border-bottom: 1px solid var(--borde); background: #172033; }
+    .paso { display: none; align-items: center; gap: 14px; width: 100%; }
+    .paso.on { display: flex; }
+    .grupo { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--tenue); }
+    .grupo > span { margin-right: 4px; }
+    .seg button, .btn { height: 32px; padding: 0 10px; border-radius: 7px; border: 1px solid #475569;
+        background: #334155; color: var(--texto); cursor: pointer; font-size: 14px; white-space: nowrap; }
+    .seg { display: flex; gap: 2px; }
+    .seg button.on { background: #0e7490; border-color: var(--acento); }
+    .btn:disabled { opacity: .4; cursor: default; }
+    #tempo { width: 56px; height: 32px; text-align: center; background: #0f172a; color: var(--texto);
+        border: 1px solid #475569; border-radius: 7px; font-size: 15px; font-variant-numeric: tabular-nums; }
+    #b-grabar { width: 128px; background: #7f1d1d; border-color: var(--rec); }
+    #b-grabar.on { background: var(--rec); }
+    #b-regrabar { width: 190px; }
+    .b-escuchar { width: 112px; }
+    select { height: 32px; background: #0f172a; color: var(--texto); border: 1px solid #475569; border-radius: 7px;
+        font-size: 14px; padding: 0 6px; }
+
+    /* Bloques */
+    #bloques-wrap { overflow: hidden; flex: 0 0 auto; height: 46%; min-height: 200px; display: flex; border-bottom: 1px solid var(--borde); position: relative; }
+    #filas { flex: 0 0 52px; border-right: 1px solid var(--borde); overflow: hidden; position: relative; background: #131c2e; }
+    #filas > div > div { position: absolute; left: 0; right: 0; font-size: 12px; color: var(--tenue); text-align: right;
+        padding-right: 6px; display: flex; align-items: center; justify-content: flex-end; }
+    #filas > div > div.tonica { color: var(--texto); font-weight: 600; }
+    #bloques { flex: 1; overflow: auto; position: relative; }
+    #lienzo { position: relative; }
+    .compas { position: absolute; top: 0; bottom: 0; border-left: 1px solid #475569; }
+    .compas.sel { background: rgba(34,211,238,.06); }
+    .compas .num { position: absolute; top: 2px; left: 4px; font-size: 11px; color: var(--tenue); }
+    .pulso { position: absolute; top: 18px; bottom: 0; border-left: 1px dashed #263248; }
+    .fila { position: absolute; left: 0; right: 0; border-top: 1px solid #1f2a3d; }
+    .fila.tonica { background: rgba(99,102,241,.07); }
+    .fila.ritmo { background: #131c2e; border-top: 1px solid #475569; }
+    .nota { position: absolute; border-radius: 5px; background: var(--nota); color: #fff; font-size: 12px;
+        display: flex; align-items: center; padding: 0 5px; overflow: hidden; white-space: nowrap; cursor: pointer;
+        border: 2px solid transparent; }
+    .nota.sin { background: #475569; color: #cbd5e1; }
+    .nota.silencio { background: transparent; border: 2px dashed #64748b; color: var(--tenue); }
+    .nota.cur { border-color: var(--cursor); box-shadow: 0 0 0 2px rgba(245,158,11,.35); }
+    .nota.suena { filter: brightness(1.45); }
+    .nota.vivo { background: var(--rec); }
+    #mensaje { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
+        font-size: 22px; color: var(--tenue); text-align: center; padding: 20px; }
+    #precuenta { position: absolute; top: 10px; right: 16px; font-size: 40px; font-weight: 700; color: var(--rec);
+        width: 60px; text-align: center; visibility: hidden; }
+
+    /* Pentagrama */
+    #partitura { flex: 1 1 auto; overflow: auto; background: #f8fafc; min-height: 0; }
+    #partitura svg { display: block; }
+
+    #ayuda { flex: 0 0 auto; padding: 6px 12px; font-size: 12.5px; color: var(--tenue); background: var(--panel);
+        border-top: 1px solid var(--borde); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #ayuda b { color: var(--texto); font-weight: 600; }
+    #toast { position: fixed; left: 50%; bottom: 46px; transform: translateX(-50%); background: #0b1222; border: 1px solid #475569;
+        padding: 8px 14px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+    #toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="barra">
+    <div id="cancion" title="">♬ Melodía</div>
+    <input id="etiqueta" placeholder="Descripción (p. ej. Estrofa)" maxlength="60">
+    <div class="pasos">
+        <button data-paso="1" class="on">① Ritmo</button>
+        <button data-paso="2">② Tonalidad</button>
+        <button data-paso="3">③ Notas</button>
+    </div>
+    <div class="sep"></div>
+    <div id="estado"></div>
+    <button id="b-guardar" disabled>Guardar</button>
+</div>
+
+<div id="panel">
+    <div class="paso on" data-paso="1">
+        <div class="grupo"><span>Tempo</span>
+            <button class="btn" id="tempo-menos">−</button><input id="tempo" type="number" min="30" max="240" value="90"><button class="btn" id="tempo-mas">+</button>
+        </div>
+        <div class="grupo"><span>Compás</span>
+            <div class="seg" id="seg-compas"><button data-v="2">2/4</button><button data-v="3">3/4</button><button data-v="4" class="on">4/4</button></div>
+        </div>
+        <div class="grupo"><span>Figura más corta</span>
+            <div class="seg" id="seg-fig"><button data-v="4">♩ Negra</button><button data-v="2" class="on">♪ Corchea</button><button data-v="1">Semicorchea</button></div>
+        </div>
+        <button class="btn" id="b-grabar">● Grabar</button>
+        <button class="btn" id="b-regrabar" disabled>⟲ Regrabar compás</button>
+        <button class="btn b-escuchar" id="b-escuchar1">▶ Escuchar</button>
+    </div>
+    <div class="paso" data-paso="2">
+        <div class="grupo"><span>Tónica</span><select id="tonica"></select></div>
+        <div class="grupo"><span>Modo</span>
+            <div class="seg" id="seg-modo"><button data-v="mayor" class="on">Mayor</button><button data-v="menor">Menor</button></div>
+        </div>
+    </div>
+    <div class="paso" data-paso="3">
+        <div class="grupo"><span>Ver como</span>
+            <div class="seg" id="seg-nombres"><button data-v="solfeo" class="on">do re mi</button><button data-v="grados">1° 2° 3°</button></div>
+        </div>
+        <button class="btn b-escuchar" id="b-escuchar3">▶ Escuchar</button>
+    </div>
+</div>
+
+<div id="bloques-wrap">
+    <div id="filas"></div>
+    <div id="bloques"><div id="lienzo"></div></div>
+    <div id="mensaje"></div>
+    <div id="precuenta"></div>
+</div>
+<div id="partitura"></div>
+<div id="ayuda"></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+// ══ Datos ══════════════════════════════════════════════════════════════════════════════════
+// Unidad de tiempo: la semicorchea (1 tick). Una nota: { t, d, g, o, a }
+//   t = inicio (ticks) · d = duración (ticks) · g = grado 1–7, 0 = silencio, null = sin nota aún
+//   o = octava (0 = la de la tónica) · a = medio tono (−1, 0, +1)
+const PARAMS = new URLSearchParams(location.search);
+const sb = (() => { try { return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON); } catch (_) { return null; } })();
+const BUCKET = 'repertorio-assets';
+
+const M = { tempo: 90, compas: 4, fig: 2, tonica: 'C', modo: 'mayor', notas: [] };
+let assetId = PARAMS.get('asset') || null;
+let cancionId = PARAMS.get('cancion') || null;
+let cancionNombre = '';
+let contenidoBase = '';        // lo último guardado (para saber si hay cambios)
+let paso = 1;
+let cursor = 0;                // índice en M.notas
+let compasSel = null;          // compás elegido para regrabar
+let nombres = 'solfeo';
+
+const tpc = () => M.compas * 4;                  // ticks por compás
+const totalCompases = () => Math.max(1, Math.ceil(Math.max(0, ...M.notas.map(n => n.t + n.d)) / tpc()));
+const ordenar = () => M.notas.sort((x, y) => x.t - y.t);
+
+// ══ Tonalidad y nombres ═══════════════════════════════════════════════════════════════════
+const LETRAS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const NAT = [0, 2, 4, 5, 7, 9, 11];
+const SOLFEO = ['do', 're', 'mi', 'fa', 'sol', 'la', 'si'];
+const ESCALA = { mayor: [0, 2, 4, 5, 7, 9, 11], menor: [0, 2, 3, 5, 7, 8, 10] };
+const TONICAS = {
+    mayor: ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'],
+    menor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'],
+};
+// Armadura (sostenidos > 0, bemoles < 0) para el MIDI
+const ARMADURA = { mayor: { C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, 'F#': 6, Db: -5, Ab: -4, Eb: -3, Bb: -2, F: -1 },
+                   menor: { A: 0, E: 1, B: 2, 'F#': 3, 'C#': 4, 'G#': 5, D: -1, G: -2, C: -3, F: -4, Bb: -5, Eb: -6 } };
+const ACC_TXT = { '-2': '𝄫', '-1': '♭', '0': '', '1': '♯', '2': '𝄪' };
+const ACC_VF = { '-2': 'bb', '-1': 'b', '0': 'n', '1': '#', '2': '##' };
+
+function tonicaInfo(t) {
+    const L = LETRAS.indexOf(t[0]);
+    const acc = t[1] === '#' ? 1 : t[1] === 'b' ? -1 : 0;
+    const pc = (NAT[L] + acc + 12) % 12;
+    return { L, acc, midi: (pc <= 7 ? 60 : 48) + pc };
+}
+const nombreTonica = t => SOLFEO[LETRAS.indexOf(t[0])].replace(/^./, c => c.toUpperCase()) + ACC_TXT[t[1] === '#' ? 1 : t[1] === 'b' ? -1 : 0];
+const nombreTonalidad = () => `${nombreTonica(M.tonica)} ${M.modo}`;
+
+// Altura real y nombre escrito de una nota con grado
+function alturaDe(n) {
+    const ti = tonicaInfo(M.tonica);
+    const midi = ti.midi + ESCALA[M.modo][n.g - 1] + 12 * n.o + n.a;
+    const letra = (ti.L + n.g - 1) % 7;
+    let oct = Math.floor(midi / 12) - 1, acc = 0;
+    for (const o of [oct - 1, oct, oct + 1]) {
+        const x = midi - (12 * (o + 1) + NAT[letra]);
+        if (Math.abs(x) <= 2) { oct = o; acc = x; break; }
+    }
+    return { midi, letra, oct, acc };
+}
+function etiquetaNota(n) {
+    if (n.g === null) return '?';
+    if (n.g === 0) return '𝄽';
+    if (nombres === 'grados') return `${n.g}°${n.a > 0 ? '♯' : n.a < 0 ? '♭' : ''}`;
+    const h = alturaDe(n);
+    return SOLFEO[h.letra] + ACC_TXT[h.acc];
+}
+
+// ══ Sonido (Web Audio, sin bibliotecas) ══════════════════════════════════════════════════
+let ctx = null;
+function audio() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+}
+const latencia = () => ctx ? (ctx.outputLatency || 0) + (ctx.baseLatency || 0) : 0;
+function tono(midi, cuando, dur, vol = 0.22) {
+    const c = audio(), f = 440 * Math.pow(2, (midi - 69) / 12);
+    const g = c.createGain(); g.connect(c.destination);
+    const o1 = c.createOscillator(); o1.type = 'triangle'; o1.frequency.value = f; o1.connect(g);
+    const g2 = c.createGain(); g2.gain.value = 0.25; g2.connect(g);
+    const o2 = c.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2; o2.connect(g2);
+    const fin = cuando + Math.max(0.08, dur);
+    g.gain.setValueAtTime(0.0001, cuando);
+    g.gain.exponentialRampToValueAtTime(vol, cuando + 0.008);
+    g.gain.exponentialRampToValueAtTime(vol * 0.45, cuando + Math.min(0.25, dur * 0.6));
+    g.gain.setValueAtTime(vol * 0.45, fin - 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, fin + 0.06);
+    [o1, o2].forEach(o => { o.start(cuando); o.stop(fin + 0.1); });
+}
+function clic(cuando, fuerte, vol = 0.3) {
+    const c = audio();
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'square'; o.frequency.value = fuerte ? 1650 : 1100;
+    o.connect(g); g.connect(c.destination);
+    g.gain.setValueAtTime(vol, cuando); g.gain.exponentialRampToValueAtTime(0.0001, cuando + 0.04);
+    o.start(cuando); o.stop(cuando + 0.05);
+}
+function golpe(cuando) {       // nota sin grado: un toque de madera
+    const c = audio();
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(820, cuando); o.frequency.exponentialRampToValueAtTime(420, cuando + 0.06);
+    o.connect(g); g.connect(c.destination);
+    g.gain.setValueAtTime(0.35, cuando); g.gain.exponentialRampToValueAtTime(0.0001, cuando + 0.09);
+    o.start(cuando); o.stop(cuando + 0.1);
+}
+const segTick = () => 60 / M.tempo / 4;
+function sonarNota(n, cuando = audio().currentTime + 0.01, dur = null) {
+    const d = dur ?? Math.min(n.d * segTick(), 0.6);
+    if (n.g === null) golpe(cuando);
+    else if (n.g > 0) tono(alturaDe(n).midi, cuando, d);
+}
+
+// ══ Escuchar ════════════════════════════════════════════════════════════════════════════
+let repro = null;   // { inicio, desdeTick, timer, raf }
+function detenerRepro() {
+    if (!repro) return;
+    clearTimeout(repro.timer); cancelAnimationFrame(repro.raf);
+    repro = null;
+    pintarSonando(-1);
+    pintarBotones();
+}
+function escuchar() {
+    if (repro) { detenerRepro(); return; }
+    if (!M.notas.length) return;
+    const c = audio();
+    const desde = paso === 3 && M.notas[cursor] ? M.notas[cursor].t : 0;
+    const inicio = c.currentTime + 0.12;
+    const st = segTick();
+    const fin = totalCompases() * tpc();
+    if (paso === 1) for (let k = Math.ceil(desde / 4) * 4; k < fin; k += 4) clic(inicio + (k - desde) * st, k % tpc() === 0, 0.18);
+    for (const n of M.notas) if (n.t >= desde) sonarNota(n, inicio + (n.t - desde) * st, n.d * st * 0.95);
+    const ultimo = Math.max(...M.notas.map(n => n.t + n.d));
+    repro = { inicio, desde };
+    repro.timer = setTimeout(detenerRepro, ((ultimo - desde) * st + 0.4) * 1000);
+    const cuadro = () => {
+        if (!repro) return;
+        const tk = desde + (audio().currentTime - inicio) / st;
+        pintarSonando(M.notas.findIndex(n => tk >= n.t && tk < n.t + n.d));
+        repro.raf = requestAnimationFrame(cuadro);
+    };
+    cuadro();
+    pintarBotones();
+}
+let sonandoIdx = -1;
+function pintarSonando(i) {
+    if (i === sonandoIdx) return;
+    document.querySelector('.nota.suena')?.classList.remove('suena');
+    sonandoIdx = i;
+    if (i >= 0) document.querySelector(`.nota[data-i="${i}"]`)?.classList.add('suena');
+}
+
+// ══ Grabar el ritmo con Espacio ══════════════════════════════════════════════════════════
+// rec = { cero (s, en el reloj del audio), soloCompas, abierta (inicio de la tecla apretada), golpes: [[ini, fin]] }
+let rec = null;
+function grabar(soloCompas = null) {
+    if (rec) { terminarGrabacion(); return; }
+    detenerRepro();
+    if (soloCompas === null && M.notas.length && !confirm('Se reemplaza el ritmo grabado. ¿Seguir?')) return;
+    const c = audio();
+    const pulso = 60 / M.tempo;
+    const inicio = c.currentTime + 0.15;
+    const cero = inicio + M.compas * pulso;                     // 1 compás de precuenta
+    rec = { cero, soloCompas, abierta: null, golpes: [], fin: soloCompas !== null ? cero + M.compas * pulso : Infinity };
+    // Metrónomo: se programa por adelantado en tandas
+    let k = 0;
+    const programar = () => {
+        if (!rec) return;
+        while (inicio + k * pulso < audio().currentTime + 0.3) {
+            const t = inicio + k * pulso;
+            if (t < rec.fin + 0.01) clic(t, k % M.compas === 0);
+            k++;
+        }
+        rec.timerMet = setTimeout(programar, 60);
+    };
+    programar();
+    // Precuenta en pantalla y cierre automático del compás regrabado
+    const pc = document.getElementById('precuenta');
+    pc.style.visibility = 'visible';
+    const mirar = () => {
+        if (!rec) return;
+        const ahora = audio().currentTime - latencia();
+        if (ahora < cero) pc.textContent = String(Math.floor((ahora - inicio) / pulso) + 1);
+        else pc.textContent = '●';
+        if (ahora > rec.fin + pulso / 2) { terminarGrabacion(); return; }
+        pintarVivo();
+        rec.raf = requestAnimationFrame(mirar);
+    };
+    mirar();
+    if (soloCompas === null) { M.notas = []; cursor = 0; }
+    pintarTodo();
+}
+const ahoraRec = () => audio().currentTime - latencia() - rec.cero;
+function tapAbajo() { if (rec && rec.abierta === null) rec.abierta = ahoraRec(); }
+function tapArriba() {
+    if (!rec || rec.abierta === null) return;
+    rec.golpes.push([rec.abierta, ahoraRec()]);
+    rec.abierta = null;
+}
+// Golpes (segundos) → notas en la grilla de la figura más corta
+function cuantizar(golpes, desdeTick, hastaTick) {
+    const st = segTick(), q = M.fig;
+    const notas = [];
+    for (const [a, b] of golpes) {
+        let t = Math.round(a / st / q) * q + desdeTick;
+        if (t < desdeTick) t = desdeTick;
+        if (t >= hastaTick) continue;
+        let fin = Math.round(b / st / q) * q + desdeTick;
+        if (fin <= t) fin = t + q;
+        const prev = notas[notas.length - 1];
+        if (prev && t <= prev.t) continue;              // dos golpes en la misma casilla
+        if (prev && prev.t + prev.d > t) prev.d = t - prev.t;
+        notas.push({ t, d: Math.min(fin, hastaTick) - t, g: null, o: 0, a: 0, suelta: b });
+    }
+    // Un tap corto dura hasta el golpe siguiente; solo si se suelta y se espera casi un pulso queda un silencio
+    const pulso = 60 / M.tempo;
+    notas.forEach((n, i) => {
+        const sig = notas[i + 1];
+        if (sig && (sig.t - desdeTick) * st - n.suelta < pulso * 0.75) n.d = sig.t - n.t;
+        delete n.suelta;
+    });
+    return notas;
+}
+function terminarGrabacion() {
+    if (!rec) return;
+    if (rec.abierta !== null) tapArriba();
+    clearTimeout(rec.timerMet); cancelAnimationFrame(rec.raf);
+    document.getElementById('precuenta').style.visibility = 'hidden';
+    const r = rec; rec = null;
+    if (r.soloCompas === null) {
+        M.notas = cuantizar(r.golpes, 0, Infinity);
+        cursor = 0;
+        if (M.notas.length) toast(`${M.notas.length} golpes en ${totalCompases()} compases`);
+    } else {
+        const ini = r.soloCompas * tpc(), fin = ini + tpc();
+        const viejas = M.notas.filter(n => n.t >= ini && n.t < fin);
+        const sig = M.notas.find(n => n.t >= fin);
+        let nuevas = cuantizar(r.golpes, ini, fin);
+        const tope = sig ? sig.t : fin;
+        nuevas.forEach(n => { if (n.t + n.d > tope) n.d = Math.max(M.fig, tope - n.t); });
+        // Mismo número de golpes: conservan sus notas en orden
+        if (nuevas.length === viejas.length) nuevas.forEach((n, i) => Object.assign(n, { g: viejas[i].g, o: viejas[i].o, a: viejas[i].a }));
+        const ant = M.notas.filter(n => n.t < ini);
+        const ultimaAnt = ant[ant.length - 1];
+        if (ultimaAnt && ultimaAnt.t + ultimaAnt.d > ini) ultimaAnt.d = ini - ultimaAnt.t;
+        M.notas = [...ant, ...nuevas, ...M.notas.filter(n => n.t >= fin)];
+        cursor = Math.max(0, M.notas.indexOf(nuevas[0] || ant[ant.length - 1]));
+    }
+    huboCambio();
+    pintarTodo();
+}
+
+// ══ Pintar ══════════════════════════════════════════════════════════════════════════════
+const PX = 15;          // px por semicorchea
+const ALTO = 22;        // alto de cada fila
+const TOPE = 20;        // espacio arriba para el n° de compás
+// Filas: un escalón de la escala por fila (o*7 + g-1), más la fila de "ritmo" abajo
+function rangoFilas() {
+    const con = M.notas.filter(n => n.g > 0).map(n => n.o * 7 + n.g - 1);
+    let lo = Math.min(0, ...con) - 1, hi = Math.max(7, ...con) + 1;
+    return { lo, hi };
+}
+function etiquetaFila(s) {
+    const g = ((s % 7) + 7) % 7 + 1, o = Math.floor(s / 7);
+    if (nombres === 'grados') return `${g}°`;
+    const h = alturaDe({ g, o, a: 0 });
+    return SOLFEO[h.letra] + ACC_TXT[h.acc] + (h.oct !== 4 ? `<sub>${h.oct}</sub>` : '');
+}
+function pintarBloques() {
+    const lienzo = document.getElementById('lienzo'), filas = document.getElementById('filas');
+    const { lo, hi } = rangoFilas();
+    const nFilas = hi - lo + 1;
+    const yFila = s => TOPE + (hi - s) * ALTO;
+    const yRitmo = TOPE + nFilas * ALTO;
+    const alto = yRitmo + ALTO + 8;
+    const compases = totalCompases() + 1;
+    const ancho = compases * tpc() * PX + 40;
+    let h = '';
+    for (let s = lo; s <= hi; s++) h += `<div class="fila${((s % 7) + 7) % 7 === 0 ? ' tonica' : ''}" style="top:${yFila(s)}px;height:${ALTO}px"></div>`;
+    h += `<div class="fila ritmo" style="top:${yRitmo}px;height:${ALTO}px"></div>`;
+    for (let c = 0; c < compases; c++) {
+        h += `<div class="compas${c === compasSel ? ' sel' : ''}" data-c="${c}" style="left:${c * tpc() * PX}px;width:${tpc() * PX}px"><span class="num">${c + 1}</span></div>`;
+        for (let p = 1; p < M.compas; p++) h += `<div class="pulso" style="left:${(c * tpc() + p * 4) * PX}px"></div>`;
+    }
+    M.notas.forEach((n, i) => {
+        const y = n.g > 0 ? yFila(n.o * 7 + n.g - 1) : yRitmo;
+        const cls = n.g === null ? ' sin' : n.g === 0 ? ' silencio' : '';
+        h += `<div class="nota${cls}${i === cursor && !rec ? ' cur' : ''}" data-i="${i}" style="left:${n.t * PX + 1}px;width:${Math.max(6, n.d * PX - 2)}px;top:${y + 1}px;height:${ALTO - 2}px">${etiquetaNota(n)}</div>`;
+    });
+    h += '<div id="vivo"></div>';
+    lienzo.innerHTML = h;
+    lienzo.style.width = ancho + 'px'; lienzo.style.height = alto + 'px';
+    let f = '';
+    for (let s = lo; s <= hi; s++) f += `<div class="${((s % 7) + 7) % 7 === 0 ? 'tonica' : ''}" style="top:${yFila(s)}px;height:${ALTO}px">${etiquetaFila(s)}</div>`;
+    f += `<div style="top:${yRitmo}px;height:${ALTO}px">ritmo</div>`;
+    filas.innerHTML = `<div style="position:relative;height:${alto}px">${f}</div>`;
+    filas.scrollTop = document.getElementById('bloques').scrollTop;
+    const msj = document.getElementById('mensaje');
+    msj.textContent = !M.notas.length && !rec ? 'Pulsa ● Grabar: suena un compás de precuenta y luego tapeas el ritmo con Espacio (mantener = nota larga). Enter termina.' : '';
+    lienzo.dataset.yritmo = yRitmo;
+}
+function pintarVivo() {
+    if (!rec) return;
+    const v = document.getElementById('vivo'); if (!v) return;
+    const y = +document.getElementById('lienzo').dataset.yritmo;
+    const ini = rec.soloCompas !== null ? rec.soloCompas * tpc() : 0;
+    const st = segTick();
+    const golpes = [...rec.golpes];
+    if (rec.abierta !== null) golpes.push([rec.abierta, Math.max(rec.abierta, ahoraRec())]);
+    v.innerHTML = golpes.filter(([a]) => a > -st * 2).map(([a, b]) =>
+        `<div class="nota vivo" style="left:${(ini + Math.max(0, a) / st) * PX}px;width:${Math.max(6, (b - Math.max(0, a)) / st * PX)}px;top:${y + 1}px;height:${ALTO - 2}px"></div>`).join('');
+    const bl = document.getElementById('bloques');
+    const x = (ini + Math.max(0, ahoraRec()) / st) * PX;
+    if (x > bl.scrollLeft + bl.clientWidth - 80) bl.scrollLeft = x - 120;
+}
+function verCursor() {
+    const el = document.querySelector('.nota.cur'); if (!el) return;
+    const bl = document.getElementById('bloques');
+    const x = el.offsetLeft;
+    if (x < bl.scrollLeft + 20 || x > bl.scrollLeft + bl.clientWidth - 80) bl.scrollLeft = x - bl.clientWidth / 3;
+    const y = el.offsetTop;
+    if (y < bl.scrollTop + TOPE || y > bl.scrollTop + bl.clientHeight - ALTO * 2) bl.scrollTop = y - bl.clientHeight / 2;
+}
+
+// ── Pentagrama (VexFlow 4) ──
+// Cada compás se llena con notas y silencios; cada duración se parte en figuras simples
+// (redonda … semicorchea) alineadas al pulso, ligadas si son de la misma nota.
+function partir(t, d) {
+    const piezas = [];
+    while (d > 0) {
+        let s = 16;
+        while (s > 1 && (s > d || t % s !== 0 || (s === 16 && tpc() < 16) || (s === 8 && tpc() === 12 && t % 12 !== 0))) s /= 2;
+        piezas.push(s); t += s; d -= s;
+    }
+    return piezas;
+}
+const VF_DUR = { 16: 'w', 8: 'h', 4: 'q', 2: '8', 1: '16' };
+function segmentosCompas(c) {
+    const ini = c * tpc(), fin = ini + tpc();
+    const seg = [];
+    let t = ini;
+    for (const n of M.notas) {
+        const a = Math.max(n.t, ini), b = Math.min(n.t + n.d, fin);
+        if (b <= a) continue;
+        if (a > t) seg.push({ t, d: a - t, n: null });
+        seg.push({ t: a, d: b - a, n, sigue: n.t + n.d > fin, viene: n.t < ini });
+        t = b;
+    }
+    if (t < fin) seg.push({ t, d: fin - t, n: null });
+    return seg;
+}
+function pintarPartitura() {
+    const div = document.getElementById('partitura');
+    div.innerHTML = '';
+    if (!window.Vex || !M.notas.length) return;
+    const VF = Vex.Flow;
+    const W = Math.max(400, div.clientWidth - 16);
+    const nC = totalCompases();
+    const anchoC = 230, extra = 90;
+    const porLinea = Math.max(1, Math.floor((W - extra) / anchoC));
+    const lineas = Math.ceil(nC / porLinea);
+    const altoLinea = 120;
+    const renderer = new VF.Renderer(div, VF.Renderer.Backends.SVG);
+    renderer.resize(W, lineas * altoLinea + 30);
+    const vctx = renderer.getContext();
+    const clave = M.tonica + (M.modo === 'menor' ? 'm' : '');
+    let previa = null;      // última pieza con nota (para ligar)
+    for (let c = 0; c < nC; c++) {
+        const li = Math.floor(c / porLinea), col = c % porLinea;
+        const primero = col === 0;
+        const anchoLinea = (W - 10 - extra) / Math.min(porLinea, nC - li * porLinea);
+        const x = 5 + (primero ? 0 : extra + col * anchoLinea);
+        const st = new VF.Stave(x, 10 + li * altoLinea, primero ? anchoLinea + extra : anchoLinea);
+        if (primero) { st.addClef('treble').addKeySignature(clave); if (c === 0) st.addTimeSignature(`${M.compas}/4`); }
+        st.setContext(vctx).draw();
+        const notas = [], ligas = [];
+        for (const s of segmentosCompas(c)) {
+            const piezas = partir(s.t, s.d);
+            piezas.forEach((p, k) => {
+                const conNota = s.n && s.n.g > 0;
+                let sn;
+                if (conNota) {
+                    const h = alturaDe(s.n);
+                    sn = new VF.StaveNote({ keys: [`${LETRAS[h.letra].toLowerCase()}/${h.oct}`], duration: VF_DUR[p], auto_stem: true });
+                    if (s.n.a !== 0 && k === 0 && !s.viene) sn.addModifier(new VF.Accidental(ACC_VF[h.acc]), 0);
+                    if (s.n === M.notas[cursor] && paso === 3) sn.setStyle({ fillStyle: '#d97706', strokeStyle: '#d97706' });
+                    if (previa && previa.n === s.n) ligas.push([previa.sn, sn, previa.li !== li]);
+                    previa = { sn, n: s.n, li };
+                } else {
+                    sn = new VF.StaveNote({ keys: ['b/4'], duration: VF_DUR[p] + 'r' });
+                    if (s.n && s.n.g === null) sn.setStyle({ fillStyle: '#94a3b8', strokeStyle: '#94a3b8' });
+                    previa = null;
+                }
+                notas.push(sn);
+            });
+        }
+        const voz = new VF.Voice({ num_beats: M.compas, beat_value: 4 }).setStrict(false).addTickables(notas);
+        new VF.Formatter().joinVoices([voz]).format([voz], st.getNoteEndX() - st.getNoteStartX() - 10);
+        const vigas = VF.Beam.generateBeams(notas.filter(n => !n.isRest()), { groups: [new VF.Fraction(1, 4)] });
+        voz.draw(vctx, st);
+        vigas.forEach(b => b.setContext(vctx).draw());
+        // Ligas: las de una línea a la siguiente se dibujan en dos mitades
+        for (const [a, b, salto] of ligas) {
+            if (!salto) new VF.StaveTie({ first_note: a, last_note: b, first_indices: [0], last_indices: [0] }).setContext(vctx).draw();
+            else {
+                new VF.StaveTie({ first_note: a, last_note: null, first_indices: [0], last_indices: [0] }).setContext(vctx).draw();
+                new VF.StaveTie({ first_note: null, last_note: b, first_indices: [0], last_indices: [0] }).setContext(vctx).draw();
+            }
+        }
+    }
+}
+
+const AYUDA = {
+    1: '<b>● Grabar</b>: precuenta de 1 compás · <b>Espacio</b> tapear (mantener = larga) · <b>Enter</b> terminar · Fuera de la grabación: <b>← →</b> elegir golpe · <b>Supr</b> borrar golpe · <b>Espacio</b> escuchar · clic en un compás para regrabarlo',
+    2: 'Elige la tónica y el modo. El <b>1°</b> es siempre la tónica; cambiar la tonalidad mueve toda la melodía.',
+    3: '<b>1–7</b> grado (y avanza) · <b>0</b> silencio · <b>↑ ↓</b> octava · <b>+ −</b> medio tono · <b>← →</b> moverse · <b>Retroceso</b> borrar · <b>Espacio</b> escuchar desde aquí · <b>Ctrl+S</b> guardar',
+};
+function pintarBotones() {
+    document.querySelectorAll('.pasos button').forEach(b => {
+        b.classList.toggle('on', +b.dataset.paso === paso);
+        b.disabled = !!rec || (+b.dataset.paso === 3 && !M.notas.length);
+    });
+    document.querySelectorAll('.paso').forEach(p => p.classList.toggle('on', +p.dataset.paso === paso));
+    const bg = document.getElementById('b-grabar');
+    bg.classList.toggle('on', !!rec);
+    bg.textContent = rec ? '■ Terminar' : '● Grabar';
+    const br = document.getElementById('b-regrabar');
+    br.disabled = !!rec || compasSel === null || !M.notas.length;
+    br.textContent = compasSel !== null && M.notas.length ? `⟲ Regrabar compás ${compasSel + 1}` : '⟲ Regrabar compás';
+    document.querySelectorAll('.b-escuchar').forEach(b => { b.textContent = repro ? '■ Detener' : '▶ Escuchar'; b.disabled = !!rec || !M.notas.length; });
+    document.getElementById('ayuda').innerHTML = AYUDA[paso];
+    const cambios = hayCambios();
+    document.getElementById('b-guardar').disabled = !cambios || !M.notas.length || guardando;
+    document.getElementById('estado').textContent = guardando ? 'Guardando…' : !assetId && !M.notas.length ? '' : cambios ? 'Sin guardar' : 'Guardado ✓';
+}
+function pintarTodo() {
+    pintarBloques();
+    pintarPartitura();
+    pintarBotones();
+    verCursor();
+}
+
+// ══ Edición ═════════════════════════════════════════════════════════════════════════════
+function moverCursor(d) {
+    if (!M.notas.length) return;
+    cursor = Math.max(0, Math.min(M.notas.length - 1, cursor + d));
+    compasSel = Math.floor(M.notas[cursor].t / tpc());
+    pintarTodo();
+    sonarNota(M.notas[cursor]);
+}
+// Octava más cercana a la nota anterior con grado
+function octavaCercana(g) {
+    for (let i = cursor - 1; i >= 0; i--) {
+        const p = M.notas[i];
+        if (p.g > 0) {
+            const sp = p.o * 7 + p.g - 1;
+            let mejor = 0, dist = Infinity;
+            for (let o = -2; o <= 2; o++) { const d = Math.abs(o * 7 + g - 1 - sp); if (d < dist) { dist = d; mejor = o; } }
+            return mejor;
+        }
+    }
+    return 0;
+}
+function ponerGrado(g) {
+    const n = M.notas[cursor]; if (!n) return;
+    n.g = g; n.a = 0;
+    n.o = g > 0 ? octavaCercana(g) : 0;
+    sonarNota(n);
+    if (cursor < M.notas.length - 1) cursor++;
+    huboCambio(); pintarTodo();
+}
+function cambiarNota(campo, d) {
+    const n = M.notas[cursor]; if (!n || !(n.g > 0)) return;
+    if (campo === 'o') n.o = Math.max(-2, Math.min(2, n.o + d));
+    else n.a = Math.max(-1, Math.min(1, n.a + d));
+    sonarNota(n);
+    huboCambio(); pintarTodo();
+}
+function borrarGrado() {
+    const n = M.notas[cursor]; if (!n) return;
+    if (n.g === null && cursor > 0) cursor--;
+    M.notas[cursor].g = null; M.notas[cursor].a = 0;
+    huboCambio(); pintarTodo();
+}
+function borrarGolpe() {
+    if (!M.notas.length) return;
+    M.notas.splice(cursor, 1);
+    cursor = Math.min(cursor, M.notas.length - 1);
+    if (cursor < 0) cursor = 0;
+    huboCambio(); pintarTodo();
+}
+function irPaso(p) {
+    if (rec) return;
+    if (p === 3 && !M.notas.length) return;
+    detenerRepro();
+    paso = p;
+    if (p === 3) { const i = M.notas.findIndex(n => n.g === null); cursor = i >= 0 ? i : Math.min(cursor, M.notas.length - 1); }
+    pintarTodo();
+}
+
+// Cambios de tempo / compás / figura
+function setSeg(id, v) { document.querySelectorAll(`#${id} button`).forEach(b => b.classList.toggle('on', b.dataset.v === String(v))); }
+function enSeg(id, fn) {
+    document.getElementById(id).addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b || rec) return;
+        setSeg(id, b.dataset.v); fn(b.dataset.v);
+    });
+}
+enSeg('seg-compas', v => { M.compas = +v; compasSel = null; huboCambio(); pintarTodo(); });
+enSeg('seg-fig', v => { M.fig = +v; huboCambio(); pintarBotones(); });
+enSeg('seg-modo', v => { M.modo = v; llenarTonicas(); huboCambio(); pintarTodo(); });
+enSeg('seg-nombres', v => { nombres = v; try { localStorage.setItem('melodia_nombres', v); } catch (_) {} pintarTodo(); });
+function setTempo(v) {
+    M.tempo = Math.max(30, Math.min(240, Math.round(+v || 90)));
+    document.getElementById('tempo').value = M.tempo;
+    huboCambio(); pintarBotones();
+}
+document.getElementById('tempo').addEventListener('change', e => setTempo(e.target.value));
+document.getElementById('tempo-menos').onclick = () => setTempo(M.tempo - 5);
+document.getElementById('tempo-mas').onclick = () => setTempo(M.tempo + 5);
+function llenarTonicas() {
+    const sel = document.getElementById('tonica');
+    if (!TONICAS[M.modo].includes(M.tonica)) M.tonica = TONICAS[M.modo][0];
+    sel.innerHTML = TONICAS[M.modo].map(t => `<option value="${t}"${t === M.tonica ? ' selected' : ''}>${nombreTonica(t)}</option>`).join('');
+}
+document.getElementById('tonica').addEventListener('change', e => { M.tonica = e.target.value; huboCambio(); pintarTodo(); });
+document.getElementById('etiqueta').addEventListener('input', () => { huboCambio(); pintarBotones(); });
+document.querySelectorAll('.pasos button').forEach(b => b.onclick = () => irPaso(+b.dataset.paso));
+document.getElementById('b-grabar').onclick = () => { grabar(null); document.activeElement.blur(); };
+document.getElementById('b-regrabar').onclick = () => { if (compasSel !== null) grabar(compasSel); document.activeElement.blur(); };
+document.querySelectorAll('.b-escuchar').forEach(b => b.onclick = () => { escuchar(); b.blur(); });
+document.getElementById('b-guardar').onclick = () => guardar();
+document.getElementById('bloques').addEventListener('scroll', e => { document.getElementById('filas').scrollTop = e.target.scrollTop; });
+document.getElementById('lienzo').addEventListener('click', e => {
+    if (rec) return;
+    const n = e.target.closest('.nota[data-i]');
+    if (n) { cursor = +n.dataset.i; compasSel = Math.floor(M.notas[cursor].t / tpc()); sonarNota(M.notas[cursor]); pintarTodo(); return; }
+    const c = e.target.closest('.compas');
+    const x = e.clientX - document.getElementById('lienzo').getBoundingClientRect().left;
+    const ci = c ? +c.dataset.c : Math.floor(x / (tpc() * PX));
+    compasSel = compasSel === ci ? null : ci;
+    pintarTodo();
+});
+window.addEventListener('resize', () => { clearTimeout(window._rz); window._rz = setTimeout(pintarPartitura, 150); });
+
+// Teclado
+document.addEventListener('keydown', e => {
+    const enCampo = e.target.closest?.('input, select, textarea');
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); guardar(); return; }
+    if (enCampo) { if (e.key === 'Escape' || e.key === 'Enter') e.target.blur(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (rec) {
+        if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) tapAbajo(); }
+        else if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); terminarGrabacion(); }
+        return;
+    }
+    const k = e.key;
+    if (e.code === 'Space') { e.preventDefault(); escuchar(); return; }
+    if (k === 'ArrowLeft') { e.preventDefault(); moverCursor(-1); return; }
+    if (k === 'ArrowRight') { e.preventDefault(); moverCursor(1); return; }
+    if (paso === 1) {
+        if (k === 'Delete') { e.preventDefault(); borrarGolpe(); }
+        else if (k === 'r' || k === 'R') grabar(null);
+        return;
+    }
+    if (paso === 3) {
+        if (/^[0-7]$/.test(k)) { e.preventDefault(); ponerGrado(+k); }
+        else if (k === 'ArrowUp') { e.preventDefault(); cambiarNota('o', 1); }
+        else if (k === 'ArrowDown') { e.preventDefault(); cambiarNota('o', -1); }
+        else if (k === '+' || k === '#') { e.preventDefault(); cambiarNota('a', 1); }
+        else if (k === '-') { e.preventDefault(); cambiarNota('a', -1); }
+        else if (k === 'Backspace') { e.preventDefault(); borrarGrado(); }
+        else if (k === 'Delete') { e.preventDefault(); borrarGolpe(); }
+    }
+});
+document.addEventListener('keyup', e => { if (rec && e.code === 'Space') { e.preventDefault(); tapArriba(); } });
+
+// ══ Guardar ═════════════════════════════════════════════════════════════════════════════
+function contenidoActual() {
+    return JSON.stringify({ v: 1, tempo: M.tempo, compas: M.compas, fig: M.fig, tonica: M.tonica, modo: M.modo,
+        notas: M.notas.map(n => [n.t, n.d, n.g, n.o, n.a]) });
+}
+let etiquetaBase = '';
+const hayCambios = () => contenidoActual() !== contenidoBase || document.getElementById('etiqueta').value.trim() !== etiquetaBase;
+const claveBorrador = () => 'melodia_borrador:' + (assetId || 'nueva:' + cancionId);
+function huboCambio() {
+    try {
+        if (hayCambios()) localStorage.setItem(claveBorrador(), JSON.stringify({ base: contenidoBase, contenido: contenidoActual(), etiqueta: document.getElementById('etiqueta').value }));
+        else localStorage.removeItem(claveBorrador());
+    } catch (_) {}
+}
+function cargarContenido(txt) {
+    const j = JSON.parse(txt);
+    Object.assign(M, { tempo: j.tempo || 90, compas: j.compas || 4, fig: j.fig || 2, tonica: j.tonica || 'C', modo: j.modo || 'mayor' });
+    M.notas = (j.notas || []).map(([t, d, g, o, a]) => ({ t, d, g, o: o || 0, a: a || 0 }));
+    ordenar();
+}
+function aplicarControles() {
+    document.getElementById('tempo').value = M.tempo;
+    setSeg('seg-compas', M.compas); setSeg('seg-fig', M.fig); setSeg('seg-modo', M.modo);
+    llenarTonicas();
+}
+
+// El MIDI es para el Metalófono (placas La5–La7, MIDI 81–105): se corre de octava hasta caber;
+// la melodía guardada conserva su registro. Devuelve el corrimiento y cuántas notas no caben.
+const METAL_MIN = 81, METAL_MAX = 105;
+function octavaMetalofono() {
+    const alt = M.notas.filter(n => n.g > 0).map(n => alturaDe(n).midi);
+    let mejor = { k: 0, fuera: Infinity };
+    for (const k of [0, 1, 2, 3, -1, 4, -2]) {
+        const fuera = alt.filter(m => m + 12 * k < METAL_MIN || m + 12 * k > METAL_MAX).length;
+        if (fuera < mejor.fuera) mejor = { k, fuera };
+    }
+    return mejor;
+}
+// MIDI (formato 0, 480 por negra): tempo, compás, armadura y las notas con grado
+function midiBytes() {
+    const corre = 12 * octavaMetalofono().k;
+    const out = [];
+    const vlq = n => { const b = [n & 0x7f]; while ((n >>= 7)) b.unshift((n & 0x7f) | 0x80); return b; };
+    const ev = [];
+    const PPQ = 480, T = PPQ / 4;
+    const us = Math.round(60000000 / M.tempo);
+    ev.push([0, 0, [0xff, 0x51, 3, (us >> 16) & 255, (us >> 8) & 255, us & 255]]);
+    ev.push([0, 0, [0xff, 0x58, 4, M.compas, 2, 24, 8]]);
+    const sf = ARMADURA[M.modo][M.tonica] || 0;
+    ev.push([0, 0, [0xff, 0x59, 2, (sf + 256) & 255, M.modo === 'menor' ? 1 : 0]]);
+    for (const n of M.notas) {
+        if (!(n.g > 0)) continue;
+        const m = alturaDe(n).midi + corre;
+        ev.push([n.t * T, 2, [0x90, m, 90]]);
+        ev.push([(n.t + n.d) * T, 1, [0x80, m, 0]]);
+    }
+    ev.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const pista = [];
+    let prev = 0;
+    for (const [t, , bytes] of ev) { pista.push(...vlq(t - prev), ...bytes); prev = t; }
+    pista.push(0, 0xff, 0x2f, 0);
+    const u32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+    out.push(0x4d, 0x54, 0x68, 0x64, ...u32(6), 0, 0, 0, 1, (PPQ >> 8) & 255, PPQ & 255);
+    out.push(0x4d, 0x54, 0x72, 0x6b, ...u32(pista.length), ...pista);
+    return new Uint8Array(out);
+}
+async function subirMidi(id) {
+    const path = `melodia/${id}.mid`;
+    const r = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + SUPABASE_ANON, apikey: SUPABASE_ANON, 'x-upsert': 'true', 'Content-Type': 'audio/midi' },
+        body: midiBytes(),
+    });
+    if (!r.ok) throw new Error('MIDI: HTTP ' + r.status);
+    return path;
+}
+const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+let guardando = false;
+async function guardar() {
+    if (guardando || !M.notas.length || !hayCambios()) return true;
+    if (!sb) { toast('Sin conexión con la base de datos'); return false; }
+    guardando = true; pintarBotones();
+    try {
+        const nuevo = !assetId;
+        const id = assetId || genId();
+        const storage_path = await subirMidi(id);
+        const etiqueta = document.getElementById('etiqueta').value.trim();
+        const fila = { tipo: 'melodia', etiqueta, contenido: contenidoActual(), tonalidad: nombreTonalidad(), storage_path,
+            nombre_archivo: `${cancionNombre || 'melodia'}${etiqueta ? ' - ' + etiqueta : ''}.mid` };
+        if (nuevo) {
+            const { data: hermanos } = await sb.from('repertorio_assets').select('orden').eq('cancion_id', cancionId);
+            const orden = Math.max(-1, ...(hermanos || []).map(h => h.orden || 0).filter(o => o < 1000)) + 1;
+            const { error } = await sb.from('repertorio_assets').insert({ id, cancion_id: cancionId, synced: '', orden, instrumento: '', dificultad: '', ...fila });
+            if (error) throw error;
+        } else {
+            const { error } = await sb.from('repertorio_assets').update(fila).eq('id', id);
+            if (error) throw error;
+        }
+        try { localStorage.removeItem(claveBorrador()); } catch (_) {}
+        assetId = id;
+        contenidoBase = fila.contenido; etiquetaBase = etiqueta;
+        if (nuevo) history.replaceState(null, '', `?asset=${id}`);
+        const { fuera } = octavaMetalofono();
+        toast(fuera ? `Guardada. Ojo: ${fuera} nota${fuera > 1 ? 's' : ''} no cabe${fuera > 1 ? 'n' : ''} en el metalófono` : 'Melodía guardada en la Biblioteca');
+        return true;
+    } catch (err) {
+        toast('No se pudo guardar: ' + (err.message || err));
+        return false;
+    } finally {
+        guardando = false; pintarBotones();
+    }
+}
+// Workspace: al cerrar la pestaña se guarda lo pendiente
+window.addEventListener('message', e => {
+    if (e.data?.tipo !== 'ws-guardar' || e.source !== window.parent) return;
+    Promise.resolve(hayCambios() && M.notas.length ? guardar() : true).then(ok =>
+        window.parent.postMessage({ tipo: 'ws-guardado', reqId: e.data.reqId, ok: ok !== false }, '*'));
+});
+window.addEventListener('beforeunload', e => { if (hayCambios() && M.notas.length && window.parent === window) { e.preventDefault(); e.returnValue = ''; } });
+
+let toastT = null;
+function toast(t) {
+    const el = document.getElementById('toast');
+    el.textContent = t; el.classList.add('on');
+    clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2600);
+}
+
+// ══ Inicio ══════════════════════════════════════════════════════════════════════════════
+async function iniciar() {
+    try { nombres = localStorage.getItem('melodia_nombres') || 'solfeo'; } catch (_) {}
+    setSeg('seg-nombres', nombres);
+    try {
+        if (sb && assetId) {
+            const { data, error } = await sb.from('repertorio_assets').select('id, cancion_id, etiqueta, contenido').eq('id', assetId).single();
+            if (error) throw error;
+            cancionId = data.cancion_id;
+            etiquetaBase = data.etiqueta || '';
+            document.getElementById('etiqueta').value = etiquetaBase;
+            if (data.contenido) { cargarContenido(data.contenido); contenidoBase = data.contenido; }
+        }
+        if (sb && cancionId) {
+            const { data } = await sb.from('repertorio_canciones').select('nombre').eq('id', cancionId).single();
+            cancionNombre = data?.nombre || '';
+        }
+    } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }
+    if (!assetId) contenidoBase = contenidoActual();
+    // Borrador guardado en este equipo (solo si parte de la misma versión)
+    try {
+        const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null');
+        if (b && b.base === contenidoBase) {
+            cargarContenido(b.contenido);
+            document.getElementById('etiqueta').value = b.etiqueta || '';
+            toast('Se recuperó lo que no alcanzaste a guardar');
+        }
+    } catch (_) {}
+    const cn = document.getElementById('cancion');
+    cn.textContent = '♬ ' + (cancionNombre || 'Melodía'); cn.title = cancionNombre;
+    document.title = `${cancionNombre || 'Melodía'} · Editor de Melodías`;
+    aplicarControles();
+    if (M.notas.length && M.notas.every(n => n.g !== null)) paso = 3;
+    pintarTodo();
+}
+iniciar();
+</script>
+</body>
+</html>

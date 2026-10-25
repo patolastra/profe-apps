@@ -2755,6 +2755,10 @@
                         <span class="tipo-btn-ico">🥁</span>
                         <span class="tipo-btn-label">Ritmo</span>
                     </button>
+                    <button class="tipo-btn" data-tipo="melodia" onclick="abrirEditorMelodia(assetSongId, null)">
+                        <span class="tipo-btn-ico">♬</span>
+                        <span class="tipo-btn-label">Melodía</span>
+                    </button>
                 </div>
             </div>
             <div id="asset-campos" class="oculto">
@@ -3161,9 +3165,10 @@ const TIPOS_ASSET = {
     flauta:    { ico: '🎶', label: 'Flauta',     clase: 'flauta'  },
     cifrado:   { ico: '🎹', label: 'Cifrado',    clase: 'cifrado' },
     ritmo:     { ico: '🥁', label: 'Ritmo',      clase: 'ritmo'   },
+    melodia:   { ico: '♬',  label: 'Melodía',    clase: 'melodia' },
 };
 
-const TIPO_ORD  = { letra:0, audio:1, tab:2, cifrado:3, metalofono:4, flauta:5, ritmo:6 };
+const TIPO_ORD  = { letra:0, audio:1, tab:2, cifrado:3, metalofono:4, flauta:5, ritmo:6, melodia:7 };
 const INST_ORD  = { guitarra:0, ukelele:1, bajo:2, metalofono:3, flauta:4 };
 const DIFIC_ORD = { inicial:0, media:1, dificil:2, experto:3 };
 
@@ -3800,10 +3805,13 @@ function assetItemHTML(a, i) {
 
     // Audio y binarios con archivo en Storage
     if (a.storage_path) {
-        const url       = storageUrl(a.storage_path);
+        let url         = storageUrl(a.storage_path);
+        // Melodía (DK): el MIDI se reescribe al guardar; la marca evita que se abra una copia vieja
+        if (a.tipo === 'melodia') url += '?v=' + [...(a.contenido || '')].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7).toString(36);
         const descFile  = a.nombre_archivo || a.etiqueta || 'archivo';
         const isAudio   = a.tipo === 'audio';
         const isMetal   = a.tipo === 'metalofono';
+        const isMelodia = a.tipo === 'melodia';
         return `
         <div class="asset-item" data-id="${a.id}" draggable="true">
             <span class="asset-grip" title="Arrastra para ordenar">⋮⋮</span>
@@ -3814,10 +3822,12 @@ function assetItemHTML(a, i) {
             </div>
             <div class="asset-item-actions">
                 ${estadoBadgeHTML(a)}
-                ${isMetal ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${nombreAsset(a, songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">🎹</button>` : ''}
+                ${isMetal || isMelodia ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${nombreAsset(a, songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">🎹</button>` : ''}
                 ${isMetal && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirMetalofono('${a.id}')" title="Compartir link para el celular del alumno">🔗 Compartir</button>` : ''}
                 ${isAudio ? '' : `<a class="btn-icon" href="${url}" download="${descFile}" title="Descargar">⬇</a>`}
-                <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>
+                ${isMelodia
+                    ? `<button class="btn-icon" onclick="abrirEditorMelodia('${songActiva.id}','${a.id}')" title="Editar melodía">✏️</button>`
+                    : `<button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>`}
                 <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}','${a.id}')" title="Eliminar">🗑</button>
             </div>
         </div>`;
@@ -4979,6 +4989,22 @@ function parseLRC(text) {
     return lines.sort((a, b) => a.time - b.time);
 }
 
+// Editor de Melodías (deuda DK): pestaña cerrable del Workspace; fuera de él, ventana nueva.
+function abrirEditorMelodia(songId, assetId) {
+    document.getElementById('modal-asset-overlay').classList.remove('visible');
+    const c = canciones.find(x => x.id === songId);
+    const q = new URLSearchParams(assetId ? { asset: assetId } : { cancion: songId });
+    const src = `../MELODIA/index.html?${q}`;
+    if (window.parent && window.parent !== window) {
+        try {
+            window.parent.postMessage({ tipo: 'ws-abrir', key: `melodia:${assetId || 'nueva:' + songId}`,
+                titulo: `${c?.nombre || 'Melodía'} · Melodía`, ico: '♬', src, guardarAlCerrar: true }, '*');
+            return;
+        } catch (_) {}
+    }
+    window.open(src, '_blank');
+}
+
 function abrirMetalofono(midiUrl, nombre) {
     const base = new URL('../METALÓFONO APP/METAL21 (ALPHA).HTML', location.href);
     base.searchParams.set('midi', midiUrl);
@@ -5734,7 +5760,7 @@ function cerrarEntrenador() {
 // el sistema genérico de assets: solo cambia la presentación en el header.
 function entRenderChips(preselId) {
     const assets = (entrenadorSong?.assets || [])
-        .filter(a => a.tipo !== 'audio')
+        .filter(a => a.tipo !== 'audio' && a.tipo !== 'melodia')   // Melodía (DK): el Entrenador aún no la abre
         .sort(ordenAssets);
     const wrap = document.getElementById('ent-asset-chips');
     const activo = assets.find(a => a.id === preselId)
