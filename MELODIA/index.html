@@ -99,7 +99,7 @@
     .nota.sin { background: #475569; color: #cbd5e1; }
     .nota.silencio { background: transparent; border: 2px dashed #64748b; color: var(--tenue); }
     .nota.cur { border-color: var(--cursor); box-shadow: 0 0 0 2px rgba(245,158,11,.35); }
-    .nota.suena { filter: brightness(1.45); }
+    .nota.suena { background: #f97316; color: #fff; border-color: #fdba74; box-shadow: 0 0 10px rgba(249,115,22,.7); z-index: 1; }
     .nota.vivo { background: var(--rec); }
     #mensaje { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
         font-size: 22px; color: var(--tenue); text-align: center; padding: 20px; }
@@ -147,6 +147,9 @@
         </div>
         <button class="btn" id="b-grabar">● Grabar</button>
         <button class="btn" id="b-regrabar" disabled>⟲ Regrabar compás</button>
+        <div class="grupo"><span>Ritmo</span>
+            <button class="btn" id="b-mitad" title="Todas las duraciones a la mitad">½×</button><button class="btn" id="b-doble" title="Todas las duraciones al doble">2×</button>
+        </div>
     </div>
     <div class="paso" data-paso="2">
         <div class="grupo"><span>Tónica</span><select id="tonica"></select></div>
@@ -157,6 +160,9 @@
     <div class="paso" data-paso="3">
         <div class="grupo"><span>Ver como</span>
             <div class="seg" id="seg-nombres"><button data-v="solfeo" class="on">do re mi</button><button data-v="grados">1° 2° 3°</button></div>
+        </div>
+        <div class="grupo"><span>Toda la melodía</span>
+            <button class="btn" id="b-oct-baja">Octava ↓</button><button class="btn" id="b-oct-sube">Octava ↑</button>
         </div>
     </div>
 </div>
@@ -616,6 +622,8 @@ function pintarBotones() {
     const br = document.getElementById('b-regrabar');
     br.disabled = !!rec || compasSel === null || !M.notas.length;
     br.textContent = compasSel !== null && M.notas.length ? `⟲ Regrabar compás ${compasSel + 1}` : '⟲ Regrabar compás';
+    ['b-mitad', 'b-doble'].forEach(id => { document.getElementById(id).disabled = !!rec || !M.notas.length; });
+    ['b-oct-baja', 'b-oct-sube'].forEach(id => { document.getElementById(id).disabled = !M.notas.some(n => n.g > 0); });
     const be = document.getElementById('b-escuchar');
     be.textContent = repro ? '■ Detener' : '▶ Escuchar';
     be.classList.toggle('on', !!repro);
@@ -726,6 +734,26 @@ function unir() {
         M.notas.splice(cursor + 1, 1);
     });
 }
+// Todo el ritmo a la mitad o al doble (la figura más corta acompaña)
+function escalarRitmo(f) {
+    if (rec || !M.notas.length) return;
+    if (f < 1 && M.notas.some(n => n.t % 2 || n.d % 2)) return toast('No se puede: quedarían notas más cortas que una semicorchea');
+    detenerRepro();
+    M.notas.forEach(n => { n.t *= f; n.d *= f; });
+    M.fig = Math.max(1, Math.min(4, M.fig * f));
+    setSeg('seg-fig', M.fig);
+    compasSel = null;
+    huboCambio(); pintarTodo();
+}
+// Toda la melodía una octava arriba o abajo
+function trasponerOctava(d) {
+    const con = M.notas.filter(n => n.g > 0);
+    if (!con.length) return;
+    if (con.some(n => n.o + d > 2 || n.o + d < -2)) return toast('No se puede: quedaría fuera del rango');
+    con.forEach(n => { n.o += d; });
+    if (M.notas[cursor]?.g > 0) sonarNota(M.notas[cursor]);
+    huboCambio(); pintarTodo();
+}
 function irPaso(p) {
     if (rec) return;
     if (p === 3 && !M.notas.length) return;
@@ -766,6 +794,10 @@ document.querySelectorAll('.pasos button').forEach(b => b.onclick = () => irPaso
 document.getElementById('b-grabar').onclick = () => { grabar(null); document.activeElement.blur(); };
 document.getElementById('b-regrabar').onclick = () => { if (compasSel !== null) grabar(compasSel); document.activeElement.blur(); };
 document.getElementById('b-escuchar').onclick = e => { escuchar(); e.target.blur(); };
+document.getElementById('b-mitad').onclick = e => { escalarRitmo(0.5); e.target.blur(); };
+document.getElementById('b-doble').onclick = e => { escalarRitmo(2); e.target.blur(); };
+document.getElementById('b-oct-baja').onclick = e => { trasponerOctava(-1); e.target.blur(); };
+document.getElementById('b-oct-sube').onclick = e => { trasponerOctava(1); e.target.blur(); };
 document.getElementById('b-guardar').onclick = () => guardar();
 document.getElementById('b-limpiar').onclick = e => { limpiar(); e.target.blur(); };
 document.getElementById('bloques').addEventListener('scroll', e => { document.getElementById('filas').scrollTop = e.target.scrollTop; });

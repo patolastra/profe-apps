@@ -6192,3 +6192,7 @@ opciones propuestas eligió solo las citas a apoderados).*
 - **Escuchar en la barra de arriba (PO 2026-10-25):** un solo botón ▶ Escuchar, entre ③ Notas y Limpiar, verde y más
   grande (ancho fijo; ■ Detener en ámbar mientras suena); se quitó de los paneles de ① y ③. La barra completa necesita
   ~1030 px de ancho.
+- **Ajustes (PO 2026-10-25):** la nota que suena se pinta **naranja** (antes solo se aclaraba); en ① **½× / 2×** pasan
+  todo el ritmo a la mitad / al doble (la figura más corta acompaña; no deja nada más corto que una semicorchea); en ③
+  **Octava ↓ / Octava ↑** mueven toda la melodía (sin salir del rango). Prueba: 4 negras → ½× corcheas → ½×
+  semicorcheas → ½× avisa; 2× 2× → negras; octava ↑ hasta el tope avisa; nota sonando rgb(249, 115, 22).
