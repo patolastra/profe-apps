@@ -5899,3 +5899,21 @@ celular".*
 - **Ajuste del PO (2026-10-24, "está bien y es deseable, pero feo"):** el reproductor de abajo **desaparece** (la letra
   ocupa ese espacio) y lo de audio de la barra de arriba queda **deshabilitado** (atenuado, sin responder, en su lugar).
   Probado: la letra llega al borde inferior (720 de 720); Pitch, velocidad, 🔊 y Sync al 35 %. Captura.
+
+### DC. Entrenador — reproductor en una sola franja
+*Origen: PO 2026-10-24 ("revisa cómo se ven los controles de audio en el entrenador, son feísimos: ¿por qué?").*
+- **Auditoría (captura):** (1) ⏪ ⏩ son emojis: Windows los dibuja como cuadros azules con brillo, sin los colores del
+  Entrenador; (2) dos franjas (barra de avance + tiempo solo en otra línea, y debajo, tras una raya, los botones): ~95 px
+  para poco; (3) la barra de avance es una línea de 6 px sin punto; (4) estilos mezclados (círculo naranjo, cuadros
+  azules, el 🔊 emoji y la barra del navegador del volumen de DA).
+- **Decisión del PO (2026-10-24):** una sola franja con ⏪ ▶ ⏩ dibujados en el estilo del Entrenador, tiempo, barra de
+  avance con punto para arrastrar, duración y el volumen al final (se baja de la barra de arriba).
+- **Implementación:** `#ent-controles` = una fila: botones con íconos SVG (`entIcono`), ▶/⏸/■ por `entPintarPlay`,
+  tiempo actual y duración a los lados de la barra (`entPintarTiempo`), punto que sigue al avance y se arrastra
+  (`entrenadorSeek` con puntero), volumen con ícono dibujado y barra propia (relleno naranjo). Tema claro y oscuro. Sin
+  audio (DB) la franja sigue desapareciendo.
+- **Lugares de uso (regla 11):** Entrenador de la Biblioteca, de la sesión del curso y mínimo del Plan (mismo archivo);
+  la copia de la Pizarra no muestra el reproductor.
+- **Prueba (local, La Señora Interesante, sin guardar nada):** franja de 57 px (antes ~95) con ⏪ ▶ ⏩ dibujados,
+  "0:02" · barra con punto · "2:28" · volumen; ▶ → ⏸ al reproducir y de vuelta; el punto sigue el avance; volumen al
+  40 % pinta su barra hasta la mitad; tema claro (captura) y oscuro (colores revisados). Sin audio la franja no aparece.
