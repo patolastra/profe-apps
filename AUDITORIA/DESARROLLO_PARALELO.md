@@ -5835,3 +5835,19 @@ aunque ya quede un solo estudiante con ese nombre" y "Objetivo: \"OA:\" funciona
   Planificaciones.
 - **Prueba:** Séptimo: antes salían con apellido "Agustina" y "Camila"; ahora solo "Camila" (dos activas). Editor:
   "OA: …" y "O: …" destacados, "OAX: …" no.
+
+### CZ. Pizarra — revisar el resaltado de versos y estrofas proyectado
+*Origen: bitácora 15/10 Segundo ("resaltado de versos y estrofas parece que no funciona bien con proyección en
+Pizarra"). Notion: "Pizarra: revisar resaltado de versos y estrofas en proyección". El PO no recordaba el detalle;
+acordado (2026-10-24): reproducir, arreglar solo lo que falle.*
+- **Prueba (local, sin clase: el Entrenador de Segundo emitiendo a mano a una copia `?espejo=1`, sin guardar nada):**
+  verso pintado (Shift + clic), estrofa (Ctrl + Shift + clic), verso activo pintado (rojo), Diapositiva, sonando 12 s
+  con la copia siguiendo sola, cambio de canción, borrar todo (Shift + doble clic): la copia muestra siempre los mismos
+  versos pintados y el mismo verso activo (comparado verso a verso y en captura). Desde el 15/10 cambiaron esta parte CR
+  y CS; el pintado no se pudo hacer fallar.
+- **Hallazgo y arreglo:** al volver de Diapositiva a Scroll, la lista de la sesión (☰) se abría sola aunque estuviera
+  cerrada; proyectando, la Pizarra pasaba de la letra al cancionero (tarjetas) sin pedirlo. Ahora se reabre solo si
+  estaba abierta al pasar a Diapositiva (`entSetViewMode`). Probado: abierta → ida y vuelta → abierta; cerrada → ida y
+  vuelta → cerrada.
+- **Lugares de uso (regla 11):** el cambio es del Entrenador (Biblioteca y pestaña de la sesión del curso); el mínimo
+  del Plan no tiene lista; la copia de la Pizarra no está en modo sesión.
