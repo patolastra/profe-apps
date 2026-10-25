@@ -33,6 +33,11 @@
     #barra { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel);
         border-bottom: 1px solid var(--borde); flex: 0 0 auto; }
     #cancion { width: 240px; min-width: 60px; flex-shrink: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Espacio reservado: invisible si la canción no tiene audio */
+    #b-cancion { flex: 0 0 auto; height: 34px; width: 108px; border-radius: 8px; border: 1px solid #475569; background: #334155;
+        color: var(--texto); cursor: pointer; visibility: hidden; }
+    #b-cancion.on { visibility: visible; }
+    #b-cancion:hover { background: #475569; }
     #etiqueta { width: 180px; min-width: 90px; flex-shrink: 1; height: 34px; background: #0f172a; color: var(--texto); border: 1px solid #475569;
         border-radius: 8px; padding: 0 10px; font-size: 14px; }
     .pasos { display: flex; gap: 4px; }
@@ -124,6 +129,7 @@
 <body>
 <div id="barra">
     <div id="cancion" title="">♬ Melodía</div>
+    <button id="b-cancion" title="Revisar la canción (con su audio) en el Entrenador de la Biblioteca">🎵 Canción</button>
     <input id="etiqueta" placeholder="Descripción (p. ej. Estrofa)" maxlength="60">
     <div class="pasos">
         <button data-paso="1" class="on">① Ritmo</button>
@@ -810,6 +816,16 @@ document.getElementById('b-doble').onclick = e => { escalarRitmo(2); e.target.bl
 document.getElementById('b-oct-baja').onclick = e => { trasponerOctava(-1); e.target.blur(); };
 document.getElementById('b-oct-sube').onclick = e => { trasponerOctava(1); e.target.blur(); };
 document.getElementById('b-guardar').onclick = () => guardar();
+// La canción en el Entrenador de la Biblioteca (pestaña cerrable del Workspace; fuera de él, ventana nueva)
+document.getElementById('b-cancion').onclick = e => {
+    e.target.blur();
+    detenerRepro();
+    const src = `../REPERTORIO/index.html?cancion=${encodeURIComponent(cancionId)}`;
+    if (window.parent !== window) {
+        try { window.parent.postMessage({ tipo: 'ws-abrir', key: `entrenador:${cancionId}`, titulo: cancionNombre || 'Canción', ico: '🎵', src }, '*'); return; } catch (_) {}
+    }
+    window.open(src, '_blank');
+};
 document.getElementById('b-limpiar').onclick = e => { limpiar(); e.target.blur(); };
 document.getElementById('bloques').addEventListener('scroll', e => {
     document.getElementById('filas').scrollTop = e.target.scrollTop;
@@ -1056,6 +1072,8 @@ async function iniciar() {
         if (sb && cancionId) {
             const { data } = await sb.from('repertorio_canciones').select('nombre').eq('id', cancionId).single();
             cancionNombre = data?.nombre || '';
+            const { data: audios } = await sb.from('repertorio_assets').select('id').eq('cancion_id', cancionId).eq('tipo', 'audio').limit(1);
+            document.getElementById('b-cancion').classList.toggle('on', !!audios?.length);
         }
     } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }
     if (!assetId) contenidoBase = contenidoActual();

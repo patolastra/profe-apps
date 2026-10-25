@@ -6202,3 +6202,8 @@ opciones propuestas eligió solo las citas a apoderados).*
   desplaza junto con los bloques (y con la rueda sobre el pentagrama). Los bloques ganan el alto sobrante. Medido:
   barras de compás en las mismas x (101 / 341 / 581) y cada cabeza de nota a +2 px del inicio de su bloque; desplazamiento
   igual en ambos. No revisado con captura (el panel estaba oculto).
+- **Tonalidad y canción (PO 2026-10-25):** la tonalidad ya se guardaba (en la melodía y en `tonalidad`); ahora la ficha
+  de la Biblioteca la muestra en cada melodía ("Estrofa · Re mayor"). Botón **🎵 Canción** en la barra del editor, solo
+  si la canción tiene audio (espacio reservado si no): abre la canción en el Entrenador (`REPERTORIO/?cancion=`) en una
+  pestaña cerrable del Workspace (o ventana nueva). Prueba: Estrellita (sin audio) → oculto; Invincible (con audio) →
+  visible; clic → pestaña "Estrellita ¿Dónde Estás?" con el Entrenador.
