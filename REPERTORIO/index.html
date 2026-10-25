@@ -2072,6 +2072,13 @@
         #ent-vol-barra { width: 86px; accent-color: #ea580c; cursor: pointer; }
         #ent-vol.mudo #ent-vol-barra { opacity: .4; }
         body.espejo #ent-vol { display: none; }
+        /* Canción sin audio (deuda DB): fuera lo de audio, con su espacio reservado (la barra no se mueve) */
+        #entrenador-overlay.sin-audio #ent-progress-wrap, #entrenador-overlay.sin-audio #ent-controles,
+        #entrenador-overlay.sin-audio #ent-vel-label, #entrenador-overlay.sin-audio #ent-btn-pitch,
+        #entrenador-overlay.sin-audio #ent-pitch-input, #entrenador-overlay.sin-audio #ent-btn-audio,
+        #entrenador-overlay.sin-audio #ent-btn-sync, #entrenador-overlay.sin-audio #ent-btn-sync-save,
+        #entrenador-overlay.sin-audio #ent-vol, #entrenador-overlay.sin-audio #ent-btn-toggle-loops { visibility: hidden; }
+        #entrenador-overlay.sin-audio #ent-loops-panel { display: none !important; }
         #ent-btn-espejo:hover, #ent-btn-atajos:hover, #ent-btn-pitch:hover, #ent-btn-audio:hover, #ent-btn-tema:hover, #ent-btn-ocultar:hover, #ent-btn-lectura:hover,
         #ent-btn-sync:hover, #ent-btn-editar:hover { border-color: #64748b; color: #cbd5e1; }
         #ent-btn-pitch.activo, #ent-btn-audio.activo, #ent-btn-ocultar.oculto,
@@ -5048,6 +5055,12 @@ document.addEventListener('keydown', e => {
             if (e.key === 'o' || e.key === 'O') { e.preventDefault(); entTapOut(); return; }
             if (e.key === 'Backspace')           { e.preventDefault(); entTapUndo(); return; }
         }
+        if (!editando && !entLectura && entSinAudio() && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')
+            && !document.activeElement?.isContentEditable) {
+            // Canción sin audio (deuda DB): ↑ ↓ pasan de verso como en Lectura; nada reproduce. ← → siguen cambiando de canción.
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); entNavVerso(e.key === 'ArrowUp' ? -1 : 1, true); return; }
+            if (/^[jJlLkK {}+]$/.test(e.key)) { e.preventDefault(); return; }
+        }
         if (!editando && entLectura && !entSyncMode && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')
             && !document.activeElement?.isContentEditable) {
             // 📖 Lectura (deuda CS): solo se recorren los versos; nada reproduce ni cambia de canción.
@@ -5515,6 +5528,16 @@ function entToggleFullscreen() {
 }
 
 function entAudio() { return document.getElementById('entrenador-audio'); }
+// Canción sin audio (deuda DB): con la letra abierta, fuera todo lo de audio. Los ritmos y el Metalófono
+// conservan su ▶ (el mismo botón los reproduce).
+function entSinAudio() {
+    const t = entrenadorAssetActivo?.tipo;
+    return !!entrenadorSong && !entAudioAsset() && (!t || t === 'letra' || t === 'cifrado');
+}
+function entPintarSinAudio() {
+    const sin = entSinAudio();
+    document.getElementById('entrenador-overlay')?.classList.toggle('sin-audio', sin);
+}
 
 function abrirEntrenador(songId) {
     const c = canciones.find(x => x.id === songId);
@@ -5945,6 +5968,7 @@ let entRitmoPlayer = null;
 function entCargarAsset(asset, userInitiated = false) {
     if (entPrueba && !asset._prueba) entPruebaFin();   // otra canción o recurso: termina la prueba sin guardar
     entrenadorAssetActivo = asset;
+    entPintarSinAudio();
     entrenadorLineasRevisar = new Set();   // marca temporal: no sobrevive al cambio de asset
     // Detener cualquier ritmo en reproducción al cambiar de asset (evita audio/cursor colgados).
     if (entRitmoPlayer) { try { entRitmoPlayer.stop(); } catch (_) {} entRitmoPlayer = null; }

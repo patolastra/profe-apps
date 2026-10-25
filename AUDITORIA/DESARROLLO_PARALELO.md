@@ -5880,3 +5880,19 @@ celular".*
   → volumen del audio 0,6 / 0,3 / 0; ritmo: un solo nodo a los parlantes, 0,40 → 0,80 al cambiar sonando; Metalófono:
   50 % = −6 dB, silencio = mudo; celular ↔ PC: el celular mostró "PC: 100 %", tres "−" rápidos → PC 70 % (audio 0,7),
   🔇 → "en silencio", de nuevo → 70 %. Captura del celular y de la barra. No probado: dos equipos reales y el proyector.
+
+### DB. Entrenador — canción sin audio: fuera todo lo de audio
+*Origen: PO 2026-10-24 ("le doy a play y cambia a pausa, pero nada más… algo debería pasar").*
+- **Auditoría:** 35 canciones de la Biblioteca tienen letra y no tienen audio (Melodía ni Karaoke). En ellas el ▶ solo
+  cambia a ⏸ (`entrenadorTogglePlay` llama `play()` sobre un audio vacío). El modo 📖 Lectura no cambia el reproductor:
+  lo deja a la vista y ▶ reproduce.
+- **Decisión del PO (2026-10-24):** sin audio, con la letra abierta, desaparece todo lo que tiene que ver con el audio,
+  sin que la barra se mueva: barra de avance, tiempo, ⏪ ▶ ⏩, velocidad, Pitch, 🎤 Melodía/Karaoke, Sync, 🔊 y ⟳ loops.
+  Quedan Letra, Lectura, Editar, 🔎, Scroll/Diapositiva, 📽️ Pizarra y la lista. Espacio no hace nada; ↑ ↓ pasan de
+  verso como en Lectura; ← → siguen cambiando de canción. Ritmos y Metalófono de la canción conservan su ▶.
+- **Implementación:** clase `sin-audio` en el Entrenador (`entPintarSinAudio`, al abrir una canción y al cargar cada
+  recurso): lo de audio queda invisible con su espacio reservado (regla 8b); el panel de loops se cierra.
+- **Lugares de uso (regla 11):** Entrenador de la Biblioteca, de la sesión del curso, mínimo del Plan (mismo archivo).
+- **Prueba (local, sesión de Segundo, sin guardar nada):** La vicuñita (sin audio): reproductor de abajo oculto, Pitch,
+  velocidad y 🔊 ocultos con su espacio; ↓ pasó al verso 1; Espacio no hizo nada. La Señora Interesante (con audio): todo
+  a la vista y en las mismas posiciones (los botones de arriba no se movieron un píxel entre una y otra). Captura.
