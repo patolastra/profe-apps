@@ -402,6 +402,83 @@
         return { contexto_id: cid, sesion_id: null };
     }
 
+    // ── Menú con clic derecho sobre un pendiente (PO 2026-10-25; solo PC): al pasar el mouse queda solo el ☀ y el
+    // resto va aquí. Convertir en mensaje / mejora o crear la actividad en el Plan sacan el pendiente de la lista.
+    let menuEl = null;
+    function cerrarMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } document.removeEventListener('mousedown', fueraMenu, true); }
+    function fueraMenu(e) { if (menuEl && !menuEl.contains(e.target)) cerrarMenu(); }
+    function abrirMenu(L, p, x, y) {
+        cerrarMenu();
+        const q = filas.get(p.id) || p, texto = String(q.texto || '').trim();
+        const conHijos = hijosDe(L, q.id).some(h => h.estado === 'activo');
+        const sinConvertir = !texto ? 'Escribe el pendiente primero' : conHijos ? 'Tiene subpendientes' : '';
+        const items = [
+            !q.padre_id && { ico: '↳', lbl: 'Agregar subpendiente', fn: () => agregarHijo(L, q) },
+            q.padre_id && { ico: '⤴', lbl: 'Volver a principal', fn: () => cambiar(q.id, { padre_id: null }) },
+            { sep: true },
+            { ico: '✉️', lbl: 'Convertir en mensaje…', off: sinConvertir, sigue: true, fn: () => pedirDestinatario(L, q, x, y) },
+            { ico: '📋', lbl: 'Crear actividad en el Plan', off: sinConvertir || (!q.sesion_id ? 'Sin clase: no tiene Plan' : ''), fn: () => aActividad(q) },
+            { ico: '✨', lbl: 'Convertir en mejora de la app', off: sinConvertir, fn: () => cambiar(q.id, { texto: '/mejora ' + texto }) },
+            { sep: true },
+            { ico: '🗑', lbl: 'Eliminar', peligro: true, fn: () => {
+                const nh = hijosDe(L, q.id).length;
+                if (nh && !confirm(`Este pendiente tiene ${nh} subpendiente${nh === 1 ? '' : 's'}. ¿Borrarlo con todo?`)) return;
+                borrar(q.id);
+            } },
+        ].filter(Boolean);
+        menuEl = document.createElement('div');
+        menuEl.className = 'pd-menu';
+        menuEl.innerHTML = items.map((it, i) => it.sep ? '<div class="pd-menu-sep"></div>'
+            : `<button type="button" data-i="${i}" class="${it.peligro ? 'peligro' : ''}"${it.off ? ` disabled title="${esc(it.off)}"` : ''}><span class="ico">${it.ico}</span>${esc(it.lbl)}</button>`).join('');
+        menuEl.addEventListener('click', e => {
+            const b = e.target.closest('button[data-i]'); if (!b || b.disabled) return;
+            const it = items[+b.dataset.i];
+            if (!it.sigue) cerrarMenu();   // "Convertir en mensaje…" sigue abierto: pregunta a quién
+            guardarTodo();
+            it.fn();
+        });
+        document.body.appendChild(menuEl);
+        ubicarMenu(x, y);
+        setTimeout(() => document.addEventListener('mousedown', fueraMenu, true), 0);
+    }
+    function ubicarMenu(x, y) {
+        const r = menuEl.getBoundingClientRect();
+        menuEl.style.left = Math.max(6, Math.min(x, innerWidth - r.width - 6)) + 'px';
+        menuEl.style.top = Math.max(6, Math.min(y, innerHeight - r.height - 6)) + 'px';
+    }
+    // ✉️ Mensaje: el menú pregunta a quién; Enter lo envía como "/msj a quién: texto" (sale de los pendientes).
+    function pedirDestinatario(L, q, x, y) {
+        if (!menuEl) return;
+        menuEl.innerHTML = `<div class="pd-menu-tit">✉️ ¿A quién?</div><input class="pd-menu-para" placeholder="Por ejemplo: UTP, dire, Pedro" autocomplete="off">
+            <div class="pd-menu-ayuda">Enter para enviar · Esc para cancelar</div>`;
+        const inp = menuEl.querySelector('input');
+        inp.addEventListener('keydown', e => {
+            if (e.key === 'Escape') { e.preventDefault(); cerrarMenu(); return; }
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const para = inp.value.replace(/:/g, ' ').trim();
+            if (!para) return;
+            cerrarMenu();
+            listaActiva = L;
+            cambiar(q.id, { texto: `/msj ${para}: ${String(q.texto || '').trim()}` });
+        });
+        ubicarMenu(x, y);
+        inp.focus();
+    }
+    // 📋 Actividad: al final del Plan de la clase del pendiente, con su texto como título; el pendiente sale de la lista.
+    async function aActividad(q) {
+        const texto = String(q.texto || '').trim();
+        if (!q.sesion_id || !texto) return;
+        try {
+            const { data: ult } = await sb.from('plan_cards').select('orden').eq('sesion_id', q.sesion_id).order('orden', { ascending: false }).limit(1);
+            const orden = (ult && ult[0] ? Number(ult[0].orden) || 0 : 0) + 1;
+            const { error } = await sb.from('plan_cards').insert({ sesion_id: q.sesion_id, orden, titulo: texto, contenido: '' });
+            if (error) throw error;
+        } catch (_) { aviso('No se pudo crear la actividad — revisa la conexión.'); return; }
+        await borrar(q.id);
+        aviso(`Actividad creada en el Plan${q.fecha ? ' del ' + fechaCorta(q.fecha) : ''}.`, true);
+    }
+
     // ── Listas en pantalla ──────────────────────────────────────────────
     const DIAS_C = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
     const fechaCorta = iso => { const d = new Date(iso + 'T12:00:00'); return `${DIAS_C[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`; };
@@ -634,6 +711,12 @@
                 cambiar(q.id, { padre_id: null });
                 setTimeout(() => enfocarFila(L, q.id), 0);
             }
+        });
+        // Clic derecho = menú del pendiente (solo PC; el celular tiene sus gestos).
+        if (!L.op.tactil && !L.op.sugerencias) fila.addEventListener('contextmenu', e => {
+            if (e.target.closest('.pd-acc')) return;
+            e.preventDefault();
+            abrirMenu(L, yo(), e.clientX, e.clientY);
         });
         fila.querySelector('.pd-del').addEventListener('click', () => {
             const nh = hijosDe(L, p.id).length;

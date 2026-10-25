@@ -6082,3 +6082,21 @@ opciones propuestas eligió solo las citas a apoderados).*
   Generales sin fecha), 0 fechas y 0 marcas de semana en las filas; Taller de Cuerdas con "⏳ Llevan 3 semanas o más ·
   2" plegado al final. Encabezado: tras bajar 600 px sigue arriba del panel. Workspace: clic con la rueda en
   "Orientación" de la semana en curso → pestaña "Plan" nueva (5 pestañas) y la activa sigue siendo el Dashboard.
+
+### DJ. Pendientes — menú con clic derecho (PC)
+*Origen: PO 2026-10-25 (captura de los íconos ☀ ↳ ✕ al pasar el mouse).*
+- **Decisión del PO (2026-10-25):** al pasar el mouse queda **solo el ☀**; con **clic derecho** sobre un pendiente, un
+  menú: ↳ Agregar subpendiente · ⤴ Volver a principal (en un subpendiente) · ✉️ Convertir en mensaje… · 📋 Crear
+  actividad en el Plan · ✨ Convertir en mejora de la app · 🗑 Eliminar. Al convertir o crear la actividad, **el
+  pendiente siempre sale de la lista**. Por ahora solo el PC (el celular se verá después).
+- **Implementación:** `pendientes.js`: `abrirMenu` (clic derecho en la fila, listas no táctiles ni de sugerencias);
+  mensaje: el menú pregunta "¿A quién?" y lo envía como `/msj a quién: texto`; mejora: `/mejora texto`; actividad:
+  `plan_cards` al final del Plan de la clase del pendiente, con su texto como título, y el pendiente se borra; las
+  conversiones se desactivan si el pendiente tiene subpendientes activos o no tiene texto (la actividad, también si no
+  tiene clase). `pendientes.css`: ↳ y ✕ ocultos en el PC; estilos del menú.
+- **Lugares de uso (regla 11):** todas las listas del PC (Dashboard, Plan, Cursos, bitácora); el celular sin cambios.
+- **Prueba (local; 2 pendientes de prueba en Segundo, borrados al final con lo que generaron):** al pasar el mouse solo
+  ☀; clic derecho → ↳ Agregar subpendiente · ✉️ Convertir en mensaje… · 📋 Crear actividad en el Plan · ✨ Convertir en
+  mejora de la app · 🗑 Eliminar. "Convertir en mensaje…" preguntó "¿A quién?" → quedó en ✉️ Mensajes ("Prueba
+  Claude") y salió de la lista; "Crear actividad" → actividad al final del Plan del jue 29/10 con el texto como título,
+  aviso verde, y el pendiente salió. (Arreglado en la prueba: el menú se cerraba antes de preguntar a quién.)
