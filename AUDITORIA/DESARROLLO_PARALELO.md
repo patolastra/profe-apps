@@ -5762,3 +5762,37 @@ Presentación, no en pestaña nueva".*
 - **Implementación:** el clic del chip en la card llama `abrirMini(cancion, actividad, asset)`.
 - **Lugares de uso (regla 11):** chip en la card del Plan, chip del cuadro de la Presentación y panel de la vista de
   clase: los tres abren ahora el Entrenador mínimo. `abrirCancionCurso` quedó sin uso y se retiró (regla 10).
+
+### CW. Pizarra — reloj de tiempo perdido visible pero detenido
+*Origen: PO 2026-10-24. Notion: "Pizarra: reloj de clase visible pero detenido".*
+- **Auditoría:** el 🎮 de la barra del Plan (y Ctrl + Shift + Espacio) echa a correr o detiene el tiempo perdido
+  (`ClaseVivo.togglePerdido`). La Pizarra lo muestra en grande, parpadeando, solo mientras corre (`#clase-perdido`); al
+  detenerlo desaparece. No hay forma de dejarlo a la vista quieto.
+- **Decisión del PO (2026-10-24):** el 🎮 abre un menú que reúne todo: echar a correr / detener y mostrarlo u ocultarlo
+  en la Pizarra.
+- **Implementación:** `ClaseVivo` guarda `perdidoVisible` en el estado de la clase (`verPerdido(on)`). La Pizarra lo
+  muestra si corre (parpadea, como hoy) o si está visible (quieto, sin parpadear, en rojo). Menú del 🎮 en el Plan:
+  ▶ Echar a correr / ⏸ Detener y el interruptor 👁 En la Pizarra (Visible / Oculto); mientras corre, se ve siempre.
+  El atajo Ctrl + Shift + Espacio sigue igual.
+- **Lugares de uso (regla 11):** el 🎮 solo existe en la barra del Plan; el contador solo en la Pizarra.
+
+### CX. Cancionero en la Pizarra — 🎲 al azar y revisar que se vean todas las canciones
+*Origen: bitácora 08/10 Séptimo ("se pelean por la siguiente canción") y PO 2026-10-24. Notion: "Cancionero en la
+Pizarra: botón 🎲 al azar + revisar que se vean todas las canciones".*
+- **Auditoría:** con la lista de la sesión (☰) abierta en el Entrenador del curso, la Pizarra muestra las canciones como
+  tarjetas (`espejoCancionero`). Prueba con la sesión más larga (Séptimo, 15 canciones) a 1024 × 768: se ven las 15,
+  ninguna cortada. El Entrenador mínimo del Plan no tiene cancionero.
+- **Decisión del PO (2026-10-24):** 🎲 sortea y abre: en la Pizarra las tarjetas se iluminan una tras otra unos 3 s
+  (como el 🎲 de Participación), se detiene en una y el Entrenador la deja lista para tocar. No repite las canciones ya
+  sorteadas en esta clase (salvo que ya hayan salido todas).
+- **Lugares de uso (regla 11):** el 🎲 va en la lista de la sesión del Entrenador (Biblioteca y pestaña de la sesión
+  del curso); la animación, en la copia de la Pizarra. El Entrenador mínimo no tiene lista (no aplica).
+- **Prueba CW (local, sin publicar clase):** Pizarra con el tiempo detenido y "visible": se ve 01:23 quieto, sin
+  parpadear; oculto: desaparece; corriendo: parpadea como antes. Menú del 🎮 en el Plan: se ve completo bajo el
+  contador; ▶/⏸ y el interruptor cambian sin cerrarlo.
+- **Implementación CX:** botón "🎲 Al azar" en la cabecera de la lista de la sesión (`entSortear`): elige entre las que
+  no han salido hoy en esa sesión (`localStorage profe_sorteo_<sesión>_<fecha>`; si salieron todas, parte de nuevo; nunca
+  la que está puesta), recorre todas en desorden frenando 3 s, abre la elegida y 2 s después cierra la lista (la Pizarra
+  pasa a la letra). El estado del sorteo viaja en el espejo (`sorteo`) y la Pizarra lo anima con su propio reloj.
+- **Prueba CX (local):** Séptimo: recorrió 13 canciones, cayó en la elegida (late), la abrió, cerró la lista y el
+  segundo sorteo no repitió. Copia de la Pizarra con 15 tarjetas: recorrido en amarillo y la elegida latiendo, visible.

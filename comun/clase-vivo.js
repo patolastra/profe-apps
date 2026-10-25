@@ -5,7 +5,7 @@
 // no de contadores, así que cerrar y reabrir no pierde nada.
 //
 // Estado (clave CLASE_KEY):
-//   { sesionId, ctx, fecha, inicio, perdidoAcumMs, perdidoDesde|null, episodios }
+//   { sesionId, ctx, fecha, inicio, perdidoAcumMs, perdidoDesde|null, episodios, perdidoVisible? }
 // Registros terminados aún no subidos a Supabase (clave PEND_KEY): array de filas
 // listas para `clase_tiempos`. Los sube el Planificador (es quien tiene `sb`).
 //
@@ -64,6 +64,16 @@
             st.perdidoDesde = ahora;
             st.episodios += 1;
         }
+        escribir(CLASE_KEY, st);
+        avisar();
+        return st;
+    }
+
+    // Tiempo perdido a la vista en la Pizarra aunque esté detenido (deuda CW). Mientras corre se ve siempre.
+    function verPerdido(on) {
+        const st = get();
+        if (!st) return null;
+        st.perdidoVisible = !!on;
         escribir(CLASE_KEY, st);
         avisar();
         return st;
@@ -275,7 +285,7 @@
     }, true);
 
     window.ClaseVivo = {
-        get, comenzar, traer, togglePerdido, terminar, subirPendientes,
+        get, comenzar, traer, togglePerdido, verPerdido, terminar, subirPendientes,
         tiempoClaseMs, tiempoPerdidoMs, fmt, onCambio, enCurso, conectar,
     };
 })();
