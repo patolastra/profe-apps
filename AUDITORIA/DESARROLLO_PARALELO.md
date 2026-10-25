@@ -5918,3 +5918,7 @@ celular".*
   "0:02" · barra con punto · "2:28" · volumen; ▶ → ⏸ al reproducir y de vuelta; el punto sigue el avance; volumen al
   40 % pinta su barra hasta la mitad; tema claro (captura) y oscuro (colores revisados). Sin audio la franja no aparece.
 - **Ajuste del PO (2026-10-24, "no sirven, sácalos"):** fuera ⏪ ⏩ (saltaban 10 s). Siguen J / L (5 s) y ↑ ↓ por verso.
+- **Ajuste del PO (2026-10-24, "me arrepentí; devuélvelos"):** vuelven dos botones con otra función: ⏮ al comienzo de
+  la canción (audio a 0, sin verso activo, letra arriba) y ⏭ al primer verso de la estrofa siguiente a la del verso
+  activo (`entIrAlComienzo`, `entSiguienteEstrofa`). Probado (La Señora Interesante): ⏭ → verso 0 (0,1 s), ⏭ → verso 5,
+  estrofa 2 (17,6 s); ⏮ → 0,0 s sin verso activo.

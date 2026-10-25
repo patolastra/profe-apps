@@ -3055,10 +3055,12 @@
         <div id="ent-left">
             <div id="ent-prueba-bar" hidden></div>
             <div id="ent-zona"></div>
-            <!-- Reproductor en una sola franja (deuda DC): ▶ · tiempo · avance · duración · volumen (⏪ ⏩ fuera, PO 2026-10-24) -->
+            <!-- Reproductor en una sola franja (deuda DC): ⏮ comienzo · ▶ · ⏭ estrofa siguiente · tiempo · avance · duración · volumen -->
             <div id="ent-controles">
                 <div id="ent-playcontrols">
+                    <button class="ent-rep-btn" onclick="entIrAlComienzo()" title="Al comienzo de la canción"><svg viewBox="0 0 24 24"><path d="M6 6h2.2v12H6zM19 6v12l-9.5-6z"/></svg></button>
                     <button id="ent-btn-play" onclick="entrenadorTogglePlay()" title="Reproducir / pausar (Espacio)"></button>
+                    <button class="ent-rep-btn" onclick="entSiguienteEstrofa()" title="Al comienzo de la estrofa siguiente"><svg viewBox="0 0 24 24"><path d="M5 6v12l9.5-6zM15.8 6H18v12h-2.2z"/></svg></button>
                 </div>
                 <span id="ent-t-act" class="ent-t">0:00</span>
                 <div id="ent-progress-bar" onpointerdown="entrenadorSeekInicio(event)">
@@ -6808,6 +6810,28 @@ function entNavVerso(dir, sinAudio = false) {
     entLineaManualHasta = Date.now() + 600;
     if (audioEl.duration && !linea.sinTiempo && !sinAudio) { audioEl.currentTime = linea.time / 1000; entPitchSyncPos(); }
     entActualizarLinea(j);
+}
+
+// Reproductor (deuda DC, PO 2026-10-24): ⏮ lleva al comienzo de la canción; ⏭ al primer verso de la estrofa
+// siguiente a la del verso activo (con el audio en su tiempo, si lo tiene).
+function entIrAlComienzo() {
+    const audioEl = entAudio();
+    entLineaManualHasta = Date.now() + 600;
+    if (audioEl.duration) { audioEl.currentTime = 0; entPitchSyncPos(); }
+    entActualizarLinea(-1);
+    const z = document.getElementById('ent-zona');
+    if (z) z.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function entSiguienteEstrofa() {
+    if (!entrenadorStanzas.length) return;
+    const k = entrenadorLineIdx < 0 ? -1 : entrenadorStanzas.findIndex(st => st.some(l => l.origIdx === entrenadorLineIdx));
+    const sig = entrenadorStanzas.slice(k + 1).find(st => st.some(l => (l.text || '').trim()));
+    if (!sig) return;
+    const idx = sig.find(l => (l.text || '').trim()).origIdx;
+    const linea = entrenadorLines[idx], audioEl = entAudio();
+    entLineaManualHasta = Date.now() + 600;
+    if (audioEl.duration && linea && !linea.sinTiempo) { audioEl.currentTime = linea.time / 1000; entPitchSyncPos(); }
+    entActualizarLinea(idx);
 }
 
 // Pasapáginas manual de la letra. Unidad = estrofa. Lleva arriba la primera estrofa que
