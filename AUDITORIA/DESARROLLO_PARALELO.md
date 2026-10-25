@@ -6100,3 +6100,7 @@ opciones propuestas eligió solo las citas a apoderados).*
   mejora de la app · 🗑 Eliminar. "Convertir en mensaje…" preguntó "¿A quién?" → quedó en ✉️ Mensajes ("Prueba
   Claude") y salió de la lista; "Crear actividad" → actividad al final del Plan del jue 29/10 con el texto como título,
   aviso verde, y el pendiente salió. (Arreglado en la prueba: el menú se cerraba antes de preguntar a quién.)
+- **Ajustes visuales (PO 2026-10-25):** "Completados" con menos jerarquía: "3 completados" en minúscula, letra normal,
+  gris claro y alineado con el texto de los pendientes (sin el recuadro negro al tocarlo; igual el cuadro ⏳); la línea
+  divisoria pasa a separar un curso del siguiente (ya no está entre el título y sus pendientes); "no hay pendientes"
+  más tenue. Revisado: título sin línea, línea arriba de cada curso desde el segundo, "8 completados".

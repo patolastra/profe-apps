@@ -633,7 +633,7 @@
         const caja = L.caja.querySelector('.pd-comp');
         caja.hidden = !comp.length;
         caja.classList.toggle('pd-cerrado', !L.abiertoComp);
-        L.caja.querySelector('.pd-comp-lbl').textContent = `Completados · ${comp.length}`;
+        L.caja.querySelector('.pd-comp-lbl').textContent = `${comp.length} completado${comp.length === 1 ? '' : 's'}`;
         L.caja.querySelector('.pd-comp-chev').textContent = L.abiertoComp ? '▾' : '▸';
         const vacio = L.caja.querySelector('.pd-vacio');
         vacio.textContent = !act.length && L.op.vacio ? L.op.vacio : '';
