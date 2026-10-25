@@ -5995,3 +5995,6 @@ opciones propuestas eligió solo las citas a apoderados).*
   pendientes" y ＋ Cita; con una llamada para hoy, el celular abrió en ☀ Hoy con "👪 Llamadas y citas de hoy" arriba
   (No contestó / ✓ Atendido) y la pestaña 👪 con 1. Captura. Observado (ya existía, no se tocó): en "De días anteriores"
   el texto largo queda en una columna angosta.
+- **Arreglo (PO 2026-10-24):** en "De días anteriores" del celular el texto quedaba en ~90 px (en la misma fila iban el
+  curso y Aceptar / Rechazar). Ahora los botones van en una segunda línea a la derecha y el texto usa todo el ancho
+  (solo en esa lista del celular, `#sug`). Captura.
