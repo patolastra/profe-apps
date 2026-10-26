@@ -6391,3 +6391,8 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   tiene 🎸 Guitarra · 🪕 Ukelele · 🎸 Bajo para cambiar ahí mismo (la cuerda que sonaba se calla); el capo de la
   tablatura solo cuenta si se afina ese mismo instrumento; las teclas 1–N siguen al instrumento elegido. Prueba (tab de
   guitarra): Mi Si Sol Re La Mi → Ukelele: La Mi Do Sol (teclas 1–4) → Bajo: Sol Re La Mi.
+- **Diagramas sin tapar las cuerdas (PO 2026-10-26, captura):** con la ventana más baja, los diagramas quedaban encima
+  del diapasón. Ahora van debajo del diapasón (hasta la barra de avance) si caben casi enteros; si no, en el hueco mayor
+  (también puede ser arriba, bajo la barra de botones), achicándose hasta 50 % para no tapar cuerdas ni barras.
+  Prueba (Impostor Syndrome, 1366 px de ancho): 768 px de alto → debajo (545–698, diapasón termina en 535, barra en
+  708, 95 %); 640 px → arriba (80–193, diapasón empieza en 204, 71 %).
