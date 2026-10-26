@@ -6326,3 +6326,7 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
 - **Barra del metrónomo ordenada (PO 2026-10-26):** dos filas con título — **Tempo** (desde / hasta, sube +5 cada N
   compases, en el máximo) y **Sonido** (compás, subdivisión, acento en el 1 y precuenta) — separadas por líneas finas,
   y ▶ Tocar más grande a la derecha, centrado entre las dos. Revisado con captura a 1600 px.
+- **Fijo o va subiendo (PO 2026-10-26):** en la fila Tempo, **Fijo / Va subiendo** (se recuerda). En Fijo solo queda
+  el bpm; "hasta", "sube +5 cada" y "en el máximo" se ocultan guardando su lugar (barra estable) y el tempo no cambia.
+  Prueba (reloj simulado): Fijo con 90 / 140 / cada 1 → siempre 90; aviso "Fijo a …"; al volver a Va subiendo
+  reaparecen los controles.

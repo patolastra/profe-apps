@@ -34,6 +34,8 @@
     .fila { grid-column: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; }
     .fila .titulo { width: 64px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #64748b; }
     .fila .grupo + .grupo { padding-left: 22px; border-left: 1px solid var(--borde); }
+    /* Tempo fijo: lo de "va subiendo" se oculta pero guarda su lugar (barra estable) */
+    #controles.fijo .sube { visibility: hidden; }
     .grupo { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--tenue); }
     .seg { display: flex; gap: 2px; }
     .seg button, .btn { height: 32px; padding: 0 10px; border-radius: 7px; border: 1px solid #475569; background: #334155;
@@ -67,9 +69,10 @@
     <div id="controles">
         <div class="fila">
             <span class="titulo">Tempo</span>
-            <div class="grupo">Desde <input id="min" type="number" min="20" max="300"> hasta <input id="max" type="number" min="20" max="300"> bpm</div>
-            <div class="grupo">sube +5 cada <input id="cada" type="number" min="1" max="64"> compases</div>
-            <div class="grupo">en el máximo <div class="seg" id="seg-tope"><button data-v="quedarse">se queda</button><button data-v="detener">se detiene</button></div></div>
+            <div class="grupo"><div class="seg" id="seg-modo"><button data-v="fijo">Fijo</button><button data-v="sube">Va subiendo</button></div></div>
+            <div class="grupo"><span class="sube">desde</span> <input id="min" type="number" min="20" max="300"> <span class="sube">hasta <input id="max" type="number" min="20" max="300"></span> bpm</div>
+            <div class="grupo sube">sube +5 cada <input id="cada" type="number" min="1" max="64"> compases</div>
+            <div class="grupo sube">en el máximo <div class="seg" id="seg-tope"><button data-v="quedarse">se queda</button><button data-v="detener">se detiene</button></div></div>
         </div>
         <div class="fila">
             <span class="titulo">Sonido</span>
@@ -116,6 +119,7 @@ const AJ = {
     acento: leer('metro_acento', '1') === '1',
     sub: +leer('metro_sub', '1'),
     precuenta: leer('metro_precuenta', '1') === '1',
+    modo: leer('metro_modo', 'sube'),
 };
 const guardar = () => Object.entries(AJ).forEach(([k, v]) => anotar('metro_' + k, typeof v === 'boolean' ? (v ? '1' : '0') : String(v)));
 // 6/8: dos pulsos de negra con punto, cada uno con tres corcheas
@@ -124,7 +128,8 @@ const subdiv = () => COMPAS(AJ.compas).sub ? (AJ.sub > 1 ? 3 : 1) : AJ.sub;
 
 function pintarControles() {
     const set = (id, v) => document.querySelectorAll(`#${id} button`).forEach(b => b.classList.toggle('on', b.dataset.v === String(v)));
-    set('seg-compas', AJ.compas); set('seg-tope', AJ.tope); set('seg-sub', AJ.sub);
+    set('seg-compas', AJ.compas); set('seg-tope', AJ.tope); set('seg-sub', AJ.sub); set('seg-modo', AJ.modo);
+    document.getElementById('controles').classList.toggle('fijo', AJ.modo === 'fijo');
     document.querySelector('#seg-sub button[data-v="3"]').style.display = AJ.compas === '6/8' ? 'none' : '';
     document.getElementById('b-acento').classList.toggle('on', AJ.acento);
     document.getElementById('b-precuenta').classList.toggle('on', AJ.precuenta);
@@ -144,7 +149,7 @@ function enSeg(id, campo, num) {
         guardar(); pintarControles(); b.blur();
     });
 }
-enSeg('seg-compas', 'compas'); enSeg('seg-tope', 'tope'); enSeg('seg-sub', 'sub', true);
+enSeg('seg-modo', 'modo'); enSeg('seg-compas', 'compas'); enSeg('seg-tope', 'tope'); enSeg('seg-sub', 'sub', true);
 document.getElementById('b-acento').onclick = e => { AJ.acento = !AJ.acento; guardar(); pintarControles(); e.target.blur(); };
 document.getElementById('b-precuenta').onclick = e => { AJ.precuenta = !AJ.precuenta; guardar(); pintarControles(); e.target.blur(); };
 ['min', 'max', 'cada'].forEach(id => document.getElementById(id).addEventListener('change', e => {
@@ -217,7 +222,7 @@ function programar() {
         M.compas++;
         if (eraPrecuenta) continue;
         M.enEsteBpm++;
-        if (M.enEsteBpm >= AJ.cada) {
+        if (AJ.modo === 'sube' && M.enEsteBpm >= AJ.cada) {
             if (M.bpm >= AJ.max) {
                 if (AJ.tope === 'detener') { M.fin = true; marcas.push({ t: M.proximo, fin: true }); }
                 else M.enEsteBpm = 0;
@@ -230,8 +235,9 @@ function programar() {
 let ultima = null;
 function pintarEstado(m) {
     const el = document.getElementById('estado');
-    if (!m) { el.innerHTML = AJ.min === AJ.max ? `Fijo a <b>${AJ.min}</b>` : `De <b>${AJ.min}</b> a <b>${AJ.max}</b>, +5 cada <b>${AJ.cada}</b> compás${AJ.cada > 1 ? 'es' : ''}`; return; }
+    if (!m) { el.innerHTML = AJ.modo === 'fijo' || AJ.min === AJ.max ? `Fijo a <b>${AJ.min}</b>` : `De <b>${AJ.min}</b> a <b>${AJ.max}</b>, +5 cada <b>${AJ.cada}</b> compás${AJ.cada > 1 ? 'es' : ''}`; return; }
     if (m.compas < 0) { el.innerHTML = '<b>Precuenta</b>'; return; }
+    if (AJ.modo === 'fijo') { el.innerHTML = `Compás <b>${m.compas + 1}</b>`; return; }
     const faltan = AJ.cada - m.enEsteBpm;
     const en = `en <b>${faltan}</b> compás${faltan > 1 ? 'es' : ''}`;
     el.innerHTML = `Compás <b>${m.compas + 1}</b> · ` + (m.bpm >= AJ.max
