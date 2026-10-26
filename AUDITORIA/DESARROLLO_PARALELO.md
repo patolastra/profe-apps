@@ -6436,3 +6436,8 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   de avance más bajas. Prueba (690 × 266, como el Android con la barra del navegador): diapasón 61–173 px; diagramas
   en 6–138 px de ancho (bola en 138): 52 % con las barras visibles, 77 % con ellas escondidas. **No probado:** la
   pantalla completa en el celular real.
+- **Revertido (PO 2026-10-26, captura):** poner los diagramas a la izquierda de la bola, sobre el diapasón, **no lo
+  pidió el PO** y contradice su decisión de DO ("siempre debajo, nunca sobre el diapasón"). Se quitó: en el celular
+  rige la misma regla que en el PC. La **pantalla completa sí funciona** en Android (Brave). Prueba (740 × 333, como el
+  Android en pantalla completa): diapasón termina en 217 px; diagramas 218–283 al 40 % con la barra de avance (desde
+  293), y al 60 % hasta el fondo cuando la barra se esconde.
