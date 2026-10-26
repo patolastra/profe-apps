@@ -6367,3 +6367,5 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   En pantallas angostas (≤ 1000 px) la tira se compacta (botones más chicos, sin separadores ni datos de la canción).
   Prueba: 1366 px → alto 53 px, instrumento 16–239, botones 255–1112, estudiante 1128–1350; ▶ → ⏸ Pausa + ↺ Inicio sin
   mover IN (533 px); 1100 px y 740 px → una fila sin desborde (a 740 los badges quedan casi solo en ícono).
+- **Solo símbolos (PO 2026-10-26):** ▶ · ⏸ · ↺ sin texto (con su nombre al pasar el mouse); el grupo baja de 176 a
+  104 px (88 en pantallas angostas). Prueba: ▶ ocupa el grupo; al sonar, ⏸ y ↺ de 41 px cada uno (pantalla angosta).
