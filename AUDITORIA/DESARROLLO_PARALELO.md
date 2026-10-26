@@ -6264,3 +6264,7 @@ opciones propuestas eligió solo las citas a apoderados).*
   alarga hacia arriba (la melodía quedaba a la izquierda): se cuenta en teclas blancas, una de aire a cada lado y se
   completa alternando izquierda/derecha hasta 14 blancas (dos octavas). Medido en Coqueta (do5–sol♯5): 216 px a la
   izquierda y 254 a la derecha en 756 px (la diferencia es menos de una tecla).
+- **Compases que aparecen mientras se tapea (PO 2026-10-26):** al grabar se veían solo los dos primeros compases y lo
+  tapeado después quedaba fuera de vista. Ahora los compases nuevos se agregan a medida que avanza la grabación (siempre
+  uno por delante) y la vista los sigue. Prueba (simulada, 10 s a 240): de 2 a 11 compases (1…11), los 3 golpes a la
+  vista y la vista corrida al final. No probado tapeando a mano (el panel estaba oculto).

@@ -484,10 +484,7 @@ function pintarBloques() {
     let h = '';
     for (let s = lo; s <= hi; s++) h += `<div class="fila${((s % 7) + 7) % 7 === 0 ? ' tonica' : ''}" style="top:${yFila(s)}px;height:${ALTO}px"></div>`;
     h += `<div class="fila ritmo" style="top:${yRitmo}px;height:${ALTO}px"></div>`;
-    for (let c = 0; c < compases; c++) {
-        h += `<div class="compas${c === compasSel ? ' sel' : ''}" data-c="${c}" style="left:${c * tpc() * PX}px;width:${tpc() * PX}px"><span class="num">${c + 1}</span></div>`;
-        for (let p = 1; p < M.compas; p++) h += `<div class="pulso" style="left:${(c * tpc() + p * 4) * PX}px"></div>`;
-    }
+    h += htmlCompases(0, compases);
     M.notas.forEach((n, i) => {
         const y = n.g > 0 ? yFila(n.o * 7 + n.g - 1) : yRitmo;
         const cls = n.g === null ? ' sin' : n.g === 0 ? ' silencio' : '';
@@ -496,6 +493,7 @@ function pintarBloques() {
     h += '<div id="vivo"></div>';
     lienzo.innerHTML = h;
     lienzo.style.width = ancho + 'px'; lienzo.style.height = alto + 'px';
+    lienzo.dataset.compases = compases;
     let f = '';
     for (let s = lo; s <= hi; s++) f += `<div class="${((s % 7) + 7) % 7 === 0 ? 'tonica' : ''}" style="top:${yFila(s)}px;height:${ALTO}px">${etiquetaFila(s)}</div>`;
     f += `<div style="top:${yRitmo}px;height:${ALTO}px">ritmo</div>`;
@@ -513,6 +511,15 @@ function filaEn(y) {
     if (r > filasVista.hi - filasVista.lo) return null;
     return filasVista.hi - Math.max(0, r);
 }
+// Líneas, número y pulsos de los compases [desde, hasta)
+function htmlCompases(desde, hasta) {
+    let h = '';
+    for (let c = desde; c < hasta; c++) {
+        h += `<div class="compas${c === compasSel ? ' sel' : ''}" data-c="${c}" style="left:${c * tpc() * PX}px;width:${tpc() * PX}px"><span class="num">${c + 1}</span></div>`;
+        for (let p = 1; p < M.compas; p++) h += `<div class="pulso" style="left:${(c * tpc() + p * 4) * PX}px"></div>`;
+    }
+    return h;
+}
 function pintarVivo() {
     if (!rec) return;
     const v = document.getElementById('vivo'); if (!v) return;
@@ -525,6 +532,15 @@ function pintarVivo() {
         `<div class="nota vivo" style="left:${(ini + Math.max(0, a) / st) * PX}px;width:${Math.max(6, (b - Math.max(0, a)) / st * PX)}px;top:${y + 1}px;height:${ALTO - 2}px"></div>`).join('');
     const bl = document.getElementById('bloques');
     const x = (ini + Math.max(0, ahoraRec()) / st) * PX;
+    // Mientras se tapea, los compases nuevos aparecen a medida que se necesitan (siempre uno por delante)
+    const lz = document.getElementById('lienzo');
+    const hay = +lz.dataset.compases || 0;
+    const faltan = Math.floor(x / (tpc() * PX)) + 2;
+    if (faltan > hay) {
+        lz.querySelector('#vivo').insertAdjacentHTML('beforebegin', htmlCompases(hay, faltan));
+        lz.dataset.compases = faltan;
+        lz.style.width = (faltan * tpc() * PX + 40) + 'px';
+    }
     if (x > bl.scrollLeft + bl.clientWidth - 80) bl.scrollLeft = x - 120;
 }
 function verCursor() {
