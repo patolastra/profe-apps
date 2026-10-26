@@ -109,6 +109,8 @@
         html.movil #btnPistas, html.movil #btnAfinar, html.movil #btnCifrado, html.movil #swingBadge { display: none !important; }
         html.movil .speed-row button { padding: 8px 12px; min-width: 38px; }
         html.movil .speed-label { min-width: 46px; padding: 3px 5px; font-size: .85rem; }
+        html.movil .mac-header { padding: 6px 14px; }
+        html.movil .mac-grid { padding: 10px; gap: 10px; }
         html.movil #tab-audio-bar { bottom: 5px; left: 8px; right: 54px; padding: 2px 14px; }
         html.movil #tab-seek { height: 28px; }
         html.movil #btnMano { bottom: 5px; right: 8px; width: 38px; height: 38px; }
@@ -117,7 +119,8 @@
                         font-size: 1.5rem; font-weight: 800; text-align: center; padding: 20px; }
         #girarCelular .giro-ico { font-size: 4rem; }
         @media (orientation: portrait) { html.movil #girarCelular { display: flex; } }
-        #tabCanvas { position: fixed; top: 0; left: 0; background: #04111e; cursor: crosshair; z-index: 1; }
+        #tabCanvas { position: fixed; top: 0; left: 0; background: #04111e; cursor: crosshair; z-index: 1;
+                     touch-action: none; /* el dedo mueve la tablatura (deslizar), no la página */ }
         #tabCanvas.selecting { cursor: cell; }
 
         button { padding: 9px 17px; font-weight: bold; cursor: pointer;
@@ -604,7 +607,7 @@
         .mac-grid {
             flex: 1; display: flex; flex-wrap: wrap;
             gap: 16px; padding: 24px;
-            justify-content: center; align-content: center; overflow: hidden;
+            justify-content: center; align-content: safe center; overflow: auto;
             max-width: 1100px; width: 100%; margin: 0 auto;
         }
         .mac-card {
@@ -1695,6 +1698,44 @@ document.getElementById('btnPause').onclick = () => {
 };
 document.getElementById('btnRestart').onclick = doRestart;
 
+// Deslizar el dedo a los lados sobre la tablatura (celular y pantallas táctiles): la tablatura sigue al dedo
+// (a la izquierda avanza, a la derecha retrocede). Si estaba sonando, se pausa mientras se arrastra y sigue al soltar.
+// Solo con el dedo: el mouse sigue marcando IN / OUT como siempre.
+function tiempoEnPixel(px) {
+    if (!measureData.length) return px / DEFAULT_ZOOM;
+    for (let i = 0; i < measureData.length; i++) {
+        const m = measureData[i];
+        const fin = i + 1 < measureData.length ? measureData[i + 1].pixelStart : Infinity;
+        if (px < fin || i === measureData.length - 1) return m.tStart + (px - m.pixelStart) / m.zoom;
+    }
+}
+(() => {
+    let arrastre = null;   // { id, x0, px0, sonaba, moviendo }
+    canvas.addEventListener('pointerdown', e => {
+        if (e.pointerType !== 'touch' || (!notes.length && !measureData.length)) return;
+        arrastre = { id: e.pointerId, x0: e.clientX, px0: pixelAt(currentTime), sonaba: false, moviendo: false };
+    });
+    canvas.addEventListener('pointermove', e => {
+        if (!arrastre || e.pointerId !== arrastre.id) return;
+        const dx = (e.clientX - arrastre.x0) / ESCALA_LIENZO;   // en medidas del lienzo
+        if (!arrastre.moviendo) {
+            if (Math.abs(dx) < 12) return;
+            arrastre.moviendo = true;
+            arrastre.sonaba = isPlaying || despertarPendiente;
+            if (arrastre.sonaba) document.getElementById('btnPause').onclick();
+        }
+        moverTablaA(tiempoEnPixel(arrastre.px0 - dx));
+    });
+    const soltar = e => {
+        if (!arrastre || e.pointerId !== arrastre.id) return;
+        const sigue = arrastre.moviendo && arrastre.sonaba;
+        arrastre = null;
+        if (sigue) document.getElementById('btnPlay').onclick();
+    };
+    canvas.addEventListener('pointerup', soltar);
+    canvas.addEventListener('pointercancel', soltar);
+})();
+
 // Celular: si se apaga la pantalla, se sale del navegador, se miran las apps abiertas o se gira a vertical,
 // la tablatura se pausa (como el botón ⏸). En el PC no: ahí puede seguir sonando en otra pestaña.
 if (document.documentElement.classList.contains('movil')) {
@@ -1754,7 +1795,11 @@ function seekTab(audioSec) {
 function navigateMeasures(delta) {
     if (!notes.length && !measureData.length) return;
     const measureDur = beatsPerBar * (4 / beatType) * (60 / bpm);
-    currentTime = Math.max(0, currentTime + delta * measureDur);
+    moverTablaA(currentTime + delta * measureDur);
+}
+// Lleva la tablatura (y su audio) al tiempo t de la partitura, sin salir de la sección. Lo usan ← / → y el deslizar.
+function moverTablaA(t) {
+    currentTime = Math.max(0, t);
     if (seccionActiva) currentTime = Math.min(Math.max(currentTime, seccionActiva.start), seccionActiva.end);
     prevTime    = currentTime - 0.001;
     if (loopActive) loopPhase = 'active';
@@ -6939,13 +6984,49 @@ function abrirModalAcordes() {
         const cvs     = document.createElement('canvas');
         cvs.className = 'mac-canvas';
         card.innerHTML = `<div class="mac-nombre-am">${am}</div><div class="mac-nombre-lat">${lat}</div>`;
+        card.dataset.label = label;
         card.appendChild(cvs);
         grid.appendChild(card);
-        requestAnimationFrame(() => drawChordDiagram(cvs, label, { w: 140, h: 110 }));
     });
 
     document.getElementById('modalAcordes').classList.add('open');
+    requestAnimationFrame(ajustarModalAcordes);
 }
+
+// Los diagramas usan todo el espacio de la ventana sin desbordar: se prueba cada cantidad de columnas y se
+// queda el tamaño más grande con el que caben todos (en el celular se achican; en pantallas grandes crecen).
+function tamanoTarjetaAcorde(card, s) {
+    card.style.padding = `${12 * s}px ${14 * s}px`;
+    card.querySelector('.mac-nombre-am').style.fontSize  = `${18.4 * s}px`;
+    card.querySelector('.mac-nombre-lat').style.fontSize = `${12.8 * s}px`;
+    const cvs = card.querySelector('canvas');
+    cvs.style.marginTop = `${10 * s}px`;
+    drawChordDiagram(cvs, card.dataset.label, { w: Math.round(140 * s), h: Math.round(110 * s) });
+}
+function ajustarModalAcordes() {
+    if (!document.getElementById('modalAcordes').classList.contains('open')) return;
+    const grid  = document.getElementById('macGrid');
+    const cards = [...grid.children];
+    if (!cards.length) return;
+    const cs  = getComputedStyle(grid);
+    const gap = parseFloat(cs.columnGap) || 16;
+    const W = grid.clientWidth  - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const H = grid.clientHeight - parseFloat(cs.paddingTop)  - parseFloat(cs.paddingBottom);
+    cards.forEach(c => tamanoTarjetaAcorde(c, 1));
+    const cw = Math.max(...cards.map(c => c.offsetWidth)), ch = Math.max(...cards.map(c => c.offsetHeight));
+    let mejor = 0;
+    for (let cols = 1; cols <= cards.length; cols++) {
+        const rows = Math.ceil(cards.length / cols);
+        mejor = Math.max(mejor, Math.min((W - gap * (cols - 1)) / (cols * cw), (H - gap * (rows - 1)) / (rows * ch)));
+    }
+    let s = Math.max(0.3, Math.min(2.2, mejor * 0.98));
+    cards.forEach(c => tamanoTarjetaAcorde(c, s));
+    while (grid.scrollHeight > grid.clientHeight + 1 && s > 0.3) {   // el ajuste del texto no siempre es exacto
+        s *= 0.95;
+        cards.forEach(c => tamanoTarjetaAcorde(c, s));
+    }
+}
+window.addEventListener('resize', () => requestAnimationFrame(ajustarModalAcordes));
 
 function cerrarModalAcordes() {
     document.getElementById('modalAcordes').classList.remove('open');

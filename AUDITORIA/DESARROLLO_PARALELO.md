@@ -6456,3 +6456,14 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   puede dejarla sonando en otra pestaña. Al girar: si el navegador dejó fijo el horizontal (pantalla completa) no pasa
   nada; si no, aparece "Gira tu celular". Prueba (740 × 333): sonando → pierde el foco → en pausa y quieta; sonando →
   333 × 740 (vertical) → en pausa y con "Gira tu celular". **No probado:** iPhone.
+- **Probado en Android por el PO (2026-10-26): funciona** (pantalla completa, pausa al salir/girar, nombres, botón).
+- **Deslizar para avanzar o retroceder (PO 2026-10-26):** en el celular y en pantallas táctiles (también notebooks con
+  pantalla táctil), arrastrar el dedo a los lados sobre la tablatura la mueve con el dedo: a la izquierda avanza, a la
+  derecha retrocede, sin salir de la sección. Si estaba sonando, se pausa mientras se arrastra y sigue al soltar. Solo
+  con el dedo: el mouse sigue marcando IN / OUT. (← / → del teclado usan la misma pieza, `moverTablaA`.)
+  Prueba (740 × 333, sección 3,13–20,13 s): desde 8 s, arrastre a la izquierda → 10,82 s; a la derecha → 5,18 s;
+  sonando → en pausa durante el arrastre → sonando al soltar.
+- **Ventana 🎸 Acordes que cabe entera (PO 2026-10-26, captura):** en el celular los diagramas desbordaban (la fila de
+  arriba quedaba cortada). Ahora el tamaño se calcula: se prueba cada cantidad de columnas y se usa el tamaño más grande
+  con el que caben todos (en el celular se achican; en pantallas grandes crecen hasta 2,2×); se recalcula al cambiar el
+  tamaño de la ventana. Prueba: 740 × 333 → 7 acordes en 5 + 2, de 57 a 323 px, sin desborde; PC 756 × 630 → sin desborde.
