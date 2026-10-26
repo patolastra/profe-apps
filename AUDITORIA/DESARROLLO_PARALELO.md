@@ -6371,3 +6371,8 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   104 px (88 en pantallas angostas). Prueba: ▶ ocupa el grupo; al sonar, ⏸ y ↺ de 41 px cada uno (pantalla angosta).
 - **Más aire (PO 2026-10-26):** la tira sube de 53 a 70 px de alto (más margen arriba/abajo y a los lados, botones un
   poco más grandes y separados). Sigue en una fila a 1366 px (botones 252–1114, con instrumento y estudiante a los lados).
+- **Bug: mensaje inicial (PO 2026-10-26, captura con "Comienza leyendo… A TU RITMO"):** el mensaje del ejercicio llega
+  un poco después de abrir la tablatura; si alcanzaban a dar Play, la tablatura seguía sonando detrás del mensaje.
+  Ahora, al aparecer el mensaje, lo que suena se detiene y vuelve al inicio, y mientras el mensaje está a la vista Play
+  no hace nada; con "Entendido ✓" todo sigue normal. Prueba: sonando → aparece el mensaje → detenido; Play con el mensaje
+  → nada; tras cerrar → suena.
