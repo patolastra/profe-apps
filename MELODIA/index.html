@@ -103,6 +103,8 @@
     .nota.arrastrando { cursor: grabbing; opacity: .85; z-index: 2; }
     .nota .dedo { font-weight: 800; font-size: 14px; color: #fde68a; margin-right: 5px; }
     #dig-vacio { color: var(--tenue); font-size: 13px; }
+    #grupo-mano { visibility: hidden; }             /* solo con la digitación de Piano (espacio reservado) */
+    #grupo-mano.on { visibility: visible; }
     .nota.sin { background: #475569; color: #cbd5e1; }
     .nota.silencio { background: transparent; border: 2px dashed #64748b; color: var(--tenue); }
     .nota.cur { border-color: var(--cursor); box-shadow: 0 0 0 2px rgba(245,158,11,.35); }
@@ -194,6 +196,7 @@
     <div class="paso" data-paso="4">
         <div class="grupo"><span>Para</span><div class="seg" id="seg-inst"></div></div>
         <div class="grupo"><span>Digitación de</span><div class="seg" id="seg-dig"></div><em id="dig-vacio">marca un instrumento</em></div>
+        <div class="grupo" id="grupo-mano"><span>Mano</span><div class="seg" id="seg-mano"><button data-v="der">Derecha</button><button data-v="izq">Izquierda</button></div></div>
     </div>
 </div>
 
@@ -217,7 +220,7 @@ const PARAMS = new URLSearchParams(location.search);
 const sb = (() => { try { return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON); } catch (_) { return null; } })();
 const BUCKET = 'repertorio-assets';
 
-const M = { tempo: 90, compas: 4, fig: 2, tonica: 'C', modo: 'mayor', notas: [], instrumentos: [] };
+const M = { tempo: 90, compas: 4, fig: 2, tonica: 'C', modo: 'mayor', notas: [], instrumentos: [], mano: 'der' };
 // Instrumentos de la melodía (DL): cada uno guarda su digitación nota a nota (n.dig = { piano: 3, … })
 const INSTRUMENTOS = { piano: 'Piano', melodica: 'Melódica', metalofono: 'Metalófono', guitarra: 'Guitarra', ukelele: 'Ukelele', bajo: 'Bajo' };
 let instDig = null;            // instrumento cuya digitación se está editando
@@ -831,7 +834,14 @@ function pintarInstrumentos() {
     document.getElementById('seg-dig').innerHTML = M.instrumentos.map(k =>
         `<button data-v="${k}" class="${k === instDig ? 'on' : ''}">${INSTRUMENTOS[k]}</button>`).join('');
     document.getElementById('dig-vacio').style.display = M.instrumentos.length ? 'none' : '';
+    // Piano: la melodía es para una mano (aún no a dos manos)
+    document.getElementById('grupo-mano').classList.toggle('on', instDig === 'piano');
+    setSeg('seg-mano', M.mano);
 }
+document.getElementById('seg-mano').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    M.mano = b.dataset.v; pintarInstrumentos(); huboCambio(); b.blur();
+});
 document.getElementById('seg-inst').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     const k = b.dataset.v;
@@ -1017,6 +1027,7 @@ document.addEventListener('keyup', e => { if (rec && e.code === 'Space') { e.pre
 function contenidoActual() {
     return JSON.stringify({ v: 1, tempo: M.tempo, compas: M.compas, fig: M.fig, tonica: M.tonica, modo: M.modo,
         ...(M.instrumentos.length ? { inst: M.instrumentos } : {}),
+        ...(M.mano === 'izq' ? { mano: 'izq' } : {}),
         notas: M.notas.map(n => n.dig ? [n.t, n.d, n.g, n.o, n.a, n.dig] : [n.t, n.d, n.g, n.o, n.a]) });
 }
 let etiquetaBase = '';
@@ -1033,6 +1044,7 @@ function cargarContenido(txt) {
     Object.assign(M, { tempo: j.tempo || 90, compas: j.compas || 4, fig: j.fig || 2, tonica: j.tonica || 'C', modo: j.modo || 'mayor' });
     M.notas = (j.notas || []).map(([t, d, g, o, a, dig]) => ({ t, d, g, o: o || 0, a: a || 0, ...(dig ? { dig } : {}) }));
     M.instrumentos = j.inst || [];
+    M.mano = j.mano || 'der';
     ordenar();
 }
 function aplicarControles() {
@@ -1094,7 +1106,7 @@ async function subirMidi(id) {
 // Archivo público de la melodía para el piano del estudiante (sin base de datos): alturas reales y digitaciones
 async function subirJson(id, etiqueta) {
     const datos = { v: 1, cancion: cancionNombre, etiqueta, tempo: M.tempo, compas: M.compas, tonalidad: nombreTonalidad(),
-        instrumentos: M.instrumentos,
+        instrumentos: M.instrumentos, mano: M.mano,
         notas: M.notas.filter(n => n.g > 0).map(n => {
             const h = alturaDe(n);
             return { t: n.t, d: n.d, m: h.midi, nombre: SOLFEO[h.letra] + ACC_TXT[h.acc], dig: n.dig || {} };

@@ -26,6 +26,20 @@
         color: #fff; font-weight: 700; font-size: 16px; cursor: pointer; box-shadow: 0 2px 8px rgba(22,163,74,.35); }
     #b-tocar.on { background: #b45309; border-color: #f59e0b; box-shadow: 0 2px 8px rgba(245,158,11,.35); }
     #b-tocar:disabled { opacity: .4; }
+    /* Para qué mano es (colores como Synthesia: derecha verde, izquierda azul) */
+    #mano { flex: 0 0 auto; width: 150px; text-align: center; padding: 6px 0; border-radius: 8px; font-weight: 700; font-size: 14px;
+        color: #fff; visibility: hidden; }
+    #mano.der { background: #15803d; visibility: visible; }
+    #mano.izq { background: #1d4ed8; visibility: visible; }
+    #b-dedos { position: absolute; right: 14px; z-index: 2; width: 48px; height: 48px; border-radius: 12px; border: none; cursor: pointer;
+        background: rgba(255,255,255,.12); box-shadow: 0 4px 16px rgba(0,0,0,.4); font-size: 26px; display: none; }
+    #b-dedos:hover { background: rgba(255,255,255,.22); }
+    #dedos { position: fixed; inset: 0; z-index: 6; background: rgba(0,0,0,.88); display: none; flex-direction: column;
+        align-items: center; justify-content: center; gap: 10px; cursor: pointer; }
+    #dedos.on { display: flex; }
+    #dedos h3 { margin: 0; font-size: 22px; }
+    #dedos svg { height: min(66vh, 70vw); width: auto; }
+    #dedos p { margin: 0; color: var(--tenue); }
     #nombre { flex: 1 1 auto; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .grupo { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--tenue); }
     .btn { height: 34px; min-width: 34px; padding: 0 9px; border-radius: 8px; border: 1px solid #3b4a6b; background: #24304a;
@@ -61,13 +75,16 @@
 <div id="barra">
     <button id="b-tocar" disabled>▶ Tocar</button>
     <div id="nombre">Piano</div>
+    <div id="mano"></div>
     <div class="grupo"><button class="btn" id="tempo-menos">−</button><span id="tempo">♩ 90</span><button class="btn" id="tempo-mas">+</button></div>
     <div class="grupo"><button class="btn" id="b-repetir" title="Repetir la melodía subiendo 5 en cada vuelta, con precuenta entre vueltas. Al detener vuelve a la velocidad inicial.">🔁 +5</button>
         <span id="tope-box">hasta <input id="tope" type="number" min="40" max="240" value="140"></span></div>
     <button class="btn" id="b-nombres" title="Mostrar el nombre de cada nota">do re mi</button>
     <button class="btn" id="b-pantalla" title="Pantalla completa">⛶</button>
 </div>
-<div id="escena"><canvas id="lienzo"></canvas><div id="aviso">Cargando…</div></div>
+<div id="escena"><canvas id="lienzo"></canvas><div id="aviso">Cargando…</div>
+    <button id="b-dedos" title="Números de los dedos">✋</button></div>
+<div id="dedos"></div>
 <div id="girar"><div>📱↻</div>Gira el celular para ver el piano</div>
 
 <script>
@@ -99,6 +116,34 @@ function armarTeclado(W) {
     }
 }
 const tecla = m => teclas.find(k => k.m === m);
+// Colores por mano, como Synthesia (listos para cuando una melodía tenga las dos manos)
+const COLOR_MANO = {
+    der: { claro: '#22c55e', oscuro: '#15803d', texto: '#14532d', nombre: 'Mano derecha' },
+    izq: { claro: '#3b82f6', oscuro: '#1d4ed8', texto: '#1e3a8a', nombre: 'Mano izquierda' },
+};
+// Diagrama de la mano en uso, vista desde arriba (palma hacia el teclado): 1 = pulgar … 5 = meñique.
+// Se dibuja la derecha; la izquierda es su espejo (los números no se invierten).
+function diagramaMano(mano) {
+    const col = COLOR_MANO[mano];
+    const dedos = [   // [x de la punta, y de la punta, ancho, largo, giro]
+        [62, 168, 40, 112, -38], [104, 52, 36, 150, -6], [148, 30, 36, 170, 0], [190, 48, 34, 150, 5], [228, 92, 30, 112, 12],
+    ];
+    const X = x => mano === 'izq' ? 300 - x : x;
+    const forma = dedos.map(([x, y, w, l, g]) =>
+        `<rect x="${x - w / 2}" y="${y}" width="${w}" height="${l}" rx="${w / 2}" transform="rotate(${g} ${x} ${y + l})"/>`).join('');
+    const nums = dedos.map(([x, y, w, l, g], i) => {
+        // punta del dedo, girada alrededor de su base como el dedo
+        const rad = g * Math.PI / 180, dy = (y + w / 2 + 4) - (y + l);
+        const rx = x - dy * Math.sin(rad), ry = (y + l) + dy * Math.cos(rad);
+        return `<circle cx="${X(rx)}" cy="${ry}" r="17" fill="${col.oscuro}"/><text x="${X(rx)}" y="${ry + 1}" text-anchor="middle" dominant-baseline="middle" font-size="20" font-weight="800" fill="#fff">${i + 1}</text>`;
+    }).join('');
+    return `<h3>${col.nombre}</h3>
+        <svg viewBox="-40 0 380 360" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif">
+            <g fill="#f1e7dc" stroke="#cdbfb0" stroke-width="2" ${mano === 'izq' ? 'transform="translate(300 0) scale(-1 1)"' : ''}>
+                ${forma}<rect x="70" y="180" width="180" height="150" rx="50"/>
+            </g>${nums}
+        </svg><p>Toca para cerrar</p>`;
+}
 const DIGITACION = () => ['piano', 'melodica'].find(i => MEL.notas.some(n => n.dig?.[i])) || null;
 const SOLFEO_C = ['do', '', 're', '', 'mi', 'fa', '', 'sol', '', 'la', '', 'si'];
 
@@ -210,6 +255,7 @@ function dibujar() {
     const { pulso, vuelta } = ahora();
     const altoTeclado = Math.min(220, Math.max(90, H * 0.28));
     const yTecl = H - altoTeclado;
+    document.getElementById('b-dedos').style.bottom = (altoTeclado + 12) + 'px';
     // Dos compases por delante; en pantallas bajas menos, para que cada pulso mida al menos ~45 px
     const pxPulso = yTecl / Math.max(MEL.compas, Math.min(MEL.compas * 2, yTecl / 45));
     const dig = DIGITACION();
@@ -236,14 +282,15 @@ function dibujar() {
         const x = k.x + (k.negra ? 1 : 3), w = k.w - (k.negra ? 2 : 6);
         const h = Math.max(6, Math.min(yAbajo, yTecl) - yArriba - 2);     // lo que se ve sobre el teclado
         const sonando = activas.get(n.m) === n;
-        g2.fillStyle = sonando ? '#f97316' : (k.negra ? '#1d4ed8' : '#3b82f6');
+        const col = COLOR_MANO[n.mano || MEL.mano || 'der'];
+        g2.fillStyle = sonando ? '#f97316' : (k.negra ? col.oscuro : col.claro);
         redondeado(x, yArriba, w, h, 6); g2.fill();
         const f = dig && n.dig?.[dig];
         const r = Math.min(w * 0.42, 16, (h - 4) / 2);     // el círculo del dedo se achica para caber
         const yb = Math.min(yAbajo, yTecl) - r - 3;
         if (f && r >= 6) {
             g2.fillStyle = '#fff'; g2.beginPath(); g2.arc(x + w / 2, yb, r, 0, Math.PI * 2); g2.fill();
-            g2.fillStyle = sonando ? '#c2410c' : '#1e3a8a';
+            g2.fillStyle = sonando ? '#c2410c' : col.texto;
             g2.font = `800 ${Math.round(r * 1.25)}px system-ui, sans-serif`; g2.textAlign = 'center'; g2.textBaseline = 'middle';
             g2.fillText(String(f), x + w / 2, yb + 1);
         }
@@ -281,6 +328,21 @@ function dibujar() {
 }
 
 // ══ Barra ═══════════════════════════════════════════════════════════════════════════════
+function pintarMano() {
+    const mano = MEL?.mano || 'der';
+    const el = document.getElementById('mano');
+    el.className = MEL ? mano : '';
+    el.textContent = MEL ? '✋ ' + COLOR_MANO[mano].nombre : '';
+    document.getElementById('b-dedos').style.display = MEL ? 'block' : 'none';
+}
+document.getElementById('b-dedos').onclick = e => {
+    e.target.blur();
+    const d = document.getElementById('dedos');
+    d.innerHTML = diagramaMano(MEL?.mano || 'der');
+    d.classList.add('on');
+};
+document.getElementById('dedos').onclick = () => document.getElementById('dedos').classList.remove('on');
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('dedos').classList.remove('on'); });
 function pintarBarra() {
     const bt = document.getElementById('b-tocar');
     bt.disabled = !MEL;
@@ -352,6 +414,7 @@ async function iniciar() {
     document.title = nombre + ' · Piano';
     medir();
     pintarBarra();
+    pintarMano();
 }
 // Sin melodía en la dirección (abierto por el profe desde el menú + del Workspace): lista de melodías.
 // Solo aquí se usa la base de datos; el enlace del estudiante (?a=) nunca la toca.

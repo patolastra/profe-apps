@@ -6306,3 +6306,17 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   100 100 105 105 110 110 y termina solo; "Se queda": sigue en 110; 6/8 a 60: 2 pulsos por compás. En vivo: círculos
   y "Compás 4 · sube a 85 en 1 compás"; la pestaña Cajón abre el Cajón y detiene el metrónomo. **No probado:** el
   sonido real y en el proyector.
+- **Mano izquierda / derecha (PO 2026-10-26):** en el editor, la melodía de Piano se marca para **una** mano (todavía
+  no a dos manos); la Melódica no elige mano. En el piano: aviso de qué mano es, colores por mano **como Synthesia**
+  (derecha verde, izquierda azul; listos para cuando haya dos manos) y un botón ✋ en la esquina inferior derecha (como
+  el Lector) con el diagrama de **la mano en uso**, dedos del 1 (pulgar) al 5 (meñique). La mano del Lector no sirve tal
+  cual (es de guitarra: índice = 1, sin pulgar) → se dibuja una propia. Los dedos en las notas siguen solo con número.
+- **Implementación (2026-10-26):** Editor: en ④, con la digitación de Piano, "Mano: Derecha / Izquierda" (espacio
+  reservado, oculto para otros instrumentos); se guarda en la melodía (`mano`, solo si es izquierda) y en el archivo
+  público (`mano`). Piano: aviso "✋ Mano derecha / izquierda" en la barra con el color de la mano; notas con colores de
+  Synthesia (derecha verde, izquierda azul; cada nota puede traer su propia mano para cuando haya dos); botón ✋ justo
+  sobre el teclado a la derecha → diagrama dibujado de la mano en uso, vista desde arriba, 1 pulgar … 5 meñique (la
+  izquierda es el espejo). Las melodías ya guardadas quedan como mano derecha.
+- **Prueba (local):** Coqueta → "✋ Mano derecha" en verde, notas verdes, diagrama derecho (pulgar a la izquierda);
+  forzada a izquierda → aviso azul y diagrama espejo (pulgar a la derecha). Editor: "Mano" aparece solo con Piano,
+  parte en Derecha, Izquierda queda guardada en la melodía y vuelve al recargarla.
