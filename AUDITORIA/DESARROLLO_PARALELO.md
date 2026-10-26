@@ -6396,3 +6396,7 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   (también puede ser arriba, bajo la barra de botones), achicándose hasta 50 % para no tapar cuerdas ni barras.
   Prueba (Impostor Syndrome, 1366 px de ancho): 768 px de alto → debajo (545–698, diapasón termina en 535, barra en
   708, 95 %); 640 px → arriba (80–193, diapasón empieza en 204, 71 %).
+- **Diagramas siempre abajo (PO 2026-10-26):** nada de ponerlos sobre el diapasón: van siempre debajo; mientras la
+  barra de avance se ve, se achican para caber (hasta 40 %), y cuando la interfaz mínima la esconde, crecen hasta su
+  tamaño (con transición), y vuelven a achicarse al reaparecer la barra. Prueba (Impostor Syndrome, 1366 × 640;
+  diapasón termina en 493, barra en 580): con barra → 42 % terminando en 570; barra escondida → 79 % terminando en 630.

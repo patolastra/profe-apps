@@ -629,6 +629,7 @@
             pointer-events: none;
         }
         #chordOverlay.visible { display: flex; }
+        #chordOverlay { transition: transform .35s ease, top .35s ease; }
         .cho-card {
             background: rgba(12,12,20,.88); border-radius: 8px;
             padding: 6px 8px; border: 1px solid #2a2a2a;
@@ -1649,12 +1650,19 @@ document.getElementById('btnRestart').onclick = doRestart;
 // el teclado, etc.). Se esconde a los 2 s de sonar sin mover el mouse ni tocar; en pausa, todo a la vista.
 let uiUltimoMovimiento = Date.now();
 ['mousemove', 'pointerdown', 'touchstart', 'keydown', 'wheel'].forEach(ev =>
-    document.addEventListener(ev, () => { uiUltimoMovimiento = Date.now(); document.body.classList.remove('ui-oculta'); }, { passive: true }));
+    document.addEventListener(ev, () => {
+        uiUltimoMovimiento = Date.now();
+        if (document.body.classList.contains('ui-oculta')) { document.body.classList.remove('ui-oculta'); reubicarOverlayAcordes(); }
+    }, { passive: true }));
 setInterval(() => {
     const sonando = isPlaying || despertarPendiente;
     document.getElementById('grupoPlay').classList.toggle('sonando', sonando);
     const ocupado = document.querySelector('#panelPistas.open, #abrirMenu.open, #overlayMano.open') || panelAlumnosOpen;
-    document.body.classList.toggle('ui-oculta', sonando && !ocupado && Date.now() - uiUltimoMovimiento > 2000);
+    const oculta = sonando && !ocupado && Date.now() - uiUltimoMovimiento > 2000;
+    if (oculta !== document.body.classList.contains('ui-oculta')) {
+        document.body.classList.toggle('ui-oculta', oculta);
+        reubicarOverlayAcordes();
+    }
 }, 150);
 
 function syncHitsToTime(t) {
@@ -7061,29 +7069,34 @@ function actualizarOverlayAcordes() {
     requestAnimationFrame(() => ubicarOverlayAcordes(overlay, overlay.querySelector('.cho-card-act')));
 }
 
-// Diagramas AHORA / PRÓXIMO sin tapar las cuerdas ni las barras: van en el hueco más grande, debajo del
-// diapasón (hasta la barra de avance) o encima (bajo la barra de botones), y se achican (hasta 50 %) para
-// caber. La card de referencia queda centrada en la línea de la bola.
+// Diagramas AHORA / PRÓXIMO siempre debajo del diapasón, sin tapar cuerdas ni la barra de avance: mientras
+// esa barra se ve, se achican para caber (hasta 40 %); cuando se esconde (interfaz mínima), crecen hasta su
+// tamaño. La card de referencia queda centrada en la línea de la bola.
+let overlayCardRef = null;
 function ubicarOverlayAcordes(overlay, card) {
+    overlayCardRef = card;
     const ballX = Math.round(canvas.width * TARGET_X_PCT);
+    const prev = overlay.style.transform;
     overlay.style.transform = 'none';
     const h = overlay.offsetHeight, cardW = card.offsetWidth;
+    overlay.style.transform = prev;
     const M = 10;
-    const abajo  = { desde: project(ballX, fretBottom).y + M, hasta: bordeInferiorOverlay() - M };
-    const arriba = { desde: document.querySelector('.controls').offsetHeight + M, hasta: project(ballX, fretTop).y - M };
-    const alto = x => x.hasta - x.desde;   // abajo, como siempre, si cabe casi entero; si no, el hueco mayor
-    const hueco = alto(abajo) >= h * 0.85 || alto(abajo) >= alto(arriba) ? abajo : arriba;
-    const escala = Math.max(0.5, Math.min(1, (hueco.hasta - hueco.desde) / h));
+    const desde = project(ballX, fretBottom).y + M, hasta = bordeInferiorOverlay() - M;
+    const escala = Math.max(0.4, Math.min(1, (hasta - desde) / h));
     overlay.style.transformOrigin = 'left bottom';
-    overlay.style.transform = escala < 1 ? `scale(${escala})` : 'none';
+    overlay.style.transform = `scale(${escala})`;
     overlay.style.left = (ballX - cardW * escala / 2) + 'px';
-    overlay.style.top  = (hueco.hasta - h) + 'px';      // pegado al borde de abajo del hueco
+    overlay.style.top  = (hasta - h) + 'px';      // pegado abajo: crece y se achica hacia arriba
+}
+function reubicarOverlayAcordes() {
+    const ov = document.getElementById('chordOverlay');
+    if (ov && ov.classList.contains('visible') && overlayCardRef) ubicarOverlayAcordes(ov, overlayCardRef);
 }
 // Borde inferior disponible para los diagramas: el borde superior de la barra de avance si se ve;
 // si no, el fondo de la pantalla.
 function bordeInferiorOverlay() {
     const bar = document.getElementById('tab-audio-bar');
-    if (bar && getComputedStyle(bar).display !== 'none') return bar.offsetTop;   // sin contar si está escondida (corrida)
+    if (bar && getComputedStyle(bar).display !== 'none' && !document.body.classList.contains('ui-oculta')) return bar.offsetTop;
     return window.innerHeight;
 }
 
