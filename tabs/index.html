@@ -640,7 +640,11 @@
         .cho-label { font-size: .72rem; color: #aaa; font-weight: 600;
                      text-transform: uppercase; letter-spacing: .07em; margin-bottom: 3px; }
         .cho-card-act .cho-label { color: #E8A800; }
-    </style>
+            /* Afinador: elegir el instrumento a afinar */
+        .afi-inst { display: flex; gap: 6px; justify-content: center; margin: 4px 0 8px; }
+        .afi-inst button { background: #2a2f3a; color: #cbd5e1; border: 1px solid #3b4252; padding: 6px 12px; font-size: .85rem; }
+        .afi-inst button.on { background: #1a6b4a; color: #fff; border-color: #22c55e; }
+</style>
 </head>
 <body>
 
@@ -1072,6 +1076,11 @@
         <div class="afi-header">
             <span class="afi-title" id="afiTitulo">🎚️ Afinador</span>
             <button class="mac-close" onclick="cerrarAfinador()">✕</button>
+        </div>
+        <div class="afi-inst" id="afiInst">
+            <button data-inst="guitarra" onclick="afiCambiarInst('guitarra')">🎸 Guitarra</button>
+            <button data-inst="ukelele" onclick="afiCambiarInst('ukelele')">🪕 Ukelele</button>
+            <button data-inst="bajo" onclick="afiCambiarInst('bajo')">🎸 Bajo</button>
         </div>
         <div class="afi-sub" id="afiSub"></div>
         <div class="afi-cuerdas" id="afiCuerdas"></div>
@@ -6872,37 +6881,49 @@ function cerrarModalAcordes() {
 // elegir otra, tocarla de nuevo o cerrar el afinador.
 const AFI_NOTAS   = ['Do','Do♯','Re','Re♯','Mi','Fa','Fa♯','Sol','Sol♯','La','La♯','Si'];
 const AFI_PERIODO = 1.6;
-let afiCuerda = -1;      // índice en openStrings de la cuerda que suena (-1 = ninguna)
+let afiCuerda = -1;      // índice de la cuerda que suena (-1 = ninguna)
+let afiInst = 'guitarra';   // instrumento que se está afinando (parte en el de la tablatura; se puede cambiar)
 let afiTimer  = null;
 let afiNodos  = [];      // notas sonando (para callarlas al cambiar/cerrar)
 
+// El capo de la tablatura solo cuenta si se afina ese mismo instrumento
 function afiMidi(i) {
-    const capo = (currentInstrument === 'guitarra' || currentInstrument === 'ukelele') ? capoFret : 0;
-    return openStrings[i] + capo;
+    const capo = afiInst === currentInstrument && (afiInst === 'guitarra' || afiInst === 'ukelele') ? capoFret : 0;
+    return TUNING[afiInst][i] + capo;
 }
 
 function abrirAfinador() {
     if (isPlaying) document.getElementById('btnPause').click();
     ensureAudio();
-    const nombres = { guitarra: '🎸 Guitarra', ukelele: '🪕 Ukelele', bajo: '🎸 Bajo' };
-    document.getElementById('afiTitulo').textContent = `🎚️ Afinador · ${nombres[currentInstrument] || ''}`;
-    const usaCapo = (currentInstrument === 'guitarra' || currentInstrument === 'ukelele') && capoFret > 0;
+    afiInst = TUNING[currentInstrument] ? currentInstrument : 'guitarra';
+    pintarAfinador();
+    document.getElementById('modalAfinador').classList.add('open');
+}
+function afiCambiarInst(inst) {
+    if (afiCuerda >= 0) afiTocar(afiCuerda);   // calla la cuerda que sonaba
+    afiInst = inst;
+    pintarAfinador();
+}
+function pintarAfinador() {
+    const cuerdas = TUNING[afiInst];
+    document.getElementById('afiTitulo').textContent = '🎚️ Afinador';
+    document.querySelectorAll('#afiInst button').forEach(b => b.classList.toggle('on', b.dataset.inst === afiInst));
+    const usaCapo = afiInst === currentInstrument && (afiInst === 'guitarra' || afiInst === 'ukelele') && capoFret > 0;
     document.getElementById('afiSub').textContent = usaCapo ? `Con capo en el traste ${capoFret}` : 'Cuerdas al aire';
-    document.getElementById('afiMax').textContent = openStrings.length;
+    document.getElementById('afiMax').textContent = cuerdas.length;
     const cont = document.getElementById('afiCuerdas');
     cont.innerHTML = '';
-    openStrings.forEach((_, i) => {
+    cuerdas.forEach((_, i) => {
         const b = document.createElement('button');
         b.className = 'afi-cuerda';
         b.dataset.i = i;
-        const grosor = 1 + Math.round(i * 4 / Math.max(1, openStrings.length - 1));
+        const grosor = 1 + Math.round(i * 4 / Math.max(1, cuerdas.length - 1));
         b.innerHTML = `<span class="afi-num">${i + 1}</span><span class="afi-nota">${AFI_NOTAS[afiMidi(i) % 12]}</span>`
                     + `<span class="afi-linea" style="height:${grosor}px"></span>`;
         b.onclick = () => afiTocar(i);
         cont.appendChild(b);
     });
     afiCuerda = -1;
-    document.getElementById('modalAfinador').classList.add('open');
 }
 
 function afiPulsar() {
@@ -6956,7 +6977,7 @@ window.addEventListener('keydown', e => {
     e.stopImmediatePropagation();
     if (e.key === 'Escape') { e.preventDefault(); cerrarAfinador(); return; }
     const n = parseInt(e.key, 10);
-    if (n >= 1 && n <= openStrings.length) { e.preventDefault(); afiTocar(n - 1); }
+    if (n >= 1 && n <= TUNING[afiInst].length) { e.preventDefault(); afiTocar(n - 1); }
 }, true);
 
 function mostrarDetalleAcorde(idx) {

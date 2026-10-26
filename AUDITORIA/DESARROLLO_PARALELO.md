@@ -6387,3 +6387,7 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   en ese momento; siguen a la vista mientras suena. Abrir "🎸 Acordes" con la tablatura sonando la pausa. Prueba
   (1366 × 700, Impostor Syndrome): barra desde 640 px → diagramas terminan en 628 px (antes 688, encima de la barra);
   sonando → Acordes → en pausa.
+- **Afinador con los tres instrumentos (PO 2026-10-26):** el afinador abre en el instrumento de la tablatura y arriba
+  tiene 🎸 Guitarra · 🪕 Ukelele · 🎸 Bajo para cambiar ahí mismo (la cuerda que sonaba se calla); el capo de la
+  tablatura solo cuenta si se afina ese mismo instrumento; las teclas 1–N siguen al instrumento elegido. Prueba (tab de
+  guitarra): Mi Si Sol Re La Mi → Ukelele: La Mi Do Sol (teclas 1–4) → Bajo: Sol Re La Mi.
