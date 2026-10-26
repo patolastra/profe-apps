@@ -6473,3 +6473,9 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   inicio de la sección, con su precuenta). Una pausa a mitad de canción sigue desde donde quedó. PC y celular.
   Prueba (Kalen): sección terminada (20,13 s) → ▶ → suena desde 3,8 s; canción completa con el audio al final → ▶ →
   suena desde 2 s; pausa en 10,74 s → ▶ → sigue en 11,46 s.
+- **Pistas y Afinar también en el celular (PO 2026-10-26):** se habían dejado fuera por el alcance inicial ("sin
+  afinador"); el PO los quiere. Vuelven a la barra después de Acordes (el loop IN/OUT sigue fuera en el celular).
+  El afinador se compacta en el celular (filas de cuerda más bajas, sin la ayuda de teclado) para que las 6 cuerdas
+  quepan sin desplazarse. Prueba (690 × 320): barra en una fila sin desborde (Acordes 360–489, Pistas 495–586,
+  Afinar 592–680; el instrumento queda solo con su ícono); Pistas abre su lista (Audio, Partitura, Metrónomo);
+  Afinador 306 px de alto con todo adentro (antes 530 de contenido). En el PC no cambia.
