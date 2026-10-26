@@ -6320,3 +6320,6 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
 - **Prueba (local):** Coqueta → "✋ Mano derecha" en verde, notas verdes, diagrama derecho (pulgar a la izquierda);
   forzada a izquierda → aviso azul y diagrama espejo (pulgar a la derecha). Editor: "Mano" aparece solo con Piano,
   parte en Derecha, Izquierda queda guardada en la melodía y vuelve al recargarla.
+- **Bug (PO 2026-10-26):** al cambiar la mano, el botón Guardar seguía apagado y decía "Guardado ✓" (el cambio sí
+  quedaba en la melodía, pero la barra no se actualizaba). Arreglado. Prueba con Coqueta: cambiar la mano → "Sin
+  guardar" y Guardar encendido; volver a la mano original → "Guardado ✓" (no se guardó nada).
