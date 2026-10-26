@@ -6268,3 +6268,8 @@ opciones propuestas eligió solo las citas a apoderados).*
   tapeado después quedaba fuera de vista. Ahora los compases nuevos se agregan a medida que avanza la grabación (siempre
   uno por delante) y la vista los sigue. Prueba (simulada, 10 s a 240): de 2 a 11 compases (1…11), los 3 golpes a la
   vista y la vista corrida al final. No probado tapeando a mano (el panel estaba oculto).
+- **En el menú + del Workspace (PO 2026-10-26):** ♬ **Editor de Melodías** y 🎹 **Piano** en el catálogo del Workspace.
+  Abiertos sin dirección, cada uno muestra su lista: el editor, las canciones con buscador (primero las que tienen
+  melodías), con ✏️ por melodía y ＋ Nueva melodía; el piano, las melodías (primero las marcadas para Piano o Melódica).
+  Solo esa lista del piano usa la base de datos; el enlace del estudiante (`?a=`) sigue sin tocarla. Prueba: menú con
+  ambos; elegir "COQUETA — Mambo" en el piano lo abrió; ✏️ en el editor abrió la melodía (38 bloques).

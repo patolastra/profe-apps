@@ -126,6 +126,20 @@
     #toast { position: fixed; left: 50%; bottom: 46px; transform: translateX(-50%); background: #0b1222; border: 1px solid #475569;
         padding: 8px 14px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
     #toast.on { opacity: 1; }
+    /* Elegir canción (abierto desde el menú + del Workspace, sin canción) */
+    #elegir { position: fixed; inset: 0; background: var(--bg); z-index: 20; display: flex; flex-direction: column;
+        align-items: center; padding: 28px 16px; overflow: auto; }
+    #elegir h2 { margin: 0 0 14px; font-size: 20px; }
+    #elegir input { width: min(560px, 100%); height: 40px; border-radius: 9px; border: 1px solid #475569; background: #0b1222;
+        color: var(--texto); padding: 0 12px; font-size: 16px; margin-bottom: 12px; }
+    #elegir-lista { width: min(560px, 100%); display: flex; flex-direction: column; gap: 6px; }
+    .el-can { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 10px; border-radius: 9px; background: var(--panel);
+        border: 1px solid var(--borde); }
+    .el-can .el-nom { flex: 1 1 200px; min-width: 0; }
+    .el-can .el-art { color: var(--tenue); font-size: 13px; }
+    .el-can button { height: 30px; border-radius: 7px; border: 1px solid #475569; background: #334155; color: var(--texto);
+        cursor: pointer; font-size: 13px; padding: 0 10px; }
+    .el-can button.nueva { border-color: #22c55e; background: #14532d; }
 </style>
 </head>
 <body>
@@ -1145,7 +1159,43 @@ function toast(t) {
 }
 
 // ══ Inicio ══════════════════════════════════════════════════════════════════════════════
+// Sin canción ni melodía en la dirección (abierto desde el menú + del Workspace): elegir la canción
+async function elegirCancion() {
+    const box = document.createElement('div');
+    box.id = 'elegir';
+    box.innerHTML = '<h2>♬ Editor de Melodías — elige la canción</h2><input id="elegir-buscar" placeholder="Buscar canción o artista…" autocomplete="off"><div id="elegir-lista">Cargando…</div>';
+    document.body.appendChild(box);
+    const lista = box.querySelector('#elegir-lista');
+    let canciones = [], melodias = [];
+    try {
+        const [c, m] = await Promise.all([
+            sb.from('repertorio_canciones').select('id, nombre, artista').order('nombre'),
+            sb.from('repertorio_assets').select('id, cancion_id, etiqueta, tonalidad').eq('tipo', 'melodia'),
+        ]);
+        if (c.error) throw c.error;
+        canciones = c.data || []; melodias = m.data || [];
+    } catch (err) { lista.textContent = 'No se pudieron cargar las canciones: ' + (err.message || err); return; }
+    const esc = t => String(t || '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const pintar = () => {
+        const q = norm(box.querySelector('#elegir-buscar').value);
+        const ver = canciones.filter(c => !q || norm(c.nombre + ' ' + c.artista).includes(q))
+            // primero las que ya tienen melodías
+            .sort((a, b) => melodias.some(x => x.cancion_id === b.id) - melodias.some(x => x.cancion_id === a.id));
+        lista.innerHTML = ver.slice(0, 80).map(c => `<div class="el-can"><span class="el-nom">${esc(c.nombre)} <span class="el-art">${esc(c.artista)}</span></span>
+            ${melodias.filter(x => x.cancion_id === c.id).map(x => `<button data-asset="${x.id}">✏️ ${esc(x.etiqueta || 'Melodía')}${x.tonalidad ? ' · ' + esc(x.tonalidad) : ''}</button>`).join('')}
+            <button class="nueva" data-cancion="${c.id}">＋ Nueva melodía</button></div>`).join('') || 'Sin resultados';
+    };
+    box.querySelector('#elegir-buscar').addEventListener('input', pintar);
+    lista.addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        location.replace(b.dataset.asset ? `?asset=${b.dataset.asset}` : `?cancion=${b.dataset.cancion}`);
+    });
+    pintar();
+    box.querySelector('#elegir-buscar').focus();
+}
 async function iniciar() {
+    if (!assetId && !cancionId) { elegirCancion(); return; }
     try { nombres = localStorage.getItem('melodia_nombres') || 'solfeo'; } catch (_) {}
     setSeg('seg-nombres', nombres);
     try {
