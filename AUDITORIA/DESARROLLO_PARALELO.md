@@ -6441,3 +6441,5 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   rige la misma regla que en el PC. La **pantalla completa sí funciona** en Android (Brave). Prueba (740 × 333, como el
   Android en pantalla completa): diapasón termina en 217 px; diagramas 218–283 al 40 % con la barra de avance (desde
   293), y al 60 % hasta el fondo cuando la barra se esconde.
+- **Botón 🎸 Acordes en blanco (PO 2026-10-26):** su texto era verde sobre verde; ahora es blanco (PC y celular, el
+  botón es el mismo).
