@@ -6369,3 +6369,5 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   mover IN (533 px); 1100 px y 740 px → una fila sin desborde (a 740 los badges quedan casi solo en ícono).
 - **Solo símbolos (PO 2026-10-26):** ▶ · ⏸ · ↺ sin texto (con su nombre al pasar el mouse); el grupo baja de 176 a
   104 px (88 en pantallas angostas). Prueba: ▶ ocupa el grupo; al sonar, ⏸ y ↺ de 41 px cada uno (pantalla angosta).
+- **Más aire (PO 2026-10-26):** la tira sube de 53 a 70 px de alto (más margen arriba/abajo y a los lados, botones un
+  poco más grandes y separados). Sigue en una fila a 1366 px (botones 252–1114, con instrumento y estudiante a los lados).
