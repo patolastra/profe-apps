@@ -6428,3 +6428,11 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   sonando, los diagramas van bajo el diapasón (al 40 % con la barra visible, ~65 % con ella escondida). En vertical
   (375 × 812) se ve "Gira tu celular". PC (1024 × 768): sin escala ni cambios en la barra. **No probado:** un celular
   real (sonido, pantalla completa, giro fijo); se prueba en Android al publicar.
+- **Prueba en Android (PO 2026-10-26, captura en Brave):** no pasaba a pantalla completa y los diagramas quedaban
+  chicos y encima de las cuerdas (con la barra del navegador la pantalla útil queda en ~270 px de alto).
+  **Arreglo:** la pantalla completa se pide al **soltar** el dedo (con toque, el navegador no la permite al apoyarlo)
+  y se reintenta en cada toque hasta lograrla; en el celular los diagramas van **uno sobre otro a la izquierda de la
+  bola** (la parte ya tocada), entre la barra de arriba y la de avance, lo más grandes que quepan; barra de arriba y
+  de avance más bajas. Prueba (690 × 266, como el Android con la barra del navegador): diapasón 61–173 px; diagramas
+  en 6–138 px de ancho (bola en 138): 52 % con las barras visibles, 77 % con ellas escondidas. **No probado:** la
+  pantalla completa en el celular real.

@@ -99,19 +99,21 @@
         }
         /* ── CELULAR (html.movil): horizontal, solo lo del estudiante (Play, velocidad, Acordes) ── */
         html.movil body { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
-        html.movil .controls { padding: 6px 10px; column-gap: 8px; }
+        html.movil .controls { padding: 4px 10px; column-gap: 8px; }
         html.movil #instBadgeLabel { font-size: .8rem !important; padding: 4px 8px !important; }
         html.movil .ctrl-row { gap: 6px; }
-        html.movil .ctrl-row button { padding: 9px 12px; font-size: .9rem; }
+        html.movil .ctrl-row button { padding: 7px 12px; font-size: .9rem; }
+        /* Diagramas AHORA / PRÓXIMO: uno sobre otro, a la izquierda de la bola (lo ya tocado) */
+        html.movil #chordOverlay { flex-direction: column; gap: 6px; }
         html.movil #grupoPlay { width: 96px; }
         html.movil #grupoPlay button { font-size: 1.05rem; }
         html.movil .ctrl-row .sep, html.movil #btnLoopIn, html.movil #btnLoopOut, html.movil #btnLoopClear,
         html.movil #btnPistas, html.movil #btnAfinar, html.movil #btnCifrado, html.movil #swingBadge { display: none !important; }
         html.movil .speed-row button { padding: 8px 12px; min-width: 38px; }
         html.movil .speed-label { min-width: 46px; padding: 3px 5px; font-size: .85rem; }
-        html.movil #tab-audio-bar { bottom: 6px; left: 8px; right: 62px; padding: 6px 14px; }
-        html.movil #tab-seek { height: 30px; }
-        html.movil #btnMano { bottom: 6px; right: 8px; width: 44px; height: 44px; }
+        html.movil #tab-audio-bar { bottom: 5px; left: 8px; right: 54px; padding: 2px 14px; }
+        html.movil #tab-seek { height: 28px; }
+        html.movil #btnMano { bottom: 5px; right: 8px; width: 38px; height: 38px; }
         #girarCelular { display: none; position: fixed; inset: 0; z-index: 99000; background: #0d1b2a; color: #fff;
                         flex-direction: column; align-items: center; justify-content: center; gap: 18px;
                         font-size: 1.5rem; font-weight: 800; text-align: center; padding: 20px; }
@@ -1221,15 +1223,17 @@ function applyResize() {
 applyResize();
 window.addEventListener('resize', applyResize);
 // Celular: al primer toque, pantalla completa (gana el alto que ocupa la barra del navegador) y horizontal fijo.
+// (con el dedo, el navegador solo lo permite al soltar: 'click', no 'pointerdown'; si falla, se reintenta al
+// siguiente toque).
 if (document.documentElement.classList.contains('movil')) {
-    document.addEventListener('pointerdown', function pantallaCompleta() {
-        document.removeEventListener('pointerdown', pantallaCompleta);
+    document.addEventListener('click', function pantallaCompleta() {
         const el = document.documentElement;
-        if (document.fullscreenElement || !el.requestFullscreen) return;
-        el.requestFullscreen({ navigationUI: 'hide' })
+        const pedir = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (document.fullscreenElement || document.webkitFullscreenElement || !pedir) return;
+        Promise.resolve(pedir.call(el, { navigationUI: 'hide' }))
             .then(() => screen.orientation?.lock?.('landscape'))
             .catch(() => {});
-    });
+    }, true);
 }
 
 // ─── PERSPECTIVA ──────────────────────────────────────────────────────────
@@ -7127,6 +7131,19 @@ function ubicarOverlayAcordes(overlay, card) {
     overlay.style.transform = 'none';
     const h = overlay.offsetHeight, cardW = card.offsetWidth;
     overlay.style.transform = prev;
+    if (document.documentElement.classList.contains('movil')) {
+        // Celular: bajo el diapasón no hay alto suficiente. Van uno sobre otro en la franja a la izquierda de la
+        // bola (lo ya tocado), entre la barra de arriba y la de avance, lo más grandes que quepan.
+        const ctrl = document.querySelector('.controls');
+        const arriba = document.body.classList.contains('ui-oculta') ? 0 : ctrl.offsetHeight;
+        const m = 6, alto = bordeInferiorOverlay() - arriba - 2 * m, ancho = ballX - 2 * m;
+        const esc = Math.max(0.3, Math.min(1, alto / h, ancho / overlay.offsetWidth));
+        overlay.style.transformOrigin = 'left top';
+        overlay.style.transform = `scale(${esc})`;
+        overlay.style.left = m + 'px';
+        overlay.style.top  = (arriba + m + Math.max(0, (alto - h * esc) / 2)) + 'px';
+        return;
+    }
     const M = 10;
     const desde = project(ballX / ESCALA_LIENZO, fretBottom).y * ESCALA_LIENZO + M, hasta = bordeInferiorOverlay() - M;
     const escala = Math.max(0.4, Math.min(1, (hasta - desde) / h));
