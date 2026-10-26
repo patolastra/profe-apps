@@ -60,15 +60,15 @@
             box-shadow: 0 4px 15px rgba(0,0,0,.5);
             backdrop-filter: blur(4px);
             /* Una sola tira: instrumento a la izquierda, botones al centro (siempre en el mismo lugar),
-               estudiante a la derecha; los costados se achican (puntos suspensivos) si falta espacio. */
-            display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center;
+               la canción usa todo el espacio que sobra (puntos suspensivos solo si de verdad no cabe). */
+            display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
             column-gap: 22px; row-gap: 10px; padding: 14px 22px;
         }
         #leccionNav { grid-column: 1 / -1; }
         #instrumentoBadge { grid-column: 1; justify-self: start; min-width: 0; max-width: 100%; overflow: hidden; }
         #instBadgeMeta { min-width: 0; }
         .controls > .ctrl-row { grid-column: 2; }
-        .controls > .badge-alumno { grid-column: 3; }
+        .controls > .badge-alumno { display: none !important; }   /* el nombre del estudiante ya no va en la barra */
         .ctrl-row {
             display: flex; gap: 11px; align-items: center;
             justify-content: center; flex-wrap: nowrap;
@@ -1482,7 +1482,7 @@ let strumDirty             = false;
 let digitDirty             = false;
 let strumSnapshot          = null;
 let digitSnapshot          = null;
-let latinoMode             = false;
+let latinoMode             = true;    // cifrado latino siempre (Do, Re, Mi…); el botón C→Do ya no se muestra
 let chordMode              = false;
 
 // ─── HELPERS DE COLOR ─────────────────────────────────────────────────────
@@ -2337,7 +2337,7 @@ function parseXML(doc, fromToggle = false) {
     if (!hayArmoniaEnNotas) for (const e of cifradoEvents) e.color = colorParaAcorde(e.label);
 
     chordMode = hayArmoniaEnNotas || cifradoEvents.length > 0;
-    document.getElementById('btnCifrado').style.display = chordMode ? '' : 'none';
+    document.getElementById('btnCifrado').style.display = 'none';
 
     let pixelStart = 0;
     measureData = rawMeasures.map(m => {
@@ -3337,8 +3337,8 @@ function buildChordEventsFromCifrado() {
 }
 
 function convertirALatino(label) {
-    return label.replace(/^([A-G])(b|#)?/, (_, note, acc) =>
-        (NOTE_TO_LATINO[note] || note) + (acc || ''));
+    const lat = (_, note, acc) => (NOTE_TO_LATINO[note] || note) + (acc || '');
+    return label.replace(/^([A-G])(b|#)?/, lat).replace(/\/([A-G])(b|#)?/, (m, n, a) => '/' + lat(m, n, a));
 }
 
 function describirAcorde(label) {
@@ -3453,7 +3453,7 @@ function drawEndOverlay() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('FIN', cx, cy - 18);
     ctx.font = '15px Arial'; ctx.fillStyle = '#aaa';
-    ctx.fillText('↺ para repetir  ·  Abrir Tablatura para cambiar melodía', cx, cy + 14);
+    ctx.fillText('↺ para repetir  ·  Abrir para cambiar melodía', cx, cy + 14);
 }
 
 function drawBall(x, y) {
@@ -6848,7 +6848,7 @@ function abrirModalAcordes() {
         const card = document.createElement('div');
         card.className = 'mac-card';
         card.onclick   = () => mostrarDetalleAcorde(idx);
-        const am  = procesarLabel(label);
+        const am  = convertirALatino(procesarLabel(label));
         const lat = describirAcorde(label);
         const cvs     = document.createElement('canvas');
         cvs.className = 'mac-canvas';
@@ -7164,7 +7164,7 @@ const CIF_CALIDADES = [
 
 function renderChipsCifrado() {
     document.getElementById('cifhRoots').innerHTML = CIF_ROOTS.map(r =>
-        `<button class="cifh-chip${r===cifRoot?' on':''}" data-root="${r}" onclick="cifSetRoot(this)">${r}</button>`).join('');
+        `<button class="cifh-chip${r===cifRoot?' on':''}" data-root="${r}" onclick="cifSetRoot(this)">${NOTE_TO_LATINO[r] || r}</button>`).join('');
     document.getElementById('cifhCalidades').innerHTML = CIF_CALIDADES.map(c =>
         `<button class="cifh-chip${c.suf===cifCalidad?' on':''}" data-cal="${c.suf}" onclick="cifSetCalidad(this)">${c.lbl}</button>`).join('');
     renderBeatChipsCifrado();
@@ -7189,10 +7189,10 @@ function actualizarHudCifrado() {
     if (!cifradoData || !info) return;
     const arr = cifradoData.compases[cifradoSel] || [];
     const acordesTxt = arr.length
-        ? arr.slice().sort((a,b)=>a.beat-b.beat).map(a => `${a.acorde}${a.beat>0?`(b${a.beat+1})`:''}`).join(' · ')
+        ? arr.slice().sort((a,b)=>a.beat-b.beat).map(a => `${convertirALatino(a.acorde)}${a.beat>0?`(b${a.beat+1})`:''}`).join(' · ')
         : 'sin acorde';
     const sec = cifradoData.secciones[cifradoSel] ? ` · 📑 ${cifradoData.secciones[cifradoSel]}` : '';
-    info.textContent = `Compás ${cifradoSel+1}/${cifradoData.nCompases} → ${cifRoot}${cifAcc}${cifCalidad} | ${acordesTxt}${sec}`;
+    info.textContent = `Compás ${cifradoSel+1}/${cifradoData.nCompases} → ${convertirALatino(cifRoot + cifAcc + cifCalidad)} | ${acordesTxt}${sec}`;
 }
 
 // ── Resaltado del compás seleccionado en el canvas ──────────────────────────

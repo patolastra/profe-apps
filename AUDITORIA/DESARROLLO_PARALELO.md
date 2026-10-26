@@ -6376,3 +6376,9 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   Ahora, al aparecer el mensaje, lo que suena se detiene y vuelve al inicio, y mientras el mensaje está a la vista Play
   no hace nada; con "Entendido ✓" todo sigue normal. Prueba: sonando → aparece el mensaje → detenido; Play con el mensaje
   → nada; tras cerrar → suena.
+- **Sin nombre del estudiante, cifrado latino y nombres completos (PO 2026-10-26):** se quita de la barra el badge con
+  el nombre del estudiante; la tira queda "instrumento + canción" (todo el espacio que sobra) · botones, así el nombre
+  de la tablatura y su descripción ya no se cortan. **Cifrado latino siempre** (Do, Re, Mi…; también el bajo de los
+  acordes con barra: Sol/Si) en la tablatura, la ventana de Acordes y el editor de cifrado del profe (lo guardado no
+  cambia por dentro); se esconde el botón C→Do. Prueba (1366 px, "Impostor Syndrome · PRIMERA MITAD · Media"): nombre y
+  descripción completos; Acordes: Sol, Mim, Lam, Re, La, Do, Mi, Sim, Dom; C→Do y nombre del estudiante ocultos.
