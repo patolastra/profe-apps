@@ -6343,3 +6343,20 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
 - **Prueba (local):** Primero (22) · Segundo (35) · Tercero (26) · Cuarto (25) · Quinto (34) · Sexto (36) · Séptimo (20)
   · Octavo (14) · Taller de Cuerdas (15) · Castigadas (5) · Kids Castigadas (7) · Recreo Entretenido (0) · Enlaces (14) ·
   Orientación (14).
+
+### DO. Lector de tablaturas — interfaz mínima
+*Origen: PO 2026-10-26 ("el lector tabs, quiero minimizar la interfaz").*
+- **Decisión del PO:** profesor y estudiante; **barras que se esconden** mientras suena (también la de abajo y ✋) y
+  **quitar botones:** "Abrir Tablatura ▼" pasa a un solo **Abrir** (fuera "Sube desde tu computador"), **Play y Pausa
+  en un botón**, sin el reloj 0.00s, velocidad sin la barra deslizante (− 100% +). El loop IN/OUT se queda.
+- **Antes de tocar el archivo:** los cambios sin guardar del Loop IN/OUT (en pausa) se apartaron con
+  `git stash` ("Loop IN/OUT en pausa … apartado 2026-10-26") y se devolvieron después, sin mezclarlos con este commit.
+- **Implementación (`tabs/index.html`):** Abrir → la biblioteca directo; ▶ PLAY / ⏸ PAUSA en un botón de ancho fijo
+  (el de pausa queda oculto porque otras partes lo usan); reloj y barra de velocidad ocultos (el código los sigue
+  actualizando). Interfaz mínima: a los 2 s de sonar sin mover el mouse ni tocar, la barra de arriba sube y
+  desaparece y la de abajo y ✋ bajan y se esconden (también el puntero); vuelven al mover, tocar, usar la rueda o una
+  tecla; en pausa, todo a la vista; no se esconden con Pistas, el panel de alumnos o la mano abiertos.
+- **Lugares de uso (regla 11):** el Lector es un solo archivo: profesor (Workspace, Biblioteca, Entrenador) y estudiante.
+- **Prueba (local, "Dedo 2, sexta cuerda"):** barra: Abrir · ▶ PLAY · ↺ · IN · OUT · ✕ loop · − + 100% · Pistas · Afinar;
+  al tocar ▶ pasa a ⏸ PAUSA; sin mover el mouse, a los 2 s la barra de arriba queda en opacidad 0 y corrida hacia arriba
+  y ✋ en 0; ⏸ pausa y todo vuelve; ▶ de nuevo reproduce. **No probado:** la vista del estudiante en un celular.
