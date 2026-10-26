@@ -6323,3 +6323,6 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
 - **Bug (PO 2026-10-26):** al cambiar la mano, el botón Guardar seguía apagado y decía "Guardado ✓" (el cambio sí
   quedaba en la melodía, pero la barra no se actualizaba). Arreglado. Prueba con Coqueta: cambiar la mano → "Sin
   guardar" y Guardar encendido; volver a la mano original → "Guardado ✓" (no se guardó nada).
+- **Barra del metrónomo ordenada (PO 2026-10-26):** dos filas con título — **Tempo** (desde / hasta, sube +5 cada N
+  compases, en el máximo) y **Sonido** (compás, subdivisión, acento en el 1 y precuenta) — separadas por líneas finas,
+  y ▶ Tocar más grande a la derecha, centrado entre las dos. Revisado con captura a 1600 px.
