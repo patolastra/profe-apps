@@ -6360,3 +6360,10 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
 - **Prueba (local, "Dedo 2, sexta cuerda"):** barra: Abrir · ▶ PLAY · ↺ · IN · OUT · ✕ loop · − + 100% · Pistas · Afinar;
   al tocar ▶ pasa a ⏸ PAUSA; sin mover el mouse, a los 2 s la barra de arriba queda en opacidad 0 y corrida hacia arriba
   y ✋ en 0; ⏸ pausa y todo vuelve; ▶ de nuevo reproduce. **No probado:** la vista del estudiante en un celular.
+- **Una sola tira (PO 2026-10-26):** la barra queda en **una fila**: badge del instrumento (con canción y etiqueta ·
+  dificultad en dos líneas) a la izquierda, los botones al centro y el badge del estudiante a la derecha; los costados
+  se achican con puntos suspensivos y los botones nunca se mueven aunque esos badges aparezcan o desaparezcan.
+  **▶ Play** se convierte, al sonar, en **⏸ Pausa + ↺ Inicio** en el mismo espacio (176 px); en pausa vuelve ▶ Play.
+  En pantallas angostas (≤ 1000 px) la tira se compacta (botones más chicos, sin separadores ni datos de la canción).
+  Prueba: 1366 px → alto 53 px, instrumento 16–239, botones 255–1112, estudiante 1128–1350; ▶ → ⏸ Pausa + ↺ Inicio sin
+  mover IN (533 px); 1100 px y 740 px → una fila sin desborde (a 740 los badges quedan casi solo en ícono).
