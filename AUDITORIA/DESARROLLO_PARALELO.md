@@ -6382,3 +6382,8 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   acordes con barra: Sol/Si) en la tablatura, la ventana de Acordes y el editor de cifrado del profe (lo guardado no
   cambia por dentro); se esconde el botón C→Do. Prueba (1366 px, "Impostor Syndrome · PRIMERA MITAD · Media"): nombre y
   descripción completos; Acordes: Sol, Mim, Lam, Re, La, Do, Mi, Sim, Dom; C→Do y nombre del estudiante ocultos.
+- **Diagramas sobre la barra · Acordes pausa (PO 2026-10-26, captura):** los diagramas AHORA / PRÓXIMO tapaban la
+  barra de avance: ahora se ubican sobre su borde superior (o al fondo si no hay barra), aunque la barra esté escondida
+  en ese momento; siguen a la vista mientras suena. Abrir "🎸 Acordes" con la tablatura sonando la pausa. Prueba
+  (1366 × 700, Impostor Syndrome): barra desde 640 px → diagramas terminan en 628 px (antes 688, encima de la barra);
+  sonando → Acordes → en pausa.
