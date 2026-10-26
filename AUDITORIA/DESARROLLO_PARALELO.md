@@ -6400,3 +6400,31 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   barra de avance se ve, se achican para caber (hasta 40 %), y cuando la interfaz mínima la esconde, crecen hasta su
   tamaño (con transición), y vuelven a achicarse al reaparecer la barra. Prueba (Impostor Syndrome, 1366 × 640;
   diapasón termina en 493, barra en 580): con barra → 42 % terminando en 570; barra escondida → 79 % terminando en 630.
+
+---
+
+### DP. Lector de tablaturas en el celular (estudiantes)
+*Origen: PO 2026-10-26 ("seguimos con el lector de tabs: quiero ahora hacer una versión móvil").*
+- **Necesidad:** que los estudiantes practiquen su tablatura desde el celular, con el audio y la partitura juntos.
+- **Decisión del PO:** para **estudiantes** (solo leer, escuchar y practicar; sin edición ni paneles del profe);
+  celular **horizontal** (en vertical pide girarlo); trae **audio + seguir la partitura** (▶/⏸, bola, barra de avance),
+  **secciones y velocidad**, y **acordes / diagramas** (sin afinador). Se entra por el **enlace de particular de siempre**
+  (`?p=`) y por un **enlace corto por tablatura** (como el del Metalófono).
+- **Plan aprobado (PO 2026-10-26):** un solo Lector (`tabs/index.html`, regla §4.3) que se adapta solo al celular.
+  Paso 1: modo celular horizontal con el enlace de particular, probado en Android. Paso 2: enlace corto
+  `t/?a=<id>` + botón 🔗 en la Biblioteca, solo tablaturas **publicadas** (recomendación, a confirmar en el paso 2).
+- **Antes de tocar el archivo:** los cambios sin guardar del Loop IN/OUT (en pausa) se apartaron con `git stash`
+  ("Loop IN/OUT (pausa) - apartado para Lector movil", 2026-10-26); se devuelven al terminar, sin mezclarlos.
+- **Lugares de uso (regla 11):** el Lector es un solo archivo: profesor (Workspace, Biblioteca, Entrenador) y estudiante
+  (`?p=`). El modo celular solo se activa en pantallas táctiles chicas; el PC no cambia.
+- **Paso 1 — implementación (`tabs/index.html`):** el Lector detecta un celular (pantalla táctil, lado corto ≤ 600 px)
+  y se pone en modo celular (`html.movil`). El diapasón se dibuja en un lienzo de ~660 px de alto y se muestra
+  achicado (`ESCALA_LIENZO`), un poco más arriba (24 % del alto) para dejar lugar a los diagramas de acordes debajo;
+  los diagramas usan la misma escala para ubicarse. Barra: instrumento · Abrir · ▶ · − + % · 🎸 Acordes (sin loop,
+  Pistas, Afinar ni C→Do); barra de avance y ✋ más compactas. En vertical, pantalla "🔄 Gira tu celular". Al primer
+  toque pide pantalla completa y deja fijo el horizontal (si el celular lo permite). En PC no cambia nada.
+- **Prueba (local, 740 × 360 táctil, enlace de Kalen, "He Barrido el Sol · Estrofa"):** lienzo 1357 × 660 mostrado
+  en 740 × 360 (escala 0,55); diapasón de 76 a 234 px; barra arriba hasta 52 px; barra de avance desde 308 px;
+  sonando, los diagramas van bajo el diapasón (al 40 % con la barra visible, ~65 % con ella escondida). En vertical
+  (375 × 812) se ve "Gira tu celular". PC (1024 × 768): sin escala ni cambios en la barra. **No probado:** un celular
+  real (sonido, pantalla completa, giro fijo); se prueba en Android al publicar.
