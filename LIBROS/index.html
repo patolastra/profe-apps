@@ -40,6 +40,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .fila.activa { background: var(--activo); font-weight: 600; }
 .fila .ico { width: 20px; text-align: center; flex-shrink: 0; }
 .fila .nom { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fila .cuantos { font-weight: 400; opacity: .55; }
 .clase { font-size: 11.5px; color: var(--suave); padding: 0 8px 6px 36px; }
 .sep-lat { height: 1px; background: var(--linea); margin: 8px 6px; }
 
@@ -77,6 +78,7 @@ const fechaCorta = iso => { const d = new Date(iso + 'T12:00:00'); return `${DIA
 const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 let instancias = [];        // [{ id, nombre }]
+let cuantos = {};           // contexto id → n° de participantes (como el Libro: matrícula activa, vínculo o taller)
 let actual = null;          // { nombre, sesion, fecha }
 let anio = String(new Date().getFullYear());
 
@@ -88,13 +90,33 @@ function orden(nombre) {
 
 async function cargar() {
     const [cx, an] = await Promise.all([
-        sb.from('contextos').select('id, nombre, activo'),
-        sb.from('libro_anios').select('anio').eq('activo', true).limit(1),
+        sb.from('contextos').select('id, nombre, activo, tipo'),
+        sb.from('libro_anios').select('id, anio').eq('activo', true).limit(1),
     ]);
     if (an.data && an.data[0]) anio = String(an.data[0].anio);
     instancias = (cx.data || []).filter(c => c.activo !== false && c.nombre !== 'GENERAL')
         .sort((a, b) => orden(a.nombre) - orden(b.nombre) || a.nombre.localeCompare(b.nombre));
     pintarLista();
+    if (an.data && an.data[0]) contarParticipantes(an.data[0].id).then(pintarLista, () => {});
+}
+
+// Participantes de cada instancia, contados como los arma el Libro: curso = matrícula activa del año;
+// con población vinculada (p. ej. Orientación → Octavo) = la matrícula de ese curso; taller = sus pertenencias.
+async function contarParticipantes(anioId) {
+    const [ma, pe, vi] = await Promise.all([
+        sb.from('libro_matriculas').select('contexto_id').eq('anio_id', anioId).eq('estado', 'activo'),
+        sb.from('libro_pertenencias_taller').select('contexto_id').eq('anio_id', anioId),
+        sb.from('libro_contexto_poblacion').select('contexto_id, poblacion_ctx_id').eq('anio_id', anioId),
+    ]);
+    const contar = filas => (filas || []).reduce((m, f) => (m[f.contexto_id] = (m[f.contexto_id] || 0) + 1, m), {});
+    const mat = contar(ma.data), per = contar(pe.data);
+    const vinc = Object.fromEntries((vi.data || []).map(v => [v.contexto_id, v.poblacion_ctx_id]));
+    cuantos = {};
+    for (const c of instancias) {
+        if (vinc[c.id]) cuantos[c.id] = mat[vinc[c.id]] || 0;
+        else if (c.tipo === 'curso') cuantos[c.id] = mat[c.id] || 0;
+        else cuantos[c.id] = per[c.id] || 0;
+    }
 }
 
 function pintarLista() {
@@ -105,7 +127,7 @@ function pintarLista() {
         const sep = i > 0 && /^[1-8]/.test(contextoInfo(instancias[i - 1].nombre).icono || '') && !/^[1-8]/.test(info.icono || '')
             ? '<div class="sep-lat"></div>' : '';
         return `${sep}<button class="fila${act ? ' activa' : ''}" data-nombre="${esc(c.nombre)}" title="${esc(info.label)}">
-                <span class="ico">${info.icono || '📁'}</span><span class="nom">${esc(info.label)}</span></button>
+                <span class="ico">${info.icono || '📁'}</span><span class="nom">${esc(info.label)}${c.id in cuantos ? ` <span class="cuantos">(${cuantos[c.id]})</span>` : ''}</span></button>
 `;
     }).join('');
 }

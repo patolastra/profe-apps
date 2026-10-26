@@ -6333,3 +6333,13 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
 - **Fijo compacto (PO 2026-10-26, captura):** en Fijo quedaba un hueco entre el número y "bpm" (lo oculto guardaba su
   lugar). Ahora en Fijo lo de "va subiendo" desaparece del todo: queda "[80] bpm" junto a Fijo / Va subiendo (va al
   final de la fila, así que nada más se mueve). Medido: el grupo pasa de 261 a 118 px y "bpm" queda pegado al número.
+
+### DN. Libros — n° de participantes de cada instancia
+*Origen: PO 2026-10-26 (captura de la columna de Libros: "Primero (24)", con su ícono).*
+- **Decisión del PO:** en la columna de instancias de Libros, cada una con su número de participantes entre paréntesis.
+- **Implementación:** `LIBROS/index.html` cuenta como arma la lista el Libro: curso = matrícula **activa** del año;
+  instancia con población vinculada (Orientación, Enlaces → Octavo) = la matrícula de ese curso; taller = sus
+  pertenencias. El número va en gris claro junto al nombre; se cuenta al abrir la pestaña (sin cambios en Supabase).
+- **Prueba (local):** Primero (22) · Segundo (35) · Tercero (26) · Cuarto (25) · Quinto (34) · Sexto (36) · Séptimo (20)
+  · Octavo (14) · Taller de Cuerdas (15) · Castigadas (5) · Kids Castigadas (7) · Recreo Entretenido (0) · Enlaces (14) ·
+  Orientación (14).
