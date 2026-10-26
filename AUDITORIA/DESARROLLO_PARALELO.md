@@ -6450,3 +6450,9 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
 - **Rótulo de sección (ESTROFA) tapado en el celular (PO 2026-10-26):** su altura se calculaba con la barra de arriba
   en pixeles de pantalla, sin la escala del celular, y quedaba medio bajo la barra. Ahora se pasa a la escala del
   lienzo: queda entero entre la barra y el diapasón. En el PC no cambia.
+- **Seguía sonando fuera de la pantalla (PO 2026-10-26, Android):** al apagar el celular, minimizar el navegador,
+  abrir las apps recientes (botón ▢) o girarlo, la tablatura seguía sonando. Ahora, **solo en el celular**, se pausa
+  (igual que ⏸) cuando la página deja de verse, pierde el foco o el celular queda en vertical. En el PC no: ahí el profe
+  puede dejarla sonando en otra pestaña. Al girar: si el navegador dejó fijo el horizontal (pantalla completa) no pasa
+  nada; si no, aparece "Gira tu celular". Prueba (740 × 333): sonando → pierde el foco → en pausa y quieta; sonando →
+  333 × 740 (vertical) → en pausa y con "Gira tu celular". **No probado:** iPhone.
