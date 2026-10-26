@@ -6467,3 +6467,9 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   arriba quedaba cortada). Ahora el tamaño se calcula: se prueba cada cantidad de columnas y se usa el tamaño más grande
   con el que caben todos (en el celular se achican; en pantallas grandes crecen hasta 2,2×); se recalcula al cambiar el
   tamaño de la ventana. Prueba: 740 × 333 → 7 acordes en 5 + 2, de 57 a 323 px, sin desborde; PC 756 × 630 → sin desborde.
+- **▶ al final vuelve a empezar (PO 2026-10-26):** al llegar al final, ▶ no volvía a tocar (con audio, el audio quedaba
+  en su último segundo; con sección, quedaba marcada como terminada). Ahora, si la tablatura está al final (terminó
+  sola, el audio llegó a su fin o se llevó al final deslizando), ▶ y Espacio la tocan **desde el comienzo** (o desde el
+  inicio de la sección, con su precuenta). Una pausa a mitad de canción sigue desde donde quedó. PC y celular.
+  Prueba (Kalen): sección terminada (20,13 s) → ▶ → suena desde 3,8 s; canción completa con el audio al final → ▶ →
+  suena desde 2 s; pausa en 10,74 s → ▶ → sigue en 11,46 s.

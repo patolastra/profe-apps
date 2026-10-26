@@ -1666,9 +1666,21 @@ function doRestart() {
     // Volumen coherente con la posición de reposo (sección → 1; sin sección → 1).
     if (audioSyncMode) tabAudioEl.volume = loopActive ? 1 : volumenSeccion(currentTime);
 }
+// ¿La tablatura quedó al final? (terminó sola, el audio llegó a su fin, o se llevó hasta el final deslizando).
+// Entonces ▶ / Espacio la vuelven a tocar desde el comienzo (o desde el inicio de la sección).
+function tablaAlFinal() {
+    if (tabEnded) return true;
+    if (loopActive) return false;
+    if (audioSyncMode && !seccionActiva && tabAudioEl.src &&
+        (tabAudioEl.ended || (tabAudioEl.duration && tabAudioEl.currentTime >= tabAudioEl.duration - 0.05))) return true;
+    const lastContentT = notes.length ? notes[notes.length - 1].time + 60 / bpm
+                                      : (chordEvents[chordEvents.length - 1]?.tEnd ?? Infinity);
+    return currentTime >= (seccionActiva ? seccionActiva.end : lastContentT) - 0.05;
+}
 document.getElementById('btnPlay').onclick = () => {
     if (enModoEdicion()) return;
     if (document.getElementById('modalMensaje').classList.contains('visible')) return;   // primero, leer el mensaje
+    if (!isPlaying && !despertarPendiente && tablaAlFinal()) doRestart();
     console.log('[play] audioSyncMode:', audioSyncMode, '| tabSyncData:', tabSyncData?.mode, '| src:', tabAudioEl.src?.slice(0,50));
     if (despertarPendiente) return;   // ya va a partir
     if (audioSyncMode) {
@@ -1969,7 +1981,7 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     if ((!notes.length && !chordEvents.length) || enModoEdicion()) return;
     ensureAudio();
-    if (tabEnded) { doRestart(); return; }
+    if (!isPlaying && !despertarPendiente && tablaAlFinal()) { document.getElementById('btnPlay').onclick(); return; }   // al final: desde el comienzo
     if (despertarPendiente) { cancelarDespertar(); return; }   // Espacio durante la espera = no partir
     if (isPlaying) { isPlaying = false; if (audioSyncMode) tabAudioEl.pause(); }
     else despertarSalidaYLuego(() => {
