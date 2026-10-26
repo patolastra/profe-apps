@@ -11,6 +11,10 @@
     <script src="../comun/puntero.js"></script>
     <script src="../comun/volumen.js"></script>
     <script src="../comun/nombre-asset.js"></script>
+    <link rel="stylesheet" href="../comun/archivos-curso.css">
+    <script src="../comun/archivos-curso.js"></script>
+    <link rel="stylesheet" href="../comun/compartir.css">
+    <script src="../comun/compartir.js"></script>
     <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
@@ -3828,9 +3832,9 @@ function assetItemHTML(a, i) {
             <div class="asset-item-actions">
                 ${estadoBadgeHTML(a)}
                 ${conPiano ? `<button class="btn-icon" onclick="abrirPiano('${a.id}')" title="Abrir en el piano (como lo ve el estudiante)">🎹</button>` : ''}
-                ${conPiano && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirPiano('${a.id}')" title="Compartir link del piano para el estudiante">🔗 Compartir</button>` : ''}
+                ${conPiano && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirPiano('${a.id}', this)" title="Compartir el piano con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
                 ${isMetal || (isMelodia && conMetal) ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${nombreAsset(a, songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">${isMelodia ? '🎼' : '🎹'}</button>` : ''}
-                ${isMetal && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirMetalofono('${a.id}')" title="Compartir link para el celular del alumno">🔗 Compartir</button>` : ''}
+                ${isMetal && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirMetalofono('${a.id}', this)" title="Compartir con los estudiantes (celular): link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
                 ${isAudio ? '' : `<a class="btn-icon" href="${url}" download="${descFile}" title="Descargar">⬇</a>`}
                 ${isMelodia
                     ? `<button class="btn-icon" onclick="abrirEditorMelodia('${songActiva.id}','${a.id}')" title="Editar melodía">✏️</button>`
@@ -5017,19 +5021,11 @@ function abrirPiano(assetId) {
     }
     window.open(src, '_blank');
 }
-async function compartirPiano(assetId) {
+// ✈ Compartir (deuda DQ): menú propio con Copiar link · Generar QR · Generar guía QR (comun/compartir.js)
+function compartirPiano(assetId, boton) {
     const nombre = nombreMelodia(assetId);
     const url = `${PIANO_LINK_ALUMNO}?a=${encodeURIComponent(assetId)}&n=${encodeURIComponent(nombre)}`;
-    if (navigator.share) {
-        try { await navigator.share({ title: nombre, url }); }
-        catch (e) {
-            if (e.name === 'NotAllowedError') toast('Vuelve a tocar Compartir');
-            else if (e.name !== 'AbortError') toast('No se pudo compartir: ' + e.message);
-        }
-    } else {
-        try { await navigator.clipboard.writeText(url); toast('Link copiado'); }
-        catch (e) { toast('No se pudo copiar el link'); }
-    }
+    Compartir.abrir(boton, { url, titulo: nombre, cancion: nombre, instrumento: 'Piano', sb });
 }
 
 // Editor de Melodías (deuda DK): pestaña cerrable del Workspace; fuera de él, ventana nueva.
@@ -5099,7 +5095,7 @@ function midiTieneCifraCompas(buf) {
     return false;
 }
 
-async function compartirMetalofono(assetId) {
+async function compartirMetalofono(assetId, boton) {
     let asset = null, cancion = null;
     for (const c of canciones) {
         const a = (c.assets || []).find(x => x.id === assetId);
@@ -5127,21 +5123,7 @@ async function compartirMetalofono(assetId) {
     const nombre = etiqueta ? `${cancion.nombre} — ${etiqueta}` : cancion.nombre;
     const url = `${METAL_LINK_ALUMNO}?a=${encodeURIComponent(asset.id)}&n=${encodeURIComponent(nombre)}`;
 
-    if (navigator.share) {
-        try {
-            await navigator.share({ title: nombre, url });
-        } catch (e) {
-            if (e.name === 'NotAllowedError') toast('Vuelve a tocar Compartir');   // el navegador exige un toque reciente
-            else if (e.name !== 'AbortError') toast('No se pudo compartir: ' + e.message);
-        }
-    } else {
-        try {
-            await navigator.clipboard.writeText(url);
-            toast('Link copiado');
-        } catch (e) {
-            toast('No se pudo copiar el link');
-        }
-    }
+    Compartir.abrir(boton, { url, titulo: nombre, cancion: nombre, instrumento: 'Metalófono', sb });
 }
 
 function cerrarMetalofono() {

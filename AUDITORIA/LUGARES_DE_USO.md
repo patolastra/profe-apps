@@ -27,6 +27,7 @@
 | Biblioteca | tablatura (`?storage=&nombre=`), una sección (`&seccion=`), crear cifrado (`?cifrado=1&cancion=`) |
 | Entrenador | tablatura elegida → pestaña del Workspace (`ws-abrir`) o ventana nueva |
 | Alumno / lecciones (congeladas) | asignaciones `alumno_tabs` y lecciones |
+| Celular del estudiante | `?p=` en un celular → versión móvil horizontal (`html.movil`, deuda DP) |
 
 ## Metalófono (`METALÓFONO APP/METAL21 (ALPHA).HTML`)
 
@@ -55,6 +56,8 @@
 | `asistencia.js` | Plan (Pasar lista) · Libro · Pizarra (espejo) · celular Evaluar · Workspace |
 | `libro-proyeccion.js` | Libro (📽️ Proyectar) · Pizarra · Workspace |
 | `cuaderno.js` | Plan (📔) · Cursos (📔 Cuaderno) · Pizarra (espejo) |
+| `compartir.js` | Biblioteca: ficha de la canción, ✈ de la melodía de metalófono y del piano (deuda DQ); próximo: tablaturas (DP paso 2) |
+| `archivos-curso.js` | Cursos (📁 Archivos) · la guía QR de `compartir.js` guarda aquí (deuda DQ) |
 | `recurrentes.js` / `fecha-pizarra.js` | Plan (🔔) · Pizarra |
 | `clase-vivo.js` | Plan · Pizarra · Libro · Biblioteca/Entrenador · Workspace · Bitácora (MEMORIA) · celular (inicio, Cursos, Evaluar) |
 | `tiempo-real.js` | Plan · Pizarra · Libro · Biblioteca/Entrenador · Cursos · celular (Cursos, Evaluar) |

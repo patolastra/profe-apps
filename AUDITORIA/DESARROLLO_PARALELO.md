@@ -6479,3 +6479,46 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   quepan sin desplazarse. Prueba (690 × 320): barra en una fila sin desborde (Acordes 360–489, Pistas 495–586,
   Afinar 592–680; el instrumento queda solo con su ícono); Pistas abre su lista (Audio, Partitura, Metrónomo);
   Afinador 306 px de alto con todo adentro (antes 530 de contenido). En el PC no cambia.
+
+---
+
+### DQ. Compartir desde la Biblioteca: menú ✈ (link, QR, guía QR) + 📁 Archivos del curso
+*Origen: PO 2026-10-26 (captura del botón "🔗 Compartir"; Notion: "Compartir todos los recursos por enlace o QR + hoja
+de QR imprimible", 2026-10-24).*
+- **Necesidad:** el botón Compartir abre la ventana del sistema, que en otros computadores (los del colegio) no permite
+  hacer un QR. El profe necesita sacar el link, un QR y una hoja de QR recortables para repartir en un curso, en
+  cualquier equipo, y encontrar después las guías ya hechas.
+- **Decisión del PO (2026-10-26):** el botón pasa a ser solo el ícono **✈ avioncito de papel**; abre un **menú propio**
+  con **Copiar link · Generar QR · Generar guía QR**. La guía: se elige el **curso**, **copias sin nombre** (parte con el
+  número de estudiantes del curso), **los datos de cada QR se eligen al crearla** (canción, instrumento, curso, fecha de
+  evaluación) y se puede **escribir un mensaje**; **hoja carta siempre**, ~30 QR recortables legibles por hoja. La guía
+  queda guardada en un apartado nuevo de **documentos de cada curso** (audios, videos, imágenes, documentos), con
+  botón **Abrir** al crearla para imprimir al tiempo o buscarla después. Nombre: **📁 Archivos del curso** (recomendado
+  por Claude, aprobado; "Materiales" ya es la lista del Plan). Se ve en la página de cada curso en **Cursos**.
+  **Autorizado:** tabla y bucket nuevos en Supabase.
+- **Plan aprobado (dos pasos):** Paso 1: menú ✈ (piezas compartidas, para que el Lector y otros recursos lo usen
+  después), parte con los recursos que ya tienen link de estudiante: melodía de **metalófono** (`m/?a=`) y **piano**
+  (`p/?a=`); las tablaturas se suman con su enlace corto (DP paso 2). Paso 2: 📁 Archivos del curso (tabla
+  `curso_archivos` + bucket `curso-archivos`, `supabase/curso_archivos.sql`, lo corre el PO) y la guía se guarda ahí.
+- **Lugares de uso (regla 11):** el menú ✈ va en la ficha de la canción de la Biblioteca (todas las vistas donde hoy
+  está 🔗 Compartir); 📁 Archivos del curso, en Cursos (PC).
+- **Implementación (paso 1 y paso 2 en el mismo desarrollo):**
+  - `comun/compartir.js` + `.css` (`Compartir`): menú ✈ (avioncito de papel, solo ícono) con 🔗 Copiar link · ▦ Generar
+    QR (grande, Copiar link / ⬇ Descargar imagen) · 🖨️ Generar guía QR (curso de una lista de cursos y talleres; copias =
+    estudiantes del curso según el Libro, editable; datos marcables Canción / Instrumento / Curso / Fecha de evaluación;
+    mensaje opcional de hasta 140 letras; recuerda lo último elegido en el equipo). PDF hoja carta 5 × 6 = 30 QR con
+    líneas de corte; más copias → más hojas. Librerías desde cdnjs solo al usarlas: qrcode-generator 1.4.4 y jsPDF 2.5.1.
+  - `comun/archivos-curso.js` + `.css` (`ArchivosCurso`): guardar / listar / borrar y la ventana 📁 Archivos del curso
+    (año en curso; Abrir · ⬇ · 🗑 al pasar el mouse; ＋ Subir archivo). La guía se guarda sola ahí (origen `guia-qr`) y
+    deja los botones **Abrir** y **⬇ Descargar**; si no se puede guardar, igual se abre/descarga y lo dice.
+  - `supabase/curso_archivos.sql`: tabla `curso_archivos` + bucket público `curso-archivos` (aditivo; **lo corre el PO**).
+  - Biblioteca (`REPERTORIO/index.html`): los dos "🔗 Compartir" (metalófono y piano) pasan a ✈; el de metalófono sigue
+    revisando la cifra de compás antes de abrir el menú. Cursos (`CURSOS/index.html`): botón **📁 Archivos** en la barra
+    de cada curso (todos, también talleres y General).
+- **Prueba (local, "Aló, Aló — Intro completa", metalófono):** ✈ abre el menú con las 3 opciones; Generar QR → QR de
+  636 px que un lector de QR lee como el link `m/?a=muvtzpj4huv2…`; guía para 5° (34 estudiantes según el Libro) con
+  fecha 12/11/2026 y mensaje → PDF de 2 hojas carta; cada tarjeta: QR + "Aló, Aló — Intro completa / Metalófono /
+  5° básico / Evaluación: 12/11/2026 / mensaje en cursiva"; el QR de la hoja (a 115 dpi) se lee bien. Sin la tabla aún:
+  "No se pudo guardar en 📁 Archivos del curso (falta crearlo en Supabase); igual puedes abrirla o descargarla", y
+  📁 Archivos en Cursos dice "Falta crear… (correr supabase/curso_archivos.sql)". **No probado:** guardar y listar de
+  verdad (falta el SQL), imprimir en papel y leer con un celular.
