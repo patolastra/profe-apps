@@ -6443,3 +6443,10 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   293), y al 60 % hasta el fondo cuando la barra se esconde.
 - **Botón 🎸 Acordes en blanco (PO 2026-10-26):** su texto era verde sobre verde; ahora es blanco (PC y celular, el
   botón es el mismo).
+- **Nombre del acorde en bloques cortos (PO 2026-10-26, captura):** con varios rasgueos cortos seguidos del mismo
+  acorde (p. ej. 4 de Re7), el nombre iba solo en el primer bloque y se achicaba hasta ser ilegible. Ahora usa el ancho
+  de **todo el tramo** del acorde (hasta que cambia, sin pasar el fin de la sección ni del loop). PC y celular.
+  Prueba ("He Barrido el Sol · Estrofa", 18,2 s): "Re7" del mismo tamaño que los demás sobre sus 4 bloques.
+- **Rótulo de sección (ESTROFA) tapado en el celular (PO 2026-10-26):** su altura se calculaba con la barra de arriba
+  en pixeles de pantalla, sin la escala del celular, y quedaba medio bajo la barra. Ahora se pasa a la escala del
+  lienzo: queda entero entre la barra y el diapasón. En el PC no cambia.

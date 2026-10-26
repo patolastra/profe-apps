@@ -2949,7 +2949,8 @@ function drawStrings() {
 
 function drawSectionMarkers() {
     if (!measureData.length) return;
-    const headerBottom = document.querySelector('.controls').getBoundingClientRect().bottom;
+    // borde de la barra de arriba (pixeles de pantalla) pasado a medidas del lienzo (en el celular el lienzo va achicado)
+    const headerBottom = document.querySelector('.controls').getBoundingClientRect().bottom / ESCALA_LIENZO;
     const labelY = headerBottom + 36;
 
     for (const m of measureData) {
@@ -3239,13 +3240,21 @@ function drawChordBlocks() {
         }
     }
     // Segunda pasada: labels encima de todos los bloques
-    for (const ev of chordEvents) {
+    // El nombre usa el ancho de TODO el tramo del acorde (los bloques seguidos con el mismo acorde, p. ej. varios
+    // rasgueos cortos), no solo el del primer bloque: así no queda diminuto.
+    for (let i = 0; i < chordEvents.length; i++) {
+        const ev = chordEvents[i];
         if (!ev.showLabel) continue;
         // Hermeticidad de sección: el label del acorde tampoco se dibuja fuera de [start, end).
         if (seccionActiva && (ev.tStart < seccionActiva.start - 0.001 || ev.tStart >= seccionActiva.end)) continue;
         if (loopActive && isPlaying && (ev.tStart < loopIn - 0.001 || ev.tStart >= loopOut)) continue;
+        let j = i;
+        while (j + 1 < chordEvents.length && !chordEvents[j + 1].showLabel && chordEvents[j + 1].label === ev.label) j++;
+        let tFinTramo = chordEvents[j].tEnd;
+        if (seccionActiva) tFinTramo = Math.min(tFinTramo, seccionActiva.end);
+        if (loopActive && isPlaying) tFinTramo = Math.min(tFinTramo, loopOut);
         const x1raw = getX(ev.tStart);
-        const x2raw = getX(ev.tEnd);
+        const x2raw = getX(tFinTramo);
         if (x2raw < -100 || x1raw > canvas.width + 100) continue;
         const x1 = x1raw + 3;
         const x2 = x2raw - 3;
