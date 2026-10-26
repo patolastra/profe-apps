@@ -6330,3 +6330,6 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   el bpm; "hasta", "sube +5 cada" y "en el máximo" se ocultan guardando su lugar (barra estable) y el tempo no cambia.
   Prueba (reloj simulado): Fijo con 90 / 140 / cada 1 → siempre 90; aviso "Fijo a …"; al volver a Va subiendo
   reaparecen los controles.
+- **Fijo compacto (PO 2026-10-26, captura):** en Fijo quedaba un hueco entre el número y "bpm" (lo oculto guardaba su
+  lugar). Ahora en Fijo lo de "va subiendo" desaparece del todo: queda "[80] bpm" junto a Fijo / Va subiendo (va al
+  final de la fila, así que nada más se mueve). Medido: el grupo pasa de 261 a 118 px y "bpm" queda pegado al número.
