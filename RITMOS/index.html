@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ritmos</title>
+<!--
+  Ritmos (deuda DM): apartado con pestañas propias. ⏱ Metrónomo (cifra de compás, bpm mínimo y máximo, sube +5
+  cada N compases; al llegar al máximo se queda o se detiene; acento en el 1, subdivisión, precuenta) y 🪘 Cajón
+  (CAJON-PERUANO/, se carga adentro tal cual). Sonido sintetizado con el reloj del audio. Sin base de datos.
+-->
+<style>
+    :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8;
+        --pulso: #22d3ee; --uno: #f97316; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto); overflow: hidden;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    body { display: flex; flex-direction: column; }
+    button, input { font: inherit; }
+
+    #pestanas { flex: 0 0 auto; display: flex; gap: 4px; padding: 6px 10px 0; background: #0b1222; border-bottom: 1px solid var(--borde); }
+    #pestanas button { height: 36px; width: 150px; border: 1px solid var(--borde); border-bottom: none; border-radius: 9px 9px 0 0;
+        background: #172033; color: var(--tenue); cursor: pointer; font-size: 15px; }
+    #pestanas button.on { background: var(--bg); color: var(--texto); font-weight: 600; }
+    .vista { flex: 1 1 auto; min-height: 0; display: none; }
+    .vista.on { display: flex; }
+    #v-cajon iframe { border: 0; width: 100%; height: 100%; }
+
+    /* Metrónomo */
+    #v-metro { flex-direction: column; }
+    #controles { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 14px;
+        background: var(--panel); border-bottom: 1px solid var(--borde); }
+    .grupo { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--tenue); }
+    .seg { display: flex; gap: 2px; }
+    .seg button, .btn { height: 32px; padding: 0 10px; border-radius: 7px; border: 1px solid #475569; background: #334155;
+        color: var(--texto); cursor: pointer; font-size: 14px; white-space: nowrap; }
+    .seg button.on, .btn.on { background: #0e7490; border-color: var(--pulso); }
+    input[type=number] { width: 64px; height: 32px; text-align: center; background: #0f172a; color: var(--texto);
+        border: 1px solid #475569; border-radius: 7px; font-size: 15px; font-variant-numeric: tabular-nums; }
+    #b-tocar { margin-left: auto; height: 42px; width: 130px; border-radius: 10px; border: 1px solid #22c55e; background: #16a34a;
+        color: #fff; font-size: 17px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 8px rgba(22,163,74,.35); }
+    #b-tocar.on { background: #b45309; border-color: #f59e0b; box-shadow: 0 2px 8px rgba(245,158,11,.35); }
+
+    #pantalla { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3vh; }
+    #bpm { font-size: min(30vh, 22vw); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+    #bpm small { font-size: 0.18em; font-weight: 600; color: var(--tenue); margin-left: 0.2em; letter-spacing: 0; }
+    #circulos { display: flex; gap: min(3vw, 3vh); }
+    .circ { width: min(9vh, 9vw); height: min(9vh, 9vw); border-radius: 50%; border: 3px solid #475569; transition: background .05s, transform .05s; }
+    .circ.uno { border-color: var(--uno); }
+    .circ.on { background: var(--pulso); border-color: var(--pulso); transform: scale(1.12); }
+    .circ.uno.on { background: var(--uno); border-color: var(--uno); }
+    #estado { font-size: min(4.2vh, 3.4vw); color: var(--tenue); min-height: 1.3em; text-align: center; }
+    #estado b { color: var(--texto); }
+</style>
+</head>
+<body>
+<div id="pestanas">
+    <button data-v="metro" class="on">⏱ Metrónomo</button>
+    <button data-v="cajon">🪘 Cajón</button>
+</div>
+
+<div class="vista on" id="v-metro">
+    <div id="controles">
+        <div class="grupo">Compás <div class="seg" id="seg-compas"><button data-v="2/4">2/4</button><button data-v="3/4">3/4</button><button data-v="4/4">4/4</button><button data-v="5/4">5/4</button><button data-v="6/8">6/8</button></div></div>
+        <div class="grupo">Desde <input id="min" type="number" min="20" max="300"> hasta <input id="max" type="number" min="20" max="300"> bpm</div>
+        <div class="grupo">Sube +5 cada <input id="cada" type="number" min="1" max="64"> compases</div>
+        <div class="grupo">En el máximo <div class="seg" id="seg-tope"><button data-v="quedarse">Se queda</button><button data-v="detener">Se detiene</button></div></div>
+        <div class="grupo"><button class="btn" id="b-acento">Acento en el 1</button></div>
+        <div class="grupo">Subdivisión <div class="seg" id="seg-sub"><button data-v="1">No</button><button data-v="2">Corcheas</button><button data-v="3">Tresillos</button></div></div>
+        <div class="grupo"><button class="btn" id="b-precuenta">Precuenta</button></div>
+        <button id="b-tocar">▶ Tocar</button>
+    </div>
+    <div id="pantalla">
+        <div id="bpm">90<small>bpm</small></div>
+        <div id="circulos"></div>
+        <div id="estado"></div>
+    </div>
+</div>
+
+<div class="vista" id="v-cajon"></div>
+
+<script>
+'use strict';
+const leer = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (_) { return d; } };
+const anotar = (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} };
+
+// ══ Pestañas del apartado ═══════════════════════════════════════════════════════════════
+function irPestana(v) {
+    document.querySelectorAll('#pestanas button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+    document.querySelectorAll('.vista').forEach(x => x.classList.toggle('on', x.id === 'v-' + v));
+    if (v === 'cajon') {
+        detener();      // que no suenen los dos a la vez
+        const c = document.getElementById('v-cajon');
+        if (!c.firstChild) c.innerHTML = '<iframe src="../CAJON-PERUANO/index.html" allow="autoplay"></iframe>';
+    }
+    anotar('ritmos_pestana', v);
+}
+document.getElementById('pestanas').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { irPestana(b.dataset.v); b.blur(); } });
+
+// ══ Ajustes (se recuerdan en el equipo) ═════════════════════════════════════════════════
+const AJ = {
+    compas: leer('metro_compas', '4/4'),
+    min: +leer('metro_min', '80'),
+    max: +leer('metro_max', '120'),
+    cada: +leer('metro_cada', '4'),
+    tope: leer('metro_tope', 'quedarse'),
+    acento: leer('metro_acento', '1') === '1',
+    sub: +leer('metro_sub', '1'),
+    precuenta: leer('metro_precuenta', '1') === '1',
+};
+const guardar = () => Object.entries(AJ).forEach(([k, v]) => anotar('metro_' + k, typeof v === 'boolean' ? (v ? '1' : '0') : String(v)));
+// 6/8: dos pulsos de negra con punto, cada uno con tres corcheas
+const COMPAS = c => c === '6/8' ? { pulsos: 2, sub: 3 } : { pulsos: +c.split('/')[0], sub: null };
+const subdiv = () => COMPAS(AJ.compas).sub ? (AJ.sub > 1 ? 3 : 1) : AJ.sub;
+
+function pintarControles() {
+    const set = (id, v) => document.querySelectorAll(`#${id} button`).forEach(b => b.classList.toggle('on', b.dataset.v === String(v)));
+    set('seg-compas', AJ.compas); set('seg-tope', AJ.tope); set('seg-sub', AJ.sub);
+    document.querySelector('#seg-sub button[data-v="3"]').style.display = AJ.compas === '6/8' ? 'none' : '';
+    document.getElementById('b-acento').classList.toggle('on', AJ.acento);
+    document.getElementById('b-precuenta').classList.toggle('on', AJ.precuenta);
+    document.getElementById('min').value = AJ.min;
+    document.getElementById('max').value = AJ.max;
+    document.getElementById('cada').value = AJ.cada;
+    const n = COMPAS(AJ.compas).pulsos;
+    const cont = document.getElementById('circulos');
+    if (cont.children.length !== n) cont.innerHTML = Array.from({ length: n }, (_, i) => `<div class="circ${i === 0 ? ' uno' : ''}"></div>`).join('');
+    if (!sonando) { document.getElementById('bpm').firstChild.textContent = AJ.min; pintarEstado(); }
+}
+function enSeg(id, campo, num) {
+    document.getElementById(id).addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        AJ[campo] = num ? +b.dataset.v : b.dataset.v;
+        if (campo === 'compas' && sonando) detener();
+        guardar(); pintarControles(); b.blur();
+    });
+}
+enSeg('seg-compas', 'compas'); enSeg('seg-tope', 'tope'); enSeg('seg-sub', 'sub', true);
+document.getElementById('b-acento').onclick = e => { AJ.acento = !AJ.acento; guardar(); pintarControles(); e.target.blur(); };
+document.getElementById('b-precuenta').onclick = e => { AJ.precuenta = !AJ.precuenta; guardar(); pintarControles(); e.target.blur(); };
+['min', 'max', 'cada'].forEach(id => document.getElementById(id).addEventListener('change', e => {
+    const lim = id === 'cada' ? [1, 64] : [20, 300];
+    AJ[id] = Math.max(lim[0], Math.min(lim[1], Math.round(+e.target.value || AJ[id])));
+    if (AJ.max < AJ.min) { if (id === 'max') AJ.min = AJ.max; else AJ.max = AJ.min; }
+    guardar(); pintarControles();
+}));
+
+// ══ Sonido ══════════════════════════════════════════════════════════════════════════════
+let ac = null, salida = null;
+function audio() {
+    if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+    return ac;
+}
+function clic(cuando, tipo) {      // tipo: 'uno' | 'pulso' | 'sub'
+    const c = audio(), o = c.createOscillator(), g = c.createGain();
+    o.type = tipo === 'sub' ? 'sine' : 'square';
+    o.frequency.value = tipo === 'uno' ? 1650 : tipo === 'pulso' ? 1100 : 800;
+    o.connect(g); g.connect(salida);
+    const v = tipo === 'sub' ? 0.12 : 0.28;
+    g.gain.setValueAtTime(v, cuando); g.gain.exponentialRampToValueAtTime(0.0001, cuando + (tipo === 'sub' ? 0.03 : 0.05));
+    o.start(cuando); o.stop(cuando + 0.06);
+}
+
+// ══ Motor: programa por adelantado con el reloj del audio ══════════════════════════════
+// El tempo cambia solo al comenzar un compás; cada N compases (sin contar la precuenta) sube +5 hasta el máximo.
+let sonando = false, timer = null;
+let M = null;           // { bpm, compas (n° de compás; negativo en la precuenta), pulso, sub, proximo (s), enEsteBpm }
+let marcas = [];        // pulsos programados: { t, compas, pulso, bpm, enEsteBpm, fin } para pintar a tiempo
+function tocar() {
+    if (sonando) { detener(); return; }
+    const c = audio();
+    salida = c.createGain(); salida.connect(c.destination);
+    sonando = true;
+    M = { bpm: AJ.min, compas: AJ.precuenta ? -1 : 0, pulso: 0, sub: 0, proximo: c.currentTime + 0.1, enEsteBpm: 0, fin: false };
+    marcas = [];
+    programar();
+    timer = setInterval(programar, 25);
+    pintarBoton();
+}
+function detener() {
+    if (!sonando) return;
+    sonando = false;
+    clearInterval(timer);
+    try { salida.gain.setValueAtTime(0, audio().currentTime); salida.disconnect(); } catch (_) {}
+    marcas = [];
+    document.querySelectorAll('.circ').forEach(x => x.classList.remove('on'));
+    document.getElementById('bpm').firstChild.textContent = AJ.min;
+    pintarEstado(); pintarBoton();
+}
+function programar() {
+    const c = audio();
+    const { pulsos } = COMPAS(AJ.compas);
+    const k = subdiv();
+    while (sonando && !M.fin && M.proximo < c.currentTime + 0.15) {
+        const dur = 60 / M.bpm / k;
+        if (M.sub === 0) {
+            clic(M.proximo, M.pulso === 0 && AJ.acento ? 'uno' : 'pulso');
+            marcas.push({ t: M.proximo, compas: M.compas, pulso: M.pulso, bpm: M.bpm, enEsteBpm: M.enEsteBpm });
+        } else clic(M.proximo, 'sub');
+        M.proximo += dur;
+        if (++M.sub < k) continue;
+        M.sub = 0;
+        if (++M.pulso < pulsos) continue;
+        // Fin de compás: ¿sube?
+        M.pulso = 0;
+        const eraPrecuenta = M.compas < 0;
+        M.compas++;
+        if (eraPrecuenta) continue;
+        M.enEsteBpm++;
+        if (M.enEsteBpm >= AJ.cada) {
+            if (M.bpm >= AJ.max) {
+                if (AJ.tope === 'detener') { M.fin = true; marcas.push({ t: M.proximo, fin: true }); }
+                else M.enEsteBpm = 0;
+            } else { M.bpm = Math.min(AJ.max, M.bpm + 5); M.enEsteBpm = 0; }
+        }
+    }
+}
+
+// ══ Pantalla ════════════════════════════════════════════════════════════════════════════
+let ultima = null;
+function pintarEstado(m) {
+    const el = document.getElementById('estado');
+    if (!m) { el.innerHTML = AJ.min === AJ.max ? `Fijo a <b>${AJ.min}</b>` : `De <b>${AJ.min}</b> a <b>${AJ.max}</b>, +5 cada <b>${AJ.cada}</b> compás${AJ.cada > 1 ? 'es' : ''}`; return; }
+    if (m.compas < 0) { el.innerHTML = '<b>Precuenta</b>'; return; }
+    const faltan = AJ.cada - m.enEsteBpm;
+    const en = `en <b>${faltan}</b> compás${faltan > 1 ? 'es' : ''}`;
+    el.innerHTML = `Compás <b>${m.compas + 1}</b> · ` + (m.bpm >= AJ.max
+        ? (AJ.tope === 'detener' ? `máximo · termina ${en}` : '<b>máximo</b>')
+        : `sube a <b>${Math.min(AJ.max, m.bpm + 5)}</b> ${en}`);
+}
+function cuadro() {
+    requestAnimationFrame(cuadro);
+    if (!sonando || !marcas.length) return;
+    const t = audio().currentTime - (ac.outputLatency || 0);
+    let m = null;
+    while (marcas.length && marcas[0].t <= t) m = marcas.shift();
+    if (!m || m === ultima) return;
+    ultima = m;
+    if (m.fin) { detener(); return; }
+    document.querySelectorAll('.circ').forEach((x, i) => x.classList.toggle('on', i === m.pulso));
+    document.getElementById('bpm').firstChild.textContent = m.bpm;
+    pintarEstado(m);
+}
+function pintarBoton() {
+    const b = document.getElementById('b-tocar');
+    b.textContent = sonando ? '■ Detener' : '▶ Tocar';
+    b.classList.toggle('on', sonando);
+}
+document.getElementById('b-tocar').onclick = e => { tocar(); e.target.blur(); };
+document.addEventListener('keydown', e => {
+    if (e.target.closest?.('input')) return;
+    if (e.code === 'Space' && document.getElementById('v-metro').classList.contains('on')) { e.preventDefault(); tocar(); }
+});
+
+pintarControles();
+requestAnimationFrame(cuadro);
+irPestana(leer('ritmos_pestana', 'metro'));
+</script>
+</body>
+</html>

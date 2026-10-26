@@ -6273,3 +6273,36 @@ opciones propuestas eligió solo las citas a apoderados).*
   melodías), con ✏️ por melodía y ＋ Nueva melodía; el piano, las melodías (primero las marcadas para Piano o Melódica).
   Solo esa lista del piano usa la base de datos; el enlace del estudiante (`?a=`) sigue sin tocarla. Prueba: menú con
   ambos; elegir "COQUETA — Mambo" en el piano lo abrió; ✏️ en el editor abrió la melodía (38 bloques).
+
+### DM. Ritmos: apartado con ⏱ Metrónomo (sube de a 5) y 🪘 Cajón
+*Origen: PO 2026-10-26 ("una app metrónomo… ir subiendo de 5 en 5 bpm cada cierta cantidad de compases; dentro de
+todo un apartado de ritmos, con la app de ritmos de cajón").*
+- **Necesidad:** practicar con el curso (o en casa) un ritmo que acelera de a poco, sin estar cambiando el tempo a mano.
+- **Decisión del PO (2026-10-26):**
+  - **Apartado Ritmos:** una pestaña del Workspace con pestañas propias arriba — ⏱ Metrónomo · 🪘 Cajón — y espacio
+    para sumar más; reemplaza a "🪘 Cajón" en el menú +.
+  - **Metrónomo:** cifra de compás, bpm mínimo, bpm máximo, sube **+5** cada N compases.
+  - Al llegar al máximo: **se queda o se detiene**, a elección del usuario.
+  - Ajustes: **acento en el 1** (apagable), **subdivisión** (corcheas o tresillos suaves), **precuenta** (1 compás).
+  - Vista **grande para proyectar**: bpm actual gigante, los tiempos como círculos que se encienden, "sube en N compases".
+- **Auditoría (2026-10-26):** el Cajón (`CAJON-PERUANO/index.html`, deuda CH) es una página suelta; solo la abre el
+  catálogo del Workspace (`cajon`), nadie más la enlaza → puede vivir dentro del apartado sin romper nada. No hay
+  metrónomo propio en el ecosistema (los de Metalófono/Editor/Piano son internos). No hace falta Supabase.
+- **Diseño (aprobado por el PO 2026-10-26):**
+  - `RITMOS/index.html` (página nueva): barra de pestañas ⏱ Metrónomo · 🪘 Cajón (el Cajón se carga adentro, tal cual,
+    al abrir su pestaña; la pestaña elegida se recuerda en el equipo). Workspace: "🥁 Ritmos" en lugar de "🪘 Cajón".
+  - Metrónomo: controles arriba (compás 2/4 · 3/4 · 4/4 · 5/4 · 6/8; mínimo; máximo; "subir +5 cada [4] compases";
+    al llegar al máximo: Quedarse / Detener; Acento en el 1; Subdivisión: no · corcheas · tresillos; Precuenta) y un
+    ▶ / ■ grande; todo se recuerda en el equipo. Al centro: el bpm actual muy grande, los círculos del compás (el 1 de
+    otro color), compás n° y "sube a 100 en 2 compases" (o "máximo"). Sonido sintetizado con reloj del audio (exacto);
+    Espacio = ▶ / ■. Si mínimo = máximo, es un metrónomo fijo.
+- **Lugares de uso (regla 11):** Workspace (menú +). Cajón: sin cambios por dentro.
+- **Implementación (2026-10-26):** `RITMOS/index.html` (página nueva): pestañas ⏱ Metrónomo · 🪘 Cajón (el Cajón se
+  carga adentro al abrir su pestaña y el metrónomo se detiene; la pestaña se recuerda). Metrónomo programado por
+  adelantado con el reloj del audio (exacto); el tempo cambia solo al empezar un compás; la precuenta (1 compás al bpm
+  mínimo) no cuenta para subir; 6/8 = 2 pulsos de negra con punto (la subdivisión son sus 3 corcheas); los ajustes se
+  recuerdan en el equipo; Espacio = ▶ / ■. Workspace: "🥁 Ritmos" reemplaza a "🪘 Cajón" en el menú +.
+- **Prueba (local):** con el reloj simulado, 100→110 de a 5 cada 2 compases con precuenta y "Se detiene": precuenta,
+  100 100 105 105 110 110 y termina solo; "Se queda": sigue en 110; 6/8 a 60: 2 pulsos por compás. En vivo: círculos
+  y "Compás 4 · sube a 85 en 1 compás"; la pestaña Cajón abre el Cajón y detiene el metrónomo. **No probado:** el
+  sonido real y en el proyector.

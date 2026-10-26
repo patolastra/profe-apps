@@ -71,3 +71,9 @@
 | 📒 Libros (pestaña fija) | iframe a la derecha de la lista de instancias (`LIBROS/`); el 📒 del Plan lleva aquí |
 | Pizarra | lo que el Libro proyecta (`libro-proyeccion.js`) |
 | Celular 📝 Evaluar | evaluaciones por toques (`MOVIL/evaluar.html`, mismas tablas) |
+
+## Ritmos (`RITMOS/index.html`, deuda DM)
+
+| Lugar | Cómo se abre |
+|---|---|
+| Workspace, menú + | 🥁 Ritmos: pestañas ⏱ Metrónomo · 🪘 Cajón (`CAJON-PERUANO/` adentro, sin cambios) |
