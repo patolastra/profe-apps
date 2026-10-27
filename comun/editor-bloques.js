@@ -6,13 +6,14 @@
 // El contenido es TEXTO con marcas simples, una línea por bloque (el mismo
 // formato de memorias.contenido, que también lee el celular):
 //   "# " "## " "### " títulos · "- " viñeta · "1. " numerada · "- [ ] "/"- [x] " casilla
-//   "---" separador · dentro del texto: **negrita** *cursiva* __subrayado__ {2:…} {3:…}
+//   "> " cita (deuda EB: Estudios) · "---" separador · dentro del texto: **negrita** *cursiva* __subrayado__ {2:…} {3:…}
 //
 // Uso:
 //   const ed = EditorBloques.crear(contenedor, { texto, alCambiar, vacio, alSubir, pie, tactil });
 //   tactil: celular (deuda BM) — sin ＋/⋮⋮ ni arrastrar; barra de formato sobre el teclado y
 //   toque largo (o ⋯ de la barra) = menú del bloque, con Subir / Bajar en vez de arrastrar.
 //   ed.texto() · ed.poner(texto) · ed.tieneAlgo() · ed.enfocar('inicio'|'fin') · ed.guardado(isoFecha)
+//   ed.insertar(texto) → agrega esos bloques después del último bloque donde se escribió (o al final) (deuda EB)
 //   EditorBloques.zona(elemento)   → ahí se puede arrastrar un marco para seleccionar bloques
 //   EditorBloques.html(texto, op)  → vista de solo lectura (HTML); op.objetivo como en crear
 //   objetivo: un párrafo que empieza con "O:" (o "OA:") es el objetivo y se destaca (Actividades del Plan, deuda BP)
@@ -31,6 +32,7 @@
         { t: 'ul',   ico: '•',  lbl: 'Viñetas' },
         { t: 'ol',   ico: '1.', lbl: 'Lista numerada' },
         { t: 'todo', ico: '☑',  lbl: 'Casilla' },
+        { t: 'cita', ico: '❝',  lbl: 'Cita' },
         { t: 'hr',   ico: '—',  lbl: 'Separador' },
     ];
     const LISTAS = new Set(['ul', 'ol', 'todo']);
@@ -53,6 +55,7 @@
             if ((m = linea.match(/^### (.*)$/)))                 return { id: nid(), t: 'h3', x: m[1] };
             if ((m = linea.match(/^## (.*)$/)))                  return { id: nid(), t: 'h2', x: m[1] };
             if ((m = linea.match(/^# (.*)$/)))                   return { id: nid(), t: 'h1', x: m[1] };
+            if ((m = linea.match(/^> ?(.*)$/)))                  return { id: nid(), t: 'cita', x: m[1] };
             if ((m = linea.match(/^[-*] \[( |x|X)\] ?(.*)$/)))   return { id: nid(), t: 'todo', x: m[2], c: m[1] !== ' ' };
             if ((m = linea.match(/^([-*•]) (.*)$/)))             return { id: nid(), t: 'ul', x: m[2], m: m[1] };
             if ((m = linea.match(/^\d+[.)] (.*)$/)))             return { id: nid(), t: 'ol', x: m[1] };
@@ -90,6 +93,7 @@
                 case 'ol': return n + '. ' + b.x;
                 case 'todo': return (b.c ? '- [x] ' : '- [ ] ') + b.x;
                 case 'hr': return '---';
+                case 'cita': return '> ' + b.x;
                 default: return b.x + (b.pegar ? '<br>' : '');
             }
         }).join('\n');
@@ -166,7 +170,7 @@
     function mdDeTexto(t) { return mdAHtml(t) === esc(t) ? t : escMd(t); }
     function mdAPlano(s) { const d = document.createElement('div'); d.innerHTML = mdAHtml(s); return d.textContent; }
     function mdAPlanoBloques(t) {
-        return t.split('\n').map(l => { const m = l.match(/^(#{1,3} |[-*•] \[[ xX]\] |[-*•] |\d+\. )?(.*)$/); return (m[1] || '') + mdAPlano(m[2]); }).join('\n');
+        return t.split('\n').map(l => { const m = l.match(/^(#{1,3} |> |[-*•] \[[ xX]\] |[-*•] |\d+\. )?(.*)$/); return (m[1] || '') + mdAPlano(m[2]); }).join('\n');
     }
 
     // ── Bloques en pantalla ─────────────────────────────────────────────
@@ -200,6 +204,8 @@
     function crear(cont, op = {}) {
         const I = { id: nid(), cont, op, bloques: aBloques(op.texto), actualizado: op.actualizado || null };
         instancias[I.id] = I;
+        // Último bloque donde se escribió: ahí se insertan las citas (deuda EB)
+        cont.addEventListener('focusin', e => { const b = e.target.closest?.('.eb-blq'); if (b) I.ultimo = b.dataset.id; });
         cont.classList.add('eb');
         cont.classList.toggle('eb-tactil', !!op.tactil);
         cont.dataset.eb = I.id;
@@ -217,6 +223,16 @@
                 if (b) enfocar(b.id, donde === 'inicio' ? 0 : 'fin');
             },
             guardado: iso => { I.actualizado = iso; },
+            insertar: t => {
+                const nuevos = aBloques(t); if (!nuevos.length) return;
+                const solo = I.bloques.length === 1 && I.bloques[0].t === 'p' && !I.bloques[0].x;
+                let pos = I.ultimo ? idx(I, I.ultimo) + 1 : 0;
+                if (pos <= 0) pos = I.bloques.length;
+                if (solo) I.bloques = nuevos; else I.bloques.splice(pos, 0, ...nuevos);
+                I.ultimo = nuevos[nuevos.length - 1].id;
+                pintar(I); cambio(I);
+                elDe(nuevos[0].id)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            },
             destruir: () => { delete instancias[I.id]; },
             el: cont,
         };

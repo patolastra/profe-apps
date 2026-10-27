@@ -6861,3 +6861,41 @@ propón algo").*
   comentario** (ancho fijo, se recuerda en el equipo, `libro_est_com`) al final de la barra del buscador; se combina
   con la búsqueda y con Pendientes. Prueba (5°): 34 / 30 / 4 filas; comentario largo abierto → fila 46 px igual, texto
   en el mismo lugar, cuadro de 76 px hacia abajo; al salir vuelve a una línea.
+
+---
+
+### EB. 📚 Estudios — ensayos en Cursos con citas de Profe Apps
+*Origen: PO 2026-10-27 ("quiero hacer estudios y poder citar muchas cosas de las que están en Profe Apps; ensayos
+escritos en Cursos, un apartado más").*
+- **Necesidad:** reflexionar por escrito sobre lo que pasa en clases (para sí mismo, para la UTP o un perfeccionamiento)
+  apoyándose en lo ya registrado, sin copiar a mano.
+- **Decisiones del PO (2026-10-27):** apartado **propio** en el menú de Cursos (no dentro de cada curso); se citan
+  **bitácoras y notas** y el **Libro**; la cita se **copia** dentro del texto (no es un enlace); uso: solo para el PO,
+  descargar Word/PDF y ayuda de IA.
+- **Auditoría:** Cursos ya tiene apartados propios en su menú (☀ Hoy, 🐞 Mejoras) y el editor por bloques compartido
+  (`comun/editor-bloques.js`), cuyo contenido es texto de una línea por bloque. Bitácoras en `memorias` (por sesión),
+  notas en `bitacora_paginas`; Libro en `libro_evaluaciones` + `libro_evaluacion_notas` + `libro_eval_instrumentos`/
+  `_items` + `libro_eval_resultados`. Falta una tabla para los estudios.
+- **Plan (4 pasos):** 1) **📚 Estudios** en el menú de Cursos: lista (título, fecha) + ＋ Nuevo; cada estudio con título
+  y el editor por bloques; tabla nueva `estudios` (`supabase/estudios.sql`). 2) **❝ Citar**: curso → Bitácoras y notas
+  (la clase o nota entera o algunos bloques) o Libro (evaluación: nombre, OA, rúbrica y resumen de resultados —
+  promedio, tramos, niveles por criterio—, **sin nombres de estudiantes**; comentarios uno por uno, también sin
+  nombre); se inserta como bloque **Cita** con su origen ("— 5° · Bitácora del lunes 14/10/26"). 3) ⬇ Word / PDF.
+  4) ✨ IA (Gemini) con vista previa que tapa nombres, iterable como la rúbrica. **Aprobados para empezar: 1 y 2.**
+- **Pieza compartida tocada:** el editor por bloques gana el tipo **Cita** (línea "> "; se ve con borde a la
+  izquierda) y `ed.insertar(texto)` (agrega bloques después del último bloque donde se escribió).
+- **Lugares de uso (regla 11):** el tipo Cita queda disponible en todos los editores por bloques (bitácora del Plan,
+  actividades, Historial, Cursos PC y celular) y se ve igual en las vistas de solo lectura; Estudios solo en Cursos (PC).
+- **Implementación (pasos 1 y 2):** `CURSOS/estudios.js` + `CURSOS/estudios.css` (`Estudios`, con `Citar` adentro);
+  Cursos (`CURSOS/index.html`): fila 📚 Estudios sobre 🐞 Mejoras, `modoEstudios`, guardado en la misma cadena
+  (`guardarTodo`), se recuerda el último estudio. Columna 2 = ＋ Nuevo estudio y la lista (título, fecha); página =
+  ❝ Citar · "Editado …" · 🗑 (al pasar el mouse) · título grande · editor. Guardado solo a los 0,8 s. Citar: curso
+  (se recuerda) · 📓 Bitácoras y notas | 📒 Libro → lista → casillas por bloque / por parte → "❝ Citar (n)" inserta
+  las líneas "> …" + "> *— origen*" después del último bloque donde se escribió. Libro: Evaluación y OA ·
+  Rúbrica/Lista de cotejo (instrumento de la cabecera o el primero) con descripciones de niveles · Resumen (evaluados,
+  promedio, tramos, niveles por criterio si hay resultados) · Comentarios (desmarcados, sin nombre; no se ofrece
+  "PDTE"). Editor por bloques: tipo **Cita** (`> `), `ed.insertar(texto)`; celular: caché `profe-movil-v13`.
+- **Prueba (local, tabla `estudios` simulada en memoria porque aún no existe; lecturas reales):** crear estudio,
+  título "Cueca en 5°" guardado; Citar → 5° → bitácora del 20/10 con 3 de 4 bloques → cita con su origen; Libro →
+  «Aló aló» → evaluación, OA, resumen (27 de 34, promedio 5,9, tramos 17/5/5/0) y 1 comentario sin nombre; otra
+  evaluación con rúbrica → criterios con sus 4 niveles. **Falta:** correr `supabase/estudios.sql` y uso real.

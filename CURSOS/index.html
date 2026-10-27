@@ -8,6 +8,7 @@
 <script src="../supabase/config.js"></script>
 <script src="../supabase/contextos.js"></script>
 <link rel="stylesheet" href="../comun/editor-bloques.css">
+<link rel="stylesheet" href="estudios.css">
 <script src="../comun/editor-bloques.js"></script>
 <link rel="stylesheet" href="../comun/pendientes.css">
 <script src="../comun/pendientes.js"></script>
@@ -213,6 +214,7 @@ const porK = {};             // k → entrada
 let cadenaGuardado = Promise.resolve();
 let modoHoy = null;          // fecha (YYYY-MM-DD) mientras se mira ☀ Hoy; null = un curso
 let modoMejoras = false;     // mirando 🐞 Mejoras de la app (deuda CO)
+let modoEstudios = false;    // mirando 📚 Estudios (deuda EB, CURSOS/estudios.js)
 let filtroMejoras = 'todo';
 let sinColumnaFecha = false;
 
@@ -243,11 +245,13 @@ function pintarCursos() {
         <span class="ico">☀</span><span class="nom">Hoy</span></div><div class="sep-lat"></div>`;
     contextos.forEach((c, i) => {
         const info = contextoInfo(c.nombre);
-        html += `<div class="fila${c.id === ctxActual && !modoHoy && !modoMejoras ? ' activa' : ''}" data-id="${c.id}" title="${esc(info.label)}">
+        html += `<div class="fila${c.id === ctxActual && !modoHoy && !modoMejoras && !modoEstudios ? ' activa' : ''}" data-id="${c.id}" title="${esc(info.label)}">
             <span class="ico">${info.icono || '📁'}</span><span class="nom">${esc(info.label)}</span></div>`;
         if (c.nombre === 'GENERAL' && i < contextos.length - 1) html += '<div class="sep-lat"></div>';
     });
-    html += `<div class="sep-lat"></div><div class="fila mejoras${modoMejoras ? ' activa' : ''}" data-id="__mejoras" title="🐞 Mejoras de la app: bugs e ideas anotados con /bug o /mejora">
+    html += `<div class="sep-lat"></div><div class="fila estudios${modoEstudios ? ' activa' : ''}" data-id="__estudios" title="📚 Estudios: ensayos con citas de bitácoras, notas y el Libro">
+        <span class="ico">📚</span><span class="nom">Estudios</span></div>`;
+    html += `<div class="fila mejoras${modoMejoras ? ' activa' : ''}" data-id="__mejoras" title="🐞 Mejoras de la app: bugs e ideas anotados con /bug o /mejora">
         <span class="ico">🐞</span><span class="nom">Mejoras</span></div>`;
     $('lista-ctx').innerHTML = html;
 }
@@ -255,6 +259,7 @@ $('lista-ctx').addEventListener('click', e => {
     const f = e.target.closest('.fila'); if (!f) return;
     if (f.dataset.id === '__hoy') abrirHoy(hoyISO());
     else if (f.dataset.id === '__mejoras') abrirMejoras();
+    else if (f.dataset.id === '__estudios') Estudios.abrir();
     else abrirCurso(f.dataset.id);
 });
 function nombreCtx(ctxId) { const c = contextos.find(x => x.id === ctxId); return c ? contextoInfo(c.nombre) : { label: '', icono: '' }; }
@@ -262,7 +267,7 @@ function nombreCtx(ctxId) { const c = contextos.find(x => x.id === ctxId); retur
 // ── Abrir un curso: arma su histórico ───────────────────────────────────
 async function abrirCurso(ctxId) {
     await guardarTodo();
-    modoHoy = null; modoMejoras = false;
+    modoHoy = null; modoMejoras = false; modoEstudios = false;
     $('hoy-nav').style.display = 'none';
     $('btn-nota').style.visibility = '';
     $('btn-pend').style.visibility = 'visible';
@@ -315,7 +320,7 @@ async function abrirCurso(ctxId) {
 // las borra.
 async function abrirMejoras() {
     await guardarTodo();
-    modoMejoras = true; modoHoy = null; ctxActual = null;
+    modoMejoras = true; modoHoy = null; ctxActual = null; modoEstudios = false;
     entradas.forEach(E => E.ed?.destruir()); entradas = [];
     Object.keys(porK).forEach(k => delete porK[k]);
     soltarPendientes();
@@ -387,7 +392,7 @@ $('pagina').addEventListener('click', async e => {
 // Una clase sin sesión todavía se ve vacía y la sesión se crea al escribir (como en el Planificador).
 async function abrirHoy(fecha) {
     await guardarTodo();
-    modoHoy = fecha; ctxActual = null; modoMejoras = false;
+    modoHoy = fecha; ctxActual = null; modoMejoras = false; modoEstudios = false;
     try { localStorage.setItem('profe_cursos_ultimo', '__hoy'); } catch (e) {}
     pintarCursos();
     // Segunda columna: las clases del día, para saltar entre ellas (PO 2026-10-22)
@@ -781,7 +786,7 @@ function guardarAhora(E) {
     cadenaGuardado = cadenaGuardado.then(() => guardar(E, contenido, titulo, fecha)).catch(() => {});
     return cadenaGuardado;
 }
-function guardarTodo() { entradas.forEach(E => { if (E.sucio) guardarAhora(E); }); return cadenaGuardado; }
+function guardarTodo() { entradas.forEach(E => { if (E.sucio) guardarAhora(E); }); if (typeof Estudios !== 'undefined') Estudios.guardar(); return cadenaGuardado; }
 async function guardar(E, contenido, titulo, fecha) {
     estado('Guardando…');
     const ahora = new Date().toISOString();
@@ -860,6 +865,7 @@ document.addEventListener('focusout', () => setTimeout(() => {
 let recargaPend = false;
 async function recargarCurso() {
     if (modoMejoras) { abrirMejoras(); return; }
+    if (modoEstudios) return;   // Estudios: lo escribe solo el profe; no se recarga solo
     if (!ctxActual && !modoHoy) return;
     if (document.activeElement?.closest?.('#pagina [contenteditable], #pagina input') || entradas.some(x => x.sucio)) { recargaPend = true; return; }
     recargaPend = false;
@@ -898,7 +904,9 @@ Pendientes.conectar(sb);
     const elegido = (q && contextos.find(c => c.nombre === q.toUpperCase())) || contextos.find(c => c.id === ultimo);
     if (elegido) irA(elegido.nombre, prm.get('nota'));
     else if (ultimo === '__hoy') abrirHoy(hoyISO());
+    else if (ultimo === '__estudios') Estudios.abrir();
 })();
 </script>
+<script src="estudios.js"></script>
 </body>
 </html>

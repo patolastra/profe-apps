@@ -3,7 +3,7 @@
 // todo lo demás (Workspace, Planificador…) pasa directo, como si no existiera.
 // Siempre pide primero a internet (así llegan las versiones nuevas) y, sin señal,
 // usa la última copia guardada.
-const CACHE = 'profe-movil-v12';
+const CACHE = 'profe-movil-v13';
 const PROPIAS = [
     'MOVIL/', 'MOVIL/index.html', 'MOVIL/evaluar.html', 'MOVIL/manifest.webmanifest',
     'MOVIL/icono-192.png', 'MOVIL/icono-512.png',

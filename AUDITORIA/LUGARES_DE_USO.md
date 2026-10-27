@@ -51,7 +51,7 @@
 
 | Pieza | Dónde se usa |
 |---|---|
-| `editor-bloques.js` | Cursos (curso y ☀ Hoy) · Plan: Actividades, ✍🏼 Bitácora, bitácora por actividad, Historial · celular Cursos (`tactil`) · Cuaderno · Pizarra (solo lectura) |
+| `editor-bloques.js` | Cursos (curso, ☀ Hoy y 📚 Estudios; tipo Cita y `insertar`, deuda EB) · Plan: Actividades, ✍🏼 Bitácora, bitácora por actividad, Historial · celular Cursos (`tactil`) · Cuaderno · Pizarra (solo lectura) |
 | `pendientes.js` | Dashboard (☀ Hoy y Todos) · Plan (pestaña Pendientes) · ✍🏼 Bitácora (Pendientes → fecha) · Cursos (columna ☑ Pendientes, curso y Hoy) · celular inicio |
 | `apoderados.js` | Dashboard (👪 y citas de hoy) · Plan (👪) · celular sin clase (👪 y citas de hoy) (en Cursos se quitó, DR) |
 | `asistencia.js` | Plan (Pasar lista) · Libro · Pizarra (espejo) · celular Evaluar · Workspace |
