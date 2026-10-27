@@ -6714,3 +6714,19 @@ una canción: versión oficial (melodía), karaoke, extractos (grabados por mí 
   A y B en "Martes 27", C en "Martes 20"; visor "A · 1 de 2" → › "B · 2 de 2", Esc cierra; Plan → 2 fotos en la ✍🏼
   Bitácora del 27 y 1 en el martes 20 del Historial; celular → igual. Fotos de prueba borradas (queda solo la guía
   real de 8°). **DU fases 1–4 hechas; falta probar en uso real (celular: cámara, audio, YouTube).**
+
+---
+
+### DV. Evaluar por toques — tap de tres dedos: un toque a todo el curso
+*Origen: PO 2026-10-27 ("en la evaluación por tap desde el cel hay que agregar un nuevo gesto: tap de tres dedos,
+eso implica que todo el curso tiene un punto menos").*
+- **Decisión del PO:** el tap de tres dedos suma **un toque a cada estudiante en pantalla** (lo mismo que tocar a cada
+  uno: descuenta lo que vale un toque en esa evaluación), no un punto entero de nota.
+- **Implementación (`MOVIL/evaluar.html`):** se cuentan los dedos de cada gesto; si llegan a 3 (rápido, sin arrastrar),
+  al levantarlos se suma un toque a todos los que están en pantalla (pendientes y presentes del grupo o curso elegido),
+  y los toques individuales bajo esos dedos no cuentan. Aviso rojo "+1 toque a todo el curso (n)" y vibración larga;
+  **↩ lo deshace para todos de una vez**. La ayuda del tablero lo menciona. Un gesto de 2 dedos no hace nada.
+- **Lugares de uso (regla 11):** solo Evaluar del celular (el Libro del PC no tiene toques).
+- **Prueba (local, tablero con 5 estudiantes ficticios, sin guardar):** 3 dedos sobre Ana, Beto y Caro → los 5 con 1
+  toque (sin dobles) y aviso "(5)"; un toque a Dani → 2; ↩ → Dani vuelve a 1; ↩ → todos a 0. **Falta:** probar con
+  tres dedos reales en el celular.

@@ -68,6 +68,12 @@
         #deshacer:disabled { opacity: .35; }
         #terminar { background: var(--accent); color: #fff; }
         .ayuda { color: var(--muted); font-size: .8rem; text-align: center; margin: 12px 0 4px; }
+        /* Tres dedos = un toque a todos (deuda DV): aviso breve */
+        #aviso-todos { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 50; background: #7f1d1d;
+            border: 2px solid #ef4444; color: #fff; font-weight: 800; font-size: 1.15rem; padding: 18px 24px; border-radius: 18px;
+            box-shadow: 0 10px 40px rgba(0,0,0,.6); text-align: center; pointer-events: none; }
+        #aviso-todos[hidden] { display: none; }
+        #main { touch-action: pan-y; }
     </style>
 </head>
 <body>
@@ -77,6 +83,7 @@
     <span id="red"></span>
 </div>
 <main id="main"><div class="msg">Cargando…</div></main>
+<div id="aviso-todos" hidden></div>
 <div id="pie" hidden>
     <button id="deshacer" disabled aria-label="Deshacer el último toque">↩</button>
     <button id="terminar">Terminar</button>
@@ -346,7 +353,7 @@ function pintarTablero() {
     $('terminar').disabled = false;
     $('main').innerHTML = `<div id="grid">${lista.map(n => `
         <button class="est ${claseToques(n.toques)}" data-id="${n.id}"><span class="n">${esc(n.visible)}</span>${n.toques ? `<span class="t">${n.toques}</span>` : ''}</button>`).join('')}</div>
-        <p class="ayuda">Toca para sumar un toque · mantén apretado para quitar uno</p>`;
+        <p class="ayuda">Toca para sumar un toque · mantén apretado para quitar uno · tres dedos: un toque a todos</p>`;
     $('main').querySelectorAll('.est').forEach(prepararToque);
 }
 function pintarUno(n) {
@@ -356,6 +363,44 @@ function pintarUno(n) {
     b.innerHTML = `<span class="n">${esc(n.visible)}</span>${n.toques ? `<span class="t">${n.toques}</span>` : ''}`;
     $('deshacer').disabled = !historial.length;
 }
+// ── Tres dedos = un toque a todos los que están en pantalla (deuda DV, PO 2026-10-27) ──
+// Se cuentan los dedos de cada gesto (pointer events del documento, antes que los de cada botón): si llegan a 3, los
+// toques de cada estudiante bajo los dedos no cuentan, y al levantar todos (rápido y sin arrastrar) se suma un toque a
+// cada uno; ↩ lo deshace para todos de una vez.
+let dedos = 0, maxDedos = 0, inicioGesto = 0, movido = false;
+const origen = {};
+document.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch') return;
+    if (dedos === 0) { maxDedos = 0; inicioGesto = Date.now(); movido = false; }
+    dedos++; maxDedos = Math.max(maxDedos, dedos);
+    origen[e.pointerId] = [e.clientX, e.clientY];
+}, true);
+document.addEventListener('pointermove', e => {
+    const o = origen[e.pointerId];
+    if (o && Math.hypot(e.clientX - o[0], e.clientY - o[1]) > 25) movido = true;
+}, true);
+const soltarDedo = e => {
+    if (e.pointerType !== 'touch' || !(e.pointerId in origen)) return;
+    delete origen[e.pointerId];
+    dedos = Math.max(0, dedos - 1);
+    if (dedos === 0 && maxDedos === 3 && !movido && e.type === 'pointerup' && Date.now() - inicioGesto < 700) toqueATodos();
+};
+document.addEventListener('pointerup', soltarDedo, true);
+document.addEventListener('pointercancel', soltarDedo, true);
+function toqueATodos() {
+    if (!document.getElementById('grid')) return;
+    const lista = enPantalla();
+    if (!lista.length) return;
+    lista.forEach(n => cambiar(n, +1, false));
+    historial.push({ todos: lista.map(n => n.id) });
+    $('deshacer').disabled = false;
+    try { navigator.vibrate?.([40, 60, 40, 60, 40]); } catch (_) {}
+    const av = $('aviso-todos');
+    av.textContent = `+1 toque a todo el curso (${lista.length})`;
+    av.hidden = false;
+    clearTimeout(av._t); av._t = setTimeout(() => { av.hidden = true; }, 1600);
+}
+
 function cambiar(n, delta, registrar = true) {
     const nuevo = Math.max(0, (n.toques || 0) + delta);
     if (nuevo === n.toques) return;
@@ -373,6 +418,7 @@ function prepararToque(b) {
         b.classList.add('golpe');
         timer = setTimeout(() => {
             largo = true; b.classList.remove('golpe');
+            if (maxDedos > 1) return;   // es un gesto de varios dedos, no el de este estudiante
             const est = n(); if (est && est.toques > 0) { cambiar(est, -1); try { navigator.vibrate?.([30, 40, 30]); } catch (_) {} }
         }, 550);
     });
@@ -382,7 +428,7 @@ function prepararToque(b) {
     const fin = () => { clearTimeout(timer); b.classList.remove('golpe'); };
     b.addEventListener('pointerup', () => {
         fin();
-        if (!activo || largo) { activo = false; return; }
+        if (!activo || largo || maxDedos > 1) { activo = false; return; }   // varios dedos: lo maneja toqueATodos
         activo = false;
         const est = n(); if (est) { cambiar(est, +1); try { navigator.vibrate?.(15); } catch (_) {} }
     });
@@ -393,6 +439,11 @@ function prepararToque(b) {
 $('deshacer').onclick = () => {
     const h = historial.pop();
     if (!h) return;
+    if (h.todos) {   // deshace el toque a todos (tres dedos) de una vez
+        h.todos.forEach(id => { const n = notas.find(x => x.id === id); if (n) cambiar(n, -1, false); });
+        $('deshacer').disabled = !historial.length;
+        return;
+    }
     const n = notas.find(x => x.id === h.id);
     if (n) cambiar(n, -h.delta, false);
     $('deshacer').disabled = !historial.length;
