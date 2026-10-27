@@ -559,6 +559,22 @@
             transition: background 0.12s;
         }
         .asset-item:hover { background: #dde6f0; }
+        /* ── EXTRACTOS Y VERSIONES (medios de la canción, deuda DU fase 3) ── */
+        .med-grupo { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 10px 0 4px; }
+        .med-grupo:first-child { margin-top: 0; }
+        .med-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; background: var(--bg); margin-bottom: 4px; }
+        .med-item:hover { background: #dde6f0; }
+        .med-nom { flex: 1; min-width: 0; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .med-meta { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+        .med-ver { margin: 0 0 8px; }
+        .med-ver audio, .med-ver video { width: 100%; max-height: 260px; border-radius: 8px; }
+        .med-vacio { font-size: 0.8rem; color: var(--muted); padding: 4px 0; }
+        .med-form { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0; padding: 10px; border: 1.5px dashed var(--border); border-radius: 8px; }
+        .med-form select, .med-form input { font: inherit; font-size: 0.82rem; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: #fff; min-width: 0; }
+        .med-form .ancho { grid-column: 1 / -1; }
+        .med-form .acc { grid-column: 1 / -1; display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+        .med-form .estado { flex: 1; font-size: 0.75rem; color: var(--muted); }
+        #medios-cancion.soltando { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 8px; }
         /* ── GRUPO TABLATURAS ── */
         .asset-group {
             border-radius: 8px;
@@ -3712,6 +3728,13 @@ function renderPanel() {
             <button class="btn-add-asset" onclick="abrirModalAsset('${c.id}')">+ Agregar asset</button>
         </div>
 
+        <div class="panel-section" id="medios-cancion">
+            <div class="panel-section-title">Extractos y versiones</div>
+            <div id="medios-lista"><div class="med-vacio">Cargando…</div></div>
+            <div id="medios-form"></div>
+            <button class="btn-add-asset" onclick="abrirFormMedio()">+ Agregar extracto o versión</button>
+        </div>
+
         ${(() => {
             // Lecciones asociadas a ESTA canción (todas sus tabs son de aquí) — derivado
             const lecs = leccionesDeCancion(c.id);
@@ -3737,7 +3760,141 @@ function renderPanel() {
             <button class="btn-danger" onclick="eliminarCancion('${c.id}')">🗑</button>
         </div>
     `;
+    cargarMediosCancion(c.id);   // Extractos y versiones (DU, fase 3)
 }
+
+// ══ EXTRACTOS Y VERSIONES DE LA CANCIÓN (deuda DU, fase 3) ═══════════════════
+// Son los medios de los cursos (📁 Archivos del curso, comun/archivos-curso.js) ligados a esta canción: Extractos
+// (grabados por el profe en clase) y Versiones (en vivo íntegras / trabajos finales; con estudiantes, nunca se
+// comparten). Se escuchan o ven aquí mismo (un enlace de YouTube/Drive se abre aparte); ✏️ abre los Archivos del curso
+// para cambiar canción, tipo o estudiantes. "+ Agregar" (o soltar un archivo en la sección) sube al curso elegido.
+let mediosCancion = [], mediosCursos = null, mediosSoltado = null;
+const MED_ICO = { audio: '🎧', video: '🎬', imagen: '🖼️', documento: '📄', otro: '📎' };
+async function cargarMediosCancion(cid) {
+    const lista = document.getElementById('medios-lista');
+    if (!lista) return;
+    const { data, error } = await sb.from('curso_archivos').select('*, contextos(nombre)').eq('cancion_id', cid)
+        .order('fecha', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false });
+    if (songActiva?.id !== cid) return;
+    if (error) {
+        lista.innerHTML = `<div class="med-vacio">${/cancion_id|column/i.test(error.message || '') ? 'Falta actualizar Supabase (medios.sql).' : 'No se pudo cargar — revisa la conexión.'}</div>`;
+        return;
+    }
+    mediosCancion = data || [];
+    pintarMediosCancion();
+}
+function pintarMediosCancion() {
+    const lista = document.getElementById('medios-lista');
+    if (!lista) return;
+    if (!mediosCancion.length) {
+        lista.innerHTML = '<div class="med-vacio">Sin extractos ni versiones todavía. Se agregan aquí (o soltando un archivo) o desde 📷 Subir del celular, y luego ✏️ en 📁 Archivos del curso.</div>';
+        return;
+    }
+    const fila = f => {
+        const ctx = f.contextos?.nombre || '';
+        const fecha = f.fecha ? f.fecha.split('-').reverse().slice(0, 2).join('/') : '';
+        const ver = f.url
+            ? `<a class="btn-icon" href="${escapar(f.url)}" target="_blank" rel="noopener" title="Abrir en ${f.url.includes('drive.google') ? 'Google Drive' : 'YouTube'}">🔗</a>`
+            : `<button class="btn-icon" onclick="verMedio('${f.id}')" title="Escuchar / ver aquí">▶</button>`;
+        return `<div class="med-item" data-id="${f.id}">
+            <span>${MED_ICO[f.tipo] || '📎'}</span>
+            <span class="med-nom" title="${escapar(f.nombre)}">${escapar(f.nombre)}</span>
+            <span class="med-meta" title="${escapar(ctxLabel(ctx))}">${ctxMinimo(ctx)} ${fecha}${f.estudiantes?.length ? ` · 👥 ${f.estudiantes.length}` : ''}</span>
+            ${ver}
+            <button class="btn-icon" onclick="editarMedio('${f.id}')" title="Cambiar canción, tipo o estudiantes (📁 Archivos del curso)">✏️</button>
+        </div><div class="med-ver" id="med-ver-${f.id}" hidden></div>`;
+    };
+    const grupos = [['extracto', 'Extractos'], ['version', 'Versiones · no se comparten'], [null, 'Otros']];
+    lista.innerHTML = grupos.map(([u, t]) => {
+        const g = mediosCancion.filter(f => (f.uso || null) === u);
+        return g.length ? `<div class="med-grupo">${t} (${g.length})</div>${g.map(fila).join('')}` : '';
+    }).join('');
+}
+function verMedio(id) {
+    const f = mediosCancion.find(x => x.id === id), cont = document.getElementById('med-ver-' + id);
+    if (!f || !cont) return;
+    if (!cont.hidden) { cont.hidden = true; cont.innerHTML = ''; return; }
+    const src = escapar(ArchivosCurso.url(f));
+    cont.innerHTML = f.tipo === 'audio' ? `<audio controls autoplay src="${src}"></audio>`
+        : f.tipo === 'video' ? `<video controls autoplay src="${src}"></video>`
+        : f.tipo === 'imagen' ? `<img src="${src}" alt="" style="max-width:100%;border-radius:8px">`
+        : `<a href="${src}" target="_blank" rel="noopener">Abrir</a>`;
+    cont.hidden = false;
+}
+function editarMedio(id) {
+    const f = mediosCancion.find(x => x.id === id);
+    if (!f) return;
+    ArchivosCurso.abrir({ sb, contextoId: f.contexto_id, ctxNombre: f.contextos?.nombre || '' });
+    // al cerrar la ventana, la lista de la canción se pone al día
+    const vigilar = setInterval(() => {
+        if (document.querySelector('.arc-capa')) return;
+        clearInterval(vigilar);
+        if (songActiva) cargarMediosCancion(songActiva.id);
+    }, 600);
+}
+async function abrirFormMedio(archivo) {
+    const cont = document.getElementById('medios-form');
+    if (!cont || !songActiva) return;
+    if (!mediosCursos) {
+        const { data } = await sb.from('contextos').select('id, nombre, activo');
+        const orden = CONTEXTOS.filter(x => x !== '|' && x !== 'PERSONAL');
+        mediosCursos = (data || []).filter(x => x.activo !== false && orden.includes(x.nombre))
+            .sort((a, b) => orden.indexOf(a.nombre) - orden.indexOf(b.nombre));
+    }
+    let ultimo = null; try { ultimo = localStorage.getItem('profe_medio_curso'); } catch (_) {}
+    mediosSoltado = archivo || null;
+    cont.innerHTML = `<div class="med-form">
+        <select id="med-curso"><option value="">Curso…</option>${mediosCursos.map(x =>
+            `<option value="${x.id}" ${x.id === ultimo ? 'selected' : ''}>${escapar(ctxLabel(x.nombre))}</option>`).join('')}</select>
+        <select id="med-uso"><option value="extracto">Extracto (grabado en clase)</option><option value="version">Versión (íntegra / trabajo final)</option></select>
+        ${archivo ? `<div class="ancho" style="font-size:0.82rem">📎 ${escapar(archivo.name)}</div>`
+            : `<input id="med-archivo" class="ancho" type="file" accept="audio/*,video/*,image/*">
+               <input id="med-enlace" class="ancho" placeholder="…o pega un enlace de YouTube / Drive">`}
+        <div class="acc"><span class="estado" id="med-estado"></span>
+            <button class="btn-secondary" onclick="document.getElementById('medios-form').innerHTML=''">Cancelar</button>
+            <button class="btn-primary" id="med-guardar" onclick="guardarMedio()">Guardar</button></div>
+    </div>`;
+}
+async function guardarMedio() {
+    const est = t => { const e = document.getElementById('med-estado'); if (e) e.textContent = t; };
+    const ctxId = document.getElementById('med-curso').value, uso = document.getElementById('med-uso').value;
+    if (!ctxId) { est('Elige el curso.'); return; }
+    const archivo = mediosSoltado || document.getElementById('med-archivo')?.files[0] || null;
+    const enlace = (document.getElementById('med-enlace')?.value || '').trim();
+    if (!archivo && !enlace) { est('Elige un archivo o pega un enlace.'); return; }
+    if (!archivo && !ArchivosCurso.esEnlace(enlace)) { est('El enlace debe ser de YouTube o Google Drive.'); return; }
+    try { localStorage.setItem('profe_medio_curso', ctxId); } catch (_) {}
+    const b = document.getElementById('med-guardar'); b.disabled = true;
+    const hoy = new Date();
+    const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+    const base = { contextoId: ctxId, cancionId: songActiva.id, uso, fecha, origen: 'biblioteca' };
+    try {
+        if (archivo) {
+            const f = await ArchivosCurso.prepararImagen(archivo);
+            if (f.size > ArchivosCurso.MAX_BYTES) { est('Pesa más de 50 MB: súbelo a YouTube (no listado) y pega el enlace.'); b.disabled = false; return; }
+            est('Subiendo…');
+            await ArchivosCurso.guardar(sb, { ...base, nombre: f.name, archivo: f, mime: f.type });
+        } else {
+            await ArchivosCurso.guardarEnlace(sb, { ...base, nombre: `${uso === 'version' ? 'Versión' : 'Extracto'} · ${songActiva.nombre}`, url: enlace });
+        }
+        mediosSoltado = null;
+        document.getElementById('medios-form').innerHTML = '';
+        toast(uso === 'version' ? 'Versión agregada (los estudiantes se anotan con ✏️).' : 'Extracto agregado.');
+        cargarMediosCancion(songActiva.id);
+    } catch (e) { est('No se pudo guardar — revisa la conexión.'); b.disabled = false; }
+}
+// Soltar un archivo en la sección "Extractos y versiones" abre el formulario con ese archivo.
+document.addEventListener('dragover', e => {
+    const sec = e.target.closest?.('#medios-cancion');
+    if (sec && e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); sec.classList.add('soltando'); }
+});
+document.addEventListener('dragleave', e => { e.target.closest?.('#medios-cancion')?.classList.remove('soltando'); });
+document.addEventListener('drop', e => {
+    const sec = e.target.closest?.('#medios-cancion');
+    if (!sec || !e.dataTransfer?.files?.length) return;
+    e.preventDefault(); sec.classList.remove('soltando');
+    abrirFormMedio(e.dataTransfer.files[0]);
+});
 
 // ══ ESTADO EDITORIAL DEL ASSET ═══════════════════════════════════════════════
 // Decisión de publicación del profesor. NO deriva de tab_sync ni de completitud.

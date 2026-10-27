@@ -6695,3 +6695,12 @@ una canción: versión oficial (melodía), karaoke, extractos (grabados por mí 
   se borró (queda solo la guía real de 8°). **Arreglos:** la foto achicada se nombra .jpg (antes conservaba .png); las
   etiquetas (🎵 canción · tipo · 👥 · 🔗) van en una segunda línea para que se vean aunque el nombre sea largo
   (`?v=du2`). **Falta:** probar en el celular real (cámara, audio, botón Subir a YouTube) y las fases 3 y 4.
+- **Fase 3 — Extractos y versiones en la ficha de la canción (2026-10-27):** en la Biblioteca (`REPERTORIO/index.html`),
+  bajo "Assets", la sección **Extractos y versiones** lista los medios de los cursos ligados a la canción, agrupados en
+  Extractos · Versiones (no se comparten) · Otros, con el ícono del curso, la fecha y 👥 n. ▶ los reproduce ahí mismo
+  (audio, video o foto); 🔗 abre un enlace de YouTube/Drive; ✏️ abre 📁 Archivos de ese curso (canción, tipo,
+  estudiantes) y al cerrarla la lista se pone al día. **+ Agregar extracto o versión** (o soltar un archivo en la
+  sección): curso, Extracto/Versión y archivo o enlace; se guarda en el curso ligado a la canción con fecha de hoy.
+  Prueba (local, "Aló, Aló"): sección vacía → se agregó un audio de prueba como Extracto de 5° y un enlace de YouTube
+  como Versión → "Extractos (1)" y "Versiones · no se comparten (1)"; ▶ cargó el audio (2 s, sin error) y 🔗 apunta
+  al enlace. Lo de prueba se borró. **Falta:** fase 4 (fotos en la bitácora) y uso real.
