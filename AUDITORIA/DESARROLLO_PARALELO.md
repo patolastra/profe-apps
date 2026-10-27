@@ -6582,3 +6582,10 @@ idea formal de OA").*
   diablo»", "5° básico" y el currículo de QUINTO BÁSICO; se ven las dos opciones; Usar (libre) deja ese texto en el campo
   y cierra el panel. No se creó ninguna evaluación. **No probado:** la respuesta real de Gemini (con la llave del PO) y
   la cabecera de una evaluación existente.
+- **Bug (PO 2026-10-27, con su llave): "No se pudo redactar; prueba de nuevo".** Causa probable: los modelos 2.5 de
+  Gemini "piensan" antes de responder y eso gasta la cuota de salida (estaba en 2048): la respuesta llegaba cortada y no
+  se podía leer en ningún modelo. **Arreglo:** cuota 8192 (como la Planificación), sin pensar en los 2.5
+  (`thinkingBudget: 0`), lectura tolerante (toma lo que está entre llaves aunque venga con texto o ``` alrededor) y, si
+  igual falla, el mensaje dice el motivo entre paréntesis (modelo + "respuesta incompleta (MAX_TOKENS)", HTTP, etc.).
+  Prueba con respuestas simuladas: cortada → "(gemini-2.0-flash: respuesta incompleta (MAX_TOKENS))"; con texto y ```
+  alrededor → se leen las dos opciones. **Falta:** que el PO pruebe de nuevo con su llave.

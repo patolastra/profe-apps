@@ -36,35 +36,42 @@ const RedactarOA = (() => {
         }
         return curriculos[n];
     }
+    // Los modelos 2.5 "piensan" antes de responder y eso consume la cuota de salida: con poca, la respuesta llega
+    // cortada. Aquí no hace falta pensar (thinkingBudget 0) y se deja espacio amplio, como en la Planificación.
+    // Si todos los modelos fallan, el error trae el motivo del último (se muestra al profe entre paréntesis).
     async function llamar(texto, llave) {
-        let ultimo = 'modelos';
+        let ultimo = 'modelos', detalle = '';
         for (const modelo of MODELOS) {
+            const generationConfig = { temperature: 0.6, maxOutputTokens: 8192, responseMimeType: 'application/json' };
+            if (/2\.5/.test(modelo)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
             let res;
             try {
                 res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': llave },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: texto }] }],
-                        generationConfig: { temperature: 0.6, maxOutputTokens: 2048, responseMimeType: 'application/json' },
-                    }),
+                    body: JSON.stringify({ contents: [{ parts: [{ text: texto }] }], generationConfig }),
                 });
             } catch (e) { throw new Error('red'); }
             if (res.status === 401 || res.status === 403) throw new Error('llave');
             if (res.status === 400) {
                 const j = await res.json().catch(() => ({}));
                 if (/api key/i.test(j?.error?.message || '')) throw new Error('llave');
+                detalle = `${modelo}: ${j?.error?.message || 'HTTP 400'}`;
                 continue;
             }
-            if (!res.ok) { if (res.status === 429) ultimo = 'cuota'; continue; }   // 404 / 429 / 5xx → otro modelo
+            if (!res.ok) { if (res.status === 429) ultimo = 'cuota'; detalle = `${modelo}: HTTP ${res.status}`; continue; }   // 404 / 429 / 5xx → otro modelo
             const j = await res.json();
             const out = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+            const ini = out.indexOf('{'), fin = out.lastIndexOf('}');
             try {
-                const o = JSON.parse(out.replace(/^```(?:json)?|```$/g, '').trim());
+                const o = JSON.parse(out.slice(ini, fin + 1));
                 if (o.oficial && o.libre) return { oficial: String(o.oficial).trim(), libre: String(o.libre).trim() };
-            } catch (_) {}
+                detalle = `${modelo}: faltan opciones`;
+            } catch (_) { detalle = `${modelo}: respuesta ${out ? 'incompleta' : 'vacía'} (${j.candidates?.[0]?.finishReason || 'sin motivo'})`; }
         }
-        throw new Error(ultimo);
+        console.warn('[RedactarOA]', detalle);
+        const e = new Error(ultimo); e.detalle = detalle;
+        throw e;
     }
     function instruccion(n, idea, nombreEval, cur) {
         return `Eres asesor curricular de Música para la educación básica en Chile. Un profesor de música de ${n}° básico ` +
@@ -128,7 +135,9 @@ const RedactarOA = (() => {
             if (m === 'llave') { try { localStorage.removeItem('gemini_api_key'); } catch (_) {} }
             estado(id, m === 'llave' ? 'La llave de Gemini no sirve; vuelve a intentarlo para pegar otra.'
                 : m === 'cuota' ? 'Gemini está ocupado (límite del plan gratis); prueba en un minuto.'
-                : m === 'red' ? 'Sin conexión.' : 'No se pudo redactar; prueba de nuevo.');
+                : m === 'red' ? 'Sin conexión.'
+                : m === 'curriculo' ? 'No se encontró el currículo del curso.'
+                : 'No se pudo redactar; prueba de nuevo.' + (e.detalle ? ` (${e.detalle})` : ''));
         } finally { btn.disabled = false; }
     }
 
