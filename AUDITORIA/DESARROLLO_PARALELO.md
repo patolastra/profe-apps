@@ -6754,3 +6754,23 @@ de la canción corresponde ese extracto").*
   y luego "primera" (Estrofa 1) → guardadas con su parte y listadas Estrofa 1 antes que Estrofa 3; ✏️ en Archivos
   mostró la parte guardada y las 11 sugerencias, se cambió a "Coro" → etiqueta "Extracto · Coro" y la ficha se puso
   al día. Lo de prueba se borró. **Falta:** uso real.
+
+---
+
+### DX. Plan — vincular tablaturas (y sus secciones) a las actividades
+*Origen: PO 2026-10-27 ("¿puedo linkear tabs a actividades de clases? necesito hacerlo").*
+- **Auditoría:** una actividad del Plan vincula 🎵 canciones, 🎹 melodías de metalófono y 🥁 ritmos (`plan_cards.canciones`
+  = `[{ cancion_id, asset_id? }]`, deudas BT y BX); las tablaturas no.
+- **Implementación (`PORTAL/index.html`, sin cambios en Supabase):** pestaña **🎸 Tablatura** en el selector de la
+  actividad, con cada tablatura del curso (o de la Biblioteca al buscar) y debajo **cada sección** ("▸ coro · solo esta
+  sección"); el vínculo guarda `{ cancion_id, asset_id, seccion? }` en la misma lista. Se ve como "🎸 Canción ·
+  Instrumento · Descripción · Dificultad · ▸ sección"; tocarlo (en la actividad, en la Presentación o en la vista de
+  clase) abre el **Lector** en una pestaña del Workspace (key `lector:<id>[:sección]`, como desde el Entrenador, deuda
+  CF), con la sección si la tiene. La vista de clase cuenta también "n tablaturas".
+- **Lugares de uso (regla 11):** actividad del Plan (ficha), Presentación (botones por actividad) y vista de clase.
+- **Prueba (local, Plan de 5° del 27/10, sin guardar vínculos):** el selector tiene 🎵 Canción · 🎹 Metalófono ·
+  🥁 Ritmo · 🎸 Tablatura; al buscar "baby", "🎸 Baby Shark · Guitarra · Arreglo de cuerdas… · Media" y debajo
+  "▸ intro / ▸ baby shark / ▸ modulación — solo esta sección" (y lo mismo para la de Bajo); un vínculo a la sección
+  "baby shark" se ve "🎸 Baby Shark · Guitarra · … · ▸ baby shark" y abre
+  `tabs/index.html?storage=tab/muuer8gdltcz.mxl&…&seccion=baby shark` (fuera del Workspace, en ventana nueva; dentro,
+  pestaña del Lector). Sin errores. **Falta:** uso real (vincular de verdad y abrir desde el Workspace).

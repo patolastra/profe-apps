@@ -938,6 +938,7 @@
         .pcanc-op:hover { background: #f1f5f9; }
         .pcanc-op b { display: block; font-size: 0.8rem; }
         .pcanc-op small { display: block; font-size: 0.7rem; color: var(--muted); }
+        .pcanc-op.sec { padding-left: 26px; }   /* sección de una tablatura (deuda DX) */
         .pcanc-op.ya { opacity: .4; cursor: default; }
         .pcanc-vacio { font-size: 0.75rem; color: var(--muted); padding: 4px 8px; }
         .pcard-ir { visibility: hidden; border: none; background: none; color: var(--muted); cursor: pointer; font-size: 0.8rem; padding: 2px 5px; border-radius: 4px; }
@@ -2461,7 +2462,7 @@ function pintarSecciones() {
             box.querySelector('.psec-cancs').addEventListener('click', e => {
                 const b = e.target.closest('.psec-canc'); if (!b) return;
                 e.stopPropagation();
-                abrirMini(b.dataset.id, box.dataset.act || null, b.dataset.asset);
+                abrirMini(b.dataset.id, box.dataset.act || null, b.dataset.asset, b.dataset.seccion);
             });
             box.querySelector('.psec-hdr').addEventListener('click', () => {
                 if (!box.classList.contains('vacio')) { irActividad(box.dataset.act || null); return; }
@@ -2498,7 +2499,7 @@ function pintarSecciones() {
             if (cs.length && !bibCanciones) cargarBib().then(() => pintarSecciones());
             box.querySelector('.psec-cancs').innerHTML = cs.map(x => {
                 const v = vinculo(x);
-                return `<button class="psec-canc" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" title="${v.ayuda}: ${esc(v.corto)}">${v.ico} ${esc(v.corto)}</button>`;
+                return `<button class="psec-canc" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" title="${v.ayuda}: ${esc(v.corto)}">${v.ico} ${esc(v.corto)}</button>`;
             }).join('');
         }
         const ta = box.querySelector('.psec-ta');
@@ -5024,14 +5025,15 @@ function menuPlanCard(c, boton) {
 // o de toda la Biblioteca; una canción que el curso no tiene se suma a su repertorio. Con asset_id (deuda BX) el
 // vínculo es una melodía de metalófono o un ritmo de esa canción: abre el Entrenador en ese recurso.
 let bibCanciones = null;      // Map id → { id, nombre, artista } (toda la Biblioteca, se carga una vez)
-let bibRecursos = null;       // Map id → recurso de metalófono o ritmo { id, cancion_id, tipo, etiqueta, … }
+let bibRecursos = null;       // Map id → recurso de metalófono, ritmo o tablatura { id, cancion_id, tipo, etiqueta, … }
 let bibCargando = null;
 // forzar: vuelve a leer la Biblioteca (al abrir el selector); mientras tanto se siguen viendo los datos que había.
 function cargarBib(forzar) {
     if (bibCanciones && !forzar) return Promise.resolve(bibCanciones);
     if (!bibCargando) bibCargando = Promise.all([
         sb.from('repertorio_canciones').select('id, nombre, artista'),
-        sb.from('repertorio_assets').select('id, cancion_id, tipo, etiqueta, dificultad, instrumento, tonalidad, orden').in('tipo', ['metalofono', 'ritmo'])
+        sb.from('repertorio_assets').select('id, cancion_id, tipo, etiqueta, dificultad, instrumento, tonalidad, orden, storage_path, nombre_archivo, tab_sync')
+            .in('tipo', ['metalofono', 'ritmo', 'tab'])
     ]).then(([rc, ra]) => {
         bibCargando = null;
         if (rc.error) return bibCanciones || new Map();
@@ -5043,20 +5045,22 @@ function cargarBib(forzar) {
 }
 const VINC_TIPO = { cancion: { ico: '🎵', uno: 'canción', varios: 'canciones' },
                     metalofono: { ico: '🎹', uno: 'metalófono', varios: 'metalófonos' },
-                    ritmo: { ico: '🥁', uno: 'ritmo', varios: 'ritmos' } };
+                    ritmo: { ico: '🥁', uno: 'ritmo', varios: 'ritmos' },
+                    tab: { ico: '🎸', uno: 'tablatura', varios: 'tablaturas' } };   // deuda DX
 // Cómo se ve un vínculo: tipo, ícono, canción y (recursos) descripción con el nombre de cortesía (comun/nombre-asset.js).
 function vinculo(x) {
     const so = bibCanciones?.get(x.cancion_id);
     const cancion = so?.nombre || (bibCanciones ? 'Canción no encontrada' : '…');
     if (!x.asset_id) return { tipo: 'cancion', ico: '🎵', nom: cancion, sub: so?.artista || '', corto: cancion, ayuda: 'Ver la letra' };
     const r = bibRecursos?.get(x.asset_id);
-    const tipo = r?.tipo === 'ritmo' ? 'ritmo' : 'metalofono';
+    const tipo = r?.tipo === 'ritmo' ? 'ritmo' : r?.tipo === 'tab' ? 'tab' : 'metalofono';
     const p = r ? partesAsset(r) : {};
-    const sub = r ? [p.descripcion, p.dificultad].filter(Boolean).join(' · ') : (bibRecursos ? 'Recurso no encontrado' : '');
+    const sub = r ? [tipo === 'tab' ? p.instrumento : '', p.descripcion, p.dificultad, x.seccion ? '▸ ' + x.seccion : ''].filter(Boolean).join(' · ')
+                  : (bibRecursos ? 'Recurso no encontrado' : '');
     return { tipo, ico: VINC_TIPO[tipo].ico, nom: cancion, sub, corto: cancion + (sub ? ' · ' + sub : ''),
-             ayuda: tipo === 'ritmo' ? 'Abrir el ritmo' : 'Abrir la melodía en el metalófono' };
+             ayuda: tipo === 'ritmo' ? 'Abrir el ritmo' : tipo === 'tab' ? 'Abrir en el Lector de tablaturas' : 'Abrir la melodía en el metalófono' };
 }
-const vincClave = x => x.cancion_id + (x.asset_id ? ':' + x.asset_id : '');
+const vincClave = x => x.cancion_id + (x.asset_id ? ':' + x.asset_id : '') + (x.seccion ? ':' + x.seccion : '');
 // La Biblioteca cambió en otro equipo o pestaña (deuda BE): canciones y recursos de metalófono o ritmo nuevos,
 // editados o borrados se ven al instante en las actividades y en el selector abierto.
 let pcancRepintar = null;   // repinta el selector 🎵 si está abierto
@@ -5075,7 +5079,7 @@ TiempoReal.escuchar('repertorio_canciones', ({ evento, nuevo, viejo }) => {
 TiempoReal.escuchar('repertorio_assets', ({ evento, nuevo, viejo }) => {
     if (!bibRecursos) return;
     if (evento === 'DELETE') { if (!bibRecursos.delete(viejo?.id)) return; }
-    else if (nuevo?.id && ['metalofono', 'ritmo'].includes(nuevo.tipo)) bibRecursos.set(nuevo.id, nuevo);
+    else if (nuevo?.id && ['metalofono', 'ritmo', 'tab'].includes(nuevo.tipo)) bibRecursos.set(nuevo.id, nuevo);
     else return;
     bibRepintar();
 });
@@ -5105,7 +5109,7 @@ function pintarCancionesCard(c, el) {
         if (x) { e.stopPropagation(); quitarCancionCard(c, +x.dataset.k); return; }
         const f = e.target.closest('.pcard-canc');
         const v = f && cancionesDe(c)[+f.dataset.k];
-        if (v) abrirMini(v.cancion_id, c.id, v.asset_id);
+        if (v) abrirMini(v.cancion_id, c.id, v.asset_id, v.seccion);
     };
 }
 
@@ -5171,13 +5175,19 @@ async function elegirCancion(c, boton) {
     if (!pop.isConnected) return;
     const enCurso = new Set(curso);
     const norm = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    const ya = (id, aid) => cancionesDe(c).some(x => x.cancion_id === id && (x.asset_id || '') === (aid || ''));
-    const fila = (id, aid) => {
+    const ya = (id, aid, sec) => cancionesDe(c).some(x => x.cancion_id === id && (x.asset_id || '') === (aid || '') && (x.seccion || '') === (sec || ''));
+    const fila = (id, aid, sec) => {
         const s = bibCanciones.get(id); if (!s) return '';
-        const v = vinculo({ cancion_id: id, asset_id: aid });
-        const esta = ya(id, aid);
-        return `<button class="pcanc-op${esta ? ' ya' : ''}" data-id="${id}" data-asset="${aid || ''}" ${esta ? 'disabled title="Ya está en la actividad"' : ''}>
-            <b>${aid ? v.ico + ' ' : ''}${esc(s.nombre || '')}</b><small>${esc(v.sub)}</small></button>`;
+        const v = vinculo({ cancion_id: id, asset_id: aid, seccion: sec });
+        const esta = ya(id, aid, sec);
+        return `<button class="pcanc-op${esta ? ' ya' : ''}${sec ? ' sec' : ''}" data-id="${id}" data-asset="${aid || ''}" data-seccion="${esc(sec || '')}" ${esta ? 'disabled title="Ya está en la actividad"' : ''}>
+            <b>${sec ? '▸ ' + esc(sec) : (aid ? v.ico + ' ' : '') + esc(s.nombre || '')}</b><small>${esc(sec ? 'solo esta sección' : v.sub)}</small></button>`;
+    };
+    // Tablatura (deuda DX): la tablatura completa y, debajo, cada una de sus secciones.
+    const filas = ([id, aid]) => {
+        const r = aid && bibRecursos?.get(aid);
+        if (r?.tipo !== 'tab') return fila(id, aid);
+        return fila(id, aid) + (r.tab_sync?.secciones || []).map(sc => fila(id, aid, sc.nombre)).join('');
     };
     pintar = () => {
         const bib = bibCanciones || bib0;   // al día: la Biblioteca puede cambiar con el selector abierto
@@ -5200,10 +5210,10 @@ async function elegirCancion(c, boton) {
         }
         const nada = tipo === 'cancion' ? 'El curso aún no tiene canciones.' : `El curso aún no tiene ${VINC_TIPO[tipo].varios}.`;
         let html = `<div class="pcanc-tit">Del curso</div>` +
-            (delCurso.length ? delCurso.map(([id, aid]) => fila(id, aid)).join('') : `<div class="pcanc-vacio">${t ? 'Ninguno coincide.' : nada}</div>`);
+            (delCurso.length ? delCurso.map(filas).join('') : `<div class="pcanc-vacio">${t ? 'Ninguno coincide.' : nada}</div>`);
         if (t) {
             html += `<div class="pcanc-tit">Biblioteca <small>(su canción se suma al curso)</small></div>` +
-                (otras.length ? otras.map(([id, aid]) => fila(id, aid)).join('') : '<div class="pcanc-vacio">Ninguno coincide.</div>');
+                (otras.length ? otras.map(filas).join('') : '<div class="pcanc-vacio">Ninguno coincide.</div>');
         } else {
             html += '<div class="pcanc-vacio">Escribe para buscar en toda la Biblioteca.</div>';
         }
@@ -5219,13 +5229,13 @@ async function elegirCancion(c, boton) {
     pop.addEventListener('click', async e => {
         e.stopPropagation();
         const op = e.target.closest('.pcanc-op'); if (!op || op.disabled) return;
-        const id = op.dataset.id, aid = op.dataset.asset || null;
+        const id = op.dataset.id, aid = op.dataset.asset || null, sec = op.dataset.seccion || null;
         cerrar();
         if (!enCurso.has(id)) {
             try { await sumarAlCurso(id); }
             catch (_) { planEstado('No se pudo sumar la canción al repertorio del curso — revisa la conexión.', true); return; }
         }
-        c.canciones = [...cancionesDe(c), aid ? { cancion_id: id, asset_id: aid } : { cancion_id: id }];
+        c.canciones = [...cancionesDe(c), aid ? { cancion_id: id, asset_id: aid, ...(sec ? { seccion: sec } : {}) } : { cancion_id: id }];
         pintarCancionesCard(c);
         pintarSecciones();
         guardarCancionesCard(c);
@@ -5239,8 +5249,27 @@ async function elegirCancion(c, boton) {
 // con la barra de siempre); con la clase de ESTA sesión en curso, la letra va también a la Pizarra (el
 // espejo de "📽️ Pizarra"). ✕ (o ← / Esc del Entrenador) lo cierra y la Pizarra vuelve a su diapositiva.
 let miniAct = null;   // actividad de la canción abierta en el Entrenador mínimo (en clase, es la actividad en curso)
-async function abrirMini(cancionId, actId, assetId) {
+// Tablatura vinculada a una actividad (deuda DX): se abre en el Lector, en una pestaña del Workspace (como desde el
+// Entrenador, deuda CF); con sección, solo esa parte.
+function abrirTabLector(asset, seccion) {
+    if (!asset?.storage_path) { planEstado('Esa tablatura no tiene archivo.', true); return; }
+    const params = new URLSearchParams({ storage: asset.storage_path, nombre: asset.nombre_archivo || asset.etiqueta || 'tab' });
+    if (seccion) params.set('seccion', seccion);
+    const src = `../tabs/index.html?${params}`;
+    const corto = nombreAsset(asset, bibCanciones?.get(asset.cancion_id)?.nombre);
+    if (window.parent && window.parent !== window) {
+        try {
+            window.parent.postMessage({ tipo: 'ws-abrir', key: `lector:${asset.id}${seccion ? ':' + seccion : ''}`,
+                titulo: seccion ? `${corto} · ${seccion}` : corto, ico: '🎸', src }, '*');
+            return;
+        } catch (_) {}
+    }
+    window.open(src, '_blank');
+}
+async function abrirMini(cancionId, actId, assetId, seccion) {
     if (!cancionId || !sesionActual) return;
+    const rec = assetId && bibRecursos?.get(assetId);
+    if (rec?.tipo === 'tab') { abrirTabLector(rec, seccion); return; }   // tablatura (deuda DX): al Lector
     miniAct = actId || null;
     const curso = await cancionesDelCurso();
     const sid = entrenamientoDefaultId;
@@ -5328,8 +5357,8 @@ function claseItems() {
 }
 function claseMeta(it) {
     const n = document.querySelectorAll(`#prev-body .slide-prev[data-act="${it.id}"]`).length;
-    const k = { cancion: 0, metalofono: 0, ritmo: 0 };
-    (it.card ? cancionesDe(it.card) : []).forEach(x => k[!x.asset_id ? 'cancion' : bibRecursos?.get(x.asset_id)?.tipo === 'ritmo' ? 'ritmo' : 'metalofono']++);
+    const k = { cancion: 0, metalofono: 0, ritmo: 0, tab: 0 };
+    (it.card ? cancionesDe(it.card) : []).forEach(x => k[!x.asset_id ? 'cancion' : vinculo(x).tipo]++);
     return [it.card && esLibre(it.card) ? '⏱ ' + minutosLibre(it.card) + ' minutos' : '',
         n ? n + (n === 1 ? ' diapositiva' : ' diapositivas') : '',
         ...Object.entries(k).map(([t, m]) => m ? m + ' ' + (m === 1 ? VINC_TIPO[t].uno : VINC_TIPO[t].varios) : '')].filter(Boolean).join(' · ');
@@ -5391,7 +5420,7 @@ function pintarClaseDer() {
     try { cols = localStorage.getItem('profe_clase_cols') === '4' ? 4 : 3; } catch (_) {}
     // Las canciones van como diapositivas moradas (repertorio), antes de las diapositivas de la actividad.
     const cancHTML = cs.map(x => { const v = vinculo(x);
-        return `<button class="cl-canc" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" title="${v.ayuda}"><span class="cl-canc-ico">${v.ico}</span>
+        return `<button class="cl-canc" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" title="${v.ayuda}"><span class="cl-canc-ico">${v.ico}</span>
             <span class="cl-canc-nom">${esc(v.nom)}</span>${v.sub ? `<span class="cl-canc-art">${esc(v.sub)}</span>` : ''}</button>`; }).join('');
     panel.innerHTML = `<div class="cl-top"><div class="cl-cancs"></div>
             <div class="cl-cols" title="Diapositivas por fila">Por fila <button data-n="3" class="${cols === 3 ? 'on' : ''}">3</button><button data-n="4" class="${cols === 4 ? 'on' : ''}">4</button></div></div>
@@ -5548,7 +5577,7 @@ document.getElementById('clase-panel')?.addEventListener('click', e => {
     const n = e.target.closest('.cl-cols button');
     if (n) { try { localStorage.setItem('profe_clase_cols', n.dataset.n); } catch (_) {} pintarClaseDer(); return; }
     const canc = e.target.closest('.cl-canc');
-    if (canc) { abrirMini(canc.dataset.id, claseSel || null, canc.dataset.asset); return; }
+    if (canc) { abrirMini(canc.dataset.id, claseSel || null, canc.dataset.asset, canc.dataset.seccion); return; }
     if (e.target.closest('.libre-prev')) {   // Tiempo libre: pide confirmar los minutos (si no está corriendo)
         const a = Recurrentes.actual();
         if (!(a && a.sesionId === sesionActual?.id && a.diapo === 'libre')) { libreConfirmar = true; pintarLibre(); }
