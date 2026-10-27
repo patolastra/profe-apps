@@ -6595,3 +6595,5 @@ idea formal de OA").*
   y el "Recargar" del Workspace (`PC/workspace.html`) recorre también las páginas dentro de otras (Libro en Libros,
   Cajón en Ritmos). Prueba (local): con 📒 Libros abierto en 5°, Recargar pidió al servidor 36 archivos, entre ellos
   `LIBRO/index.html` y `comun/redactar-oa.js?v=ds2`.
+- **Validado por el PO (2026-10-27):** ✨ Redactar OA funciona con su llave de Gemini. Cierre: hecho y probado en uso;
+  queda por ver en el uso diario si las dos redacciones sirven.
