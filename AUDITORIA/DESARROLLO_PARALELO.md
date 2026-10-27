@@ -6589,3 +6589,9 @@ idea formal de OA").*
   igual falla, el mensaje dice el motivo entre paréntesis (modelo + "respuesta incompleta (MAX_TOKENS)", HTTP, etc.).
   Prueba con respuestas simuladas: cortada → "(gemini-2.0-flash: respuesta incompleta (MAX_TOKENS))"; con texto y ```
   alrededor → se leen las dos opciones. **Falta:** que el PO pruebe de nuevo con su llave.
+- **Seguía fallando sin motivo entre paréntesis (PO 2026-10-27):** el navegador del PO seguía con la versión anterior de
+  `redactar-oa.js`. Causa: el Libro vive **dentro** de la pestaña 📒 Libros y el "Recargar" del Workspace renovaba solo
+  los archivos de cada pestaña, no los de una página dentro de otra. **Arreglo:** el Libro pide `redactar-oa.js?v=ds2`
+  y el "Recargar" del Workspace (`PC/workspace.html`) recorre también las páginas dentro de otras (Libro en Libros,
+  Cajón en Ritmos). Prueba (local): con 📒 Libros abierto en 5°, Recargar pidió al servidor 36 archivos, entre ellos
+  `LIBRO/index.html` y `comun/redactar-oa.js?v=ds2`.

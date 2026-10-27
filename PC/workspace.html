@@ -554,9 +554,20 @@ async function recargarVersionNueva() {
     }
     // 2) Traer del servidor las páginas abiertas y sus scripts/estilos (refresca la copia del navegador).
     const urls = new Set([location.href.split('#')[0]]);
-    const agregar = (doc) => doc.querySelectorAll('script[src], link[rel="stylesheet"][href]').forEach(el => {
-        const u = el.src || el.href; if (u && u.startsWith(location.origin)) urls.add(u);
-    });
+    // También las páginas que van dentro de otra pestaña (el Libro dentro de 📒 Libros, el Cajón dentro de 🥁 Ritmos):
+    // si no, sus scripts quedaban con la copia anterior del navegador (deuda DS).
+    const agregar = (doc) => {
+        if (!doc) return;
+        doc.querySelectorAll('script[src], link[rel="stylesheet"][href]').forEach(el => {
+            const u = el.src || el.href; if (u && u.startsWith(location.origin)) urls.add(u);
+        });
+        doc.querySelectorAll('iframe').forEach(f => {
+            try {
+                const h = f.contentWindow.location.href;
+                if (h.startsWith(location.origin)) { urls.add(h.split('#')[0]); agregar(f.contentDocument); }
+            } catch (_) {}
+        });
+    };
     agregar(document);
     tabs.forEach(t => {
         try { urls.add(t.iframeEl.contentWindow.location.href.split('#')[0]); agregar(t.iframeEl.contentDocument); } catch (_) {}
