@@ -6704,3 +6704,13 @@ una canción: versión oficial (melodía), karaoke, extractos (grabados por mí 
   Prueba (local, "Aló, Aló"): sección vacía → se agregó un audio de prueba como Extracto de 5° y un enlace de YouTube
   como Versión → "Extractos (1)" y "Versiones · no se comparten (1)"; ▶ cargó el audio (2 s, sin error) y 🔗 apunta
   al enlace. Lo de prueba se borró. **Falta:** fase 4 (fotos en la bitácora) y uso real.
+- **Fase 4 — fotos de la clase en su bitácora (2026-10-27):** pieza `comun/fotos-clase.js` (`FotosClase`): una foto
+  de 📁 Archivos es de una clase si tiene su `sesion_id`, o si no tiene clase pero es del mismo curso y fecha; se
+  muestran como miniaturas sobre el texto de la bitácora y al tocarlas se ven en grande (‹ › entre las de la clase,
+  Esc o toque fuera cierra). Lugares: **Cursos PC** (página del curso y ☀ Hoy), **Plan** (✍🏼 Bitácora de la clase y
+  🕘 Historial) y **Cursos del celular** (sumada a `sw-movil.js` v12 y a "Cargar versión nueva"). Sin fotos o sin
+  señal, la bitácora se ve igual.
+  Prueba (local, 5°, 3 fotos de prueba: A y B ligadas a la clase del 27/10, C sin clase con fecha 20/10): Cursos PC →
+  A y B en "Martes 27", C en "Martes 20"; visor "A · 1 de 2" → › "B · 2 de 2", Esc cierra; Plan → 2 fotos en la ✍🏼
+  Bitácora del 27 y 1 en el martes 20 del Historial; celular → igual. Fotos de prueba borradas (queda solo la guía
+  real de 8°). **DU fases 1–4 hechas; falta probar en uso real (celular: cámara, audio, YouTube).**

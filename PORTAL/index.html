@@ -25,6 +25,7 @@
     <script src="../comun/tiempo-real.js"></script>
     <link rel="stylesheet" href="../comun/cuaderno.css">
     <script src="../comun/cuaderno.js"></script>
+    <script src="../comun/fotos-clase.js?v=du4"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -1547,6 +1548,7 @@
             </span>
         </div>
         <div id="mem-audios"></div>
+        <div id="mem-fotos"></div>
         <div id="mem-editor"></div>
         <div id="mem-tareas">
             <div id="mem-tareas-hdr">
@@ -5637,6 +5639,15 @@ async function cargarCurso() {
     });
     pane.innerHTML = html;
     body.scrollTop = y;
+    // 🖼️ Fotos de cada clase (deuda DU, fase 4), sobre su texto
+    const clases = lista.filter(E => E.tipo === 'clase').map(E => ({ sesionId: E.sesionId, cid, fecha: E.fecha }));
+    FotosClase.para(sb, clases).then(m => {
+        if (!sesionActual || sesionActual.id !== sid) return;
+        m.forEach((fotos, s) => {
+            const caja = pane.querySelector(`.cur-ent[data-k="c${s}"] .cur-ent-body`);
+            if (caja) { caja.insertAdjacentHTML('afterbegin', FotosClase.html(fotos)); caja.closest('.cur-ent').classList.remove('vacia'); }
+        });
+    });
 }
 function cursoCuerpo(E) {
     const audios = (E.audios || []).map(memAudioHtml).join('');
@@ -5742,6 +5753,11 @@ async function abrirMemoria() {
     const audios = Array.isArray(data?.audios) ? data.audios : [];
     document.getElementById('mem-audios').innerHTML = audios.map(memAudioHtml).join('');
     document.getElementById('mem-status').textContent = '';
+    // 🖼️ Fotos de esta clase (deuda DU, fase 4)
+    document.getElementById('mem-fotos').innerHTML = '';
+    FotosClase.para(sb, [{ sesionId: sid, cid: sesionActual.contexto_id, fecha: sesionActual.fecha }]).then(m => {
+        if (sesionActual?.id === sid) document.getElementById('mem-fotos').innerHTML = FotosClase.html(m.get(sid));
+    });
 
     cargarTareas();   // Fase 1: pendientes para la próxima clase
 }

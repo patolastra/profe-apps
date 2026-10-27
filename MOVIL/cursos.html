@@ -15,6 +15,7 @@
 <script src="../comun/editor-bloques.js"></script>
 <script src="../comun/pendientes.js"></script>
 <script src="../comun/tiempo-real.js"></script>
+<script src="../comun/fotos-clase.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 :root {
@@ -273,7 +274,7 @@ function pintarPagina() {
             ? `<div class="ent-tit">${esc(tituloFecha(E.fecha))}</div><div class="ent-meta">${E.fecha === hoy ? '<span class="hoy">Hoy</span>' : 'Clase'}</div>`
             : `<div class="ent-tit" contenteditable="plaintext-only" spellcheck="true"></div>
                <div class="ent-meta">📝 <input type="date" value="${E.fecha}" max="${hoy}"><button class="ent-menu" title="Opciones de la nota">⋯</button></div>`;
-        h += `<section class="entrada ${E.tipo}" data-k="${E.k}"><div class="ent-cab">${cab}</div><div class="ent-audios"></div><div class="ent-editor"></div></section>`;
+        h += `<section class="entrada ${E.tipo}" data-k="${E.k}"><div class="ent-cab">${cab}</div><div class="ent-audios"></div><div class="ent-fotos"></div><div class="ent-editor"></div></section>`;
     });
     $('pagina').innerHTML = h;
     entradas.forEach(E => {
@@ -300,6 +301,17 @@ function pintarPagina() {
         });
     });
     $('btn-nota').onclick = nuevaNota;
+    // 🖼️ Fotos de cada clase (deuda DU, fase 4)
+    const ctxPag = ctxActual;
+    FotosClase.para(sb, entradas.filter(E => E.tipo === 'clase').map(E => ({ sesionId: E.sesionId, cid: ctxPag, fecha: E.fecha })))
+        .then(m => {
+            if (ctxActual !== ctxPag) return;
+            m.forEach((fotos, s) => {
+                const E = entradas.find(x => x.tipo === 'clase' && x.sesionId === s);
+                const el = E && secDe(E.k)?.querySelector('.ent-fotos');
+                if (el) el.innerHTML = FotosClase.html(fotos);
+            });
+        });
 }
 const secDe = k => document.querySelector(`.entrada[data-k="${k}"]`);
 const entDe = el => entradas.find(E => E.k === el.closest('.entrada')?.dataset.k);
