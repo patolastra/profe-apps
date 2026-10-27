@@ -12,7 +12,7 @@
     <script src="../comun/volumen.js"></script>
     <script src="../comun/nombre-asset.js"></script>
     <link rel="stylesheet" href="../comun/archivos-curso.css?v=du2">
-    <script src="../comun/archivos-curso.js?v=du2"></script>
+    <script src="../comun/archivos-curso.js?v=dw1"></script>
     <link rel="stylesheet" href="../comun/compartir.css">
     <script src="../comun/compartir.js"></script>
     <script src="../comun/tiempo-real.js"></script>
@@ -3768,14 +3768,18 @@ function renderPanel() {
 // (grabados por el profe en clase) y Versiones (en vivo íntegras / trabajos finales; con estudiantes, nunca se
 // comparten). Se escuchan o ven aquí mismo (un enlace de YouTube/Drive se abre aparte); ✏️ abre los Archivos del curso
 // para cambiar canción, tipo o estudiantes. "+ Agregar" (o soltar un archivo en la sección) sube al curso elegido.
-let mediosCancion = [], mediosCursos = null, mediosSoltado = null;
+let mediosCancion = [], mediosCursos = null, mediosSoltado = null, mediosPartes = [];
 const MED_ICO = { audio: '🎧', video: '🎬', imagen: '🖼️', documento: '📄', otro: '📎' };
 async function cargarMediosCancion(cid) {
     const lista = document.getElementById('medios-lista');
     if (!lista) return;
-    const { data, error } = await sb.from('curso_archivos').select('*, contextos(nombre)').eq('cancion_id', cid)
-        .order('fecha', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false });
+    const [{ data, error }, partes] = await Promise.all([
+        sb.from('curso_archivos').select('*, contextos(nombre)').eq('cancion_id', cid)
+            .order('fecha', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }),
+        ArchivosCurso.partesDeCancion(sb, cid),   // partes de la canción en su orden (DW)
+    ]);
     if (songActiva?.id !== cid) return;
+    mediosPartes = partes;
     if (error) {
         lista.innerHTML = `<div class="med-vacio">${/cancion_id|column/i.test(error.message || '') ? 'Falta actualizar Supabase (medios.sql).' : 'No se pudo cargar — revisa la conexión.'}</div>`;
         return;
@@ -3798,15 +3802,18 @@ function pintarMediosCancion() {
             : `<button class="btn-icon" onclick="verMedio('${f.id}')" title="Escuchar / ver aquí">▶</button>`;
         return `<div class="med-item" data-id="${f.id}">
             <span>${MED_ICO[f.tipo] || '📎'}</span>
-            <span class="med-nom" title="${escapar(f.nombre)}">${escapar(f.nombre)}</span>
+            <span class="med-nom" title="${escapar(f.nombre)}">${f.uso === 'extracto' && f.parte ? `<b>${escapar(f.parte)}</b> · ` : ''}${escapar(f.nombre)}</span>
             <span class="med-meta" title="${escapar(ctxLabel(ctx))}">${ctxMinimo(ctx)} ${fecha}${f.estudiantes?.length ? ` · 👥 ${f.estudiantes.length}` : ''}</span>
             ${ver}
             <button class="btn-icon" onclick="editarMedio('${f.id}')" title="Cambiar canción, tipo o estudiantes (📁 Archivos del curso)">✏️</button>
         </div><div class="med-ver" id="med-ver-${f.id}" hidden></div>`;
     };
     const grupos = [['extracto', 'Extractos'], ['version', 'Versiones · no se comparten'], [null, 'Otros']];
+    // Extractos en el orden de la canción (según su parte; los sin parte o con otra, al final)
+    const posParte = f => { const i = mediosPartes.findIndex(p => p.toLowerCase() === String(f.parte || '').toLowerCase()); return f.parte ? (i < 0 ? 900 : i) : 999; };
     lista.innerHTML = grupos.map(([u, t]) => {
         const g = mediosCancion.filter(f => (f.uso || null) === u);
+        if (u === 'extracto') g.sort((a, b) => posParte(a) - posParte(b));
         return g.length ? `<div class="med-grupo">${t} (${g.length})</div>${g.map(fila).join('')}` : '';
     }).join('');
 }
@@ -3846,7 +3853,9 @@ async function abrirFormMedio(archivo) {
     cont.innerHTML = `<div class="med-form">
         <select id="med-curso"><option value="">Curso…</option>${mediosCursos.map(x =>
             `<option value="${x.id}" ${x.id === ultimo ? 'selected' : ''}>${escapar(ctxLabel(x.nombre))}</option>`).join('')}</select>
-        <select id="med-uso"><option value="extracto">Extracto (grabado en clase)</option><option value="version">Versión (íntegra / trabajo final)</option></select>
+        <select id="med-uso" onchange="document.getElementById('med-parte').hidden = this.value !== 'extracto'"><option value="extracto">Extracto (grabado en clase)</option><option value="version">Versión (íntegra / trabajo final)</option></select>
+        <input id="med-parte" class="ancho" list="med-partes" placeholder="Parte de la canción (elige o escribe: Coro, Estrofa 2…)">
+        <datalist id="med-partes">${mediosPartes.map(p => `<option value="${escapar(p)}">`).join('')}</datalist>
         ${archivo ? `<div class="ancho" style="font-size:0.82rem">📎 ${escapar(archivo.name)}</div>`
             : `<input id="med-archivo" class="ancho" type="file" accept="audio/*,video/*,image/*">
                <input id="med-enlace" class="ancho" placeholder="…o pega un enlace de YouTube / Drive">`}
@@ -3867,7 +3876,8 @@ async function guardarMedio() {
     const b = document.getElementById('med-guardar'); b.disabled = true;
     const hoy = new Date();
     const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
-    const base = { contextoId: ctxId, cancionId: songActiva.id, uso, fecha, origen: 'biblioteca' };
+    const parte = uso === 'extracto' ? (document.getElementById('med-parte')?.value || '').trim() : '';
+    const base = { contextoId: ctxId, cancionId: songActiva.id, uso, fecha, origen: 'biblioteca', parte: parte || null };
     try {
         if (archivo) {
             const f = await ArchivosCurso.prepararImagen(archivo);

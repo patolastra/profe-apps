@@ -6730,3 +6730,17 @@ eso implica que todo el curso tiene un punto menos").*
 - **Prueba (local, tablero con 5 estudiantes ficticios, sin guardar):** 3 dedos sobre Ana, Beto y Caro → los 5 con 1
   toque (sin dobles) y aviso "(5)"; un toque a Dani → 2; ↩ → Dani vuelve a 1; ↩ → todos a 0. **Falta:** probar con
   tres dedos reales en el celular.
+
+---
+
+### DW. Extractos — a qué parte de la canción corresponden
+*Origen: PO 2026-10-27 ("en el caso de los extractos, debe haber una posibilidad: anotar a qué parte de la estructura
+de la canción corresponde ese extracto").*
+- **Auditoría:** las canciones no tienen una estructura con nombres guardada: la letra son estrofas sin nombre
+  (separadas por línea en blanco) y solo las tablaturas tienen secciones con nombre (`tab_sync.secciones`).
+- **Decisión del PO (2026-10-27):** campo **"Parte de la canción"** en los extractos, elegible de una lista o escrito:
+  secciones de las tablaturas de la canción, estrofas de la letra con su primer verso, y nombres comunes (Intro,
+  Estrofa, Coro, Puente, Instrumental, Final). Se anota al agregar desde la ficha y con ✏️ en 📁 Archivos; en la ficha
+  cada extracto muestra su parte y se ordenan según la canción. **Autorizado:** columna `parte` en Supabase
+  (`supabase/medios_parte.sql`, lo corre el PO). Saltar a esa parte en el Entrenador queda para después.
+- **Lugares de uso (regla 11):** 📁 Archivos (✏️) y la ficha de la canción (Extractos y versiones).

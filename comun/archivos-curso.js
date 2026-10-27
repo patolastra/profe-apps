@@ -83,8 +83,9 @@ const ArchivosCurso = (() => {
     }
 
     // Columnas de medios (DU): solo se mandan si tienen valor, así lo de antes sigue andando sin medios.sql.
-    function extras({ cancionId, sesionId, fecha, uso, estudiantes } = {}) {
+    function extras({ cancionId, sesionId, fecha, uso, estudiantes, parte } = {}) {
         const x = {};
+        if (parte) x.parte = parte;
         if (cancionId) x.cancion_id = cancionId;
         if (sesionId) x.sesion_id = sesionId;
         if (fecha) x.fecha = fecha;
@@ -153,6 +154,28 @@ const ArchivosCurso = (() => {
         return lista;
     }
 
+    // Partes de una canción para anotar un extracto (deuda DW), en el orden de la canción: secciones de sus tablaturas,
+    // estrofas de la letra ("Estrofa 2 — «primer verso…»") y nombres comunes. Se usan como sugerencias (se puede
+    // escribir otra) y para ordenar los extractos.
+    const PARTES_COMUNES = ['Intro', 'Estrofa', 'Coro', 'Puente', 'Instrumental', 'Final'];
+    async function partesDeCancion(sb, cancionId) {
+        const partes = [];
+        const sumar = p => { p = String(p || '').trim(); if (p && !partes.some(x => x.toLowerCase() === p.toLowerCase())) partes.push(p); };
+        if (cancionId) {
+            try {
+                const { data } = await sb.from('repertorio_assets').select('tipo, contenido, tab_sync, orden')
+                    .eq('cancion_id', cancionId).in('tipo', ['tab', 'letra']).order('orden');
+                (data || []).filter(a => a.tipo === 'tab').forEach(a => (a.tab_sync?.secciones || []).forEach(s => sumar(s.nombre)));
+                const letra = (data || []).find(a => a.tipo === 'letra')?.contenido || '';
+                const estrofas = letra.replace(/\[\d+:\d+(\.\d+)?\]/g, '').split(/\n\s*\n/).map(e => e.split('\n').map(v => v.trim()).filter(Boolean))
+                    .filter(e => e.length && !(e.length === 1 && e[0] === e[0].toUpperCase()));   // fuera el título (una línea en mayúsculas)
+                estrofas.forEach((e, i) => sumar(`Estrofa ${i + 1} — «${e[0].length > 40 ? e[0].slice(0, 40) + '…' : e[0]}»`));
+            } catch (_) {}
+        }
+        PARTES_COMUNES.forEach(sumar);
+        return partes;
+    }
+
     // ── Ventana ─────────────────────────────────────────────────────────
     let capa = null, op = null, filas = [], editando = null;
     function cerrar() { capa?.remove(); capa = null; op = null; editando = null; document.removeEventListener('keydown', alTeclear, true); }
@@ -209,7 +232,7 @@ const ArchivosCurso = (() => {
     function etiquetas(f) {
         const t = [];
         if (f.repertorio_canciones?.nombre) t.push(`<span class="arc-tag" title="Canción de la Biblioteca">🎵 ${esc(f.repertorio_canciones.nombre)}</span>`);
-        if (f.uso) t.push(`<span class="arc-tag arc-${f.uso}">${USO[f.uso]}</span>`);
+        if (f.uso) t.push(`<span class="arc-tag arc-${f.uso}">${USO[f.uso]}${f.uso === 'extracto' && f.parte ? ' · ' + esc(f.parte) : ''}</span>`);
         if (f.estudiantes?.length) t.push(`<span class="arc-tag" title="Estudiantes (no se comparte)">👥 ${f.estudiantes.length}</span>`);
         if (f.url) t.push(`<span class="arc-tag" title="Video externo">🔗 ${/drive\.google/.test(f.url) ? 'Drive' : 'YouTube'}</span>`);
         return t.join('');
@@ -263,6 +286,9 @@ const ArchivosCurso = (() => {
                     <option value="">—</option>
                     <option value="extracto" ${f.uso === 'extracto' ? 'selected' : ''}>Extracto (grabado en clase)</option>
                     <option value="version" ${f.uso === 'version' ? 'selected' : ''}>Versión (en vivo íntegra / trabajo final)</option></select></label>
+                <label class="arc-ancho arc-parte" ${f.uso === 'extracto' ? '' : 'hidden'}>Parte de la canción
+                    <input data-k="parte" list="arc-partes" value="${esc(f.parte || '')}" placeholder="Elige o escribe (Coro, Estrofa 2…)">
+                    <datalist id="arc-partes"></datalist></label>
                 ${f.url ? `<label class="arc-ancho">Enlace<input data-k="url" value="${esc(f.url)}"></label>` : ''}
             </div>
             <div class="arc-ests" ${f.uso === 'version' ? '' : 'hidden'}>
@@ -272,7 +298,19 @@ const ArchivosCurso = (() => {
             </div>
             <div class="arc-acc"><button class="arc-btn" data-x>Cancelar</button><button class="arc-btn arc-abrir" data-ok>Guardar</button></div>`;
         const $ = k => cont.querySelector(`[data-k="${k}"]`);
-        $('uso').addEventListener('change', () => { cont.querySelector('.arc-ests').hidden = $('uso').value !== 'version'; });
+        // Sugerencias de "Parte de la canción" (DW): las de la canción elegida (secciones, estrofas) + comunes
+        const llenarPartes = async () => {
+            const can = cans.find(c => c.nombre === $('cancion').value.trim());
+            const partes = await partesDeCancion(op.sb, can?.id);
+            const dl = cont.querySelector('#arc-partes');
+            if (dl) dl.innerHTML = partes.map(p => `<option value="${esc(p)}">`).join('');
+        };
+        llenarPartes();
+        $('cancion').addEventListener('change', llenarPartes);
+        $('uso').addEventListener('change', () => {
+            cont.querySelector('.arc-ests').hidden = $('uso').value !== 'version';
+            cont.querySelector('.arc-parte').hidden = $('uso').value !== 'extracto';
+        });
         cont.querySelector('[data-x]').addEventListener('click', () => { editando = null; pintar(); });
         cont.querySelector('[data-ok]').addEventListener('click', async ev => {
             const nombre = $('nombre').value.trim();
@@ -286,6 +324,8 @@ const ArchivosCurso = (() => {
                 nombre: nombre || f.nombre, fecha: $('fecha').value || null, cancion_id: can?.id || null, uso,
                 estudiantes: uso === 'version' ? [...cont.querySelectorAll('.arc-ests input:checked')].map(i => i.value) : [],
             };
+            const parte = uso === 'extracto' ? $('parte').value.trim() || null : null;
+            if (parte || f.parte) cambios.parte = parte;   // sin medios_parte.sql, no se manda si no hay parte
             if (f.url) cambios.url = enlace;
             ev.currentTarget.disabled = true;
             const { error } = await op.sb.from('curso_archivos').update(cambios).eq('id', f.id);
@@ -320,5 +360,5 @@ const ArchivosCurso = (() => {
         catch (e) { estado(errTxt(e), true); }
     }
 
-    return { abrir, cerrar, guardar, guardarEnlace, listar, borrar, url, urlDescarga, tipoDe, esEnlace, prepararImagen, BUCKET, MAX_BYTES };
+    return { abrir, cerrar, guardar, guardarEnlace, listar, borrar, url, urlDescarga, tipoDe, esEnlace, prepararImagen, partesDeCancion, BUCKET, MAX_BYTES };
 })();
