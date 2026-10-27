@@ -636,6 +636,9 @@
             cursor: pointer; font-family: inherit; transition: background 0.12s, color 0.12s;
         }
         .tab-seccion:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
+        /* ✈ de cada sección (deuda DP): pegado a su botón, solo en tablaturas publicadas */
+        .tab-seccion-grupo { display: inline-flex; align-items: center; gap: 1px; }
+        .tab-seccion-cmp { padding: 3px 4px; color: #64748b; }
         .tab-item-info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
         .tab-item-desc { font-size: 0.78rem; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .tab-item-actions {
@@ -3593,6 +3596,7 @@ function tabGroupHTML(tabs, songId) {
             : '';
             const secciones = a.tab_sync?.secciones || [];
             const tieneSecs = secciones.length > 0 && a.storage_path;
+            const publicada = a.storage_path && estadoDe(a) === 'publicado';   // ✈ solo en publicadas (deuda DP)
             const toggle = tieneSecs
                 ? `<button class="tab-secs-toggle" onclick="event.stopPropagation();toggleSecciones('${a.id}',this)" title="Ver partes">▸</button>`
                 : '';
@@ -3600,7 +3604,10 @@ function tabGroupHTML(tabs, songId) {
                 ? `<div class="tab-secciones" id="secs-${a.id}" style="display:none">
                      ${secciones.map(s => {
                          const sJS = (s.nombre || '').replace(/'/g, "\\'");
-                         return `<button class="tab-seccion" onclick="abrirSeccionEnLector('${spJS}','${nfJS}','${sJS}')" title="Abrir solo esta parte en el Lector">${s.nombre}</button>`;
+                         const btn = `<button class="tab-seccion" onclick="abrirSeccionEnLector('${spJS}','${nfJS}','${sJS}')" title="Abrir solo esta parte en el Lector">${s.nombre}</button>`;
+                         return publicada
+                             ? `<span class="tab-seccion-grupo">${btn}<button class="btn-icon tab-seccion-cmp" onclick="compartirTab('${a.id}','${sJS}',this)" title="Compartir solo esta parte con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button></span>`
+                             : btn;
                      }).join('')}
                    </div>`
                 : '';
@@ -3617,6 +3624,7 @@ function tabGroupHTML(tabs, songId) {
                     </div>
                     <div class="tab-item-actions">
                         ${estadoBadgeHTML(a)}
+                        ${publicada ? `<button class="btn-icon" onclick="event.stopPropagation();compartirTab('${a.id}',null,this)" title="Compartir la tablatura con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
                         ${url ? `<a class="btn-icon" href="${url}" download title="Descargar">⬇</a>` : ''}
                         <button class="btn-icon" onclick="abrirEditarAsset('${songId}','${a.id}')" title="Editar">✏️</button>
                         <button class="btn-icon danger" onclick="eliminarAsset('${songId}','${a.id}')" title="Eliminar">🗑</button>
@@ -5022,6 +5030,19 @@ function abrirPiano(assetId) {
     window.open(src, '_blank');
 }
 // ✈ Compartir (deuda DQ): menú propio con Copiar link · Generar QR · Generar guía QR (comun/compartir.js)
+// Tablaturas (deuda DP): enlace corto t/?a=<id>[&s=<sección>] → el Lector en modo estudiante (solo publicadas).
+const TAB_LINK_ALUMNO = 'https://patolastra.github.io/profe-apps/t/';
+function compartirTab(assetId, seccion, boton) {
+    let asset = null, cancion = null;
+    for (const c of canciones) {
+        const a = (c.assets || []).find(x => x.id === assetId);
+        if (a) { asset = a; cancion = c; break; }
+    }
+    if (!asset) return;
+    const nombre = nombreAsset(asset, cancion.nombre) + (seccion ? ` · ${seccion}` : '');
+    const url = `${TAB_LINK_ALUMNO}?a=${encodeURIComponent(asset.id)}` + (seccion ? `&s=${encodeURIComponent(seccion)}` : '');
+    Compartir.abrir(boton, { url, titulo: nombre, cancion: nombre, instrumento: CAP(asset.instrumento) || 'Tablatura', sb });
+}
 function compartirPiano(assetId, boton) {
     const nombre = nombreMelodia(assetId);
     const url = `${PIANO_LINK_ALUMNO}?a=${encodeURIComponent(assetId)}&n=${encodeURIComponent(nombre)}`;

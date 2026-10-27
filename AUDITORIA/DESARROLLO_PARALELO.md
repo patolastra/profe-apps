@@ -6480,6 +6480,18 @@ todo un apartado de ritmos, con la app de ritmos de cajón").*
   Afinar 592–680; el instrumento queda solo con su ícono); Pistas abre su lista (Audio, Partitura, Metrónomo);
   Afinador 306 px de alto con todo adentro (antes 530 de contenido). En el PC no cambia.
 
+- **Paso 2 — enlace corto por tablatura (PO 2026-10-27):** decisión del PO: solo tablaturas **publicadas**; ✈ en la
+  tablatura completa **y en cada sección**. `t/index.html` (`t/?a=<id>[&s=<sección>]`) solo redirige al Lector;
+  el Lector con `?a=` entra en modo público (como `?p=`), busca el recurso **publicado** y abre la tablatura (o solo
+  esa sección); si no existe o no está publicado: "Este acceso no está disponible". En la Biblioteca, ✈ junto al ⬇ de
+  cada tablatura publicada y al lado de cada sección (menú de `comun/compartir.js`: link, QR, guía QR; instrumento de
+  la tablatura en la guía). Prueba (local, "Baby Shark · Guitarra", publicada, secciones intro / baby shark /
+  modulación): ✈ en la tablatura y en sus 3 secciones; ninguno en un borrador; el link de "baby shark" →
+  `t/?a=muuer8gdltcz&s=baby%20shark` → Lector en modo estudiante, versión celular (740 × 333), solo esa sección
+  (205 notas); sin `&s=` abre la tablatura completa; el link de un borrador → "Este acceso no está disponible".
+- **Cierre (2026-10-27):** pasos 1 y 2 hechos; el paso 1 lo validó el PO en Android. **Pendiente de uso real:** probar
+  en iPhone y leer un QR de tablatura desde un celular. El Loop IN/OUT del Lector sigue apartado sin guardar (en pausa).
+
 ---
 
 ### DQ. Compartir desde la Biblioteca: menú ✈ (link, QR, guía QR) + 📁 Archivos del curso
@@ -6527,3 +6539,7 @@ de QR imprimible", 2026-10-24).*
   PDF (application/pdf, 41 KB) y "⬇" lo descarga con su nombre; aparece en Cursos → Quinto → 📁 Archivos (fecha y
   tamaño); ＋ Subir archivo y 🗑 Borrar funcionan (los archivos de prueba se borraron; queda solo la guía real del PO de
   8°). **Arreglo:** con nombres largos, la ruta guardada perdía la extensión (".pdf"); ahora se conserva siempre.
+- **Tablaturas con ✈ (2026-10-27):** con el paso 2 del Lector móvil (DP), el menú ✈ llega también a las tablaturas
+  publicadas y a cada una de sus secciones (`t/?a=`).
+- **Cierre (2026-10-27):** pasos 1 y 2 hechos y probados con la tabla creada. **Pendiente de uso real:** imprimir una
+  guía y leer sus QR con un celular.

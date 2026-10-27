@@ -5411,8 +5411,10 @@ function resolverPerfilLector() {
     // cap.escritura quedan en false → se cierran solos todos los paneles,
     // atajos, editores y el modo cifrado (todo gateado por cap.admin), y
     // ninguna escritura ocurre. La presencia de ?p= manda sobre todo lo demás.
+    // ?a=<id> (enlace corto de una tablatura para estudiantes, t/?a=, deuda DP): también público.
     try {
-        if (new URLSearchParams(location.search).get('p')) return 'publico';
+        const q = new URLSearchParams(location.search);
+        if (q.get('p') || q.get('a')) return 'publico';
     } catch (_) {}
     return window.LectorInstancia?.perfil === 'publico' ? 'publico' : 'docente';
 }
@@ -7940,6 +7942,27 @@ function renderLeccionIndice() {
     }
     if (p.get('leccion')) {
         await abrirLeccion(p.get('leccion'));
+        return;
+    }
+    // ?a=<id del asset>[&s=<sección>] — enlace corto para estudiantes (t/?a=, deuda DP): solo tablaturas publicadas;
+    // abre directo la tablatura (o solo esa sección), en modo público. Si no existe o no está publicada: mensaje neutro.
+    if (p.get('a')) {
+        ocultarWelcome();
+        try {
+            const rows = await sbGet(`/rest/v1/repertorio_assets?id=eq.${encodeURIComponent(p.get('a'))}&estado=eq.publicado` +
+                `&select=id,cancion_id,tab_sync,etiqueta,instrumento,dificultad,tonalidad,storage_path,nombre_archivo,repertorio_canciones(nombre)&limit=1`);
+            const a = rows && rows[0];
+            if (!a || !a.storage_path) { mostrarAccesoNoDisponible(); return; }
+            await cargarDesdeStorage(a.storage_path, a.nombre_archivo || a.storage_path.split('/').pop(), {
+                assetId:    a.id,
+                cancionId:  a.cancion_id,
+                tabSync:    a.tab_sync || null,
+                etiqueta:   descAsset(a) || null,
+                dificultad: a.dificultad || null,
+                cancion:    a.repertorio_canciones?.nombre || null,
+                seccionAsignada: p.get('s') || null
+            });
+        } catch (_) { mostrarAccesoNoDisponible(); }
         return;
     }
     if (p.get('cifrado') === '1' && LectorConfig.cap.admin) {
