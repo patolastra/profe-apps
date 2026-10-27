@@ -6843,7 +6843,7 @@ propón algo").*
 - **Nota de datos (2026-10-27, aprobado por el PO):** en 5° se ordenaron las evaluaciones de hoy: la de las notas
   ("hjk,l") recibió el nombre y OA de «Aló aló al metalófono»; las dos vacías se borraron; la rúbrica "Melodía en
   metalófono" quedó en Instrumentos **sin** asociarse a la cabecera, para que Estudiantes muestre las notas puestas a
-  mano por toques (con la rúbrica asociada mostraba "—" y "Evaluar" habría reemplazado la nota).
+  mano por toques (con la rúbrica asociada mostraba "—" y "Evaluar" habría reemplazado la nota). **Ojo:** al quitarla de la cabecera, Supabase **borró** el instrumento (algo del esquema real, no versionado, borra el instrumento que deja de estar asociado); se repuso el mismo día desde el respaldo (mismo id, 3 criterios con sus niveles), en Instrumentos y sin asociar. Para desasociar un instrumento en el futuro: revisar antes esa regla en Supabase.
 - **Implementación (`LIBRO/index.html`):** la tabla lleva la clase `est-limpia`; fila con `filaEstClase` (verde `fila-ok`
   · amarillo `est-pend` · gris `est-na`, también al cambiar la nota: `pintarFilaEst`); la etiqueta de estado se oculta
   solo en esta tabla; columna Objetivo aplicado solo si hay adecuaciones (`verObj`), con el selector como texto chico
