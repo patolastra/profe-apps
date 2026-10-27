@@ -6774,3 +6774,20 @@ de la canción corresponde ese extracto").*
   "baby shark" se ve "🎸 Baby Shark · Guitarra · … · ▸ baby shark" y abre
   `tabs/index.html?storage=tab/muuer8gdltcz.mxl&…&seccion=baby shark` (fuera del Workspace, en ventana nueva; dentro,
   pestaña del Lector). Sin errores. **Falta:** uso real (vincular de verdad y abrir desde el Workspace).
+
+---
+
+### DY. Plan — vínculos de la actividad: sin desborde, ✕ visible y ordenar arrastrando
+*Origen: PO 2026-10-27 (capturas: vínculos 🎸 largos se salían de la actividad y no se veía la ✕; el selector se
+desbordaba en "Tablatura"; "quisiera poder arrastrar aquí mismo, o también en la columna Presentación, para tener un
+orden").*
+- **Implementación (`PORTAL/index.html`):** el nombre del vínculo se recorta con "…" y la ✕ queda siempre a la vista;
+  el selector pasa de 300 a 380 px (caben 🎵 Canción · 🎹 Metalófono · 🥁 Ritmo · 🎸 Tablatura); los vínculos se
+  **ordenan arrastrando** en la actividad y en la columna Presentación (línea morada donde caerán), con la misma
+  función (`ordenarArrastrando` + `moverVinculo`): el orden se guarda en `plan_cards.canciones` y se ve igual en la
+  actividad, la Presentación y la vista de clase.
+- **Lugares de uso (regla 11):** actividad, Presentación y vista de clase (esta última solo muestra el orden).
+- **Prueba (local, Plan de 5°, 3 vínculos solo en memoria, sin guardar):** los 3 caben en la actividad con su ✕
+  visible; arrastrar "Aló, Aló" del 3.º al 1.º lugar en la actividad → orden nuevo también en la Presentación;
+  arrastrarlo de vuelta al final desde la Presentación → la actividad se actualiza; selector de 380 px con las 4
+  pestañas enteras. **Falta:** uso real.

@@ -920,11 +920,17 @@
            y el marco dorado marca la diapositiva que está en la Pizarra. */
         .pcard-cancs { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px 0 4px 14px; }
         .pcard-cancs[hidden] { display: none; }
-        .pcard-canc { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; border-radius: 999px; padding: 1px 4px 1px 9px; font-size: 0.74rem; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pcard-canc { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; border-radius: 999px; padding: 1px 4px 1px 9px; font-size: 0.74rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .pcard-canc-t { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .pcard-canc-x { flex-shrink: 0; }
+        /* Ordenar vínculos arrastrando (deuda DY): el que se arrastra se atenúa; donde caería, una línea */
+        .pcard-canc.arrastrando, .psec-canc.arrastrando { opacity: .4; }
+        .pcard-canc.caer-antes, .psec-canc.caer-antes { box-shadow: -3px 0 0 #7c3aed; }
+        .pcard-canc.caer-despues, .psec-canc.caer-despues { box-shadow: 3px 0 0 #7c3aed; }
         .pcard-canc:hover { background: #ddd6fe; }
         .pcard-canc-x { border: none; background: none; color: #7c3aed; cursor: pointer; font-size: 0.65rem; padding: 0 3px; border-radius: 50%; opacity: .5; }
         .pcard-canc-x:hover { opacity: 1; background: #c4b5fd; }
-        .pcanc-pop { position: fixed; z-index: 3000; width: 300px; background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 6px; }
+        .pcanc-pop { position: fixed; z-index: 3000; width: min(380px, calc(100vw - 16px)); background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 6px; }
         .pcanc-tipos { display: flex; gap: 4px; margin-bottom: 6px; }
         .pcanc-tipos button { flex: 1 1 0; border: 1px solid var(--border); background: #f8fafc; color: var(--muted); border-radius: 6px; padding: 4px 2px; font-size: 0.74rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
         .pcanc-tipos button:hover { background: #f1f5f9; }
@@ -2499,8 +2505,9 @@ function pintarSecciones() {
             if (cs.length && !bibCanciones) cargarBib().then(() => pintarSecciones());
             box.querySelector('.psec-cancs').innerHTML = cs.map(x => {
                 const v = vinculo(x);
-                return `<button class="psec-canc" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" title="${v.ayuda}: ${esc(v.corto)}">${v.ico} ${esc(v.corto)}</button>`;
+                return `<button class="psec-canc" draggable="true" data-k="${cs.indexOf(x)}" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" title="${v.ayuda}: ${esc(v.corto)} (arrastra para ordenar)">${v.ico} ${esc(v.corto)}</button>`;
             }).join('');
+            if (c.card) ordenarArrastrando(box.querySelector('.psec-cancs'), '.psec-canc', (de, a) => moverVinculo(c.card, de, a));
         }
         const ta = box.querySelector('.psec-ta');
         if (ta.value !== c.texto && document.activeElement !== ta) ta.value = c.texto;
@@ -5102,7 +5109,7 @@ function pintarCancionesCard(c, el) {
     if (!bibCanciones) { cargarBib().then(() => pintarCancionesCard(c)); }
     cont.innerHTML = lista.map((x, k) => {
         const v = vinculo(x);
-        return `<span class="pcard-canc" data-k="${k}" title="Abrir en el Entrenador · ${esc(v.nom)}${v.sub ? ' · ' + esc(v.sub) : ''}">${v.ico} ${esc(v.corto)}<button class="pcard-canc-x" data-k="${k}" title="Quitar de la actividad">✕</button></span>`;
+        return `<span class="pcard-canc" draggable="true" data-k="${k}" title="${v.ayuda} · ${esc(v.nom)}${v.sub ? ' · ' + esc(v.sub) : ''} (arrastra para ordenar)"><span class="pcard-canc-t">${v.ico} ${esc(v.corto)}</span><button class="pcard-canc-x" data-k="${k}" title="Quitar de la actividad">✕</button></span>`;
     }).join('');
     cont.onclick = e => {
         const x = e.target.closest('.pcard-canc-x');
@@ -5111,6 +5118,57 @@ function pintarCancionesCard(c, el) {
         const v = f && cancionesDe(c)[+f.dataset.k];
         if (v) abrirMini(v.cancion_id, c.id, v.asset_id, v.seccion);
     };
+    ordenarArrastrando(cont, '.pcard-canc', (de, a) => moverVinculo(c, de, a));
+}
+
+// ── Ordenar los vínculos de una actividad arrastrándolos (deuda DY): en la actividad y en la Presentación ──
+function moverVinculo(c, de, a) {
+    const lista = [...cancionesDe(c)];
+    if (de === a || de < 0 || de >= lista.length) return;
+    const [x] = lista.splice(de, 1);
+    lista.splice(a > de ? a - 1 : a, 0, x);
+    c.canciones = lista;
+    pintarCancionesCard(c);
+    pintarSecciones();
+    if (!document.getElementById('clase-panel')?.hidden) pintarClaseDer();
+    guardarCancionesCard(c);
+}
+// Arrastra los elementos `sel` (con data-k = posición) dentro de `cont`; al soltar llama a mover(de, a), donde `a` es
+// la posición antes de la cual cae (o el largo, al final). Se enlaza una sola vez por contenedor.
+function ordenarArrastrando(cont, sel, mover) {
+    cont._mover = mover;
+    if (cont._ordenable) return;
+    cont._ordenable = true;
+    let de = null;
+    const limpiar = () => cont.querySelectorAll(sel).forEach(el => el.classList.remove('arrastrando', 'caer-antes', 'caer-despues'));
+    const destino = e => {
+        const el = e.target.closest(sel);
+        if (!el || !cont.contains(el)) return null;
+        const r = el.getBoundingClientRect(), despues = e.clientX > r.left + r.width / 2;
+        return { el, a: +el.dataset.k + (despues ? 1 : 0), despues };
+    };
+    cont.addEventListener('dragstart', e => {
+        const el = e.target.closest(sel); if (!el) return;
+        de = +el.dataset.k;
+        el.classList.add('arrastrando');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', String(de)); } catch (_) {}
+    });
+    cont.addEventListener('dragover', e => {
+        if (de === null) return;
+        const d = destino(e); if (!d) return;
+        e.preventDefault();
+        cont.querySelectorAll(sel).forEach(el => el.classList.remove('caer-antes', 'caer-despues'));
+        d.el.classList.add(d.despues ? 'caer-despues' : 'caer-antes');
+    });
+    cont.addEventListener('drop', e => {
+        if (de === null) return;
+        const d = destino(e);
+        e.preventDefault();
+        const desde = de; de = null; limpiar();
+        if (d) cont._mover(desde, d.a);
+    });
+    cont.addEventListener('dragend', () => { de = null; limpiar(); });
 }
 
 async function guardarCancionesCard(c) {
