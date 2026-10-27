@@ -6855,3 +6855,9 @@ propón algo").*
   Nota · Comentario; barras verde / amarilla; botones ocultos y visibles al pasar el mouse; comentario largo se abre
   completo al hacer clic sin barra de desplazamiento; con una adecuación ficticia en memoria aparece la columna
   Objetivo aplicado (en amarillo para ese estudiante) y la tabla cabe sin desplazarse a 1200 px. **Falta:** uso real.
+- **Ajuste (PO 2026-10-27: "al hacer clic en un comentario el texto sube, es incómodo"; y un filtro al final de la
+  barra):** el comentario abierto **flota hacia abajo** sobre las filas siguientes (clase `abierto`, posición absoluta
+  en el mismo lugar): la fila no cambia de alto y el texto no se mueve. Botón **💬 Todos / Con comentario / Sin
+  comentario** (ancho fijo, se recuerda en el equipo, `libro_est_com`) al final de la barra del buscador; se combina
+  con la búsqueda y con Pendientes. Prueba (5°): 34 / 30 / 4 filas; comentario largo abierto → fila 46 px igual, texto
+  en el mismo lugar, cuadro de 76 px hacia abajo; al salir vuelve a una línea.

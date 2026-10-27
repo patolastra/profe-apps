@@ -263,7 +263,11 @@
   table.est-limpia tr:hover td.obj select,table.est-limpia td.obj select:focus,
   table.est-limpia tr:hover textarea.est-com,table.est-limpia textarea.est-com:focus{border-color:var(--line)}
   table.est-limpia textarea.est-com{resize:none;min-height:0;height:30px;line-height:20px;overflow:hidden;width:100%;display:block}
-  table.est-limpia textarea.est-com:focus{background:#0d1117}
+  table.est-limpia td.com{position:relative}
+  table.est-limpia textarea.est-com.abierto{background:#0d1117;position:absolute;top:calc(50% - 15px);left:8px;right:8px;width:auto;
+    z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  /* Filtro de comentarios (deuda EA): ancho fijo, la barra no se mueve */
+  #btn-com-filtro{width:178px;text-align:left}
   .em-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
   .em-card{position:relative;background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--acc);
     border-radius:14px;max-width:660px;width:100%;max-height:88vh;overflow:auto;padding:18px 20px;box-shadow:0 12px 48px rgba(0,0,0,.5)}
@@ -1188,6 +1192,7 @@ function renderDetalle(){
         <input id="buscador-est" type="text" placeholder="Buscar por nombre o apellido…" oninput="filtrarEstudiantes()" autocomplete="off">
         <button type="button" id="btn-pendientes" class="btn toggle" aria-pressed="false" onclick="togglePendientes()">Pendientes</button>
         <button type="button" class="btn" onclick="copiarPendientesEval(this)" title="Copia la lista de pendientes (incluye ausentes de hoy) para pegarla en el Plan">📋 Copiar</button>
+        <button type="button" id="btn-com-filtro" class="btn toggle" onclick="cambiarFiltroCom()" title="Mostrar a todos · solo con comentario · solo sin comentario">${FILTRO_COM[estComFiltro]}</button>
       </div>` : ''}
       <div style="overflow-x:auto">
       <table class="est-limpia">
@@ -1201,8 +1206,8 @@ function renderDetalle(){
             <td class="est-nombre">${esc(nombreEstudiante(n))}${grupoChipHTML(n)}${ausenteHoyHTML(n.estudiante_id)}</td>
             ${verObj ? `<td class="obj"><select class="${n.adecuacion_id ? 'adec' : ''}" data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select><div class="cel-marca">${marcaObjHTML(n, cerrada)}</div></td>` : ''}
             ${notaCellHTML(n, idx, cerrada)}
-            <td><textarea class="est-com" rows="1" data-i="${idx}" data-k="comentario" placeholder="(comentario)" ${dis}
-                 onfocus="estComAlto(this)" oninput="estComAlto(this)" onblur="this.style.height=''">${esc(n.comentario||'')}</textarea></td>
+            <td class="com"><textarea class="est-com" rows="1" data-i="${idx}" data-k="comentario" placeholder="(comentario)" ${dis}
+                 onfocus="this.classList.add('abierto'); estComAlto(this)" oninput="estComAlto(this)" onblur="this.classList.remove('abierto'); this.style.height=''; this.scrollTop=0">${esc(n.comentario||'')}</textarea></td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -1521,6 +1526,14 @@ function evIrTab(k){
 
 // Filtro visual en tiempo real (nombre/apellido, sin acentos ni mayúsculas).
 // No modifica datos ni orden; al limpiar reaparecen todos.
+// Filtro de comentarios (deuda EA): 0 todos · 1 con comentario · 2 sin comentario (se recuerda en el equipo).
+const FILTRO_COM = ['💬 Todos', '💬 Con comentario', '💬 Sin comentario'];
+let estComFiltro = (() => { try { return +localStorage.getItem('libro_est_com') || 0; } catch (_) { return 0; } })();
+function cambiarFiltroCom(){
+  estComFiltro = (estComFiltro + 1) % 3;
+  try { localStorage.setItem('libro_est_com', estComFiltro); } catch (_) {}
+  filtrarEstudiantes();
+}
 function filtrarEstudiantes(){
   const inp = document.getElementById('buscador-est');
   if (!inp) return;
@@ -1531,8 +1544,12 @@ function filtrarEstudiantes(){
     const idx = +tr.dataset.idx;
     const coincideTexto = q === '' || hay.includes(q);
     const esPendiente = evalEsPendiente(notas[idx]) && !ausentesHoy.has(notas[idx]?.estudiante_id);   // sin nota y presente hoy
-    tr.classList.toggle('oculto', !(coincideTexto && (!soloPend || esPendiente)));
+    const tieneCom = !!String(notas[idx]?.comentario || '').trim();
+    const coincideCom = estComFiltro === 0 || (estComFiltro === 1 ? tieneCom : !tieneCom);
+    tr.classList.toggle('oculto', !(coincideTexto && coincideCom && (!soloPend || esPendiente)));
   });
+  const bc = document.getElementById('btn-com-filtro');
+  if (bc) { bc.textContent = FILTRO_COM[estComFiltro]; bc.classList.toggle('on', estComFiltro !== 0); }
   const bp = document.getElementById('btn-pendientes');
   if (bp) bp.textContent = `Pendientes (${notas.filter(n => evalEsPendiente(n) && !ausentesHoy.has(n.estudiante_id)).length})`;
 }
@@ -3528,7 +3545,7 @@ let verObj = false;   // columna "Objetivo aplicado" visible (solo si la evaluac
 function filaEstClase(n){ const e = estadoEfectivo(n); return e === 'evaluado' ? 'fila-ok' : e === 'no_aplica' ? 'est-na' : 'est-pend'; }
 function pintarFilaEst(tr, n){ if (!tr) return; tr.classList.remove('fila-ok', 'est-pend', 'est-na'); tr.classList.add(filaEstClase(n)); }
 // Comentario: una línea; al escribir se abre completo.
-function estComAlto(el){ el.style.height = 'auto'; el.style.height = (el.scrollHeight + el.offsetHeight - el.clientHeight) + 'px'; }
+function estComAlto(el){ el.style.height = 'auto'; el.style.height = (el.scrollHeight + el.offsetHeight - el.clientHeight) + 'px'; el.scrollTop = 0; }
 
 // ── Reevaluar (deuda AD) ──────────────────────────────────────
 // El estudiante evaluado vuelve a "Pendiente"; su nota (y sus respuestas del instrumento)
