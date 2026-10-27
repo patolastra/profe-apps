@@ -6818,3 +6818,29 @@ melodías de metalófono, y con espejo en la Pizarra").*
   (no con otra) y la quita con `off`; Plan → el vínculo 🎸 abre el Lector en el panel en la sección y ✕ lo cierra.
   (En las pruebas el navegador estaba oculto y no corrían los cuadros de dibujo: el cálculo de la copia se probó
   directo.) **Falta:** probar en clase con la Pizarra real en el proyector.
+
+---
+
+### EA. Libro — pestaña Estudiantes de una evaluación, más limpia
+*Origen: PO 2026-10-27 (captura de la evaluación de 5°: "tiene un montón de información muy visualmente ruidosa,
+propón algo").*
+- **Necesidad:** en clase y al revisar, ver de un vistazo quién tiene nota y cuál; hoy cada fila muestra el selector del
+  objetivo (casi siempre el mismo OA), la etiqueta de estado, "0/3", tres botones y el comentario en un cuadro, todo a
+  la vez.
+- **Auditoría:** la fila la arma `notaCellHTML` + la tabla de Estudiantes en `LIBRO/index.html` (columnas Objetivo
+  aplicado · Nota · Comentario). El estado ya se marca con el fondo verde de la fila. Sin cambios en Supabase.
+- **Propuesta (PO aprobó la ficha; implementación pendiente de su visto bueno):**
+  1. **Fila delgada:** nombre · nota grande · comentario en una línea.
+  2. **Objetivo aplicado:** la columna se oculta si nadie tiene adecuación (el OA está en General); si alguien la tiene,
+     se ve solo en su fila como etiqueta chica (el selector aparece al pasar el mouse o al hacer clic).
+  3. **Estado:** solo una barra de color a la izquierda (verde evaluado · amarillo pendiente · gris no aplica), sin la
+     etiqueta en cada fila; el filtro "Pendientes (n)" de arriba sigue igual.
+  4. **Botones** Evaluar · No aplica · Reevaluar: ocultos, aparecen al pasar el mouse por la fila (interfaz silenciosa).
+  5. **"0/3":** solo cuando una rúbrica está a medias.
+  6. **Comentario:** una línea; al hacer clic se abre completo para escribir.
+- **Lugares de uso (regla 11):** Libro directo y 📒 Libros (misma página dentro). No se proyecta (la pestaña
+  Estudiantes no va a la Pizarra) y el celular Evaluar no la usa.
+- **Nota de datos (2026-10-27, aprobado por el PO):** en 5° se ordenaron las evaluaciones de hoy: la de las notas
+  ("hjk,l") recibió el nombre y OA de «Aló aló al metalófono»; las dos vacías se borraron; la rúbrica "Melodía en
+  metalófono" quedó en Instrumentos **sin** asociarse a la cabecera, para que Estudiantes muestre las notas puestas a
+  mano por toques (con la rúbrica asociada mostraba "—" y "Evaluar" habría reemplazado la nota).
