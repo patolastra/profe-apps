@@ -24,9 +24,13 @@ const ArchivosCurso = (() => {
         return 'otro';
     }
     // Nombre seguro para la ruta en Storage (sin tildes ni espacios); el nombre visible va aparte, en la tabla.
+    // La extensión (.pdf, .mp3…) se conserva aunque el nombre se corte por largo.
     function limpio(nombre) {
-        return String(nombre).normalize('NFD').replace(/[̀-ͯ]/g, '')
+        const s = String(nombre).normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const ext = (s.match(/\.[a-zA-Z0-9]{1,5}$/) || [''])[0];
+        const base = s.slice(0, s.length - ext.length)
             .replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || 'archivo';
+        return base + ext.toLowerCase();
     }
     const url = f => `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${f.storage_path.split('/').map(encodeURIComponent).join('/')}`;
     // Storage entrega el archivo como descarga (con su nombre) si se pide con ?download=

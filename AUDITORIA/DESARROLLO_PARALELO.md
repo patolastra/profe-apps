@@ -6522,3 +6522,8 @@ de QR imprimible", 2026-10-24).*
   "No se pudo guardar en 📁 Archivos del curso (falta crearlo en Supabase); igual puedes abrirla o descargarla", y
   📁 Archivos en Cursos dice "Falta crear… (correr supabase/curso_archivos.sql)". **No probado:** guardar y listar de
   verdad (falta el SQL), imprimir en papel y leer con un celular.
+- **PO corrió `supabase/curso_archivos.sql` (2026-10-27).** Prueba completa (local, "Aló, Aló — Intro completa" → 5°):
+  la guía se guarda ("✓ Guardada en 📁 Archivos del curso · 5️⃣ Quinto", 34 QR · 2 hojas carta); su "Abrir" entrega el
+  PDF (application/pdf, 41 KB) y "⬇" lo descarga con su nombre; aparece en Cursos → Quinto → 📁 Archivos (fecha y
+  tamaño); ＋ Subir archivo y 🗑 Borrar funcionan (los archivos de prueba se borraron; queda solo la guía real del PO de
+  8°). **Arreglo:** con nombres largos, la ruta guardada perdía la extensión (".pdf"); ahora se conserva siempre.
