@@ -6625,3 +6625,23 @@ para el desarrollo de la rúbrica").*
   vista previa muestra los 3 criterios con sus 4 niveles; Agregar todos guardó los 3 (orden 0–2, niveles 1 a 4) y el
   editor quedó en "Criterios (3)". ✨ Redactar OA sigue funcionando. La plantilla de prueba se borró. **No probado:**
   la respuesta real de Gemini y el editor de un instrumento de una evaluación real (mismo bloque).
+- **Validado por el PO (2026-10-27):** funciona con su llave (captura: 4 criterios para la intro de una cueca en
+  metalófono).
+- **Iterar con comentarios (PO 2026-10-27):** "seleccionar alguno de esos textos y dar una respuesta acotada a ese
+  detalle… puedo pedir una sola mod o muchas; es el mismo mecanismo para darte respuestas a ti, Claude". Diseño:
+  seleccionar un fragmento de la vista previa → 💬 Comentar (o 💬 de la casilla entera, o un comentario general) → los
+  comentarios se juntan abajo (✕ para quitar) → **Enviar comentarios (n)** → Gemini devuelve la propuesta completa
+  cambiando solo lo comentado; lo que cambió queda marcado; se puede volver a comentar cuantas veces se quiera.
+- **Implementación (iterar):** en `comun/rubrica-ia.js`, cada nombre de criterio y cada nivel de la vista previa es una
+  casilla comentable: al seleccionar un texto dentro de una casilla aparece **💬 Comentar** (abre una cajita con la
+  cita; Ctrl+Enter agrega); 💬 al pasar el mouse comenta la casilla entera; **💬 Comentario general** para toda la
+  propuesta. Los fragmentos comentados quedan resaltados y los comentarios se listan con ✕. **Enviar comentarios (n)**
+  manda a Gemini la propuesta completa + los comentarios (dónde, fragmento y qué cambiar) con la orden de cambiar SOLO
+  eso y dejar el resto igual; la versión nueva marca en verde las casillas que cambiaron y se puede volver a comentar.
+  "Agregar todos" avisa si quedan comentarios sin enviar. Libro pide `rubrica-ia.js?v=dt2`.
+- **Prueba (local, plantilla de prueba de rúbrica, respuestas simuladas):** al seleccionar "pocas notas correctas" en
+  Criterio 1 · Por lograr aparece 💬 Comentar; la cajita muestra "Criterio 1 («Criterio 1»), nivel Por lograr (1)" y la
+  cita; con un comentario + uno general el botón dice "Enviar comentarios (2)" y el fragmento queda resaltado; lo
+  enviado incluye la propuesta, "Aplica SOLO lo que piden" y los dos comentarios con su lugar y fragmento; la respuesta
+  marcó en verde solo la casilla que cambió ("Pulso estable") y la lista de comentarios quedó vacía. Plantilla de prueba
+  borrada. **No probado:** con la respuesta real de Gemini.
