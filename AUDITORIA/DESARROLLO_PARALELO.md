@@ -6744,3 +6744,13 @@ de la canción corresponde ese extracto").*
   cada extracto muestra su parte y se ordenan según la canción. **Autorizado:** columna `parte` en Supabase
   (`supabase/medios_parte.sql`, lo corre el PO). Saltar a esa parte en el Entrenador queda para después.
 - **Lugares de uso (regla 11):** 📁 Archivos (✏️) y la ficha de la canción (Extractos y versiones).
+- **Implementación:** `ArchivosCurso.partesDeCancion(sb, cancionId)` arma las sugerencias en el orden de la canción
+  (secciones de sus tablaturas → estrofas de la letra con su primer verso, sin el título → Intro/Estrofa/Coro/Puente/
+  Instrumental/Final, sin repetir). Campo "Parte de la canción" (lista + texto libre) solo en Extractos: ✏️ de
+  📁 Archivos (etiqueta "Extracto · <parte>") y "+ Agregar extracto o versión" de la ficha; en la ficha cada extracto
+  muestra su parte en negrita y se ordenan según la canción (sin parte, al final). Pieza pedida con `?v=dw1`.
+- **PO corrió `supabase/medios_parte.sql` (2026-10-27).** Prueba (local, "Aló, Aló", 5°): sugerencias = 5 estrofas
+  + 6 comunes ("Baby Shark": intro, baby shark, modulación + comunes); se agregaron desde la ficha "tercera" (Estrofa 3)
+  y luego "primera" (Estrofa 1) → guardadas con su parte y listadas Estrofa 1 antes que Estrofa 3; ✏️ en Archivos
+  mostró la parte guardada y las 11 sugerencias, se cambió a "Coro" → etiqueta "Extracto · Coro" y la ficha se puso
+  al día. Lo de prueba se borró. **Falta:** uso real.
