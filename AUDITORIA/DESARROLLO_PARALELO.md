@@ -6555,3 +6555,30 @@ de QR imprimible", 2026-10-24).*
 - **Lugares de uso (regla 11):** solo Cursos del PC (el celular y el Historial del Plan no lo mostraban).
 - **Prueba (local, 4°):** la página abre con el título y sus 25 clases/notas, sin "Apoderados"; ☑ Pendientes sigue
   funcionando; sin errores.
+
+---
+
+### DS. Libro — ✨ Redactar OA con IA (Gemini)
+*Origen: PO 2026-10-27 (captura de "Nueva evaluación": "aquí necesito poner una idea, mandarlo a la IA y que me dé una
+idea formal de OA").*
+- **Necesidad:** al crear una evaluación, el profe tiene la idea pero no la redacción formal del Objetivo de Aprendizaje.
+- **Decisión del PO (2026-10-27):** botón junto al campo "OA original" que envía la idea a la IA y devuelve **dos
+  opciones**: una **basada en un OA oficial** del curso (lo cita) y otra de **redacción libre**; se elige una y queda en
+  el campo (editable). **Solo cursos** (1° a 8°; en talleres no aparece). Va en **Nueva evaluación** y **al editar el OA**.
+- **Plan:** misma IA que la Planificación del mes (Gemini plan gratis, llave guardada solo en el equipo,
+  `gemini_api_key`, modelos de respaldo) y el mismo currículum guardado (`PLANIFICACION/curriculo/musica-<n>.txt`).
+  Se envía: la idea, el nombre de la evaluación y los OA del nivel (sin nombres de estudiantes).
+- **Lugares de uso (regla 11):** Libro (Nueva evaluación y editar OA) — también dentro de 📒 Libros, que muestra el mismo
+  Libro.
+- **Implementación:** pieza `comun/redactar-oa.js` (`RedactarOA`): botón **✨ Redactar OA** bajo el campo (solo si el
+  contexto es PRIMERO…OCTAVO; en talleres, jefaturas y General no aparece; en una evaluación cerrada tampoco). Toma la
+  idea escrita en el campo, la envía a Gemini con el nombre de la evaluación y `PLANIFICACION/curriculo/musica-<n>.txt`,
+  y muestra **dos tarjetas** — "Basado en el OA oficial" ("OA n: …") y "Redacción libre" — cada una con **Usar**;
+  además ↻ Otras y ✕ Cerrar. Nada se escribe en el campo sin tocar Usar; al editar una evaluación recuerda «Guardar
+  cabecera». Llave: la misma `gemini_api_key` del equipo (si falta, la pide; si no sirve, la borra y avisa). Libro
+  (`LIBRO/index.html`): en Nueva evaluación y en la cabecera de una evaluación abierta.
+- **Prueba (local, 5°, respuesta de Gemini simulada porque este equipo de pruebas no tiene la llave):** el botón
+  aparece y el campo invita a escribir la idea; lo enviado incluye la idea, el nombre "Repertorio «Cantó el gallo con el
+  diablo»", "5° básico" y el currículo de QUINTO BÁSICO; se ven las dos opciones; Usar (libre) deja ese texto en el campo
+  y cierra el panel. No se creó ninguna evaluación. **No probado:** la respuesta real de Gemini (con la llave del PO) y
+  la cabecera de una evaluación existente.
