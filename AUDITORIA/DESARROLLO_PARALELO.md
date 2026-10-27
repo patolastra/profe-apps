@@ -6543,3 +6543,15 @@ de QR imprimible", 2026-10-24).*
   publicadas y a cada una de sus secciones (`t/?a=`).
 - **Cierre (2026-10-27):** pasos 1 y 2 hechos y probados con la tabla creada. **Pendiente de uso real:** imprimir una
   guía y leer sus QR con un celular.
+
+---
+
+### DR. Cursos sin el cuadro 👪 Apoderados
+*Origen: PO 2026-10-27 (captura de la página de 4°: "quita esa sección de apoderados en las páginas de los cursos").*
+- **Decisión del PO:** la página de cada curso en **Cursos** ya no muestra el cuadro 👪 Apoderados (de BK). Las citas
+  siguen en el Dashboard (pestaña 👪 Apoderados), en el Plan (pestaña 👪 Apoderados) y en el celular: no cambia nada ahí.
+- **Implementación (`CURSOS/index.html`):** se quitó el cuadro, su estilo y la pieza `comun/apoderados.js` de la página
+  (ya no se usa en Cursos).
+- **Lugares de uso (regla 11):** solo Cursos del PC (el celular y el Historial del Plan no lo mostraban).
+- **Prueba (local, 4°):** la página abre con el título y sus 25 clases/notas, sin "Apoderados"; ☑ Pendientes sigue
+  funcionando; sin errores.
