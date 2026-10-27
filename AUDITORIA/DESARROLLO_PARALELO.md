@@ -6645,3 +6645,46 @@ para el desarrollo de la rúbrica").*
   enviado incluye la propuesta, "Aplica SOLO lo que piden" y los dos comentarios con su lugar y fragmento; la respuesta
   marcó en verde solo la casilla que cambió ("Pulso estable") y la lista de comentarios quedó vacía. Plantilla de prueba
   borrada. **No probado:** con la respuesta real de Gemini.
+- **Validado por el PO (2026-10-27):** comentar y corregir funciona. **Estado: pendiente de validación en uso real**
+  (DS y DT; tarjeta en Notion "Probar en clase").
+
+---
+
+### DU. Medios del curso y de las canciones (audios, videos, fotos)
+*Origen: PO 2026-10-27 ("quiero empezar a tener audios/videos vinculados a canciones y a cursos… en la biblioteca, para
+una canción: versión oficial (melodía), karaoke, extractos (grabados por mí en clases) y otras versiones (en vivo
+íntegras grabadas por estudiantes, trabajos finales)").*
+- **Necesidad:** guardar lo que se graba en clase (audios, videos, fotos) ligado al curso y, cuando corresponde, a una
+  canción, sin llenar el espacio gratis de Supabase (1 GB, 50 MB por archivo).
+- **Decisión del PO (2026-10-27):** se sube **desde el celular dentro de la app** (fotos, audios, videos) y **desde el PC
+  arrastrando**; **audios aquí, videos como enlace**: si un video no cabe, la app deja lo más cerca posible de subirlo a
+  YouTube sin navegar (grabar en la app → "Subir a YouTube" abre la app de YouTube con el video listo → "No listado" →
+  📋 Pegar enlace); un archivo se ve **en la canción y en el curso**; en clase queda **solo en el curso y la clase**
+  (canción y tipo después, opcional); en la canción: **Melodía · Karaoke (1 c/u) · Extractos · Versiones (varios)**;
+  en las Versiones se anotan **estudiantes** (opcional) y **nunca se comparten**; las **fotos** van al curso **y a la
+  bitácora** de la clase. **Autorizado:** cambios en Supabase.
+- **Nota técnica:** subir a YouTube de forma automática (API) no conviene: los videos subidos por apps no verificadas
+  por Google quedan **privados** (no "no listados"); por eso se usa la app de YouTube del celular.
+- **Plan aprobado (fases):** 1) base: 📁 Archivos del curso = medios del curso (`supabase/medios.sql`: canción, clase,
+  fecha, uso extracto/versión, enlace, estudiantes) y editar esos datos; arrastrar en el PC. 2) celular: 📷 Subir (foto,
+  audio, video con la cámara; en clase, ligado al curso y la fecha; video grande → YouTube). 3) Biblioteca: Extractos y
+  Versiones en la ficha de la canción. 4) Fotos en la bitácora (Cursos y Plan). **Se parte por 1 y 2.**
+- **Lugares de uso (regla 11):** 📁 Archivos (Cursos PC y la guía QR de la Biblioteca); celular (nuevo 📷 Subir).
+- **Implementación fases 1 y 2:**
+  - `supabase/medios.sql` (**lo corre el PO**): columnas `cancion_id`, `sesion_id`, `fecha`, `uso` (extracto|version),
+    `url`, `estudiantes` en `curso_archivos`; `storage_path` deja de ser obligatorio (archivo o enlace).
+  - `comun/archivos-curso.js` (+ `.css`, pedidos con `?v=du1`): guardar con canción/clase/fecha/uso, `guardarEnlace`
+    (YouTube o Drive), `prepararImagen` (fotos achicadas a 1920 px JPEG), máximo 50 MB por archivo. Ventana: etiquetas
+    🎵 canción · Extracto/Versión · 👥 n · 🔗 YouTube; ✏️ edita nombre, fecha, canción (lista de la Biblioteca), "En la
+    canción, es…" (Extracto / Versión) y, en Versión, los estudiantes del curso (casillas; "no se comparte"); ＋ Enlace;
+    **arrastrar archivos** a la ventana sube al curso. Sin `medios.sql` la lista sigue funcionando.
+  - `MOVIL/subir.html` (nuevo, en el ☰ menú y en clase como "📷 SUBIR FOTO, AUDIO O VIDEO"; sumado a `sw-movil.js` v11
+    y a "Cargar versión nueva"): 📷 Foto y 🎬 Video con la cámara, 🎤 Grabar audio aquí mismo (⏺/⏹ con tiempo), 🖼️
+    Desde la galería. En clase va al curso, la clase y la fecha solos; sin clase se elige el curso (recuerda el último).
+    Video > 50 MB: pasos a YouTube con **▶ Subir a YouTube** (abre la app con el video listo, en Android), "No listado",
+    📋 Pegar (al volver se pega solo si el enlace está copiado) y Guardar enlace.
+- **Prueba parcial (local, antes de correr `medios.sql`):** 📷 Subir abre con los 4 botones y la lista de cursos (16);
+  un video simulado de 60 MB muestra los pasos a YouTube (en el PC de pruebas no hay "compartir archivo", así que salen
+  las instrucciones a mano; en Android aparece el botón); 📁 Archivos de 8° muestra ＋ Enlace, ＋ Subir archivo, la
+  zona para soltar y el formulario ✏️. **Falta:** correr `medios.sql` y probar guardar, ligar canción/estudiantes y
+  enlaces; probar en el celular real (cámara, audio, YouTube).

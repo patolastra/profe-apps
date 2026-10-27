@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1120">
+    <link rel="manifest" href="manifest.webmanifest">
+    <title>📷 Subir</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase/config.js"></script>
+    <script src="../supabase/contextos.js"></script>
+    <script src="../comun/clase-vivo.js"></script>
+    <script src="../comun/archivos-curso.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        :root { --bg: #0b1120; --surface: #131c2e; --card: #1a2540; --border: #253455; --text: #f1f5f9; --muted: #7a8ba8;
+                --accent: #3b82f6; --green: #22c55e; --yellow: #eab308; --red: #ef4444; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh;
+               padding: calc(14px + env(safe-area-inset-top, 0px)) 16px calc(30px + env(safe-area-inset-bottom, 0px)); }
+        a { color: inherit; }
+        #cab { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        #volver { text-decoration: none; font-size: 1.6rem; line-height: 1; padding: 4px 8px; border-radius: 10px; color: var(--muted); }
+        #cab h1 { font-size: 1.35rem; }
+        #curso { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 12px 14px; margin-bottom: 14px; }
+        #curso small { display: block; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+        #curso.en-clase { background: #0f2a1d; border-color: #166534; }
+        #curso.en-clase small { color: #86efac; }
+        #curso-txt { font-size: 1.15rem; font-weight: 700; }
+        #curso select { width: 100%; font: inherit; font-size: 1.05rem; padding: 10px; border-radius: 12px; border: 1px solid var(--border);
+                        background: var(--card); color: var(--text); }
+        .grilla { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .grande { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 22px 10px;
+                  background: var(--card); border: 1px solid var(--border); border-radius: 18px; color: var(--text); font: inherit;
+                  font-size: 1rem; font-weight: 700; cursor: pointer; text-align: center; }
+        .grande span { font-size: 2.1rem; line-height: 1; }
+        .grande:active { background: #253455; }
+        .grande.grabando { background: #450a0a; border-color: var(--red); }
+        .grande input { display: none; }
+        #nota { color: var(--muted); font-size: .85rem; line-height: 1.45; margin: 12px 4px 0; }
+        #lista { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+        .it { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
+        .it-c { display: flex; gap: 10px; align-items: center; }
+        .it-ico { font-size: 1.5rem; }
+        .it-nom { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .it-est { font-size: .85rem; color: var(--muted); white-space: nowrap; }
+        .it-est.ok { color: #86efac; }
+        .it-est.err { color: #fca5a5; white-space: normal; }
+        .yt { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; font-size: .9rem; line-height: 1.45; color: #cbd5e1; }
+        .yt ol { padding-left: 20px; }
+        .yt button, .yt input { font: inherit; font-size: 1rem; padding: 11px; border-radius: 12px; border: 1px solid var(--border); }
+        .yt button { background: var(--card); color: var(--text); font-weight: 700; cursor: pointer; }
+        .yt button.prim { background: #b91c1c; border-color: #ef4444; }
+        .yt input { background: var(--bg); color: var(--text); }
+        .yt .fila { display: flex; gap: 8px; }
+        .yt .fila input { flex: 1; min-width: 0; }
+        #rec-t { font-variant-numeric: tabular-nums; font-size: .9rem; color: #fca5a5; min-height: 1.1em; }
+    </style>
+</head>
+<body>
+<div id="cab"><a id="volver" href="index.html" aria-label="Volver al inicio">‹</a><h1>📷 Subir</h1></div>
+
+<div id="curso"><small id="curso-tit">Curso</small><div id="curso-txt"></div><select id="curso-sel" hidden></select></div>
+
+<div class="grilla">
+    <label class="grande"><span>📷</span>Foto<input type="file" accept="image/*" capture="environment" data-k="foto"></label>
+    <label class="grande"><span>🎬</span>Video<input type="file" accept="video/*" capture="environment" data-k="video"></label>
+    <button type="button" class="grande" id="btn-audio"><span>🎤</span><b id="rec-lbl">Grabar audio</b><span id="rec-t"></span></button>
+    <label class="grande"><span>🖼️</span>Desde la galería<input type="file" accept="image/*,audio/*,video/*" multiple data-k="galeria"></label>
+</div>
+<p id="nota">Queda en 📁 Archivos del curso. En el computador puedes ligarlo a una canción (Extracto o Versión) y anotar estudiantes. Los videos de más de 50 MB se guardan como enlace de YouTube.</p>
+
+<div id="lista"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// 📷 SUBIR DESDE EL CELULAR (deuda DU, fase 2, 2026-10-27)
+// Fotos y videos con la cámara del celular, audio grabado aquí mismo, o archivos de la galería → 📁 Archivos del curso
+// (comun/archivos-curso.js). Con la clase en curso queda ligado solo a ese curso, la clase y la fecha; sin clase, se
+// elige el curso. Las fotos se achican antes de subir. Un video de más de 50 MB (límite del plan gratis) no se sube
+// aquí: "Subir a YouTube" abre la app de YouTube con el video listo (se elige "No listado"), y al volver se pega el
+// enlace, que queda guardado igual que un archivo.
+// ═══════════════════════════════════════════════════════════════════════
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+ClaseVivo.conectar(sb);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const ORDEN = ['PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO', 'SEXTO', 'SEPTIMO', 'OCTAVO', 'CUERDAS', 'CASTIGADAS', 'KIDS CASTIGADAS', 'RECREO', 'ORIENTACIÓN', 'ENLACE', 'GENERAL'];
+const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const etiqueta = n => typeof ctxDisplay === 'function' ? ctxDisplay(n) : n;
+
+// ── Curso: el de la clase en curso, o el que se elija ──
+let contextos = [], destino = null;   // { id, nombre, sesionId, fecha }
+async function cargarCursos() {
+    const { data } = await sb.from('contextos').select('id, nombre, activo');
+    const pos = n => { const i = ORDEN.indexOf(n); return i < 0 ? 99 : i; };
+    contextos = (data || []).filter(c => c.activo !== false).sort((a, b) => pos(a.nombre) - pos(b.nombre));
+}
+function decidirCurso() {
+    const c = ClaseVivo.enCurso();
+    const ctx = c && contextos.find(x => x.nombre === c.ctx);
+    if (ctx) {
+        destino = { id: ctx.id, nombre: ctx.nombre, sesionId: c.sesionId || null, fecha: c.fecha || hoyISO() };
+        $('curso').classList.add('en-clase');
+        $('curso-tit').textContent = 'En clase';
+        $('curso-txt').textContent = etiqueta(ctx.nombre) + ' · hoy';
+        $('curso-txt').hidden = false; $('curso-sel').hidden = true;
+        return;
+    }
+    $('curso').classList.remove('en-clase');
+    $('curso-tit').textContent = 'Curso';
+    $('curso-txt').hidden = true;
+    const sel = $('curso-sel');
+    sel.hidden = false;
+    let ultimo = null; try { ultimo = localStorage.getItem('profe_subir_curso'); } catch (_) {}
+    sel.innerHTML = '<option value="">Elige el curso…</option>' + contextos.map(x => `<option value="${x.id}">${esc(etiqueta(x.nombre))}</option>`).join('');
+    if (ultimo && contextos.some(x => x.id === ultimo)) sel.value = ultimo;
+    alElegir();
+}
+function alElegir() {
+    const ctx = contextos.find(x => x.id === $('curso-sel').value);
+    destino = ctx ? { id: ctx.id, nombre: ctx.nombre, sesionId: null, fecha: hoyISO() } : null;
+    if (ctx) try { localStorage.setItem('profe_subir_curso', ctx.id); } catch (_) {}
+}
+$('curso-sel').addEventListener('change', alElegir);
+function hayCurso() {
+    if (destino) return true;
+    $('curso-sel').focus();
+    alert('Primero elige el curso.');
+    return false;
+}
+
+// ── Subir ──
+const ICO = { imagen: '🖼️', audio: '🎧', video: '🎬' };
+function nuevoItem(nombre, tipo) {
+    const el = document.createElement('div');
+    el.className = 'it';
+    el.innerHTML = `<div class="it-c"><span class="it-ico">${ICO[tipo] || '📎'}</span><span class="it-nom">${esc(nombre)}</span><span class="it-est">Preparando…</span></div>`;
+    $('lista').prepend(el);
+    return el;
+}
+const est = (el, txt, cls) => { const e = el.querySelector('.it-est'); e.textContent = txt; e.className = 'it-est' + (cls ? ' ' + cls : ''); };
+function nombrePara(file, tipo) {
+    const d = new Date();
+    const hora = `${String(d.getHours()).padStart(2, '0')}.${String(d.getMinutes()).padStart(2, '0')}`;
+    const base = { imagen: 'Foto', audio: 'Audio', video: 'Video' }[tipo] || 'Archivo';
+    const ext = (file.name.match(/\.[a-z0-9]{2,5}$/i) || [''])[0].toLowerCase();
+    // Nombres de la cámara (IMG_2026…, VID_…) → uno legible; los de la galería con nombre propio se respetan.
+    return /^(img|vid|pxl|video|image|audio|rec|\d)/i.test(file.name) || !file.name ? `${base} ${etiqueta(destino.nombre).replace(/^\S+\s/, '')} ${hoyISO()} ${hora}${ext}` : file.name;
+}
+async function subir(file) {
+    if (!hayCurso()) return;
+    const tipo = ArchivosCurso.tipoDe(file.type);
+    const nombre = nombrePara(file, tipo);
+    const el = nuevoItem(nombre, tipo);
+    const f = tipo === 'imagen' ? await ArchivosCurso.prepararImagen(file) : file;
+    if (f.size > ArchivosCurso.MAX_BYTES) {
+        if (tipo === 'video') return pasoYouTube(el, f, nombre);
+        return est(el, `Pesa ${(f.size / 1048576).toFixed(0)} MB: el máximo es 50 MB.`, 'err');
+    }
+    est(el, `Subiendo ${(f.size / 1048576).toFixed(1).replace('.', ',')} MB…`);
+    try {
+        await ArchivosCurso.guardar(sb, { contextoId: destino.id, nombre, archivo: f, mime: f.type, origen: 'celular',
+                                          sesionId: destino.sesionId, fecha: destino.fecha });
+        est(el, '✓ Subido', 'ok');
+    } catch (e) {
+        est(el, /medios\.sql|column/i.test(e.message || '') ? 'Falta actualizar Supabase (medios.sql).' : 'No se pudo subir — revisa la señal.', 'err');
+    }
+}
+document.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListener('change', async () => {
+    const files = [...inp.files];
+    inp.value = '';
+    for (const f of files) await subir(f);
+}));
+
+// Video de más de 50 MB → YouTube (app del celular) → pegar el enlace.
+function pasoYouTube(el, file, nombre) {
+    est(el, `${(file.size / 1048576).toFixed(0)} MB`);
+    const caja = document.createElement('div');
+    caja.className = 'yt';
+    const puedeCompartir = navigator.canShare && navigator.canShare({ files: [file] });
+    caja.innerHTML = `
+        <div>Es muy grande para guardarlo aquí (máx. 50 MB). Súbelo a YouTube y guarda su enlace:</div>
+        <ol>
+            <li>${puedeCompartir ? 'Toca <b>Subir a YouTube</b> y elige la app de YouTube.' : 'Abre YouTube → ＋ → Subir un video → elige este video.'}</li>
+            <li>En <b>Visibilidad</b> elige <b>No listado</b> y publica.</li>
+            <li>Copia el enlace (Compartir → Copiar vínculo), vuelve aquí y toca <b>📋 Pegar</b>.</li>
+        </ol>
+        ${puedeCompartir ? '<button type="button" class="prim" data-yt>▶ Subir a YouTube</button>' : ''}
+        <div class="fila"><input placeholder="Enlace de YouTube" inputmode="url"><button type="button" data-pegar>📋 Pegar</button></div>
+        <button type="button" data-guardar>Guardar enlace</button>`;
+    el.appendChild(caja);
+    const inp = caja.querySelector('input');
+    caja.querySelector('[data-yt]')?.addEventListener('click', async () => {
+        try { await navigator.share({ files: [file], title: nombre }); }
+        catch (e) { if (e.name !== 'AbortError') alert('No se pudo abrir: sube el video desde la app de YouTube.'); }
+    });
+    caja.querySelector('[data-pegar]').addEventListener('click', async () => {
+        try { inp.value = (await navigator.clipboard.readText()).trim(); }
+        catch (_) { inp.focus(); alert('Mantén presionado el cuadro y elige Pegar.'); }
+    });
+    caja.querySelector('[data-guardar]').addEventListener('click', async ev => {
+        const enlace = inp.value.trim();
+        if (!ArchivosCurso.esEnlace(enlace)) { alert('Pega un enlace de YouTube (o Google Drive).'); inp.focus(); return; }
+        ev.currentTarget.disabled = true;
+        try {
+            await ArchivosCurso.guardarEnlace(sb, { contextoId: destino.id, nombre: nombre.replace(/\.[a-z0-9]{2,5}$/i, ''), url: enlace,
+                                                    origen: 'celular', sesionId: destino.sesionId, fecha: destino.fecha });
+            caja.remove();
+            est(el, '✓ Enlace guardado', 'ok');
+        } catch (e) { ev.currentTarget.disabled = false; alert('No se pudo guardar — revisa la señal.'); }
+    });
+    // Al volver de YouTube con el enlace copiado, se ofrece pegarlo solo.
+    const alVolver = async () => {
+        if (document.hidden || !caja.isConnected || inp.value) return;
+        try { const t = (await navigator.clipboard.readText()).trim(); if (ArchivosCurso.esEnlace(t)) inp.value = t; } catch (_) {}
+    };
+    document.addEventListener('visibilitychange', alVolver);
+}
+
+// ── Audio grabado aquí mismo ──
+let rec = null, trozos = [], t0 = 0, reloj = null;
+$('btn-audio').addEventListener('click', async () => {
+    if (rec) { rec.stop(); return; }
+    if (!hayCurso()) return;
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (_) { alert('Sin permiso para el micrófono.'); return; }
+    trozos = [];
+    rec = new MediaRecorder(stream);
+    rec.ondataavailable = e => { if (e.data.size) trozos.push(e.data); };
+    rec.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        clearInterval(reloj);
+        $('btn-audio').classList.remove('grabando'); $('rec-lbl').textContent = 'Grabar audio'; $('rec-t').textContent = '';
+        const mime = rec.mimeType || 'audio/webm';
+        const ext = /mp4|aac/.test(mime) ? '.m4a' : /ogg/.test(mime) ? '.ogg' : '.webm';
+        rec = null;
+        subir(new File(trozos, 'audio' + ext, { type: mime.split(';')[0] }));
+    };
+    rec.start(1000);
+    t0 = Date.now();
+    $('btn-audio').classList.add('grabando'); $('rec-lbl').textContent = '⏹ Detener';
+    reloj = setInterval(() => { const s = Math.floor((Date.now() - t0) / 1000); $('rec-t').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 500);
+});
+
+(async () => {
+    await cargarCursos();
+    decidirCurso();
+    ClaseVivo.onCambio(decidirCurso);
+})();
+</script>
+</body>
+</html>
