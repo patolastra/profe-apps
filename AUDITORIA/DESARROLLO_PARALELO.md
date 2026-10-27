@@ -6791,3 +6791,30 @@ orden").*
   visible; arrastrar "Aló, Aló" del 3.º al 1.º lugar en la actividad → orden nuevo también en la Presentación;
   arrastrarlo de vuelta al final desde la Presentación → la actividad se actualiza; selector de 380 px con las 4
   pestañas enteras. **Falta:** uso real.
+
+---
+
+### DZ. Tablaturas de la actividad: en el panel del Plan y con copia en la Pizarra
+*Origen: PO 2026-10-27 ("al abrir esos chips, que no se abran en pestaña nueva, sino como lo hacen las letras y las
+melodías de metalófono, y con espejo en la Pizarra").*
+- **Auditoría:** letras y metalófono se abren en el Entrenador mínimo sobre Presentación + Vista previa
+  (`REPERTORIO/?mini=1`, deuda BU) y, en clase, la Pizarra muestra una copia (`?espejo=1`, canal
+  `profe-espejo-entrenador`). El Lector no tiene modo panel ni copia.
+- **Plan:** 1) el vínculo 🎸 abre el Lector en el mismo panel (`tabs/index.html?…&mini=1`, ✕ o Esc lo cierran);
+  2) Lector **copia** (`?espejo=1`): sin botones ni audio, sigue el avance que le manda el Lector del panel (canal
+  `profe-espejo-lector`, ~20 veces por segundo, con la tablatura, sección y tiempo); 3) la Pizarra muestra la copia
+  encima mientras el panel está abierto con la clase en curso (como la letra) y la quita al cerrarlo.
+- **Lugares de uso (regla 11):** vínculos 🎸 de la actividad, de la Presentación y de la vista de clase.
+- **Implementación:** Lector (`tabs/index.html`): `?mini=1` (sin "Abrir", con ✕ y Esc que cierran el panel vía
+  `ent-mini-cerrar`) y `?espejo=1` (sin barras, mano, avisos ni audio; en cada cuadro toma el tiempo del panel y entre
+  mensajes avanza al ritmo medido). El panel con `&pizarra=1&sesion=` avisa `on` (tablatura, nombre, sección; también
+  en `localStorage profe_espejo_lector` para una Pizarra que se abra después), manda su tiempo cada 50 ms y al salir
+  avisa `off`. Plan (`PORTAL/index.html`): `abrirTabLector` abre el Lector en `#prev-mini` (con `&pizarra=1` solo con
+  la clase de esa sesión en curso). Pizarra (`PIZARRA/index.html`): capa `#espejo-lector` (z 8600) al `on` de su sesión,
+  quitada al `off`.
+- **Prueba (local):** panel (`mini`) de "Baby Shark · baby shark" → 205 notas en la sección, "Abrir" oculto y ✕ visible;
+  copia (`espejo`) sin barras, misma sección, recibe el tiempo (10,5); con mensajes "sonando" la copia queda a 1 ms del
+  tiempo enviado y al pausar se fija en el tiempo exacto; Pizarra de 5° → crea la copia solo con el aviso de su sesión
+  (no con otra) y la quita con `off`; Plan → el vínculo 🎸 abre el Lector en el panel en la sección y ✕ lo cierra.
+  (En las pruebas el navegador estaba oculto y no corrían los cuadros de dibujo: el cálculo de la copia se probó
+  directo.) **Falta:** probar en clase con la Pizarra real en el proyector.

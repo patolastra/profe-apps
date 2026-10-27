@@ -5307,27 +5307,28 @@ async function elegirCancion(c, boton) {
 // con la barra de siempre); con la clase de ESTA sesión en curso, la letra va también a la Pizarra (el
 // espejo de "📽️ Pizarra"). ✕ (o ← / Esc del Entrenador) lo cierra y la Pizarra vuelve a su diapositiva.
 let miniAct = null;   // actividad de la canción abierta en el Entrenador mínimo (en clase, es la actividad en curso)
-// Tablatura vinculada a una actividad (deuda DX): se abre en el Lector, en una pestaña del Workspace (como desde el
-// Entrenador, deuda CF); con sección, solo esa parte.
-function abrirTabLector(asset, seccion) {
-    if (!asset?.storage_path) { planEstado('Esa tablatura no tiene archivo.', true); return; }
-    const params = new URLSearchParams({ storage: asset.storage_path, nombre: asset.nombre_archivo || asset.etiqueta || 'tab' });
+// Tablatura vinculada a una actividad (deuda DX → DZ): se abre en el mismo panel que las letras (sobre Presentación +
+// Vista previa), en el Lector (`?mini=1`); con la clase de esta sesión en curso, el Lector manda una copia a la
+// Pizarra (`&pizarra=1&sesion=`, canal 'profe-espejo-lector'). Con sección, solo esa parte. ✕ o Esc lo cierran.
+function abrirTabLector(asset, seccion, actId) {
+    if (!asset?.storage_path || !sesionActual) { planEstado('Esa tablatura no tiene archivo.', true); return; }
+    miniAct = actId || null;
+    const st = ClaseVivo.get();
+    const enClase = !!(st && st.sesionId === sesionActual.id);
+    const params = new URLSearchParams({ storage: asset.storage_path, nombre: asset.nombre_archivo || asset.etiqueta || 'tab', mini: '1' });
     if (seccion) params.set('seccion', seccion);
-    const src = `../tabs/index.html?${params}`;
-    const corto = nombreAsset(asset, bibCanciones?.get(asset.cancion_id)?.nombre);
-    if (window.parent && window.parent !== window) {
-        try {
-            window.parent.postMessage({ tipo: 'ws-abrir', key: `lector:${asset.id}${seccion ? ':' + seccion : ''}`,
-                titulo: seccion ? `${corto} · ${seccion}` : corto, ico: '🎸', src }, '*');
-            return;
-        } catch (_) {}
-    }
-    window.open(src, '_blank');
+    if (enClase) { params.set('pizarra', '1'); params.set('sesion', sesionActual.id); }
+    params.set('v', Date.now());
+    const box = document.getElementById('prev-mini');
+    box.querySelector('iframe').src = `../tabs/index.html?${params}`;
+    box.hidden = false;
+    miniUbicar();
+    marcarEnPizarra();
 }
 async function abrirMini(cancionId, actId, assetId, seccion) {
     if (!cancionId || !sesionActual) return;
     const rec = assetId && bibRecursos?.get(assetId);
-    if (rec?.tipo === 'tab') { abrirTabLector(rec, seccion); return; }   // tablatura (deuda DX): al Lector
+    if (rec?.tipo === 'tab') { abrirTabLector(rec, seccion, actId); return; }   // tablatura (DX/DZ): Lector en el panel
     miniAct = actId || null;
     const curso = await cancionesDelCurso();
     const sid = entrenamientoDefaultId;

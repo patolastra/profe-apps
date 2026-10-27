@@ -1630,6 +1630,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (_) {}
 })();
 
+// Tablatura de una actividad en la Pizarra (deuda DZ): con el Lector abierto en el panel del Plan y la clase en curso,
+// esta ventana muestra encima una copia (tabs/?espejo=1: sin botones ni audio, sigue el avance del panel).
+// Al cerrar el panel (canal 'off') se quita y la Pizarra queda donde estaba.
+(function () {
+    if (!('BroadcastChannel' in window)) return;
+    const canal = new BroadcastChannel('profe-espejo-lector');
+    const miSesion = new URLSearchParams(location.search).get('sesion');
+    let capa = null;
+    function mostrar(m) {
+        quitar();
+        const q = new URLSearchParams({ espejo: '1', storage: m.storage, nombre: m.nombre || 'tab', v: Date.now() });
+        if (m.seccion) q.set('seccion', m.seccion);
+        capa = document.createElement('iframe');
+        capa.id = 'espejo-lector';
+        capa.src = '../tabs/index.html?' + q;
+        capa.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;z-index:8600;background:#04111e';
+        document.body.appendChild(capa);
+        try { Recurrentes.alProyectar(); } catch (_) {}
+    }
+    function quitar() { if (capa) { capa.remove(); capa = null; } }
+    canal.addEventListener('message', ev => {
+        const m = ev.data || {};
+        if (m.tipo === 'on' && m.sesionId === miSesion && m.storage) mostrar(m);
+        else if (m.tipo === 'off') quitar();
+    });
+    // Pizarra recién abierta con el Lector ya en el panel
+    try {
+        const e = JSON.parse(localStorage.getItem('profe_espejo_lector') || 'null');
+        if (e && e.sesionId === miSesion && e.storage) mostrar(e);
+    } catch (_) {}
+})();
+
 // 🔴 Puntero (deuda CT): el mouse del profe sobre esta diapositiva en su Vista previa se ve aquí como un punto rojo.
 // Con el Entrenador encima, el punto lo dibuja su copia (sobre la letra).
 Puntero.receptor(m => {

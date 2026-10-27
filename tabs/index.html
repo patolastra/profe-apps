@@ -12,6 +12,12 @@
     <script>
         if (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) <= 600)
             document.documentElement.classList.add('movil');
+        // Tablatura de una actividad del Plan (deuda DZ): ?mini=1 = en el panel del Plan; ?espejo=1 = copia en la Pizarra.
+        (function () {
+            const q = new URLSearchParams(location.search);
+            if (q.get('mini') === '1') document.documentElement.classList.add('mini');
+            if (q.get('espejo') === '1') document.documentElement.classList.add('espejo');
+        })();
     </script>
     <script src="../comun/nombre-asset.js"></script>
     <style>
@@ -128,6 +134,13 @@
                         font-size: 1.5rem; font-weight: 800; text-align: center; padding: 20px; }
         #girarCelular .giro-ico { font-size: 4rem; }
         @media (orientation: portrait) { html.movil #girarCelular { display: flex; } }
+        /* ── PANEL DEL PLAN (html.mini) y COPIA EN LA PIZARRA (html.espejo), deuda DZ ── */
+        html.mini #btnAbrirCtrl { display: none !important; }
+        #btnCerrarMini { display: none; background: #475569; color: #fff; }
+        html.mini #btnCerrarMini { display: inline-block; }
+        html.espejo .controls, html.espejo #tab-audio-bar, html.espejo #btnMano, html.espejo #landing,
+        html.espejo #modalMensaje, html.espejo #modalRepertorio { display: none !important; }
+        html.espejo #tabCanvas { cursor: default; }
         #tabCanvas { position: fixed; top: 0; left: 0; background: #04111e; cursor: crosshair; z-index: 1;
                      touch-action: none; /* el dedo mueve la tablatura (deslizar), no la página */ }
         #tabCanvas.selecting { cursor: cell; }
@@ -758,6 +771,7 @@
         <button id="btnAcordes" style="display:none" onclick="abrirModalAcordes()">🎸 Acordes</button>
         <button id="btnPistas" class="btn-pistas" onclick="togglePistasPanel(this)">🎵 Pistas</button>
         <button id="btnAfinar" onclick="abrirAfinador()" title="Afinador: suena cada cuerda al aire" style="visibility:hidden">🎚️ Afinar</button>
+        <button id="btnCerrarMini" onclick="lectorCerrarMini()" title="Cerrar y volver a las diapositivas (Esc)">✕</button>
     </div>
     <div id="badgeAlumno" class="badge-alumno"><span id="badgeNombre"></span></div>
 </div>
@@ -1214,6 +1228,9 @@ let fretTop       = START_Y - FRET_PAD;
 let fretBottom    = START_Y + (numStrings - 1) * STR_SPACING + FRET_PAD;
 let BALL_STRING_Y = START_Y + 2 * STR_SPACING;
 
+// Tablatura de una actividad del Plan (deuda DZ): panel del Plan o copia en la Pizarra.
+const LECTOR_MINI   = document.documentElement.classList.contains('mini');
+const LECTOR_ESPEJO = document.documentElement.classList.contains('espejo');
 // Celular: el diapasón (alto fijo en px) no cabe en una pantalla horizontal de ~380 px. Se dibuja en un lienzo
 // más grande (como si la pantalla tuviera ~660 px de alto) y se muestra achicado. ESCALA_LIENZO pasa de
 // medidas del lienzo a pixeles de pantalla (1 en PC).
@@ -2576,6 +2593,7 @@ function animLoop(ts) {
     if (!lastTS) lastTS = ts;
     const dt = (ts - lastTS) / 1000;
     lastTS = ts;
+    if (LECTOR_ESPEJO) espejoLectorAvanzar();   // copia de la Pizarra: el tiempo lo manda el panel del Plan (DZ)
 
     if (isPlaying) {
         prevTime = currentTime;
@@ -8008,7 +8026,53 @@ function renderLeccionIndice() {
     } catch (e) { console.warn('[deep-link] no se pudo recuperar metadata del asset:', e.message); }
 
     await cargarDesdeStorage(storagePath, nombre, meta);
+    if (LECTOR_MINI && p.get('pizarra') === '1') espejoLectorEmitir(storagePath, nombre, seccionParam, p.get('sesion'));
 })();
+
+// ════════════════════════════════════════════════════════════════════════════
+//  TABLATURA DE UNA ACTIVIDAD DEL PLAN (deuda DZ): panel (?mini=1) y copia en la Pizarra (?espejo=1)
+//  El panel, con la clase en curso (&pizarra=1&sesion=), avisa a la Pizarra por el canal 'profe-espejo-lector'
+//  qué tablatura mostrar y le manda su tiempo ~20 veces por segundo; la copia, sin botones ni audio, lo sigue
+//  (entre mensajes avanza al mismo ritmo). Al cerrar el panel (✕, Esc o salir) la copia se quita.
+// ════════════════════════════════════════════════════════════════════════════
+function lectorCerrarMini() {
+    try { window.parent.postMessage({ tipo: 'ent-mini-cerrar' }, '*'); } catch (_) {}
+}
+if (LECTOR_MINI) document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !document.querySelector('.rep-modal.open, #modalAcordes.open, #modalAfinador.open')) lectorCerrarMini();
+});
+const espejoLectorCanal = ('BroadcastChannel' in window) ? new BroadcastChannel('profe-espejo-lector') : null;
+function espejoLectorEmitir(storage, nombre, seccion, sesionId) {
+    if (!espejoLectorCanal) return;
+    const on = { tipo: 'on', sesionId, storage, nombre, seccion: seccion || null };
+    espejoLectorCanal.postMessage(on);
+    try { localStorage.setItem('profe_espejo_lector', JSON.stringify(on)); } catch (_) {}
+    const timer = setInterval(() => espejoLectorCanal.postMessage({ tipo: 'estado', t: currentTime, sonando: !!isPlaying, enviado: Date.now() }), 50);
+    window.addEventListener('pagehide', () => {
+        clearInterval(timer);
+        espejoLectorCanal.postMessage({ tipo: 'off' });
+        try { localStorage.removeItem('profe_espejo_lector'); } catch (_) {}
+    });
+}
+// Copia: último tiempo recibido y a qué ritmo avanza (medido entre mensajes) para moverse suave entre ellos.
+let espejoT = null, espejoTs = 0, espejoRitmo = 0, espejoSonando = false;
+if (LECTOR_ESPEJO && espejoLectorCanal) espejoLectorCanal.onmessage = ev => {
+    const m = ev.data || {};
+    if (m.tipo !== 'estado') return;
+    const ahora = performance.now();
+    if (espejoT !== null && m.sonando && espejoSonando && ahora > espejoTs) {
+        const r = (m.t - espejoT) / ((ahora - espejoTs) / 1000);
+        if (r > 0 && r < 4) espejoRitmo = espejoRitmo ? espejoRitmo * 0.7 + r * 0.3 : r;
+    }
+    if (!m.sonando) espejoRitmo = 0;
+    espejoT = m.t; espejoTs = ahora; espejoSonando = !!m.sonando;
+};
+function espejoLectorAvanzar() {
+    if (espejoT === null || (!notes.length && !chordEvents.length)) return;
+    const extra = espejoSonando ? Math.min(0.25, (performance.now() - espejoTs) / 1000) * espejoRitmo : 0;
+    prevTime = currentTime;
+    currentTime = espejoT + extra;
+}
 </script>
 </body>
 </html>
