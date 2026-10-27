@@ -6688,3 +6688,10 @@ una canción: versión oficial (melodía), karaoke, extractos (grabados por mí 
   las instrucciones a mano; en Android aparece el botón); 📁 Archivos de 8° muestra ＋ Enlace, ＋ Subir archivo, la
   zona para soltar y el formulario ✏️. **Falta:** correr `medios.sql` y probar guardar, ligar canción/estudiantes y
   enlaces; probar en el celular real (cámara, audio, YouTube).
+- **PO corrió `supabase/medios.sql` (2026-10-27).** Prueba completa (local, 5°): desde 📷 Subir, una foto de prueba de
+  23 MB quedó en 1,3 MB JPEG, un audio y un video de 60 MB por el camino de YouTube (enlace pegado) — los tres "✓", con
+  fecha de hoy; en 📁 Archivos (PC) el audio quedó como **Versión** de "Aló, Aló" con 2 estudiantes (de los 34 de 5°) y
+  el video como **Extracto** con 🔗 YouTube; arrastrar un archivo a la ventana la resalta y lo sube. Todo lo de prueba
+  se borró (queda solo la guía real de 8°). **Arreglos:** la foto achicada se nombra .jpg (antes conservaba .png); las
+  etiquetas (🎵 canción · tipo · 👥 · 🔗) van en una segunda línea para que se vean aunque el nombre sea largo
+  (`?v=du2`). **Falta:** probar en el celular real (cámara, audio, botón Subir a YouTube) y las fases 3 y 4.

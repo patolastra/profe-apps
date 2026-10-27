@@ -224,7 +224,7 @@ const ArchivosCurso = (() => {
         lista.innerHTML = filas.map(f => `
             <div class="arc-fila${editando === f.id ? ' edit' : ''}" data-id="${f.id}">
                 <span class="arc-ico">${ICONO[f.tipo] || ICONO.otro}</span>
-                <span class="arc-nom" title="${esc(f.nombre)}">${esc(f.nombre)}<span class="arc-tags">${etiquetas(f)}</span></span>
+                <span class="arc-nom"><span class="arc-nom-t" title="${esc(f.nombre)}">${esc(f.nombre)}</span>${etiquetas(f) ? `<span class="arc-tags">${etiquetas(f)}</span>` : ''}</span>
                 <span class="arc-meta">${fechaTxt(f.fecha || f.created_at)}${f.tamano ? ' · ' + tamTxt(f.tamano) : ''}</span>
                 <a class="arc-btn arc-abrir" href="${esc(url(f))}" target="_blank" rel="noopener" title="Abrir (para mirar, escuchar o imprimir)">Abrir</a>
                 <button class="arc-btn arc-editar" title="Canción, tipo, fecha y estudiantes">✏️</button>
