@@ -39,7 +39,8 @@ const RedactarOA = (() => {
     // Los modelos 2.5 "piensan" antes de responder y eso consume la cuota de salida: con poca, la respuesta llega
     // cortada. Aquí no hace falta pensar (thinkingBudget 0) y se deja espacio amplio, como en la Planificación.
     // Si todos los modelos fallan, el error trae el motivo del último (se muestra al profe entre paréntesis).
-    async function llamar(texto, llave) {
+    // validar(o) → lo que se devuelve, o null si la respuesta no trae lo pedido (se prueba el modelo siguiente).
+    async function llamar(texto, llave, validar) {
         let ultimo = 'modelos', detalle = '';
         for (const modelo of MODELOS) {
             const generationConfig = { temperature: 0.6, maxOutputTokens: 8192, responseMimeType: 'application/json' };
@@ -64,12 +65,12 @@ const RedactarOA = (() => {
             const out = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
             const ini = out.indexOf('{'), fin = out.lastIndexOf('}');
             try {
-                const o = JSON.parse(out.slice(ini, fin + 1));
-                if (o.oficial && o.libre) return { oficial: String(o.oficial).trim(), libre: String(o.libre).trim() };
-                detalle = `${modelo}: faltan opciones`;
+                const r = validar(JSON.parse(out.slice(ini, fin + 1)));
+                if (r) return r;
+                detalle = `${modelo}: respuesta sin lo pedido`;
             } catch (_) { detalle = `${modelo}: respuesta ${out ? 'incompleta' : 'vacía'} (${j.candidates?.[0]?.finishReason || 'sin motivo'})`; }
         }
-        console.warn('[RedactarOA]', detalle);
+        console.warn('[IA Gemini]', detalle);
         const e = new Error(ultimo); e.detalle = detalle;
         throw e;
     }
@@ -111,7 +112,8 @@ const RedactarOA = (() => {
         estado(id, 'Redactando…');
         try {
             const nombreEval = typeof op.nombreEvaluacion === 'function' ? op.nombreEvaluacion() : (op.nombreEvaluacion || '');
-            const r = await llamar(instruccion(op.nivel, idea, nombreEval, await curriculo(op.nivel)), llave);
+            const r = await llamar(instruccion(op.nivel, idea, nombreEval, await curriculo(op.nivel)), llave,
+                o => o.oficial && o.libre ? { oficial: String(o.oficial).trim(), libre: String(o.libre).trim() } : null);
             estado(id, '');
             panel.style.display = '';
             panel.innerHTML = [['Basado en el OA oficial', r.oficial], ['Redacción libre', r.libre]].map(([t, txt]) => `
@@ -131,15 +133,26 @@ const RedactarOA = (() => {
             panel.querySelector('[data-otra]').addEventListener('click', () => redactar(id, btn));
             panel.querySelector('[data-cerrar]').addEventListener('click', () => { panel.style.display = 'none'; });
         } catch (e) {
-            const m = e.message;
-            if (m === 'llave') { try { localStorage.removeItem('gemini_api_key'); } catch (_) {} }
-            estado(id, m === 'llave' ? 'La llave de Gemini no sirve; vuelve a intentarlo para pegar otra.'
-                : m === 'cuota' ? 'Gemini está ocupado (límite del plan gratis); prueba en un minuto.'
-                : m === 'red' ? 'Sin conexión.'
-                : m === 'curriculo' ? 'No se encontró el currículo del curso.'
-                : 'No se pudo redactar; prueba de nuevo.' + (e.detalle ? ` (${e.detalle})` : ''));
+            estado(id, mensajeError(e, 'No se pudo redactar; prueba de nuevo.'));
         } finally { btn.disabled = false; }
     }
+    // Mensaje humano para un error de la IA (si la llave no sirve, se borra para pedirla de nuevo).
+    function mensajeError(e, generico) {
+        const m = e.message;
+        if (m === 'llave') { try { localStorage.removeItem('gemini_api_key'); } catch (_) {} }
+        return m === 'llave' ? 'La llave de Gemini no sirve; vuelve a intentarlo para pegar otra.'
+            : m === 'cuota' ? 'Gemini está ocupado (límite del plan gratis); prueba en un minuto.'
+            : m === 'red' ? 'Sin conexión.'
+            : m === 'curriculo' ? 'No se encontró el currículo del curso.'
+            : m === 'sin-llave' ? 'Falta la llave de Gemini.'
+            : generico + (e.detalle ? ` (${e.detalle})` : '');
+    }
+    // Para otras funciones de IA del Libro (✨ Proponer rúbrica, DT): pide la llave si falta y llama a Gemini.
+    async function pedir(texto, validar) {
+        const llave = leerLlave() || pedirLlave();
+        if (!llave) throw new Error('sin-llave');
+        return llamar(texto, llave, validar);
+    }
 
-    return { nivel, boton, redactar };
+    return { nivel, boton, redactar, pedir, curriculo, mensajeError };
 })();

@@ -6597,3 +6597,31 @@ idea formal de OA").*
   `LIBRO/index.html` y `comun/redactar-oa.js?v=ds2`.
 - **Validado por el PO (2026-10-27):** ✨ Redactar OA funciona con su llave de Gemini. Cierre: hecho y probado en uso;
   queda por ver en el uso diario si las dos redacciones sirven.
+
+---
+
+### DT. Libro — ✨ Proponer la rúbrica o lista de cotejo con IA
+*Origen: PO 2026-10-27 (captura de la pestaña Instrumentos de una evaluación con su OA: "quiero también incluir a la IA
+para el desarrollo de la rúbrica").*
+- **Necesidad:** armar los criterios de una rúbrica (con sus 4 niveles) o los ítems de una lista de cotejo toma tiempo;
+  el OA ya dice qué se evalúa.
+- **Decisión del PO (2026-10-27):** botón **✨ Proponer con IA** en el editor del instrumento: la IA propone los
+  criterios a partir del OA de la evaluación (+ una idea opcional y el currículo del nivel); **el profe elige 3, 4 o 5**
+  criterios (parte en 4); **vista previa** y **"Agregar todos"** (se suman a los que ya tenga y se corrigen ahí). **Solo
+  cursos** (1° a 8°). **También en las Plantillas** de instrumentos (ahí parte del nombre y una idea, sin OA).
+- **Plan:** misma IA que ✨ Redactar OA (DS): Gemini plan gratis, llave del equipo, currículo del nivel; la pieza común
+  `comun/redactar-oa.js` comparte la llamada.
+- **Lugares de uso (regla 11):** Libro → evaluación → Instrumentos (crear/editar instrumento) y Plantillas de
+  instrumentos; también dentro de 📒 Libros.
+- **Implementación:** pieza `comun/rubrica-ia.js` (`RubricaIA`): bloque "✨ Proponer con IA" bajo "Agregar" en el editor
+  del instrumento (si no está bloqueado por tener resultados) y en el de plantillas — selector 3 / 4 / 5 (parte en 4),
+  idea opcional, Proponer → vista previa (rúbrica: cada criterio con sus 4 niveles; cotejo: ítems Sí/No) → **Agregar
+  todos** (se insertan de una vez al final, con su orden), ↻ Otra propuesta, ✕ Descartar. Base: OA y nombre de la
+  evaluación (en plantillas, su nombre) + currículo del nivel. `comun/redactar-oa.js` ahora comparte la llamada a
+  Gemini (`RedactarOA.pedir`, `curriculo`, `mensajeError`). Libro: `agregarCriteriosIA` / `agregarPlItemsIA`;
+  scripts pedidos con `?v=dt1`.
+- **Prueba (local, 5°, respuesta de Gemini simulada):** en una plantilla de prueba de rúbrica, con 3 criterios y la idea
+  "la intro de la cueca": lo enviado pide "exactamente 3" con el currículo de QUINTO BÁSICO, la idea y el nombre; la
+  vista previa muestra los 3 criterios con sus 4 niveles; Agregar todos guardó los 3 (orden 0–2, niveles 1 a 4) y el
+  editor quedó en "Criterios (3)". ✨ Redactar OA sigue funcionando. La plantilla de prueba se borró. **No probado:**
+  la respuesta real de Gemini y el editor de un instrumento de una evaluación real (mismo bloque).

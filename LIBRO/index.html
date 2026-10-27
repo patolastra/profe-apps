@@ -21,7 +21,8 @@
 <script src="../comun/libro-proyeccion.js"></script>
 <script src="../comun/puntero.js"></script>
 <script src="../comun/tiempo-real.js"></script>
-<script src="../comun/redactar-oa.js?v=ds2"></script>
+<script src="../comun/redactar-oa.js?v=dt1"></script>
+<script src="../comun/rubrica-ia.js?v=dt1"></script>
 <link rel="stylesheet" href="../comun/participacion-tablero.css">
 <style>
   :root{
@@ -2832,6 +2833,8 @@ function renderPlantillaEditor(){
                onkeydown="if(event.key==='Enter')agregarPlItem()">
         <button class="btn primary" onclick="agregarPlItem(this)">Agregar</button>
       </div>
+      ${RubricaIA.html({ nivel: RedactarOA.nivel(ctxNombre), tipo: p.tipo,
+          base: () => ({ nombre: plActual.nombre || '' }), alAgregar: agregarPlItemsIA })}
     </div>`;
   document.getElementById('ple-nombre').addEventListener('change', renombrarPlantilla);
   renderPlItems();
@@ -2895,6 +2898,20 @@ async function _agregarPlItem(){
     toast(yaEstaba ? 'Ya estaba agregado (no se duplicó).' : 'Agregado.', 'ok');
   } catch (e) { inp.value = texto; toast(avisoFallo(e), 'err'); }
   finally { plAdding = false; }
+}
+
+// ✨ Proponer con IA en una plantilla (deuda DT): agrega de una vez los criterios/ítems propuestos.
+async function agregarPlItemsIA(criterios){
+  const desde = plItems.length ? Math.max(...plItems.map(i => i.orden || 0)) + 1 : 0;
+  const filas = criterios.map((c, i) => ({ plantilla_id: plActual.id, orden: desde + i, ...c }));
+  const { data, error } = await sb.from('libro_plantilla_items').insert(filas).select();
+  if (error) throw error;
+  plItems.push(...(data || []));
+  renderPlItems();
+  const t = document.querySelector('#vista .card:last-child .sec-title');
+  if (t) t.textContent = (plActual.tipo === 'rubrica' ? 'Criterios' : 'Ítems') + ` (${plItems.length})`;
+  document.getElementById('ria-prev').innerHTML = '';
+  toast(`${(data || []).length} agregados. Puedes corregirlos aquí mismo.`, 'ok');
 }
 
 async function guardarPlItemCampo(id, k, val){
@@ -3291,6 +3308,9 @@ function renderInstrEdit(){
              onkeydown="if(event.key==='Enter')instrEditAgregarItem()">
       <button class="btn primary" onclick="instrEditAgregarItem(this)">Agregar</button>
     </div>`}
+    ${bloqueado ? '' : RubricaIA.html({ nivel: RedactarOA.nivel(ctxNombre), tipo: instr.tipo,
+        base: () => ({ oa: evalActual.oa_original || '', nombre: evalActual.nombre || '' }),
+        alAgregar: criterios => agregarCriteriosIA(instr, criterios) })}
     <div class="mm-actions"><button class="btn primary" onclick="cerrarInstrEdit()">Listo</button></div>`;
   card.innerHTML = html;
   crecerTextos(card);
@@ -3339,6 +3359,19 @@ async function _instrEditAgregarItem(){
     if (yaEstaba) toast('Ya estaba agregado (no se duplicó).', 'ok');
   } catch (e) { inp.value = texto; toast(avisoFallo(e), 'err'); }
   finally { instrEditAdding = false; }
+}
+
+// ✨ Proponer con IA (deuda DT): agrega de una vez los criterios/ítems propuestos, al final del instrumento.
+async function agregarCriteriosIA(instr, criterios){
+  if (instrumentoTieneResultados(instr.id)) { toast('Estructura bloqueada: el instrumento ya tiene resultados.', 'err'); return; }
+  const its = instrItemsDe(instr.id);
+  const desde = its.length ? Math.max(...its.map(i => i.orden || 0)) + 1 : 0;
+  const filas = criterios.map((c, i) => ({ instrumento_id: instr.id, orden: desde + i, ...c }));
+  const { data, error } = await sb.from('libro_eval_instrumento_items').insert(filas).select();
+  if (error) throw error;
+  evalInstrItems.push(...(data || []));
+  renderInstrEdit();
+  toast(`${(data || []).length} agregados. Puedes corregirlos aquí mismo.`, 'ok');
 }
 
 async function instrEditGuardarCampo(id, k, val){

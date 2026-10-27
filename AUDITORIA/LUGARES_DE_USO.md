@@ -58,6 +58,8 @@
 | `libro-proyeccion.js` | Libro (📽️ Proyectar) · Pizarra · Workspace |
 | `cuaderno.js` | Plan (📔) · Cursos (📔 Cuaderno) · Pizarra (espejo) |
 | `compartir.js` | Biblioteca: ficha de la canción, ✈ de la melodía de metalófono, del piano y de cada tablatura y sección publicada (deudas DQ y DP) |
+| `redactar-oa.js` | Libro: ✨ Redactar OA en Nueva evaluación y en la cabecera (solo cursos; DS) · llamada a Gemini compartida |
+| `rubrica-ia.js` | Libro: ✨ Proponer con IA en el editor de instrumentos y en Plantillas (solo cursos; DT) |
 | `archivos-curso.js` | Cursos (📁 Archivos) · la guía QR de `compartir.js` guarda aquí (deuda DQ) |
 | `recurrentes.js` / `fecha-pizarra.js` | Plan (🔔) · Pizarra |
 | `clase-vivo.js` | Plan · Pizarra · Libro · Biblioteca/Entrenador · Workspace · Bitácora (MEMORIA) · celular (inicio, Cursos, Evaluar) |
