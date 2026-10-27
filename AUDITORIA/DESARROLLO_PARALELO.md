@@ -6829,7 +6829,7 @@ propón algo").*
   la vez.
 - **Auditoría:** la fila la arma `notaCellHTML` + la tabla de Estudiantes en `LIBRO/index.html` (columnas Objetivo
   aplicado · Nota · Comentario). El estado ya se marca con el fondo verde de la fila. Sin cambios en Supabase.
-- **Propuesta (PO aprobó la ficha; implementación pendiente de su visto bueno):**
+- **Propuesta (aprobada por el PO 2026-10-27):**
   1. **Fila delgada:** nombre · nota grande · comentario en una línea.
   2. **Objetivo aplicado:** la columna se oculta si nadie tiene adecuación (el OA está en General); si alguien la tiene,
      se ve solo en su fila como etiqueta chica (el selector aparece al pasar el mouse o al hacer clic).
@@ -6844,3 +6844,14 @@ propón algo").*
   ("hjk,l") recibió el nombre y OA de «Aló aló al metalófono»; las dos vacías se borraron; la rúbrica "Melodía en
   metalófono" quedó en Instrumentos **sin** asociarse a la cabecera, para que Estudiantes muestre las notas puestas a
   mano por toques (con la rúbrica asociada mostraba "—" y "Evaluar" habría reemplazado la nota).
+- **Implementación (`LIBRO/index.html`):** la tabla lleva la clase `est-limpia`; fila con `filaEstClase` (verde `fila-ok`
+  · amarillo `est-pend` · gris `est-na`, también al cambiar la nota: `pintarFilaEst`); la etiqueta de estado se oculta
+  solo en esta tabla; columna Objetivo aplicado solo si hay adecuaciones (`verObj`), con el selector como texto chico
+  (amarillo si es adecuación) que se enmarca al pasar el mouse; celda de nota en una línea: nota grande · "1ª nota" ·
+  marca de grupo · botones (`nota-acc`, ocultos con `visibility` hasta pasar el mouse o tener el foco: la fila no se
+  mueve); "n/m" solo con la rúbrica a medias; `reevalHTML` se separó en `notaAntHTML` + `reevalBtnHTML`; comentario
+  en un `textarea` de una línea que crece al escribir (`estComAlto`). Sin cambios en Supabase.
+- **Prueba (local, evaluación de 5°, sin guardar nada):** 34 filas de 46 px (antes ~140), columnas # · Estudiante ·
+  Nota · Comentario; barras verde / amarilla; botones ocultos y visibles al pasar el mouse; comentario largo se abre
+  completo al hacer clic sin barra de desplazamiento; con una adecuación ficticia en memoria aparece la columna
+  Objetivo aplicado (en amarillo para ese estudiante) y la tabla cabe sin desplazarse a 1200 px. **Falta:** uso real.

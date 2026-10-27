@@ -244,6 +244,26 @@
   .est-badge.no_aplica{background:rgba(255,255,255,.10);color:var(--mut)}
   /* Reevaluación (deuda AD) */
   .nota-ant{display:block;font-size:11px;color:var(--mut);white-space:nowrap}
+  /* ── Pestaña Estudiantes limpia (deuda EA): fila delgada, estado = barra de color, botones al pasar el mouse ── */
+  table.est-limpia td{padding-top:3px;padding-bottom:3px}
+  table.est-limpia tr.est-pend td:first-child{box-shadow:inset 3px 0 0 #e0a106}
+  table.est-limpia tr.est-na td{color:var(--mut)}
+  table.est-limpia tr.est-na td:first-child{box-shadow:inset 3px 0 0 #5b6573}
+  table.est-limpia .est-badge{display:none}
+  table.est-limpia .nota-instr{flex-direction:row;align-items:center;gap:8px;flex-wrap:nowrap;white-space:nowrap}
+  table.est-limpia .nota-val{font-size:17px;min-width:36px;text-align:center}
+  table.est-limpia td.nota input[data-k="nota"]{font-size:16px;font-weight:700;text-align:center;width:58px;flex:none}
+  table.est-limpia .nota-ant{display:inline}
+  table.est-limpia .cel-marca{margin-top:0;flex-wrap:nowrap}
+  table.est-limpia .nota-acc{display:inline-flex;gap:4px;visibility:hidden}
+  table.est-limpia tr:hover .nota-acc,table.est-limpia tr:focus-within .nota-acc{visibility:visible}
+  table.est-limpia td.obj select,table.est-limpia textarea.est-com{background:transparent;border-color:transparent}
+  table.est-limpia td.obj select{color:var(--mut);font-size:12px;padding:3px 4px}
+  table.est-limpia td.obj select.adec{color:#f0c040}
+  table.est-limpia tr:hover td.obj select,table.est-limpia td.obj select:focus,
+  table.est-limpia tr:hover textarea.est-com,table.est-limpia textarea.est-com:focus{border-color:var(--line)}
+  table.est-limpia textarea.est-com{resize:none;min-height:0;height:30px;line-height:20px;overflow:hidden;width:100%;display:block}
+  table.est-limpia textarea.est-com:focus{background:#0d1117}
   .em-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
   .em-card{position:relative;background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--acc);
     border-radius:14px;max-width:660px;width:100%;max-height:88vh;overflow:auto;padding:18px 20px;box-shadow:0 12px 48px rgba(0,0,0,.5)}
@@ -1161,7 +1181,7 @@ function renderDetalle(){
 
     <div class="ev-pane" data-pane="res">${resPaneHTML()}</div>
 
-    <div class="ev-pane" data-pane="est">
+    <div class="ev-pane" data-pane="est">${(() => { verObj = adecs.length > 0; return ''; })()}
     <div class="card">
       <p class="sec-title">Estudiantes (${notas.length})</p>
       ${notas.length ? `<div class="buscador">
@@ -1170,18 +1190,19 @@ function renderDetalle(){
         <button type="button" class="btn" onclick="copiarPendientesEval(this)" title="Copia la lista de pendientes (incluye ausentes de hoy) para pegarla en el Plan">📋 Copiar</button>
       </div>` : ''}
       <div style="overflow-x:auto">
-      <table>
+      <table class="est-limpia">
         <colgroup>
-          <col style="width:44px"><col style="width:26%"><col style="width:230px"><col style="width:118px"><col>
+          <col style="width:44px"><col style="width:22%">${verObj ? '<col style="width:180px">' : ''}<col style="width:215px"><col>
         </colgroup>
-        <thead><tr><th class="pos">#</th><th>Estudiante</th><th class="obj">Objetivo aplicado</th><th class="nota">Nota</th><th>Comentario</th></tr></thead>
+        <thead><tr><th class="pos">#</th><th>Estudiante</th>${verObj ? '<th class="obj">Objetivo aplicado</th>' : ''}<th class="nota">Nota</th><th>Comentario</th></tr></thead>
         <tbody id="tbody-est">${notas.map((n, idx) => `
-          <tr data-idx="${idx}" data-nota-id="${n.id}" data-buscar="${esc(nombreBuscar(n.estudiante))}" class="${n.nota != null ? 'fila-ok' : ''}">
+          <tr data-idx="${idx}" data-nota-id="${n.id}" data-buscar="${esc(nombreBuscar(n.estudiante))}" class="${filaEstClase(n)}">
             <td class="pos">${posMap[n.estudiante_id] ?? ''}</td>
             <td class="est-nombre">${esc(nombreEstudiante(n))}${grupoChipHTML(n)}${ausenteHoyHTML(n.estudiante_id)}</td>
-            <td class="obj"><select data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select><div class="cel-marca">${marcaObjHTML(n, cerrada)}</div></td>
+            ${verObj ? `<td class="obj"><select class="${n.adecuacion_id ? 'adec' : ''}" data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select><div class="cel-marca">${marcaObjHTML(n, cerrada)}</div></td>` : ''}
             ${notaCellHTML(n, idx, cerrada)}
-            <td><input data-i="${idx}" data-k="comentario" value="${esc(n.comentario||'')}" placeholder="(opcional)" ${dis}></td>
+            <td><textarea class="est-com" rows="1" data-i="${idx}" data-k="comentario" placeholder="(comentario)" ${dis}
+                 onfocus="estComAlto(this)" oninput="estComAlto(this)" onblur="this.style.height=''">${esc(n.comentario||'')}</textarea></td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -1234,7 +1255,7 @@ function renderDetalle(){
           if (!r.ok) { toast('Nota inválida (usa 1,0–7,0): "' + el.value + '"', 'err'); el.focus(); return; }
           n.nota = r.val;
           el.value = fmtNota(r.val);
-          el.closest('tr')?.classList.toggle('fila-ok', r.val != null);   // coloreo "completado" en vivo
+          pintarFilaEst(el.closest('tr'), n);   // coloreo del estado en vivo (deuda EA)
           if (n.grupo_id) { n.nota_excepcion = true; try { await evalPersistNotasRows([n]); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); } refrescarDetalle(); }
           else filtrarEstudiantes();   // refresca "Pendientes" en vivo (aparece/desaparece según nota)
         }
@@ -3483,7 +3504,7 @@ function notaCellHTML(n, idx, cerrada){
     ? `<button class="btn mini" onclick="setNoAplica('${n.id}',false)" title="Quitar No aplica">Aplicar</button>`
     : `<button class="btn mini" onclick="setNoAplica('${n.id}',true)" title="Marcar No aplica">No aplica</button>`);
   if (est === 'no_aplica') {
-    return `<td class="nota"><div class="nota-instr"><span class="nota-val incompleto">N/A</span>${badge}${naBtn}</div></td>`;
+    return `<td class="nota"><div class="nota-instr"><span class="nota-val incompleto">N/A</span>${badge}<span class="nota-acc">${naBtn}</span></div></td>`;
   }
   const c = calcNota(n);
   if (!c.instrumento) {
@@ -3492,14 +3513,22 @@ function notaCellHTML(n, idx, cerrada){
     const congelada = cerrada || (!!n.grupo_id && !intentosDe(n).length && grupoTerminado(grupos.find(g => g.id === n.grupo_id)));
     return `<td class="nota"><div class="nota-instr">
         <input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${congelada ? 'disabled' : ''} style="max-width:64px"${congelada && !cerrada ? ' title="Grupo terminado: reábrelo para editar la nota"' : ''}>
-        ${badge}${naBtn}${reevalHTML(n, est, cerrada)}<div class="cel-marca">${marcaNotaHTML(n, congelada)}</div></div></td>`;
+        ${badge}${notaAntHTML(n)}<div class="cel-marca">${marcaNotaHTML(n, congelada)}</div>
+        <span class="nota-acc">${naBtn}${reevalBtnHTML(n, est, cerrada)}</span></div></td>`;
   }
+  // "2/3": solo con la rúbrica a medias (deuda EA)
   return `<td class="nota"><div class="nota-instr">
       <span class="nota-val${c.completo ? '' : ' incompleto'}">${c.completo ? fmtNota(c.nota) : '—'}</span>
-      <span class="nota-sub">${c.answered}/${c.nItems} ${badge}</span>
-      ${cerrada ? '' : `<button class="btn mini" onclick="abrirInstrEstudiante('${n.id}')">Evaluar</button>`}${naBtn}${reevalHTML(n, est, cerrada)}
+      ${c.answered > 0 && !c.completo ? `<span class="nota-sub">${c.answered}/${c.nItems}</span>` : ''}${badge}${notaAntHTML(n)}
+      <span class="nota-acc">${cerrada ? '' : `<button class="btn mini" onclick="abrirInstrEstudiante('${n.id}')">Evaluar</button>`}${naBtn}${reevalBtnHTML(n, est, cerrada)}</span>
     </div></td>`;
 }
+// Fila de la pestaña Estudiantes (deuda EA): verde evaluado · amarillo pendiente · gris no aplica.
+let verObj = false;   // columna "Objetivo aplicado" visible (solo si la evaluación tiene adecuaciones)
+function filaEstClase(n){ const e = estadoEfectivo(n); return e === 'evaluado' ? 'fila-ok' : e === 'no_aplica' ? 'est-na' : 'est-pend'; }
+function pintarFilaEst(tr, n){ if (!tr) return; tr.classList.remove('fila-ok', 'est-pend', 'est-na'); tr.classList.add(filaEstClase(n)); }
+// Comentario: una línea; al escribir se abre completo.
+function estComAlto(el){ el.style.height = 'auto'; el.style.height = (el.scrollHeight + el.offsetHeight - el.clientHeight) + 'px'; }
 
 // ── Reevaluar (deuda AD) ──────────────────────────────────────
 // El estudiante evaluado vuelve a "Pendiente"; su nota (y sus respuestas del instrumento)
@@ -3517,11 +3546,14 @@ async function cargarIntentos(){
   const m = {}; (r.data || []).forEach(x => { m[x.id] = x.intentos_anteriores || []; });
   notas.forEach(n => { n.intentos_anteriores = m[n.id] || []; });
 }
-function reevalHTML(n, est, cerrada){
+function notaAntHTML(n){
+  const ant = intentosDe(n);
+  return ant.length ? `<span class="nota-ant" title="Nota${ant.length > 1 ? 's' : ''} antes de reevaluar (no cuenta${ant.length > 1 ? 'n' : ''}; manda la nota actual)">${
+    ant.length === 1 ? '1ª nota' : 'notas anteriores'}: ${ant.map(i => i.nota != null ? fmtNota(i.nota) : '—').join(' · ')}</span>` : '';
+}
+function reevalBtnHTML(n, est, cerrada){
   const ant = intentosDe(n);
   let h = '';
-  if (ant.length) h += `<span class="nota-ant" title="Nota${ant.length > 1 ? 's' : ''} antes de reevaluar (no cuenta${ant.length > 1 ? 'n' : ''}; manda la nota actual)">${
-    ant.length === 1 ? '1ª nota' : 'notas anteriores'}: ${ant.map(i => i.nota != null ? fmtNota(i.nota) : '—').join(' · ')}</span>`;
   if (cerrada || !intentosOk) return h;
   if (est === 'evaluado') h += `<button class="btn mini" onclick="reevaluar('${n.id}', this)" title="Dejarlo pendiente para evaluarlo de nuevo; la nota actual queda guardada">Reevaluar</button>`;
   else if (est === 'pendiente' && ant.length) h += `<button class="btn mini" onclick="deshacerReevaluacion('${n.id}', this)" title="Vuelve la nota anterior">Deshacer reevaluación</button>`;
@@ -3611,7 +3643,7 @@ function actualizarFilaNota(n){
   const idx = +tr.dataset.idx;
   const cell = tr.querySelector('td.nota');
   if (cell) cell.outerHTML = notaCellHTML(n, idx, evalActual.estado === 'cerrado');
-  tr.classList.toggle('fila-ok', n.nota != null);
+  pintarFilaEst(tr, n);
 }
 
 // Persiste la nota calculada: valor si completo, null si incompleto/sin instrumento.
