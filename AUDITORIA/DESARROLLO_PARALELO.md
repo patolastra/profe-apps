@@ -6959,7 +6959,7 @@ pantalla del celular, a veces la franja de arriba es blanca, a veces negra"). De
 
 ---
 
-### EF. 🪘 Cajón — programador de ritmos (cuadrícula tipo drum-machine) — PROPUESTA, espera aprobación
+### EF. 🪘 Cajón — programador de ritmos (cuadrícula tipo drum-machine) — APROBADA, paso 1 en curso
 *Origen: PO 2026-10-28 ("una especie de drum-machine para programar los ritmos del Cajón: una cuadrícula con los tiempos
 de la cifra de compás y dos filas, bombo y agudo"). El PO lo aprobará en otra sesión.*
 - **Respuestas del PO:** división elegible al crear (corcheas · tresillos · semicorcheas); de 1 a 8 compases; se guarda
@@ -6972,3 +6972,15 @@ de la cifra de compás y dos filas, bombo y agudo"). El PO lo aprobará en otra 
   casilla. 2) recurso nuevo **🪘 Cajón** de una canción (contenido JSON), abre desde la ficha y desde 🥁 Ritmos.
   3) ✈ Compartir (link, QR, guía QR) → cajón animado para estudiantes sin clave, solo publicados (archivo público como
   el Piano). **Recomendado: partir por el paso 1.**
+- **Decisión del PO (2026-10-28):** aprobado; se parte por el **paso 1**.
+- **Paso 1 hecho (2026-10-28):** botón **🎛️ Programar** en la barra del Cajón (`CAJON-PERUANO/index.html`). Bajo la
+  figura (en lugar de la cinta) va la cuadrícula: cifra (2/4 · 3/4 · 4/4 · 5/4 · 6/8 · 7/8 · 12/8), división (corcheas ·
+  tresillos —no en x/8— · semicorcheas) y 1–8 compases; filas **A** agudo (celeste, arriba) y **G** grave (naranjo);
+  clic pone/quita, arrastrar marca varias, con la música detenida se escucha el golpe. ▶ toca en bucle con el BPM
+  (negra) y ⏱ Metrónomo (acento en el 1; pulso = negra, negra con punto en 6/8 y 12/8, corchea en 7/8); la figura
+  toca lo programado y una luz amarilla recorre la columna. Editar mientras suena no corta. Cambiar cifra, división o
+  compases conserva los golpes que caben (se ajustan a la nueva división) y pide confirmar si se pierde alguno. El
+  borrador se recuerda en el equipo (`profe_cajon_programa`) hasta el paso 2 (guardar en la Biblioteca). Volver a
+  🎛️ (o cargar un MIDI) regresa al MIDI que había. Sin Supabase. Lugares: Cajón suelto y pestaña 🪘 de 🥁 Ritmos
+  (mismo archivo). Prueba (navegador): marcar/arrastrar, tocar con luz, pasar a semicorcheas sonando, 6/8 desactiva
+  tresillos y ajusta, salir y volver al Ejemplo; sin errores en consola. **Falta:** probarlo el PO con sonido.

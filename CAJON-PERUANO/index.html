@@ -10,6 +10,8 @@
   según su altura (regla por defecto + ajuste por nota, recordado en el equipo).
   Sonido sintetizado y animación con un solo reloj (AudioContext). Sin librerías ni internet.
   Dirección: ?midi=<url>&nombre=<texto> carga un MIDI al abrir.
+  🎛️ Programar (deuda EF, paso 1): cuadrícula Agudo / Grave para armar un ritmo (cifra, división, 1–8
+  compases) que la figura toca en bucle, con metrónomo. El borrador se recuerda en este equipo.
 -->
 <style>
     :root {
@@ -56,6 +58,29 @@
     #cinta { flex: 0 0 auto; width: 100%; height: 22vh; min-height: 110px; max-height: 200px; display: block;
         border-top: 1px solid var(--borde); background: #111c33; }
 
+    /* Programador de ritmos (cuadrícula Agudo / Grave) */
+    #prog { flex: 0 0 auto; max-height: 46vh; overflow: auto; border-top: 1px solid var(--borde); background: #111c33;
+        padding: 10px 14px 14px; }
+    #prog[hidden], #cinta[hidden] { display: none; }
+    .prog-config { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; color: var(--tenue); font-size: 14px; }
+    .prog-config select, .prog-config button { background: #334155; color: var(--texto); border: 1px solid #475569;
+        border-radius: 8px; height: 32px; padding: 0 10px; font-size: 14px; cursor: pointer; }
+    .prog-config button.on { background: #0e7490; border-color: #22d3ee; }
+    .prog-ayuda { font-size: 13px; }
+    .compases { display: flex; flex-wrap: wrap; gap: 14px 18px; user-select: none; }
+    .compas-tit { font-size: 12px; color: var(--tenue); margin: 0 0 3px 22px; }
+    .rejilla { display: grid; gap: 3px; grid-auto-rows: 30px; }
+    .rejilla .num { font-size: 11px; color: var(--tenue); text-align: center; align-self: end; height: 14px; line-height: 14px; }
+    .rejilla .rot { font-size: 11px; font-weight: 700; align-self: center; }
+    .rejilla .rot.ag { color: var(--agudo); } .rejilla .rot.gr { color: var(--grave); }
+    .celda { width: 26px; border-radius: 5px; background: #1e293b; border: 1px solid #334155; cursor: pointer; }
+    .celda.tiempo { background: #2a3a55; }
+    .celda.ag { border-color: rgba(34,211,238,.35); } .celda.gr { border-color: rgba(249,115,22,.35); }
+    .celda.ag.on { background: var(--agudo); border-color: var(--agudo); }
+    .celda.gr.on { background: var(--grave); border-color: var(--grave); }
+    .celda.ahora { box-shadow: 0 0 0 2px #fde047; }
+    .celda.ahora.on { filter: brightness(1.25); }
+
     /* Panel de notas */
     #panel-notas { position: absolute; right: 12px; top: 60px; z-index: 5; width: 340px; max-height: 70vh; overflow: auto;
         background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 12px;
@@ -91,6 +116,7 @@
 <header id="barra">
     <button id="b-cargar" title="Cargar un MIDI desde el computador">📂 Cargar MIDI</button>
     <button id="b-ejemplo" title="Cargar un ritmo de ejemplo">Ejemplo</button>
+    <button id="b-programar" title="Programar un ritmo en una cuadrícula">🎛️ Programar</button>
     <span id="nombre"></span>
     <div class="grupo">
         <button id="b-inicio" title="Volver al inicio (Inicio)" disabled>⏮</button>
@@ -178,6 +204,21 @@
     </div>
 </main>
 <canvas id="cinta"></canvas>
+<section id="prog" hidden>
+    <div class="prog-config">
+        <label>Compás <select id="p-cifra"></select></label>
+        <label>División <select id="p-div">
+            <option value="corchea">Corcheas</option>
+            <option value="tresillo">Tresillos</option>
+            <option value="semicorchea">Semicorcheas</option>
+        </select></label>
+        <label>Compases <select id="p-cuantos"></select></label>
+        <button id="p-metro" title="Metrónomo: un clic en cada tiempo">⏱ Metrónomo</button>
+        <button id="p-limpiar" title="Quitar todos los golpes">Limpiar</button>
+        <span class="prog-ayuda">Clic en una casilla pone o quita el golpe; arrastra para marcar varias.</span>
+    </div>
+    <div id="p-lista" class="compases"></div>
+</section>
 
 <script>
 'use strict';
@@ -337,6 +378,14 @@ function sonarAgudo(t, v) {
     o.connect(g).connect(salida); o.start(t); o.stop(t + 0.08);
     return [o, ruido(t, 0.1, 'bandpass', 1900, 0.9, 1.0 * v, 0.075), ruido(t, 0.25, 'highpass', 4200, 0, 0.32 * v, 0.19)];
 }
+// Metrónomo: clic corto, más agudo en el 1 del compás.
+function sonarClic(t, acento) {
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.value = acento ? 1600 : 1050;
+    const g = ctx.createGain(); env(g, t, acento ? 0.45 : 0.28, 0.05);
+    o.connect(g).connect(salida); o.start(t); o.stop(t + 0.06);
+    return [o];
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ESTADO
@@ -350,6 +399,8 @@ let tocando = false, repetir = true;
 let ancla = { ctx0: 0, pos0: 0 }, anclaPrev = null;   // reloj: pos = pos0 + (ctx − ctx0) × ritmo
 let posPausa = 0, progPos = 0, idxProg = 0, programados = [], reloj = null;
 let idxFx = 0, ultVis = 0, ultGolpe = { t: -9, real: -9 };
+let clics = [], idxClic = 0;  // metrónomo del programador: [{ t, acento }]
+let modo = 'midi';           // 'midi' | 'prog'
 
 const $ = (id) => document.getElementById(id);
 const bPlay = $('b-play');
@@ -362,6 +413,7 @@ function cargar(buf, nombre) {
     let m;
     try { m = leerMidi(buf); } catch (e) { aviso(e.message || 'No se pudo leer el archivo.', true); return; }
     detener();
+    if (modo === 'prog') salirProg();
     datos = Object.assign(m, { nombre });
     const alturas = [...new Set(m.notas.map(n => n.pitch))].sort((a, b) => a - b);
     const auto = mapaAutomatico(alturas, m.gm);
@@ -419,11 +471,17 @@ function programar() {
             const ctxT = Math.max(ctx.currentTime, ancla.ctx0 + (g.t - ancla.pos0) / ritmo);
             programados.push({ ctxT, nodos: g.tipo === 'grave' ? sonarGrave(ctxT, 0.35 + 0.65 * g.vel) : sonarAgudo(ctxT, 0.35 + 0.65 * g.vel) });
         }
+        while (idxClic < clics.length && clics[idxClic].t < tope) {
+            const k = clics[idxClic++];
+            if (k.t < progPos) continue;
+            const ctxT = Math.max(ctx.currentTime, ancla.ctx0 + (k.t - ancla.pos0) / ritmo);
+            programados.push({ ctxT, nodos: sonarClic(ctxT, k.acento) });
+        }
         progPos = tope;
         if (objetivo >= datos.fin && repetir) {
             anclaPrev = ancla;
             ancla = { ctx0: ancla.ctx0 + (datos.fin - ancla.pos0) / ritmo, pos0: 0 };
-            progPos = 0; idxProg = 0;
+            progPos = 0; idxProg = 0; idxClic = 0;
             continue;
         }
         break;
@@ -433,7 +491,7 @@ function programar() {
 function reanclar(pos) {
     cancelarFuturos();
     ancla = { ctx0: ctx.currentTime + 0.03, pos0: pos }; anclaPrev = null;
-    progPos = pos; idxProg = primerIdx(golpes, pos);
+    progPos = pos; idxProg = primerIdx(golpes, pos); idxClic = primerIdx(clics, pos);
     idxFx = idxProg;
     programar();
 }
@@ -469,6 +527,7 @@ function cambiarBpm(nuevo) {
     bpm = Math.max(30, Math.min(300, nuevo));
     ritmo = bpm / datos.bpmBase;
     if (tocando) reanclar(Math.min(pos, datos.fin));
+    if (modo === 'prog') { prog.bpm = bpm; guardarProg(); }
     pintarBpm();
 }
 
@@ -641,6 +700,7 @@ function cuadro() {
         }
     }
     ultVis = vis;
+    if (modo === 'prog') marcarPaso(tocando ? vis : null);
     if (datos) { dibujarBrazo('L', poseMano('L', vis)); dibujarBrazo('R', poseMano('R', vis)); }
     else { dibujarBrazo('L', REPOSO.L); dibujarBrazo('R', REPOSO.R); }
     // la cabeza acompaña cada golpe
@@ -708,7 +768,7 @@ $('b-pantalla').onclick = () => {
 // Los botones sueltan el foco: así Espacio siempre es tocar / pausa.
 document.querySelectorAll('#barra button').forEach(b => b.addEventListener('click', () => b.blur()));
 document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.code === 'Space') { e.preventDefault(); if (datos) bPlay.click(); }
     else if (e.code === 'Home') { e.preventDefault(); if (datos) alInicio(); }
     else if (e.code === 'Escape') $('panel-notas').hidden = true;
@@ -747,6 +807,197 @@ function midiEjemplo() {
     return new Uint8Array([0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, ppq >> 8, ppq & 0xff,
         0x4D, 0x54, 0x72, 0x6B, (n >>> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff, ...pista]).buffer;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROGRAMADOR DE RITMOS: la cuadrícula arma un "MIDI" en memoria y lo toca el mismo motor
+// (ppq 480 a 120 BPM base: 960 ticks = 1 segundo). Golpes guardados como "compás:tick dentro del compás".
+// ═══════════════════════════════════════════════════════════════════════════
+const PPQ = 480, TPS = 960;
+const CIFRAS = ['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '12/8'];
+const PASO = { corchea: 240, tresillo: 160, semicorchea: 120 };
+const CLAVE_PROG = 'profe_cajon_programa';
+let prog = { cifra: '4/4', div: 'corchea', compases: 2, bpm: 100, metro: true, agudo: [], grave: [] };
+let antesProg = null;        // lo que había al entrar (MIDI cargado), para volver a él
+let celdasPaso = [], pasoLuz = -1, pintando = null;
+
+function leerProg() { try { const g = JSON.parse(localStorage.getItem(CLAVE_PROG) || 'null'); if (g) Object.assign(prog, g); } catch (e) {} }
+function guardarProg() { try { localStorage.setItem(CLAVE_PROG, JSON.stringify(prog)); } catch (e) {} }
+const cifraNum = () => prog.cifra.split('/').map(Number);
+const ticksCompasProg = () => { const [n, d] = cifraNum(); return PPQ * 4 * n / d; };
+// Tiempo del metrónomo: negra en x/4; negra con punto en 6/8 y 12/8; corchea en 7/8.
+const ticksTiempo = () => { const [n, d] = cifraNum(); return d === 4 ? PPQ : (n % 3 === 0 ? PPQ * 1.5 : PPQ / 2); };
+
+function construirProg() {
+    const tc = ticksCompasProg(), notas = [];
+    [['grave', 36], ['agudo', 38]].forEach(([fila, pitch]) => prog[fila].forEach(k => {
+        const [c, t] = k.split(':').map(Number);
+        notas.push({ tick: c * tc + t, pitch, vel: 110, canal: 9 });
+    }));
+    notas.sort((x, y) => x.tick - y.tick || x.pitch - y.pitch);
+    const [num, den] = cifraNum(), finTick = tc * prog.compases;
+    datos = { ppq: PPQ, notas, comp: { num, den }, ticksCompas: tc, finTick, fin: finTick / TPS, bpmBase: 120,
+        tickASeg: (t) => t / TPS, segATick: (x) => x * TPS, gm: true, nombre: 'Ritmo programado' };
+    mapa = { 36: 'grave', 38: 'agudo' };
+    prepararGolpes();
+    clics = [];
+    if (prog.metro) {
+        const tt = ticksTiempo();
+        for (let c = 0; c < prog.compases; c++)
+            for (let t = 0; t < tc; t += tt) clics.push({ t: (c * tc + t) / TPS, acento: t === 0 });
+    }
+}
+// Rehace lo que suena sin cortar: sigue desde donde iba.
+function aplicarProg() {
+    let pos = tocando ? posEn(ctx.currentTime) : posPausa;
+    construirProg();
+    if (pos >= datos.fin) pos = datos.fin ? pos % datos.fin : 0;
+    if (tocando) reanclar(pos); else posPausa = pos;
+    guardarProg();
+}
+
+function pintarProg() {
+    const tc = ticksCompasProg(), paso = PASO[prog.div], pasos = Math.round(tc / paso), tt = ticksTiempo();
+    const lista = $('p-lista'); lista.innerHTML = '';
+    celdasPaso = []; pasoLuz = -1;
+    const enAg = new Set(prog.agudo), enGr = new Set(prog.grave);
+    const div = (cls, txt) => { const d = document.createElement('div'); d.className = cls; if (txt) d.textContent = txt; return d; };
+    for (let c = 0; c < prog.compases; c++) {
+        const bloque = document.createElement('div');
+        bloque.appendChild(div('compas-tit', `Compás ${c + 1}`));
+        const rej = div('rejilla');
+        rej.style.gridTemplateColumns = `18px repeat(${pasos}, 26px)`;
+        rej.appendChild(div('num'));
+        for (let s = 0; s < pasos; s++) { const t = s * paso; rej.appendChild(div('num', t % tt === 0 ? String(t / tt + 1) : '')); }
+        [['ag', 'agudo', 'A', enAg], ['gr', 'grave', 'G', enGr]].forEach(([cls, fila, rot, en]) => {
+            const r = rej.appendChild(div('rot ' + cls, rot));
+            r.title = fila === 'agudo' ? 'Agudo (borde de arriba)' : 'Grave (centro de la tapa)';
+            for (let s = 0; s < pasos; s++) {
+                const t = s * paso, clave = c + ':' + t;
+                const cel = rej.appendChild(div('celda ' + cls + (t % tt === 0 ? ' tiempo' : '') + (en.has(clave) ? ' on' : '')));
+                cel.dataset.fila = fila; cel.dataset.clave = clave;
+                const g = c * pasos + s; (celdasPaso[g] = celdasPaso[g] || []).push(cel);
+            }
+        });
+        bloque.appendChild(rej); lista.appendChild(bloque);
+    }
+}
+function ponerGolpe(cel, poner) {
+    const fila = cel.dataset.fila, clave = cel.dataset.clave, set = new Set(prog[fila]);
+    if (poner === set.has(clave)) return;
+    poner ? set.add(clave) : set.delete(clave);
+    prog[fila] = [...set];
+    cel.classList.toggle('on', poner);
+    aplicarProg();
+    if (poner && !tocando) {        // con la música detenida, al marcar se escucha el golpe
+        asegurarAudio(); if (ctx.state === 'suspended') ctx.resume();
+        (fila === 'grave' ? sonarGrave : sonarAgudo)(ctx.currentTime + 0.01, 0.9);
+    }
+}
+$('p-lista').addEventListener('pointerdown', (e) => {
+    const cel = e.target.closest('.celda'); if (!cel) return;
+    e.preventDefault();
+    pintando = { fila: cel.dataset.fila, poner: !cel.classList.contains('on') };
+    ponerGolpe(cel, pintando.poner);
+});
+$('p-lista').addEventListener('pointerover', (e) => {
+    const cel = e.target.closest('.celda');
+    if (pintando && cel && cel.dataset.fila === pintando.fila) ponerGolpe(cel, pintando.poner);
+});
+document.addEventListener('pointerup', () => { pintando = null; });
+
+// La luz recorre la columna del paso que suena.
+function marcarPaso(vis) {
+    let g = -1;
+    if (vis != null && datos && datos.finTick) {
+        const tick = ((vis * TPS) % datos.finTick + datos.finTick) % datos.finTick;
+        g = Math.floor(tick / PASO[prog.div] + 1e-6);
+    }
+    if (g === pasoLuz) return;
+    (celdasPaso[pasoLuz] || []).forEach(c => c.classList.remove('ahora'));
+    (celdasPaso[g] || []).forEach(c => c.classList.add('ahora'));
+    pasoLuz = g;
+}
+
+// Cambios de configuración: se conservan los golpes que caben; se avisa antes de perder alguno.
+function cambiarConfig(cambio, filtro) {
+    const quedan = { agudo: [], grave: [] }; let pierde = 0;
+    ['agudo', 'grave'].forEach(f => prog[f].forEach(k => {
+        const [c, t] = k.split(':').map(Number), n = filtro(c, t);
+        if (n == null) pierde++; else if (!quedan[f].includes(n)) quedan[f].push(n);
+    }));
+    if (pierde && !confirm(pierde === 1 ? 'Se borrará 1 golpe que no cabe. ¿Seguir?' : `Se borrarán ${pierde} golpes que no caben. ¿Seguir?`)) { pintarConfig(); return; }
+    cambio(); prog.agudo = quedan.agudo; prog.grave = quedan.grave;
+    pintarConfig(); pintarProg(); aplicarProg();
+}
+function pintarConfig() {
+    $('p-cifra').value = prog.cifra; $('p-div').value = prog.div; $('p-cuantos').value = String(prog.compases);
+    $('p-div').querySelector('[value="tresillo"]').disabled = cifraNum()[1] === 8;
+    $('p-metro').classList.toggle('on', prog.metro);
+}
+const ajustarA = (paso, tc) => (c, t) => { const t2 = Math.round(t / paso) * paso; return t2 < tc ? c + ':' + t2 : null; };
+$('p-cifra').innerHTML = CIFRAS.map(c => `<option>${c}</option>`).join('');
+$('p-cuantos').innerHTML = [1, 2, 3, 4, 5, 6, 7, 8].map(n => `<option>${n}</option>`).join('');
+$('p-cifra').onchange = (e) => {
+    const nueva = e.target.value, [n, d] = nueva.split('/').map(Number);
+    const div = (d === 8 && prog.div === 'tresillo') ? 'corchea' : prog.div;    // en x/8 no hay tresillos
+    cambiarConfig(() => { prog.cifra = nueva; prog.div = div; }, ajustarA(PASO[div], PPQ * 4 * n / d));
+};
+$('p-div').onchange = (e) => {
+    const div = e.target.value;
+    cambiarConfig(() => { prog.div = div; }, ajustarA(PASO[div], ticksCompasProg()));
+};
+$('p-cuantos').onchange = (e) => {
+    const n = Number(e.target.value);
+    cambiarConfig(() => { prog.compases = n; }, (c, t) => (c < n ? c + ':' + t : null));
+};
+$('p-metro').onclick = () => { prog.metro = !prog.metro; pintarConfig(); aplicarProg(); $('p-metro').blur(); };
+$('p-limpiar').onclick = () => {
+    $('p-limpiar').blur();
+    if (!prog.agudo.length && !prog.grave.length) return;
+    if (!confirm('¿Quitar todos los golpes?')) return;
+    prog.agudo = []; prog.grave = []; pintarProg(); aplicarProg();
+};
+
+function entrarProg() {
+    detener();
+    antesProg = { datos, mapa, bpm };
+    modo = 'prog';
+    $('b-programar').classList.add('on');
+    $('cinta').hidden = true; $('prog').hidden = false; $('panel-notas').hidden = true;
+    bpm = prog.bpm; ritmo = bpm / 120;
+    ['b-inicio', 'b-play', 'b-menos', 'b-mas'].forEach(id => $(id).disabled = false);
+    $('b-notas').disabled = true;
+    $('nombre').textContent = 'Ritmo programado'; $('nombre').title = '';
+    aviso('');
+    pintarConfig(); pintarProg(); construirProg();
+    posPausa = 0;
+    pintarBpm();
+}
+// Solo la interfaz (cargar un MIDI también sale del programador).
+function salirProg() {
+    modo = 'midi';
+    clics = []; marcarPaso(null);
+    $('b-programar').classList.remove('on');
+    $('cinta').hidden = false; $('prog').hidden = true;
+}
+function volverDeProg() {
+    detener(); salirProg();
+    const a = antesProg || {}; antesProg = null;
+    datos = a.datos || null; mapa = a.mapa || {};
+    if (datos) {
+        bpm = a.bpm; ritmo = bpm / datos.bpmBase; prepararGolpes();
+        $('nombre').textContent = datos.nombre; $('nombre').title = datos.nombre;
+        $('b-notas').disabled = false;
+    } else {
+        golpes = []; manos = { L: [], R: [] };
+        ['b-inicio', 'b-play', 'b-menos', 'b-mas', 'b-notas'].forEach(id => $(id).disabled = true);
+        $('nombre').textContent = '';
+        aviso('Carga un MIDI de cajón (📂) o arrástralo aquí. También puedes probar el Ejemplo.');
+    }
+    pintarBpm();
+}
+$('b-programar').onclick = () => (modo === 'prog' ? volverDeProg() : entrarProg());
+leerProg();
 
 // ── ?midi=<url>&nombre=<texto>
 (async () => {
