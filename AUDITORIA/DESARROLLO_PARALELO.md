@@ -6925,3 +6925,16 @@ se vean los pendientes, los archivos o la planificación del mes, pero sí todo 
   27/10 (Enlaces, Sexto, Recreo, Quinto: 4 editores); 🐞 Mejoras (0 anotadas); 📚 Estudios con la tabla simulada:
   nuevo, título, ❝ Citar a pantalla completa → bitácora de 5° del 20/10 citada y guardada. PC: ❝ Citar del Libro con
   la pieza común → cita con la rúbrica. **Falta:** `supabase/estudios.sql` y uso real en el celular.
+
+---
+
+### ED. Celular — franjas del sistema (arriba y abajo) siempre del color de la página
+*Origen: PO 2026-10-28 ("el borde superior y el inferior de la PWA son inconsistentes: a veces abajo se ve el fondo de
+pantalla del celular, a veces la franja de arriba es blanca, a veces negra"). Decisión del PO: **color de la página**.*
+- **Auditoría:** cada página pedía su color de franja (inicio, Evaluar, Subir: oscuro; Bitácora: blanco; Biblioteca del
+  celular: ninguno → el del manifiesto) y solo Bitácora, Evaluar y Subir se dibujaban detrás de las franjas
+  (`viewport-fit=cover`); en el inicio y la Biblioteca, abajo podía verse el fondo de pantalla.
+- **Implementación:** todas las páginas del celular se dibujan detrás de las franjas (`viewport-fit=cover`; ya usaban
+  los márgenes seguros) con `html` del color de la página y `theme-color` igual: inicio, Evaluar, Subir y Biblioteca
+  (`?movil=1`, por código; el PC no cambia) oscuras `#0b1120`; Bitácora blanca.
+- **Prueba:** solo en el navegador del computador (colores y fondos correctos, sin errores). **Falta:** verlo en Android.
