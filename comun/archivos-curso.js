@@ -6,7 +6,8 @@
 // versiones, a estudiantes (esas nunca se comparten). Llegan: la guía QR de la Biblioteca (comun/compartir.js), el
 // 📷 Subir del celular (MOVIL/subir.html) y la ventana de aquí (＋ Subir, arrastrar, ＋ Enlace); se abren desde Cursos.
 //
-//   ArchivosCurso.abrir({ sb, contextoId, ctxNombre })            → ventana con la lista del curso (año en curso)
+//   ArchivosCurso.abrir({ sb, contextoId, ctxNombre })            → ventana con la lista del curso (año en curso);
+//       tocar el nombre de una foto, audio o video lo muestra / reproduce ahí mismo (deuda EJ; también en el celular)
 //   ArchivosCurso.guardar(sb, { contextoId, nombre, archivo, mime, origen, descripcion, cancionId, sesionId, fecha, uso })
 //   ArchivosCurso.guardarEnlace(sb, { contextoId, nombre, url, cancionId, sesionId, fecha, uso })   → fila (+ url)
 //   ArchivosCurso.prepararImagen(file) → la foto achicada (máx. 1920 px, JPEG) para no llenar el espacio
@@ -177,8 +178,16 @@ const ArchivosCurso = (() => {
     }
 
     // ── Ventana ─────────────────────────────────────────────────────────
-    let capa = null, op = null, filas = [], editando = null;
-    function cerrar() { capa?.remove(); capa = null; op = null; editando = null; document.removeEventListener('keydown', alTeclear, true); }
+    let capa = null, op = null, filas = [], editando = null, viendo = null;
+    function cerrar() { capa?.remove(); capa = null; op = null; editando = null; viendo = null; document.removeEventListener('keydown', alTeclear, true); }
+    const sePuedeVer = f => !f.url && ['imagen', 'audio', 'video'].includes(f.tipo);
+    // Vista dentro de la lista (EJ): la foto, o el reproductor del audio / video.
+    function vistaPrevia(f) {
+        const src = esc(url(f));
+        if (f.tipo === 'imagen') return `<div class="arc-prev"><img src="${src}" alt="${esc(f.nombre)}"></div>`;
+        if (f.tipo === 'audio') return `<div class="arc-prev"><audio src="${src}" controls autoplay preload="auto"></audio></div>`;
+        return `<div class="arc-prev"><video src="${src}" controls autoplay playsinline preload="auto"></video></div>`;
+    }
     function alTeclear(e) { if (e.key === 'Escape') { e.stopPropagation(); if (editando) { editando = null; pintar(); } else cerrar(); } }
 
     async function abrir(opciones) {
@@ -247,14 +256,20 @@ const ArchivosCurso = (() => {
         lista.innerHTML = filas.map(f => `
             <div class="arc-fila${editando === f.id ? ' edit' : ''}" data-id="${f.id}">
                 <span class="arc-ico">${ICONO[f.tipo] || ICONO.otro}</span>
-                <span class="arc-nom"><span class="arc-nom-t" title="${esc(f.nombre)}">${esc(f.nombre)}</span>${etiquetas(f) ? `<span class="arc-tags">${etiquetas(f)}</span>` : ''}</span>
+                <span class="arc-nom"><span class="arc-nom-t${sePuedeVer(f) ? ' arc-ver' : ''}" title="${sePuedeVer(f) ? (viendo === f.id ? 'Tocar para cerrar' : f.tipo === 'imagen' ? 'Tocar para ver aquí' : 'Tocar para reproducir aquí') : esc(f.nombre)}">${esc(f.nombre)}</span>${etiquetas(f) ? `<span class="arc-tags">${etiquetas(f)}</span>` : ''}</span>
                 <span class="arc-meta">${fechaTxt(f.fecha || f.created_at)}${f.tamano ? ' · ' + tamTxt(f.tamano) : ''}</span>
                 <a class="arc-btn arc-abrir" href="${esc(url(f))}" target="_blank" rel="noopener" title="Abrir (para mirar, escuchar o imprimir)">Abrir</a>
                 <button class="arc-btn arc-editar" title="Canción, tipo, fecha y estudiantes">✏️</button>
                 ${f.url ? '<span></span>' : `<a class="arc-btn" href="${esc(urlDescarga(f))}" title="Descargar">⬇</a>`}
                 <button class="arc-btn arc-borrar" title="Borrar este archivo">🗑</button>
             </div>
+            ${viendo === f.id && sePuedeVer(f) ? vistaPrevia(f) : ''}
             ${editando === f.id ? '<div class="arc-form" id="arc-form"></div>' : ''}`).join('');
+        lista.querySelectorAll('.arc-ver').forEach(n => n.addEventListener('click', () => {
+            const id = n.closest('.arc-fila').dataset.id;
+            viendo = viendo === id ? null : id;
+            pintar();
+        }));
         lista.querySelectorAll('.arc-borrar').forEach(b => b.addEventListener('click', async () => {
             const f = filas.find(x => x.id === b.closest('.arc-fila').dataset.id);
             if (!f || !confirm(`¿Borrar "${f.nombre}"? No se puede deshacer.`)) return;

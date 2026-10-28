@@ -61,7 +61,7 @@
 | `redactar-oa.js` | Libro: ✨ Redactar OA en Nueva evaluación y en la cabecera (solo cursos; DS) · llamada a Gemini compartida |
 | `citar.js` | ❝ Citar de 📚 Estudios: Cursos del PC y Bitácora del celular (deuda EC) |
 | `rubrica-ia.js` | Libro: ✨ Proponer con IA en el editor de instrumentos y en Plantillas (solo cursos; DT) |
-| `archivos-curso.js` | Cursos (📁 Archivos) · guía QR de `compartir.js` · 📷 Subir del celular · Extractos y versiones de la Biblioteca (DQ, DU) |
+| `archivos-curso.js` | Cursos (📁 Archivos) · Cursos del celular (📁, EJ) · guía QR de `compartir.js` · 📷 Subir del celular · Extractos y versiones de la Biblioteca (DQ, DU) |
 | `fotos-clase.js` | Bitácora: Cursos PC (curso y ☀ Hoy) · Plan (✍🏼 y 🕘 Historial) · Cursos del celular (DU fase 4) |
 | `recurrentes.js` / `fecha-pizarra.js` | Plan (🔔) · Pizarra |
 | `clase-vivo.js` | Plan · Pizarra · Libro · Biblioteca/Entrenador · Workspace · Bitácora (MEMORIA) · celular (inicio, Cursos, Evaluar) |

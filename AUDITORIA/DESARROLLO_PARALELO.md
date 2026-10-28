@@ -7105,3 +7105,24 @@ botón de edición de ritmo").*
   - Prueba (navegador): barra nueva; al abrir, aviso y sin ritmo; Nuevo ritmo en blanco y editable; Abrir patrón
     lista Cueca (Chile) y Cumbia (Colombia) primero; abierto: no se edita, Guardar oculto, metrónomo visible;
     ✏️ Editar ritmo habilita todo; sin errores.
+
+---
+
+### EJ. 📁 Archivos del curso en el celular (revisar fotos, audios, videos y enlaces) — HECHA
+*Origen: PO 2026-10-28 ("¿la PWA móvil me permite revisar los audios/videos/imágenes de los archivos de los cursos?" →
+hoy no: solo sube con 📷 Subir y ve las fotos ligadas a una clase en su bitácora. "Sí, agrégalo").*
+- **Auditoría:** `comun/archivos-curso.js` (`ArchivosCurso.abrir`) es la ventana del PC (Cursos y ficha de la canción):
+  lista del año con Abrir (pestaña nueva), ✏️, ⬇ y 🗑 (este solo al pasar el mouse); pensada para pantalla ancha.
+  `MOVIL/cursos.html` ya carga el JS (no el CSS) y `sw-movil.js` ya guarda el JS (no el CSS).
+- **Plan:** botón **📁** en la página del curso del celular (junto a ＋ Nota) que abre la misma ventana; la ventana se
+  adapta a pantalla chica (ocupa toda la pantalla, filas en dos líneas, 🗑 siempre visible en pantallas táctiles,
+  formulario de ✏️ en una columna); **tocar el nombre** de una foto, audio o video lo muestra/reproduce **dentro de la
+  lista** (mejora que también recibe el PC, regla 11); enlaces de YouTube / Drive siguen con Abrir. El CSS se suma al
+  celular sin señal (`sw-movil.js`).
+- **Hecho (2026-10-28):** `MOVIL/cursos.html` (botón 📁 junto a ＋ Nota; carga `archivos-curso.js` + `.css`),
+  `comun/archivos-curso.js` (tocar el nombre de foto / audio / video abre su vista o reproductor bajo la fila; otro toque
+  la cierra) y `.css` (pantalla completa bajo 640 px, filas en dos líneas, 🗑 visible en táctiles, formulario en una
+  columna). `sw-movil.js` v15 y "🔄 Cargar versión nueva" suman el CSS; Cursos PC y Biblioteca piden `?v=ej1`.
+  Lugares (regla 11): Cursos PC, Cursos celular y Extractos y versiones de la Biblioteca (misma ventana). Prueba
+  (navegador, 375×812 y escritorio): Taller de Cuerdas → 📁 → dos audios con canción y extracto; tocar el nombre
+  muestra el reproductor y el audio carga (0:40) y suena; en escritorio la ventana queda como antes, con el reproductor.
