@@ -6956,3 +6956,19 @@ pantalla del celular, a veces la franja de arriba es blanca, a veces negra"). De
   sin ":" avisa cómo escribirlo y no borra lo escrito). Queda sin curso ni clase. El cuadro no se repinta con los
   cambios al instante (lo escrito no se pierde). Prueba (Dashboard): aviso sin ":"; "/msj Prueba Claude: …" → aparece
   como PRUEBA CLAUDE · 1 y el cuadro se vacía; borrado después.
+
+---
+
+### EF. 🪘 Cajón — programador de ritmos (cuadrícula tipo drum-machine) — PROPUESTA, espera aprobación
+*Origen: PO 2026-10-28 ("una especie de drum-machine para programar los ritmos del Cajón: una cuadrícula con los tiempos
+de la cifra de compás y dos filas, bombo y agudo"). El PO lo aprobará en otra sesión.*
+- **Respuestas del PO:** división elegible al crear (corcheas · tresillos · semicorcheas); de 1 a 8 compases; se guarda
+  en la Biblioteca; con metrónomo, la figura del cajón tocando lo programado y compartir con estudiantes (sin acentos).
+- **Auditoría:** `CAJON-PERUANO/index.html` toca golpes grave/agudo leídos de un MIDI (`golpes`, sonido sintetizado,
+  figura animada, un solo reloj). Los recursos de la Biblioteca tienen `tipo` libre (así entró `melodia`): no hace falta
+  tocar Supabase.
+- **Plan (3 pasos):** 1) cuadrícula bajo la figura: cifra de compás, división, compases 1–8; filas **Grave** (naranjo) y
+  **Agudo** (celeste); clic pone/quita; ▶ en bucle con BPM; metrónomo; la figura toca lo programado y una luz recorre la
+  casilla. 2) recurso nuevo **🪘 Cajón** de una canción (contenido JSON), abre desde la ficha y desde 🥁 Ritmos.
+  3) ✈ Compartir (link, QR, guía QR) → cajón animado para estudiantes sin clave, solo publicados (archivo público como
+  el Piano). **Recomendado: partir por el paso 1.**
