@@ -385,6 +385,7 @@
         .asset-ico.metal  { background: #fff7ed; color: #ea580c; }
         .asset-ico.flauta { background: #fef2f2; color: #dc2626; }
         .asset-ico.cifrado{ background: #f0f9ff; color: #0284c7; }
+        .asset-ico.cajon  { background: #fff7ed; color: #9a3412; }
         .card-cursos {
             display: flex;
             gap: 4px;
@@ -2782,6 +2783,10 @@
                         <span class="tipo-btn-ico">♬</span>
                         <span class="tipo-btn-label">Melodía</span>
                     </button>
+                    <button class="tipo-btn" data-tipo="cajon" onclick="abrirCajon(assetSongId, null)">
+                        <span class="tipo-btn-ico">🪘</span>
+                        <span class="tipo-btn-label">Cajón</span>
+                    </button>
                 </div>
             </div>
             <div id="asset-campos" class="oculto">
@@ -3189,9 +3194,10 @@ const TIPOS_ASSET = {
     cifrado:   { ico: '🎹', label: 'Cifrado',    clase: 'cifrado' },
     ritmo:     { ico: '🥁', label: 'Ritmo',      clase: 'ritmo'   },
     melodia:   { ico: '♬',  label: 'Melodía',    clase: 'melodia' },
+    cajon:     { ico: '🪘', label: 'Cajón',      clase: 'cajon'   },
 };
 
-const TIPO_ORD  = { letra:0, audio:1, tab:2, cifrado:3, metalofono:4, flauta:5, ritmo:6, melodia:7 };
+const TIPO_ORD  = { letra:0, audio:1, tab:2, cifrado:3, metalofono:4, flauta:5, ritmo:6, melodia:7, cajon:8 };
 const INST_ORD  = { guitarra:0, ukelele:1, bajo:2, metalofono:3, flauta:4 };
 const DIFIC_ORD = { inicial:0, media:1, dificil:2, experto:3 };
 
@@ -4032,6 +4038,8 @@ function assetItemHTML(a, i) {
             ${estadoBadgeHTML(a)}
             ${a.tipo === 'ritmo'
                 ? `<button class="btn-icon" onclick="abrirEditorRitmo('${songActiva.id}','${a.id}')" title="Editar ritmo">✏️</button>`
+                : a.tipo === 'cajon'
+                ? `<button class="btn-icon" onclick="abrirCajon('${songActiva.id}','${a.id}')" title="Abrir en el Cajón (tocar y editar)">✏️</button>`
                 : `<button class="btn-icon" onclick="verAsset('${songActiva.id}','${a.id}')" title="Ver">👁</button>
                    <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>`}
             <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}','${a.id}')" title="Eliminar">🗑</button>
@@ -5232,6 +5240,22 @@ function abrirEditorMelodia(songId, assetId) {
     window.open(src, '_blank');
 }
 
+// Ritmo de cajón (deuda EF): el Cajón con su programador, en una pestaña cerrable del Workspace.
+function abrirCajon(songId, assetId) {
+    document.getElementById('modal-asset-overlay').classList.remove('visible');
+    const c = canciones.find(x => x.id === songId);
+    const q = new URLSearchParams(assetId ? { asset: assetId } : { cancion: songId });
+    const src = `../CAJON-PERUANO/index.html?${q}`;
+    if (window.parent && window.parent !== window) {
+        try {
+            window.parent.postMessage({ tipo: 'ws-abrir', key: `cajon:${assetId || 'nuevo:' + songId}`,
+                titulo: `${c?.nombre || 'Cajón'} · Cajón`, ico: '🪘', src, guardarAlCerrar: true }, '*');
+            return;
+        } catch (_) {}
+    }
+    window.open(src, '_blank');
+}
+
 function abrirMetalofono(midiUrl, nombre) {
     const base = new URL('../METALÓFONO APP/METAL21 (ALPHA).HTML', location.href);
     base.searchParams.set('midi', midiUrl);
@@ -5973,7 +5997,7 @@ function cerrarEntrenador() {
 // el sistema genérico de assets: solo cambia la presentación en el header.
 function entRenderChips(preselId) {
     const assets = (entrenadorSong?.assets || [])
-        .filter(a => a.tipo !== 'audio' && a.tipo !== 'melodia')   // Melodía (DK): el Entrenador aún no la abre
+        .filter(a => a.tipo !== 'audio' && a.tipo !== 'melodia' && a.tipo !== 'cajon')   // Melodía (DK) y Cajón (EF): el Entrenador aún no los abre
         .sort(ordenAssets);
     const wrap = document.getElementById('ent-asset-chips');
     const activo = assets.find(a => a.id === preselId)

@@ -85,3 +85,11 @@
 | Lugar | Cómo se abre |
 |---|---|
 | Workspace, menú + | 🥁 Ritmos: pestañas ⏱ Metrónomo · 🪘 Cajón (`CAJON-PERUANO/` adentro, sin cambios) |
+
+## Cajón (`CAJON-PERUANO/index.html`, deudas CH y EF)
+
+| Lugar | Cómo se abre |
+|---|---|
+| 🥁 Ritmos, pestaña 🪘 Cajón | adentro de Ritmos; 🎛️ Programar → 📂 Abrir los ritmos guardados |
+| Biblioteca, ficha de la canción | ＋ recurso → 🪘 Cajón (`?cancion=`) o ✏️ de un recurso Cajón (`?asset=`): pestaña cerrable del Workspace |
+| Suelto | `CAJON-PERUANO/index.html` (con `?midi=` carga un MIDI) |

@@ -12,7 +12,10 @@
   Dirección: ?midi=<url>&nombre=<texto> carga un MIDI al abrir.
   🎛️ Programar (deuda EF, paso 1): cuadrícula Agudo / Grave para armar un ritmo (cifra, división, 1–8
   compases) que la figura toca en bucle, con metrónomo. El borrador se recuerda en este equipo.
+  Paso 2: se guarda en la Biblioteca como recurso 🪘 Cajón de una canción (?cancion=<id> · ?asset=<id>).
 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
 <style>
     :root {
         --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8;
@@ -67,6 +70,31 @@
         border-radius: 8px; height: 32px; padding: 0 10px; font-size: 14px; cursor: pointer; }
     .prog-config button.on { background: #0e7490; border-color: #22d3ee; }
     .prog-ayuda { font-size: 13px; }
+    .prog-recurso { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    #p-cancion { width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--texto); font-size: 14px; font-weight: 600; }
+    #p-etiqueta { width: 220px; height: 32px; background: #0f172a; color: var(--texto); border: 1px solid #475569;
+        border-radius: 8px; padding: 0 10px; font-size: 14px; }
+    #p-guardar { width: 120px; }
+    #p-guardar:disabled { opacity: .5; cursor: default; }
+    .prog-recurso button { background: #334155; color: var(--texto); border: 1px solid #475569;
+        border-radius: 8px; height: 32px; padding: 0 10px; font-size: 14px; cursor: pointer; }
+    #p-guardar:not(:disabled) { background: #15803d; border-color: #22c55e; }
+
+    /* Elegir canción (guardar / abrir) */
+    #elegir { position: fixed; inset: 0; z-index: 20; background: rgba(2,6,23,.75); display: flex; align-items: flex-start; justify-content: center; padding: 6vh 16px; }
+    #elegir[hidden] { display: none; }
+    #elegir .caja { width: 640px; max-width: 100%; max-height: 86vh; display: flex; flex-direction: column; background: var(--panel);
+        border: 1px solid var(--borde); border-radius: 12px; padding: 14px; box-shadow: 0 20px 40px rgba(0,0,0,.5); }
+    #elegir h2 { margin: 0 0 10px; font-size: 17px; display: flex; justify-content: space-between; align-items: center; }
+    #elegir-cerrar { background: none; border: 0; color: var(--tenue); font-size: 20px; cursor: pointer; }
+    #elegir-buscar { height: 36px; background: #0f172a; color: var(--texto); border: 1px solid #475569; border-radius: 8px; padding: 0 10px; font-size: 15px; margin-bottom: 10px; }
+    #elegir-lista { overflow: auto; color: var(--tenue); }
+    .el-can { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 4px; border-top: 1px solid var(--borde); }
+    .el-nom { flex: 1; color: var(--texto); font-size: 14px; min-width: 160px; }
+    .el-art { color: var(--tenue); font-size: 12px; }
+    .el-ritmo { color: var(--tenue); font-size: 13px; }
+    .el-can button { background: #334155; color: var(--texto); border: 1px solid #475569; border-radius: 8px; padding: 5px 10px; cursor: pointer; font-size: 13px; }
+    .el-can button.nueva { background: #15803d; border-color: #22c55e; }
     .compases { display: flex; flex-wrap: wrap; gap: 14px 18px; user-select: none; }
     .compas-tit { font-size: 12px; color: var(--tenue); margin: 0 0 3px 22px; }
     .rejilla { display: grid; gap: 3px; grid-auto-rows: 30px; }
@@ -205,6 +233,13 @@
 </main>
 <canvas id="cinta"></canvas>
 <section id="prog" hidden>
+    <div class="prog-recurso">
+        <span id="p-cancion">Sin canción</span>
+        <input id="p-etiqueta" placeholder="Nombre del ritmo (ej.: Festejo)" maxlength="60" autocomplete="off">
+        <button id="p-guardar" title="Guardar en la Biblioteca, como recurso 🪘 Cajón de la canción" disabled>💾 Guardar</button>
+        <button id="p-abrir" title="Abrir un ritmo guardado en la Biblioteca">📂 Abrir</button>
+        <button id="p-nuevo" title="Empezar un ritmo nuevo">＋ Nuevo</button>
+    </div>
     <div class="prog-config">
         <label>Compás <select id="p-cifra"></select></label>
         <label>División <select id="p-div">
@@ -219,6 +254,11 @@
     </div>
     <div id="p-lista" class="compases"></div>
 </section>
+<div id="elegir" hidden><div class="caja">
+    <h2><span></span><button id="elegir-cerrar" title="Cerrar">✕</button></h2>
+    <input id="elegir-buscar" placeholder="Buscar canción o artista…" autocomplete="off">
+    <div id="elegir-lista"></div>
+</div></div>
 
 <script>
 'use strict';
@@ -769,6 +809,7 @@ $('b-pantalla').onclick = () => {
 document.querySelectorAll('#barra button').forEach(b => b.addEventListener('click', () => b.blur()));
 document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (!$('elegir').hidden) { if (e.code === 'Escape') $('elegir').hidden = true; return; }
     if (e.code === 'Space') { e.preventDefault(); if (datos) bPlay.click(); }
     else if (e.code === 'Home') { e.preventDefault(); if (datos) alInicio(); }
     else if (e.code === 'Escape') $('panel-notas').hidden = true;
@@ -820,8 +861,15 @@ let prog = { cifra: '4/4', div: 'corchea', compases: 2, bpm: 100, metro: true, a
 let antesProg = null;        // lo que había al entrar (MIDI cargado), para volver a él
 let celdasPaso = [], pasoLuz = -1, pintando = null;
 
-function leerProg() { try { const g = JSON.parse(localStorage.getItem(CLAVE_PROG) || 'null'); if (g) Object.assign(prog, g); } catch (e) {} }
-function guardarProg() { try { localStorage.setItem(CLAVE_PROG, JSON.stringify(prog)); } catch (e) {} }
+// Borrador en el equipo: { prog, etiqueta, recurso, base, estado } (antes era solo el ritmo).
+function leerBorrador() {
+    try { const g = JSON.parse(localStorage.getItem(CLAVE_PROG) || 'null'); return g && (g.prog ? g : { prog: g }); } catch (e) { return null; }
+}
+function leerProg() { const b = leerBorrador(); if (b) Object.assign(prog, b.prog); }
+function guardarProg() {
+    try { localStorage.setItem(CLAVE_PROG, JSON.stringify({ prog, etiqueta: $('p-etiqueta').value.trim(), recurso, base, estado: estadoActual() })); } catch (e) {}
+    pintarGuardar();
+}
 const cifraNum = () => prog.cifra.split('/').map(Number);
 const ticksCompasProg = () => { const [n, d] = cifraNum(); return PPQ * 4 * n / d; };
 // Tiempo del metrónomo: negra en x/4; negra con punto en 6/8 y 12/8; corchea en 7/8.
@@ -971,7 +1019,7 @@ function entrarProg() {
     aviso('');
     pintarConfig(); pintarProg(); construirProg();
     posPausa = 0;
-    pintarBpm();
+    pintarBpm(); pintarGuardar();
 }
 // Solo la interfaz (cargar un MIDI también sale del programador).
 function salirProg() {
@@ -998,6 +1046,169 @@ function volverDeProg() {
 }
 $('b-programar').onclick = () => (modo === 'prog' ? volverDeProg() : entrarProg());
 leerProg();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BIBLIOTECA (deuda EF, paso 2): el ritmo se guarda como recurso 🪘 Cajón de una canción
+// (repertorio_assets, tipo 'cajon', contenido = el ritmo en texto JSON). Sin archivo en Storage.
+// Dirección: ?cancion=<id> (nuevo para esa canción) · ?asset=<id> (abrir uno guardado).
+// ═══════════════════════════════════════════════════════════════════════════
+const sb = (() => { try { return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON); } catch (_) { return null; } })();
+let recurso = null;          // { id (null = aún no guardado), cancion_id, cancion } del ritmo abierto
+let base = null;             // lo último guardado (contenido + nombre) para saber si hay cambios
+let guardandoProg = false;
+const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const esc = (t) => String(t || '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+const contenidoProg = () => JSON.stringify({ v: 1, cifra: prog.cifra, div: prog.div, compases: prog.compases, bpm: prog.bpm,
+    metro: prog.metro, agudo: [...prog.agudo].sort(), grave: [...prog.grave].sort() });
+const estadoActual = () => contenidoProg() + '\n' + $('p-etiqueta').value.trim();
+const hayGolpes = () => prog.agudo.length + prog.grave.length > 0;
+const hayCambios = () => hayGolpes() && estadoActual() !== base;
+
+function pintarGuardar() {
+    const b = $('p-guardar');
+    b.textContent = guardandoProg ? 'Guardando…' : (hayCambios() ? '💾 Guardar' : (recurso && recurso.id ? '✓ Guardado' : '💾 Guardar'));
+    b.disabled = guardandoProg || !hayCambios();
+    const c = $('p-cancion');
+    c.textContent = recurso ? '♬ ' + recurso.cancion : 'Sin canción';
+    c.title = recurso ? 'Se guarda en la Biblioteca, en esta canción' : 'Al guardar se elige la canción';
+}
+let avisoT = null;
+function avisoBreve(txt, error) { aviso(txt, error); clearTimeout(avisoT); avisoT = setTimeout(() => aviso(''), 2800); }
+
+async function guardarRitmo() {
+    if (guardandoProg || !hayCambios()) return true;
+    if (!sb) { avisoBreve('Sin conexión con la base de datos', true); return false; }
+    if (!recurso) { elegirCancion('guardar'); return false; }
+    guardandoProg = true; pintarGuardar();
+    try {
+        const fila = { contenido: contenidoProg(), etiqueta: $('p-etiqueta').value.trim() };
+        if (!recurso.id) {
+            const id = genId();
+            const { data: hermanos } = await sb.from('repertorio_assets').select('orden').eq('cancion_id', recurso.cancion_id);
+            const orden = Math.max(-1, ...(hermanos || []).map(h => h.orden || 0).filter(o => o < 1000)) + 1;
+            const { error } = await sb.from('repertorio_assets').insert({ id, cancion_id: recurso.cancion_id, tipo: 'cajon',
+                instrumento: '', synced: '', orden, dificultad: '', nombre_archivo: '', ...fila });
+            if (error) throw error;
+            recurso.id = id;
+            if (location.search) history.replaceState(null, '', `?asset=${id}`);
+        } else {
+            const { error } = await sb.from('repertorio_assets').update(fila).eq('id', recurso.id);
+            if (error) throw error;
+        }
+        base = estadoActual();
+        guardarProg();
+        avisoBreve('Ritmo guardado en la Biblioteca');
+        return true;
+    } catch (err) {
+        avisoBreve('No se pudo guardar: ' + (err.message || err), true);
+        return false;
+    } finally { guardandoProg = false; pintarGuardar(); }
+}
+
+// Carga un ritmo (del recurso o del borrador) en la cuadrícula.
+function ponerRitmo(datosRitmo, etiqueta) {
+    const p = Object.assign({ cifra: '4/4', div: 'corchea', compases: 2, bpm: 100, metro: true, agudo: [], grave: [] }, datosRitmo || {});
+    delete p.v;
+    prog = p;
+    $('p-etiqueta').value = etiqueta || '';
+    if (modo !== 'prog') entrarProg();
+    else { detener(); bpm = prog.bpm; ritmo = bpm / 120; pintarConfig(); pintarProg(); construirProg(); posPausa = 0; pintarBpm(); }
+    guardarProg();
+}
+async function abrirRecurso(id) {
+    if (!sb) { avisoBreve('Sin conexión con la base de datos', true); return; }
+    const { data, error } = await sb.from('repertorio_assets').select('id, cancion_id, etiqueta, contenido, repertorio_canciones(nombre)').eq('id', id).single();
+    if (error || !data) { avisoBreve('No se pudo abrir el ritmo', true); return; }
+    let r = null; try { r = JSON.parse(data.contenido || 'null'); } catch (_) {}
+    recurso = { id: data.id, cancion_id: data.cancion_id, cancion: data.repertorio_canciones?.nombre || 'Canción' };
+    ponerRitmo(r, data.etiqueta);
+    base = estadoActual();
+    // Lo que no alcanzó a guardarse en este equipo (solo si parte de esta misma versión)
+    const b = leerBorrador();
+    if (b && b.recurso && b.recurso.id === id && b.base === base && b.estado !== base) {
+        ponerRitmo(b.prog, b.etiqueta); avisoBreve('Se recuperó lo que no alcanzaste a guardar');
+    }
+    guardarProg();
+}
+function nuevoRitmo(cancion) {
+    if (hayCambios() && recurso && !confirm('Hay cambios sin guardar. ¿Empezar un ritmo nuevo igual?')) return;
+    recurso = cancion ? { id: null, cancion_id: cancion.id, cancion: cancion.nombre } : null;
+    ponerRitmo(null, '');
+    base = estadoActual(); pintarGuardar();
+}
+
+// Elegir canción: para guardar (todas) o para abrir (las que tienen ritmos de cajón).
+async function elegirCancion(para) {
+    const caja = $('elegir');
+    caja.hidden = false;
+    caja.querySelector('h2 span').textContent = para === 'guardar' ? '💾 ¿En qué canción se guarda el ritmo?' : '📂 Ritmos de cajón guardados';
+    const lista = $('elegir-lista'), buscar = $('elegir-buscar');
+    buscar.value = ''; lista.textContent = 'Cargando…';
+    let canciones = [], ritmos = [];
+    try {
+        const [c, r] = await Promise.all([
+            sb.from('repertorio_canciones').select('id, nombre, artista').order('nombre'),
+            sb.from('repertorio_assets').select('id, cancion_id, etiqueta').eq('tipo', 'cajon'),
+        ]);
+        if (c.error) throw c.error;
+        canciones = c.data || []; ritmos = r.data || [];
+    } catch (err) { lista.textContent = 'No se pudieron cargar las canciones: ' + (err.message || err); return; }
+    const pintar = () => {
+        const q = norm(buscar.value);
+        const ver = canciones
+            .filter(c => (para === 'guardar' || ritmos.some(x => x.cancion_id === c.id)) && (!q || norm(c.nombre + ' ' + c.artista).includes(q)))
+            .sort((a, b) => ritmos.some(x => x.cancion_id === b.id) - ritmos.some(x => x.cancion_id === a.id));
+        lista.innerHTML = ver.slice(0, 80).map(c => `<div class="el-can"><span class="el-nom">${esc(c.nombre)} <span class="el-art">${esc(c.artista)}</span></span>
+            ${ritmos.filter(x => x.cancion_id === c.id).map(x => para === 'guardar' ? `<span class="el-ritmo">🪘 ${esc(x.etiqueta || 'Cajón')}</span>`
+                : `<button data-asset="${x.id}">🪘 ${esc(x.etiqueta || 'Cajón')}</button>`).join('')}
+            ${para === 'guardar' ? `<button class="nueva" data-cancion="${c.id}">Guardar aquí</button>` : ''}</div>`).join('')
+            || (para === 'guardar' ? 'Sin resultados' : 'Aún no hay ritmos de cajón guardados');
+    };
+    buscar.oninput = pintar;
+    lista.onclick = (e) => {
+        const b = e.target.closest('button'); if (!b) return;
+        caja.hidden = true;
+        if (b.dataset.asset) {
+            if (hayCambios() && recurso && !confirm('Hay cambios sin guardar. ¿Abrir otro ritmo igual?')) return;
+            abrirRecurso(b.dataset.asset);
+        } else {
+            const c = canciones.find(x => x.id === b.dataset.cancion);
+            recurso = { id: null, cancion_id: c.id, cancion: c.nombre };
+            guardarRitmo();
+        }
+    };
+    pintar();
+    buscar.focus();
+}
+$('elegir-cerrar').onclick = () => { $('elegir').hidden = true; };
+$('p-guardar').onclick = () => { $('p-guardar').blur(); guardarRitmo(); };
+$('p-abrir').onclick = () => { $('p-abrir').blur(); elegirCancion('abrir'); };
+$('p-nuevo').onclick = () => { $('p-nuevo').blur(); nuevoRitmo(recurso && { id: recurso.cancion_id, nombre: recurso.cancion }); };
+$('p-etiqueta').addEventListener('input', () => { guardarProg(); pintarGuardar(); });
+$('p-etiqueta').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); guardarRitmo(); } });
+
+// Workspace: al cerrar la pestaña se guarda lo pendiente
+window.addEventListener('message', (e) => {
+    if (e.data?.tipo !== 'ws-guardar' || e.source !== window.parent) return;
+    Promise.resolve(recurso && hayCambios() ? guardarRitmo() : true).then(ok =>
+        window.parent.postMessage({ tipo: 'ws-guardado', reqId: e.data.reqId, ok: ok !== false }, '*'));
+});
+window.addEventListener('beforeunload', (e) => { if (recurso && hayCambios() && window.parent === window) { e.preventDefault(); e.returnValue = ''; } });
+
+(async () => {
+    const q = new URLSearchParams(location.search);
+    if (q.get('asset')) { await abrirRecurso(q.get('asset')); return; }
+    if (q.get('cancion') && sb) {
+        const { data } = await sb.from('repertorio_canciones').select('id, nombre').eq('id', q.get('cancion')).single();
+        if (data) { nuevoRitmo(data); return; }
+    }
+    // Sin dirección: lo último que se estaba programando en este equipo queda listo al apretar 🎛️
+    const b = leerBorrador();
+    if (b && b.recurso) { recurso = b.recurso; base = b.base; $('p-etiqueta').value = b.etiqueta || ''; }
+    pintarGuardar();
+})();
 
 // ── ?midi=<url>&nombre=<texto>
 (async () => {

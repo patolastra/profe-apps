@@ -6984,3 +6984,16 @@ de la cifra de compás y dos filas, bombo y agudo"). El PO lo aprobará en otra 
   🎛️ (o cargar un MIDI) regresa al MIDI que había. Sin Supabase. Lugares: Cajón suelto y pestaña 🪘 de 🥁 Ritmos
   (mismo archivo). Prueba (navegador): marcar/arrastrar, tocar con luz, pasar a semicorcheas sonando, 6/8 desactiva
   tresillos y ajusta, salir y volver al Ejemplo; sin errores en consola. **Falta:** probarlo el PO con sonido.
+- **Paso 2 hecho (2026-10-28):** el ritmo se guarda en la **Biblioteca** como recurso **🪘 Cajón** de una canción
+  (`repertorio_assets`, `tipo = 'cajon'`, `contenido` = el ritmo en texto JSON `{ v, cifra, div, compases, bpm, metro,
+  agudo, grave }`, `etiqueta` = nombre del ritmo; sin archivo en Storage; **sin cambios en Supabase**). En el Cajón,
+  sobre la cuadrícula: canción · nombre del ritmo · **💾 Guardar** (si no hay canción, pide elegirla con buscador) ·
+  **📂 Abrir** (los ritmos de cajón guardados, por canción) · **＋ Nuevo**. Dirección `?cancion=<id>` (nuevo para esa
+  canción) y `?asset=<id>` (abrir uno). Lo no guardado queda en el equipo y se recupera al volver a abrir el mismo
+  ritmo; al cerrar su pestaña del Workspace se guarda solo. **Biblioteca:** ＋ recurso → botón 🪘 Cajón y ✏️ en el
+  recurso abren el Cajón en una pestaña cerrable del Workspace; el tipo suma su etiqueta en las tarjetas; el
+  Entrenador no lo muestra (aún no lo abre). `comun/nombre-asset.js` conoce el tipo ("Canción · Cajón · Festejo").
+  Desde 🥁 Ritmos se abre con 📂 Abrir. Lugares en `LUGARES_DE_USO.md` (Cajón). Prueba (navegador): canción por
+  dirección, Guardar se activa al marcar, borrador, cuadros Abrir / Guardar con buscador, ficha y tarjeta de la
+  Biblioteca con un recurso Cajón de mentira, sin errores. **No se probó guardar de verdad** (la prueba no puede
+  escribir en la base real): **falta que el PO guarde un ritmo y lo vuelva a abrir.**
