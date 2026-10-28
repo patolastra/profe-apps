@@ -7176,3 +7176,5 @@ acerca al centro pero nunca queda al centro (centro derecha); la izquierda igual
   descansa cada mano) es el mismo de antes.
   Prueba (navegador): Cumbia Principal sonando, las dos manos alternan agudo (dedos sobre el borde, palma afuera) y
   grave (mano entera dentro, centro izquierda / derecha); poses fijas revisadas en captura; sin errores.
+- **Ajuste (PO 2026-10-28, con captura):** la tapa sube hasta donde el agudo golpea (borde 175 → 161); las manos quedan
+  donde estaban y el destello del agudo sale justo en el borde.
