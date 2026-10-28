@@ -12,7 +12,8 @@
   Dirección: ?midi=<url>&nombre=<texto> carga un MIDI al abrir.
   Programador (deuda EF): cuadrícula Agudo / Grave para armar un ritmo (cifra, división, 1–8 compases) que la
   figura toca en bucle, con metrónomo. Barra (deuda EI): 📂 Abrir patrón (mirar y tocar; ✏️ Editar ritmo para
-  cambiarlo) · ＋ Nuevo ritmo (en blanco). Lo no guardado de un patrón se recupera al reabrirlo en este equipo.
+  cambiarlo) · ＋ Nuevo ritmo (en blanco). Con un ritmo abierto, arriba de la cuadrícula están todos los ritmos de su
+  canción o estilo para cambiar entre ellos (deuda EL). Lo no guardado de un patrón se recupera al reabrirlo en este equipo.
   Paso 2: se guarda en la Biblioteca como recurso 🪘 Cajón de una canción (?cancion=<id> · ?asset=<id>).
   Paso 3: versión para estudiantes ?modo=alumno&a=<id>&n=<nombre> (enlace corto c/?a=&n=): sin clave ni base de
   datos, lee el archivo público repertorio-assets/cajon/<id>.json que se escribe al guardar; solo mirar y tocar.
@@ -85,6 +86,17 @@
     .prog-recurso button { background: #334155; color: var(--texto); border: 1px solid #475569;
         border-radius: 8px; height: 32px; padding: 0 10px; font-size: 14px; cursor: pointer; }
     #p-guardar:not(:disabled) { background: #15803d; border-color: #22c55e; }
+    /* Ritmos de la misma canción o estilo (EL): cambiar sin salir */
+    .prog-hermanos { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .prog-hermanos[hidden] { display: none; }
+    .prog-hermanos .h-tit { color: var(--tenue); font-size: 13px; margin-right: 4px; max-width: 220px; overflow: hidden;
+        text-overflow: ellipsis; white-space: nowrap; }
+    .prog-hermanos button { background: #334155; color: var(--texto); border: 1px solid #475569; border-radius: 999px;
+        height: 30px; padding: 0 12px; font-size: 14px; cursor: pointer; white-space: nowrap; }
+    .prog-hermanos button:hover { background: #475569; }
+    .prog-hermanos button.sel { background: #0e7490; border-color: #22d3ee; font-weight: 700; cursor: default; }
+    .prog-hermanos button.otro { color: var(--tenue); border-style: dashed; }
+    body.viendo .prog-hermanos button.otro { display: none; }
 
     /* Elegir canción (guardar / abrir) */
     #elegir { position: fixed; inset: 0; z-index: 20; background: rgba(2,6,23,.75); display: flex; align-items: flex-start; justify-content: center; padding: 6vh 16px; }
@@ -103,7 +115,7 @@
     .el-can button.nueva { background: #15803d; border-color: #22c55e; }
 
     /* Versión para estudiantes: solo mirar y tocar */
-    body.alumno #b-abrir, body.alumno #b-nuevo, body.alumno #b-editar,
+    body.alumno #b-abrir, body.alumno #b-nuevo, body.alumno #b-editar, body.alumno .prog-hermanos,
     body.alumno .prog-recurso, body.alumno .prog-config > :not(#p-metro) { display: none; }
     body.alumno .celda { cursor: default; }
     /* Patrón abierto para mirar y tocar (se edita con ✏️ Editar ritmo) */
@@ -238,6 +250,7 @@
 </main>
 <canvas id="cinta"></canvas>
 <section id="prog" hidden>
+    <div id="p-hermanos" class="prog-hermanos" hidden></div>
     <div class="prog-recurso">
         <span id="p-cancion">Sin canción</span>
         <input id="p-etiqueta" placeholder="Nombre del ritmo (ej.: Festejo)" maxlength="60" autocomplete="off">
@@ -1062,6 +1075,7 @@ async function guardarRitmo() {
         }
         base = estadoActual();
         guardarProg();
+        cargarHermanos();
         try { await subirPublico(recurso.id); }
         catch (err) { avisoBreve('Guardado, pero no se pudo actualizar la versión para estudiantes', true); return true; }
         avisoBreve('Ritmo guardado en la Biblioteca');
@@ -1108,13 +1122,46 @@ async function abrirRecurso(id, editar) {
     }
     ponerEdicion(!!editar);
     guardarProg();
+    cargarHermanos();
 }
 function nuevoRitmo(cancion) {
     if (hayCambios() && !confirm('Hay cambios sin guardar. ¿Empezar un ritmo nuevo igual?')) return;
     recurso = cancion ? { id: null, cancion_id: cancion.id, cancion: cancion.nombre } : null;
     ponerRitmo(null, '');
     base = estadoActual(); ponerEdicion(true); pintarGuardar();
+    cargarHermanos();
 }
+
+// Ritmos de la misma canción o estilo (deuda EL): fila arriba de la cuadrícula para cambiar sin salir.
+let hermanos = [];           // [{ id, etiqueta }] de recurso.cancion_id, en el orden de la Biblioteca
+async function cargarHermanos() {
+    const cid = recurso && recurso.cancion_id;
+    if (!cid || !sb) { hermanos = []; pintarHermanos(); return; }
+    const { data } = await sb.from('repertorio_assets').select('id, etiqueta, orden').eq('cancion_id', cid).eq('tipo', 'cajon').order('orden');
+    if (!recurso || recurso.cancion_id !== cid) return;   // ya se abrió otro
+    hermanos = data || [];
+    pintarHermanos();
+}
+function pintarHermanos() {
+    const fila = $('p-hermanos');
+    fila.hidden = ALUMNO || !recurso || !recurso.cancion_id;
+    if (fila.hidden) { fila.innerHTML = ''; return; }
+    const actual = recurso.id, etq = $('p-etiqueta').value.trim();
+    fila.innerHTML = `<span class="h-tit" title="${esc(recurso.cancion)}">♬ ${esc(recurso.cancion)}</span>`
+        + hermanos.map(h => `<button data-id="${h.id}" class="${h.id === actual ? 'sel' : ''}">🪘 ${esc((h.id === actual ? etq : h.etiqueta) || 'Cajón')}</button>`).join('')
+        + (actual ? '' : `<button class="sel">🪘 ${esc(etq || 'Ritmo nuevo')}</button>`)
+        + `<button class="otro" title="Programar otro ritmo para ${esc(recurso.cancion)}">＋ Otro</button>`;
+}
+$('p-hermanos').onclick = async (e) => {
+    const b = e.target.closest('button'); if (!b || b.classList.contains('sel')) return;
+    b.blur();
+    if (b.classList.contains('otro')) { nuevoRitmo({ id: recurso.cancion_id, nombre: recurso.cancion }); return; }
+    if (hayCambios() && !confirm('Hay cambios sin guardar. ¿Cambiar de ritmo igual?')) return;
+    const sonaba = tocando;
+    await abrirRecurso(b.dataset.id, editando);
+    if (new URLSearchParams(location.search).get('asset')) history.replaceState(null, '', `?asset=${b.dataset.id}`);
+    if (sonaba && datos && !tocando) tocar();
+};
 
 // Elegir canción: para guardar (todas) o para abrir (las que tienen ritmos de cajón).
 async function elegirCancion(para) {
@@ -1167,7 +1214,7 @@ $('p-guardar').onclick = () => { $('p-guardar').blur(); guardarRitmo(); };
 $('b-abrir').onclick = () => elegirCancion('abrir');
 $('b-nuevo').onclick = () => nuevoRitmo(null);
 $('b-editar').onclick = () => ponerEdicion(true);
-$('p-etiqueta').addEventListener('input', () => { guardarProg(); pintarGuardar(); });
+$('p-etiqueta').addEventListener('input', () => { guardarProg(); pintarGuardar(); pintarHermanos(); });
 $('p-etiqueta').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); guardarRitmo(); } });
 
 // Workspace: al cerrar la pestaña se guarda lo pendiente

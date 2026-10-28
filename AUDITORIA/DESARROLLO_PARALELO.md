@@ -7137,3 +7137,21 @@ hoy no: solo sube con 📷 Subir y ve las fotos ligadas a una clase en su bitác
 - **Corrección:** `bibRefrescar` reapunta siempre la ficha abierta antes de comparar. Prueba (navegador, guardado
   simulado): ficha de Go Away → refresco sin cambios → marcar Quinto → el botón queda pintado.
 - **Anotado en Notion (Backlog, Pendiente, Media):** celular — cambiar pitch y velocidad en las canciones de las sesiones.
+
+---
+
+### EL. 🪘 Cajón — ver todos los ritmos del estilo y cambiar entre ellos — HECHA
+*Origen: PO 2026-10-28 ("cuando abro en la app cajón algún ritmo (estilo) deberían verse todos los ritmos y poder
+cambiar entre ellos sin salir de la app").*
+- **Auditoría:** `CAJON-PERUANO/index.html` abre un solo recurso (`abrirRecurso`); para ver otro ritmo del mismo estilo
+  hay que volver a 📂 Abrir patrón y buscarlo. Los ritmos de un estilo o canción son sus recursos `tipo = 'cajon'`
+  (`repertorio_assets.cancion_id`). Sin cambios en Supabase.
+- **Plan:** con un ritmo abierto, una fila arriba de la cuadrícula con **todos los ritmos de esa canción o estilo**
+  (el abierto marcado); un clic cambia de ritmo (pregunta si hay cambios sin guardar) y, si estaba sonando, sigue
+  sonando el nuevo. **＋ Otro** empieza un ritmo nuevo en el mismo estilo. El estudiante no cambia.
+- **Hecho (2026-10-28):** `CAJON-PERUANO/index.html`: fila "♬ Estilo · 🪘 ritmo · 🪘 ritmo · ＋ Otro" arriba de la
+  cuadrícula (el abierto en celeste; su nombre cambia al escribirlo). Cambiar conserva mirar / editar, sigue sonando si
+  sonaba y actualiza `?asset=` si venía en la dirección. ＋ Otro solo se ve editando. La lista se pone al día al
+  guardar. Lugares: Cajón suelto, 🥁 Ritmos y pestaña desde la Biblioteca (mismo archivo); el estudiante no la ve.
+  Prueba (navegador): Cueca Principal sonando → clic en Básico → sigue sonando con "Cueca — Básico"; Cumbia por
+  `?asset=` (editando) → Variación 1 queda editable y la dirección cambia; sin errores.
