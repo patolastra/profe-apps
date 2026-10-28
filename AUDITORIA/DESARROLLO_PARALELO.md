@@ -7126,3 +7126,14 @@ hoy no: solo sube con 📷 Subir y ve las fotos ligadas a una clase en su bitác
   Lugares (regla 11): Cursos PC, Cursos celular y Extractos y versiones de la Biblioteca (misma ventana). Prueba
   (navegador, 375×812 y escritorio): Taller de Cuerdas → 📁 → dos audios con canción y extracto; tocar el nombre
   muestra el reproductor y el audio carga (0:40) y suena; en escritorio la ventana queda como antes, con el reproductor.
+
+---
+
+### EK. Biblioteca — el curso marcado en la ficha no se pintaba (se guardaba igual) — HECHA
+*Origen: PO 2026-10-28 ("en Go Away marqué Cuerdas, aparece el aviso de agregada pero no se pinta el botón").*
+- **Causa:** al llegar un aviso "al instante" (deuda BE) la Biblioteca recarga canciones y sesiones; si no había
+  cambios visibles salía antes de reapuntar la ficha abierta (`songActiva`) a la copia nueva. Desde ahí la ficha
+  pintaba con la copia vieja: marcar un curso se guardaba (y aparecía al recargar) pero el botón no cambiaba.
+- **Corrección:** `bibRefrescar` reapunta siempre la ficha abierta antes de comparar. Prueba (navegador, guardado
+  simulado): ficha de Go Away → refresco sin cambios → marcar Quinto → el botón queda pintado.
+- **Anotado en Notion (Backlog, Pendiente, Media):** celular — cambiar pitch y velocidad en las canciones de las sesiones.
