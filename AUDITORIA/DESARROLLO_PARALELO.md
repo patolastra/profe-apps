@@ -6952,3 +6952,7 @@ pantalla del celular, a veces la franja de arriba es blanca, a veces negra"). De
 - **Lugares de uso (regla 11):** Dashboard (pestaña ✉️) e inicio del celular sin clase (misma pieza).
 - **Prueba (local, Dashboard):** "DIRE · 1" con su mensaje arriba; ▸ ✓ Entregados (3) cerrado → al tocarlo, Castigadas,
   Juan Andrés y Caro Farías tachados. **Falta:** verlo en el celular.
+- **Ajuste (PO 2026-10-28): cuadro para anotar** arriba de la lista: "a quién: mensaje" + Enter (el /msj es opcional;
+  sin ":" avisa cómo escribirlo y no borra lo escrito). Queda sin curso ni clase. El cuadro no se repinta con los
+  cambios al instante (lo escrito no se pierde). Prueba (Dashboard): aviso sin ":"; "/msj Prueba Claude: …" → aparece
+  como PRUEBA CLAUDE · 1 y el cuadro se vacía; borrado después.

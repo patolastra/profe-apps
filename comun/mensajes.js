@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 // Mensajes — qué decirle a quién (deuda DD, 2026-10-24)
-// Se anotan con "/msj destinatario: mensaje" (o /mensaje) en un pendiente o en el editor de bloques (deuda DE):
+// Se anotan en el cuadro de la lista ("a quién: mensaje", PO 2026-10-28) o con "/msj destinatario: mensaje" (o /mensaje)
+// en un pendiente o en el editor de bloques (deuda DE):
 // quedan en la tabla `pendientes`, categoría 'mensaje', texto "destinatario\nmensaje" (con el curso y la
 // clase donde se escribió). Aquí se ven agrupados por persona; ✓ los deja como Entregados (abajo, plegados) y se dejan de ver
 // a las 2 semanas, como los pendientes. Al instante entre equipos (Realtime de `pendientes`).
@@ -70,6 +71,20 @@
         const { error } = await sb.from('pendientes').delete().eq('id', id);
         if (error && antes) { filas.push(antes); pintarTodas(); aviso('No se pudo borrar el mensaje — revisa la conexión.'); }
     }
+    // Anotar desde el cuadro de la lista: "a quién: mensaje" (el /msj del comienzo es opcional).
+    async function anotar(texto) {
+        const t = String(texto || '').trim().replace(/^\/(msj|mensaje)(?![a-záéíóúñ])\s*/i, '');
+        const i = t.indexOf(':');
+        const para = i > 0 ? t.slice(0, i).trim() : '', msg = i > 0 ? t.slice(i + 1).trim() : '';
+        if (!para || !msg) { aviso('Escribe a quién, dos puntos y el mensaje (ej.: Dire: fecha de la muestra).'); return false; }
+        const { data, error } = await sb.from('pendientes')
+            .insert({ contexto_id: null, sesion_id: null, categoria: CAT, texto: para + '\n' + msg, estado: 'activo' })
+            .select('id, contexto_id, sesion_id, texto, estado, completado_en, created_at').single();
+        if (error) { aviso('No se pudo anotar — revisa la conexión.'); return false; }
+        if (!filas.some(f => f.id === data.id)) filas.push(data);
+        pintarTodas();
+        return true;
+    }
     function aviso(t) { listas.forEach(L => { const a = L.caja.querySelector('.msj-aviso'); if (a) { a.textContent = t; setTimeout(() => { a.textContent = ''; }, 5000); } }); }
 
     // Fecha en que se anotó (el curso lo da la página con op.curso), chico al margen.
@@ -112,9 +127,8 @@
         const nEnt = filas.length - activos;
         const ent = nEnt ? `<button class="msj-ent-tit" type="button" aria-expanded="${L.verEnt ? 'true' : 'false'}">${L.verEnt ? '▾' : '▸'} ✓ Entregados (${nEnt})</button>
             ${L.verEnt ? `<div class="msj-ent">${lista.map(g => bloque(g, 'dado')).join('')}</div>` : ''}` : '';
-        L.caja.innerHTML = `<div class="msj">${porDar || '<div class="msj-vacio">No hay mensajes por dar.</div>'}${ent}
-            <p class="msj-ayuda">Escribe <b>/msj a quién: mensaje</b> en cualquier pendiente o en la bitácora, y Enter.</p>
-            <div class="msj-aviso"></div></div>`;
+        L.cuerpo.innerHTML = `${porDar || '<div class="msj-vacio">No hay mensajes por dar.</div>'}${ent}
+            <p class="msj-ayuda">También con <b>/msj a quién: mensaje</b> en cualquier pendiente o en la bitácora.</p>`;
         if (L.op.alCambiar) { try { L.op.alCambiar({ activos, personas }); } catch (_) {} }
     }
     function pintarTodas() { listas.forEach(pintar); }
@@ -122,6 +136,20 @@
     function lista(caja, op = {}) {
         const L = { caja, op };
         listas.add(L);
+        // El cuadro queda fuera de lo que se repinta: lo que se está escribiendo nunca se pierde.
+        caja.innerHTML = `<div class="msj"><input class="msj-nuevo" type="text" enterkeyhint="send" autocomplete="off"
+            placeholder="Anotar: a quién: mensaje, y Enter"><div class="msj-aviso"></div><div class="msj-cuerpo"></div></div>`;
+        L.cuerpo = caja.querySelector('.msj-cuerpo');
+        const inp = caja.querySelector('.msj-nuevo');
+        inp.addEventListener('keydown', async e => {
+            if (e.key !== 'Enter' || !inp.value.trim() || inp.disabled) return;
+            e.preventDefault();
+            inp.disabled = true;
+            const ok = await anotar(inp.value);
+            inp.disabled = false;
+            if (ok) inp.value = '';
+            inp.focus();
+        });
         caja.addEventListener('click', e => {
             if (e.target.closest('.msj-ent-tit')) { L.verEnt = !L.verEnt; pintar(L); return; }
             const it = e.target.closest('.msj-item'); if (!it) return;
