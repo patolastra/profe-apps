@@ -7009,3 +7009,29 @@ de la cifra de compás y dos filas, bombo y agudo"). El PO lo aprobará en otra 
   mentira: figura, cuadrícula sin editar y sin borrador, cabe en 780×360; ✈ solo en publicados. **No probado:** subir el
   archivo público ni abrir un enlace real en un celular (requiere guardar en la base real): **falta que lo pruebe el PO.**
 - **Lugares:** Cajón suelto, 🥁 Ritmos, ficha de la Biblioteca y versión estudiante (`LUGARES_DE_USO.md`).
+
+---
+
+### EG. 🥁 Estilos rítmicos en la Biblioteca (Festejo, Landó, Cueca…) — APROBADA, paso 1 hecho
+*Origen: PO 2026-10-28, tras cerrar EF ("algunos ritmos deberían ser assets en sí mismos, no solo vinculados a las
+canciones: patrones que constituyen una identidad musical —estilos— y que se podrían vincular a distintas canciones").*
+- **Decisiones del PO (2026-10-28):** (1) los estilos son un **tipo nuevo de la Biblioteca**, junto a Canción y Material,
+  con ficha propia (sus ritmos de cajón y, si se quiere, audios/videos de ejemplo); (2) una canción tiene generalmente
+  **un** estilo, pero puede mezclar **varios**; (3) la ficha de la canción muestra el ritmo de su estilo para abrirlo o
+  compartirlo; **el BPM propio de esa canción se guarda en el vínculo** (propiedad del ritmo para esa canción); además la
+  canción puede tener sus propios ritmos creados en el Cajón (ya existe, EF paso 2).
+- **Auditoría:** las fichas de la Biblioteca son filas de `repertorio_canciones` con `categoria` `cancion` | `material`
+  (texto); un estilo puede ser otra fila con `categoria = 'estilo'` y sus ritmos, recursos 🪘 Cajón normales (EF).
+  El campo existente `estilo` de las canciones es el **género** que trae iTunes (Pop, Cueca, Infantil…, ~40 valores):
+  **no** sirve para esto. Para el vínculo canción ↔ estilos con BPM hace falta **una columna nueva** en
+  `repertorio_canciones` (lista JSON) → cambio en Supabase que corre el PO. `repertorio_canciones` ya está en Realtime.
+- **Plan (aprobado por el PO 2026-10-28):** 1) **🥁 Estilo** como tipo de la Biblioteca (junto a Canción y Material) y
+  el campo "Estilo / Género" pasa a llamarse **Género**; 2) **enlazar** canciones ↔ estilos en la ficha de la canción
+  (varios por canción, BPM propio por ritmo en esa canción; la ficha del estilo muestra sus canciones) — requiere una
+  columna nueva en `repertorio_canciones` (SQL que corre el PO); 3) el Cajón abre y comparte el ritmo del estilo con el
+  BPM de la canción.
+- **Paso 1 hecho (2026-10-28):** `REPERTORIO/index.html`: en Nueva/Editar, Tipo **🥁 Estilo** (`categoria = 'estilo'`,
+  sin campo Artista, igual que Material); el filtro recorre Todo → Canciones → Materiales → **Estilos**; ficha y tarjeta
+  sin carátula muestran 🥁. Sus ritmos son recursos 🪘 Cajón normales (EF). El campo y el filtro "Estilo" se ven como
+  **Género** ("Todos los géneros"); el dato guardado (`estilo`) no cambia. Sin cambios en Supabase. Prueba (navegador,
+  sin guardar): ciclo del filtro, Tipo Estilo oculta Artista, tarjeta 🥁 con un estilo de mentira, rótulos Género.
