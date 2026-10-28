@@ -7044,3 +7044,11 @@ canciones: patrones que constituyen una identidad musical —estilos— y que se
   **Nombre** y **País o región** (se guarda en `artista`: aparece bajo el nombre en la tarjeta y la ficha y entra en la
   búsqueda, sin columna nueva). Título "Nuevo estilo" / "Nuevo material" y ejemplo "Festejo". Prueba (navegador, sin
   guardar): campos visibles por tipo (canción / material / estilo), título y ejemplo.
+- **Ajuste 3 (PO 2026-10-28): bandera** como carátula del estilo: al guardarlo, si "País o región" nombra un país
+  (~60 en una lista: América, España, Portugal, África, Europa, Asia…; sin tildes ni mayúsculas, el primero que
+  aparece), `artwork_url` = imagen de **flagcdn.com** (`w320/<código>.png`; Windows no dibuja los emojis de banderas,
+  por eso imagen; necesita internet como las carátulas de iTunes). Una región sin país ("Andes") queda con 🥁 y si se
+  quita el país se quita la bandera. Se ve entera (sin recortar) en la tarjeta y la ficha. Los estilos ya creados la
+  toman al guardarlos de nuevo (✏️ → Guardar). Prueba (navegador, guardado simulado): Cueca + Chile → bandera en
+  tarjeta y ficha; Perú, México, "perú / chile" (la primera), Andes (sin bandera). El PO vio "algo raro" en el botón
+  Guardar del cuadro: la simulación guarda y cierra bien; **queda por precisar qué vio.**

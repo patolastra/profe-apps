@@ -347,6 +347,11 @@
             height: 100%;
             object-fit: cover;
         }
+        /* Bandera del país de un estilo (EG): entera, sobre el fondo oscuro */
+        .card-artwork.bandera img, .panel-artwork.bandera img {
+            width: 78%; height: auto; max-height: 78%; object-fit: contain;
+            border-radius: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.45);
+        }
         .card-body {
             padding: 12px;
             flex: 1;
@@ -3410,6 +3415,35 @@ const CATEGORIAS = [
 ];
 // Ícono de la ficha sin carátula: los estilos con tambor; canciones y materiales con la nota.
 const icoFicha = c => c.categoria === 'estilo' ? '🥁' : '🎵';
+// Bandera de un estilo según su país (EG): imagen de flagcdn.com (Windows no dibuja los emojis de banderas).
+// Se busca el primer país nombrado en "País o región"; una región sin país ("Andes") queda con 🥁.
+const PAISES = { 'argentina': 'ar', 'bolivia': 'bo', 'brasil': 'br', 'chile': 'cl', 'colombia': 'co', 'costa rica': 'cr',
+    'cuba': 'cu', 'ecuador': 'ec', 'el salvador': 'sv', 'guatemala': 'gt', 'honduras': 'hn', 'mexico': 'mx',
+    'nicaragua': 'ni', 'panama': 'pa', 'paraguay': 'py', 'peru': 'pe', 'puerto rico': 'pr', 'republica dominicana': 'do', 'rep dominicana': 'do',
+    'uruguay': 'uy', 'venezuela': 've', 'haiti': 'ht', 'jamaica': 'jm', 'trinidad y tobago': 'tt', 'espana': 'es',
+    'portugal': 'pt', 'estados unidos': 'us', 'eeuu': 'us', 'canada': 'ca', 'francia': 'fr', 'italia': 'it',
+    'alemania': 'de', 'irlanda': 'ie', 'escocia': 'gb-sct', 'inglaterra': 'gb-eng', 'reino unido': 'gb', 'grecia': 'gr',
+    'turquia': 'tr', 'marruecos': 'ma', 'egipto': 'eg', 'nigeria': 'ng', 'ghana': 'gh', 'senegal': 'sn', 'mali': 'ml',
+    'guinea': 'gn', 'sudafrica': 'za', 'india': 'in', 'japon': 'jp', 'china': 'cn', 'corea': 'kr', 'indonesia': 'id',
+    'filipinas': 'ph', 'australia': 'au', 'rusia': 'ru', 'polonia': 'pl', 'hungria': 'hu', 'austria': 'at' };
+const BANDERA_URL = 'https://flagcdn.com/w320/';
+function banderaDe(texto) {
+    const t = ' ' + String(texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]+/g, ' ') + ' ';
+    let mejor = null;
+    for (const [pais, cod] of Object.entries(PAISES)) {
+        const i = t.indexOf(' ' + pais + ' ');
+        if (i >= 0 && (!mejor || i < mejor.i)) mejor = { i, cod };
+    }
+    return mejor ? `${BANDERA_URL}${mejor.cod}.png` : '';
+}
+const esBandera = url => String(url || '').startsWith(BANDERA_URL);
+// Al guardar un estilo: la bandera sigue a su país (sin país conocido, se quita la bandera puesta antes).
+function banderaAlGuardar(c) {
+    if (c.categoria !== 'estilo') return;
+    const b = banderaDe(c.artista);
+    if (b) c.artwork_url = b;
+    else if (esBandera(c.artwork_url)) c.artwork_url = '';
+}
 function setCategoria(btn) {
     const i = CATEGORIAS.findIndex(x => x.cat === filtroCategoria);
     const sig = CATEGORIAS[(i + 1) % CATEGORIAS.length];
@@ -3482,7 +3516,7 @@ function cardHTML(c) {
     const activa = songActiva?.id === c.id ? 'activa' : '';
 
     const artworkHTML = c.artwork_url
-        ? `<div class="card-artwork"><img src="${c.artwork_url}" alt="" onerror="this.parentElement.innerHTML='${icoFicha(c)}'"></div>`
+        ? `<div class="card-artwork${esBandera(c.artwork_url) ? ' bandera' : ''}"><img src="${c.artwork_url}" alt="" onerror="this.parentElement.innerHTML='${icoFicha(c)}'"></div>`
         : `<div class="card-artwork">${icoFicha(c)}</div>`;
 
     const assetBadges = tipos.map(t => {
@@ -3697,7 +3731,7 @@ function renderPanel() {
     const assets = [...(c.assets || [])].sort(ordenAssets);
 
     const artworkHTML = c.artwork_url
-        ? `<div class="panel-artwork"><img src="${c.artwork_url}" alt=""></div>`
+        ? `<div class="panel-artwork${esBandera(c.artwork_url) ? ' bandera' : ''}"><img src="${c.artwork_url}" alt=""></div>`
         : `<div class="panel-artwork">${icoFicha(c)}</div>`;
 
     const tags = [c.año, c.estilo].filter(Boolean).map(t =>
@@ -4222,6 +4256,7 @@ async function guardarCancion() {
         c.categoria  = document.getElementById('f-categoria').value || 'cancion';
         if (url || c.url) c.url = url;
         if (importDatos?.artwork_url) c.artwork_url = importDatos.artwork_url;
+        banderaAlGuardar(c);
         await sbUpsertCancion(c);
         songActiva = c;
         renderPanel();
@@ -4249,6 +4284,7 @@ async function guardarCancion() {
         creado:      Date.now(),
         ...(url ? { url } : {}),
     };
+    banderaAlGuardar(nueva);
 
     try {
         await sbUpsertCancion(nueva);
