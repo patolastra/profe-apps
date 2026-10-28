@@ -10,8 +10,9 @@
   según su altura (regla por defecto + ajuste por nota, recordado en el equipo).
   Sonido sintetizado y animación con un solo reloj (AudioContext). Sin librerías ni internet.
   Dirección: ?midi=<url>&nombre=<texto> carga un MIDI al abrir.
-  🎛️ Programar (deuda EF, paso 1): cuadrícula Agudo / Grave para armar un ritmo (cifra, división, 1–8
-  compases) que la figura toca en bucle, con metrónomo. El borrador se recuerda en este equipo.
+  Programador (deuda EF): cuadrícula Agudo / Grave para armar un ritmo (cifra, división, 1–8 compases) que la
+  figura toca en bucle, con metrónomo. Barra (deuda EI): 📂 Abrir patrón (mirar y tocar; ✏️ Editar ritmo para
+  cambiarlo) · ＋ Nuevo ritmo (en blanco). Lo no guardado de un patrón se recupera al reabrirlo en este equipo.
   Paso 2: se guarda en la Biblioteca como recurso 🪘 Cajón de una canción (?cancion=<id> · ?asset=<id>).
   Paso 3: versión para estudiantes ?modo=alumno&a=<id>&n=<nombre> (enlace corto c/?a=&n=): sin clave ni base de
   datos, lee el archivo público repertorio-assets/cajon/<id>.json que se escribe al guardar; solo mirar y tocar.
@@ -61,7 +62,6 @@
         text-align: center; max-width: 90%; }
     #aviso.error { color: #fca5a5; border-color: #b91c1c; }
     #aviso[hidden] { display: none; }
-    body.arrastrando #escenario { outline: 3px dashed var(--agudo); outline-offset: -10px; }
 
     /* Cinta de golpes */
     #cinta { flex: 0 0 auto; width: 100%; height: 22vh; min-height: 110px; max-height: 200px; display: block;
@@ -103,9 +103,13 @@
     .el-can button.nueva { background: #15803d; border-color: #22c55e; }
 
     /* Versión para estudiantes: solo mirar y tocar */
-    body.alumno #b-cargar, body.alumno #b-ejemplo, body.alumno #b-programar, body.alumno #b-notas,
+    body.alumno #b-abrir, body.alumno #b-nuevo, body.alumno #b-editar,
     body.alumno .prog-recurso, body.alumno .prog-config > :not(#p-metro) { display: none; }
     body.alumno .celda { cursor: default; }
+    /* Patrón abierto para mirar y tocar (se edita con ✏️ Editar ritmo) */
+    body.viendo .prog-recurso, body.viendo .prog-config > :not(#p-metro) { display: none; }
+    body.viendo .celda { cursor: default; }
+    #b-editar.oculto { visibility: hidden; }
     body.alumno #barra { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
     @media (max-width: 900px) { body.alumno #nombre { width: 150px; } body.alumno #indicadores { display: none; } }
     @media (max-height: 480px) { body.alumno #prog { max-height: 42vh; padding: 6px 10px 8px; } body.alumno .prog-config { margin-bottom: 4px; }
@@ -135,23 +139,6 @@
     .prog-config .seg-mano button.sel { background: #e2e8f0; color: #0f172a; font-weight: 700; }
     .celda.ahora.on { filter: brightness(1.25); }
 
-    /* Panel de notas */
-    #panel-notas { position: absolute; right: 12px; top: 60px; z-index: 5; width: 340px; max-height: 70vh; overflow: auto;
-        background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 12px;
-        box-shadow: 0 12px 30px rgba(0,0,0,.5); }
-    #panel-notas[hidden] { display: none; }
-    #panel-notas h3 { margin: 0 0 4px; font-size: 16px; }
-    #panel-notas p { margin: 0 0 10px; color: var(--tenue); font-size: 13px; }
-    .fila-nota { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--borde); }
-    .fila-nota .nn { flex: 1; font-size: 14px; }
-    .fila-nota .cant { color: var(--tenue); font-size: 12px; }
-    .seg { display: flex; border: 1px solid #475569; border-radius: 8px; overflow: hidden; }
-    .seg button { background: transparent; color: var(--tenue); border: 0; padding: 5px 10px; cursor: pointer; font-size: 13px; }
-    .seg button.sel-grave { background: var(--grave); color: #111; font-weight: 700; }
-    .seg button.sel-agudo { background: var(--agudo); color: #111; font-weight: 700; }
-    #b-restablecer { margin-top: 10px; background: #334155; color: var(--texto); border: 1px solid #475569;
-        border-radius: 8px; padding: 6px 10px; cursor: pointer; }
-
     /* Efectos del golpe */
     .onda, .chispa { transform-box: fill-box; transform-origin: center; pointer-events: none; }
     .onda { animation: onda .55s ease-out forwards; }
@@ -168,9 +155,9 @@
 </head>
 <body>
 <header id="barra">
-    <button id="b-cargar" title="Cargar un MIDI desde el computador">📂 Cargar MIDI</button>
-    <button id="b-ejemplo" title="Cargar un ritmo de ejemplo">Ejemplo</button>
-    <button id="b-programar" title="Programar un ritmo en una cuadrícula">🎛️ Programar</button>
+    <button id="b-abrir" title="Abrir un patrón guardado en la Biblioteca">📂 Abrir patrón</button>
+    <button id="b-nuevo" title="Programar un ritmo nuevo, en blanco">＋ Nuevo ritmo</button>
+    <button id="b-editar" class="oculto" title="Editar este ritmo">✏️ Editar ritmo</button>
     <span id="nombre"></span>
     <div class="grupo">
         <button id="b-inicio" title="Volver al inicio (Inicio)" disabled>⏮</button>
@@ -183,9 +170,7 @@
         <button id="b-mas" disabled>+</button>
     </div>
     <span class="sep"></span>
-    <button id="b-notas" title="Qué nota es grave y cuál aguda" disabled>🎚️ Notas</button>
     <button id="b-pantalla" title="Pantalla completa">⛶</button>
-    <input type="file" id="archivo" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
 </header>
 
 <main id="escenario">
@@ -249,13 +234,7 @@
         <span class="ind" id="ind-agudo">AGUDO</span>
         <span class="ind" id="ind-grave">GRAVE</span>
     </div>
-    <div id="aviso">Carga un MIDI de cajón (📂) o arrástralo aquí. También puedes probar el Ejemplo.</div>
-    <div id="panel-notas" hidden>
-        <h3>🎚️ Notas del MIDI</h3>
-        <p>Elige si cada nota suena grave (centro de la tapa) o aguda (borde de arriba). Se recuerda en este equipo.</p>
-        <div id="lista-notas"></div>
-        <button id="b-restablecer">Volver a la regla automática</button>
-    </div>
+    <div id="aviso">Abre un patrón (📂) o programa un ritmo nuevo (＋).</div>
 </main>
 <canvas id="cinta"></canvas>
 <section id="prog" hidden>
@@ -263,8 +242,6 @@
         <span id="p-cancion">Sin canción</span>
         <input id="p-etiqueta" placeholder="Nombre del ritmo (ej.: Festejo)" maxlength="60" autocomplete="off">
         <button id="p-guardar" title="Guardar en la Biblioteca, como recurso 🪘 Cajón de la canción" disabled>💾 Guardar</button>
-        <button id="p-abrir" title="Abrir un ritmo guardado en la Biblioteca">📂 Abrir</button>
-        <button id="p-nuevo" title="Empezar un ritmo nuevo">＋ Nuevo</button>
     </div>
     <div class="prog-config">
         <label>Compás <select id="p-cifra"></select></label>
@@ -387,15 +364,6 @@ function leerMidi(buf) {
 // GRAVE / AGUDO por altura de nota
 // ═══════════════════════════════════════════════════════════════════════════
 const GM_GRAVES = new Set([35, 36, 41, 43, 45]);   // bombos y toms de piso
-const GM_NOMBRES = { 35: 'Bombo', 36: 'Bombo', 37: 'Aro', 38: 'Caja', 39: 'Palmas', 40: 'Caja', 41: 'Tom de piso',
-    42: 'Hi-hat', 43: 'Tom de piso', 44: 'Hi-hat', 45: 'Tom', 46: 'Hi-hat abierto', 47: 'Tom', 48: 'Tom', 49: 'Platillo',
-    50: 'Tom', 51: 'Ride', 54: 'Pandero', 56: 'Cencerro', 57: 'Platillo', 60: 'Bongó agudo', 61: 'Bongó grave',
-    62: 'Conga', 63: 'Conga', 64: 'Conga grave', 75: 'Claves', 76: 'Bloque', 77: 'Bloque' };
-const NOTAS_ES = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
-function nombreNota(p) {
-    const base = NOTAS_ES[p % 12] + (Math.floor(p / 12) - 1);
-    return datos && datos.gm && GM_NOMBRES[p] ? `${GM_NOMBRES[p]} (${base})` : base;
-}
 function mapaAutomatico(alturas, gm) {
     const m = {};
     if (gm) alturas.forEach(a => { m[a] = GM_GRAVES.has(a) ? 'grave' : 'agudo'; });
@@ -407,8 +375,6 @@ function mapaAutomatico(alturas, gm) {
 }
 const claveMapa = () => 'profe_cajon_mapa:' + (datos ? datos.nombre : '');
 function leerMapaGuardado() { try { return JSON.parse(localStorage.getItem(claveMapa()) || 'null'); } catch (e) { return null; } }
-function guardarMapa() { try { localStorage.setItem(claveMapa(), JSON.stringify(mapa)); } catch (e) {} }
-function borrarMapa() { try { localStorage.removeItem(claveMapa()); } catch (e) {} }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SONIDO (sintetizado)
@@ -500,9 +466,8 @@ function cargar(buf, nombre) {
     alturas.forEach(a => { mapa[a] = (guardado && guardado[a]) || auto[a]; });
     bpm = Math.round(m.bpmBase); ritmo = bpm / m.bpmBase;
     $('nombre').textContent = nombre; $('nombre').title = nombre;
-    ['b-inicio', 'b-play', 'b-menos', 'b-mas', 'b-notas'].forEach(id => $(id).disabled = false);
+    ['b-inicio', 'b-play', 'b-menos', 'b-mas'].forEach(id => $(id).disabled = false);
     prepararGolpes();
-    pintarNotas();
     pintarBpm();
     aviso('');
     posPausa = 0;
@@ -802,34 +767,6 @@ function cuadro() {
 // ═══════════════════════════════════════════════════════════════════════════
 function pintarPlay() { bPlay.textContent = tocando ? '⏸' : '▶'; bPlay.classList.toggle('pausa', tocando); }
 function pintarBpm() { $('bpm').textContent = datos ? `${bpm} BPM` : '— BPM'; }
-function pintarNotas() {
-    const lista = $('lista-notas'); lista.innerHTML = '';
-    const cuenta = {};
-    datos.notas.forEach(n => { cuenta[n.pitch] = (cuenta[n.pitch] || 0) + 1; });
-    Object.keys(mapa).map(Number).sort((a, b) => a - b).forEach(a => {
-        const fila = document.createElement('div'); fila.className = 'fila-nota';
-        fila.innerHTML = `<span class="nn">${nombreNota(a)} <span class="cant">· ${cuenta[a]} golpe${cuenta[a] === 1 ? '' : 's'}</span></span>
-            <span class="seg"><button data-t="grave">Grave</button><button data-t="agudo">Agudo</button></span>`;
-        fila.querySelectorAll('button').forEach(b => {
-            b.classList.toggle('sel-' + b.dataset.t, mapa[a] === b.dataset.t);
-            b.onclick = () => { mapa[a] = b.dataset.t; guardarMapa(); aplicarMapa(); };
-        });
-        lista.appendChild(fila);
-    });
-}
-function aplicarMapa() {
-    const pos = tocando ? posEn(ctx.currentTime) : posPausa;
-    prepararGolpes(); pintarNotas();
-    if (tocando) reanclar(pos);
-}
-
-$('b-cargar').onclick = () => $('archivo').click();
-$('archivo').onchange = async (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    cargar(await f.arrayBuffer(), f.name.replace(/\.midi?$/i, ''));
-    e.target.value = '';
-};
-$('b-ejemplo').onclick = () => cargar(midiEjemplo(), 'Ejemplo — ritmo de cajón');
 bPlay.onclick = () => (tocando ? pausar() : tocar());
 $('b-inicio').onclick = alInicio;
 $('b-repetir').onclick = () => {
@@ -838,16 +775,6 @@ $('b-repetir').onclick = () => {
 };
 $('b-menos').onclick = () => cambiarBpm(bpm - 5);
 $('b-mas').onclick = () => cambiarBpm(bpm + 5);
-$('b-notas').onclick = (e) => { e.stopPropagation(); $('panel-notas').hidden = !$('panel-notas').hidden; };
-$('b-restablecer').onclick = () => {
-    borrarMapa();
-    mapa = mapaAutomatico(Object.keys(mapa).map(Number), datos.gm);
-    aplicarMapa();
-};
-document.addEventListener('click', (e) => {
-    const p = $('panel-notas');
-    if (!p.hidden && !p.contains(e.target) && e.target !== $('b-notas')) p.hidden = true;
-});
 $('b-pantalla').onclick = () => {
     if (document.fullscreenElement) document.exitFullscreen();
     else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
@@ -859,42 +786,7 @@ document.addEventListener('keydown', (e) => {
     if (!$('elegir').hidden) { if (e.code === 'Escape') $('elegir').hidden = true; return; }
     if (e.code === 'Space') { e.preventDefault(); if (datos) bPlay.click(); }
     else if (e.code === 'Home') { e.preventDefault(); if (datos) alInicio(); }
-    else if (e.code === 'Escape') $('panel-notas').hidden = true;
 });
-
-// Arrastrar un MIDI a la página
-window.addEventListener('dragover', (e) => { e.preventDefault(); document.body.classList.add('arrastrando'); });
-window.addEventListener('dragleave', (e) => { if (!e.relatedTarget) document.body.classList.remove('arrastrando'); });
-window.addEventListener('drop', async (e) => {
-    e.preventDefault(); document.body.classList.remove('arrastrando');
-    const f = e.dataTransfer.files[0]; if (!f) return;
-    cargar(await f.arrayBuffer(), f.name.replace(/\.midi?$/i, ''));
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// EJEMPLO (se arma un MIDI en memoria y pasa por el mismo lector)
-// ═══════════════════════════════════════════════════════════════════════════
-function midiEjemplo() {
-    const ppq = 480, s = ppq / 4;          // semicorchea
-    // Dos compases de 4/4, en semicorcheas: G = grave (36), A = agudo (38), a = agudo suave
-    const patron = 'G..aA.G.a.G.A..a' + 'G..aA.G.a.G.A.AA';
-    const ev = [];
-    [...patron].forEach((c, i) => {
-        if (c === '.') return;
-        const pitch = c === 'G' ? 36 : 38, vel = c === 'a' ? 70 : 115;
-        ev.push([i * s, 0x99, pitch, vel], [i * s + s / 2, 0x89, pitch, 0]);
-    });
-    ev.sort((a, b) => a[0] - b[0]);
-    const vlqB = (v) => { const out = [v & 0x7f]; while ((v >>= 7)) out.unshift((v & 0x7f) | 0x80); return out; };
-    const pista = [0, 0xFF, 0x51, 3, 0x09, 0x27, 0xC0,       // 100 BPM
-                   0, 0xFF, 0x58, 4, 4, 2, 24, 8];
-    let t = 0;
-    for (const [tick, st, a, b] of ev) { pista.push(...vlqB(tick - t), st, a, b); t = tick; }
-    pista.push(...vlqB(32 * s - t), 0xFF, 0x2F, 0);
-    const n = pista.length;
-    return new Uint8Array([0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, ppq >> 8, ppq & 0xff,
-        0x4D, 0x54, 0x72, 0x6B, (n >>> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff, ...pista]).buffer;
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROGRAMADOR DE RITMOS: la cuadrícula arma un "MIDI" en memoria y lo toca el mismo motor
@@ -910,14 +802,13 @@ let prog = { cifra: '4/4', div: 'corchea', compases: 2, bpm: 100, metro: true, a
 let pincel = 'auto';         // mano con que se marcan los golpes: 'auto' | 'R' | 'L'
 const REGLA = { gD: { grave: 'R', agudo: 'L' }, gI: { grave: 'L', agudo: 'R' } };
 const manoDe = (fila, clave) => (prog.mano || {})[fila + ':' + clave] || (REGLA[prog.regla] || {})[fila] || null;
-let antesProg = null;        // lo que había al entrar (MIDI cargado), para volver a él
+let editando = true;         // false = patrón abierto solo para mirar y tocar (✏️ Editar ritmo lo habilita)
 let celdasPaso = [], pasoLuz = -1, pintando = null;
 
 // Borrador en el equipo: { prog, etiqueta, recurso, base, estado } (antes era solo el ritmo).
 function leerBorrador() {
     try { const g = JSON.parse(localStorage.getItem(CLAVE_PROG) || 'null'); return g && (g.prog ? g : { prog: g }); } catch (e) { return null; }
 }
-function leerProg() { const b = !ALUMNO && leerBorrador(); if (b) Object.assign(prog, b.prog); }
 function guardarProg() {
     if (ALUMNO) return;
     try { localStorage.setItem(CLAVE_PROG, JSON.stringify({ prog, etiqueta: $('p-etiqueta').value.trim(), recurso, base, estado: estadoActual() })); } catch (e) {}
@@ -1003,7 +894,7 @@ function ponerGolpe(cel, accion) {
     }
 }
 $('p-lista').addEventListener('pointerdown', (e) => {
-    const cel = e.target.closest('.celda'); if (!cel || ALUMNO) return;
+    const cel = e.target.closest('.celda'); if (!cel || ALUMNO || !editando) return;
     e.preventDefault();
     // Golpe vacío → se pone; golpe con otra mano que la del pincel → se le cambia; con la misma → se quita.
     const manoCel = (prog.mano || {})[cel.dataset.fila + ':' + cel.dataset.clave] || 'auto';
@@ -1088,45 +979,29 @@ $('p-limpiar').onclick = () => {
 
 function entrarProg() {
     detener();
-    antesProg = { datos, mapa, bpm };
     modo = 'prog';
-    $('b-programar').classList.add('on');
-    $('cinta').hidden = true; $('prog').hidden = false; $('panel-notas').hidden = true;
+    $('cinta').hidden = true; $('prog').hidden = false;
     bpm = prog.bpm; ritmo = bpm / 120;
     ['b-inicio', 'b-play', 'b-menos', 'b-mas'].forEach(id => $(id).disabled = false);
-    $('b-notas').disabled = true;
-    $('nombre').textContent = 'Ritmo programado'; $('nombre').title = '';
     aviso('');
     pintarConfig(); pintarProg(); construirProg();
     posPausa = 0;
     pintarBpm(); pintarGuardar();
 }
-// Solo la interfaz (cargar un MIDI también sale del programador).
+// Solo la interfaz (un MIDI por dirección también sale del programador).
 function salirProg() {
     modo = 'midi';
     clics = []; marcarPaso(null);
-    $('b-programar').classList.remove('on');
     $('cinta').hidden = false; $('prog').hidden = true;
+    ponerEdicion(true);
 }
-function volverDeProg() {
-    detener(); salirProg();
-    const a = antesProg || {}; antesProg = null;
-    datos = a.datos || null; mapa = a.mapa || {};
-    if (datos) {
-        bpm = a.bpm; ritmo = bpm / datos.bpmBase; prepararGolpes();
-        $('nombre').textContent = datos.nombre; $('nombre').title = datos.nombre;
-        $('b-notas').disabled = false;
-    } else {
-        golpes = []; manos = { L: [], R: [] };
-        ['b-inicio', 'b-play', 'b-menos', 'b-mas', 'b-notas'].forEach(id => $(id).disabled = true);
-        $('nombre').textContent = '';
-        aviso('Carga un MIDI de cajón (📂) o arrástralo aquí. También puedes probar el Ejemplo.');
-    }
-    pintarBpm();
+// Mirar o editar el patrón abierto.
+function ponerEdicion(on) {
+    editando = on;
+    document.body.classList.toggle('viendo', modo === 'prog' && !on);
+    $('b-editar').classList.toggle('oculto', ALUMNO || modo !== 'prog' || on);
+    if (!on) marcarPaso(null);
 }
-$('b-programar').onclick = () => (modo === 'prog' ? volverDeProg() : entrarProg());
-leerProg();
-
 // ═══════════════════════════════════════════════════════════════════════════
 // BIBLIOTECA (deuda EF, paso 2): el ritmo se guarda como recurso 🪘 Cajón de una canción
 // (repertorio_assets, tipo 'cajon', contenido = el ritmo en texto JSON). Sin archivo en Storage.
@@ -1154,6 +1029,10 @@ function pintarGuardar() {
     const b = $('p-guardar');
     b.textContent = guardandoProg ? 'Guardando…' : (hayCambios() ? '💾 Guardar' : (recurso && recurso.id ? '✓ Guardado' : '💾 Guardar'));
     b.disabled = guardandoProg || !hayCambios();
+    if (modo === 'prog' && !ALUMNO) {
+        const n = [recurso && recurso.cancion, $('p-etiqueta').value.trim()].filter(Boolean).join(' — ') || 'Ritmo nuevo';
+        $('nombre').textContent = '🪘 ' + n; $('nombre').title = n;
+    }
     const c = $('p-cancion');
     c.textContent = recurso ? '♬ ' + recurso.cancion : 'Sin canción';
     c.title = recurso ? 'Se guarda en la Biblioteca, en esta canción' : 'Al guardar se elige la canción';
@@ -1214,7 +1093,7 @@ function ponerRitmo(datosRitmo, etiqueta) {
     else { detener(); bpm = prog.bpm; ritmo = bpm / 120; pintarConfig(); pintarProg(); construirProg(); posPausa = 0; pintarBpm(); }
     guardarProg();
 }
-async function abrirRecurso(id) {
+async function abrirRecurso(id, editar) {
     if (!sb) { avisoBreve('Sin conexión con la base de datos', true); return; }
     const { data, error } = await sb.from('repertorio_assets').select('id, cancion_id, etiqueta, contenido, repertorio_canciones(nombre)').eq('id', id).single();
     if (error || !data) { avisoBreve('No se pudo abrir el ritmo', true); return; }
@@ -1225,28 +1104,29 @@ async function abrirRecurso(id) {
     // Lo que no alcanzó a guardarse en este equipo (solo si parte de esta misma versión)
     const b = leerBorrador();
     if (b && b.recurso && b.recurso.id === id && b.base === base && b.estado !== base) {
-        ponerRitmo(b.prog, b.etiqueta); avisoBreve('Se recuperó lo que no alcanzaste a guardar');
+        ponerRitmo(b.prog, b.etiqueta); avisoBreve('Se recuperó lo que no alcanzaste a guardar'); editar = true;
     }
+    ponerEdicion(!!editar);
     guardarProg();
 }
 function nuevoRitmo(cancion) {
-    if (hayCambios() && recurso && !confirm('Hay cambios sin guardar. ¿Empezar un ritmo nuevo igual?')) return;
+    if (hayCambios() && !confirm('Hay cambios sin guardar. ¿Empezar un ritmo nuevo igual?')) return;
     recurso = cancion ? { id: null, cancion_id: cancion.id, cancion: cancion.nombre } : null;
     ponerRitmo(null, '');
-    base = estadoActual(); pintarGuardar();
+    base = estadoActual(); ponerEdicion(true); pintarGuardar();
 }
 
 // Elegir canción: para guardar (todas) o para abrir (las que tienen ritmos de cajón).
 async function elegirCancion(para) {
     const caja = $('elegir');
     caja.hidden = false;
-    caja.querySelector('h2 span').textContent = para === 'guardar' ? '💾 ¿En qué canción se guarda el ritmo?' : '📂 Ritmos de cajón guardados';
+    caja.querySelector('h2 span').textContent = para === 'guardar' ? '💾 ¿En qué canción o estilo se guarda el ritmo?' : '📂 Abrir patrón';
     const lista = $('elegir-lista'), buscar = $('elegir-buscar');
     buscar.value = ''; lista.textContent = 'Cargando…';
     let canciones = [], ritmos = [];
     try {
         const [c, r] = await Promise.all([
-            sb.from('repertorio_canciones').select('id, nombre, artista').order('nombre'),
+            sb.from('repertorio_canciones').select('id, nombre, artista, categoria').order('nombre'),
             sb.from('repertorio_assets').select('id, cancion_id, etiqueta').eq('tipo', 'cajon'),
         ]);
         if (c.error) throw c.error;
@@ -1254,22 +1134,25 @@ async function elegirCancion(para) {
     } catch (err) { lista.textContent = 'No se pudieron cargar las canciones: ' + (err.message || err); return; }
     const pintar = () => {
         const q = norm(buscar.value);
+        const deC = (c) => ritmos.filter(x => x.cancion_id === c.id);
         const ver = canciones
-            .filter(c => (para === 'guardar' || ritmos.some(x => x.cancion_id === c.id)) && (!q || norm(c.nombre + ' ' + c.artista).includes(q)))
-            .sort((a, b) => ritmos.some(x => x.cancion_id === b.id) - ritmos.some(x => x.cancion_id === a.id));
-        lista.innerHTML = ver.slice(0, 80).map(c => `<div class="el-can"><span class="el-nom">${esc(c.nombre)} <span class="el-art">${esc(c.artista)}</span></span>
+            .filter(c => (para === 'guardar' || deC(c).length)
+                && (!q || norm(c.nombre + ' ' + c.artista + ' ' + deC(c).map(x => x.etiqueta).join(' ')).includes(q)))
+            // estilos primero, luego las que ya tienen ritmos
+            .sort((a, b) => ((b.categoria === 'estilo') - (a.categoria === 'estilo')) || (!!deC(b).length - !!deC(a).length));
+        lista.innerHTML = ver.slice(0, 80).map(c => `<div class="el-can"><span class="el-nom">${c.categoria === 'estilo' ? '🥁 ' : ''}${esc(c.nombre)} <span class="el-art">${esc(c.artista)}</span></span>
             ${ritmos.filter(x => x.cancion_id === c.id).map(x => para === 'guardar' ? `<span class="el-ritmo">🪘 ${esc(x.etiqueta || 'Cajón')}</span>`
                 : `<button data-asset="${x.id}">🪘 ${esc(x.etiqueta || 'Cajón')}</button>`).join('')}
             ${para === 'guardar' ? `<button class="nueva" data-cancion="${c.id}">Guardar aquí</button>` : ''}</div>`).join('')
-            || (para === 'guardar' ? 'Sin resultados' : 'Aún no hay ritmos de cajón guardados');
+            || (para === 'guardar' || q ? 'Sin resultados' : 'Aún no hay patrones de cajón guardados');
     };
     buscar.oninput = pintar;
     lista.onclick = (e) => {
         const b = e.target.closest('button'); if (!b) return;
         caja.hidden = true;
         if (b.dataset.asset) {
-            if (hayCambios() && recurso && !confirm('Hay cambios sin guardar. ¿Abrir otro ritmo igual?')) return;
-            abrirRecurso(b.dataset.asset);
+            if (hayCambios() && !confirm('Hay cambios sin guardar. ¿Abrir otro patrón igual?')) return;
+            abrirRecurso(b.dataset.asset, false);
         } else {
             const c = canciones.find(x => x.id === b.dataset.cancion);
             recurso = { id: null, cancion_id: c.id, cancion: c.nombre };
@@ -1281,8 +1164,9 @@ async function elegirCancion(para) {
 }
 $('elegir-cerrar').onclick = () => { $('elegir').hidden = true; };
 $('p-guardar').onclick = () => { $('p-guardar').blur(); guardarRitmo(); };
-$('p-abrir').onclick = () => { $('p-abrir').blur(); elegirCancion('abrir'); };
-$('p-nuevo').onclick = () => { $('p-nuevo').blur(); nuevoRitmo(recurso && { id: recurso.cancion_id, nombre: recurso.cancion }); };
+$('b-abrir').onclick = () => elegirCancion('abrir');
+$('b-nuevo').onclick = () => nuevoRitmo(null);
+$('b-editar').onclick = () => ponerEdicion(true);
 $('p-etiqueta').addEventListener('input', () => { guardarProg(); pintarGuardar(); });
 $('p-etiqueta').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); guardarRitmo(); } });
 
@@ -1309,14 +1193,11 @@ window.addEventListener('beforeunload', (e) => { if (recurso && hayCambios() && 
         } catch (e) { aviso('Este ritmo no está disponible. Pídele al profe el enlace de nuevo.', true); }
         return;
     }
-    if (q.get('asset')) { await abrirRecurso(q.get('asset')); return; }
+    if (q.get('asset')) { await abrirRecurso(q.get('asset'), true); return; }
     if (q.get('cancion') && sb) {
         const { data } = await sb.from('repertorio_canciones').select('id, nombre').eq('id', q.get('cancion')).single();
         if (data) { nuevoRitmo(data); return; }
     }
-    // Sin dirección: lo último que se estaba programando en este equipo queda listo al apretar 🎛️
-    const b = leerBorrador();
-    if (b && b.recurso) { recurso = b.recurso; base = b.base; $('p-etiqueta').value = b.etiqueta || ''; }
     pintarGuardar();
 })();
 

@@ -7083,3 +7083,25 @@ bombo/agudo").*
   y `regla` solo si se usan (los ritmos ya guardados no cambian); el estudiante ve las letras pero no el pincel ni la
   regla. Sin Supabase. Prueba (navegador): reparto automático D/I; pincel I cambia la mano y un segundo clic quita;
   grave I + agudo junto → agudo D; regla Grave D · Agudo I; cambio a semicorcheas conserva la mano.
+
+---
+
+### EI. 🪘 Cajón — barra: Abrir patrón · Nuevo ritmo · Editar ritmo — HECHA
+*Origen: PO 2026-10-28 ("borra el botón Ejemplo; Cargar MIDI no interesa, debería ser Abrir patrón y poder revisar un
+patrón de todos los que hay; Programar muestra el último editado y no debería: Nuevo ritmo en blanco, y para editar un
+botón de edición de ritmo").*
+- **Hecho (2026-10-28):** `CAJON-PERUANO/index.html`. Barra: **📂 Abrir patrón** · **＋ Nuevo ritmo** ·
+  **✏️ Editar ritmo** (con su espacio reservado; se ve solo con un patrón abierto para mirar).
+  - **Abrir patrón:** lista de todos los ritmos de cajón guardados, por canción o estilo (estilos primero, con 🥁 y su
+    país), buscador que también encuentra por nombre del ritmo. El patrón se abre **para mirar y tocar** (como el
+    estudiante, más el metrónomo); ✏️ Editar ritmo muestra nombre, Guardar, mano, regla, cifra, división y compases.
+  - **Nuevo ritmo:** siempre en blanco y editable (ya no reaparece el último editado al abrir el Cajón). Si hay
+    cambios sin guardar, pregunta antes. Lo no guardado de un patrón ya guardado se recupera al reabrirlo.
+  - La barra muestra "🪘 Canción — Nombre del ritmo" (o "Ritmo nuevo"). Abrir desde la Biblioteca (✏️) sigue abriendo
+    para editar.
+  - **Retirado:** Ejemplo, Cargar MIDI, arrastrar un MIDI y 🎚️ Notas (el panel grave/agudo por nota del MIDI). Queda
+    solo `?midi=<url>` (sin uso actual) para no romper un enlace; regla 10: no se guarda código de respaldo.
+  - Lugares: Cajón suelto, 🥁 Ritmos y pestaña abierta desde la Biblioteca (mismo archivo); el estudiante no cambia.
+  - Prueba (navegador): barra nueva; al abrir, aviso y sin ritmo; Nuevo ritmo en blanco y editable; Abrir patrón
+    lista Cueca (Chile) y Cumbia (Colombia) primero; abierto: no se edita, Guardar oculto, metrónomo visible;
+    ✏️ Editar ritmo habilita todo; sin errores.
