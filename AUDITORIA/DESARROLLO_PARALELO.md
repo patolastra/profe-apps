@@ -7155,3 +7155,24 @@ cambiar entre ellos sin salir de la app").*
   guardar. Lugares: Cajón suelto, 🥁 Ritmos y pestaña desde la Biblioteca (mismo archivo); el estudiante no la ve.
   Prueba (navegador): Cueca Principal sonando → clic en Básico → sigue sonando con "Cueca — Básico"; Cumbia por
   `?asset=` (editando) → Variación 1 queda editable y la dirección cambia; sin errores.
+
+---
+
+### EM. 🪘 Cajón — nuevo dibujo: solo el cajón y dos manos (sin la persona) — HECHA
+*Origen: PO 2026-10-28 (imagen de referencia: mano izquierda azul, derecha roja, mangas amarillas, estilo caricatura
+con borde negro). "No es necesario renderizar a la persona, solamente el cajón en primer plano y las manos.
+Agudo: al borde del cajón y solo con los dedos. Grave: basta que la palma entre completa en el cajón; la derecha se
+acerca al centro pero nunca queda al centro (centro derecha); la izquierda igual, a la izquierda".*
+- **Plan:** `CAJON-PERUANO/index.html`, solo el dibujo (sonido, cuadrícula, cinta y manos D / I iguales). La tapa del
+  cajón grande de frente; las manos entran desde arriba con su manga, vistas por el dorso, dedos hacia abajo y pulgar
+  hacia el centro. Agudo: la palma queda sobre el borde de arriba y solo los dedos tocan la tapa (cerca de la
+  esquina de su lado). Grave: la mano entera dentro de la tapa, a centro izquierda / centro derecha. Antes del golpe la
+  mano sube y se agranda (más cerca) y su sombra en la tapa se aclara; al golpear, sombra marcada. Aplica igual en la
+  versión del estudiante (mismo archivo).
+- **Hecho (2026-10-28):** `CAJON-PERUANO/index.html`: fuera la persona y los brazos con codo; tapa grande de frente con
+  su asiento arriba; manos de caricatura (borde negro, dedos con pliegues, puño amarillo y manga que se desvanece
+  hacia arriba), armadas por código desde una sola mano (la derecha es su espejo). Sombra en la tapa que se marca al
+  golpear. Efecto del agudo en la punta de los dedos; el del grave en la palma. El movimiento (cuándo sube, golpea y
+  descansa cada mano) es el mismo de antes.
+  Prueba (navegador): Cumbia Principal sonando, las dos manos alternan agudo (dedos sobre el borde, palma afuera) y
+  grave (mano entera dentro, centro izquierda / derecha); poses fijas revisadas en captura; sin errores.
