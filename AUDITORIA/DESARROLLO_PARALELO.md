@@ -6938,3 +6938,6 @@ pantalla del celular, a veces la franja de arriba es blanca, a veces negra"). De
   los márgenes seguros) con `html` del color de la página y `theme-color` igual: inicio, Evaluar, Subir y Biblioteca
   (`?movil=1`, por código; el PC no cambia) oscuras `#0b1120`; Bitácora blanca.
 - **Prueba:** solo en el navegador del computador (colores y fondos correctos, sin errores). **Falta:** verlo en Android.
+- **Ajuste (captura del PO, 2026-10-28):** con el celular en modo oscuro, Chrome oscurece por su cuenta la Bitácora
+  (blanca) y la franja de arriba quedaba blanca. Ahora la Bitácora pide franja blanca en modo claro y oscura (`#121212`)
+  en modo oscuro, igual que como se ve la página.
