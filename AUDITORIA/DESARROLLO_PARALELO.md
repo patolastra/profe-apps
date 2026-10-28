@@ -7035,3 +7035,8 @@ canciones: patrones que constituyen una identidad musical —estilos— y que se
   sin carátula muestran 🥁. Sus ritmos son recursos 🪘 Cajón normales (EF). El campo y el filtro "Estilo" se ven como
   **Género** ("Todos los géneros"); el dato guardado (`estilo`) no cambia. Sin cambios en Supabase. Prueba (navegador,
   sin guardar): ciclo del filtro, Tipo Estilo oculta Artista, tarjeta 🥁 con un estilo de mentira, rótulos Género.
+- **Ajuste (PO 2026-10-28):** al crear el estilo "Cueca" la Biblioteca le pegó la letra de una canción (al guardar una
+  entrada nueva siempre buscaba letra en LRCLIB con su nombre). Ahora **solo las canciones** buscan letra (estilos y
+  materiales no); en Tipo Estilo se oculta "Importar metadata" (iTunes); en la ficha de un estilo, ＋ recurso no ofrece
+  📝 Letra. La letra ya pegada a la Cueca la borra el PO con 🗑 (la prueba no puede borrar datos). Lo que pide el PO
+  ("debería tener canciones asociadas") es el **paso 2**, que espera su visto bueno.
