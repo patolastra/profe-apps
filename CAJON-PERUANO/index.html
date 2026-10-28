@@ -127,6 +127,12 @@
     .celda.ag.on { background: var(--agudo); border-color: var(--agudo); }
     .celda.gr.on { background: var(--grave); border-color: var(--grave); }
     .celda.ahora { box-shadow: 0 0 0 2px #fde047; }
+    .celda.on { color: #0f172a; font-size: 13px; font-weight: 800; text-align: center; line-height: 28px; }
+    .celda.on.auto { color: rgba(15,23,42,.45); }
+    .seg-mano { display: inline-flex; border: 1px solid #475569; border-radius: 8px; overflow: hidden; }
+    .prog-config .seg-mano button { border: 0; border-radius: 0; background: transparent; color: var(--tenue); width: 40px; padding: 0; }
+    .prog-config .seg-mano button[data-m="auto"] { width: 70px; }
+    .prog-config .seg-mano button.sel { background: #e2e8f0; color: #0f172a; font-weight: 700; }
     .celda.ahora.on { filter: brightness(1.25); }
 
     /* Panel de notas */
@@ -268,9 +274,18 @@
             <option value="semicorchea">Semicorcheas</option>
         </select></label>
         <label>Compases <select id="p-cuantos"></select></label>
+        <span class="p-pincel-lbl">Mano</span>
+        <span id="p-pincel" class="seg-mano" title="Mano con que se marcan los golpes. Clic en un golpe con otra mano se la cambia; con la misma, lo quita.">
+            <button data-m="auto" title="La elige el Cajón">✋ Auto</button><button data-m="R" title="Derecha">D</button><button data-m="L" title="Izquierda">I</button>
+        </span>
+        <label>Regla <select id="p-regla" title="Mano fija para todo el ritmo (la elegida golpe a golpe manda)">
+            <option value="auto">Automática</option>
+            <option value="gD">Grave D · Agudo I</option>
+            <option value="gI">Grave I · Agudo D</option>
+        </select></label>
         <button id="p-metro" title="Metrónomo: un clic en cada tiempo">⏱ Metrónomo</button>
         <button id="p-limpiar" title="Quitar todos los golpes">Limpiar</button>
-        <span class="prog-ayuda">Clic en una casilla pone o quita el golpe; arrastra para marcar varias.</span>
+        <span class="prog-ayuda">Clic pone el golpe con la mano elegida; en un golpe con otra mano se la cambia, con la misma lo quita. Arrastra para varias.</span>
     </div>
     <div id="p-lista" class="compases"></div>
 </section>
@@ -495,14 +510,23 @@ function cargar(buf, nombre) {
 
 function prepararGolpes() {
     const tol = datos.ppq / 24;
-    golpes = datos.notas.map(n => ({ t: datos.tickASeg(n.tick), tick: n.tick, tipo: mapa[n.pitch] || 'agudo', vel: n.vel / 127, mano: 'R' }));
+    golpes = datos.notas.map(n => ({ t: datos.tickASeg(n.tick), tick: n.tick, tipo: mapa[n.pitch] || 'agudo', vel: n.vel / 127, mano: 'R', fija: n.mano || null }));
     // Manos: golpes simultáneos = una en cada mano; seguidos (< 0,5 s) se alternan; con tiempo, la derecha.
+    // Un golpe con mano elegida (programador, EH) la conserva; dos golpes juntos nunca van en la misma mano.
+    const otra = (m) => (m === 'R' ? 'L' : 'R');
     let ultMano = 'L', ultT = -9;
     for (let i = 0; i < golpes.length;) {
         let j = i; while (j < golpes.length && golpes[j].tick - golpes[i].tick <= tol) j++;
         const grupo = golpes.slice(i, j).sort((a, b) => (a.tipo === 'grave' ? 0 : 1) - (b.tipo === 'grave' ? 0 : 1));
-        if (grupo.length > 1) { grupo.forEach((g, k) => { g.mano = k === 0 ? 'R' : 'L'; }); ultMano = 'L'; }
-        else { grupo[0].mano = (grupo[0].t - ultT < 0.5) ? (ultMano === 'R' ? 'L' : 'R') : 'R'; ultMano = grupo[0].mano; }
+        if (grupo.length > 1) {
+            const usadas = new Set();
+            grupo.filter(g => g.fija).forEach(g => { g.mano = usadas.has(g.fija) ? otra(g.fija) : g.fija; usadas.add(g.mano); });
+            grupo.filter(g => !g.fija).forEach(g => { g.mano = usadas.has('R') ? 'L' : 'R'; usadas.add(g.mano); });
+            ultMano = 'L';
+        } else {
+            const g = grupo[0];
+            g.mano = g.fija || ((g.t - ultT < 0.5) ? otra(ultMano) : 'R'); ultMano = g.mano;
+        }
         ultT = golpes[i].t; i = j;
     }
     manos = { L: golpes.filter(g => g.mano === 'L'), R: golpes.filter(g => g.mano === 'R') };
@@ -880,7 +904,12 @@ const PPQ = 480, TPS = 960;
 const CIFRAS = ['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '12/8'];
 const PASO = { corchea: 240, tresillo: 160, semicorchea: 120 };
 const CLAVE_PROG = 'profe_cajon_programa';
-let prog = { cifra: '4/4', div: 'corchea', compases: 2, bpm: 100, metro: true, agudo: [], grave: [] };
+let prog = { cifra: '4/4', div: 'corchea', compases: 2, bpm: 100, metro: true, agudo: [], grave: [], mano: {}, regla: 'auto' };
+// Manos (EH): `mano` = mano elegida golpe a golpe { 'grave:0:240': 'R' | 'L' }; `regla` = 'auto' | 'gD' (grave D,
+// agudo I) | 'gI' (grave I, agudo D). La elegida golpe a golpe manda sobre la regla.
+let pincel = 'auto';         // mano con que se marcan los golpes: 'auto' | 'R' | 'L'
+const REGLA = { gD: { grave: 'R', agudo: 'L' }, gI: { grave: 'L', agudo: 'R' } };
+const manoDe = (fila, clave) => (prog.mano || {})[fila + ':' + clave] || (REGLA[prog.regla] || {})[fila] || null;
 let antesProg = null;        // lo que había al entrar (MIDI cargado), para volver a él
 let celdasPaso = [], pasoLuz = -1, pintando = null;
 
@@ -903,7 +932,7 @@ function construirProg() {
     const tc = ticksCompasProg(), notas = [];
     [['grave', 36], ['agudo', 38]].forEach(([fila, pitch]) => prog[fila].forEach(k => {
         const [c, t] = k.split(':').map(Number);
-        notas.push({ tick: c * tc + t, pitch, vel: 110, canal: 9 });
+        notas.push({ tick: c * tc + t, pitch, vel: 110, canal: 9, mano: manoDe(fila, k) });
     }));
     notas.sort((x, y) => x.tick - y.tick || x.pitch - y.pitch);
     const [num, den] = cifraNum(), finTick = tc * prog.compases;
@@ -917,6 +946,7 @@ function construirProg() {
         for (let c = 0; c < prog.compases; c++)
             for (let t = 0; t < tc; t += tt) clics.push({ t: (c * tc + t) / TPS, acento: t === 0 });
     }
+    pintarManos();
 }
 // Rehace lo que suena sin cortar: sigue desde donde iba.
 function aplicarProg() {
@@ -953,12 +983,19 @@ function pintarProg() {
         bloque.appendChild(rej); lista.appendChild(bloque);
     }
 }
-function ponerGolpe(cel, poner) {
-    const fila = cel.dataset.fila, clave = cel.dataset.clave, set = new Set(prog[fila]);
-    if (poner === set.has(clave)) return;
-    poner ? set.add(clave) : set.delete(clave);
+// accion: 'poner' (con la mano del pincel) · 'quitar' · 'mano' (cambia la mano de un golpe puesto)
+function ponerGolpe(cel, accion) {
+    const fila = cel.dataset.fila, clave = cel.dataset.clave, set = new Set(prog[fila]), km = fila + ':' + clave;
+    const hay = set.has(clave), poner = accion === 'poner';
+    if ((accion === 'poner' && hay) || (accion !== 'poner' && !hay)) return;
+    prog.mano = prog.mano || {};
+    if (accion === 'quitar') { set.delete(clave); delete prog.mano[km]; }
+    else {
+        if (poner) set.add(clave);
+        if (pincel === 'auto') delete prog.mano[km]; else prog.mano[km] = pincel;
+    }
     prog[fila] = [...set];
-    cel.classList.toggle('on', poner);
+    cel.classList.toggle('on', accion !== 'quitar');
     aplicarProg();
     if (poner && !tocando) {        // con la música detenida, al marcar se escucha el golpe
         asegurarAudio(); if (ctx.state === 'suspended') ctx.resume();
@@ -968,14 +1005,28 @@ function ponerGolpe(cel, poner) {
 $('p-lista').addEventListener('pointerdown', (e) => {
     const cel = e.target.closest('.celda'); if (!cel || ALUMNO) return;
     e.preventDefault();
-    pintando = { fila: cel.dataset.fila, poner: !cel.classList.contains('on') };
-    ponerGolpe(cel, pintando.poner);
+    // Golpe vacío → se pone; golpe con otra mano que la del pincel → se le cambia; con la misma → se quita.
+    const manoCel = (prog.mano || {})[cel.dataset.fila + ':' + cel.dataset.clave] || 'auto';
+    const accion = !cel.classList.contains('on') ? 'poner' : (manoCel !== pincel ? 'mano' : 'quitar');
+    pintando = { fila: cel.dataset.fila, accion };
+    ponerGolpe(cel, accion);
 });
 $('p-lista').addEventListener('pointerover', (e) => {
     const cel = e.target.closest('.celda');
-    if (pintando && cel && cel.dataset.fila === pintando.fila) ponerGolpe(cel, pintando.poner);
+    if (pintando && cel && cel.dataset.fila === pintando.fila) ponerGolpe(cel, pintando.accion);
 });
 document.addEventListener('pointerup', () => { pintando = null; });
+
+// Cada golpe muestra su mano: D / I; tenue si la eligió el Cajón (sin mano elegida ni regla).
+function pintarManos() {
+    const tc = datos.ticksCompas, porClave = {};
+    golpes.forEach(g => { porClave[g.tipo + ':' + Math.floor(g.tick / tc) + ':' + (g.tick % tc)] = g; });
+    document.querySelectorAll('#p-lista .celda').forEach(cel => {
+        const g = cel.classList.contains('on') && porClave[cel.dataset.fila + ':' + cel.dataset.clave];
+        cel.textContent = g ? (g.mano === 'R' ? 'D' : 'I') : '';
+        cel.classList.toggle('auto', !!g && !g.fija);
+    });
+}
 
 // La luz recorre la columna del paso que suena.
 function marcarPaso(vis) {
@@ -992,17 +1043,20 @@ function marcarPaso(vis) {
 
 // Cambios de configuración: se conservan los golpes que caben; se avisa antes de perder alguno.
 function cambiarConfig(cambio, filtro) {
-    const quedan = { agudo: [], grave: [] }; let pierde = 0;
+    const quedan = { agudo: [], grave: [] }, manoNueva = {}; let pierde = 0;
     ['agudo', 'grave'].forEach(f => prog[f].forEach(k => {
         const [c, t] = k.split(':').map(Number), n = filtro(c, t);
         if (n == null) pierde++; else if (!quedan[f].includes(n)) quedan[f].push(n);
+        if (n != null && (prog.mano || {})[f + ':' + k]) manoNueva[f + ':' + n] = prog.mano[f + ':' + k];
     }));
     if (pierde && !confirm(pierde === 1 ? 'Se borrará 1 golpe que no cabe. ¿Seguir?' : `Se borrarán ${pierde} golpes que no caben. ¿Seguir?`)) { pintarConfig(); return; }
-    cambio(); prog.agudo = quedan.agudo; prog.grave = quedan.grave;
+    cambio(); prog.agudo = quedan.agudo; prog.grave = quedan.grave; prog.mano = manoNueva;
     pintarConfig(); pintarProg(); aplicarProg();
 }
 function pintarConfig() {
     $('p-cifra').value = prog.cifra; $('p-div').value = prog.div; $('p-cuantos').value = String(prog.compases);
+    $('p-regla').value = prog.regla || 'auto';
+    document.querySelectorAll('#p-pincel button').forEach(b => b.classList.toggle('sel', b.dataset.m === pincel));
     $('p-div').querySelector('[value="tresillo"]').disabled = cifraNum()[1] === 8;
     $('p-metro').classList.toggle('on', prog.metro);
 }
@@ -1022,12 +1076,14 @@ $('p-cuantos').onchange = (e) => {
     const n = Number(e.target.value);
     cambiarConfig(() => { prog.compases = n; }, (c, t) => (c < n ? c + ':' + t : null));
 };
+document.querySelectorAll('#p-pincel button').forEach(b => b.onclick = () => { pincel = b.dataset.m; pintarConfig(); b.blur(); });
+$('p-regla').onchange = (e) => { prog.regla = e.target.value; pintarConfig(); aplicarProg(); };
 $('p-metro').onclick = () => { prog.metro = !prog.metro; pintarConfig(); aplicarProg(); $('p-metro').blur(); };
 $('p-limpiar').onclick = () => {
     $('p-limpiar').blur();
     if (!prog.agudo.length && !prog.grave.length) return;
     if (!confirm('¿Quitar todos los golpes?')) return;
-    prog.agudo = []; prog.grave = []; pintarProg(); aplicarProg();
+    prog.agudo = []; prog.grave = []; prog.mano = {}; pintarProg(); aplicarProg();
 };
 
 function entrarProg() {
@@ -1084,8 +1140,12 @@ const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2
 const esc = (t) => String(t || '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-const contenidoProg = () => JSON.stringify({ v: 1, cifra: prog.cifra, div: prog.div, compases: prog.compases, bpm: prog.bpm,
-    metro: prog.metro, agudo: [...prog.agudo].sort(), grave: [...prog.grave].sort() });
+const contenidoProg = () => {
+    const mano = Object.fromEntries(Object.entries(prog.mano || {}).sort());
+    return JSON.stringify({ v: 1, cifra: prog.cifra, div: prog.div, compases: prog.compases, bpm: prog.bpm,
+        metro: prog.metro, agudo: [...prog.agudo].sort(), grave: [...prog.grave].sort(),
+        ...(Object.keys(mano).length ? { mano } : {}), ...(prog.regla && prog.regla !== 'auto' ? { regla: prog.regla } : {}) });
+};
 const estadoActual = () => contenidoProg() + '\n' + $('p-etiqueta').value.trim();
 const hayGolpes = () => prog.agudo.length + prog.grave.length > 0;
 const hayCambios = () => hayGolpes() && estadoActual() !== base;
@@ -1146,7 +1206,7 @@ async function subirPublico(id) {
 
 // Carga un ritmo (del recurso o del borrador) en la cuadrícula.
 function ponerRitmo(datosRitmo, etiqueta) {
-    const p = Object.assign({ cifra: '4/4', div: 'corchea', compases: 2, bpm: 100, metro: true, agudo: [], grave: [] }, datosRitmo || {});
+    const p = Object.assign({ cifra: '4/4', div: 'corchea', compases: 2, bpm: 100, metro: true, agudo: [], grave: [], mano: {}, regla: 'auto' }, datosRitmo || {});
     delete p.v;
     prog = p;
     $('p-etiqueta').value = etiqueta || '';

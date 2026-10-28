@@ -7059,3 +7059,27 @@ canciones: patrones que constituyen una identidad musical —estilos— y que se
   Títulos "Editar estilo" / "Editar material"; en un estilo no se muestra la carátula (la pone su país). Prueba
   (navegador, envío interceptado): se envían solo columnas reales, bandera de Chile, cuadro cerrado con "Estilo
   actualizado"; con error simulado, aviso y cuadro abierto. **Falta:** que el PO edite la Cueca y vea la bandera.
+
+---
+
+### EH. 🪘 Cajón — elegir la mano de cada golpe (D / I) y regla fija grave/agudo — HECHA
+*Origen: PO 2026-10-28 ("que para cada golpe pueda asignar una mano en específico; y/o dejar una mano fija para
+bombo/agudo").*
+- **Auditoría:** hoy las manos se reparten solas (`prepararGolpes`): golpes simultáneos = una en cada mano; seguidos
+  (< 0,5 s) se alternan; con tiempo, la derecha. La figura ya sabe llevar cualquier mano a grave o agudo (`DESTINO`).
+  El ritmo programado se guarda como JSON en `repertorio_assets.contenido` y en el archivo público del estudiante:
+  sumar las manos ahí **no toca Supabase**.
+- **Decisiones del PO (2026-10-28):** (1) **pincel de mano** sobre la cuadrícula: ✋ Auto · D · I; cada golpe nuevo
+  queda con la mano del pincel; clic sobre un golpe con otra mano se la cambia; clic sobre uno con la misma mano lo quita;
+  (2) **regla fija** para todo el ritmo, configurable: Automática · Grave D / Agudo I · Grave I / Agudo D. La mano
+  elegida golpe a golpe manda sobre la regla.
+- **Plan:** cada golpe muestra su mano (D / I; tenue si la eligió el Cajón); dos golpes juntos nunca quedan en la misma
+  mano (el segundo pasa a la otra); se guarda con el ritmo (`mano`, `regla`) y lo ve el estudiante.
+- **Hecho (2026-10-28):** `CAJON-PERUANO/index.html`. Sobre la cuadrícula: **Mano** ✋ Auto · D · I (pincel) y
+  **Regla** Automática · Grave D · Agudo I · Grave I · Agudo D. Cada golpe muestra D / I (oscuro si la mano es elegida
+  o de la regla; tenue si la reparte el Cajón). `prepararGolpes` respeta la mano elegida y, si dos golpes juntos piden
+  la misma, el segundo pasa a la otra; sin mano elegida, el reparto de siempre (también para los MIDI). Las manos se
+  conservan al cambiar división o cifra (se ajustan con su golpe); Limpiar las borra. En el JSON del ritmo van `mano`
+  y `regla` solo si se usan (los ritmos ya guardados no cambian); el estudiante ve las letras pero no el pincel ni la
+  regla. Sin Supabase. Prueba (navegador): reparto automático D/I; pincel I cambia la mano y un segundo clic quita;
+  grave I + agudo junto → agudo D; regla Grave D · Agudo I; cambio a semicorcheas conserva la mano.
