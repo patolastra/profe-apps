@@ -6941,3 +6941,14 @@ pantalla del celular, a veces la franja de arriba es blanca, a veces negra"). De
 - **Ajuste (captura del PO, 2026-10-28):** con el celular en modo oscuro, Chrome oscurece por su cuenta la Bitácora
   (blanca) y la franja de arriba quedaba blanca. Ahora la Bitácora pide franja blanca en modo claro y oscura (`#121212`)
   en modo oscuro, igual que como se ve la página.
+
+---
+
+### EE. ✉️ Mensajes — lista compacta, entregados plegados
+*Origen: PO 2026-10-28 (captura del Dashboard: "visualmente ya se ve colapsado"); aprobado con el nombre "Entregados".*
+- **Implementación (`comun/mensajes.js` + `.css`):** sin tarjetas; por persona, su nombre en una línea chica (con el
+  número por dar) y sus mensajes por dar debajo; los entregados quedan abajo bajo **▸ ✓ Entregados (n)**, que se abre
+  y se cierra al tocarlo (parte cerrado). Ayuda en letra más chica.
+- **Lugares de uso (regla 11):** Dashboard (pestaña ✉️) e inicio del celular sin clase (misma pieza).
+- **Prueba (local, Dashboard):** "DIRE · 1" con su mensaje arriba; ▸ ✓ Entregados (3) cerrado → al tocarlo, Castigadas,
+  Juan Andrés y Caro Farías tachados. **Falta:** verlo en el celular.

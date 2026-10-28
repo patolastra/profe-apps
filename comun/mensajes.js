@@ -2,7 +2,7 @@
 // Mensajes — qué decirle a quién (deuda DD, 2026-10-24)
 // Se anotan con "/msj destinatario: mensaje" (o /mensaje) en un pendiente o en el editor de bloques (deuda DE):
 // quedan en la tabla `pendientes`, categoría 'mensaje', texto "destinatario\nmensaje" (con el curso y la
-// clase donde se escribió). Aquí se ven agrupados por persona; ✓ Dado los deja en gris y se dejan de ver
+// clase donde se escribió). Aquí se ven agrupados por persona; ✓ los deja como Entregados (abajo, plegados) y se dejan de ver
 // a las 2 semanas, como los pendientes. Al instante entre equipos (Realtime de `pendientes`).
 //
 // Uso:
@@ -93,23 +93,26 @@
         });
         const activos = filas.filter(f => f.estado === 'activo').length;
         const personas = lista.filter(g => g.items.some(i => i.estado === 'activo')).length;
-        const cuerpo = lista.length ? lista.map(g => {
-            const pend = g.items.filter(i => i.estado === 'activo'), dados = g.items.filter(i => i.estado !== 'activo');
-            const fila = i => {
-                const curso = L.op.curso ? L.op.curso(i.contexto_id) : null;
-                return `<div class="msj-item${i.estado === 'activo' ? '' : ' dado'}" data-id="${esc(i.id)}">
-                    <button class="msj-chk" type="button" title="${i.estado === 'activo' ? 'Ya se lo dije' : 'Volver a por dar'}">${i.estado === 'activo' ? '' : '✓'}</button>
-                    <span class="msj-txt">${esc(i.msg || '—')}</span>
-                    <span class="msj-meta"${curso ? ` title="${esc(curso.titulo)}"` : ''}>${curso ? esc(curso.texto) + ' · ' : ''}${origen(i)}</span>
-                    <button class="msj-del" type="button" title="Borrar">✕</button>
-                </div>`;
-            };
-            return `<div class="msj-grupo${pend.length ? '' : ' todo-dado'}">
-                <div class="msj-para">✉️ ${esc(g.para)}${pend.length ? `<span class="msj-n">${pend.length}</span>` : ''}</div>
-                ${pend.map(fila).join('')}${dados.map(fila).join('')}
+        // Lista compacta (PO 2026-10-28): sin tarjetas; por persona, sus mensajes por dar. Los entregados quedan
+        // abajo, escondidos bajo "✓ Entregados (n)", que se abre al tocarlo.
+        const fila = i => {
+            const curso = L.op.curso ? L.op.curso(i.contexto_id) : null;
+            return `<div class="msj-item${i.estado === 'activo' ? '' : ' dado'}" data-id="${esc(i.id)}">
+                <button class="msj-chk" type="button" title="${i.estado === 'activo' ? 'Ya se lo dije' : 'Volver a por dar'}">${i.estado === 'activo' ? '' : '✓'}</button>
+                <span class="msj-txt">${esc(i.msg || '—')}</span>
+                <span class="msj-meta"${curso ? ` title="${esc(curso.titulo)}"` : ''}>${curso ? esc(curso.texto) + ' · ' : ''}${origen(i)}</span>
+                <button class="msj-del" type="button" title="Borrar">✕</button>
             </div>`;
-        }).join('') : `<div class="msj-vacio">No hay mensajes por dar.</div>`;
-        L.caja.innerHTML = `<div class="msj">${cuerpo}
+        };
+        const bloque = (g, estado) => {
+            const its = g.items.filter(i => estado === 'activo' ? i.estado === 'activo' : i.estado !== 'activo');
+            return its.length ? `<div class="msj-grupo"><div class="msj-para">${esc(g.para)}${estado === 'activo' ? ` <span class="msj-n">${its.length}</span>` : ''}</div>${its.map(fila).join('')}</div>` : '';
+        };
+        const porDar = lista.map(g => bloque(g, 'activo')).join('');
+        const nEnt = filas.length - activos;
+        const ent = nEnt ? `<button class="msj-ent-tit" type="button" aria-expanded="${L.verEnt ? 'true' : 'false'}">${L.verEnt ? '▾' : '▸'} ✓ Entregados (${nEnt})</button>
+            ${L.verEnt ? `<div class="msj-ent">${lista.map(g => bloque(g, 'dado')).join('')}</div>` : ''}` : '';
+        L.caja.innerHTML = `<div class="msj">${porDar || '<div class="msj-vacio">No hay mensajes por dar.</div>'}${ent}
             <p class="msj-ayuda">Escribe <b>/msj a quién: mensaje</b> en cualquier pendiente o en la bitácora, y Enter.</p>
             <div class="msj-aviso"></div></div>`;
         if (L.op.alCambiar) { try { L.op.alCambiar({ activos, personas }); } catch (_) {} }
@@ -120,6 +123,7 @@
         const L = { caja, op };
         listas.add(L);
         caja.addEventListener('click', e => {
+            if (e.target.closest('.msj-ent-tit')) { L.verEnt = !L.verEnt; pintar(L); return; }
             const it = e.target.closest('.msj-item'); if (!it) return;
             const id = it.dataset.id, f = filas.find(x => x.id === id); if (!f) return;
             if (e.target.closest('.msj-chk')) {
