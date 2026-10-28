@@ -6997,3 +6997,15 @@ de la cifra de compás y dos filas, bombo y agudo"). El PO lo aprobará en otra 
   dirección, Guardar se activa al marcar, borrador, cuadros Abrir / Guardar con buscador, ficha y tarjeta de la
   Biblioteca con un recurso Cajón de mentira, sin errores. **No se probó guardar de verdad** (la prueba no puede
   escribir en la base real): **falta que el PO guarde un ritmo y lo vuelva a abrir.**
+- **Paso 3 hecho (2026-10-28):** **versión para estudiantes** del Cajón: `CAJON-PERUANO/index.html?modo=alumno&a=<id>&n=<nombre>`,
+  enlace corto **`c/?a=&n=`** (`c/index.html` solo redirige). Sin clave y **sin conectarse a la base de datos** (no carga
+  Supabase): lee el archivo público `repertorio-assets/cajon/<id>.json` (el ritmo + canción y nombre). Muestra la figura
+  tocando y la cuadrícula con la luz, **sin editar**: ⏮ ▶ 🔁, BPM − / +, ⏱ Metrónomo y pantalla completa; en el celular
+  vertical pide girarlo; en horizontal la cuadrícula se compacta para caber. No guarda borrador en el equipo del estudiante.
+  El archivo público se escribe al **💾 Guardar** en el Cajón y se rehace al compartir desde la Biblioteca (sirve para los
+  ritmos guardados antes del paso 3); al borrar el recurso o la canción se borra también. **Biblioteca:** el recurso
+  Cajón **publicado** muestra el ✈ (menú `comun/compartir.js`: Copiar link · QR · Guía QR, instrumento "Cajón").
+  Prueba (navegador): enlace corto → versión estudiante sin Supabase; ritmo que no existe → aviso; con un ritmo de
+  mentira: figura, cuadrícula sin editar y sin borrador, cabe en 780×360; ✈ solo en publicados. **No probado:** subir el
+  archivo público ni abrir un enlace real en un celular (requiere guardar en la base real): **falta que lo pruebe el PO.**
+- **Lugares:** Cajón suelto, 🥁 Ritmos, ficha de la Biblioteca y versión estudiante (`LUGARES_DE_USO.md`).

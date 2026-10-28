@@ -93,3 +93,4 @@
 | 🥁 Ritmos, pestaña 🪘 Cajón | adentro de Ritmos; 🎛️ Programar → 📂 Abrir los ritmos guardados |
 | Biblioteca, ficha de la canción | ＋ recurso → 🪘 Cajón (`?cancion=`) o ✏️ de un recurso Cajón (`?asset=`): pestaña cerrable del Workspace |
 | Suelto | `CAJON-PERUANO/index.html` (con `?midi=` carga un MIDI) |
+| Estudiantes (celular) | ✈ del recurso Cajón publicado → enlace corto `c/?a=&n=` → `?modo=alumno` (solo mirar y tocar) |

@@ -3386,6 +3386,7 @@ function sbSubirArchivo(tipo, assetId, file, onProgress) {
 // Eliminar asset
 async function sbEliminarAsset(a) {
     if (a.storage_path) await sb.storage.from(BUCKET).remove(a.tipo === 'melodia' ? [a.storage_path, `melodia/${a.id}.json`] : [a.storage_path]);
+    if (a.tipo === 'cajon') await sb.storage.from(BUCKET).remove([`cajon/${a.id}.json`]);   // versión para estudiantes (EF)
     await sb.from('repertorio_assets').delete().eq('id', a.id);
 }
 
@@ -3393,6 +3394,8 @@ async function sbEliminarAsset(a) {
 async function sbEliminarCancion(c) {
     const archivos = (c.assets || []).filter(a => a.storage_path);
     if (archivos.length) await sb.storage.from(BUCKET).remove(archivos.flatMap(a => a.tipo === 'melodia' ? [a.storage_path, `melodia/${a.id}.json`] : [a.storage_path]));
+    const cajones = (c.assets || []).filter(a => a.tipo === 'cajon').map(a => `cajon/${a.id}.json`);
+    if (cajones.length) await sb.storage.from(BUCKET).remove(cajones);
     await sb.from('repertorio_canciones').delete().eq('id', c.id);
 }
 
@@ -4039,7 +4042,8 @@ function assetItemHTML(a, i) {
             ${a.tipo === 'ritmo'
                 ? `<button class="btn-icon" onclick="abrirEditorRitmo('${songActiva.id}','${a.id}')" title="Editar ritmo">✏️</button>`
                 : a.tipo === 'cajon'
-                ? `<button class="btn-icon" onclick="abrirCajon('${songActiva.id}','${a.id}')" title="Abrir en el Cajón (tocar y editar)">✏️</button>`
+                ? `${estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirCajon('${a.id}', this)" title="Compartir con los estudiantes (celular): link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
+                   <button class="btn-icon" onclick="abrirCajon('${songActiva.id}','${a.id}')" title="Abrir en el Cajón (tocar y editar)">✏️</button>`
                 : `<button class="btn-icon" onclick="verAsset('${songActiva.id}','${a.id}')" title="Ver">👁</button>
                    <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>`}
             <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}','${a.id}')" title="Eliminar">🗑</button>
@@ -5238,6 +5242,27 @@ function abrirEditorMelodia(songId, assetId) {
         } catch (_) {}
     }
     window.open(src, '_blank');
+}
+
+// Ritmo de cajón para estudiantes (deuda EF paso 3): antes de compartir se rehace su archivo público
+// (cajon/<id>.json, el que lee la versión estudiante), por si se guardó antes de existir el paso 3.
+const CAJON_LINK_ALUMNO = 'https://patolastra.github.io/profe-apps/c/';
+async function compartirCajon(assetId, boton) {
+    let asset = null, cancion = null;
+    for (const c of canciones) {
+        const a = (c.assets || []).find(x => x.id === assetId);
+        if (a) { asset = a; cancion = c; break; }
+    }
+    if (!asset) return;
+    const nombre = [cancion.nombre, (asset.etiqueta || '').trim()].filter(Boolean).join(' — ');
+    try {
+        const datos = Object.assign(JSON.parse(asset.contenido || '{}'), { cancion: cancion.nombre, etiqueta: (asset.etiqueta || '').trim() });
+        const { error } = await sb.storage.from(BUCKET).upload(`cajon/${asset.id}.json`,
+            new Blob([JSON.stringify(datos)], { type: 'application/json' }), { upsert: true, contentType: 'application/json' });
+        if (error) throw error;
+    } catch (e) { toast('No se pudo preparar el ritmo para los estudiantes: ' + (e.message || e)); return; }
+    const url = `${CAJON_LINK_ALUMNO}?a=${encodeURIComponent(asset.id)}&n=${encodeURIComponent(nombre)}`;
+    Compartir.abrir(boton, { url, titulo: nombre, cancion: nombre, instrumento: 'Cajón', sb });
 }
 
 // Ritmo de cajón (deuda EF): el Cajón con su programador, en una pestaña cerrable del Workspace.

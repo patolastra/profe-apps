@@ -13,9 +13,15 @@
   🎛️ Programar (deuda EF, paso 1): cuadrícula Agudo / Grave para armar un ritmo (cifra, división, 1–8
   compases) que la figura toca en bucle, con metrónomo. El borrador se recuerda en este equipo.
   Paso 2: se guarda en la Biblioteca como recurso 🪘 Cajón de una canción (?cancion=<id> · ?asset=<id>).
+  Paso 3: versión para estudiantes ?modo=alumno&a=<id>&n=<nombre> (enlace corto c/?a=&n=): sin clave ni base de
+  datos, lee el archivo público repertorio-assets/cajon/<id>.json que se escribe al guardar; solo mirar y tocar.
 -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="../supabase/config.js"></script>
+<script>
+    // El estudiante no se conecta a la base de datos: solo el profe carga Supabase.
+    if (new URLSearchParams(location.search).get('modo') !== 'alumno') {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script><script src="../supabase/config.js"><\/script>');
+    }
+</script>
 <style>
     :root {
         --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8;
@@ -95,6 +101,20 @@
     .el-ritmo { color: var(--tenue); font-size: 13px; }
     .el-can button { background: #334155; color: var(--texto); border: 1px solid #475569; border-radius: 8px; padding: 5px 10px; cursor: pointer; font-size: 13px; }
     .el-can button.nueva { background: #15803d; border-color: #22c55e; }
+
+    /* Versión para estudiantes: solo mirar y tocar */
+    body.alumno #b-cargar, body.alumno #b-ejemplo, body.alumno #b-programar, body.alumno #b-notas,
+    body.alumno .prog-recurso, body.alumno .prog-config > :not(#p-metro) { display: none; }
+    body.alumno .celda { cursor: default; }
+    body.alumno #barra { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+    @media (max-width: 900px) { body.alumno #nombre { width: 150px; } body.alumno #indicadores { display: none; } }
+    @media (max-height: 480px) { body.alumno #prog { max-height: 42vh; padding: 6px 10px 8px; } body.alumno .prog-config { margin-bottom: 4px; }
+        body.alumno .compas-tit { display: none; } body.alumno .rejilla { grid-auto-rows: 24px; } body.alumno .compases { gap: 6px 14px; }
+        body.alumno .prog-config button { height: 28px; } }
+    #girar { position: fixed; inset: 0; z-index: 30; background: var(--bg); display: none; flex-direction: column; align-items: center;
+        justify-content: center; gap: 12px; color: var(--tenue); font-size: 17px; text-align: center; padding: 20px; }
+    #girar div { font-size: 54px; }
+    @media (orientation: portrait) and (pointer: coarse) { body.alumno #girar { display: flex; } }
     .compases { display: flex; flex-wrap: wrap; gap: 14px 18px; user-select: none; }
     .compas-tit { font-size: 12px; color: var(--tenue); margin: 0 0 3px 22px; }
     .rejilla { display: grid; gap: 3px; grid-auto-rows: 30px; }
@@ -254,6 +274,7 @@
     </div>
     <div id="p-lista" class="compases"></div>
 </section>
+<div id="girar"><div>📱↻</div>Gira el celular para ver el cajón</div>
 <div id="elegir" hidden><div class="caja">
     <h2><span></span><button id="elegir-cerrar" title="Cerrar">✕</button></h2>
     <input id="elegir-buscar" placeholder="Buscar canción o artista…" autocomplete="off">
@@ -262,6 +283,8 @@
 
 <script>
 'use strict';
+const ALUMNO = new URLSearchParams(location.search).get('modo') === 'alumno';
+if (ALUMNO) document.body.classList.add('alumno');
 // ═══════════════════════════════════════════════════════════════════════════
 // LECTOR DE MIDI (propio, sin librerías): notas, tempo y compás
 // ═══════════════════════════════════════════════════════════════════════════
@@ -865,8 +888,9 @@ let celdasPaso = [], pasoLuz = -1, pintando = null;
 function leerBorrador() {
     try { const g = JSON.parse(localStorage.getItem(CLAVE_PROG) || 'null'); return g && (g.prog ? g : { prog: g }); } catch (e) { return null; }
 }
-function leerProg() { const b = leerBorrador(); if (b) Object.assign(prog, b.prog); }
+function leerProg() { const b = !ALUMNO && leerBorrador(); if (b) Object.assign(prog, b.prog); }
 function guardarProg() {
+    if (ALUMNO) return;
     try { localStorage.setItem(CLAVE_PROG, JSON.stringify({ prog, etiqueta: $('p-etiqueta').value.trim(), recurso, base, estado: estadoActual() })); } catch (e) {}
     pintarGuardar();
 }
@@ -942,7 +966,7 @@ function ponerGolpe(cel, poner) {
     }
 }
 $('p-lista').addEventListener('pointerdown', (e) => {
-    const cel = e.target.closest('.celda'); if (!cel) return;
+    const cel = e.target.closest('.celda'); if (!cel || ALUMNO) return;
     e.preventDefault();
     pintando = { fila: cel.dataset.fila, poner: !cel.classList.contains('on') };
     ponerGolpe(cel, pintando.poner);
@@ -1099,12 +1123,25 @@ async function guardarRitmo() {
         }
         base = estadoActual();
         guardarProg();
+        try { await subirPublico(recurso.id); }
+        catch (err) { avisoBreve('Guardado, pero no se pudo actualizar la versión para estudiantes', true); return true; }
         avisoBreve('Ritmo guardado en la Biblioteca');
         return true;
     } catch (err) {
         avisoBreve('No se pudo guardar: ' + (err.message || err), true);
         return false;
     } finally { guardandoProg = false; pintarGuardar(); }
+}
+
+// Archivo público del ritmo para la versión de estudiantes (sin base de datos), como el del Piano.
+async function subirPublico(id) {
+    const datosPub = Object.assign(JSON.parse(contenidoProg()), { cancion: recurso.cancion, etiqueta: $('p-etiqueta').value.trim() });
+    const r = await fetch(`${SUPABASE_URL}/storage/v1/object/repertorio-assets/cajon/${id}.json`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + SUPABASE_ANON, apikey: SUPABASE_ANON, 'x-upsert': 'true', 'Content-Type': 'application/json' },
+        body: JSON.stringify(datosPub),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
 }
 
 // Carga un ritmo (del recurso o del borrador) en la cuadrícula.
@@ -1199,6 +1236,19 @@ window.addEventListener('beforeunload', (e) => { if (recurso && hayCambios() && 
 
 (async () => {
     const q = new URLSearchParams(location.search);
+    if (ALUMNO) {
+        const STORAGE = 'https://bfinpxcwcsteintikrtt.supabase.co/storage/v1/object/public/repertorio-assets/';
+        try {
+            const r = await fetch(`${STORAGE}cajon/${encodeURIComponent(q.get('a') || '')}.json?t=${Date.now()}`, { cache: 'no-store' });
+            if (!r.ok) throw new Error();
+            const d = await r.json();
+            ponerRitmo(d, d.etiqueta);
+            const nombre = q.get('n') || [d.cancion, d.etiqueta].filter(Boolean).join(' — ') || 'Cajón';
+            $('nombre').textContent = '🪘 ' + nombre; $('nombre').title = nombre;
+            document.title = nombre + ' · Cajón';
+        } catch (e) { aviso('Este ritmo no está disponible. Pídele al profe el enlace de nuevo.', true); }
+        return;
+    }
     if (q.get('asset')) { await abrirRecurso(q.get('asset')); return; }
     if (q.get('cancion') && sb) {
         const { data } = await sb.from('repertorio_canciones').select('id, nombre').eq('id', q.get('cancion')).single();
