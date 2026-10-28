@@ -7183,3 +7183,14 @@ acerca al centro pero nunca queda al centro (centro derecha); la izquierda igual
   golpes del comienzo de cada vuelta al repetir (al dar la vuelta se saltaban los ya pasados): ahora se dibujan todos
   (prueba: 41 dibujados de 40 esperados en 8 s de Cumbia). La sombra tiene la **forma de la mano** (con su puño), se
   separa y aclara al subir.
+
+---
+
+### EN. 🪘 Cajón — 🔢 Precuenta (y rayitas más abiertas) — HECHA
+*Origen: PO 2026-10-28 ("necesitamos toggle para precuenta; además las tres rayitas más separadas entre sí").*
+- **Hecho (2026-10-28):** `CAJON-PERUANO/index.html`. Botón **🔢 Precuenta** junto a ⏱ Metrónomo (también en mirar y
+  en la versión del estudiante): al tocar desde el comienzo suena un compás de clics (acento en el 1) y el número del
+  tiempo se ve grande, en amarillo, sobre el cajón; después empieza el ritmo. Al seguir desde una pausa o al dar la
+  vuelta no cuenta. Es preferencia del equipo (parte encendida), no del ritmo. Las tres rayitas se abren más
+  (≈ 57° entre cada una).
+  Prueba (navegador): Cumbia 4/4 a 100 BPM → cuenta 1 2 3 4 y empieza; apagada empieza al tiro; rayitas en captura.

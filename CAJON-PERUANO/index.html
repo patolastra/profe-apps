@@ -62,6 +62,10 @@
     #aviso { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(15,23,42,.85);
         border: 1px solid var(--borde); border-radius: 10px; padding: 10px 16px; color: var(--tenue); font-size: 15px;
         text-align: center; max-width: 90%; }
+    /* Precuenta: el número del tiempo, grande, sobre el cajón */
+    #cuenta { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: min(30vh, 220px);
+        font-weight: 800; color: #fde047; text-shadow: 0 6px 24px rgba(0,0,0,.6); pointer-events: none; font-variant-numeric: tabular-nums; }
+    #cuenta[hidden] { display: none; }
     #aviso.error { color: #fca5a5; border-color: #b91c1c; }
     #aviso[hidden] { display: none; }
 
@@ -117,10 +121,10 @@
 
     /* Versión para estudiantes: solo mirar y tocar */
     body.alumno #b-abrir, body.alumno #b-nuevo, body.alumno #b-editar, body.alumno .prog-hermanos,
-    body.alumno .prog-recurso, body.alumno .prog-config > :not(#p-metro) { display: none; }
+    body.alumno .prog-recurso, body.alumno .prog-config > :not(#p-metro):not(#p-precuenta) { display: none; }
     body.alumno .celda { cursor: default; }
     /* Patrón abierto para mirar y tocar (se edita con ✏️ Editar ritmo) */
-    body.viendo .prog-recurso, body.viendo .prog-config > :not(#p-metro) { display: none; }
+    body.viendo .prog-recurso, body.viendo .prog-config > :not(#p-metro):not(#p-precuenta) { display: none; }
     body.viendo .celda { cursor: default; }
     #b-editar.oculto { visibility: hidden; }
     body.alumno #barra { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
@@ -233,6 +237,7 @@
         <span class="ind" id="ind-agudo">AGUDO</span>
         <span class="ind" id="ind-grave">GRAVE</span>
     </div>
+    <div id="cuenta" hidden></div>
     <div id="aviso">Abre un patrón (📂) o programa un ritmo nuevo (＋).</div>
 </main>
 <canvas id="cinta"></canvas>
@@ -261,6 +266,7 @@
             <option value="gI">Grave I · Agudo D</option>
         </select></label>
         <button id="p-metro" title="Metrónomo: un clic en cada tiempo">⏱ Metrónomo</button>
+        <button id="p-precuenta" title="Contar un compás antes de empezar">🔢 Precuenta</button>
         <button id="p-limpiar" title="Quitar todos los golpes">Limpiar</button>
         <span class="prog-ayuda">Clic pone el golpe con la mano elegida; en un golpe con otra mano se la cambia, con la misma lo quita. Arrastra para varias.</span>
     </div>
@@ -540,20 +546,36 @@ function programar() {
     }
     if (programados.length > 200) programados = programados.filter(p => p.ctxT > ctx.currentTime - 1);
 }
-function reanclar(pos) {
+function reanclar(pos, espera) {
     cancelarFuturos();
-    ancla = { ctx0: ctx.currentTime + 0.03, pos0: pos }; anclaPrev = null;
+    ancla = { ctx0: ctx.currentTime + 0.03 + (espera || 0), pos0: pos }; anclaPrev = null;
     progPos = pos; idxProg = primerIdx(golpes, pos); idxClic = primerIdx(clics, pos);
     idxFx = idxProg;
     programar();
 }
+// Precuenta (EN): un compás de clics antes de empezar desde el comienzo. Preferencia del equipo, parte encendida.
+const CLAVE_PRECUENTA = 'profe_cajon_precuenta';
+let precuenta = (() => { try { return localStorage.getItem(CLAVE_PRECUENTA) !== '0'; } catch (e) { return true; } })();
+let cuentaIni = 0, cuentaPaso = 0, cuentaN = 0;   // segundos de AudioContext del primer clic, entre clics y cuántos
 function tocar() {
     if (!datos || tocando) return;
     asegurarAudio();
     if (ctx.state === 'suspended') ctx.resume();
     if (posPausa >= datos.fin) posPausa = 0;
     tocando = true;
-    reanclar(posPausa);
+    let espera = 0; cuentaN = 0;
+    if (precuenta && posPausa === 0) {
+        const tt = modo === 'prog' ? ticksTiempo() : datos.ppq * 4 / datos.comp.den;
+        cuentaN = Math.max(1, Math.round(datos.ticksCompas / tt));
+        cuentaPaso = datos.tickASeg(tt) / ritmo;
+        cuentaIni = ctx.currentTime + 0.05;
+        espera = cuentaN * cuentaPaso + 0.02;
+        for (let k = 0; k < cuentaN; k++) {
+            const t = cuentaIni + k * cuentaPaso;
+            programados.push({ ctxT: t, nodos: sonarClic(t, k === 0) });
+        }
+    }
+    reanclar(posPausa, espera);
     reloj = setInterval(programar, 25);
     pintarPlay();
 }
@@ -678,8 +700,8 @@ function efecto(g) {
     const gr = document.createElementNS(NS, 'g');
     gr.setAttribute('class', 'golpe');
     gr.style.transformOrigin = `${punta.x.toFixed(1)}px ${punta.y.toFixed(1)}px`;
-    [-0.62, 0, 0.62].forEach((da, k) => {
-        const a = base + da, r1 = 12 + (k === 1 ? 6 : 0), r2 = r1 + (k === 1 ? 26 : 20) * (0.7 + 0.5 * v);
+    [-1.0, 0, 1.0].forEach((da, k) => {
+        const a = base + da, r1 = 16 + (k === 1 ? 6 : 0), r2 = r1 + (k === 1 ? 26 : 20) * (0.7 + 0.5 * v);
         const l = document.createElementNS(NS, 'line');
         l.setAttribute('x1', (punta.x + Math.cos(a) * r1).toFixed(1)); l.setAttribute('y1', (punta.y + Math.sin(a) * r1).toFixed(1));
         l.setAttribute('x2', (punta.x + Math.cos(a) * r2).toFixed(1)); l.setAttribute('y2', (punta.y + Math.sin(a) * r2).toFixed(1));
@@ -779,6 +801,11 @@ function cuadro() {
         }
     }
     ultVis = vis;
+    const enCuenta = tocando && cuentaN && ctx.currentTime < ancla.ctx0;
+    const cu = $('cuenta');
+    if (enCuenta) { const k = Math.floor((ctx.currentTime - (ctx.outputLatency || 0) - cuentaIni) / cuentaPaso);
+        cu.textContent = k >= 0 ? Math.min(k + 1, cuentaN) : ''; }
+    if (cu.hidden === !!enCuenta) cu.hidden = !enCuenta;
     if (modo === 'prog') marcarPaso(tocando ? vis : null);
     if (datos) { dibujarMano('L', poseMano('L', vis)); dibujarMano('R', poseMano('R', vis)); }
     else { dibujarMano('L', REPOSO.L); dibujarMano('R', REPOSO.R); }
@@ -974,6 +1001,7 @@ function pintarConfig() {
     document.querySelectorAll('#p-pincel button').forEach(b => b.classList.toggle('sel', b.dataset.m === pincel));
     $('p-div').querySelector('[value="tresillo"]').disabled = cifraNum()[1] === 8;
     $('p-metro').classList.toggle('on', prog.metro);
+    $('p-precuenta').classList.toggle('on', precuenta);
 }
 const ajustarA = (paso, tc) => (c, t) => { const t2 = Math.round(t / paso) * paso; return t2 < tc ? c + ':' + t2 : null; };
 $('p-cifra').innerHTML = CIFRAS.map(c => `<option>${c}</option>`).join('');
@@ -993,6 +1021,11 @@ $('p-cuantos').onchange = (e) => {
 };
 document.querySelectorAll('#p-pincel button').forEach(b => b.onclick = () => { pincel = b.dataset.m; pintarConfig(); b.blur(); });
 $('p-regla').onchange = (e) => { prog.regla = e.target.value; pintarConfig(); aplicarProg(); };
+$('p-precuenta').onclick = () => {
+    precuenta = !precuenta; $('p-precuenta').blur();
+    try { localStorage.setItem(CLAVE_PRECUENTA, precuenta ? '1' : '0'); } catch (e) {}
+    pintarConfig();
+};
 $('p-metro').onclick = () => { prog.metro = !prog.metro; pintarConfig(); aplicarProg(); $('p-metro').blur(); };
 $('p-limpiar').onclick = () => {
     $('p-limpiar').blur();
