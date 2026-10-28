@@ -7052,3 +7052,10 @@ canciones: patrones que constituyen una identidad musical —estilos— y que se
   toman al guardarlos de nuevo (✏️ → Guardar). Prueba (navegador, guardado simulado): Cueca + Chile → bandera en
   tarjeta y ficha; Perú, México, "perú / chile" (la primera), Andes (sin bandera). El PO vio "algo raro" en el botón
   Guardar del cuadro: la simulación guarda y cierra bien; **queda por precisar qué vio.**
+- **Corrección (PO 2026-10-28): ✏️ Editar no guardaba nada** (ninguna canción, material ni estilo) y no avisaba: desde la
+  deuda AU (2026-10-08) cada ficha lleva en la página la marca `personal` (⭐), que se enviaba a `repertorio_canciones`
+  como si fuera columna → Supabase rechazaba el guardado y el error quedaba escondido (el cuadro no se cerraba). Ahora
+  `sbUpsertCancion` no la envía y, si un guardado falla, se avisa "No se pudo guardar: …" y el cuadro queda abierto.
+  Títulos "Editar estilo" / "Editar material"; en un estilo no se muestra la carátula (la pone su país). Prueba
+  (navegador, envío interceptado): se envían solo columnas reales, bandera de Chile, cuadro cerrado con "Estilo
+  actualizado"; con error simulado, aviso y cuadro abierto. **Falta:** que el PO edite la Cueca y vea la bandera.

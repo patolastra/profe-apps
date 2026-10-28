@@ -3294,7 +3294,9 @@ function storageUrl(storagePath) {
 
 // Guardar canción (upsert metadata)
 async function sbUpsertCancion(c) {
-    const { contextos, assets, loops, ...data } = c;   // loops: los guarda solo entGuardarLoops (evita pisarlos con una copia vieja)
+    // loops: los guarda solo entGuardarLoops (evita pisarlos con una copia vieja); personal: marca de la página
+    // (⭐ va en repertorio_cancion_contextos), no es columna: enviarla hacía fallar toda edición sin aviso.
+    const { contextos, assets, loops, personal, ...data } = c;
     const { error } = await sb.from('repertorio_canciones').upsert(data);
     if (error) throw error;
 }
@@ -4181,8 +4183,9 @@ function camposPorTipo(cat) {
     document.getElementById('f-artista').placeholder = estilo ? 'Perú, Chile, Andes…' : 'Ritchie Valens';
     ['f-anio-genero', 'f-url-group', 'import-wrap'].forEach(id => document.getElementById(id).style.display = estilo ? 'none' : '');
     document.getElementById('f-nombre').placeholder = estilo ? 'Festejo' : 'La Bamba';
-    if (!editandoId) document.getElementById('modal-titulo-h').textContent =
-        estilo ? 'Nuevo estilo' : cat === 'material' ? 'Nuevo material' : 'Nueva canción';
+    document.getElementById('modal-titulo-h').textContent = editandoId
+        ? (estilo ? 'Editar estilo' : cat === 'material' ? 'Editar material' : 'Editar canción')
+        : (estilo ? 'Nuevo estilo' : cat === 'material' ? 'Nuevo material' : 'Nueva canción');
 }
 
 function abrirModalNueva() {
@@ -4220,7 +4223,7 @@ function editarCancion(id) {
     document.getElementById('f-categoria').value = cat;
     document.querySelectorAll('#f-categoria-ctrl .seg-btn').forEach(b => b.classList.toggle('activo', b.dataset.val === cat));
     camposPorTipo(cat);
-    if (c.artwork_url) {
+    if (c.artwork_url && cat !== 'estilo') {   // la bandera de un estilo la pone su país, no se muestra aquí
         document.getElementById('f-artwork-preview').src = c.artwork_url;
         document.getElementById('artwork-group').style.display = '';
         importDatos = { artwork_url: c.artwork_url };
@@ -4257,10 +4260,11 @@ async function guardarCancion() {
         if (url || c.url) c.url = url;
         if (importDatos?.artwork_url) c.artwork_url = importDatos.artwork_url;
         banderaAlGuardar(c);
-        await sbUpsertCancion(c);
+        try { await sbUpsertCancion(c); }
+        catch (e) { toast('No se pudo guardar: ' + (e.message || e)); return; }
         songActiva = c;
         renderPanel();
-        toast('Canción actualizada');
+        toast(c.categoria === 'estilo' ? 'Estilo actualizado' : c.categoria === 'material' ? 'Material actualizado' : 'Canción actualizada');
         cerrarModalNueva();
         render();
         return;
