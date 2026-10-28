@@ -153,11 +153,9 @@
     .celda.ahora.on { filter: brightness(1.25); }
 
     /* Efectos del golpe */
-    .onda, .chispa { transform-box: fill-box; transform-origin: center; pointer-events: none; }
-    .onda { animation: onda .55s ease-out forwards; }
-    .chispa { animation: chispa .25s ease-out forwards; }
-    @keyframes onda { from { transform: scale(.15); opacity: 1; } to { transform: scale(1); opacity: 0; } }
-    @keyframes chispa { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.25); opacity: 0; } }
+    /* Rayitas de historieta bajo la punta de los dedos, del color de la mano (EM) */
+    .golpe { transform-box: view-box; pointer-events: none; animation: golpe .32s ease-out forwards; }
+    @keyframes golpe { 0% { transform: scale(.55); opacity: 1; } 55% { opacity: 1; } 100% { transform: scale(1.2); opacity: 0; } }
     #cajon { transform-box: fill-box; transform-origin: 50% 100%; }
     #cajon.vibra { animation: vibra .2s ease-out; }
     @keyframes vibra { 0% { transform: scale(1.02, .985); } 50% { transform: scale(.995, 1.005); } 100% { transform: none; } }
@@ -223,8 +221,8 @@
 
         <!-- Sombras de las manos sobre la tapa (más marcadas al tocarla) -->
         <g clip-path="url(#clip-tapa)">
-            <ellipse id="sombra-L" rx="52" ry="44" fill="#3b1f0b"/>
-            <ellipse id="sombra-R" rx="52" ry="44" fill="#3b1f0b"/>
+            <g id="sombra-L" class="sombra" fill="#3b1f0b"></g>
+            <g id="sombra-R" class="sombra" fill="#3b1f0b"></g>
         </g>
         <!-- Manos (las arma y mueve el código) -->
         <g id="mano-L"></g>
@@ -620,6 +618,8 @@ function armarMano(h) {
         return `<path d="M${d.x - 6} ${y.toFixed(1)} q6 3 12 0"/>`; }).join('')).join('')
         + '<path d="M40 2 q5 2 9 -2"/>';
     const manga = '<rect x="-34" y="-236" width="68" height="208" rx="14"/>';
+    // Sombra con la forma de la mano (y su puño) sobre la tapa
+    $('sombra-' + h).innerHTML = formas + '<rect x="-34" y="-62" width="68" height="34" rx="12"/>';
     g.innerHTML = `<g class="figura">
         <g fill="#111" stroke="#111" stroke-width="9" stroke-linejoin="round">${formas}</g>
         <g fill="${c.piel}">${formas}</g>
@@ -663,41 +663,33 @@ function puntoMano(h, m, lx, ly) {
 function dibujarMano(h, m) {
     const k = (m.s * TAM).toFixed(3);
     $('mano-' + h).setAttribute('transform', `translate(${m.x.toFixed(1)} ${m.y.toFixed(1)}) rotate(${GIRO[h]}) scale(${h === 'R' ? '-' + k : k} ${k})`);
-    // La sombra se separa y se aclara cuanto más lejos de la tapa está la mano.
-    const alto = Math.max(0, (m.s - 1) / 0.22), c = puntoMano(h, m, 0, 18), sh = $('sombra-' + h);
-    sh.setAttribute('cx', (c.x + (h === 'L' ? 8 : -8) + 22 * alto).toFixed(1)); sh.setAttribute('cy', (c.y + 10 + 26 * alto).toFixed(1));
-    sh.setAttribute('rx', (64 + 16 * alto).toFixed(1)); sh.setAttribute('ry', (58 + 12 * alto).toFixed(1));
-    sh.setAttribute('opacity', (0.4 - 0.3 * alto).toFixed(2));
+    // La sombra (misma forma) se separa y se aclara cuanto más lejos de la tapa está la mano.
+    const alto = Math.max(0, (m.s - 1) / 0.22), dx = (h === 'L' ? 12 : -12) + 22 * alto, dy = 16 + 26 * alto;
+    const sh = $('sombra-' + h);
+    sh.setAttribute('transform', `translate(${(m.x + dx).toFixed(1)} ${(m.y + dy).toFixed(1)}) rotate(${GIRO[h]}) scale(${h === 'R' ? '-' + k : k} ${k})`);
+    sh.setAttribute('opacity', (0.5 - 0.32 * alto).toFixed(2));
 }
 
 // ── Efectos del golpe (grave: en la palma; agudo: en la punta de los dedos, sobre el borde)
 function efecto(g) {
-    const fx = $('fx'), v = 0.5 + 0.5 * g.vel, d0 = DESTINO[g.mano][g.tipo];
-    const d = g.tipo === 'grave' ? puntoMano(g.mano, d0, 0, 10) : { x: puntoMano(g.mano, d0, 0, 40).x, y: BORDE_TAPA + 6 };
-    const quitar = (el) => el.addEventListener('animationend', () => el.remove());
-    if (g.tipo === 'grave') {
-        [0, 1].forEach(k => {
-            const c = document.createElementNS(NS, 'circle');
-            c.setAttribute('cx', d.x); c.setAttribute('cy', d.y); c.setAttribute('r', (80 - k * 30) * v);
-            c.setAttribute('fill', 'none'); c.setAttribute('stroke', '#f97316'); c.setAttribute('stroke-width', 7 - k * 2);
-            c.setAttribute('class', 'onda'); quitar(c); fx.appendChild(c);
-        });
-        reiniciarClase($('cajon'), 'vibra'); reiniciarClase($('brillo'), 'luz');
-        luzIndicador('ind-grave');
-    } else {
-        const gr = document.createElementNS(NS, 'g');
-        gr.setAttribute('class', 'chispa');
-        for (let k = 0; k < 8; k++) {
-            const a = k * Math.PI / 4, r1 = 10, r2 = 32 * v;
-            const l = document.createElementNS(NS, 'line');
-            l.setAttribute('x1', d.x + Math.cos(a) * r1); l.setAttribute('y1', d.y + Math.sin(a) * r1);
-            l.setAttribute('x2', d.x + Math.cos(a) * r2); l.setAttribute('y2', d.y + Math.sin(a) * r2);
-            l.setAttribute('stroke', '#22d3ee'); l.setAttribute('stroke-width', 4); l.setAttribute('stroke-linecap', 'round');
-            gr.appendChild(l);
-        }
-        quitar(gr); fx.appendChild(gr);
-        luzIndicador('ind-agudo');
-    }
+    const v = 0.5 + 0.5 * g.vel, h = g.mano, m = DESTINO[h][g.tipo];
+    // Tres rayitas que salen de la punta de los dedos, abiertas en abanico hacia donde apuntan.
+    const punta = puntoMano(h, m, 4, 88), base = (90 + GIRO[h]) * Math.PI / 180;
+    const gr = document.createElementNS(NS, 'g');
+    gr.setAttribute('class', 'golpe');
+    gr.style.transformOrigin = `${punta.x.toFixed(1)}px ${punta.y.toFixed(1)}px`;
+    [-0.62, 0, 0.62].forEach((da, k) => {
+        const a = base + da, r1 = 12 + (k === 1 ? 6 : 0), r2 = r1 + (k === 1 ? 26 : 20) * (0.7 + 0.5 * v);
+        const l = document.createElementNS(NS, 'line');
+        l.setAttribute('x1', (punta.x + Math.cos(a) * r1).toFixed(1)); l.setAttribute('y1', (punta.y + Math.sin(a) * r1).toFixed(1));
+        l.setAttribute('x2', (punta.x + Math.cos(a) * r2).toFixed(1)); l.setAttribute('y2', (punta.y + Math.sin(a) * r2).toFixed(1));
+        l.setAttribute('stroke', COLOR[h].piel); l.setAttribute('stroke-width', 5); l.setAttribute('stroke-linecap', 'round');
+        gr.appendChild(l);
+    });
+    gr.addEventListener('animationend', () => gr.remove());
+    $('fx').appendChild(gr);
+    if (g.tipo === 'grave') { reiniciarClase($('cajon'), 'vibra'); reiniciarClase($('brillo'), 'luz'); luzIndicador('ind-grave'); }
+    else luzIndicador('ind-agudo');
 }
 function reiniciarClase(el, cls) { el.classList.remove(cls); void el.getBoundingClientRect(); el.classList.add(cls); }
 const timersInd = {};
@@ -775,7 +767,11 @@ function cuadro() {
         vis = Math.max(0, posEn(ctx.currentTime - lat));
         if (!repetir && vis >= datos.fin) { tocando = false; clearInterval(reloj); reloj = null; posPausa = 0; vis = 0; idxFx = 0; pintarPlay(); }
         else {
-            if (vis < ultVis - 1e-3) idxFx = primerIdx(golpes, vis);          // dio la vuelta
+            if (vis < ultVis - 1e-3) {                                          // dio la vuelta
+                // los golpes del final de la vuelta que no alcanzaron a dibujarse, y desde el comienzo
+                while (idxFx < golpes.length) efecto(golpes[idxFx++]);
+                idxFx = 0;
+            }
             while (idxFx < golpes.length && golpes[idxFx].t <= vis) {
                 const g = golpes[idxFx++];
                 if (vis - g.t < 0.15 * ritmo) efecto(g);

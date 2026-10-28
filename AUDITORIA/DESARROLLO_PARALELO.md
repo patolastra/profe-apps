@@ -7178,3 +7178,8 @@ acerca al centro pero nunca queda al centro (centro derecha); la izquierda igual
   grave (mano entera dentro, centro izquierda / derecha); poses fijas revisadas en captura; sin errores.
 - **Ajuste (PO 2026-10-28, con captura):** la tapa sube hasta donde el agudo golpea (borde 175 → 161); las manos quedan
   donde estaban y el destello del agudo sale justo en el borde.
+- **Ajuste 2 (PO 2026-10-28, con imagen):** todo golpe (agudo y grave) se marca con **tres rayitas de historieta**
+  bajo la punta de los dedos, del color de la mano (fuera los círculos naranjos y la estrella celeste). Se perdían los
+  golpes del comienzo de cada vuelta al repetir (al dar la vuelta se saltaban los ya pasados): ahora se dibujan todos
+  (prueba: 41 dibujados de 40 esperados en 8 s de Cumbia). La sombra tiene la **forma de la mano** (con su puño), se
+  separa y aclara al subir.
