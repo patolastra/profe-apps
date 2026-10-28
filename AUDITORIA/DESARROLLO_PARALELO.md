@@ -6899,3 +6899,29 @@ escritos en Cursos, un apartado más").*
   título "Cueca en 5°" guardado; Citar → 5° → bitácora del 20/10 con 3 de 4 bloques → cita con su origen; Libro →
   «Aló aló» → evaluación, OA, resumen (27 de 34, promedio 5,9, tramos 17/5/5/0) y 1 comentario sin nombre; otra
   evaluación con rúbrica → criterios con sus 4 niveles. **Falta:** correr `supabase/estudios.sql` y uso real.
+
+---
+
+### EC. Bitácora del celular — el mismo menú de Cursos (☀ Hoy, 📚 Estudios, 🐞 Mejoras)
+*Origen: PO 2026-10-28 ("el menú Cursos debería poder verse tal cual en la bitácora del celular; no es necesario que
+se vean los pendientes, los archivos o la planificación del mes, pero sí todo lo que está en el menú").*
+- **Auditoría:** `MOVIL/cursos.html` es una página propia (no comparte código con `CURSOS/`): menú ☰ con 🏠 Inicio + cursos;
+  todo lo escrito pasa por una cola en el celular (funciona sin señal) amarrada al curso abierto. ❝ Citar vive dentro
+  de `CURSOS/estudios.js` y usa lo de esa página.
+- **Plan aprobado (PO 2026-10-28):** 1) ❝ Citar pasa a pieza común **`comun/citar.js`** + `comun/citar.css` (PC y
+  celular, regla 11); 2) celular ☀ **Hoy**: las bitácoras de todas las clases del día, editables y sin señal (cada
+  entrada lleva su propio curso en la cola), con ◀ Hoy ▶; 3) 📚 **Estudios**: lista + título + editor táctil + ❝ Citar;
+  guarda con señal (sin señal queda "sin subir" y se reintenta); 4) 🐞 **Mejoras**: lista con filtro, anotar y borrar.
+  Sin pendientes, archivos ni planificación.
+- **Lugares de uso (regla 11):** `citar.js` → Estudios del PC y del celular.
+- **Implementación:** `comun/citar.js` + `citar.css` (`Citar.abrir({ sb, contextos, alCitar })`; en el celular a
+  pantalla completa), `CURSOS/estudios.js` la usa (sin cambios para el PC). `MOVIL/cursos.html`: `vista` = curso · hoy ·
+  estudios · mejoras; menú ☰ 🏠 Inicio · ☀ Hoy · cursos · 📚 Estudios · 🐞 Mejoras (19 filas sin desplazarse); cada
+  entrada lleva su curso (`E.ctx`) en la cola, así ☀ Hoy escribe sin señal en varias clases; ◀ Hoy ▶ salta el fin de
+  semana; se recuerda la última vista (salvo que haya clase en curso: entra a ese curso). Estudios: lista, ＋ Nuevo,
+  título, editor táctil, ❝ Citar, ⋯ Borrar; guarda a 1,2 s con señal y reintenta. Mejoras: filtro, anotar, 🗑.
+  `sw-movil.js` v14 con `citar.js`/`.css`.
+- **Prueba (local, 375×812):** menú con las 19 filas visibles; ☀ Hoy del 28/10 (Primero, con su bitácora) y ◀ al
+  27/10 (Enlaces, Sexto, Recreo, Quinto: 4 editores); 🐞 Mejoras (0 anotadas); 📚 Estudios con la tabla simulada:
+  nuevo, título, ❝ Citar a pantalla completa → bitácora de 5° del 20/10 citada y guardada. PC: ❝ Citar del Libro con
+  la pieza común → cita con la rúbrica. **Falta:** `supabase/estudios.sql` y uso real en el celular.

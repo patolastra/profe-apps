@@ -3,13 +3,13 @@
 // todo lo demás (Workspace, Planificador…) pasa directo, como si no existiera.
 // Siempre pide primero a internet (así llegan las versiones nuevas) y, sin señal,
 // usa la última copia guardada.
-const CACHE = 'profe-movil-v13';
+const CACHE = 'profe-movil-v14';
 const PROPIAS = [
     'MOVIL/', 'MOVIL/index.html', 'MOVIL/evaluar.html', 'MOVIL/manifest.webmanifest',
     'MOVIL/icono-192.png', 'MOVIL/icono-512.png',
     'MOVIL/cursos.html', 'MOVIL/subir.html', 'MEMORIA/index.html',
     'comun/clase-vivo.js', 'comun/asistencia.js', 'comun/pendientes.js', 'comun/pendientes.css',
-    'comun/editor-bloques.js', 'comun/editor-bloques.css', 'comun/tiempo-real.js', 'comun/volumen.js', 'comun/mensajes.js', 'comun/mensajes.css', 'comun/apoderados.js', 'comun/apoderados.css', 'comun/archivos-curso.js', 'comun/fotos-clase.js',
+    'comun/editor-bloques.js', 'comun/editor-bloques.css', 'comun/tiempo-real.js', 'comun/volumen.js', 'comun/mensajes.js', 'comun/mensajes.css', 'comun/apoderados.js', 'comun/apoderados.css', 'comun/archivos-curso.js', 'comun/fotos-clase.js', 'comun/citar.js', 'comun/citar.css',
     'supabase/config.js', 'supabase/contextos.js',
 ];
 const EXTERNAS = ['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'];

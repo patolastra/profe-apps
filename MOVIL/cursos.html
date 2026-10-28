@@ -16,6 +16,8 @@
 <script src="../comun/pendientes.js"></script>
 <script src="../comun/tiempo-real.js"></script>
 <script src="../comun/fotos-clase.js"></script>
+<link rel="stylesheet" href="../comun/citar.css">
+<script src="../comun/citar.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 :root {
@@ -44,7 +46,7 @@ header h1 { flex: 1; font-size: 17px; font-weight: 600; white-space: nowrap; ove
 body.menu-abierto #lateral { transform: none; }
 body.menu-abierto #velo { opacity: 1; pointer-events: auto; }
 #lateral .lat-fila { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0 10px; border-radius: 8px;
-    height: clamp(30px, calc((100dvh - 150px) / 17), 44px); font-size: 15.5px; text-align: left; color: var(--texto); }
+    height: clamp(28px, calc((100dvh - 170px) / 20), 44px); font-size: 15.5px; text-align: left; color: var(--texto); flex-shrink: 0; }
 #lateral .lat-fila:active { background: var(--hover); }
 #lateral a.lat-fila { text-decoration: none; }
 #lateral .lat-fila.activa { background: var(--activo); font-weight: 600; }
@@ -74,6 +76,31 @@ body.menu-abierto #velo { opacity: 1; pointer-events: auto; }
 .ent-audios audio { width: 100%; height: 36px; margin: 2px 0 8px; }
 .ent-audios .aud-lbl { font-size: 12px; color: var(--suave); }
 .ent-editor { margin-left: -2px; }
+
+/* ── ☀ Hoy · 📚 Estudios · 🐞 Mejoras (deuda EC: el mismo menú que Cursos del PC) ── */
+.dia-nav { display: flex; gap: 6px; margin: -8px 0 16px; }
+.dia-nav button { font-size: 14px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--linea); color: var(--suave); }
+.dia-nav button:active { background: var(--hover); }
+.dia-nav .dia-f { flex: 1; text-align: center; align-self: center; font-size: 14px; color: var(--texto); }
+.btn-sec { font-size: 14px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--linea); color: var(--suave); font-weight: 500; white-space: nowrap; }
+.btn-sec:active { background: var(--hover); }
+.est-fila { display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left; padding: 13px 4px; border-bottom: 1px solid var(--linea); }
+.est-fila:active { background: var(--hover); }
+.est-fila .nom { flex: 1; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.est-fila .f { font-size: 12.5px; color: var(--suave); white-space: nowrap; }
+.est-barra { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.est-barra .ed { flex: 1; font-size: 12.5px; color: var(--suave); }
+#est-titulo { font-size: 26px; font-weight: 700; line-height: 1.2; margin-bottom: 14px; outline: none; word-break: break-word; }
+#est-titulo:empty::before { content: "Sin título"; color: #c7c6c3; }
+.mj-barra { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.mj-filtro { font-size: 13px; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--linea); color: var(--suave); }
+.mj-filtro.on { background: var(--activo); color: var(--texto); font-weight: 600; }
+.mj-nueva { width: 100%; font: inherit; font-size: 15px; padding: 10px; border: 1px solid var(--linea); border-radius: 8px; margin-bottom: 8px; }
+.mj-fila { display: flex; gap: 8px; align-items: flex-start; padding: 11px 0; border-bottom: 1px solid var(--linea); }
+.mj-fila .txt { flex: 1; line-height: 1.45; font-size: 15px; }
+.mj-fila .org { display: block; font-size: 12px; color: var(--suave); margin-top: 3px; }
+.mj-borrar { color: var(--suave); padding: 2px 8px; border-radius: 6px; font-size: 16px; }
+.mj-borrar:active { background: var(--hover); }
 </style>
 </head>
 <body>
@@ -89,8 +116,12 @@ body.menu-abierto #velo { opacity: 1; pointer-events: auto; }
 <nav id="lateral" aria-label="Cursos">
     <a class="lat-fila" href="index.html"><span class="ico">🏠</span><span class="nom">Inicio</span></a>
     <div class="lat-sep"></div>
-    <div class="lat-tit">🎓 Cursos</div>
+    <button class="lat-fila" data-v="hoy"><span class="ico">☀</span><span class="nom">Hoy</span></button>
+    <div class="lat-sep"></div>
     <div id="lat-cursos"></div>
+    <div class="lat-sep"></div>
+    <button class="lat-fila" data-v="estudios"><span class="ico">📚</span><span class="nom">Estudios</span></button>
+    <button class="lat-fila" data-v="mejoras"><span class="ico">🐞</span><span class="nom">Mejoras</span></button>
 </nav>
 
 <main id="pagina"><div class="msg">Cargando…</div></main>
@@ -166,26 +197,44 @@ function vivoId() {
 }
 
 let ctxActual = null;
-// Menú lateral: 🏠 Inicio + todos los cursos (General aparte), del alto justo para verlos sin desplazarse.
+// Qué se mira (deuda EC, el mismo menú que Cursos del PC): un curso · ☀ Hoy · 📚 Estudios · 🐞 Mejoras
+let vista = 'curso';
+let fechaDia = null;      // ☀ Hoy: el día que se mira
+const TIT_VISTA = { hoy: '☀ Hoy', estudios: '📚 Estudios', mejoras: '🐞 Mejoras' };
+// Menú lateral: 🏠 Inicio · ☀ Hoy · todos los cursos (General aparte) · 📚 Estudios · 🐞 Mejoras, sin desplazarse.
 function pintarCursos() {
     const vivo = vivoId();
     $('lat-cursos').innerHTML = contextos.map((c, i) => {
         const inf = contextoInfo(c.nombre);
-        return `<button class="lat-fila${c.id === ctxActual ? ' activa' : ''}" data-id="${c.id}"><span class="ico">${inf.icono || '📁'}</span>`
+        return `<button class="lat-fila${vista === 'curso' && c.id === ctxActual ? ' activa' : ''}" data-id="${c.id}"><span class="ico">${inf.icono || '📁'}</span>`
             + `<span class="nom">${esc(inf.label)}</span>${c.id === vivo ? '<span class="vivo" title="En clase"></span>' : ''}</button>`
             + (c.nombre === 'GENERAL' && i < contextos.length - 1 ? '<div class="lat-sep"></div>' : '');
     }).join('') || '<div class="msg" style="padding:10px">Sin señal y sin copia de los cursos: abre esta página una vez con internet.</div>';
-    const inf = ctxActual ? infoCtx(ctxActual) : null;
-    $('hdr-curso').textContent = inf ? `${inf.icono || ''} ${inf.label}`.trim() : '🎓 Cursos';
+    document.querySelectorAll('#lateral .lat-fila[data-v]').forEach(b => b.classList.toggle('activa', b.dataset.v === vista));
+    const inf = vista === 'curso' && ctxActual ? infoCtx(ctxActual) : null;
+    $('hdr-curso').textContent = TIT_VISTA[vista] || (inf ? `${inf.icono || ''} ${inf.label}`.trim() : '🎓 Cursos');
 }
 function menu(abrir) { document.body.classList.toggle('menu-abierto', abrir ?? !document.body.classList.contains('menu-abierto')); }
 $('btn-menu').addEventListener('click', () => menu());
 $('velo').addEventListener('click', () => menu(false));
 $('lat-cursos').addEventListener('click', e => { const b = e.target.closest('.lat-fila[data-id]'); if (b) { menu(false); abrirCurso(b.dataset.id); } });
+$('lateral').addEventListener('click', e => {
+    const b = e.target.closest('.lat-fila[data-v]'); if (!b) return;
+    menu(false);
+    if (b.dataset.v === 'hoy') abrirHoy(hoyISO()); else if (b.dataset.v === 'estudios') abrirEstudios(); else abrirMejoras();
+});
+// Al cambiar de vista: lo escrito se sube y los editores se sueltan.
+async function salirDeVista() {
+    await subir();
+    await guardarEstudio();
+    entradas.forEach(E => E.ed?.destruir()); entradas = [];
+    estEd?.destruir(); estEd = null; estActual = null;
+}
+const recordarVista = v => { try { localStorage.setItem('profe_cel_cursos_ultimo', v); } catch (_) {} };
 
 // ── Abrir un curso ──────────────────────────────────────────────────────
-let entradas = [];        // { k, tipo:'clase'|'nota', fecha, id?, titulo, contenido, audios, actualizado, ed }
-const claveCola = E => E.tipo === 'clase' ? `c|${ctxActual}|${E.fecha}` : `n|${E.id}`;
+let entradas = [];        // { k, ctx, tipo:'clase'|'nota', fecha, id?, titulo, contenido, audios, actualizado, ed }
+const claveCola = E => E.tipo === 'clase' ? `c|${E.ctx}|${E.fecha}` : `n|${E.id}`;
 
 // refresco = ponerse al día con lo de internet sin rearmar antes desde la copia (al volver, o
 // porque otro equipo cambió algo); si se está escribiendo, se espera a que se deje de escribir.
@@ -194,7 +243,8 @@ async function abrirCurso(id, refresco) {
     await subir();
     const copia = leerJSON(COPIA_KEY, {})[id];
     if (!refresco) {
-        entradas.forEach(E => E.ed?.destruir());
+        await salirDeVista();
+        vista = 'curso';
         ctxActual = id;
         try { localStorage.setItem('profe_cel_cursos_ultimo', id); } catch (_) {}
         pintarCursos();
@@ -206,7 +256,7 @@ async function abrirCurso(id, refresco) {
             conTiempo(sb.from('bitacora_paginas').select('id, titulo, contenido, fecha, audios, created_at, updated_at').eq('contexto_id', id)),
         ]);
         if (ses.error || pags.error) throw ses.error || pags.error;
-        if (ctxActual !== id) return;
+        if (ctxActual !== id || vista !== 'curso') return;
         const lista = [];
         (ses.data || []).forEach(s => {
             const m = Array.isArray(s.memorias) ? s.memorias[0] : s.memorias;
@@ -223,7 +273,7 @@ async function abrirCurso(id, refresco) {
         scrollTo(0, y);
         if (!Object.keys(leerJSON(COLA_KEY, {})).length) estado('');
     } catch (_) {
-        if (ctxActual !== id) return;
+        if (ctxActual !== id || vista !== 'curso') return;
         if (!copia) $('pagina').innerHTML = `<div class="msg">${navigator.onLine ? 'No se pudo cargar el curso.' : 'Sin señal, y este curso no se ha abierto antes en el celular.'}</div>`;
         estado(navigator.onLine ? 'No se pudo cargar' : 'sin señal · copia del celular', navigator.onLine ? 'err' : 'pend');
     }
@@ -233,22 +283,22 @@ async function abrirCurso(id, refresco) {
 // + la clase de hoy si el curso tiene clase hoy (aunque aún no exista en la base).
 function armar(lista) {
     const cola = leerJSON(COLA_KEY, {}), vieja = leerJSON(COLA_VIEJA, {});
-    entradas = lista.map(x => ({ ...x }));
+    entradas = lista.map(x => ({ ...x, ctx: ctxActual }));
     entradas.forEach(E => { E.k = E.tipo === 'clase' ? 'c' + E.fecha : 'n' + E.id; });
     if (!esGeneral(ctxActual)) {
         const hoy = hoyISO();
         if ((tieneClaseHoy(ctxActual) || vivoId() === ctxActual) && !entradas.some(E => E.tipo === 'clase' && E.fecha === hoy))
-            entradas.push({ k: 'c' + hoy, tipo: 'clase', fecha: hoy, contenido: '', audios: [] });
+            entradas.push({ k: 'c' + hoy, ctx: ctxActual, tipo: 'clase', fecha: hoy, contenido: '', audios: [] });
     }
     Object.entries(cola).forEach(([k, it]) => {
         if (it.tipo === 'clase' && it.ctx === ctxActual) {
             let E = entradas.find(x => x.tipo === 'clase' && x.fecha === it.fecha);
-            if (!E) entradas.push(E = { k: 'c' + it.fecha, tipo: 'clase', fecha: it.fecha, audios: [] });
+            if (!E) entradas.push(E = { k: 'c' + it.fecha, ctx: ctxActual, tipo: 'clase', fecha: it.fecha, audios: [] });
             E.contenido = it.contenido; E.pendiente = true;
         }
         if (it.tipo === 'nota' && it.ctx === ctxActual) {
             let E = entradas.find(x => x.tipo === 'nota' && x.id === it.id);
-            if (!E) entradas.push(E = { k: 'n' + it.id, tipo: 'nota', id: it.id, audios: [], creado: new Date(it.ts).toISOString() });
+            if (!E) entradas.push(E = { k: 'n' + it.id, ctx: ctxActual, tipo: 'nota', id: it.id, audios: [], creado: new Date(it.ts).toISOString() });
             Object.assign(E, { fecha: it.fecha, titulo: it.titulo, contenido: it.contenido, pendiente: true });
         }
         if (it.tipo === 'borrar') entradas = entradas.filter(x => !(x.tipo === 'nota' && x.id === it.id));
@@ -265,12 +315,20 @@ function armar(lista) {
 }
 
 function pintarPagina() {
+    if (vista === 'hoy') { pintarHoy(); return; }
+    const info = infoCtx(ctxActual);
+    pintarEntradas(`<div class="pag-cab"><div id="pag-titulo">${esc((info.icono || '') + ' ' + info.label)}</div><button id="btn-nota">＋ Nota</button></div>`
+        + (entradas.length ? '' : '<div class="msg">Todavía no hay clases ni notas. Crea una con ＋ Nota.</div>'));
+    $('btn-nota').onclick = nuevaNota;
+}
+function pintarEntradas(h) {
     entradas.forEach(E => E.ed?.destruir());
-    const info = infoCtx(ctxActual), hoy = hoyISO();
-    let h = `<div class="pag-cab"><div id="pag-titulo">${esc((info.icono || '') + ' ' + info.label)}</div><button id="btn-nota">＋ Nota</button></div>`;
-    if (!entradas.length) h += '<div class="msg">Todavía no hay clases ni notas. Crea una con ＋ Nota.</div>';
+    const hoy = hoyISO();
     entradas.forEach(E => {
-        const cab = E.tipo === 'clase'
+        const ic = infoCtx(E.ctx);
+        const cab = E.tipo === 'clase' && vista === 'hoy'
+            ? `<div class="ent-tit">${esc(((ic.icono || '') + ' ' + ic.label).trim())}</div><div class="ent-meta">Clase</div>`
+            : E.tipo === 'clase'
             ? `<div class="ent-tit">${esc(tituloFecha(E.fecha))}</div><div class="ent-meta">${E.fecha === hoy ? '<span class="hoy">Hoy</span>' : 'Clase'}</div>`
             : `<div class="ent-tit" contenteditable="plaintext-only" spellcheck="true"></div>
                <div class="ent-meta">📝 <input type="date" value="${E.fecha}" max="${hoy}"><button class="ent-menu" title="Opciones de la nota">⋯</button></div>`;
@@ -291,7 +349,7 @@ function pintarPagina() {
             alCambiar: () => cambio(E),
             // /pdte, /msj, /bug, /mejora (deuda DE): de una clase, a la siguiente; de una nota, desde su fecha
             alPendiente: async texto => {
-                const r = await Pendientes.desdeTexto(texto, { cid: ctxActual, general: esGeneral(ctxActual),
+                const r = await Pendientes.desdeTexto(texto, { cid: E.ctx, general: esGeneral(E.ctx),
                     sesionId: E.tipo === 'clase' ? (E.sesionId || null) : null,
                     ...(E.tipo === 'clase' ? { despuesDe: E.fecha } : { desde: E.fecha }) });
                 estado(r.aviso, r.ok ? '' : 'err');
@@ -300,12 +358,11 @@ function pintarPagina() {
             },
         });
     });
-    $('btn-nota').onclick = nuevaNota;
     // 🖼️ Fotos de cada clase (deuda DU, fase 4)
-    const ctxPag = ctxActual;
-    FotosClase.para(sb, entradas.filter(E => E.tipo === 'clase').map(E => ({ sesionId: E.sesionId, cid: ctxPag, fecha: E.fecha })))
+    const lote = entradas;
+    FotosClase.para(sb, entradas.filter(E => E.tipo === 'clase').map(E => ({ sesionId: E.sesionId, cid: E.ctx, fecha: E.fecha })))
         .then(m => {
-            if (ctxActual !== ctxPag) return;
+            if (entradas !== lote) return;
             m.forEach((fotos, s) => {
                 const E = entradas.find(x => x.tipo === 'clase' && x.sesionId === s);
                 const el = E && secDe(E.k)?.querySelector('.ent-fotos');
@@ -319,7 +376,7 @@ const entDe = el => entradas.find(E => E.k === el.closest('.entrada')?.dataset.k
 // ── Notas ───────────────────────────────────────────────────────────────
 function nuevaNota() {
     if (!ctxActual) return;
-    const E = { tipo: 'nota', id: nuevoId(), fecha: hoyISO(), titulo: '', contenido: '', audios: [], creado: new Date().toISOString(), nueva: true };
+    const E = { ctx: ctxActual, tipo: 'nota', id: nuevoId(), fecha: hoyISO(), titulo: '', contenido: '', audios: [], creado: new Date().toISOString(), nueva: true };
     E.k = 'n' + E.id;
     entradas.forEach(x => { if (x.ed) x.contenido = x.ed.texto(); });
     entradas.push(E);
@@ -370,7 +427,7 @@ function eliminarNota(E) {
     guardarJSON(COLA_KEY, cola);
     E.ed?.destruir();
     entradas = entradas.filter(x => x !== E);
-    const c = leerJSON(COPIA_KEY, {}); if (c[ctxActual]) { c[ctxActual] = c[ctxActual].filter(x => !(x.tipo === 'nota' && x.id === E.id)); guardarJSON(COPIA_KEY, c); }
+    const c = leerJSON(COPIA_KEY, {}); if (c[E.ctx]) { c[E.ctx] = c[E.ctx].filter(x => !(x.tipo === 'nota' && x.id === E.id)); guardarJSON(COPIA_KEY, c); }
     const y = scrollY; pintarPagina(); scrollTo(0, y);
     subir();
 }
@@ -382,8 +439,8 @@ function encolar(E) {
     const k = claveCola(E);
     const antes = cola[k];
     cola[k] = E.tipo === 'clase'
-        ? { tipo: 'clase', ctx: ctxActual, fecha: E.fecha, contenido: E.ed ? E.ed.texto() : E.contenido, ts: Date.now() }
-        : { tipo: 'nota', ctx: ctxActual, id: E.id, fecha: E.fecha, titulo: E.titulo || '', contenido: E.ed ? E.ed.texto() : E.contenido, nueva: !!(E.nueva || antes?.nueva), ts: Date.now() };
+        ? { tipo: 'clase', ctx: E.ctx, fecha: E.fecha, contenido: E.ed ? E.ed.texto() : E.contenido, ts: Date.now() }
+        : { tipo: 'nota', ctx: E.ctx, id: E.id, fecha: E.fecha, titulo: E.titulo || '', contenido: E.ed ? E.ed.texto() : E.contenido, nueva: !!(E.nueva || antes?.nueva), ts: Date.now() };
     guardarJSON(COLA_KEY, cola);
 }
 function cambio(E) {
@@ -471,7 +528,10 @@ window.addEventListener('pagehide', () => { subir(); });
 const enviados = new Set();
 let refrescoPend = false;
 const escribiendo = () => !!document.activeElement?.closest?.('#pagina [contenteditable], #pagina input');
-const refrescar = () => { if (ctxActual) abrirCurso(ctxActual, true); };
+const refrescar = () => {
+    if (vista === 'hoy') abrirHoy(fechaDia, true);
+    else if (vista === 'curso' && ctxActual) abrirCurso(ctxActual, true);
+};
 function aplicarRemoto(E, r) {
     if (enviados.has(Date.parse(r.updated))) return;
     if (r.contenido === (E.ed ? E.ed.texto() : E.contenido) && (E.tipo === 'clase' || ((r.titulo ?? E.titulo) === E.titulo && (r.fecha ?? E.fecha) === E.fecha))) return;
@@ -482,7 +542,7 @@ function aplicarRemoto(E, r) {
     E.contenido = r.contenido; E.actualizado = r.updated;
     if (E.tipo === 'nota') { E.titulo = r.titulo ?? E.titulo; const t = secDe(E.k)?.querySelector('.ent-tit'); if (t) t.textContent = E.titulo; }
     E.ed?.poner(r.contenido); E.ed?.guardado(r.updated);
-    const c = leerJSON(COPIA_KEY, {}), l = c[ctxActual];
+    const c = leerJSON(COPIA_KEY, {}), l = c[E.ctx];
     const x = l && (E.tipo === 'clase' ? l.find(y => y.tipo === 'clase' && y.fecha === E.fecha) : l.find(y => y.tipo === 'nota' && y.id === E.id));
     if (x) { Object.assign(x, { contenido: E.contenido, actualizado: r.updated, ...(E.tipo === 'nota' ? { titulo: E.titulo } : {}) }); guardarJSON(COPIA_KEY, c); }
 }
@@ -492,15 +552,15 @@ document.addEventListener('focusout', () => setTimeout(() => {
     if (refrescoPend) refrescar();
 }, 60));
 TiempoReal.escuchar('memorias', async ({ nuevo }) => {
-    if (!nuevo?.sesion_id || !ctxActual) return;
+    if (!nuevo?.sesion_id || (vista === 'curso' ? !ctxActual : vista !== 'hoy')) return;
     const E = entradas.find(x => x.tipo === 'clase' && x.sesionId === nuevo.sesion_id);
     if (E) { aplicarRemoto(E, { contenido: nuevo.contenido || '', updated: nuevo.updated_at }); return; }
     if (enviados.has(Date.parse(nuevo.updated_at))) return;
-    const { data } = await sb.from('sesiones').select('contexto_id').eq('id', nuevo.sesion_id).maybeSingle();
-    if (data?.contexto_id === ctxActual) refrescar();
+    const { data } = await sb.from('sesiones').select('contexto_id, fecha').eq('id', nuevo.sesion_id).maybeSingle();
+    if (vista === 'hoy' ? data?.fecha === fechaDia : data?.contexto_id === ctxActual) refrescar();
 });
 TiempoReal.escuchar('bitacora_paginas', ({ evento, nuevo, viejo }) => {
-    if (!ctxActual) return;
+    if (vista !== 'curso' || !ctxActual) return;
     if (evento === 'DELETE') { if (entradas.some(x => x.tipo === 'nota' && x.id === viejo?.id)) refrescar(); return; }
     if (nuevo?.contexto_id !== ctxActual || enviados.has(Date.parse(nuevo.updated_at))) return;
     const E = entradas.find(x => x.tipo === 'nota' && x.id === nuevo.id);
@@ -510,10 +570,225 @@ TiempoReal.escuchar('bitacora_paginas', ({ evento, nuevo, viejo }) => {
 TiempoReal.alVolver(refrescar);
 TiempoReal.conectar(sb);
 
+// ── ☀ Hoy (deuda EC): las bitácoras de todas las clases de un día, como Cursos del PC ──
+// Clases del día = el horario de ese día de la semana + las sesiones de esa fecha que no estén en él (sin General).
+// Sin señal: lo de la copia de cada curso; lo escrito va a la misma cola (cada entrada con su curso).
+async function abrirHoy(fecha, refresco) {
+    if (!refresco) {
+        await salirDeVista();
+        vista = 'hoy'; fechaDia = fecha; ctxActual = null;
+        recordarVista('__hoy');
+        pintarCursos();
+        armarHoy(fecha, null); pintarPagina();
+    }
+    try {
+        const ses = await conTiempo(sb.from('sesiones').select('id, contexto_id, fecha, memorias(contenido, audios, updated_at)').eq('fecha', fecha));
+        if (ses.error) throw ses.error;
+        if (vista !== 'hoy' || fechaDia !== fecha) return;
+        if (escribiendo()) { refrescoPend = true; return; }
+        refrescoPend = false;
+        const y = scrollY;
+        armarHoy(fecha, ses.data || []); pintarPagina();
+        scrollTo(0, y);
+        if (!Object.keys(leerJSON(COLA_KEY, {})).length) estado('');
+    } catch (_) {
+        if (vista !== 'hoy') return;
+        estado(navigator.onLine ? 'No se pudo cargar' : 'sin señal · copia del celular', navigator.onLine ? 'err' : 'pend');
+    }
+}
+function armarHoy(fecha, sesiones) {
+    const dia = diaSB(fecha), copia = leerJSON(COPIA_KEY, {}), cola = leerJSON(COLA_KEY, {});
+    const valido = id => ctxDe(id) && !esGeneral(id);
+    const orden = [];
+    horario.filter(h => Number(h.dia_semana) === dia && valido(h.contexto_id)).sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+        .forEach(h => { if (!orden.includes(h.contexto_id)) orden.push(h.contexto_id); });
+    (sesiones || []).forEach(sx => { if (valido(sx.contexto_id) && !orden.includes(sx.contexto_id)) orden.push(sx.contexto_id); });
+    Object.values(cola).forEach(it => { if (it.tipo === 'clase' && it.fecha === fecha && valido(it.ctx) && !orden.includes(it.ctx)) orden.push(it.ctx); });
+    entradas = orden.map(cid => {
+        const sx = (sesiones || []).find(x => x.contexto_id === cid);
+        const m = sx && (Array.isArray(sx.memorias) ? sx.memorias[0] : sx.memorias);
+        const c = !sesiones ? (copia[cid] || []).find(x => x.tipo === 'clase' && x.fecha === fecha) : null;
+        const E = { k: 'c' + cid, ctx: cid, tipo: 'clase', fecha, sesionId: sx?.id || c?.sesionId,
+            contenido: m?.contenido ?? c?.contenido ?? '', audios: m?.audios || c?.audios || [], actualizado: m?.updated_at || c?.actualizado || null };
+        const it = cola[`c|${cid}|${fecha}`];
+        if (it) { E.contenido = it.contenido; E.pendiente = true; }
+        return E;
+    });
+}
+function pintarHoy() {
+    pintarEntradas(`<div class="pag-cab"><div id="pag-titulo">☀ ${esc(tituloFecha(fechaDia))}</div></div>
+        <div class="dia-nav"><button data-dia="-1" aria-label="Día anterior">◀</button><span class="dia-f"></span>
+        <button data-dia="0">Hoy</button><button data-dia="1" aria-label="Día siguiente">▶</button></div>`
+        + (entradas.length ? '' : '<div class="msg">No hay clases este día.</div>'));
+}
+$('pagina').addEventListener('click', e => {
+    const b = e.target.closest('.dia-nav [data-dia]'); if (!b || vista !== 'hoy') return;
+    const n = +b.dataset.dia;
+    if (!n) { abrirHoy(hoyISO()); return; }
+    const d = new Date(fechaDia + 'T12:00:00');
+    do d.setDate(d.getDate() + n); while (d.getDay() === 0 || d.getDay() === 6);   // salta el fin de semana
+    abrirHoy(isoDe(d));
+});
+
+// ── 📚 Estudios (deuda EC): los mismos del PC (tabla `estudios`), con ❝ Citar (comun/citar.js) ──
+// Se guarda con señal; sin señal queda "sin subir" y se reintenta.
+let estLista = [], estActual = null, estEd = null, estTimer = null, estSucio = false;
+async function abrirEstudios() {
+    await salirDeVista();
+    vista = 'estudios'; ctxActual = null;
+    recordarVista('__estudios');
+    pintarCursos();
+    $('pagina').innerHTML = '<div class="msg">Cargando…</div>';
+    try {
+        const { data, error } = await conTiempo(sb.from('estudios').select('id, titulo, updated_at').order('updated_at', { ascending: false }));
+        if (error) throw error;
+        estLista = data || [];
+    } catch (e) {
+        if (vista !== 'estudios') return;
+        $('pagina').innerHTML = `<div class="msg">${!navigator.onLine ? 'Sin señal: los estudios se abren con internet.'
+            : /estudios/.test(e?.message || '') ? 'Falta crear la tabla de Estudios en Supabase.' : 'No se pudieron cargar los estudios.'}</div>`;
+        return;
+    }
+    if (vista !== 'estudios') return;
+    pintarEstudios();
+}
+function pintarEstudios() {
+    const corto = iso => { const d = new Date(iso); return `${d.getDate()} ${MESES[d.getMonth()].slice(0, 3)}`; };
+    $('pagina').innerHTML = `<div class="pag-cab"><div id="pag-titulo">📚 Estudios</div><button class="btn-sec" id="est-nuevo">＋ Nuevo</button></div>`
+        + (estLista.length ? estLista.map(x => `<button class="est-fila" data-est="${x.id}"><span class="nom">${esc(x.titulo || 'Sin título')}</span><span class="f">${esc(corto(x.updated_at))}</span></button>`).join('')
+            : '<div class="msg">Todavía no hay estudios. Ensayos escritos por ti, con ❝ Citar para traer bitácoras, notas o evaluaciones del Libro.</div>');
+}
+async function abrirEstudio(id) {
+    await guardarEstudio();
+    try {
+        const { data, error } = await conTiempo(sb.from('estudios').select('*').eq('id', id).maybeSingle());
+        if (error || !data) throw error || new Error('no está');
+        estActual = data;
+    } catch (_) { estado(navigator.onLine ? 'No se pudo abrir' : 'sin señal', 'err'); return; }
+    if (vista !== 'estudios') return;
+    estEd?.destruir();
+    $('pagina').innerHTML = `<div class="est-barra"><button class="btn-sec" id="est-volver">‹ Estudios</button><span class="ed"></span>
+            <button class="btn-sec" id="est-citar">❝ Citar</button><button class="ent-menu" id="est-mas" title="Opciones">⋯</button></div>
+        <div id="est-titulo" contenteditable="plaintext-only" spellcheck="true"></div><div class="ent-editor" id="est-editor"></div>`;
+    const t = $('est-titulo');
+    t.textContent = estActual.titulo || '';
+    t.addEventListener('input', () => { if (t.textContent === '') t.innerHTML = ''; estActual.titulo = t.textContent.replace(/\n/g, ' ').trim(); marcarEstudio(); });
+    t.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); estEd.enfocar('inicio'); } });
+    estEd = EditorBloques.crear($('est-editor'), { texto: estActual.contenido || '', tactil: true,
+        vacio: 'Escribe, o usa ❝ Citar para traer algo de Profe Apps…', alCambiar: marcarEstudio });
+}
+$('pagina').addEventListener('click', e => {
+    if (vista !== 'estudios') return;
+    const f = e.target.closest('.est-fila'); if (f) { abrirEstudio(f.dataset.est); return; }
+    if (e.target.closest('#est-nuevo')) { nuevoEstudio(); return; }
+    if (e.target.closest('#est-volver')) { guardarEstudio().then(() => { estEd?.destruir(); estEd = null; estActual = null; abrirEstudios(); }); return; }
+    if (e.target.closest('#est-citar')) { Citar.abrir({ sb, contextos, alCitar: tx => { estEd?.insertar(tx); estado('Cita agregada', 'ok'); } }); return; }
+    const m = e.target.closest('#est-mas');
+    if (m) {
+        if (EditorBloques.menuAbierto()) { EditorBloques.cerrarMenus(); return; }
+        EditorBloques.menu([{ ico: '🗑', lbl: 'Borrar este estudio', peligro: true, accion: borrarEstudio }], m, { alDerecha: true });
+    }
+});
+async function nuevoEstudio() {
+    try {
+        const { data, error } = await conTiempo(sb.from('estudios').insert({ titulo: '', contenido: '' }).select('id').single());
+        if (error) throw error;
+        await abrirEstudio(data.id);
+        $('est-titulo')?.focus();
+    } catch (_) { estado(navigator.onLine ? 'No se pudo crear' : 'sin señal', 'err'); }
+}
+function marcarEstudio() {
+    estSucio = true; estado('Sin guardar…', 'pend');
+    clearTimeout(estTimer); estTimer = setTimeout(guardarEstudio, 1200);
+}
+async function guardarEstudio() {
+    clearTimeout(estTimer); estTimer = null;
+    if (!estSucio || !estActual || !estEd) return;
+    estSucio = false;
+    const id = estActual.id, fila = { titulo: estActual.titulo || '', contenido: estEd.texto(), updated_at: new Date().toISOString() };
+    try {
+        const { error } = await conTiempo(sb.from('estudios').update(fila).eq('id', id));
+        if (error) throw error;
+        estado('Guardado ✓', 'ok'); setTimeout(() => { if ($('estado').textContent === 'Guardado ✓') estado(''); }, 2500);
+    } catch (_) {
+        if (estActual?.id === id) estSucio = true;
+        estado(navigator.onLine ? '⏳ sin subir · se reintenta' : '⏳ sin señal · sin subir', 'pend');
+    }
+}
+async function borrarEstudio() {
+    if (!estActual || !confirm(`¿Borrar el estudio «${estActual.titulo || 'Sin título'}»? No se puede deshacer.`)) return;
+    try {
+        const { error } = await conTiempo(sb.from('estudios').delete().eq('id', estActual.id));
+        if (error) throw error;
+    } catch (_) { estado(navigator.onLine ? 'No se pudo borrar' : 'sin señal', 'err'); return; }
+    estSucio = false; estEd?.destruir(); estEd = null; estActual = null;
+    abrirEstudios();
+}
+window.addEventListener('online', () => { if (estSucio) guardarEstudio(); });
+setInterval(() => { if (estSucio && !estTimer) guardarEstudio(); }, 20000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) guardarEstudio(); });
+
+// ── 🐞 Mejoras (deuda EC): lo anotado con /bug o /mejora, como en Cursos del PC ──
+let mjFiltro = 'todo';
+async function abrirMejoras() {
+    await salirDeVista();
+    vista = 'mejoras'; ctxActual = null;
+    recordarVista('__mejoras');
+    pintarCursos();
+    $('pagina').innerHTML = '<div class="msg">Cargando…</div>';
+    try {
+        const { data, error } = await conTiempo(sb.from('pendientes').select('id, contexto_id, texto, created_at, sesiones(fecha)')
+            .eq('categoria', 'mejora_app').order('created_at', { ascending: false }));
+        if (error) throw error;
+        if (vista === 'mejoras') pintarMejoras(data || []);
+    } catch (_) { if (vista === 'mejoras') $('pagina').innerHTML = `<div class="msg">${navigator.onLine ? 'No se pudieron cargar.' : 'Sin señal: las mejoras se ven con internet.'}</div>`; }
+}
+function pintarMejoras(lista) {
+    const tipo = t => /^🐞/.test(t) ? 'bug' : 'mejora';
+    const n = { todo: lista.length, bug: lista.filter(m => tipo(m.texto) === 'bug').length };
+    n.mejora = n.todo - n.bug;
+    const ver = lista.filter(m => mjFiltro === 'todo' || tipo(m.texto) === mjFiltro);
+    const origen = m => {
+        if (!m.contexto_id) return '';
+        const i = infoCtx(m.contexto_id), f = m.sesiones?.fecha;
+        return `${i.icono || ''} ${i.label}${f ? ' · ' + tituloFecha(f) : ''}`;
+    };
+    $('pagina').innerHTML = `<div class="pag-cab"><div id="pag-titulo">🐞 Mejoras</div></div>
+        <div class="mj-barra">${[['todo', 'Todas'], ['bug', '🐞 Bugs'], ['mejora', '✨ Mejoras']].map(([k, l]) =>
+            `<button class="mj-filtro${mjFiltro === k ? ' on' : ''}" data-f="${k}">${l} · ${n[k]}</button>`).join('')}</div>
+        <input id="mj-nueva" class="mj-nueva" enterkeyhint="send" placeholder="Anotar… (/bug o /mejora al comienzo)">
+        ${ver.length ? ver.map(m => `<div class="mj-fila" data-id="${m.id}"><span class="txt">${esc(m.texto)}<span class="org">${esc(origen(m))}</span></span>
+            <button class="mj-borrar" aria-label="Borrar">🗑</button></div>`).join('') : '<div class="msg">Nada anotado.</div>'}`;
+    $('mj-nueva').addEventListener('keydown', async e => {
+        if (e.key !== 'Enter' || !e.target.value.trim()) return;
+        let t = e.target.value.trim();
+        const m = t.match(/^\/(bug|mejora)(?![a-záéíóúñ])[\s:.-]*/i);
+        t = (m && m[1].toLowerCase() === 'bug' ? '🐞 ' : '✨ ') + (m ? t.slice(m[0].length) : t).trim();
+        e.target.disabled = true;
+        try {
+            const { error } = await conTiempo(sb.from('pendientes').insert({ contexto_id: null, sesion_id: null, categoria: 'mejora_app', texto: t, estado: 'activo' }));
+            if (error) throw error;
+            abrirMejoras();
+        } catch (_) { estado(navigator.onLine ? 'No se pudo anotar' : 'sin señal', 'err'); e.target.disabled = false; }
+    });
+}
+$('pagina').addEventListener('click', async e => {
+    if (vista !== 'mejoras') return;
+    const f = e.target.closest('.mj-filtro'); if (f) { mjFiltro = f.dataset.f; abrirMejoras(); return; }
+    const b = e.target.closest('.mj-borrar'); if (!b) return;
+    const fila = b.closest('.mj-fila');
+    if (!confirm('¿Borrar esta anotación?')) return;
+    try {
+        const { error } = await conTiempo(sb.from('pendientes').delete().eq('id', fila.dataset.id));
+        if (error) throw error;
+        fila.remove();
+    } catch (_) { estado(navigator.onLine ? 'No se pudo borrar' : 'sin señal', 'err'); }
+});
+
 // ── Inicio: en clase, el curso en curso; si no, el último abierto ───────
 let entroSolo = false;
 function entrarClaseEnCurso() {
-    if (entroSolo) return;
+    if (entroSolo || vista !== 'curso') return;
     const id = vivoId();
     if (!id) return;
     entroSolo = true;
@@ -526,10 +801,13 @@ function ultimoCurso() { try { return localStorage.getItem('profe_cel_cursos_ult
     const q = new URLSearchParams(location.search).get('ctx');
     const elegir = () => (q && contextos.find(c => c.nombre === q.toUpperCase())?.id) || vivoId()
         || contextos.find(c => c.id === ultimoCurso())?.id || ultimoCurso();
-    if (contextos.length) { pintarCursos(); const id = elegir(); if (id) { entroSolo = !!vivoId(); abrirCurso(id); } }
+    const ult = ultimoCurso(), especial = !q && !vivoId() && ['__hoy', '__estudios', '__mejoras'].includes(ult);
+    if (especial) { if (ult === '__hoy') abrirHoy(hoyISO()); else if (ult === '__estudios') abrirEstudios(); else abrirMejoras(); }
+    else if (contextos.length) { pintarCursos(); const id = elegir(); if (id) { entroSolo = !!vivoId(); abrirCurso(id); } }
     await cargarBase();
     pintarCursos();
-    if (!ctxActual) { const id = elegir(); entroSolo = !!vivoId(); if (id) abrirCurso(id); else { $('pagina').innerHTML = '<div class="msg">Elige un curso en ☰.</div>'; menu(true); } }
+    if (vista === 'hoy' && !entradas.length) abrirHoy(fechaDia, true);
+    if (!ctxActual && vista === 'curso') { const id = elegir(); entroSolo = !!vivoId(); if (id) abrirCurso(id); else { $('pagina').innerHTML = '<div class="msg">Elige un curso en ☰.</div>'; menu(true); } }
     setTimeout(entrarClaseEnCurso, 1500);   // la clase en curso puede tardar en llegar de internet
     subir();
 })();
