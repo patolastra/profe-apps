@@ -7040,3 +7040,7 @@ canciones: patrones que constituyen una identidad musical —estilos— y que se
   materiales no); en Tipo Estilo se oculta "Importar metadata" (iTunes); en la ficha de un estilo, ＋ recurso no ofrece
   📝 Letra. La letra ya pegada a la Cueca la borra el PO con 🗑 (la prueba no puede borrar datos). Lo que pide el PO
   ("debería tener canciones asociadas") es el **paso 2**, que espera su visto bueno.
+- **Ajuste 2 (PO 2026-10-28):** un estilo no tiene año, género ni enlace: en Tipo Estilo el cuadro muestra solo
+  **Nombre** y **País o región** (se guarda en `artista`: aparece bajo el nombre en la tarjeta y la ficha y entra en la
+  búsqueda, sin columna nueva). Título "Nuevo estilo" / "Nuevo material" y ejemplo "Festejo". Prueba (navegador, sin
+  guardar): campos visibles por tipo (canción / material / estilo), título y ejemplo.

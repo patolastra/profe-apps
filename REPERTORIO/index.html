@@ -2696,11 +2696,11 @@
                     <input id="f-nombre" type="text" class="form-input" placeholder="La Bamba">
                 </div>
                 <div class="form-group" id="f-artista-group">
-                    <label class="form-label">Artista</label>
+                    <label class="form-label" id="f-artista-label">Artista</label>
                     <input id="f-artista" type="text" class="form-input" placeholder="Ritchie Valens">
                 </div>
             </div>
-            <div class="form-row">
+            <div class="form-row" id="f-anio-genero">
                 <div class="form-group">
                     <label class="form-label">Año</label>
                     <input id="f-año" type="text" class="form-input" placeholder="1958">
@@ -2710,7 +2710,7 @@
                     <input id="f-estilo" type="text" class="form-input" placeholder="Rock, Folk, Cumbia…">
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="f-url-group">
                 <label class="form-label">Enlace (opcional)</label>
                 <input id="f-url" type="url" class="form-input" placeholder="https://www.youtube.com/…">
             </div>
@@ -4135,9 +4135,20 @@ function setCategoriaModal(btn) {
     document.querySelectorAll('#f-categoria-ctrl .seg-btn').forEach(b => b.classList.remove('activo'));
     btn.classList.add('activo');
     document.getElementById('f-categoria').value = btn.dataset.val;
-    document.getElementById('f-artista-group').style.display = btn.dataset.val === 'cancion' ? '' : 'none';
-    document.getElementById('import-wrap').style.display = btn.dataset.val === 'estilo' ? 'none' : '';
+    camposPorTipo(btn.dataset.val);
     if (btn.dataset.val !== 'cancion') document.getElementById('f-letra-estado').style.display = 'none';
+}
+// Campos según el tipo: un material no tiene artista; un estilo (EG) solo nombre y país o región
+// (guardado en `artista`, así se ve bajo el nombre y entra en la búsqueda, sin columna nueva).
+function camposPorTipo(cat) {
+    const estilo = cat === 'estilo';
+    document.getElementById('f-artista-group').style.display = cat === 'material' ? 'none' : '';
+    document.getElementById('f-artista-label').textContent = estilo ? 'País o región' : 'Artista';
+    document.getElementById('f-artista').placeholder = estilo ? 'Perú, Chile, Andes…' : 'Ritchie Valens';
+    ['f-anio-genero', 'f-url-group', 'import-wrap'].forEach(id => document.getElementById(id).style.display = estilo ? 'none' : '');
+    document.getElementById('f-nombre').placeholder = estilo ? 'Festejo' : 'La Bamba';
+    if (!editandoId) document.getElementById('modal-titulo-h').textContent =
+        estilo ? 'Nuevo estilo' : cat === 'material' ? 'Nuevo material' : 'Nueva canción';
 }
 
 function abrirModalNueva() {
@@ -4149,9 +4160,8 @@ function abrirModalNueva() {
         document.getElementById(id).value = '');
     document.getElementById('f-categoria').value = 'cancion';
     document.querySelectorAll('#f-categoria-ctrl .seg-btn').forEach((b,i) => b.classList.toggle('activo', i===0));
-    document.getElementById('f-artista-group').style.display = '';
+    camposPorTipo('cancion');
     document.getElementById('artwork-group').style.display = 'none';
-    document.getElementById('import-wrap').style.display = '';
     document.getElementById('import-resultados').classList.remove('visible');
     document.getElementById('import-q').value = '';
     document.getElementById('import-error').classList.remove('visible');
@@ -4175,8 +4185,7 @@ function editarCancion(id) {
     const cat = c.categoria || 'cancion';
     document.getElementById('f-categoria').value = cat;
     document.querySelectorAll('#f-categoria-ctrl .seg-btn').forEach(b => b.classList.toggle('activo', b.dataset.val === cat));
-    document.getElementById('f-artista-group').style.display = cat === 'cancion' ? '' : 'none';
-    document.getElementById('import-wrap').style.display = cat === 'estilo' ? 'none' : '';
+    camposPorTipo(cat);
     if (c.artwork_url) {
         document.getElementById('f-artwork-preview').src = c.artwork_url;
         document.getElementById('artwork-group').style.display = '';
