@@ -583,6 +583,23 @@
         .med-form .acc { grid-column: 1 / -1; display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
         .med-form .estado { flex: 1; font-size: 0.75rem; color: var(--muted); }
         #medios-cancion.soltando { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 8px; }
+        /* ── FICHA POR INSTRUMENTO (EP) ── */
+        .ficha-tit { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .ficha-ver { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; text-transform: none; letter-spacing: 0; }
+        .ficha-ver button { width: 74px; padding: 3px 0; border: 0; background: #fff; color: var(--muted); font: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer; }
+        .ficha-ver button + button { border-left: 1px solid var(--border); }
+        .ficha-ver button.on { background: var(--accent); color: #fff; }
+        .grupo-ficha { margin-bottom: 8px; }
+        .ficha-lote > .asset-item { border-radius: 0; border-bottom: 1px solid var(--border); background: #fff; }
+        .ficha-lote > .asset-item:hover { background: #f1f5f9; }
+        .ficha-lote > :last-child { border-bottom: none; }
+        .ficha-sep { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+            padding: 8px 12px 4px; border-top: 1px dashed var(--border); background: #f8fafc; }
+        .ficha-vacio { font-size: 0.78rem; color: var(--muted); padding: 8px 12px; }
+        .ficha-medios { padding-bottom: 8px; }
+        .ficha-medios #medios-lista, .ficha-medios #medios-form { padding: 0 10px; }
+        .ficha-medios .btn-add-asset { margin: 4px 10px 0; width: calc(100% - 20px); }
+        .sin-dific { font-size: 0.68rem; color: #b45309; font-style: italic; white-space: nowrap; }
         /* ── GRUPO TABLATURAS ── */
         .asset-group {
             border-radius: 8px;
@@ -3638,97 +3655,120 @@ function toggleSecciones(assetId, btn) {
 const CAP = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 const DIFIC_LABEL = { inicial:'Inicial', media:'Media', dificil:'Difícil', experto:'Experto' };
 
-function tabGroupHTML(tabs, songId) {
-    // Agrupar por instrumento
-    const porInst = {};
-    tabs.forEach(a => {
-        const inst = a.instrumento || '';
-        if (!porInst[inst]) porInst[inst] = [];
-        porInst[inst].push(a);
-    });
-
-    const instOrder = Object.keys(porInst).sort((a,b) => (INST_ORD[a] ?? 9) - (INST_ORD[b] ?? 9));
-
-    const subgruposHTML = instOrder.map(inst => {
-        const label = inst ? CAP(inst) : 'Sin instrumento';
-        // orden que dio el profe arrastrando (deuda BG); las aún sin ordenar, por dificultad
-        const items = porInst[inst].sort((a,b) => ((a.orden || 0) && (b.orden || 0) ? a.orden - b.orden : !(a.orden || 0) !== !(b.orden || 0) ? ((a.orden || 0) ? -1 : 1) : 0)
-            || (DIFIC_ORD[a.dificultad] ?? 9) - (DIFIC_ORD[b.dificultad] ?? 9));
-        const itemsHTML = items.map(a => {
-            const dif  = a.dificultad ? `<span class="tab-dific ${a.dificultad}">${DIFIC_LABEL[a.dificultad] || CAP(a.dificultad)}</span>` : '';
-            const desc = partesAsset(a).descripcion || 'Sin descripción';
-            const url  = a.storage_path ? storageUrl(a.storage_path) : null;
-            const spJS = (a.storage_path || '').replace(/'/g, "\\'");
-            const nfJS = (a.nombre_archivo || a.etiqueta || 'tab').replace(/'/g, "\\'");
-            const dblclick = a.storage_path
-            ? `ondblclick="abrirEnLector('${spJS}','${nfJS}')" title="Doble clic para abrir en Lector"`
-            : '';
-            const secciones = a.tab_sync?.secciones || [];
-            const tieneSecs = secciones.length > 0 && a.storage_path;
-            const publicada = a.storage_path && estadoDe(a) === 'publicado';   // ✈ solo en publicadas (deuda DP)
-            const toggle = tieneSecs
-                ? `<button class="tab-secs-toggle" onclick="event.stopPropagation();toggleSecciones('${a.id}',this)" title="Ver partes">▸</button>`
-                : '';
-            const secsHTML = tieneSecs
-                ? `<div class="tab-secciones" id="secs-${a.id}" style="display:none">
-                     ${secciones.map(s => {
-                         const sJS = (s.nombre || '').replace(/'/g, "\\'");
-                         const btn = `<button class="tab-seccion" onclick="abrirSeccionEnLector('${spJS}','${nfJS}','${sJS}')" title="Abrir solo esta parte en el Lector">${s.nombre}</button>`;
-                         return publicada
-                             ? `<span class="tab-seccion-grupo">${btn}<button class="btn-icon tab-seccion-cmp" onclick="compartirTab('${a.id}','${sJS}',this)" title="Compartir solo esta parte con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button></span>`
-                             : btn;
-                     }).join('')}
-                   </div>`
-                : '';
-        return `
-            <div class="tab-entry" data-id="${a.id}" draggable="true">
-                <div class="tab-item" ${dblclick} style="${a.storage_path ? 'cursor:pointer' : ''}">
-                    <span class="asset-grip" title="Arrastra para ordenar">⋮⋮</span>
-                    ${toggle}
-                    <div class="tab-item-info">
-                        ${dif}
-                        ${desc ? `<span class="tab-item-desc">${desc}</span>` : ''}
-                        ${a.mensaje ? `<span class="msg-badge" title="${a.mensaje.replace(/"/g,'&quot;')}">📌</span>` : ''}
-                        ${tieneSecs ? `<span class="tab-secs-count">${secciones.length} partes</span>` : ''}
-                    </div>
-                    <div class="tab-item-actions">
-                        ${estadoBadgeHTML(a)}
-                        ${publicada ? `<button class="btn-icon" onclick="event.stopPropagation();compartirTab('${a.id}',null,this)" title="Compartir la tablatura con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
-                        ${url ? `<a class="btn-icon" href="${url}" download title="Descargar">⬇</a>` : ''}
-                        <button class="btn-icon" onclick="abrirEditarAsset('${songId}','${a.id}')" title="Editar">✏️</button>
-                        <button class="btn-icon danger" onclick="eliminarAsset('${songId}','${a.id}')" title="Eliminar">🗑</button>
-                    </div>
-                </div>
-                ${secsHTML}
-            </div>`;
-        }).join('');
-        return `
-        <div class="tab-subgrupo">
-            ${instOrder.length > 1 ? `<div class="tab-subgrupo-header">${label}</div>` : ''}
-            ${itemsHTML}
-        </div>`;
-    }).join('');
-
+// Una tablatura de la ficha (con sus partes desplegables).
+function tabEntryHTML(a, songId) {
+    const dif  = a.dificultad ? `<span class="tab-dific ${a.dificultad}">${DIFIC_LABEL[a.dificultad] || CAP(a.dificultad)}</span>` : '<span class="sin-dific">sin dificultad</span>';
+    const desc = partesAsset(a).descripcion || 'Sin descripción';
+    const url  = a.storage_path ? storageUrl(a.storage_path) : null;
+    const spJS = (a.storage_path || '').replace(/'/g, "\\'");
+    const nfJS = (a.nombre_archivo || a.etiqueta || 'tab').replace(/'/g, "\\'");
+    const dblclick = a.storage_path
+    ? `ondblclick="abrirEnLector('${spJS}','${nfJS}')" title="Doble clic para abrir en Lector"`
+    : '';
+    const secciones = a.tab_sync?.secciones || [];
+    const tieneSecs = secciones.length > 0 && a.storage_path;
+    const publicada = a.storage_path && estadoDe(a) === 'publicado';   // ✈ solo en publicadas (deuda DP)
+    const toggle = tieneSecs
+        ? `<button class="tab-secs-toggle" onclick="event.stopPropagation();toggleSecciones('${a.id}',this)" title="Ver partes">▸</button>`
+        : '';
+    const secsHTML = tieneSecs
+        ? `<div class="tab-secciones" id="secs-${a.id}" style="display:none">
+             ${secciones.map(s => {
+                 const sJS = (s.nombre || '').replace(/'/g, "\\'");
+                 const btn = `<button class="tab-seccion" onclick="abrirSeccionEnLector('${spJS}','${nfJS}','${sJS}')" title="Abrir solo esta parte en el Lector">${s.nombre}</button>`;
+                 return publicada
+                     ? `<span class="tab-seccion-grupo">${btn}<button class="btn-icon tab-seccion-cmp" onclick="compartirTab('${a.id}','${sJS}',this)" title="Compartir solo esta parte con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button></span>`
+                     : btn;
+             }).join('')}
+           </div>`
+        : '';
     return `
-    <div class="asset-group" id="asset-group-tabs">
-        <div class="asset-group-header" onclick="toggleTabGroup()">
-            <div class="asset-group-left">
-                <span class="asset-item-ico">🎸</span>
-                <span class="asset-group-titulo">Tablaturas</span>
-                <span class="asset-group-count">${tabs.length}</span>
+    <div class="tab-entry" data-id="${a.id}" draggable="true">
+        <div class="tab-item" ${dblclick} style="${a.storage_path ? 'cursor:pointer' : ''}">
+            <span class="asset-grip" title="Arrastra para ordenar">⋮⋮</span>
+            ${toggle}
+            <div class="tab-item-info">
+                ${dif}
+                ${desc ? `<span class="tab-item-desc">${desc}</span>` : ''}
+                ${a.mensaje ? `<span class="msg-badge" title="${a.mensaje.replace(/"/g,'&quot;')}">📌</span>` : ''}
+                ${tieneSecs ? `<span class="tab-secs-count">${secciones.length} partes</span>` : ''}
             </div>
-            <span class="asset-group-chevron" id="tab-group-chevron">▲</span>
+            <div class="tab-item-actions">
+                ${estadoBadgeHTML(a)}
+                ${publicada ? `<button class="btn-icon" onclick="event.stopPropagation();compartirTab('${a.id}',null,this)" title="Compartir la tablatura con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
+                ${url ? `<a class="btn-icon" href="${url}" download title="Descargar">⬇</a>` : ''}
+                <button class="btn-icon" onclick="abrirEditarAsset('${songId}','${a.id}')" title="Editar">✏️</button>
+                <button class="btn-icon danger" onclick="eliminarAsset('${songId}','${a.id}')" title="Eliminar">🗑</button>
+            </div>
         </div>
-        <div class="asset-group-body" id="tab-group-body">${subgruposHTML}</div>
+        ${secsHTML}
     </div>`;
 }
 
-function toggleTabGroup() {
-    const body    = document.getElementById('tab-group-body');
-    const chevron = document.getElementById('tab-group-chevron');
-    const open    = body.style.display !== 'none';
-    body.style.display    = open ? 'none' : '';
-    chevron.textContent   = open ? '▼' : '▲';
+// ── Ficha por instrumento (deuda EP, entrega 2) ──
+// 🎵 Canción (letra, audio, extractos y versiones) arriba; luego cuerdas primero y el resto. En cada grupo lo
+// publicado arriba y lo demás (borrador, experimental, archivado) abajo; "Publicado / Borrador / Ambos" filtra.
+const GRUPOS_FICHA = [
+    { k: 'cancion',    ico: '🎵', t: 'Canción' },
+    { k: 'guitarra',   ico: '🎸', t: 'Guitarra' },
+    { k: 'ukelele',    ico: '🪕', t: 'Ukelele' },
+    { k: 'bajo',       ico: '🎸', t: 'Bajo' },
+    { k: 'metalofono', ico: '🎼', t: 'Metalófono' },
+    { k: 'piano',      ico: '🎹', t: 'Piano' },
+    { k: 'ritmo',      ico: '🥁', t: 'Cajón / Ritmo' },
+    { k: 'otros',      ico: '📎', t: 'Otros' },
+];
+function grupoDeAsset(a) {
+    if (a.tipo === 'letra' || a.tipo === 'audio') return 'cancion';
+    if (a.tipo === 'tab') return ['guitarra', 'ukelele', 'bajo'].includes(a.instrumento) ? a.instrumento : 'otros';
+    if (a.tipo === 'metalofono') return 'metalofono';
+    if (a.tipo === 'melodia') { const ins = instrumentosMelodia(a); return !ins.length || ins.includes('piano') || ins.includes('melodica') ? 'piano' : 'metalofono'; }
+    if (a.tipo === 'ritmo' || a.tipo === 'cajon') return 'ritmo';
+    return 'otros';
+}
+let fichaVer = (() => { try { return localStorage.getItem('profe_bib_ficha_ver') || 'ambos'; } catch (_) { return 'ambos'; } })();
+const fichaPlegados = new Set();
+function setFichaVer(v) {
+    fichaVer = v;
+    try { localStorage.setItem('profe_bib_ficha_ver', v); } catch (_) {}
+    renderPanel();
+}
+function toggleGrupoFicha(k) {
+    if (fichaPlegados.has(k)) fichaPlegados.delete(k); else fichaPlegados.add(k);
+    renderPanel();
+}
+const fichaSeVe = a => fichaVer === 'ambos' || (fichaVer === 'publicado') === (estadoDe(a) === 'publicado');
+function fichaGruposHTML(c, assets) {
+    const item = a => a.tipo === 'tab' ? tabEntryHTML(a, c.id) : assetItemHTML(a);
+    return GRUPOS_FICHA.map(g => {
+        const todos = assets.filter(a => grupoDeAsset(a) === g.k);
+        if (!todos.length && g.k !== 'cancion') return '';
+        const ver = todos.filter(fichaSeVe);
+        const pub = ver.filter(a => estadoDe(a) === 'publicado'), resto = ver.filter(a => estadoDe(a) !== 'publicado');
+        const plegado = fichaPlegados.has(g.k);
+        const oculto = todos.length - ver.length;
+        const vacio = todos.length
+            ? `Sin recursos ${fichaVer === 'publicado' ? 'publicados' : 'en borrador'} (${oculto} oculto${oculto === 1 ? '' : 's'}).`
+            : 'Sin letra ni audio todavía.';
+        const cuerpo = (ver.length ? '' : `<div class="ficha-vacio">${vacio}</div>`)
+            + (pub.length ? `<div class="ficha-lote">${pub.map(item).join('')}</div>` : '')
+            + (pub.length && resto.length ? '<div class="ficha-sep">Borradores</div>' : '')
+            + (resto.length ? `<div class="ficha-lote">${resto.map(item).join('')}</div>` : '')
+            + (g.k === 'cancion' ? `<div class="ficha-medios" id="medios-cancion">
+                <div class="ficha-sep">Extractos y versiones</div>
+                <div id="medios-lista"><div class="med-vacio">Cargando…</div></div>
+                <div id="medios-form"></div>
+                <button class="btn-add-asset" onclick="abrirFormMedio()">+ Agregar extracto o versión</button>
+            </div>` : '');
+        return `<div class="asset-group grupo-ficha" data-grupo="${g.k}">
+            <div class="asset-group-header" onclick="toggleGrupoFicha('${g.k}')">
+                <div class="asset-group-left"><span class="asset-item-ico">${g.ico}</span><span class="asset-group-titulo">${g.t}</span>
+                    <span class="asset-group-count">${ver.length}${oculto ? ` / ${todos.length}` : ''}</span></div>
+                <span class="asset-group-chevron">${plegado ? '▼' : '▲'}</span>
+            </div>
+            <div class="asset-group-body"${plegado ? ' style="display:none"' : ''}>${cuerpo}</div>
+        </div>`;
+    }).join('');
 }
 
 function renderPanel() {
@@ -3751,15 +3791,7 @@ function renderPanel() {
         return `<button class="${cls} ${asignado}" onclick="toggleCurso('${ctx}', this)" title="${ctxLabel(ctx)}">${ctxCorto(ctx)}</button>`;
     }).join('');
 
-    // assets — tabs agrupados, resto individual
-    const tabAssets   = assets.filter(a => a.tipo === 'tab');
-    const otrosAssets = assets.filter(a => a.tipo !== 'tab');
-
-    const assetsHTML = assets.length > 0 ? (() => {
-        let html = otrosAssets.map(a => assetItemHTML(a)).join('');
-        if (tabAssets.length > 0) html += tabGroupHTML(tabAssets, c.id);
-        return html;
-    })() : `<div style="font-size:0.8rem;color:var(--muted);padding:4px 0">Sin assets todavía.</div>`;
+    const assetsHTML = fichaGruposHTML(c, assets);
 
     document.getElementById('panel-body').innerHTML = `
         ${artworkHTML}
@@ -3776,16 +3808,12 @@ function renderPanel() {
         </div>
 
         <div class="panel-section">
-            <div class="panel-section-title">Assets</div>
+            <div class="panel-section-title ficha-tit">Recursos
+                <span class="ficha-ver" role="group" title="Qué recursos se ven">${[['publicado', 'Publicado'], ['borrador', 'Borrador'], ['ambos', 'Ambos']]
+                    .map(([v, t]) => `<button type="button" class="${fichaVer === v ? 'on' : ''}" onclick="setFichaVer('${v}')">${t}</button>`).join('')}</span>
+            </div>
             <div class="asset-list" id="asset-list">${assetsHTML}</div>
-            <button class="btn-add-asset" onclick="abrirModalAsset('${c.id}')">+ Agregar asset</button>
-        </div>
-
-        <div class="panel-section" id="medios-cancion">
-            <div class="panel-section-title">Extractos y versiones</div>
-            <div id="medios-lista"><div class="med-vacio">Cargando…</div></div>
-            <div id="medios-form"></div>
-            <button class="btn-add-asset" onclick="abrirFormMedio()">+ Agregar extracto o versión</button>
+            <button class="btn-add-asset" onclick="abrirModalAsset('${c.id}')">+ Agregar recurso</button>
         </div>
 
         ${(() => {
@@ -4034,6 +4062,7 @@ function assetItemHTML(a, i) {
     const pa = partesAsset(a);
     const sublabel = [pa.descripcion, pa.dificultad].filter(Boolean).join(' · ');
     const etiq = sublabel ? `<div class="asset-item-etiqueta">${sublabel}</div>` : '';
+    const sinDif = a.tipo !== 'letra' && a.tipo !== 'audio' && !a.dificultad ? '<span class="sin-dific">sin dificultad</span>' : '';
 
     // Audio y binarios con archivo en Storage
     if (a.storage_path) {
@@ -4056,6 +4085,7 @@ function assetItemHTML(a, i) {
             <div class="asset-item-info">
                 <div class="asset-item-tipo">${info.label}${isAudio ? (a.rol === 'karaoke' ? ' · 🎶 Karaoke' : ' · 🎤 Melodía') : ''}</div>
                 ${isMelodia ? (subMel ? `<div class="asset-item-etiqueta">${subMel}</div>` : '') : sublabel ? `<div class="asset-item-etiqueta">${sublabel}</div>` : ''}
+                ${sinDif}
             </div>
             <div class="asset-item-actions">
                 ${estadoBadgeHTML(a)}
@@ -4079,7 +4109,7 @@ function assetItemHTML(a, i) {
         <div class="asset-item-ico">${info.ico}</div>
         <div class="asset-item-info">
             <div class="asset-item-tipo">${info.label}</div>
-            ${etiq}
+            ${etiq}${sinDif}
         </div>
         <div class="asset-item-actions">
             ${estadoBadgeHTML(a)}
@@ -4097,7 +4127,7 @@ function assetItemHTML(a, i) {
 
 // ── Ordenar recursos arrastrándolos en la ficha (el Entrenador los muestra en ese orden) ──
 // Tablaturas: dentro de su instrumento, con orden desde 1000 (después de los demás recursos).
-const SEL_ORDENABLE = '#asset-list > .asset-item[data-id], .tab-subgrupo > .tab-entry[data-id]';
+const SEL_ORDENABLE = '.ficha-lote > [data-id]';   // dentro de su grupo y de su lote (publicados / borradores), EP
 let assetArrastrado = null;
 document.addEventListener('dragstart', e => {
     const it = e.target.closest?.(SEL_ORDENABLE);
@@ -4126,7 +4156,13 @@ document.addEventListener('dragend', async () => {
     const c = songActiva && canciones.find(x => x.id === songActiva.id);
     if (!c) return;
     const esTab = it.classList.contains('tab-entry');
-    const ids = [...it.parentElement.querySelectorAll(':scope > [data-id]')].map(n => n.dataset.id);
+    // Orden total del tipo (tablaturas desde 1000, el resto desde 1): los que se ven toman sus lugares en el orden
+    // de la pantalla; los ocultos por el filtro quedan donde estaban.
+    const enPantalla = [...document.querySelectorAll('#asset-list ' + (esTab ? '.tab-entry' : '.asset-item') + '[data-id]')].map(n => n.dataset.id);
+    const visibles = new Set(enPantalla);
+    let k = 0;
+    const ids = (c.assets || []).filter(a => (a.tipo === 'tab') === esTab).sort(ordenAssets)
+        .map(a => visibles.has(a.id) ? enPantalla[k++] : a.id);
     const base = esTab ? 1000 : 0;
     const cambios = [];
     ids.forEach((id, i) => {
