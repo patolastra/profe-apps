@@ -47,6 +47,16 @@
 | Biblioteca, ficha de la canción | "+ Agregar asset" → ♬ Melodía (`?cancion=`) y ✏️ en cada melodía (`?asset=`): pestaña cerrable del Workspace (`ws-abrir`, guarda al cerrar) o ventana nueva |
 | Piano del estudiante (`PIANO/`, deuda DL) | 🎹 en la ficha (pestaña del Workspace) y enlace `p/?a=&n=` (🔗 Compartir, solo publicadas); lee `melodia/<id>.json`, sin base de datos |
 | Entrenador, Plan, celular | aún no abren "Melodía" (el Entrenador la esconde de su desplegable); su MIDI sí se abre en el Metalófono desde la ficha |
+| Editor de Arreglos (`ARREGLO/`, deuda ES) | "Copiar" trae una copia de la melodía (de `melodia/<id>.json`) al arreglo; no queda vinculada |
+
+## Arreglo de piano (`ARREGLO/index.html` + `PIANO/?r=`, deuda ES)
+
+| Lugar | Cómo se abre |
+|---|---|
+| Biblioteca, ficha de la canción (grupo 🎹 Piano) | "+ Arreglo de piano" y "+ Agregar asset" → 🎹 Arreglo (`?cancion=`), ✏️ en cada arreglo (`?asset=`): pestaña cerrable del Workspace (guarda al cerrar) o ventana nueva · 🎹 abre el Piano como lo ve el estudiante · ✈ (solo publicados) con 📅 Disponible hasta |
+| Editor de Arreglos, vista previa | el Piano dentro del editor (`PIANO/?vista=editor`, datos por mensaje) |
+| Piano del estudiante | enlace `p/?r=&n=`; lee `arreglo/<id>.json` (sin base de datos), con la grabación por `grabacion-tono.js` |
+| Entrenador, Plan, celular | aún no abren arreglos (el Entrenador los esconde de su desplegable) |
 
 ## Piezas compartidas (`comun/`)
 
@@ -58,7 +68,8 @@
 | `asistencia.js` | Plan (Pasar lista) · Libro · Pizarra (espejo) · celular Evaluar · Workspace |
 | `libro-proyeccion.js` | Libro (📽️ Proyectar) · Pizarra · Workspace |
 | `cuaderno.js` | Plan (📔) · Cursos (📔 Cuaderno) · Pizarra (espejo) |
-| `compartir.js` | Biblioteca: ficha de la canción, ✈ de la melodía de metalófono, del piano y de cada tablatura y sección publicada (deudas DQ y DP) |
+| `compartir.js` | Biblioteca: ficha de la canción, ✈ de la melodía de metalófono, del piano, del arreglo de piano (con `plazo`, ES) y de cada tablatura y sección publicada (deudas DQ y DP) |
+| `grabacion-tono.js` | Editor de Arreglos (marcar pulsos) · Piano del estudiante con arreglo (grabación en el tono del arreglo, más lenta sin cambiar el tono; ES) |
 | `redactar-oa.js` | Libro: ✨ Redactar OA en Nueva evaluación y en la cabecera (solo cursos; DS) · llamada a Gemini compartida |
 | `citar.js` | ❝ Citar de 📚 Estudios: Cursos del PC y Bitácora del celular (deuda EC) |
 | `rubrica-ia.js` | Libro: ✨ Proponer con IA en el editor de instrumentos y en Plantillas (solo cursos; DT) |

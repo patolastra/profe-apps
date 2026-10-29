@@ -7363,3 +7363,99 @@ sesión del curso en el Entrenador, cualquier canción de la Biblioteca o un tex
   Prueba (navegador, evaluación Karaoke de 8°): buscador con el repertorio de 8° arriba y la Biblioteca abajo; Grupo 1
   con canción y Grupo 2 con texto, guardados en la base y visibles al recargar en la tarjeta, Evaluar grupo,
   Resultados, Proyectar a pantalla completa y Evaluar del celular; después se dejaron vacíos como estaban. Sin errores.
+
+### ES. 🎹 Arreglo de piano: la armonía por compás de toda la canción + la melodía, con la grabación — HECHA (etapa 1)
+*Origen: PO 2026-10-29 ("un arreglo de piano completo de una canción que ya está en la Biblioteca: la armonía con una
+mano a lo largo de toda la canción y, donde va la melodía que ya existe, incluirla; con audio sincronizado y
+compartible con los estudiantes hasta una fecha límite"). Primera prueba de un tipo de material que después se repite.*
+- **Necesidad:** la pianista del taller necesita estudiar en la casa el arreglo entero de la canción, no solo la
+  melodía, tocando al ritmo de la grabación real.
+- **Auditoría:**
+  - **Editor de Melodías** (`MELODIA/index.html`): guarda un recurso `melodia` (`repertorio_assets.contenido` = JSON
+    en grados: `{ v, tempo, compas, fig, tonica, modo, inst, mano, notas: [[t, d, g, o, a, dig]] }`, t y d en
+    semicorcheas), un MIDI `melodia/<id>.mid` para el Metalófono (corrido de octava hasta caber) y el archivo público
+    `melodia/<id>.json` con alturas reales (`notas: [{ t, d, m, nombre, dig }]`, `mano`) para el Piano. Una sola mano
+    por melodía; la digitación (paso ④) es por instrumento.
+  - **Piano** (`PIANO/index.html`, enlace `p/?a=&n=`): estilo Synthesia sobre un teclado que se ajusta al rango; piano
+    sintetizado propio; − / + y 🔁 +5; colores por mano ya previstos (derecha verde, izquierda azul, `n.mano`); sin
+    grabación ni fecha límite.
+  - **Cantar** (`CANTAR/`, `cancion/<id>.json`): grabación Melodía / Karaoke con botón, y `hasta` (fecha límite) que la
+    Biblioteca escribe con el menú ✈ (`comun/compartir.js`, opción `plazo`).
+  - **Entrenador**: ya cambia el tono de la grabación con SoundTouch (`soundtouchjs@0.1.30`, ±6 semitonos).
+  - `repertorio_assets.tipo` no tiene restricción en la base (como `cajon`): un tipo nuevo `arreglo` no pide SQL.
+  - Canción elegida: **COQUETA**. Melodía "Mambo" (8 compases, 4/4, ♩120, La mayor, mano derecha, con digitación) y
+    dos grabaciones (Melodía y Karaoke, hoy en borrador). La grabación original está en **Mi**; el taller la toca en
+    **La♭**; la pianista la aprendió en **La**.
+- **Decisiones del PO (2026-10-29):**
+  - Armonía escrita como **acordes por compás**, en **secciones con su orden** (Intro, Estrofa, Coro, Mambo…); la
+    melodía va en su sección cada vez que aparece.
+  - **Etapa 1 pedagógica:** el estudiante aprende los acordes por compás (un acorde por compás, sostenido). Cada acorde
+    tiene **notas fijas (voicing)**: en una etapa posterior se le suma una rítmica con los mismos voicings.
+  - Todo para la pianista **en La** (su teclado quizá no tiene transpose): la grabación (Mi) se sube 5 semitonos. El
+    −1 del ensayo en el taller lo pone el profe en su teclado, no la app.
+  - Grabación: **Melodía y Karaoke con botón**, como en Cantar.
+  - **Recurso aparte** `🎹 Arreglo`, en el grupo **Piano** de la ficha de la canción. La melodía se **copia** al
+    arreglo (no queda vinculada): corregir la melodía después no cambia el arreglo.
+- **Plan propuesto:**
+  1. **Editor de Arreglos** (`ARREGLO/index.html`, pestaña cerrable del Workspace, se abre desde la ficha de la
+     canción: ＋ Arreglo en el grupo Piano, o el recurso):
+     - **Base:** tonalidad, compás y tempo; "Copiar melodía" trae una Melodía de la canción (sus notas y digitación).
+     - **Secciones:** nombre + acordes por compás escritos en texto (`A | E | F#m | D`, también `Am`, `D7`, `E/G#`);
+       cada acorde recibe su voicing para la mano izquierda (posición cercana entre acordes, editable ▲▼ por
+       inversión) y su digitación (sugerida 5-3-1, editable). Una casilla dice si la sección lleva la melodía.
+     - **Orden:** la lista de secciones como suenan.
+     - **Grabación:** se elige la de la canción (Melodía / Karaoke), su tono original (Mi → +5 hasta La) y dónde
+       empieza el compás 1 (tapeando con Espacio sobre la grabación los primeros pulsos: da el inicio y el tempo
+       exacto) + ajuste fino ± para que calce.
+     - Escucha con la grabación ya transpuesta y el piano sintetizado encima.
+     - Guarda el recurso (`tipo = 'arreglo'`, instrumento `piano`, `contenido` = JSON) y el archivo público
+       `arreglo/<id>.json` (todas las notas desplegadas con mano y dedo, secciones con su compás de inicio, las dos
+       grabaciones, +5, inicio y tempo).
+  2. **Piano del estudiante** (`PIANO/index.html`, enlace `p/?r=<id>&n=`): con un arreglo, las dos manos (izquierda
+     azul = acordes, derecha verde = melodía), el nombre del acorde sobre cada bloque, la sección que suena arriba y
+     saltar a una sección; la grabación con 🎤 Melodía / 🎶 Karaoke, en La, y velocidad lenta sin cambiar el tono
+     (SoundTouch, 50–100 %); 🎹 piano encendido o apagado encima. Respeta la fecha límite (`hasta`). Las melodías
+     solas (`?a=`) siguen igual.
+  3. **Biblioteca:** el recurso 🎹 Arreglo con su nombre de cortesía (`comun/nombre-asset.js`), ✈ con Copiar link · QR
+     · Guía QR y **📅 Disponible hasta** (solo publicados); el archivo público se renueva al guardar.
+  - Sin cambios en Supabase.
+  - Lugares (regla 11): Biblioteca (ficha de la canción), Editor de Arreglos, Piano (PC y celular), menú ✈.
+  - Fuera de esta etapa: la rítmica sobre los acordes, que la grabación cambie de tempo dentro de la canción (si se
+    corre, se marca compás por compás en una etapa siguiente), y verlo desde el Entrenador o el Plan.
+- **Decisión del PO (2026-10-29):** plan aprobado. Los acordes y el orden de Coqueta los escribe el PO en el editor
+  (para eso existe); la prueba se hizo con acordes inventados en un arreglo aparte, borrado al terminar.
+- **Hecho (2026-10-29):**
+  - `ARREGLO/index.html` (Editor de Arreglos): ① Base (tonalidad, compás, tempo con decimales; "Copiar" trae la
+    melodía elegida desde `melodia/<id>.json`, con sus dedos de piano); ② Secciones (nombre, acordes en texto —
+    letras o do re mi, `/` para el bajo, `%` repite, dos acordes en un compás—, "Lleva la melodía" desde el compás N,
+    aviso de lo que no entiende); ③ Orden (＋ por sección, ✕, arrastrar); ④ Acordes: cada acorde con sus notas para la
+    mano izquierda (la posición más cercana a la anterior, dentro de una octava, cerca de Sol 3), ▼ ▲ para cambiarla,
+    ♪ escuchar y dedos (5-3-1 o 5-2-1 sugeridos, editables); ↺ Recalcular todos; ⑤ Grabación: tono original → cuántos
+    semitonos se mueve (−6 a +6), "Compás 1 en" (seg) y tempo con − / +, y ⏺ Marcar pulsos (suena la grabación ya en el
+    tono del arreglo; Espacio en cada pulso desde el compás elegido; cuenta los pulsos saltados y calcula inicio y
+    tempo con una recta). La vista previa a la derecha es el Piano (`PIANO/?vista=editor`) al día con cada cambio.
+    Guarda `repertorio_assets` (`tipo 'arreglo'`, `instrumento 'piano'`, `contenido` = el arreglo) y el archivo público
+    `arreglo/<id>.json` (notas desplegadas con mano y dedo, acordes, secciones, grabaciones, semitonos, inicio, tempo y
+    `hasta` conservado). Borrador en el equipo y guardado al cerrar la pestaña, como el Editor de Melodías.
+  - `comun/grabacion-tono.js` (`GrabacionTono`): la grabación con SoundTouch (tono y velocidad), sabiendo qué segundo
+    se escucha (`oido`) y a qué hora sonará un segundo (`aCtx`), para dibujar y programar el piano a la par.
+  - `PIANO/index.html`: con `?r=` lee el arreglo; barra propia (Desde: sección · 🎤 Melodía / 🎶 Karaoke · velocidad
+    50–100 % · 🎹 piano encima); manos azul y verde, nombre del acorde sobre su bloque, línea y nombre de cada sección;
+    empieza un compás antes de la sección (la grabación hace de precuenta; sin grabación, clics); cambiar velocidad,
+    grabación o sección sonando sigue desde ahí; ✋ muestra las dos manos; fecha límite vencida → "estuvo disponible
+    hasta el …". Las melodías solas (`?a=`) siguen igual. `p/index.html` pasa `r`.
+  - Biblioteca (`REPERTORIO/index.html`): tipo 🎹 Arreglo en el grupo Piano ("+ Arreglo de piano" y en "+ Agregar
+    asset"), con 🏷, 🎹, ✏️ y ✈ (solo publicados) con 📅 Disponible hasta (`plazo` de `comun/compartir.js`, escribe
+    `hasta` en el archivo público; vencido, compartir de nuevo parte sin fecha); borrar el recurso o la canción borra
+    el archivo; el Entrenador lo esconde. `comun/nombre-asset.js`: "Arreglo de piano".
+  - Las grabaciones van aunque estén en borrador (las elige el profe en el arreglo); lo que se publica es el arreglo.
+  - Sin cambios en Supabase.
+  - Prueba (navegador, COQUETA, arreglo "PRUEBA borrar": Intro `A | % | D E | A` + Mambo con la melodía): melodía
+    copiada (8 compases, mano derecha); grabación en Mi → "se sube 5 semitonos para quedar en La"; acordes A (mi la
+    do♯), E (mi sol♯ si), F#m, D con dedos; vista previa sonando con la grabación a 120; pulsos simulados (con uno
+    saltado) → compás 1 en 3,209 s y tempo 121,26; guardado → `p/?r=` en celular horizontal (844×390): barra sin
+    desbordar, Desde: Mambo, 80 %, manos azul y verde, nombre de acordes y línea de la sección; ✈ con 📅 → fecha
+    28/10/2026 en el archivo y la página avisa "estuvo disponible hasta el 28/10/2026"; Piano de melodía sola igual que
+    antes. Arreglo de prueba y su archivo borrados. Sin errores.
+- **Pendiente / futuro:** la rítmica sobre los mismos acordes (etapa 2); si la grabación cambia de tempo, marcar
+  compás por compás; abrir arreglos desde el Entrenador o el Plan; probar el calce real con Coqueta y en un celular.

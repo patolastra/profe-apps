@@ -12,7 +12,8 @@
 // Se arma al vuelo con los datos del recurso (quien consulte la tabla debe pedir también clase y simplificado).
 (function () {
     const TIPO = { letra: 'Letra', audio: 'Audio', tab: 'Tab', metalofono: 'Metalófono',
-                   flauta: 'Flauta', cifrado: 'Cifrado', ritmo: 'Ritmo', melodia: 'Melodía', cajon: 'Cajón' };
+                   flauta: 'Flauta', cifrado: 'Cifrado', ritmo: 'Ritmo', melodia: 'Melodía', cajon: 'Cajón',
+                   arreglo: 'Arreglo de piano' };
     const DIFIC = { inicial: 'Inicial', media: 'Media', dificil: 'Difícil', experto: 'Experto' };
     // Clase del recurso (EP) y cómo se dice "simplificado" con cada una
     const CLASE = { armonia: ['Armonía', 'simplificada'], melodia: ['Melodía', 'simplificada'], riff: ['Riff', 'simplificado'],

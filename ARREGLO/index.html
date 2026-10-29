@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de Arreglos</title>
+<!--
+  Editor de Arreglos de piano (deuda ES). Un arreglo es la canción entera para piano:
+    · Secciones (Intro, Estrofa, Coro, Mambo…) con un acorde por compás, escritos en texto: A | E | F#m | D
+      (dos acordes en un compás: "A E"; % repite el anterior). Etapa 1: cada acorde se sostiene su compás.
+    · Orden: las secciones como suenan.
+    · Acordes para la mano izquierda: cada acorde tiene notas fijas (voicing) y dedos, iguales en toda la canción.
+    · Melodía: copia de una Melodía de la canción (Editor de Melodías), para la mano derecha, en las secciones
+      que la llevan. Es copia: corregir la melodía después no cambia el arreglo.
+    · Grabación: la de la canción (Melodía / Karaoke), con su tono original y cuántos semitonos se mueve para
+      quedar en la tonalidad del arreglo; dónde empieza el compás 1 y el tempo (marcando pulsos con Espacio).
+  Se guarda como recurso `arreglo` de la canción (repertorio_assets.contenido = este JSON) y el archivo público
+  repertorio-assets/arreglo/<id>.json con todas las notas desplegadas, que lee el Piano del estudiante (PIANO/?r=).
+  La vista previa a la derecha es el mismo Piano (PIANO/?vista=editor), al día con cada cambio.
+  Dirección: ?cancion=<id> (nuevo) · ?asset=<id> (editar).
+-->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
+<script src="../comun/grabacion-tono.js"></script>
+<style>
+    :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+    body { display: flex; flex-direction: column; }
+    button, input, select, textarea { font: inherit; color: inherit; }
+
+    /* Barra superior (estable: anchos fijos) */
+    #barra { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--borde); }
+    #cancion { width: 260px; min-width: 60px; flex-shrink: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #etiqueta { width: 200px; min-width: 90px; flex-shrink: 1; height: 34px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 0 10px; font-size: 14px; }
+    .sep { flex: 1; }
+    #estado { flex: 0 0 auto; width: 110px; text-align: right; color: var(--tenue); font-size: 13px; }
+    #b-guardar { flex: 0 0 auto; height: 34px; width: 110px; border-radius: 8px; border: 1px solid #22c55e; background: #15803d; color: #fff; cursor: pointer; font-weight: 600; }
+    #b-guardar:disabled { opacity: .45; cursor: default; }
+
+    #cuerpo { flex: 1 1 auto; min-height: 0; display: flex; }
+    #form { flex: 0 0 540px; overflow-y: auto; padding: 12px; border-right: 1px solid var(--borde); }
+    #vista { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+    #vista-tit { flex: 0 0 auto; padding: 6px 12px; font-size: 13px; color: var(--tenue); border-bottom: 1px solid var(--borde); }
+    #vista iframe { flex: 1 1 auto; border: 0; width: 100%; background: #0b1020; }
+
+    .card { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+    .card h3 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+    .card h3 small { font-weight: 400; color: var(--tenue); font-size: 12px; }
+    .fila { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; font-size: 14px; }
+    .fila > span:first-child { color: var(--tenue); }
+    .ayuda { color: var(--tenue); font-size: 12px; margin: 4px 0; line-height: 1.4; }
+    .btn { height: 30px; padding: 0 10px; border-radius: 7px; border: 1px solid #475569; background: #334155; cursor: pointer; font-size: 13px; white-space: nowrap; }
+    .btn:hover { background: #475569; }
+    .btn.on { background: #0e7490; border-color: var(--acento); }
+    .btn:disabled { opacity: .4; cursor: default; }
+    select, input[type=number], input[type=text] { height: 30px; background: #0f172a; border: 1px solid #475569; border-radius: 7px; padding: 0 8px; }
+    input[type=number] { width: 84px; }
+    .seg { display: flex; gap: 2px; }
+
+    .sec { border: 1px solid var(--borde); border-radius: 8px; padding: 8px; margin-bottom: 8px; background: #172033; }
+    .sec-cab { display: flex; align-items: center; gap: 6px; }
+    .sec-cab input[type=text] { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+    .sec textarea { width: 100%; margin-top: 6px; min-height: 52px; resize: vertical; background: #0f172a; border: 1px solid #475569; border-radius: 7px;
+        padding: 6px 8px; font-family: ui-monospace, Consolas, monospace; font-size: 15px; }
+    .sec-info { font-size: 12px; color: var(--tenue); margin-top: 4px; }
+    .sec-info .mal { color: #f87171; }
+    .sec-mel { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--tenue); margin-top: 6px; }
+    .sec-mel input[type=number] { width: 56px; height: 26px; }
+
+    #orden { display: flex; flex-wrap: wrap; gap: 6px; min-height: 36px; padding: 6px; border: 1px dashed #475569; border-radius: 8px; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; border-radius: 16px; background: #0e7490; font-size: 13px; cursor: grab; user-select: none; }
+    .chip button { border: 0; background: rgba(0,0,0,.25); color: #fff; width: 20px; height: 20px; border-radius: 10px; cursor: pointer; font-size: 11px; line-height: 1; }
+    .chip.arrastrando { opacity: .4; }
+    #orden-add { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+    #acordes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .aco { border: 1px solid var(--borde); border-radius: 8px; padding: 6px; background: #172033; text-align: center; }
+    .aco b { font-size: 16px; }
+    .aco svg { width: 100%; height: 54px; display: block; margin: 4px 0; }
+    .aco .ctr { display: flex; justify-content: center; gap: 4px; }
+    .aco .ctr .btn { height: 26px; padding: 0 7px; }
+    .aco input { width: 70px; height: 26px; text-align: center; margin-top: 4px; }
+
+    #tap { display: none; margin-top: 8px; padding: 10px; border-radius: 8px; background: #7c2d12; text-align: center; }
+    #tap.on { display: block; }
+    #tap-n { font-size: 28px; font-weight: 800; }
+
+    #toast { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); background: #0b1222; border: 1px solid #475569;
+        padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 30; max-width: 80vw; }
+    #toast.on { opacity: 1; }
+    #sin { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; padding: 30px; color: var(--tenue); background: var(--bg); z-index: 40; }
+</style>
+</head>
+<body>
+<div id="barra">
+    <div id="cancion">🎹 Arreglo</div>
+    <input id="etiqueta" placeholder="Detalle (opcional)" title="Detalle del arreglo, p. ej. 'para el taller'">
+    <div class="sep"></div>
+    <div id="estado"></div>
+    <button id="b-guardar">Guardar</button>
+</div>
+<div id="cuerpo">
+    <div id="form">
+        <div class="card">
+            <h3>① Base</h3>
+            <div class="fila"><span>Tonalidad</span><select id="tonica"></select>
+                <div class="seg" id="seg-modo"><button class="btn" data-v="mayor">Mayor</button><button class="btn" data-v="menor">Menor</button></div></div>
+            <div class="fila"><span>Compás</span><div class="seg" id="seg-compas"><button class="btn" data-v="2">2/4</button><button class="btn" data-v="3">3/4</button><button class="btn" data-v="4">4/4</button></div>
+                <span>Tempo ♩</span><input id="tempo" type="number" min="30" max="240" step="0.01"></div>
+            <div class="fila"><span>Melodía</span><select id="mel-elegir"></select><button class="btn" id="b-copiar-mel">Copiar</button></div>
+            <div class="ayuda" id="mel-info"></div>
+        </div>
+
+        <div class="card">
+            <h3>② Secciones <small>un acorde por compás, separados por |</small></h3>
+            <div id="secciones"></div>
+            <button class="btn" id="b-nueva-sec">＋ Sección</button>
+            <div class="ayuda">Ejemplo: <code>A | E | F#m | D</code> · dos acordes en un compás: <code>A E</code> · <code>%</code> repite el anterior · también do re mi: <code>La | Mi | Fa#m</code>.</div>
+        </div>
+
+        <div class="card">
+            <h3>③ Orden <small>arrastra para ordenar</small></h3>
+            <div id="orden"></div>
+            <div id="orden-add"></div>
+            <div class="ayuda" id="orden-info"></div>
+        </div>
+
+        <div class="card">
+            <h3>④ Acordes (mano izquierda) <small>mismas notas en toda la canción</small></h3>
+            <div id="acordes"></div>
+            <div class="fila"><button class="btn" id="b-recalcular" title="Vuelve a elegir las notas de todos los acordes, cercanas entre sí">↺ Recalcular todos</button></div>
+        </div>
+
+        <div class="card">
+            <h3>⑤ Grabación</h3>
+            <div class="ayuda" id="audio-info"></div>
+            <div class="fila"><span>Tono original</span><select id="original"></select><span id="semis"></span></div>
+            <div class="fila"><span>Compás 1 en</span><button class="btn" data-ini="-0.05">−</button><input id="inicio" type="number" step="0.01" min="0"><button class="btn" data-ini="0.05">+</button><span>seg</span></div>
+            <div class="fila"><span>Tempo ♩</span><button class="btn" data-bpm="-0.05">−</button><span id="tempo2"></span><button class="btn" data-bpm="0.05">+</button></div>
+            <div class="fila"><span>Marcar pulsos desde el segundo</span><input id="tap-desde" type="number" min="0" step="1" value="0">
+                <span>empezando en el compás</span><input id="tap-compas" type="number" min="1" step="1" value="1" style="width:56px"></div>
+            <div class="fila"><button class="btn" id="b-tap">⏺ Marcar pulsos</button></div>
+            <div id="tap"><div>Toca <b>Espacio</b> en cada pulso, desde el tiempo 1 del compás elegido. Enter o ■ para terminar.</div>
+                <div id="tap-n">0</div><button class="btn" id="b-tap-fin">■ Terminar</button></div>
+            <div class="ayuda">Después ajusta con − / + mirando la vista previa: las notas deben caer justo con la grabación.</div>
+        </div>
+    </div>
+    <div id="vista">
+        <div id="vista-tit">Vista previa — así lo ve el estudiante</div>
+        <iframe id="previa" src="../PIANO/index.html?vista=editor" title="Vista previa"></iframe>
+    </div>
+</div>
+<div id="toast"></div>
+<div id="sin">Abre el Editor de Arreglos desde la ficha de una canción en la Biblioteca (grupo 🎹 Piano → ＋ Arreglo).</div>
+
+<script>
+'use strict';
+const PARAMS = new URLSearchParams(location.search);
+const sb = (() => { try { return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON); } catch (_) { return null; } })();
+const BUCKET = 'repertorio-assets';
+const publica = p => `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${p}`;
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+let assetId = PARAMS.get('asset') || null;
+let cancionId = PARAMS.get('cancion') || null;
+let cancionNombre = '';
+let melodias = [];              // melodías de la canción: { id, etiqueta, tonalidad }
+let audios = { melodia: null, karaoke: null };   // dirección pública de cada grabación
+let contenidoBase = '', etiquetaBase = '';
+
+// ══ El arreglo ══════════════════════════════════════════════════════════════════════════
+const A = {
+    v: 1, tempo: 120, compas: 4, tonica: 'C', modo: 'mayor',
+    melodia: null,              // { origen, etiqueta, tonalidad, mano, notas: [{ t, d, m, nombre, dedo }] } (t, d en semicorcheas)
+    secciones: [],              // { id, nombre, acordes (texto), melodia (bool), melDesde (compás) }
+    orden: [],                  // ids de secciones
+    voicings: {},               // nombre del acorde → { m: [midi…] de grave a agudo, dedos: [5, 3, 1] }
+    audio: { original: 'C', inicio: 0 },
+};
+
+// ══ Tonalidad y nombres ═════════════════════════════════════════════════════════════════
+const TONICAS = {
+    mayor: ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'],
+    menor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'],
+};
+const TODAS = ['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+const LET = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const SOLF_LET = { do: 'C', re: 'D', mi: 'E', fa: 'F', sol: 'G', la: 'A', si: 'B' };
+const LET_SOLF = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
+const pcDe = t => (LET[t[0]] + (t[1] === '#' ? 1 : t[1] === 'b' ? -1 : 0) + 12) % 12;
+const nombreTon = t => LET_SOLF[t[0]] + (t[1] === '#' ? '♯' : t[1] === 'b' ? '♭' : '');
+const nombreTonalidad = () => `${nombreTon(A.tonica)} ${A.modo}`;
+const BEM = { mayor: ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb'], menor: ['D', 'G', 'C', 'F', 'Bb', 'Eb'] };
+const SOL_S = ['do', 'do♯', 're', 're♯', 'mi', 'fa', 'fa♯', 'sol', 'sol♯', 'la', 'la♯', 'si'];
+const SOL_B = ['do', 're♭', 're', 'mi♭', 'mi', 'fa', 'sol♭', 'sol', 'la♭', 'la', 'si♭', 'si'];
+const nombreNota = m => (BEM[A.modo].includes(A.tonica) ? SOL_B : SOL_S)[m % 12];
+// Semitonos que se mueve la grabación para quedar en la tonalidad del arreglo (lo más corto: −6 a +6)
+function semitonos() {
+    let d = (pcDe(A.tonica) - pcDe(A.audio.original) + 12) % 12;
+    return d > 6 ? d - 12 : d;
+}
+
+// ══ Acordes ═════════════════════════════════════════════════════════════════════════════
+const CALIDAD = {
+    '': [0, 4, 7], M: [0, 4, 7], m: [0, 3, 7], '-': [0, 3, 7], min: [0, 3, 7],
+    7: [0, 4, 7, 10], maj7: [0, 4, 7, 11], M7: [0, 4, 7, 11], '7M': [0, 4, 7, 11], m7: [0, 3, 7, 10], '-7': [0, 3, 7, 10],
+    dim: [0, 3, 6], '°': [0, 3, 6], dim7: [0, 3, 6, 9], '°7': [0, 3, 6, 9], m7b5: [0, 3, 6, 10], 'ø': [0, 3, 6, 10],
+    aug: [0, 4, 8], '+': [0, 4, 8], sus4: [0, 5, 7], sus: [0, 5, 7], sus2: [0, 2, 7], 6: [0, 4, 7, 9], m6: [0, 3, 7, 9],
+    add9: [0, 2, 4, 7], madd9: [0, 2, 3, 7], 5: [0, 7],
+};
+// "F#m", "Fa#m", "E/G#" → { nombre: 'F#m', pcs: [6, 9, 1], bajo: null | pc } (null si no se entiende)
+function leerNota(s) {
+    const so = s.match(/^(do|re|mi|fa|sol|la|si)/i);
+    if (so) s = SOLF_LET[so[1].toLowerCase()] + s.slice(so[1].length);
+    const m = s.match(/^([A-G])([#b]?)(.*)$/);
+    return m ? { letra: m[1] + m[2], pc: pcDe(m[1] + m[2]), resto: m[3] } : null;
+}
+function leerAcorde(tok) {
+    const s = tok.trim().replace(/♯/g, '#').replace(/♭/g, 'b');
+    const [prin, baj] = s.split('/');
+    const r = leerNota(prin);
+    if (!r || !(r.resto in CALIDAD)) return null;
+    let pcs = [...new Set(CALIDAD[r.resto].map(i => (r.pc + i) % 12))];
+    let bajo = null, nombre = r.letra + r.resto;
+    if (baj !== undefined) {
+        const b = leerNota(baj);
+        if (!b || b.resto) return null;
+        bajo = b.pc; nombre += '/' + b.letra;
+        if (!pcs.includes(bajo)) pcs = [bajo, ...pcs];
+    }
+    return { nombre, pcs, bajo };
+}
+// Compases de una sección: [[nombre…], …] y los que no se entendieron
+function compasesDe(sec) {
+    const malos = [], compases = [];
+    let previo = null;
+    for (const c of String(sec.acordes || '').split(/[|\n]/)) {
+        const toks = c.trim().split(/\s+/).filter(Boolean);
+        if (!toks.length) continue;
+        const nombres = toks.map(t => {
+            if (t === '%' || t === '-') return previo;
+            const a = leerAcorde(t);
+            if (!a) { malos.push(t); return null; }
+            return (previo = a.nombre);
+        }).filter(Boolean);
+        compases.push(nombres);
+    }
+    return { compases, malos };
+}
+const acordePorNombre = n => leerAcorde(n);
+
+// Posiciones posibles de un acorde para una mano (de grave a agudo, sin pasar de una octava)
+function candidatos(nombre) {
+    const ac = acordePorNombre(nombre);
+    if (!ac) return [];
+    const { pcs, bajo } = ac;
+    const lista = [];
+    for (const maxSpan of [12, 16]) {
+        for (let k = 0; k < pcs.length; k++) {
+            const ord = pcs.slice(k).concat(pcs.slice(0, k));
+            if (bajo !== null && ord[0] !== bajo) continue;
+            for (let low = 40; low <= 62; low++) {
+                if (low % 12 !== ord[0]) continue;
+                const ns = [low];
+                for (const pc of ord.slice(1)) { let x = ns[ns.length - 1] + 1; while (x % 12 !== pc) x++; ns.push(x); }
+                if (ns[ns.length - 1] - low <= maxSpan && ns[ns.length - 1] <= 69) lista.push(ns);
+            }
+        }
+        if (lista.length) break;
+    }
+    const prom = v => v.reduce((s, x) => s + x, 0) / v.length;
+    return lista.sort((a, b) => prom(a) - prom(b));
+}
+function dedosAuto(ns) {
+    if (ns.length === 1) return [3];
+    if (ns.length === 2) return [5, 1];
+    if (ns.length === 3) return ns[1] - ns[0] >= 5 ? [5, 2, 1] : [5, 3, 1];
+    return ns.length === 4 ? [5, 3, 2, 1] : [5, 4, 3, 2, 1].slice(0, ns.length);
+}
+// La posición más cercana a la anterior (la mano se mueve poco); la primera, alrededor de Sol 3
+function voicingAuto(nombre, previo) {
+    const cs = candidatos(nombre);
+    if (!cs.length) return null;
+    const prom = v => v.reduce((s, x) => s + x, 0) / v.length;
+    const dist = v => !previo ? Math.abs(prom(v) - 55)
+        : v.length === previo.length ? v.reduce((s, x, i) => s + Math.abs(x - previo[i]), 0) + Math.abs(prom(v) - 55) * 0.3
+        : Math.abs(prom(v) - prom(previo)) * v.length;
+    const m = cs.reduce((a, b) => dist(b) < dist(a) ? b : a);
+    return { m, dedos: dedosAuto(m) };
+}
+// Acordes en el orden en que suenan
+function secuencia() {
+    const out = [];
+    for (const id of A.orden) { const s = A.secciones.find(x => x.id === id); if (s) compasesDe(s).compases.forEach(c => out.push(...c)); }
+    for (const s of A.secciones) compasesDe(s).compases.forEach(c => out.push(...c));   // también las que aún no están en el orden
+    return out;
+}
+function completarVoicings(todos = false) {
+    if (todos) A.voicings = {};
+    let previo = null;
+    for (const n of secuencia()) {
+        if (!A.voicings[n]) { const v = voicingAuto(n, previo); if (v) A.voicings[n] = v; }
+        if (A.voicings[n]) previo = A.voicings[n].m;
+    }
+}
+
+// ══ Despliegue: todas las notas de la canción (lo que lee el Piano) ═════════════════════════
+function desplegar() {
+    const notas = [], acordes = [], secciones = [];
+    let p = 0;                                      // pulso
+    for (const id of A.orden) {
+        const s = A.secciones.find(x => x.id === id);
+        if (!s) continue;
+        const { compases } = compasesDe(s);
+        const ini = p;
+        for (const c of compases) {
+            const dur = A.compas / c.length;
+            c.forEach((nombre, i) => {
+                const v = A.voicings[nombre]; if (!v) return;
+                const t = (p + i * dur) * 4, d = dur * 4;
+                acordes.push({ t, d, nombre, ms: v.m });
+                v.m.forEach((m, k) => notas.push({ t, d, m, nombre: nombreNota(m), mano: 'izq', dig: v.dedos[k] ? { piano: v.dedos[k] } : {} }));
+            });
+            p += A.compas;
+        }
+        if (s.melodia && A.melodia) {
+            const off = (ini + (Math.max(1, s.melDesde || 1) - 1) * A.compas) * 4;
+            for (const n of A.melodia.notas) {
+                if (off + n.t >= p * 4) continue;    // lo que no cabe en la sección no suena
+                notas.push({ t: off + n.t, d: Math.min(n.d, p * 4 - off - n.t), m: n.m, nombre: n.nombre, mano: 'der', dig: n.dedo ? { piano: n.dedo } : {} });
+            }
+        }
+        secciones.push({ nombre: s.nombre || 'Sección', t: ini * 4, compases: compases.length });
+    }
+    notas.sort((a, b) => a.t - b.t || a.m - b.m);
+    return { notas, acordes, secciones, pulsos: p };
+}
+function datosPublicos(hasta) {
+    const d = desplegar();
+    return { v: 1, tipo: 'arreglo', cancion: cancionNombre, etiqueta: $('etiqueta').value.trim(), tempo: A.tempo, compas: A.compas,
+        tonalidad: nombreTonalidad(), notas: d.notas, acordes: d.acordes, secciones: d.secciones,
+        audio: (audios.melodia || audios.karaoke) ? { melodia: audios.melodia, karaoke: audios.karaoke, semitonos: semitonos(), inicio: A.audio.inicio } : null,
+        ...(hasta ? { hasta } : {}) };
+}
+
+// ══ Pintar ══════════════════════════════════════════════════════════════════════════════
+function pintarBase() {
+    const t = $('tonica');
+    t.innerHTML = TONICAS[A.modo].map(x => `<option value="${x}">${nombreTon(x)}</option>`).join('');
+    if (!TONICAS[A.modo].includes(A.tonica)) A.tonica = TONICAS[A.modo][0];
+    t.value = A.tonica;
+    document.querySelectorAll('#seg-modo button').forEach(b => b.classList.toggle('on', b.dataset.v === A.modo));
+    document.querySelectorAll('#seg-compas button').forEach(b => b.classList.toggle('on', +b.dataset.v === A.compas));
+    $('tempo').value = A.tempo;
+    $('mel-elegir').innerHTML = melodias.length
+        ? melodias.map(m => `<option value="${m.id}">${esc(m.etiqueta || 'Melodía')}${m.tonalidad ? ' · ' + esc(m.tonalidad) : ''}</option>`).join('')
+        : '<option value="">La canción no tiene melodías</option>';
+    if (A.melodia && melodias.some(m => m.id === A.melodia.origen)) $('mel-elegir').value = A.melodia.origen;
+    $('b-copiar-mel').disabled = !melodias.length;
+    const M = A.melodia;
+    if (!M) $('mel-info').textContent = 'Sin melodía: elige una y Cópiala para que vaya en las secciones que la llevan.';
+    else {
+        const comp = Math.ceil(Math.max(...M.notas.map(n => n.t + n.d)) / 4 / A.compas);
+        $('mel-info').textContent = `Copiada: ${M.etiqueta || 'Melodía'} · ${M.tonalidad || ''} · ${comp} ${comp === 1 ? 'compás' : 'compases'} · mano ${M.mano === 'izq' ? 'izquierda' : 'derecha'}`
+            + (M.tonalidad && M.tonalidad !== nombreTonalidad() ? ` — ojo: el arreglo está en ${nombreTonalidad()}` : '');
+    }
+}
+function pintarSecciones() {
+    $('secciones').innerHTML = A.secciones.map(s => {
+        const { compases, malos } = compasesDe(s);
+        return `<div class="sec" data-id="${s.id}">
+            <div class="sec-cab"><input type="text" data-c="nombre" value="${esc(s.nombre)}" placeholder="Nombre (Intro, Estrofa…)">
+                <button class="btn" data-acc="sumar" title="Agregar al final del orden">＋ al orden</button>
+                <button class="btn" data-acc="borrar" title="Borrar la sección">🗑</button></div>
+            <textarea data-c="acordes" placeholder="A | E | F#m | D" spellcheck="false">${esc(s.acordes)}</textarea>
+            <div class="sec-mel"><label><input type="checkbox" data-c="melodia" ${s.melodia ? 'checked' : ''} ${A.melodia ? '' : 'disabled'}> Lleva la melodía</label>
+                <span>desde el compás</span><input type="number" data-c="melDesde" min="1" value="${s.melDesde || 1}"></div>
+            <div class="sec-info">${compases.length} ${compases.length === 1 ? 'compás' : 'compases'}${malos.length ? ` · <span class="mal">No entiendo: ${esc(malos.join(', '))}</span>` : ''}</div>
+        </div>`;
+    }).join('') || '<div class="ayuda">Aún no hay secciones.</div>';
+}
+function pintarInfoSecciones() {
+    document.querySelectorAll('.sec').forEach(el => {
+        const s = A.secciones.find(x => x.id === el.dataset.id); if (!s) return;
+        const { compases, malos } = compasesDe(s);
+        el.querySelector('.sec-info').innerHTML = `${compases.length} ${compases.length === 1 ? 'compás' : 'compases'}${malos.length ? ` · <span class="mal">No entiendo: ${esc(malos.join(', '))}</span>` : ''}`;
+    });
+}
+function pintarOrden() {
+    $('orden').innerHTML = A.orden.map((id, i) => {
+        const s = A.secciones.find(x => x.id === id);
+        return s ? `<span class="chip" draggable="true" data-i="${i}">${esc(s.nombre || 'Sección')}<button data-quitar="${i}" title="Quitar">✕</button></span>` : '';
+    }).join('') || '<span class="ayuda">Agrega las secciones en el orden en que suenan.</span>';
+    $('orden-add').innerHTML = A.secciones.map(s => `<button class="btn" data-add="${s.id}">＋ ${esc(s.nombre || 'Sección')}</button>`).join('');
+    const d = desplegar();
+    const seg = Math.round(d.pulsos * 60 / A.tempo);
+    $('orden-info').textContent = d.pulsos ? `${d.pulsos / A.compas} compases · ${Math.floor(seg / 60)}:${String(seg % 60).padStart(2, '0')} al tempo ${A.tempo}` : '';
+}
+function svgAcorde(ms, dedos) {
+    const NEG = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
+    const blanca = m => Math.floor(m / 12) * 7 + [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6][m % 12];
+    const lo = blanca(Math.min(...ms)) - 1, hi = Math.max(lo + 9, blanca(Math.max(...ms)) + 1);
+    const n = hi - lo + 1, w = 140 / n;
+    let s = `<svg viewBox="0 0 140 54" xmlns="http://www.w3.org/2000/svg">`;
+    const aMidi = b => Math.floor(b / 7) * 12 + [0, 2, 4, 5, 7, 9, 11][b % 7];
+    for (let b = lo; b <= hi; b++) {
+        const m = aMidi(b), on = ms.indexOf(m);
+        s += `<rect x="${(b - lo) * w}" y="0" width="${w - 1}" height="52" rx="2" fill="${on >= 0 ? '#3b82f6' : '#f8fafc'}"/>`;
+        if (on >= 0 && dedos[on]) s += `<text x="${(b - lo) * w + w / 2}" y="44" text-anchor="middle" font-size="10" font-weight="800" fill="#fff">${dedos[on]}</text>`;
+    }
+    for (let b = lo; b < hi; b++) {
+        const m = aMidi(b) + 1;
+        if (!NEG[m % 12]) continue;
+        const on = ms.indexOf(m);
+        s += `<rect x="${(b - lo + 1) * w - w * 0.3}" y="0" width="${w * 0.6}" height="32" rx="2" fill="${on >= 0 ? '#1d4ed8' : '#111827'}"/>`;
+        if (on >= 0 && dedos[on]) s += `<text x="${(b - lo + 1) * w}" y="26" text-anchor="middle" font-size="9" font-weight="800" fill="#fff">${dedos[on]}</text>`;
+    }
+    return s + '</svg>';
+}
+function pintarAcordes() {
+    const usados = [...new Set(secuencia())];
+    $('acordes').innerHTML = usados.map(n => {
+        const v = A.voicings[n];
+        if (!v) return `<div class="aco"><b>${esc(n)}</b><div class="ayuda">sin posición</div></div>`;
+        return `<div class="aco" data-n="${esc(n)}"><b>${esc(n)}</b>${svgAcorde(v.m, v.dedos)}
+            <div class="ctr"><button class="btn" data-mov="-1" title="Más grave">▼</button><button class="btn" data-oir title="Escuchar">♪</button><button class="btn" data-mov="1" title="Más agudo">▲</button></div>
+            <input type="text" data-dedos value="${v.dedos.join(' ')}" title="Dedos, de la nota más grave a la más aguda (5 = meñique, 1 = pulgar)"></div>`;
+    }).join('') || '<div class="ayuda">Los acordes aparecen aquí al escribir las secciones.</div>';
+}
+function pintarAudio() {
+    const hay = [audios.melodia && '🎤 Melodía', audios.karaoke && '🎶 Karaoke'].filter(Boolean);
+    $('audio-info').textContent = hay.length ? `Grabaciones de la canción: ${hay.join(' y ')}. El estudiante cambia entre ellas con un botón.`
+        : 'La canción no tiene grabación: el arreglo sonará solo con el piano.';
+    $('original').innerHTML = TODAS.map(x => `<option value="${x}">${nombreTon(x)}</option>`).join('');
+    $('original').value = A.audio.original;
+    const s = semitonos();
+    $('semis').textContent = s ? `se ${s > 0 ? 'sube' : 'baja'} ${Math.abs(s)} semitono${Math.abs(s) === 1 ? '' : 's'} para quedar en ${nombreTon(A.tonica)}` : `ya está en ${nombreTon(A.tonica)}`;
+    $('inicio').value = A.audio.inicio;
+    $('tempo2').textContent = A.tempo;
+    document.querySelectorAll('#form [data-ini], #form [data-bpm], #b-tap, #original, #inicio').forEach(el => el.disabled = !hay.length);
+}
+function pintarTodo() { pintarBase(); pintarSecciones(); pintarOrden(); pintarAcordes(); pintarAudio(); cambio(); }
+
+// ══ Cambios ═════════════════════════════════════════════════════════════════════════════
+const contenidoActual = () => JSON.stringify(A);
+const hayCambios = () => contenidoActual() !== contenidoBase || $('etiqueta').value.trim() !== etiquetaBase;
+const claveBorrador = () => 'arreglo_borrador:' + (assetId || 'nuevo:' + cancionId);
+let previaT = null;
+function cambio() {
+    $('estado').textContent = guardando ? 'Guardando…' : hayCambios() ? 'Sin guardar' : (assetId ? 'Guardado' : '');
+    $('b-guardar').disabled = guardando || !hayCambios() || !A.orden.length;
+    try {
+        if (hayCambios()) localStorage.setItem(claveBorrador(), JSON.stringify({ base: contenidoBase, contenido: contenidoActual(), etiqueta: $('etiqueta').value }));
+        else localStorage.removeItem(claveBorrador());
+    } catch (_) {}
+    clearTimeout(previaT);
+    previaT = setTimeout(enviarPrevia, 150);
+}
+function enviarPrevia() {
+    try { $('previa').contentWindow.postMessage({ tipo: 'arreglo-datos', datos: datosPublicos() }, '*'); } catch (_) {}
+}
+$('previa').addEventListener('load', enviarPrevia);
+window.addEventListener('message', e => { if (e.data?.tipo === 'piano-listo') enviarPrevia(); });
+
+$('tonica').onchange = e => { A.tonica = e.target.value; pintarBase(); pintarAudio(); cambio(); };
+$('seg-modo').onclick = e => { const b = e.target.closest('button'); if (!b) return; A.modo = b.dataset.v; pintarBase(); pintarAudio(); cambio(); };
+$('seg-compas').onclick = e => { const b = e.target.closest('button'); if (!b) return; A.compas = +b.dataset.v; pintarBase(); pintarOrden(); cambio(); };
+$('tempo').onchange = e => { A.tempo = Math.max(30, Math.min(240, Math.round((+e.target.value || 120) * 100) / 100)); pintarBase(); pintarOrden(); pintarAudio(); cambio(); };
+$('etiqueta').oninput = cambio;
+
+// Melodía: se copia el archivo público de la melodía (alturas reales y dedos de piano)
+$('b-copiar-mel').onclick = async () => {
+    const id = $('mel-elegir').value; if (!id) return;
+    try {
+        const r = await fetch(publica(`melodia/${id}.json`) + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        A.melodia = { origen: id, etiqueta: j.etiqueta || melodias.find(m => m.id === id)?.etiqueta || '', tonalidad: j.tonalidad || '', mano: j.mano || 'der',
+            notas: (j.notas || []).map(n => ({ t: n.t, d: n.d, m: n.m, nombre: n.nombre, ...(n.dig?.piano || n.dig?.melodica ? { dedo: n.dig.piano || n.dig.melodica } : {}) })) };
+        if (!A.secciones.some(s => s.melodia) && A.secciones.length === 0) {
+            A.secciones.push({ id: genId(), nombre: A.melodia.etiqueta || 'Melodía', acordes: '', melodia: true, melDesde: 1 });
+        }
+        toast('Melodía copiada al arreglo');
+        pintarTodo();
+    } catch (err) { toast('No se pudo copiar la melodía: ' + (err.message || err)); }
+};
+
+// Secciones
+$('b-nueva-sec').onclick = () => {
+    A.secciones.push({ id: genId(), nombre: '', acordes: '', melodia: false, melDesde: 1 });
+    pintarSecciones(); pintarOrden();
+    $('secciones').lastElementChild?.querySelector('input')?.focus();
+    cambio();
+};
+$('secciones').addEventListener('input', e => {
+    const el = e.target.closest('[data-c]'), sec = e.target.closest('.sec'); if (!el || !sec) return;
+    const s = A.secciones.find(x => x.id === sec.dataset.id); if (!s) return;
+    const c = el.dataset.c;
+    if (c === 'melodia') s.melodia = el.checked;
+    else if (c === 'melDesde') s.melDesde = Math.max(1, Math.round(+el.value || 1));
+    else s[c] = el.value;
+    if (c === 'acordes') { completarVoicings(); pintarInfoSecciones(); pintarAcordes(); }
+    pintarOrden(); cambio();
+});
+$('secciones').addEventListener('click', e => {
+    const b = e.target.closest('[data-acc]'), sec = e.target.closest('.sec'); if (!b || !sec) return;
+    const id = sec.dataset.id;
+    if (b.dataset.acc === 'borrar') {
+        const s = A.secciones.find(x => x.id === id);
+        if ((s.acordes || '').trim() && !confirm(`¿Borrar la sección "${s.nombre || 'sin nombre'}"? También sale del orden.`)) return;
+        A.secciones = A.secciones.filter(x => x.id !== id);
+        A.orden = A.orden.filter(x => x !== id);
+        pintarSecciones(); pintarAcordes();
+    } else A.orden.push(id);
+    pintarOrden(); cambio();
+});
+
+// Orden: agregar, quitar y arrastrar
+$('orden-add').onclick = e => { const b = e.target.closest('[data-add]'); if (!b) return; A.orden.push(b.dataset.add); completarVoicings(); pintarOrden(); pintarAcordes(); cambio(); };
+$('orden').addEventListener('click', e => { const b = e.target.closest('[data-quitar]'); if (!b) return; A.orden.splice(+b.dataset.quitar, 1); pintarOrden(); cambio(); });
+let arrastre = null;
+$('orden').addEventListener('dragstart', e => { const c = e.target.closest('.chip'); if (!c) return; arrastre = +c.dataset.i; c.classList.add('arrastrando'); });
+$('orden').addEventListener('dragover', e => e.preventDefault());
+$('orden').addEventListener('drop', e => {
+    e.preventDefault();
+    if (arrastre === null) return;
+    const c = e.target.closest('.chip');
+    const destino = c ? +c.dataset.i : A.orden.length - 1;
+    const [x] = A.orden.splice(arrastre, 1);
+    A.orden.splice(destino, 0, x);
+    arrastre = null; pintarOrden(); cambio();
+});
+$('orden').addEventListener('dragend', () => { arrastre = null; document.querySelectorAll('.chip').forEach(c => c.classList.remove('arrastrando')); });
+
+// Acordes: mover la posición, escuchar y dedos
+$('acordes').addEventListener('click', e => {
+    const card = e.target.closest('.aco'); if (!card) return;
+    const n = card.dataset.n, v = A.voicings[n]; if (!v) return;
+    if (e.target.closest('[data-oir]')) { sonarAcorde(v.m); return; }
+    const mov = e.target.closest('[data-mov]'); if (!mov) return;
+    const cs = candidatos(n), prom = x => x.reduce((s, y) => s + y, 0) / x.length, p = prom(v.m);
+    const sig = +mov.dataset.mov > 0 ? cs.find(c => prom(c) > p + 0.01) : [...cs].reverse().find(c => prom(c) < p - 0.01);
+    if (!sig) return;
+    A.voicings[n] = { m: sig, dedos: dedosAuto(sig) };
+    sonarAcorde(sig);
+    pintarAcordes(); cambio();
+});
+$('acordes').addEventListener('change', e => {
+    const inp = e.target.closest('[data-dedos]'), card = e.target.closest('.aco'); if (!inp || !card) return;
+    const v = A.voicings[card.dataset.n]; if (!v) return;
+    const ds = inp.value.split(/[\s,]+/).map(Number).filter(x => x >= 1 && x <= 5);
+    v.dedos = v.m.map((_, i) => ds[i] || 0);
+    pintarAcordes(); cambio();
+});
+$('b-recalcular').onclick = () => { completarVoicings(true); pintarAcordes(); cambio(); };
+
+// ══ Sonido del editor (escuchar un acorde y marcar pulsos) ═══════════════════════════════
+let ctx = null, grab = null;
+function audio() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+}
+function sonarAcorde(ms) {
+    const c = audio(), t = c.currentTime + 0.02;
+    for (const m of ms) {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = 'triangle'; o.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+        o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 1.3);
+    }
+}
+// Grabación: tono, compás 1 y tempo
+$('original').onchange = e => { A.audio.original = e.target.value; pintarAudio(); cambio(); };
+$('inicio').onchange = e => { A.audio.inicio = Math.max(0, Math.round((+e.target.value || 0) * 1000) / 1000); pintarAudio(); cambio(); };
+document.querySelectorAll('[data-ini]').forEach(b => b.onclick = () => { A.audio.inicio = Math.max(0, Math.round((A.audio.inicio + +b.dataset.ini) * 1000) / 1000); pintarAudio(); cambio(); });
+document.querySelectorAll('[data-bpm]').forEach(b => b.onclick = () => { A.tempo = Math.round((A.tempo + +b.dataset.bpm) * 100) / 100; pintarBase(); pintarOrden(); pintarAudio(); cambio(); });
+
+let taps = null;
+$('b-tap').onclick = async () => {
+    const url = audios.melodia || audios.karaoke; if (!url) return;
+    try { $('previa').contentWindow.postMessage({ tipo: 'arreglo-detener' }, '*'); } catch (_) {}
+    try {
+        $('b-tap').disabled = true; toast('Cargando la grabación…');
+        grab = grab || GrabacionTono.crear(audio(), audio().destination);
+        await grab.cargar(url);
+        await grab.tocar(Math.max(0, +$('tap-desde').value || 0), semitonos(), 1);
+        grab.alTerminar = terminarTaps;
+        taps = []; $('tap-n').textContent = '0'; $('tap').classList.add('on');
+    } catch (err) { toast('No se pudo cargar la grabación: ' + (err.message || err)); }
+    finally { $('b-tap').disabled = false; }
+};
+document.addEventListener('keydown', e => {
+    if (!taps) return;
+    if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) { const s = grab.oido(); if (s !== null) { taps.push(s); $('tap-n').textContent = taps.length; } } }
+    else if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); terminarTaps(); }
+});
+$('b-tap-fin').onclick = terminarTaps;
+function terminarTaps() {
+    if (!taps) return;
+    grab?.detener();
+    const t = taps; taps = null;
+    $('tap').classList.remove('on');
+    if (t.length < 4) { toast('Faltan pulsos: marca al menos 4'); return; }
+    // Periodo con los primeros pulsos; cada toque se cuenta como el pulso más cercano (sirve aunque falten algunos)
+    const difs = t.slice(1, 6).map((x, i) => x - t[i]).sort((a, b) => a - b);
+    let per = difs[Math.floor(difs.length / 2)];
+    const k = t.map(x => Math.round((x - t[0]) / per));
+    // Recta por mínimos cuadrados: segundo = a + b · pulso
+    const n = t.length, sk = k.reduce((s, x) => s + x, 0), st = t.reduce((s, x) => s + x, 0);
+    const skk = k.reduce((s, x) => s + x * x, 0), skt = k.reduce((s, x, i) => s + x * t[i], 0);
+    const b = (n * skt - sk * st) / (n * skk - sk * sk), a = (st - b * sk) / n;
+    if (!(b > 0.2 && b < 2)) { toast('No se entendieron los pulsos, prueba de nuevo'); return; }
+    A.tempo = Math.round(6000 / b) / 100;
+    A.audio.inicio = Math.max(0, Math.round((a - (Math.max(1, +$('tap-compas').value || 1) - 1) * A.compas * b) * 1000) / 1000);
+    toast(`Compás 1 en ${A.audio.inicio.toFixed(2)} s · tempo ${A.tempo}`);
+    pintarBase(); pintarOrden(); pintarAudio(); cambio();
+}
+
+// ══ Guardar ═════════════════════════════════════════════════════════════════════════════
+let guardando = false;
+async function leerHasta(id) {
+    try {
+        const r = await fetch(publica(`arreglo/${id}.json`) + '?t=' + Date.now(), { cache: 'no-store' });
+        return r.ok ? ((await r.json()).hasta || null) : null;
+    } catch (_) { return null; }
+}
+async function subirJson(id) {
+    const hasta = await leerHasta(id);
+    const r = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/arreglo/${id}.json`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + SUPABASE_ANON, apikey: SUPABASE_ANON, 'x-upsert': 'true', 'Content-Type': 'application/json' },
+        body: JSON.stringify(datosPublicos(hasta)),
+    });
+    if (!r.ok) throw new Error('Archivo del arreglo: HTTP ' + r.status);
+}
+async function guardar() {
+    if (guardando || !hayCambios() || !A.orden.length) return true;
+    if (!sb) { toast('Sin conexión con la base de datos'); return false; }
+    guardando = true; cambio();
+    try {
+        const nuevo = !assetId, id = assetId || genId();
+        const etiqueta = $('etiqueta').value.trim();
+        await subirJson(id);
+        const fila = { tipo: 'arreglo', etiqueta, instrumento: 'piano', contenido: contenidoActual(), tonalidad: nombreTonalidad(),
+            storage_path: '', nombre_archivo: '' };
+        if (nuevo) {
+            const { data: hermanos } = await sb.from('repertorio_assets').select('orden').eq('cancion_id', cancionId);
+            const orden = Math.max(-1, ...(hermanos || []).map(h => h.orden || 0).filter(o => o < 1000)) + 1;
+            const { error } = await sb.from('repertorio_assets').insert({ id, cancion_id: cancionId, synced: '', orden, dificultad: '', ...fila });
+            if (error) throw error;
+        } else {
+            const { error } = await sb.from('repertorio_assets').update(fila).eq('id', id);
+            if (error) throw error;
+        }
+        try { localStorage.removeItem(claveBorrador()); } catch (_) {}
+        assetId = id; contenidoBase = fila.contenido; etiquetaBase = etiqueta;
+        if (nuevo) history.replaceState(null, '', `?asset=${id}`);
+        toast('Arreglo guardado en la Biblioteca');
+        return true;
+    } catch (err) {
+        toast('No se pudo guardar: ' + (err.message || err));
+        return false;
+    } finally { guardando = false; cambio(); }
+}
+$('b-guardar').onclick = guardar;
+document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); guardar(); } });
+// Workspace: al cerrar la pestaña se guarda lo pendiente
+window.addEventListener('message', e => {
+    if (e.data?.tipo !== 'ws-guardar' || e.source !== window.parent) return;
+    Promise.resolve(hayCambios() && A.orden.length ? guardar() : true).then(ok =>
+        window.parent.postMessage({ tipo: 'ws-guardado', reqId: e.data.reqId, ok: ok !== false }, '*'));
+});
+window.addEventListener('beforeunload', e => { if (hayCambios() && window.parent === window) { e.preventDefault(); e.returnValue = ''; } });
+
+let toastT = null;
+function toast(t) {
+    const el = $('toast'); el.textContent = t; el.classList.add('on');
+    clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2800);
+}
+
+// ══ Inicio ══════════════════════════════════════════════════════════════════════════════
+function cargarContenido(txt) {
+    const j = JSON.parse(txt);
+    Object.assign(A, j, { audio: { original: 'C', inicio: 0, ...(j.audio || {}) } });
+}
+async function iniciar() {
+    if (!assetId && !cancionId) { $('sin').style.display = 'flex'; return; }
+    try {
+        if (sb && assetId) {
+            const { data, error } = await sb.from('repertorio_assets').select('id, cancion_id, etiqueta, contenido').eq('id', assetId).single();
+            if (error) throw error;
+            cancionId = data.cancion_id;
+            etiquetaBase = data.etiqueta || '';
+            $('etiqueta').value = etiquetaBase;
+            if (data.contenido) { cargarContenido(data.contenido); contenidoBase = data.contenido; }
+        }
+        if (sb && cancionId) {
+            const [c, as] = await Promise.all([
+                sb.from('repertorio_canciones').select('nombre').eq('id', cancionId).single(),
+                sb.from('repertorio_assets').select('id, tipo, rol, etiqueta, tonalidad, storage_path, orden, created_at').eq('cancion_id', cancionId).in('tipo', ['melodia', 'audio']),
+            ]);
+            cancionNombre = c.data?.nombre || '';
+            const lista = (as.data || []).sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.created_at || '').localeCompare(String(b.created_at || '')));
+            melodias = lista.filter(a => a.tipo === 'melodia');
+            // Misma elección que el Entrenador (audioDe): Melodía = la de rol melodía; Karaoke = la de rol karaoke
+            const aud = lista.filter(a => a.tipo === 'audio' && a.storage_path);
+            const mel = aud.find(a => a.rol === 'melodia') || aud.find(a => a.rol !== 'karaoke') || null;
+            const kar = aud.find(a => a.rol === 'karaoke' && a !== mel) || null;
+            audios = { melodia: mel ? publica(mel.storage_path) : null, karaoke: kar ? publica(kar.storage_path) : null };
+            if (!assetId && melodias[0]) {       // arreglo nuevo: parte en la tonalidad y el tempo de la melodía
+                const r = await fetch(publica(`melodia/${melodias[0].id}.json`)).then(x => x.ok ? x.json() : null).catch(() => null);
+                if (r) { A.tempo = r.tempo || A.tempo; A.compas = r.compas || A.compas; }
+                const ton = (melodias[0].tonalidad || '').split(' ');
+                const letra = Object.entries(LET_SOLF).find(([, v]) => ton[0]?.startsWith(v));
+                if (letra) {
+                    A.modo = ton[1] === 'menor' ? 'menor' : 'mayor';
+                    const acc = ton[0].includes('♯') ? '#' : ton[0].includes('♭') ? 'b' : '';
+                    A.tonica = letra[0] + acc;
+                    A.audio.original = A.tonica;
+                }
+            }
+        }
+    } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }
+    if (!assetId) contenidoBase = contenidoActual();
+    try {
+        const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null');
+        if (b && b.base === contenidoBase) { cargarContenido(b.contenido); $('etiqueta').value = b.etiqueta || ''; toast('Se recuperó lo que no alcanzaste a guardar'); }
+    } catch (_) {}
+    $('cancion').textContent = '🎹 ' + (cancionNombre || 'Arreglo'); $('cancion').title = cancionNombre;
+    document.title = `${cancionNombre || 'Arreglo'} · Arreglo de piano`;
+    completarVoicings();
+    pintarTodo();
+}
+iniciar();
+</script>
+</body>
+</html>

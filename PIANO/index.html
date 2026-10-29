@@ -10,7 +10,13 @@
   y toca a la par en su instrumento. Velocidad como el Metalófono: − / + y 🔁 +5 por vuelta hasta un tope.
   Sin clave ni base de datos: lee el archivo público repertorio-assets/melodia/<id>.json que guarda el editor.
   Dirección: ?a=<id del recurso melodía>&n=<nombre visible> (enlace corto: p/?a=&n=).
+  Arreglo de piano (deuda ES): ?r=<id del recurso arreglo> lee repertorio-assets/arreglo/<id>.json (enlace corto
+  p/?r=&n=): las dos manos (izquierda azul = acordes con su nombre, derecha verde = melodía), las secciones, la
+  grabación de la canción (🎤 Melodía / 🎶 Karaoke) con el tono del arreglo y más lenta sin cambiar el tono
+  (comun/grabacion-tono.js), 🎹 el piano encima o no. Si trae `hasta` (fecha límite), después de ese día no se muestra.
+  ?vista=editor: la vista previa del Editor de Arreglos (ARREGLO/), que le manda los datos por mensaje.
 -->
+<script src="../comun/grabacion-tono.js"></script>
 <style>
     :root { --bg: #0b1020; --panel: #151c2f; --borde: #2a3550; --texto: #e2e8f0; --tenue: #94a3b8; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -69,6 +75,14 @@
         background: var(--panel); color: var(--texto); cursor: pointer; font-size: 15px; }
     #elegir-lista button:hover { background: #24304a; }
     #elegir-lista small { color: var(--tenue); margin-left: 6px; }
+    /* Arreglo (ES): controles propios; los de la melodía sola se esconden */
+    .solo-arr { display: none !important; }
+    body.arreglo .solo-arr { display: flex !important; }
+    body.arreglo .solo-mel, body.arreglo #mano { display: none !important; }
+    #sec { height: 34px; width: 150px; background: #24304a; color: var(--texto); border: 1px solid #3b4a6b; border-radius: 8px; padding: 0 6px; }
+    #b-rol { width: 112px; }
+    #b-rol.oculto { visibility: hidden; }
+    #vel { width: 48px; text-align: center; font-variant-numeric: tabular-nums; font-size: 15px; color: var(--texto); }
 </style>
 </head>
 <body>
@@ -76,8 +90,12 @@
     <button id="b-tocar" disabled>▶ Tocar</button>
     <div id="nombre">Piano</div>
     <div id="mano"></div>
-    <div class="grupo"><button class="btn" id="tempo-menos">−</button><span id="tempo">♩ 90</span><button class="btn" id="tempo-mas">+</button></div>
-    <div class="grupo"><button class="btn" id="b-repetir" title="Repetir la melodía subiendo 5 en cada vuelta, con precuenta entre vueltas. Al detener vuelve a la velocidad inicial.">🔁 +5</button>
+    <div class="grupo solo-arr"><select id="sec" title="Desde dónde tocar"></select></div>
+    <div class="grupo solo-arr"><button class="btn" id="b-rol" title="Cambiar entre la grabación con voz (Melodía) y sin voz (Karaoke)">🎤 Melodía</button></div>
+    <div class="grupo solo-arr"><button class="btn" id="vel-menos" title="Más lento">−</button><span id="vel">100%</span><button class="btn" id="vel-mas" title="Más rápido">+</button></div>
+    <div class="grupo solo-arr"><button class="btn" id="b-piano" title="Escuchar el piano encima de la grabación">🎹</button></div>
+    <div class="grupo solo-mel"><button class="btn" id="tempo-menos">−</button><span id="tempo">♩ 90</span><button class="btn" id="tempo-mas">+</button></div>
+    <div class="grupo solo-mel"><button class="btn" id="b-repetir" title="Repetir la melodía subiendo 5 en cada vuelta, con precuenta entre vueltas. Al detener vuelve a la velocidad inicial.">🔁 +5</button>
         <span id="tope-box">hasta <input id="tope" type="number" min="40" max="240" value="140"></span></div>
     <button class="btn" id="b-nombres" title="Mostrar el nombre de cada nota">do re mi</button>
     <button class="btn" id="b-pantalla" title="Pantalla completa">⛶</button>
@@ -196,6 +214,7 @@ function programarVuelta(inicio, b) {
     pintarBarra();
 }
 function tocar() {
+    if (ARR) { if (rep) detenerArr(); else tocarArr(); return; }
     if (vueltas.length) { detener(); return; }
     if (!MEL) return;
     bpmInicial = bpm;
@@ -210,6 +229,7 @@ function detener() {
 }
 // Pulso actual (negativo durante la precuenta) en la vuelta que está sonando
 function ahora() {
+    if (ARR) return { pulso: rep ? pulsoArr() : inicioSeccion() - 0.01, vuelta: null };
     if (!vueltas.length) return { pulso: -1, vuelta: null };
     const t = audio().currentTime;
     let v = vueltas[0];
@@ -231,6 +251,117 @@ function revisarVueltas(pulso, v) {
     // Las vueltas que ya pasaron se sueltan
     while (vueltas.length > 1 && audio().currentTime > vueltas[1].inicio + 0.5) vueltas.shift();
 }
+
+// ══ Arreglo (ES): la grabación manda el reloj; el piano sintetizado se programa por delante ══
+// Sin grabación, el reloj es el del audio con un compás de precuenta.
+let ARR = false;
+let rep = null;                 // { g (GrabacionTono) | null, t0, p0, desde, salida, piano (ganancia), hasta (pulso ya programado) }
+let velocidad = 1, rol = 'melodia', pianoOn = leer('piano_arr_piano', '1') === '1', secSel = 0;
+let grab = null;
+const spb = () => 60 / MEL.tempo;                                     // segundos por pulso en la grabación
+const srcDePulso = p => MEL.audio.inicio + p * spb();
+const pulsoDeSrc = s => (s - MEL.audio.inicio) / spb();
+const inicioSeccion = () => (MEL.secciones?.[secSel]?.t || 0) / 4;
+const audioUrl = () => MEL.audio && (MEL.audio[rol] || MEL.audio.melodia || MEL.audio.karaoke);
+function pulsoArr() {
+    if (!rep) return -1;
+    const c = audio();
+    if (rep.g) { const s = rep.g.oido(); return s === null ? rep.desde : pulsoDeSrc(s); }
+    return rep.p0 + (c.currentTime - (c.outputLatency || 0) - rep.t0) / (spb() / velocidad);
+}
+const ctxDePulso = p => rep.g ? rep.g.aCtx(srcDePulso(p)) : rep.t0 + (p - rep.p0) * spb() / velocidad;
+async function tocarArr(desde = null, precuenta = true) {
+    if (!MEL) return;
+    const c = audio();
+    if (desde === null) desde = inicioSeccion();
+    const salida = c.createGain(); salida.connect(c.destination);
+    const piano = c.createGain(); piano.gain.value = pianoOn ? 1 : 0; piano.connect(salida);
+    const p0 = precuenta ? desde - MEL.compas : desde;
+    const r = { g: null, t0: 0, p0, desde, salida, piano, hasta: p0 };
+    rep = r; pintarBarra();
+    const url = audioUrl();
+    if (url) {
+        try {
+            grab = grab || GrabacionTono.crear(c, c.destination);
+            const aviso = document.getElementById('aviso');
+            if (grab.url !== url) aviso.textContent = 'Cargando la grabación…';
+            await grab.cargar(url);
+            aviso.textContent = '';
+        } catch (_) { document.getElementById('aviso').textContent = 'No se pudo cargar la grabación.'; rep = null; pintarBarra(); return; }
+        if (rep !== r) return;
+        r.g = grab;
+        r.g.alTerminar = () => { if (rep === r) detenerArr(); };
+        await r.g.tocar(Math.max(0, srcDePulso(p0)), MEL.audio.semitonos || 0, velocidad);
+        if (rep !== r) { r.g.detener(); return; }
+        r.hasta = Math.max(p0, pulsoDeSrc(Math.max(0, srcDePulso(p0))));
+    } else {
+        r.t0 = c.currentTime + 0.12;
+        if (precuenta) for (let k = 0; k < MEL.compas; k++) clic(salida, r.t0 + k * spb() / velocidad, k === 0);
+    }
+}
+function detenerArr() {
+    if (!rep) return;
+    const c = audio();
+    rep.g?.detener();
+    try { rep.salida.gain.setValueAtTime(0, c.currentTime); rep.salida.disconnect(); } catch (_) {}
+    rep = null;
+    pintarBarra();
+}
+// Cambiar la velocidad, la grabación o la sección sonando: sigue desde donde iba (o desde la sección)
+function retomar(desdeSeccion = false) {
+    if (!rep) return;
+    const p = desdeSeccion ? null : Math.max(0, pulsoArr());
+    detenerArr();
+    tocarArr(p, desdeSeccion);
+}
+function tickArr() {
+    if (!rep || (!rep.g && !rep.t0)) return;
+    const c = audio(), p = pulsoArr();
+    if (rep.g && !rep.g.sonando) return;
+    const lim = p + 2;
+    if (lim > rep.hasta) {
+        for (const n of MEL.notas) {
+            const ini = n.t / 4;
+            if (ini < rep.hasta || ini >= lim) continue;
+            const t = ctxDePulso(ini);
+            if (t < c.currentTime - 0.05) continue;
+            notaPiano(rep.piano, n.m, Math.max(t, c.currentTime), n.d / 4 * spb() / velocidad * 0.95);
+        }
+        rep.hasta = lim;
+    }
+    if (p > largo + 0.5) detenerArr();
+}
+function pintarArr() {
+    document.getElementById('vel').textContent = Math.round(velocidad * 100) + '%';
+    const b = document.getElementById('b-rol');
+    b.textContent = rol === 'karaoke' ? '🎶 Karaoke' : '🎤 Melodía';
+    b.classList.toggle('oculto', !(MEL?.audio?.melodia && MEL?.audio?.karaoke));
+    document.getElementById('b-piano').classList.toggle('on', pianoOn);
+    document.getElementById('b-piano').style.visibility = MEL?.audio ? 'visible' : 'hidden';
+    document.getElementById('vel-menos').disabled = velocidad <= 0.5;
+    document.getElementById('vel-mas').disabled = velocidad >= 1;
+}
+function llenarSecciones() {
+    const cuenta = {};
+    const sel = document.getElementById('sec');
+    sel.innerHTML = (MEL.secciones || []).map((x, i) => {
+        cuenta[x.nombre] = (cuenta[x.nombre] || 0) + 1;
+        const veces = MEL.secciones.filter(y => y.nombre === x.nombre).length;
+        return `<option value="${i}">Desde: ${x.nombre.replace(/[<>&]/g, '')}${veces > 1 ? ' ' + cuenta[x.nombre] : ''}</option>`;
+    }).join('');
+    if (secSel >= (MEL.secciones || []).length) secSel = 0;
+    sel.value = secSel;
+}
+document.getElementById('sec').onchange = e => { secSel = +e.target.value; e.target.blur(); if (rep) retomar(true); };
+document.getElementById('b-rol').onclick = e => { e.target.blur(); rol = rol === 'karaoke' ? 'melodia' : 'karaoke'; pintarArr(); retomar(); };
+document.getElementById('vel-menos').onclick = e => { e.target.blur(); velocidad = Math.max(0.5, Math.round((velocidad - 0.1) * 10) / 10); pintarArr(); retomar(); };
+document.getElementById('vel-mas').onclick = e => { e.target.blur(); velocidad = Math.min(1, Math.round((velocidad + 0.1) * 10) / 10); pintarArr(); retomar(); };
+document.getElementById('b-piano').onclick = e => {
+    e.target.blur(); pianoOn = !pianoOn; anotar('piano_arr_piano', pianoOn ? '1' : '0');
+    if (rep) rep.piano.gain.setValueAtTime(pianoOn ? 1 : 0, audio().currentTime);
+    pintarArr();
+};
+setInterval(() => { if (ARR) tickArr(); }, 50);
 
 // ══ Dibujo ══════════════════════════════════════════════════════════════════════════════
 const cv = document.getElementById('lienzo'), g2 = cv.getContext('2d');
@@ -270,6 +401,14 @@ function dibujar() {
         if (y < 0 || y > yTecl) continue;
         g2.fillStyle = 'rgba(148,163,184,.18)'; g2.fillRect(0, y, W, 1);
     }
+    // Arreglo: dónde empieza cada sección
+    for (const sc of (ARR && MEL.secciones) || []) {
+        const y = yTecl - (sc.t / 4 - pulso) * pxPulso;
+        if (y < 0 || y > yTecl) continue;
+        g2.fillStyle = 'rgba(245,158,11,.75)'; g2.fillRect(0, y - 1, W, 2);
+        g2.font = '700 14px system-ui, sans-serif'; g2.textAlign = 'left'; g2.textBaseline = 'bottom';
+        g2.fillText(sc.nombre, 8, y - 4);
+    }
     // Notas que caen
     const activas = new Map();
     for (const n of MEL.notas) {
@@ -300,6 +439,21 @@ function dibujar() {
             g2.fillText(n.nombre, x + w / 2, f ? yb - r - 10 : yb);
         }
     }
+    // Arreglo: el nombre de cada acorde sobre su bloque (arriba del bloque o, si no se ve, arriba de la pantalla)
+    for (const a of (ARR && MEL.acordes) || []) {
+        const ini = a.t / 4, fin = (a.t + a.d) / 4;
+        const yAbajo = yTecl - (ini - pulso) * pxPulso, yArriba = yTecl - (fin - pulso) * pxPulso;
+        if (yAbajo < 0 || yArriba > yTecl) continue;
+        const ks = a.ms.map(tecla).filter(Boolean);
+        if (!ks.length) continue;
+        const x0 = Math.min(...ks.map(k => k.x)), x1 = Math.max(...ks.map(k => k.x + k.w));
+        const y = Math.min(Math.max(yArriba, 0) + 16, Math.min(yAbajo, yTecl) - 16);
+        g2.font = '800 15px system-ui, sans-serif'; g2.textAlign = 'center'; g2.textBaseline = 'middle';
+        const w = g2.measureText(a.nombre).width + 12;
+        g2.fillStyle = '#0b1020'; redondeado((x0 + x1) / 2 - w / 2, y - 11, w, 22, 6); g2.fill();
+        g2.strokeStyle = '#60a5fa'; g2.lineWidth = 1.5; g2.stroke();
+        g2.fillStyle = '#fff'; g2.fillText(a.nombre, (x0 + x1) / 2, y + 1);
+    }
     // Teclado
     g2.fillStyle = '#1e293b'; g2.fillRect(0, yTecl - 3, W, 3);
     for (const neg of [false, true]) for (const k of teclas) {
@@ -320,6 +474,11 @@ function dibujar() {
         }
     }
     // Precuenta en grande
+    if (ARR && rep && !rep.g && rep.t0 && pulso < rep.desde) {
+        const num = Math.floor(pulso - rep.p0) + 1;
+        g2.fillStyle = 'rgba(249,115,22,.9)'; g2.font = `800 ${Math.round(Math.min(120, yTecl * 0.4))}px system-ui, sans-serif`;
+        g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText(String(num), W / 2, yTecl / 2);
+    }
     if (vuelta && pulso < 0) {
         const num = Math.floor(pulso + MEL.compas) + 1;
         g2.fillStyle = 'rgba(249,115,22,.9)'; g2.font = `800 ${Math.round(Math.min(120, yTecl * 0.4))}px system-ui, sans-serif`;
@@ -331,14 +490,15 @@ function dibujar() {
 function pintarMano() {
     const mano = MEL?.mano || 'der';
     const el = document.getElementById('mano');
-    el.className = MEL ? mano : '';
+    el.className = MEL && !ARR ? mano : '';
     el.textContent = MEL ? '✋ ' + COLOR_MANO[mano].nombre : '';
     document.getElementById('b-dedos').style.display = MEL ? 'block' : 'none';
 }
 document.getElementById('b-dedos').onclick = e => {
     e.target.blur();
     const d = document.getElementById('dedos');
-    d.innerHTML = diagramaMano(MEL?.mano || 'der');
+    d.innerHTML = ARR ? `<div style="display:flex;gap:4vw">${['izq', 'der'].map(m => `<div style="text-align:center">${diagramaMano(m).replace('<p>Toca para cerrar</p>', '')}</div>`).join('')}</div><p>Toca para cerrar</p>`
+        : diagramaMano(MEL?.mano || 'der');
     d.classList.add('on');
 };
 document.getElementById('dedos').onclick = () => document.getElementById('dedos').classList.remove('on');
@@ -346,8 +506,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') document.get
 function pintarBarra() {
     const bt = document.getElementById('b-tocar');
     bt.disabled = !MEL;
-    bt.textContent = vueltas.length ? '■ Detener' : '▶ Tocar';
-    bt.classList.toggle('on', !!vueltas.length);
+    const suena = ARR ? !!rep : !!vueltas.length;
+    bt.textContent = suena ? '■ Detener' : '▶ Tocar';
+    bt.classList.toggle('on', suena);
     document.getElementById('tempo').textContent = '♩ ' + bpm;
     document.getElementById('b-repetir').classList.toggle('on', repetir);
     document.getElementById('tope-box').classList.toggle('on', repetir);
@@ -386,23 +547,52 @@ async function iniciar() {
     document.getElementById('tope').value = tope;
     medir();
     requestAnimationFrame(dibujar);
-    const id = Q.get('a');
+    const id = Q.get('a'), idArr = Q.get('r');
     const aviso = document.getElementById('aviso');
-    if (!id) { aviso.textContent = ''; elegirMelodia(); return; }
-    try {
-        const r = await fetch(`${STORAGE}melodia/${encodeURIComponent(id)}.json?t=${Date.now()}`, { cache: 'no-store' });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        MEL = await r.json();
-        if (!MEL.notas?.length) throw new Error('sin notas');
-    } catch (_) {
-        aviso.textContent = 'No se encontró la melodía. Pídele al profe el enlace de nuevo.';
+    // Vista previa del Editor de Arreglos: los datos llegan por mensaje
+    if (Q.get('vista') === 'editor') {
+        aviso.textContent = 'Escribe las secciones y el orden para ver el arreglo.';
+        window.addEventListener('message', e => {
+            if (e.source !== window.parent) return;
+            if (e.data?.tipo === 'arreglo-datos') aplicarDatos(e.data.datos);
+            if (e.data?.tipo === 'arreglo-detener') detenerArr();
+        });
+        try { window.parent.postMessage({ tipo: 'piano-listo' }, '*'); } catch (_) {}
         return;
     }
-    aviso.textContent = '';
-    bpm = bpmInicial = MEL.tempo || 90;
-    largo = Math.ceil(Math.max(...MEL.notas.map(n => (n.t + n.d) / 4)) / MEL.compas) * MEL.compas;
-    const ms = MEL.notas.map(n => n.m);
-    // La melodía al centro del teclado: un poco de aire a cada lado y, como mínimo, dos octavas a la vista
+    if (!id && !idArr) { aviso.textContent = ''; elegirMelodia(); return; }
+    let datos;
+    try {
+        const r = await fetch(`${STORAGE}${idArr ? 'arreglo' : 'melodia'}/${encodeURIComponent(idArr || id)}.json?t=${Date.now()}`, { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        datos = await r.json();
+        if (!datos.notas?.length) throw new Error('sin notas');
+    } catch (_) {
+        aviso.textContent = `No se encontró ${idArr ? 'el arreglo' : 'la melodía'}. Pídele al profe el enlace de nuevo.`;
+        return;
+    }
+    // Fecha límite (hasta = último día disponible, inclusive)
+    const d = new Date(), hoy = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (datos.hasta && hoy > datos.hasta) {
+        const [aa, mm, dd] = datos.hasta.split('-');
+        aviso.textContent = `${idArr ? 'Este arreglo' : 'Esta melodía'} estuvo disponible hasta el ${+dd}/${+mm}/${aa}.`;
+        return;
+    }
+    aplicarDatos(datos);
+}
+// Pone en pantalla una melodía o un arreglo (también cada vez que el editor manda cambios)
+function aplicarDatos(datos) {
+    const aviso = document.getElementById('aviso');
+    const primera = !MEL;
+    MEL = datos;
+    ARR = datos.tipo === 'arreglo';
+    document.body.classList.toggle('arreglo', ARR);
+    aviso.textContent = MEL.notas?.length ? '' : (ARR ? 'Escribe las secciones y el orden para ver el arreglo.' : '');
+    if (primera || !ARR) bpm = bpmInicial = MEL.tempo || 90;
+    largo = ARR ? (MEL.secciones || []).reduce((s, x) => s + x.compases * MEL.compas, 0)
+        : Math.ceil(Math.max(...MEL.notas.map(n => (n.t + n.d) / 4)) / MEL.compas) * MEL.compas;
+    const ms = MEL.notas.length ? MEL.notas.map(n => n.m) : [60, 72];
+    // La música al centro del teclado: un poco de aire a cada lado y, como mínimo, dos octavas a la vista
     // (se cuenta en teclas blancas, que son las que ocupan el ancho)
     const blanca = m => Math.floor(m / 12) * 7 + [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6][m % 12];
     const aMidi = w => Math.floor(w / 7) * 12 + [0, 2, 4, 5, 7, 9, 11][((w % 7) + 7) % 7];
@@ -411,10 +601,11 @@ async function iniciar() {
     desde = aMidi(lo); hasta = aMidi(hi);
     const nombre = Q.get('n') || [MEL.cancion, MEL.etiqueta].filter(Boolean).join(' — ') || 'Piano';
     document.getElementById('nombre').textContent = nombre;
-    document.title = nombre + ' · Piano';
+    document.title = nombre + (ARR ? ' · Arreglo de piano' : ' · Piano');
     medir();
     pintarBarra();
     pintarMano();
+    if (ARR) { llenarSecciones(); pintarArr(); }
 }
 // Sin melodía en la dirección (abierto por el profe desde el menú + del Workspace): lista de melodías.
 // Solo aquí se usa la base de datos; el enlace del estudiante (?a=) nunca la toca.
