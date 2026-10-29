@@ -598,8 +598,11 @@
         .ficha-sep { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
             padding: 8px 12px 4px; border-top: 1px dashed var(--border); background: #f8fafc; }
         .ficha-vacio { font-size: 0.78rem; color: var(--muted); padding: 8px 12px; }
-        .ficha-medios { padding-bottom: 8px; }
-        .ficha-medios #medios-lista, .ficha-medios #medios-form { padding: 0 10px; }
+        .ficha-medios { padding-bottom: 8px; border-top: 1px solid var(--border); }
+        .ficha-medios #medios-form { padding: 0 10px; }
+        .ficha-medios .med-vacio { padding: 8px 12px 2px; }
+        .med-fila .asset-grip { visibility: hidden; }
+        .ficha-lote > .med-ver { padding: 0 12px 8px; background: #fff; }
         .ficha-medios .btn-add-asset { margin: 4px 10px 0; width: calc(100% - 20px); }
         .sin-dific { font-size: 0.68rem; color: #b45309; font-style: italic; white-space: nowrap; }
         /* ── GRUPO TABLATURAS ── */
@@ -3782,7 +3785,6 @@ function fichaGruposHTML(c, assets) {
             + (pub.length && resto.length ? '<div class="ficha-sep">Borradores</div>' : '')
             + (resto.length ? `<div class="ficha-lote">${resto.map(item).join('')}</div>` : '')
             + (g.k === 'cancion' ? `<div class="ficha-medios" id="medios-cancion">
-                <div class="ficha-sep">Extractos y versiones</div>
                 <div id="medios-lista"><div class="med-vacio">Cargando…</div></div>
                 <div id="medios-form"></div>
                 <button class="btn-add-asset" onclick="abrirFormMedio()">+ Agregar extracto o versión</button>
@@ -3790,7 +3792,7 @@ function fichaGruposHTML(c, assets) {
         return `<div class="asset-group grupo-ficha" data-grupo="${g.k}">
             <div class="asset-group-header" onclick="toggleGrupoFicha('${g.k}')">
                 <div class="asset-group-left"><span class="asset-item-ico">${g.ico}</span><span class="asset-group-titulo">${g.t}</span>
-                    <span class="asset-group-count">${ver.length}${oculto ? ` / ${todos.length}` : ''}</span></div>
+                    <span class="asset-group-count" data-ver="${ver.length}" data-todos="${todos.length}">${ver.length}${oculto ? ` / ${todos.length}` : ''}</span></div>
                 <span class="asset-group-chevron">${plegado ? '▼' : '▲'}</span>
             </div>
             <div class="asset-group-body"${plegado ? ' style="display:none"' : ''}>${cuerpo}</div>
@@ -3902,28 +3904,39 @@ function pintarMediosCancion() {
         lista.innerHTML = '<div class="med-vacio">Sin extractos ni versiones todavía. Se agregan aquí (o soltando un archivo) o desde 📷 Subir del celular, y luego ✏️ en 📁 Archivos del curso.</div>';
         return;
     }
+    // Cada medio como una fila más de 🎵 Canción (PO 2026-10-29): EXTRACTO / VERSIÓN y, más chico, su parte;
+    // el nombre del archivo no se muestra (queda en el title).
+    const USO = { extracto: 'Extracto', version: 'Versión' };
     const fila = f => {
         const ctx = f.contextos?.nombre || '';
         const fecha = f.fecha ? f.fecha.split('-').reverse().slice(0, 2).join('/') : '';
         const ver = f.url
             ? `<a class="btn-icon" href="${escapar(f.url)}" target="_blank" rel="noopener" title="Abrir en ${f.url.includes('drive.google') ? 'Google Drive' : 'YouTube'}">🔗</a>`
             : `<button class="btn-icon" onclick="verMedio('${f.id}')" title="Escuchar / ver aquí">▶</button>`;
-        return `<div class="med-item" data-id="${f.id}">
-            <span>${MED_ICO[f.tipo] || '📎'}</span>
-            <span class="med-nom" title="${escapar(f.nombre)}">${f.uso === 'extracto' && f.parte ? `<b>${escapar(f.parte)}</b> · ` : ''}${escapar(f.nombre)}</span>
-            <span class="med-meta" title="${escapar(ctxLabel(ctx))}">${ctxMinimo(ctx)} ${fecha}${f.estudiantes?.length ? ` · 👥 ${f.estudiantes.length}` : ''}</span>
-            ${ver}
-            <button class="btn-icon" onclick="editarMedio('${f.id}')" title="Cambiar canción, tipo o estudiantes (📁 Archivos del curso)">✏️</button>
+        const titulo = USO[f.uso] || 'Archivo';
+        const sub = f.uso === 'extracto' ? (f.parte || '') : f.uso === 'version' ? (f.estudiantes?.length ? `👥 ${f.estudiantes.length} · no se comparte` : 'no se comparte') : f.nombre;
+        return `<div class="asset-item med-fila" data-medio="${f.id}" title="${escapar(f.nombre)}">
+            <span class="asset-grip">⋮⋮</span>
+            <div class="asset-item-ico">${MED_ICO[f.tipo] || '📎'}</div>
+            <div class="asset-item-info">
+                <div class="asset-item-tipo">${titulo}</div>
+                ${sub ? `<div class="asset-item-etiqueta">${escapar(sub)}</div>` : ''}
+            </div>
+            <div class="asset-item-actions">
+                <span class="med-meta" title="${escapar(ctxLabel(ctx))}">${ctxMinimo(ctx)} ${fecha}</span>
+                ${ver}
+                <button class="btn-icon" onclick="editarMedio('${f.id}')" title="Cambiar canción, tipo o estudiantes (📁 Archivos del curso)">✏️</button>
+            </div>
         </div><div class="med-ver" id="med-ver-${f.id}" hidden></div>`;
     };
-    const grupos = [['extracto', 'Extractos'], ['version', 'Versiones · no se comparten'], [null, 'Otros']];
-    // Extractos en el orden de la canción (según su parte; los sin parte o con otra, al final)
+    // Extractos en el orden de la canción (según su parte; los sin parte o con otra, al final); luego versiones y otros
     const posParte = f => { const i = mediosPartes.findIndex(p => p.toLowerCase() === String(f.parte || '').toLowerCase()); return f.parte ? (i < 0 ? 900 : i) : 999; };
-    lista.innerHTML = grupos.map(([u, t]) => {
-        const g = mediosCancion.filter(f => (f.uso || null) === u);
-        if (u === 'extracto') g.sort((a, b) => posParte(a) - posParte(b));
-        return g.length ? `<div class="med-grupo">${t} (${g.length})</div>${g.map(fila).join('')}` : '';
-    }).join('');
+    const orden = [...mediosCancion.filter(f => f.uso === 'extracto').sort((a, b) => posParte(a) - posParte(b)),
+        ...mediosCancion.filter(f => f.uso === 'version'), ...mediosCancion.filter(f => f.uso !== 'extracto' && f.uso !== 'version')];
+    lista.innerHTML = `<div class="ficha-lote">${orden.map(fila).join('')}</div>`;
+    // El número de 🎵 Canción cuenta también los extractos y versiones
+    const n = document.querySelector('.grupo-ficha[data-grupo="cancion"] .asset-group-count');
+    if (n) { const v = +n.dataset.ver + orden.length, t = +n.dataset.todos + orden.length; n.textContent = v === t ? v : `${v} / ${t}`; }
 }
 function verMedio(id) {
     const f = mediosCancion.find(x => x.id === id), cont = document.getElementById('med-ver-' + id);

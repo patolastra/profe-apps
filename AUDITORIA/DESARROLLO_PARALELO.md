@@ -7264,3 +7264,8 @@ a desordenarse"). Hoy: 125 fichas (102 canciones, 20 materiales, 3 estilos) y 31
   Prueba tras el SQL: guardar Armonía + Simplificado en una tablatura de Go Away queda en la base y el nombre sale
   "… · Guitarra · Armonía simplificada · Parte C · Inicial" (luego se dejó como estaba); las consultas del Plan,
   del selector de metalófono y del Lector con `clase, simplificado` responden bien.
+- **Ajuste (PO 2026-10-29, con capturas; "PERFECTO, queda todo para validar en uso real"):** los extractos y versiones
+  ya no van con títulos aparte ("Extractos y versiones" / "Extractos (2)"): son filas más de 🎵 Canción, como Letra y
+  Audio, con **EXTRACTO** (o VERSIÓN) y debajo, más chico, su parte ("Parte C"); el nombre del archivo no se muestra
+  (queda al pasar el mouse). Orden: extractos según las partes de la canción, luego versiones y otros. El número de
+  Canción los cuenta. Prueba: Go Away → Canción 4 (Letra, Audio, Extracto Parte C, Extracto Coro); ▶ reproduce ahí.
