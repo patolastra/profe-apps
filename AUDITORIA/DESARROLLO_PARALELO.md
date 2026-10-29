@@ -7320,3 +7320,5 @@ el plan"). Ya figuraba como siguiente paso del celular (DG/DH): "versión para a
   de la Biblioteca (los usa todo el sistema), solo deja de entregarse su dirección.
   Prueba (navegador): menú con 📅; fecha 28/10/2026 guardada en el archivo → la página avisa que estuvo disponible
   hasta el 28/10/2026; sin fecha → vuelve; estilo nuevo en 375×812 con el verso activo en naranjo; sin errores.
+- **Futuro (PO 2026-10-29):** fecha límite también para los otros recursos que se comparten (metalófono, piano,
+  tablaturas, cajón). La pieza `plazo` de `comun/compartir.js` ya sirve; falta que cada versión estudiante la respete.
