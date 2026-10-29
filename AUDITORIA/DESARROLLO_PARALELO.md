@@ -7194,3 +7194,18 @@ acerca al centro pero nunca queda al centro (centro derecha); la izquierda igual
   vuelta no cuenta. Es preferencia del equipo (parte encendida), no del ritmo. Las tres rayitas se abren más
   (≈ 57° entre cada una).
   Prueba (navegador): Cumbia 4/4 a 100 BPM → cuenta 1 2 3 4 y empieza; apagada empieza al tiro; rayitas en captura.
+
+---
+
+### EO. Celular — 📚 Biblioteca: buscador de canciones arriba de las sesiones — HECHA
+*Origen: PO 2026-10-29 ("en la sección Biblioteca de la PWA móvil necesito un buscador de canciones, arriba de todas
+las sesiones"). DECISIÓN del PO: busca en **toda la Biblioteca**, no solo en las sesiones.*
+- **Auditoría:** `REPERTORIO/index.html?movil=1` (`movilPintar`): pestañas Cursos / Otras sesiones → canciones de la
+  sesión → Entrenador. No había forma de buscar. Sin cambios en Supabase.
+- **Plan / hecho:** cuadro "🔍 Buscar canción…" arriba de las pestañas; al escribir, la lista muestra las canciones de
+  la Biblioteca (solo canciones, no estilos ni materiales) que calzan con el nombre o el artista, con los cursos o
+  sesiones donde está. Tocar una la abre dentro de su sesión (primero la del curso; deslizar pasa a la siguiente de
+  esa sesión) o, si no está en ninguna, sola. Atrás vuelve a la búsqueda tal como quedó; ✕ la borra.
+- Lugares: solo la Biblioteca del celular (`?movil=1`); el PC no cambia. Prueba (navegador, 375×812): "go" → 8
+  canciones con sus cursos (Go Away · Octavo, Taller de Cuerdas); Go Away se abre en la sesión de Octavo; Algoritmo
+  otra vez (sin sesión) se abre sola; atrás vuelve a la búsqueda "go"; pestañas ocultas mientras se busca; sin errores.

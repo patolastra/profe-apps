@@ -2094,6 +2094,13 @@
         #movil-inicio .mi-cab { display: flex; align-items: center; gap: 10px; padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 12px; }
         #movil-inicio .mi-cab a, #movil-inicio .mi-cab button { color: #f1f5f9; text-decoration: none; background: none; border: 0; font-size: 1.5rem; padding: 2px 8px; cursor: pointer; }
         #movil-inicio .mi-tit { font-size: 1.3rem; font-weight: 700; flex: 1; min-width: 0; }
+        #movil-inicio .mi-busca { position: relative; margin: 0 16px 10px; }
+        #movil-inicio .mi-busca input { width: 100%; box-sizing: border-box; padding: 12px 44px 12px 14px; background: #131c2e; color: #f1f5f9;
+            border: 1px solid #253455; border-radius: 12px; font: inherit; font-size: 1rem; outline: none; }
+        #movil-inicio .mi-busca input:focus { border-color: #3b82f6; }
+        #movil-inicio .mi-busca button { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 38px; height: 38px;
+            background: none; border: 0; color: #7a8ba8; font-size: 1.1rem; }
+        #movil-inicio .mi-busca button[hidden], #movil-inicio .mi-pest[hidden] { display: none; }
         #movil-inicio .mi-pest { display: flex; gap: 4px; margin: 0 16px 10px; padding: 4px; background: #131c2e; border: 1px solid #253455; border-radius: 12px; }
         #movil-inicio .mi-pest button { flex: 1; padding: 10px; border: 0; border-radius: 9px; background: none; color: #7a8ba8; font: inherit; font-weight: 600; }
         #movil-inicio .mi-pest button.on { background: #1a2540; color: #f1f5f9; }
@@ -9853,6 +9860,8 @@ TiempoReal.conectar(sb);
 // Deslizar ← → sobre la letra cambia de canción. ← del Entrenador vuelve a la lista de canciones.
 let movilSesion = null;            // id de la sesión cuya lista de canciones se ve
 let movilPestana = 'cursos';      // 'cursos' | 'otras' (PO 2026-10-25)
+let movilBusca = '';              // buscador de canciones de toda la Biblioteca (deuda EO)
+const normTxt = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const conCanciones = s => (s.canciones || []).length > 0;
 function movilSesionDe(cid) { return sesiones.find(s => s.contexto_id === cid && conCanciones(s)); }
 // Cursos: la sesión de cada curso (la primera con canciones). Otras: todas las demás sesiones con canciones.
@@ -9874,14 +9883,43 @@ function movilPintar() {
     if (!movilSesion) {
         const { cursos, otras } = movilListas();
         const fila = (id, txt, n) => `<button class="mi-it" data-ses="${escH(id)}"><span>${escH(txt)}</span><span class="mi-n">${n}</span></button>`;
-        const lista = movilPestana === 'cursos'
-            ? (cursos.length ? cursos.map(x => fila(x.s.id, info(x.ctx.nombre), x.s.canciones.length)).join('') : '<div class="mi-vacio">No hay cursos con canciones.</div>')
-            : (otras.length ? otras.map(s => fila(s.id, s.nombre || 'Sesión', s.canciones.length)).join('') : '<div class="mi-vacio">No hay otras sesiones.</div>');
+        // Con texto en el buscador la lista son las canciones que calzan; sin texto, las sesiones de la pestaña.
+        const sesionesDe = id => [...cursos.map(x => ({ s: x.s, txt: info(x.ctx.nombre) })), ...otras.map(s => ({ s, txt: s.nombre || 'Sesión' }))]
+            .filter(x => x.s.canciones.some(it => it.cancion_id === id));
+        const listaHTML = () => {
+            const q = normTxt(movilBusca.trim());
+            if (q) {
+                const hall = canciones.filter(c => (c.categoria || 'cancion') === 'cancion' && normTxt(`${c.nombre} ${c.artista || ''}`).includes(q))
+                    .sort((a, b) => a.nombre.localeCompare(b.nombre)).slice(0, 60);
+                return hall.length ? hall.map(c => { const en = sesionesDe(c.id);
+                    return `<button class="mi-it" data-c="${escH(c.id)}" data-ses="${escH(en[0]?.s.id || '')}"><span class="mi-ico">${(c.assets || []).some(a => a.tipo === 'audio') ? '🎵' : '📄'}</span>
+                        <span>${escH(c.nombre)}<span class="mi-sub">${escH([c.artista, en.map(x => x.txt).join(', ')].filter(Boolean).join(' · '))}</span></span></button>`; }).join('')
+                    : '<div class="mi-vacio">No hay canciones con ese nombre.</div>';
+            }
+            return movilPestana === 'cursos'
+                ? (cursos.length ? cursos.map(x => fila(x.s.id, info(x.ctx.nombre), x.s.canciones.length)).join('') : '<div class="mi-vacio">No hay cursos con canciones.</div>')
+                : (otras.length ? otras.map(s => fila(s.id, s.nombre || 'Sesión', s.canciones.length)).join('') : '<div class="mi-vacio">No hay otras sesiones.</div>');
+        };
         el.innerHTML = `<div class="mi-cab"><a href="../MOVIL/index.html" aria-label="Volver">←</a><span class="mi-tit">📚 Biblioteca</span></div>
-            <div class="mi-pest"><button type="button" data-p="cursos" class="${movilPestana === 'cursos' ? 'on' : ''}">Cursos</button><button type="button" data-p="otras" class="${movilPestana === 'otras' ? 'on' : ''}">Otras sesiones</button></div>
-            <div class="mi-lista">${lista}</div>`;
+            <div class="mi-busca"><input type="search" placeholder="🔍 Buscar canción…" autocomplete="off" enterkeyhint="search" value="${escH(movilBusca)}"><button type="button" aria-label="Borrar búsqueda"${movilBusca ? '' : ' hidden'}>✕</button></div>
+            <div class="mi-pest"${movilBusca.trim() ? ' hidden' : ''}><button type="button" data-p="cursos" class="${movilPestana === 'cursos' ? 'on' : ''}">Cursos</button><button type="button" data-p="otras" class="${movilPestana === 'otras' ? 'on' : ''}">Otras sesiones</button></div>
+            <div class="mi-lista"></div>`;
+        const lista = el.querySelector('.mi-lista'), inp = el.querySelector('.mi-busca input'), borrar = el.querySelector('.mi-busca button');
+        const pintarLista = () => {
+            lista.innerHTML = listaHTML();
+            const buscando = !!movilBusca.trim();
+            el.querySelector('.mi-pest').hidden = buscando; borrar.hidden = !movilBusca;
+            lista.querySelectorAll('[data-c]').forEach(b => b.onclick = () => {
+                inp.blur(); history.pushState({ movil: 'cancion' }, '');
+                if (b.dataset.ses) practicarSesion(b.dataset.ses, b.dataset.c); else abrirEntrenador(b.dataset.c);
+            });
+            lista.querySelectorAll('.mi-it:not([data-c])').forEach(b => b.onclick = () => { movilSesion = b.dataset.ses; history.pushState({ movil: 'sesion' }, ''); movilPintar(); });
+        };
+        inp.oninput = () => { movilBusca = inp.value; pintarLista(); };
+        inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };
+        borrar.onclick = () => { movilBusca = ''; inp.value = ''; pintarLista(); inp.focus(); };
         el.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { movilPestana = b.dataset.p; movilPintar(); });
-        el.querySelectorAll('[data-ses]').forEach(b => b.onclick = () => { movilSesion = b.dataset.ses; history.pushState({ movil: 'sesion' }, ''); movilPintar(); });
+        pintarLista();
         return;
     }
     const s = sesiones.find(x => x.id === movilSesion);
