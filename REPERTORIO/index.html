@@ -176,7 +176,9 @@
         #filtros-bar.una-linea #btn-lecciones:hover { color: #7c3aed; border-color: #7c3aed; }
         #filtros-bar.una-linea #btn-nueva { white-space: nowrap; margin-left: auto; }
         /* Nada se mueve al usar la barra: anchos fijos y el espacio de Practicar siempre reservado */
-        #filtros-bar.una-linea .cat-btn { white-space: nowrap; width: 132px; flex-shrink: 0; text-align: center; }
+        #filtros-bar.una-linea .cat-btn { white-space: nowrap; width: 116px; flex-shrink: 0; text-align: center; }
+        /* Pestañas del catálogo (EP): Canciones · Materiales · Estilos */
+        #cat-toggle { display: flex; gap: 4px; flex-shrink: 0; }
         #filtros-bar.una-linea #btn-practicar { width: 104px; flex-shrink: 0; text-align: center; }
         #filtros-bar.una-linea .filtro-sel { width: 140px; flex-shrink: 0; }
         #filtros-bar.una-linea #filtros-chips, #filtros-bar.una-linea #btn-nueva { flex-shrink: 0; }
@@ -2596,8 +2598,10 @@
 <!-- FILTROS -->
 <div id="filtros-bar">
     <div id="cat-toggle">
-        <!-- Un solo botón que va pasando: Todo → Canciones → Materiales (deuda BH) -->
-        <button class="cat-btn" id="btn-categoria" data-cat="todos" onclick="setCategoria(this)" title="Clic para cambiar: Todo → Canciones → Materiales → Estilos">Todo</button>
+        <!-- Pestañas del catálogo (deuda EP; antes un solo botón que iba pasando, deuda BH) -->
+        <button class="cat-btn activo" data-cat="cancion" onclick="setCategoria(this.dataset.cat)">🎵 Canciones</button>
+        <button class="cat-btn" data-cat="material" onclick="setCategoria(this.dataset.cat)">📚 Materiales</button>
+        <button class="cat-btn" data-cat="estilo" onclick="setCategoria(this.dataset.cat)">🥁 Estilos</button>
     </div>
     <div class="sep"></div>
     <div id="filtros-chips">
@@ -3236,7 +3240,7 @@ let songActiva       = null;
 let filtroActivo     = 'todos';
 let filtroCurso      = null;   // nombre del contexto (o 'PERSONAL')
 let filtroEstilo     = '';
-let filtroCategoria  = 'todos';
+let filtroCategoria  = 'cancion';   // pestaña del catálogo (deuda EP): 'cancion' | 'material' | 'estilo'
 let sortMode         = 'reciente';
 let editandoId       = null;
 let assetSongId      = null;
@@ -3415,13 +3419,12 @@ async function sbEliminarCancion(c) {
 }
 
 // ── RENDER PRINCIPAL ─────────────────────────────────────────────────────────
-// Un solo botón: cada clic pasa a la siguiente (Todo → Canciones → Materiales → Todo).
-const CATEGORIAS = [
-    { cat: 'todos',    txt: 'Todo' },
-    { cat: 'cancion',  txt: '🎵 Canciones' },
-    { cat: 'material', txt: '📚 Materiales' },
-    { cat: 'estilo',   txt: '🥁 Estilos' },     // estilos rítmicos (deuda EG)
-];
+// Pestañas del catálogo (deuda EP): canciones, materiales y estilos rítmicos (EG) por separado.
+const CATEGORIAS = {
+    cancion:  { uno: 'canción',  varios: 'canciones' },
+    material: { uno: 'material', varios: 'materiales' },
+    estilo:   { uno: 'estilo',   varios: 'estilos' },
+};
 // Ícono de la ficha sin carátula: los estilos con tambor; canciones y materiales con la nota.
 const icoFicha = c => c.categoria === 'estilo' ? '🥁' : '🎵';
 // Bandera de un estilo según su país (EG): imagen de flagcdn.com (Windows no dibuja los emojis de banderas).
@@ -3453,13 +3456,9 @@ function banderaAlGuardar(c) {
     if (b) c.artwork_url = b;
     else if (esBandera(c.artwork_url)) c.artwork_url = '';
 }
-function setCategoria(btn) {
-    const i = CATEGORIAS.findIndex(x => x.cat === filtroCategoria);
-    const sig = CATEGORIAS[(i + 1) % CATEGORIAS.length];
-    filtroCategoria = sig.cat;
-    btn.dataset.cat = sig.cat;
-    btn.textContent = sig.txt;
-    btn.classList.toggle('activo', sig.cat !== 'todos');   // azul cuando filtra
+function setCategoria(cat) {
+    filtroCategoria = CATEGORIAS[cat] ? cat : 'cancion';
+    document.querySelectorAll('#cat-toggle .cat-btn').forEach(b => b.classList.toggle('activo', b.dataset.cat === filtroCategoria));
     render();
 }
 
@@ -3483,10 +3482,8 @@ function render() {
     const q = document.getElementById('search').value.trim().toLowerCase();
     let lista = [...canciones];
 
-    // filtro categoría
-    if (filtroCategoria !== 'todos') {
-        lista = lista.filter(c => (c.categoria || 'cancion') === filtroCategoria);
-    }
+    // pestaña del catálogo
+    lista = lista.filter(c => (c.categoria || 'cancion') === filtroCategoria);
     // filtro búsqueda
     if (q) {
         lista = lista.filter(c =>
@@ -3513,8 +3510,8 @@ function render() {
     }
 
     // contador: va como texto del campo de búsqueda (deuda BH)
-    document.getElementById('search').placeholder = canciones.length > 0
-        ? `Buscar en ${canciones.length} ${canciones.length !== 1 ? 'canciones' : 'canción'}…` : 'Buscar canción o artista…';
+    const nCat = canciones.filter(c => (c.categoria || 'cancion') === filtroCategoria).length, nom = CATEGORIAS[filtroCategoria];
+    document.getElementById('search').placeholder = nCat > 0 ? `Buscar en ${nCat} ${nCat !== 1 ? nom.varios : nom.uno}…` : `Buscar ${nom.uno}…`;
 
     renderChips();
 }
@@ -4202,9 +4199,9 @@ function abrirModalNueva() {
     document.getElementById('modal-titulo-h').textContent = 'Nueva canción';
     ['f-nombre','f-artista','f-año','f-estilo','f-url'].forEach(id =>
         document.getElementById(id).value = '');
-    document.getElementById('f-categoria').value = 'cancion';
-    document.querySelectorAll('#f-categoria-ctrl .seg-btn').forEach((b,i) => b.classList.toggle('activo', i===0));
-    camposPorTipo('cancion');
+    document.getElementById('f-categoria').value = filtroCategoria;   // parte en el tipo de la pestaña (EP)
+    document.querySelectorAll('#f-categoria-ctrl .seg-btn').forEach(b => b.classList.toggle('activo', b.dataset.val === filtroCategoria));
+    camposPorTipo(filtroCategoria);
     document.getElementById('artwork-group').style.display = 'none';
     document.getElementById('import-resultados').classList.remove('visible');
     document.getElementById('import-q').value = '';
@@ -4271,6 +4268,7 @@ async function guardarCancion() {
         catch (e) { toast('No se pudo guardar: ' + (e.message || e)); return; }
         songActiva = c;
         renderPanel();
+        if ((c.categoria || 'cancion') !== filtroCategoria) setCategoria(c.categoria || 'cancion');   // EP
         toast(c.categoria === 'estilo' ? 'Estilo actualizado' : c.categoria === 'material' ? 'Material actualizado' : 'Canción actualizada');
         cerrarModalNueva();
         render();
@@ -4305,6 +4303,7 @@ async function guardarCancion() {
         return;
     }
 
+    if (nueva.categoria !== filtroCategoria) setCategoria(nueva.categoria);   // que se vea en su pestaña (EP)
     // Importar letra desde LRCLIB (solo canciones: un estilo o un material no tiene letra, deuda EG)
     if (nueva.categoria !== 'cancion') toast(nueva.categoria === 'estilo' ? 'Estilo guardado' : 'Material guardado');
     else try {

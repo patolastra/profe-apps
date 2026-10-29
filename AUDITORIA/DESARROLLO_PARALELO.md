@@ -7209,3 +7209,31 @@ las sesiones"). DECISIÓN del PO: busca en **toda la Biblioteca**, no solo en la
 - Lugares: solo la Biblioteca del celular (`?movil=1`); el PC no cambia. Prueba (navegador, 375×812): "go" → 8
   canciones con sus cursos (Go Away · Octavo, Taller de Cuerdas); Go Away se abre en la sesión de Octavo; Algoritmo
   otra vez (sin sesión) se abre sola; atrás vuelve a la búsqueda "go"; pestañas ocultas mientras se busca; sin errores.
+
+---
+
+### EP. Biblioteca — ordenar los recursos (ficha por instrumento, clase del recurso, pestañas del catálogo) — APROBADA (PO 2026-10-29), entrega 1 hecha
+*Origen: PO 2026-10-29 ("quiero ordenar un poco todo eso de los assets en la Biblioteca; está creciendo, pero tiende
+a desordenarse"). Hoy: 125 fichas (102 canciones, 20 materiales, 3 estilos) y 318 recursos (100 letras, 90 audios,
+92 tablaturas, 15 ritmos, 14 metalófono, 5 cajón, 2 melodías); 223 en borrador, 89 publicados.*
+- **Decisiones del PO (preguntas 2026-10-29):** el desorden está en la **ficha de la canción** y en los **nombres** (no
+  dicen qué son, se repiten, falta la dificultad, se ven mal fuera de la ficha). Agrupar **por instrumento**, con un
+  grupo **🎵 Canción** arriba (audio, letra, extractos y versiones) y luego **cuerdas primero**: Guitarra · Ukelele ·
+  Bajo · Metalófono · Piano · Cajón / Ritmo (solo los que tengan algo). En cada grupo, publicados arriba y borradores
+  abajo, con un botón **Publicado / Borrador / Ambos**. **Clase** del recurso elegida de una lista: Armonía · Melodía ·
+  Riff · Acompañamiento · Quintas, con la opción **Simplificado(a)** para cualquiera; el detalle libre sigue. Los
+  recursos existentes los clasifica el PO a mano. Dificultad **opcional pero visible** ("sin dificultad").
+  Catálogo en **pestañas**: 🎵 Canciones · 📚 Materiales · 🥁 Estilos. Campo nuevo en la base de datos **autorizado**.
+- **Plan (3 entregas):**
+  1. Catálogo en pestañas (el buscador busca en la pestaña elegida).
+  2. Ficha por instrumento + botón Publicado / Borrador / Ambos (recordado en el equipo) + "sin dificultad".
+  3. Clase: `supabase/repertorio_assets_clase.sql` (columnas `clase` y `simplificado`, sin tocar lo existente); el
+     editor del recurso la pide con lista + casilla Simplificado(a); el nombre pasa a
+     **Canción · Instrumento · Clase (simplificada) · Detalle · Dificultad** en `comun/nombre-asset.js` (regla 11:
+     Biblioteca, Lector, Planificador, Entrenador, Compartir). Filtro "sin clase" para encontrar lo que falta
+     clasificar.
+- **Entrega 1 hecha (2026-10-29):** `REPERTORIO/index.html`: el botón que pasaba Todo → Canciones → Materiales →
+  Estilos se cambió por tres pestañas fijas **🎵 Canciones · 📚 Materiales · 🥁 Estilos** (parte en Canciones; ya no hay
+  "Todo"). El buscador dice cuántos hay en la pestaña ("Buscar en 102 canciones…") y busca solo ahí; los chips de
+  curso siguen filtrando dentro de la pestaña. Nueva ficha parte en el tipo de la pestaña; al guardar o cambiar el
+  tipo de una ficha se pasa a su pestaña. Prueba (navegador): 102 canciones / 20 materiales / 3 estilos; sin errores.
