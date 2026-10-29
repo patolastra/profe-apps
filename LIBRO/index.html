@@ -229,6 +229,25 @@
   .grupo-col-vacio{color:var(--mut);font-size:12px;padding:2px 0 6px}
   .grupo-badge{font-size:10px;text-transform:uppercase;letter-spacing:.03em;padding:1px 7px;border-radius:999px;white-space:nowrap;background:rgba(76,175,80,.18);color:#9ff0a8}
   .grupo-badge.eval{background:#20303f;color:var(--mut)}
+  /* Lo típico del grupo (deuda ER) */
+  .grupo-tip{display:flex;align-items:center;gap:6px;margin:0 0 4px;font-size:12px;color:#fde68a;min-height:22px}
+  .grupo-tip .gt-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .grupo-tip .gt-x{background:none;border:0;color:var(--mut);cursor:pointer;padding:0 4px;font-size:12px}
+  .grupo-tip .gt-x:hover{color:var(--danger)}
+  .em-tip{margin:0 0 10px}
+  #tip-modal{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;padding:16px}
+  #tip-modal.show{display:flex}
+  #tip-modal .em-card{width:min(460px,100%)}
+  .tip-buscar{width:100%;margin:0 0 8px}
+  .tip-lista{max-height:46vh;overflow-y:auto;border:1px solid var(--line);border-radius:8px}
+  .tip-sec{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--mut);padding:8px 10px 4px;position:sticky;top:0;background:var(--panel)}
+  .tip-it{display:block;width:100%;text-align:left;background:none;border:0;color:var(--txt);font:inherit;padding:6px 10px;cursor:pointer}
+  .tip-it:hover{background:var(--panel2)}
+  .tip-it.on{background:rgba(76,175,80,.18)}
+  .tip-it small{color:var(--mut)}
+  .tip-vacio{color:var(--mut);font-size:12px;padding:4px 10px 8px}
+  .tip-texto{display:flex;gap:6px;margin-top:6px}
+  .tip-texto input{flex:1}
   /* Modal de evaluación (grupo / individual) */
   #eval-modal,#instr-modal,#instr-edit-modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
   #eval-modal.show,#instr-modal.show,#instr-edit-modal.show{display:flex}
@@ -395,6 +414,7 @@
 <div id="mat-modal"><div class="mm-backdrop" onclick="matCerrarModal()"></div><div class="mm-card" id="mm-card"></div></div>
 <!-- Modal de evaluación de grupo / individual (Evaluaciones · Grupos de trabajo) -->
 <div id="eval-modal"><div class="em-backdrop" onclick="evalCerrarModal()"></div><div class="em-card" id="em-card"></div></div>
+<div id="tip-modal"><div class="em-backdrop" onclick="tipCerrar()"></div><div class="em-card" id="tip-card"></div></div>
 <div id="instr-modal"><div class="em-backdrop" onclick="cerrarInstrModal()"></div><div class="em-card" id="instr-modal-card"></div></div>
 <!-- Marcha blanca: editor de instrumento creado directamente en la evaluación -->
 <div id="instr-edit-modal"><div class="em-backdrop" onclick="cerrarInstrEdit()"></div><div class="em-card" id="instr-edit-card"></div></div>
@@ -1077,6 +1097,7 @@ async function abrirDetalle(evId){
     } else {
       const cg = await sb.from('libro_evaluacion_grupos').select('*').eq('evaluacion_id', evId).order('created_at');
       grupos = (cg.error && tablaFalta(cg)) ? [] : (cg.data || []);
+      if (grupos.some(g => g.cancion_id)) { try { await tipCargarBib(); } catch (_) {} }   // deuda ER: nombres de las canciones
     }
     if (cn.error) throw cn.error;
     evalActual = ce.data;
@@ -1307,7 +1328,7 @@ function proyFoto(){
     const nom = n => nombreDe(n.estudiante);
     const disp = notas.filter(estDisponible).sort(ord);
     return { ...b, tipo: 'grupos',
-      grupos: grupos.map(g => ({ nombre: g.nombre, terminado: grupoTerminado(g),
+      grupos: grupos.map(g => ({ nombre: g.nombre, terminado: grupoTerminado(g), tipico: tipicoTxt(g),
         miembros: notas.filter(n => n.grupo_id === g.id).sort(ord).map(nom) })),
       armando: disp.filter(n => grupoSelIds.has(n.id)).map(nom),     // el grupo que el profe está armando
       sinGrupo: disp.filter(n => !grupoSelIds.has(n.id)).map(nom) };
@@ -1418,7 +1439,7 @@ function resBuscar(){
     const est = estadoEfectivo(n);
     const g = n.grupo_id ? grupos.find(x => x.id === n.grupo_id) : null;
     const ant = intentosDe(n).map(x => fmtNota(x.nota)).filter(Boolean);
-    const meta = [g ? esc(g.nombre) : '', ausentesHoy.has(n.estudiante_id) ? 'ausente hoy' : '',
+    const meta = [g ? esc(g.nombre) + (tipicoTxt(g) ? ' (' + esc(tipicoTxt(g)) + ')' : '') : '', ausentesHoy.has(n.estudiante_id) ? 'ausente hoy' : '',
                   ant.length ? 'notas anteriores: ' + ant.join(' · ') : ''].filter(Boolean).join(' · ');
     const nota = est === 'evaluado' ? `<span class="res-nota ${n.nota < 4 ? 'roja' : 'azul'}">${fmtNota(n.nota)}</span>`
                : `<span class="res-nota pend">${est === 'no_aplica' ? 'No aplica' : 'Pendiente'}</span>`;
@@ -1870,6 +1891,7 @@ function grupoColHTML(g, cerrada){
         ${reorg ? `<input value="${esc(g.nombre)}" onchange="evalRenombrarGrupo('${g.id}',this.value)">` : `<span>${esc(g.nombre)}</span>`}
         <span class="grupo-badge ${terminado ? 'eval' : ''}">${terminado ? '🔒 Terminada' : miembros.length}</span>
       </h4>
+      ${tipicoHTML(g, reorg)}
       <ul class="grupo-miembros">${lis}</ul>
       <div class="row" style="gap:6px">
         <button class="btn primary mini" onclick="evalAbrirEvalGrupo('${g.id}')">${terminado ? 'Ver grupo' : (cerrada ? 'Ver grupo' : 'Evaluar grupo')}</button>
@@ -1948,6 +1970,90 @@ async function evalRenombrarGrupo(gid, nombre){
   g.nombre = nm;
   try { await evalUpsertGrupo(g); evalRefrescar(); }
   catch (e) { toast('No se pudo renombrar: ' + e.message, 'err'); }
+}
+// ── Lo típico del grupo (deuda ER): una canción del repertorio del curso (su sesión del Entrenador),
+// cualquier canción de la Biblioteca o un texto libre. Uno u otro (cancion_id | tipico).
+let tipBib = null;    // Map id → { id, nombre, artista, categoria } de la Biblioteca (se lee una vez)
+let tipCurso = [];    // ids de las canciones de la sesión del curso, en su orden
+let tipGid = null;    // grupo al que se le está eligiendo
+async function tipCargarBib(){
+  if (tipBib) return tipBib;
+  const { data, error } = await sb.from('repertorio_canciones').select('id,nombre,artista,categoria');
+  if (error) throw error;
+  tipBib = new Map((data || []).map(c => [c.id, c]));
+  return tipBib;
+}
+async function tipCargarCurso(){
+  try {
+    const { data } = await sb.from('repertorio_sesiones_entrenamiento').select('canciones').eq('contexto_id', ctxId).limit(1);
+    const cs = data && data[0] && Array.isArray(data[0].canciones) ? data[0].canciones : [];
+    tipCurso = cs.map(i => i && i.cancion_id).filter(Boolean);
+  } catch (_) { tipCurso = []; }
+}
+// { ico, txt } de lo típico del grupo, o null (una canción que ya no existe no se muestra).
+function tipicoDe(g){
+  if (g && g.cancion_id) { const c = tipBib && tipBib.get(g.cancion_id); if (c) return { ico: '🎵', txt: c.nombre }; }
+  const t = ((g && g.tipico) || '').trim();
+  return t ? { ico: '✏️', txt: t } : null;
+}
+function tipicoTxt(g){ const t = tipicoDe(g); return t ? (t.ico === '🎵' ? '🎵 ' : '') + t.txt : ''; }
+function tipicoHTML(g, editable){
+  const t = tipicoDe(g);
+  if (!t && !editable) return '';
+  const c = t && t.ico === '🎵' ? tipBib.get(g.cancion_id) : null;
+  return `<div class="grupo-tip">
+      ${t ? `<span class="gt-txt" title="${esc(t.txt + (c && c.artista ? ' · ' + c.artista : ''))}">${t.ico} ${esc(t.txt)}</span>` : ''}
+      ${editable ? `<button class="btn mini" onclick="tipAbrir('${g.id}')">${t ? 'Cambiar' : '🎵 Elegir canción o texto…'}</button>` : ''}
+      ${(editable && t) ? `<button class="gt-x" title="Quitar" onclick="tipGuardar('${g.id}',{ cancion_id:null, tipico:null })">✕</button>` : ''}
+    </div>`;
+}
+async function tipAbrir(gid){
+  const g = grupos.find(x => x.id === gid); if (!g) return;
+  tipGid = gid;
+  const card = document.getElementById('tip-card');
+  card.innerHTML = '<p class="hint">Cargando canciones…</p>';
+  document.getElementById('tip-modal').classList.add('show');
+  try { await Promise.all([tipCargarBib(), tipCargarCurso()]); }
+  catch (e) { card.innerHTML = `<button class="em-close" onclick="tipCerrar()" title="Cerrar">✕</button><p class="hint">No se pudo leer la Biblioteca: ${esc(e.message)}</p>`; return; }
+  card.innerHTML = `<button class="em-close" onclick="tipCerrar()" title="Cerrar">✕</button>
+    <p class="sec-title" style="margin:0 0 10px;padding-right:24px">Lo típico de ${esc(g.nombre)}</p>
+    <input id="tip-buscar" class="tip-buscar" placeholder="Buscar canción o artista…" oninput="tipPintarLista()" autocomplete="off">
+    <div class="tip-lista" id="tip-lista"></div>
+    <p class="gm-sub" style="margin:12px 0 0">✏️ O escribe otra cosa</p>
+    <div class="tip-texto"><input id="tip-texto" placeholder="Ej.: una obra, un instrumento, un tema…" value="${esc(g.cancion_id ? '' : (g.tipico || ''))}"
+        onkeydown="if(event.key==='Enter')tipGuardarTexto()"><button class="btn primary" onclick="tipGuardarTexto()">Guardar</button></div>`;
+  tipPintarLista();
+  document.getElementById('tip-buscar').focus();
+}
+function tipPintarLista(){
+  const out = document.getElementById('tip-lista'); if (!out || !tipBib) return;
+  const g = grupos.find(x => x.id === tipGid);
+  const q = normBuscar(document.getElementById('tip-buscar')?.value || '');
+  const pasa = c => !q || normBuscar(c.nombre + ' ' + (c.artista || '')).includes(q);
+  const it = c => `<button class="tip-it ${g && g.cancion_id === c.id ? 'on' : ''}" onclick="tipGuardar('${tipGid}',{ cancion_id:'${c.id}', tipico:null })">${esc(c.nombre)}${c.artista ? ` <small>· ${esc(c.artista)}</small>` : ''}</button>`;
+  const enCurso = new Set(tipCurso);
+  const curso = tipCurso.map(id => tipBib.get(id)).filter(c => c && pasa(c));
+  const resto = [...tipBib.values()].filter(c => !enCurso.has(c.id) && c.categoria !== 'estilo' && pasa(c))
+    .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+  out.innerHTML = `<div class="tip-sec">Repertorio del curso</div>
+    ${curso.length ? curso.map(it).join('') : `<div class="tip-vacio">${tipCurso.length ? 'Ninguna coincide.' : 'El curso no tiene canciones en su sesión del Entrenador.'}</div>`}
+    <div class="tip-sec">Biblioteca</div>
+    ${resto.length ? resto.map(it).join('') : '<div class="tip-vacio">Ninguna coincide.</div>'}`;
+}
+function tipCerrar(){ document.getElementById('tip-modal').classList.remove('show'); tipGid = null; }
+function tipGuardarTexto(){
+  const t = (document.getElementById('tip-texto')?.value || '').trim();
+  if (!t) { toast('Escribe algo o elige una canción.', 'err'); return; }
+  tipGuardar(tipGid, { cancion_id: null, tipico: t });
+}
+async function tipGuardar(gid, cambios){
+  const g = grupos.find(x => x.id === gid); if (!g) return;
+  if (grupoTerminado(g)) { toast('El grupo está terminado: reábrelo para cambiarlo.', 'err'); return; }
+  const { error } = await sb.from('libro_evaluacion_grupos').update(cambios).eq('id', gid);
+  if (error) { toast('No se pudo guardar: ' + error.message, 'err'); return; }
+  Object.assign(g, cambios);
+  tipCerrar();
+  evalRefrescar();
 }
 async function evalEliminarGrupo(gid){
   const g = grupos.find(x => x.id === gid); if (!g) return;
@@ -2148,6 +2254,7 @@ function renderEvalModal(){
     }
     html += `
       <p class="sec-title" style="margin:0 0 8px;padding-right:24px">Evaluar — ${esc(g.nombre)} ${terminado ? '<span class="grupo-badge eval">🔒 Terminada</span>' : ''}</p>
+      <div class="em-tip">${tipicoHTML(g, !bloqueado)}</div>
       ${terminado ? '<p class="hint" style="margin:0 0 8px">Evaluación de este grupo <b>terminada</b> (congelada). Reábrela para volver a editar o para evaluar individualmente a un integrante.</p>' : ''}
       ${panelGrupo}
       ${bloqueado ? '' : `<p class="hint" style="margin:10px 0 4px">${conInstr ? 'La evaluación del grupo se aplica a los integrantes que heredan. Cambiar el objetivo/instrumento de un integrante, darle otro instrumento o evaluarlo individualmente crea su excepción.' : 'La nota/objetivo grupal se aplica a los integrantes que heredan. Editar un integrante crea su excepción individual.'}</p>`}

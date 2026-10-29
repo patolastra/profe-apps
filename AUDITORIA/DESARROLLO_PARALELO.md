@@ -7322,3 +7322,44 @@ el plan"). Ya figuraba como siguiente paso del celular (DG/DH): "versión para a
   hasta el 28/10/2026; sin fecha → vuelve; estilo nuevo en 375×812 con el verso activo en naranjo; sin errores.
 - **Futuro (PO 2026-10-29):** fecha límite también para los otros recursos que se comparten (metalófono, piano,
   tablaturas, cajón). La pieza `plazo` de `comun/compartir.js` ya sirve; falta que cada versión estudiante la respete.
+
+### ER. 🎵 Lo típico de cada grupo en las evaluaciones en grupo (canción del curso, de la Biblioteca o texto) — HECHA
+*Origen: PO 2026-10-29 ("en las evaluaciones en grupo, poder asignarle a cada grupo algo típico: una canción de la
+sesión del curso en el Entrenador, cualquier canción de la Biblioteca o un texto libre").*
+- **Necesidad:** al evaluar en grupos cada grupo suele trabajar "su" canción u obra; hoy eso no queda anotado y hay
+  que recordarlo o escribirlo en el nombre del grupo.
+- **Auditoría:** los grupos viven en `libro_evaluacion_grupos` (`supabase/libro_schema.sql`: `id`, `evaluacion_id`,
+  `nombre`, `nota_grupal`, `adecuacion_grupal_id`, `terminado`); los integrantes en `libro_evaluacion_notas.grupo_id`.
+  Bloqueos en la base: con la evaluación **cerrada** no se toca ningún grupo (I12) y un grupo **terminado** solo
+  admite Reabrir (`libro_grupo_terminado_congela`); una columna nueva queda cubierta por ambos sin cambiarlos (no se
+  puede cambiar lo típico de un grupo terminado sin reabrirlo, igual que su nombre). Dónde aparecen los grupos:
+  pestaña **Grupos de trabajo** (tarjeta por grupo, `grupoColHTML`), ventana **Evaluar grupo** (`renderEvalModal`),
+  **Resultados** (buscador: el nombre del grupo junto al estudiante), **📽️ Proyectar** de Grupos
+  (`comun/libro-proyeccion.js`, tipo `grupos`) y el celular **Evaluar** (`MOVIL/evaluar.html`, lee `id,nombre`).
+  El repertorio del curso es la sesión del Entrenador con `contexto_id` (`repertorio_sesiones_entrenamiento.canciones`,
+  lista de `{ cancion_id }`), como en el 🎵 del Plan (`PORTAL/index.html`, `cancionesDelCurso`). El Libro hoy no lee
+  la Biblioteca.
+- **Plan propuesto:**
+  1. **Supabase** (`supabase/libro_grupo_tipico.sql`, lo corre el PO): dos columnas en `libro_evaluacion_grupos`:
+     `cancion_id` (canción de la Biblioteca, TEXT como su id y sin llave foránea: con ella, borrar una canción usada
+     por un grupo terminado chocaría con sus bloqueos; si ya no existe, no se muestra) y `tipico` (texto libre). Uno u
+     otro: elegir una canción borra el texto y al revés.
+  2. **Dónde se elige:** en cada tarjeta de grupo (Grupos de trabajo) y arriba en la ventana Evaluar grupo, un botón
+     "🎵 Elegir…" abre un selector con buscador: primero **Repertorio del curso** (sesión del Entrenador), después
+     **Biblioteca** (todas las canciones, sin estilos) y al final **✏️ Escribir otra cosa** (texto libre). ✕ lo quita.
+  3. **Dónde se ve:** la tarjeta del grupo, la ventana Evaluar grupo, Resultados (junto al nombre del grupo), el
+     📽️ Proyectar de Grupos (bajo el nombre de cada grupo) y el celular Evaluar (junto al nombre del grupo).
+  - Lugares (regla 11): Libro PC (Grupos de trabajo, Evaluar grupo, Resultados, Proyectar → Pizarra) y celular
+    Evaluar. No cambia el Plan ni la Biblioteca.
+  - Fuera de este paso: abrir la canción en el Entrenador desde el grupo; informes de UTP (no la incluyen).
+- **Decisión del PO (2026-10-29):** plan aprobado tal cual.
+- **Hecho (2026-10-29):** `supabase/libro_grupo_tipico.sql` (corrido por el PO; la primera versión creó `cancion_id`
+  como UUID y los id de canciones son texto, el archivo la pasa a TEXT). `LIBRO/index.html`: `tipCargarBib`,
+  `tipCargarCurso`, `tipicoDe` / `tipicoTxt` / `tipicoHTML`, selector `#tip-modal` (`tipAbrir`, `tipPintarLista`,
+  `tipGuardar`, `tipGuardarTexto`); se muestra en la tarjeta del grupo y en Evaluar grupo (editable solo con el grupo
+  abierto), en Resultados (junto al grupo) y en la foto de Proyectar (`tipico`). `comun/libro-proyeccion.js`: línea
+  `.lpro-tip` bajo el nombre del grupo. `MOVIL/evaluar.html`: lee los grupos con `*` y el nombre de su canción, y lo
+  muestra junto a los pendientes de cada grupo.
+  Prueba (navegador, evaluación Karaoke de 8°): buscador con el repertorio de 8° arriba y la Biblioteca abajo; Grupo 1
+  con canción y Grupo 2 con texto, guardados en la base y visibles al recargar en la tarjeta, Evaluar grupo,
+  Resultados, Proyectar a pantalla completa y Evaluar del celular; después se dejaron vacíos como estaban. Sin errores.

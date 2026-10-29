@@ -5,7 +5,7 @@
 //   · sin clase, a pantalla completa en la misma ventana (abrirLocal()).
 // Fotos: { tipo:'general', curso, titulo, fecha, oa }
 //        { tipo:'instr', curso, titulo, instr:{ nombre, clase:'rubrica'|'cotejo', niveles:[lab], items:[{ texto, desc:[..] }] } }
-//        { tipo:'grupos', curso, titulo, grupos:[{ nombre, miembros:[..], terminado }], armando:[..], sinGrupo:[..] }
+//        { tipo:'grupos', curso, titulo, grupos:[{ nombre, tipico, miembros:[..], terminado }], armando:[..], sinGrupo:[..] }
 //        { tipo:'pend', curso, titulo, total, evaluados, pendientes:[..], ausentes:[..] }
 //        { tipo:'entrega', curso, titulo, hicieron, deben, faltan:[..], listos:[..] }
 //        { tipo:'part', curso, titulo, tablero:{ contador, cntEsp, cntSi, esp, si, vaciaEsp, vaciaSi, cerrada, big } }
@@ -43,6 +43,7 @@
     .lpro-g{background:#1e293b;border:2px solid #334155;border-radius:14px;padding:calc(12px*var(--k)) calc(16px*var(--k))}
     .lpro-g h3{margin:0 0 calc(8px*var(--k));font-size:calc(26px*var(--k));color:#fb923c;display:flex;justify-content:space-between;gap:8px}
     .lpro-g h3 span{color:#94a3b8;font-size:.75em}
+    .lpro-g .lpro-tip{margin:calc(-4px*var(--k)) 0 calc(8px*var(--k));font-size:calc(22px*var(--k));color:#fde68a;line-height:1.25}
     .lpro-g ul{margin:0;padding:0;list-style:none}
     .lpro-g li{font-size:calc(24px*var(--k));padding:calc(3px*var(--k)) 0;line-height:1.25}
     .lpro-g.armando{border:3px dashed #fb923c;background:#2a1a0c}
@@ -85,6 +86,7 @@
         }
         if (f.tipo === 'grupos') {
             const tarj = f.grupos.map(g => `<div class="lpro-g${g.terminado ? ' listo' : ''}"><h3>${esc(g.nombre)}<span>${g.terminado ? '✓' : g.miembros.length}</span></h3>
+                ${g.tipico ? `<p class="lpro-tip">${esc(g.tipico)}</p>` : ''}
                 <ul>${g.miembros.map(m => `<li>${esc(m)}</li>`).join('') || '<li style="color:#64748b">Sin integrantes</li>'}</ul></div>`).join('');
             const arm = f.armando.length ? `<div class="lpro-g armando"><h3>Nuevo grupo…<span>${f.armando.length}</span></h3>
                 <ul>${f.armando.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>` : '';

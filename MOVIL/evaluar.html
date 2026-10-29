@@ -216,7 +216,7 @@ async function traerEvaluacion(e, k) {
             sb.from('libro_evaluacion_notas')
               .select('id,estudiante_id,nota,estado_eval,grupo_id,toques,estudiante:libro_estudiantes(nombre,apellido,nombre_social,mostrar_apellido)')
               .eq('evaluacion_id', e.id),
-            sb.from('libro_evaluacion_grupos').select('id,nombre,created_at').eq('evaluacion_id', e.id).order('created_at'),
+            sb.from('libro_evaluacion_grupos').select('*').eq('evaluacion_id', e.id).order('created_at'),
         ]);
         if (cn.error) throw cn.error;
         // Lista al día: solo matrícula activa (curso propio o el vinculado).
@@ -236,7 +236,13 @@ async function traerEvaluacion(e, k) {
             nom: ((n.estudiante?.nombre_social || '').trim() || n.estudiante?.nombre || '—').trim(),
             ap: (n.estudiante?.apellido || '').trim(), mostrarAp: !!n.estudiante?.mostrar_apellido,
         }));
-        const datos = { notas: filas, grupos: cg.error ? [] : (cg.data || []) };
+        const gs = cg.error ? [] : (cg.data || []);
+        // Lo típico de cada grupo (deuda ER): el nombre de su canción o su texto.
+        const ids = [...new Set(gs.map(g => g.cancion_id).filter(Boolean))];
+        let cancs = {};
+        if (ids.length) { try { const { data } = await sb.from('repertorio_canciones').select('id,nombre').in('id', ids); (data || []).forEach(c => { cancs[c.id] = c.nombre; }); } catch (_) {} }
+        gs.forEach(g => { g.tip = (g.cancion_id && cancs[g.cancion_id]) ? '🎵 ' + cancs[g.cancion_id] : (g.tipico || '').trim(); });
+        const datos = { notas: filas, grupos: gs };
         guardarJSON(k, datos);
         return datos;
     }
@@ -332,10 +338,10 @@ function mostrarGrupos() {
     const conGrupo = grupos.filter(g => visibles.some(n => n.grupo_id === g.id));
     if (!grupos.length) return abrirTablero({ tipo: 'todos', nombre: 'Curso completo' });
     const sin = visibles.filter(n => !n.grupo_id).length;
-    const ops = conGrupo.map(g => ({ tipo: 'grupo', id: g.id, nombre: g.nombre, n: visibles.filter(n => n.grupo_id === g.id).length }));
+    const ops = conGrupo.map(g => ({ tipo: 'grupo', id: g.id, nombre: g.nombre, tip: g.tip || '', n: visibles.filter(n => n.grupo_id === g.id).length }));
     if (sin) ops.push({ tipo: 'sin', nombre: 'Sin grupo', n: sin });
     $('main').innerHTML = '<p class="ayuda" style="margin:0 0 12px">Elige el grupo</p>' +
-        ops.map((o, i) => `<button class="opcion" data-i="${i}">${esc(o.nombre)}<small>${o.n} pendiente${o.n === 1 ? '' : 's'}</small></button>`).join('');
+        ops.map((o, i) => `<button class="opcion" data-i="${i}">${esc(o.nombre)}<small>${o.tip ? esc(o.tip) + ' · ' : ''}${o.n} pendiente${o.n === 1 ? '' : 's'}</small></button>`).join('');
     $('main').querySelectorAll('.opcion').forEach(b => b.onclick = () => abrirTablero(ops[+b.dataset.i]));
 }
 
