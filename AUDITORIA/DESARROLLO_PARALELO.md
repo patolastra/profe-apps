@@ -7307,3 +7307,16 @@ el plan"). Ya figuraba como siguiente paso del celular (DG/DH): "versión para a
   Prueba (navegador, 375×812): l/?a=… lleva a CANTAR; carátula, nombre, Melodía / Karaoke; 35 líneas (30 con tiempo,
   5 entre estrofas); en 0:39 resalta el verso que suena; cambiar a Karaoke sigue en el mismo segundo y sonando; sin
   errores.
+- **Ajuste (PO 2026-10-29):** (1) "copia el estilo de la página donde se renderizan las letras en el Entrenador":
+  `CANTAR/` se rehízo como el Entrenador del celular sin edición — mismas clases y colores (`#ent-header`,
+  `#ent-zona`, `.ent-stanza`, `.ent-lyric-line` cursiva 700, activo naranjo `#ea580c` centrado), portada (nombre ·
+  artista), chip 🎤 Melodía / 🎶 Karaoke y el mismo reproductor (al comienzo · ▶ naranjo · estrofa siguiente ·
+  tiempos · barra con punto, arrastrable); letra de 24 px en el celular y 2,2 rem en el PC. Es una copia: si el estilo
+  del Entrenador cambia, cambiar aquí también (regla 11, anotado en el archivo). (2) **📅 Disponible hasta**
+  (opcional, solo canciones): `comun/compartir.js` suma la opción `plazo` al menú ✈ (fecha + ✕ sin fecha); la fecha va
+  en el mismo archivo público (`hasta`, último día disponible) y se conserva al renovarlo. Después de ese día la
+  página dice "Esta canción estuvo disponible hasta el …" y no muestra letra ni audio, y la próxima renovación
+  quita el archivo; compartir de nuevo una vencida parte sin fecha. Límite: los audios siguen en el depósito público
+  de la Biblioteca (los usa todo el sistema), solo deja de entregarse su dirección.
+  Prueba (navegador): menú con 📅; fecha 28/10/2026 guardada en el archivo → la página avisa que estuvo disponible
+  hasta el 28/10/2026; sin fecha → vuelve; estilo nuevo en 375×812 con el verso activo en naranjo; sin errores.

@@ -7,7 +7,9 @@
 //                          (canción, instrumento, curso, fecha de evaluación) se eligen al crearla, más un mensaje.
 //                          La guía se guarda en 📁 Archivos del curso (comun/archivos-curso.js) y se abre con "Abrir".
 //
-//   Compartir.abrir(boton, { url, titulo, cancion, instrumento, sb })
+//   Compartir.abrir(boton, { url, titulo, cancion, instrumento, sb, plazo })
+//   plazo (opcional, deuda EQ): { valor: 'AAAA-MM-DD' | null, guardar: async (fecha | null) => bool } → el menú suma
+//   "📅 Disponible hasta" (último día en que el link funciona; vacío = sin fecha límite).
 //   Compartir.ICONO  → el avioncito de papel (SVG) para el botón
 // Librerías (cdnjs, se cargan solo al usarlas): qrcode-generator (QR) y jsPDF (PDF).
 // ═══════════════════════════════════════════════════════════════════════
@@ -85,8 +87,24 @@ const Compartir = (() => {
         menu.innerHTML = `
             <button data-a="link">🔗 Copiar link</button>
             <button data-a="qr">▦ Generar QR</button>
-            <button data-a="guia">🖨️ Generar guía QR</button>`;
+            <button data-a="guia">🖨️ Generar guía QR</button>
+            ${op.plazo ? `<div class="cmp-plazo">
+                <label>📅 Disponible hasta</label>
+                <div class="cmp-plazo-fila"><input type="date" value="${esc(op.plazo.valor || '')}"><button type="button" data-p="sin" title="Sin fecha límite">✕</button></div>
+                <div class="cmp-plazo-est">${op.plazo.valor ? 'El link deja de funcionar después de ese día' : 'Sin fecha límite'}</div>
+            </div>` : ''}`;
         document.body.appendChild(menu);
+        if (op.plazo) {
+            const inp = menu.querySelector('.cmp-plazo input'), est = menu.querySelector('.cmp-plazo-est');
+            const guardar = async (f) => {
+                est.textContent = 'Guardando…';
+                const ok = await op.plazo.guardar(f || null).catch(() => false);
+                if (ok) op.plazo.valor = f || null;
+                est.textContent = !ok ? 'No se pudo guardar la fecha' : f ? 'El link deja de funcionar después de ese día' : 'Sin fecha límite';
+            };
+            inp.addEventListener('change', () => guardar(inp.value));
+            menu.querySelector('[data-p=sin]').addEventListener('click', () => { inp.value = ''; guardar(''); });
+        }
         const r = boton.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
         menu.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
         menu.style.top  = (r.bottom + h + 6 > innerHeight ? r.top - h - 4 : r.bottom + 4) + 'px';

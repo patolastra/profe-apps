@@ -13,8 +13,8 @@
     <script src="../comun/nombre-asset.js?v=ep3"></script>
     <link rel="stylesheet" href="../comun/archivos-curso.css?v=ej1">
     <script src="../comun/archivos-curso.js?v=ej1"></script>
-    <link rel="stylesheet" href="../comun/compartir.css">
-    <script src="../comun/compartir.js"></script>
+    <link rel="stylesheet" href="../comun/compartir.css?v=eq">
+    <script src="../comun/compartir.js?v=eq"></script>
     <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
@@ -5481,11 +5481,20 @@ function lineasPublicas(l) {
         return { t: ts ? ts.time / 1000 : null, f: ts?.timeOut != null ? ts.timeOut / 1000 : null, x };
     });
 }
-async function escribirCancionPublica(c) {
+// Fecha límite (EQ): vive en el mismo archivo público (`hasta`, último día disponible); al renovarlo se conserva.
+async function leerHastaPublico(id) {
+    try {
+        const r = await fetch(`${storageUrl('cancion/' + id + '.json')}?t=${Date.now()}`, { cache: 'no-store' });
+        return r.ok ? ((await r.json()).hasta || null) : null;
+    } catch (_) { return null; }
+}
+const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+async function escribirCancionPublica(c, hasta) {
+    if (hasta === undefined) hasta = await leerHastaPublico(c.id);
     const pub = a => a && a.storage_path && estadoDe(a) === 'publicado' ? storageUrl(a.storage_path) : null;
     const m = audioDe(c, 'melodia'), k = audioDe(c, 'karaoke');
     const datos = { v: 1, nombre: c.nombre, artista: c.artista || '', artwork: c.artwork_url || '', lineas: lineasPublicas(letraDe(c)),
-        audios: { melodia: pub(m), karaoke: k && k !== m ? pub(k) : null } };
+        audios: { melodia: pub(m), karaoke: k && k !== m ? pub(k) : null }, ...(hasta ? { hasta } : {}) };
     const { error } = await sb.storage.from(BUCKET).upload(`cancion/${c.id}.json`,
         new Blob([JSON.stringify(datos)], { type: 'application/json' }), { upsert: true, contentType: 'application/json' });
     if (error) throw error;
@@ -5501,7 +5510,9 @@ function cancionPublicaAlDia(cancionId, letraGuardada) {
         const l = letraDe(c);
         if (l && letraGuardada && l.id === letraGuardada.id && l !== letraGuardada) Object.assign(l, { contenido: letraGuardada.contenido, synced: letraGuardada.synced });
         try {
-            if (cancionCompartible(c)) await escribirCancionPublica(c);
+            const hasta = await leerHastaPublico(c.id);
+            // vencida la fecha límite, el archivo se quita (el link avisa hasta cuándo estuvo)
+            if (cancionCompartible(c) && !(hasta && hoyISO() > hasta)) await escribirCancionPublica(c, hasta);
             else await sb.storage.from(BUCKET).remove([`cancion/${c.id}.json`]);
         } catch (e) { console.warn('Canción para estudiantes sin actualizar:', e); }
     }, 1500);
@@ -5510,10 +5521,13 @@ async function compartirCancion(cancionId, boton) {
     const c = canciones.find(x => x.id === cancionId);
     if (!c) return;
     if (!cancionCompartible(c)) { toast('Para compartir: letra publicada y sincronizada, y un audio publicado'); return; }
-    try { await escribirCancionPublica(c); }
+    let hasta = await leerHastaPublico(c.id);
+    if (hasta && hoyISO() > hasta) hasta = null;   // ya vencida: compartir de nuevo parte sin fecha
+    try { await escribirCancionPublica(c, hasta); }
     catch (e) { toast('No se pudo preparar la canción para los estudiantes: ' + (e.message || e)); return; }
     const url = `${CANTAR_LINK_ALUMNO}?a=${encodeURIComponent(c.id)}&n=${encodeURIComponent(c.nombre)}`;
-    Compartir.abrir(boton, { url, titulo: c.nombre, cancion: c.nombre, instrumento: 'Canción', sb });
+    Compartir.abrir(boton, { url, titulo: c.nombre, cancion: c.nombre, instrumento: 'Canción', sb,
+        plazo: { valor: hasta, guardar: async (f) => { await escribirCancionPublica(c, f); return true; } } });
 }
 
 // Ritmo de cajón (deuda EF): el Cajón con su programador, en una pestaña cerrable del Workspace.
