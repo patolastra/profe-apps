@@ -10,7 +10,7 @@
     <script src="../comun/clase-vivo.js"></script>
     <script src="../comun/puntero.js"></script>
     <script src="../comun/volumen.js"></script>
-    <script src="../comun/nombre-asset.js"></script>
+    <script src="../comun/nombre-asset.js?v=ep3"></script>
     <link rel="stylesheet" href="../comun/archivos-curso.css?v=ej1">
     <script src="../comun/archivos-curso.js?v=ej1"></script>
     <link rel="stylesheet" href="../comun/compartir.css">
@@ -584,6 +584,8 @@
         .med-form .estado { flex: 1; font-size: 0.75rem; color: var(--muted); }
         #medios-cancion.soltando { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 8px; }
         /* ── FICHA POR INSTRUMENTO (EP) ── */
+        .edit-simpl { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 0.82rem; color: #475569; cursor: pointer; }
+        .edit-previo { margin-top: 6px; font-size: 0.75rem; color: var(--muted); }
         .ficha-tit { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .ficha-ver { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; text-transform: none; letter-spacing: 0; }
         .ficha-ver button { width: 74px; padding: 3px 0; border: 0; background: #fff; color: var(--muted); font: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer; }
@@ -2619,6 +2621,7 @@
         <button class="cat-btn activo" data-cat="cancion" onclick="setCategoria(this.dataset.cat)">🎵 Canciones</button>
         <button class="cat-btn" data-cat="material" onclick="setCategoria(this.dataset.cat)">📚 Materiales</button>
         <button class="cat-btn" data-cat="estilo" onclick="setCategoria(this.dataset.cat)">🥁 Estilos</button>
+        <button class="cat-btn" id="btn-sin-clase" onclick="toggleSinClase()" title="Solo las fichas con recursos de instrumento a los que les falta la clase (para clasificarlos)">🏷 Sin clase</button>
     </div>
     <div class="sep"></div>
     <div id="filtros-chips">
@@ -2995,6 +2998,24 @@
                     <input type="hidden" id="edit-instrumento">
                 </div>
                 <div class="form-group" style="margin-bottom:10px">
+                    <label class="form-label">Tonalidad (opcional)</label>
+                    <input id="edit-tonalidad" type="text" class="form-input" placeholder="Ej: Do mayor, Re menor…">
+                </div>
+            </div>
+            <!-- Clase y dificultad: todo recurso de instrumento (deuda EP) -->
+            <div id="edit-instr-wrap" style="display:none">
+                <div class="form-group" style="margin-bottom:10px">
+                    <label class="form-label">Clase</label>
+                    <div class="seg-ctrl" id="edit-clase-ctrl">
+                        <button class="seg-btn" data-val="armonia" onclick="setEditClase(this)">Armonía</button>
+                        <button class="seg-btn" data-val="melodia" onclick="setEditClase(this)">Melodía</button>
+                        <button class="seg-btn" data-val="riff" onclick="setEditClase(this)">Riff</button>
+                        <button class="seg-btn" data-val="acompanamiento" onclick="setEditClase(this)">Acompañamiento</button>
+                        <button class="seg-btn" data-val="quintas" onclick="setEditClase(this)">Quintas</button>
+                    </div>
+                    <label class="edit-simpl"><input type="checkbox" id="edit-simplificado"> Simplificado(a)</label>
+                </div>
+                <div class="form-group" style="margin-bottom:10px">
                     <label class="form-label">Dificultad</label>
                     <div class="seg-ctrl" id="edit-dific-ctrl">
                         <button class="seg-btn" data-val="inicial" onclick="setEditMeta('dific',this)">Inicial</button>
@@ -3003,10 +3024,6 @@
                         <button class="seg-btn" data-val="experto" onclick="setEditMeta('dific',this)">Experto</button>
                     </div>
                     <input type="hidden" id="edit-dificultad">
-                </div>
-                <div class="form-group" style="margin-bottom:10px">
-                    <label class="form-label">Tonalidad (opcional)</label>
-                    <input id="edit-tonalidad" type="text" class="form-input" placeholder="Ej: Do mayor, Re menor…">
                 </div>
             </div>
             <div class="form-group" id="edit-rol-wrap" style="display:none">
@@ -3017,8 +3034,9 @@
                 </select>
             </div>
             <div class="form-group">
-                <label class="form-label">Etiqueta</label>
-                <input id="edit-etiqueta" type="text" class="form-input" placeholder="Nombre descriptivo del asset…">
+                <label class="form-label">Detalle <span style="opacity:.5;font-weight:400">(opcional: estrofa y coro, en Do…)</span></label>
+                <input id="edit-etiqueta" type="text" class="form-input" placeholder="Lo que distingue este recurso de los otros…">
+                <div id="edit-nombre-previo" class="edit-previo"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Mensaje para el alumno <span style="opacity:.5;font-weight:400">(aparece al abrir en el Lector)</span></label>
@@ -3473,6 +3491,14 @@ function banderaAlGuardar(c) {
     if (b) c.artwork_url = b;
     else if (esBandera(c.artwork_url)) c.artwork_url = '';
 }
+// 🏷 Sin clase (EP): fichas con algún recurso de instrumento sin clase (ni marcado simplificado)
+let filtroSinClase = false;
+const faltaClase = c => (c.assets || []).some(a => a.tipo !== 'letra' && a.tipo !== 'audio' && !a.clase && !a.simplificado);
+function toggleSinClase() {
+    filtroSinClase = !filtroSinClase;
+    document.getElementById('btn-sin-clase').classList.toggle('activo', filtroSinClase);
+    render();
+}
 function setCategoria(cat) {
     filtroCategoria = CATEGORIAS[cat] ? cat : 'cancion';
     document.querySelectorAll('#cat-toggle .cat-btn').forEach(b => b.classList.toggle('activo', b.dataset.cat === filtroCategoria));
@@ -3501,6 +3527,7 @@ function render() {
 
     // pestaña del catálogo
     lista = lista.filter(c => (c.categoria || 'cancion') === filtroCategoria);
+    if (filtroSinClase) lista = lista.filter(faltaClase);
     // filtro búsqueda
     if (q) {
         lista = lista.filter(c =>
@@ -3657,8 +3684,8 @@ const DIFIC_LABEL = { inicial:'Inicial', media:'Media', dificil:'Difícil', expe
 
 // Una tablatura de la ficha (con sus partes desplegables).
 function tabEntryHTML(a, songId) {
-    const dif  = a.dificultad ? `<span class="tab-dific ${a.dificultad}">${DIFIC_LABEL[a.dificultad] || CAP(a.dificultad)}</span>` : '<span class="sin-dific">sin dificultad</span>';
-    const desc = partesAsset(a).descripcion || 'Sin descripción';
+    const dif  = (a.dificultad ? `<span class="tab-dific ${a.dificultad}">${DIFIC_LABEL[a.dificultad] || CAP(a.dificultad)}</span>` : '') + marcasFaltan(a);
+    const desc = partesAsset(a).detalle || 'Sin descripción';
     const url  = a.storage_path ? storageUrl(a.storage_path) : null;
     const spJS = (a.storage_path || '').replace(/'/g, "\\'");
     const nfJS = (a.nombre_archivo || a.etiqueta || 'tab').replace(/'/g, "\\'");
@@ -4060,9 +4087,11 @@ function assetItemHTML(a, i) {
     const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo, clase: '' };
     // Nombre de cortesía (comun/nombre-asset.js): el tipo ya se muestra arriba, aquí descripción · dificultad
     const pa = partesAsset(a);
-    const sublabel = [pa.descripcion, pa.dificultad].filter(Boolean).join(' · ');
+    const sublabel = [pa.detalle, pa.dificultad].filter(Boolean).join(' · ');
     const etiq = sublabel ? `<div class="asset-item-etiqueta">${sublabel}</div>` : '';
-    const sinDif = a.tipo !== 'letra' && a.tipo !== 'audio' && !a.dificultad ? '<span class="sin-dific">sin dificultad</span>' : '';
+    const sinDif = esDeInstrumento(a) ? marcasFaltan(a) : '';
+    const btnClase = ['ritmo', 'cajon', 'melodia'].includes(a.tipo)
+        ? `<button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Clase, dificultad y detalle">🏷</button>` : '';
 
     // Audio y binarios con archivo en Storage
     if (a.storage_path) {
@@ -4073,7 +4102,7 @@ function assetItemHTML(a, i) {
         const isAudio   = a.tipo === 'audio';
         const isMetal   = a.tipo === 'metalofono';
         const isMelodia = a.tipo === 'melodia';
-        const subMel = isMelodia ? [pa.descripcion, a.tonalidad].filter(Boolean).join(' · ') : '';
+        const subMel = isMelodia ? [pa.detalle, a.tonalidad].filter(Boolean).join(' · ') : '';
         // Melodía (DL): para qué instrumentos es; el piano se abre si es para Piano o Melódica
         const instMel = isMelodia ? instrumentosMelodia(a) : [];
         const conPiano = instMel.includes('piano') || instMel.includes('melodica');
@@ -4089,6 +4118,7 @@ function assetItemHTML(a, i) {
             </div>
             <div class="asset-item-actions">
                 ${estadoBadgeHTML(a)}
+                ${btnClase}
                 ${conPiano ? `<button class="btn-icon" onclick="abrirPiano('${a.id}')" title="Abrir en el piano (como lo ve el estudiante)">🎹</button>` : ''}
                 ${conPiano && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirPiano('${a.id}', this)" title="Compartir el piano con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
                 ${isMetal || (isMelodia && conMetal) ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${nombreAsset(a, songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">${isMelodia ? '🎼' : '🎹'}</button>` : ''}
@@ -4113,6 +4143,7 @@ function assetItemHTML(a, i) {
         </div>
         <div class="asset-item-actions">
             ${estadoBadgeHTML(a)}
+            ${btnClase}
             ${a.tipo === 'ritmo'
                 ? `<button class="btn-icon" onclick="abrirEditorRitmo('${songActiva.id}','${a.id}')" title="Editar ritmo">✏️</button>`
                 : a.tipo === 'cajon'
@@ -4537,7 +4568,7 @@ function renderPickerTabs() {
 
     lista.innerHTML = filtrados.map(({ asset: a, cancion: c }) => {
         const dif    = a.dificultad ? `<span class="tab-dific ${a.dificultad}" style="font-size:0.65rem;padding:1px 6px">${DIFIC_LABEL[a.dificultad] || CAP(a.dificultad)}</span>` : '';
-        const desc   = partesAsset(a).descripcion;
+        const desc   = partesAsset(a).detalle;
         const inst   = a.instrumento ? `<span style="font-size:0.72rem;color:var(--muted)">${CAP(a.instrumento)}</span>` : '';
         return `
         <div class="picker-tab-item" onclick="tomarDelCatalogo('${c.id}','${a.id}')">
@@ -5097,12 +5128,38 @@ async function guardarAsset() {
 let editAssetId = null;
 let editAssetSongId = null;
 
+// Recursos de un instrumento (no letra ni audio): llevan clase y dificultad (EP).
+const esDeInstrumento = a => a && a.tipo !== 'letra' && a.tipo !== 'audio';
+// Lo que le falta a un recurso de instrumento para nombrarse bien (EP): clase y dificultad
+function marcasFaltan(a) {
+    const f = [!a.clase && !a.simplificado ? 'sin clase' : '', !a.dificultad ? 'sin dificultad' : ''].filter(Boolean);
+    return f.length ? `<span class="sin-dific">${f.join(' · ')}</span>` : '';
+}
+function setEditClase(btn) {
+    const on = !btn.classList.contains('activo');   // clic en la elegida = sin clase
+    document.querySelectorAll('#edit-clase-ctrl .seg-btn').forEach(b => b.classList.toggle('activo', on && b === btn));
+    previoNombreAsset();
+}
+function claseEditada() { return document.querySelector('#edit-clase-ctrl .seg-btn.activo')?.dataset.val || null; }
+// Cómo quedará el nombre (comun/nombre-asset.js), al vuelo mientras se edita
+function previoNombreAsset() {
+    const c = canciones.find(x => x.id === editAssetSongId), a = c?.assets.find(x => x.id === editAssetId);
+    const el = document.getElementById('edit-nombre-previo');
+    if (!a || !el) return;
+    const tab = a.tipo === 'tab', inst = esDeInstrumento(a);
+    const prueba = { ...a, etiqueta: document.getElementById('edit-etiqueta').value.trim(),
+        ...(tab ? { instrumento: document.getElementById('edit-instrumento').value, tonalidad: document.getElementById('edit-tonalidad').value.trim() } : {}),
+        ...(inst ? { clase: claseEditada(), simplificado: document.getElementById('edit-simplificado').checked,
+                     dificultad: document.getElementById('edit-dificultad').value } : {}) };
+    el.textContent = 'Se verá: ' + nombreAsset(prueba, c.nombre);
+}
 function setEditMeta(campo, btn) {
     const ctrlId  = campo === 'inst' ? 'edit-inst-ctrl' : 'edit-dific-ctrl';
     const inputId = campo === 'inst' ? 'edit-instrumento' : 'edit-dificultad';
     document.querySelectorAll(`#${ctrlId} .seg-btn`).forEach(b => b.classList.remove('activo'));
     btn.classList.add('activo');
     document.getElementById(inputId).value = btn.dataset.val;
+    previoNombreAsset();
 }
 
 function abrirEditarAsset(songId, assetId) {
@@ -5116,22 +5173,31 @@ function abrirEditarAsset(songId, assetId) {
     const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo };
     document.getElementById('modal-edit-asset-titulo').textContent = `${info.ico} ${info.label}`;
 
-    const showMeta = a.tipo === 'tab';
+    const showMeta = a.tipo === 'tab', inst = esDeInstrumento(a);
     document.getElementById('modal-edit-asset-meta').style.display = showMeta ? '' : 'none';
+    document.getElementById('edit-instr-wrap').style.display = inst ? '' : 'none';
 
     if (showMeta) {
         document.getElementById('edit-instrumento').value = a.instrumento || '';
-        document.getElementById('edit-dificultad').value  = a.dificultad  || '';
         document.getElementById('edit-tonalidad').value   = a.tonalidad   || '';
         document.querySelectorAll('#edit-inst-ctrl .seg-btn').forEach(b =>
             b.classList.toggle('activo', b.dataset.val === (a.instrumento || '')));
+    }
+    if (inst) {
+        document.getElementById('edit-dificultad').value = a.dificultad || '';
         document.querySelectorAll('#edit-dific-ctrl .seg-btn').forEach(b =>
             b.classList.toggle('activo', b.dataset.val === (a.dificultad || '')));
+        document.querySelectorAll('#edit-clase-ctrl .seg-btn').forEach(b => b.classList.toggle('activo', b.dataset.val === a.clase));
+        document.getElementById('edit-simplificado').checked = !!a.simplificado;
     }
     document.getElementById('edit-rol-wrap').style.display = a.tipo === 'audio' ? '' : 'none';
     if (a.tipo === 'audio') document.getElementById('edit-rol').value = a.rol === 'karaoke' ? 'karaoke' : 'melodia';
     document.getElementById('edit-etiqueta').value = a.etiqueta || '';
     document.getElementById('edit-mensaje').value  = a.mensaje  || '';
+    document.getElementById('edit-etiqueta').oninput = previoNombreAsset;
+    document.getElementById('edit-tonalidad').oninput = previoNombreAsset;
+    document.getElementById('edit-simplificado').onchange = previoNombreAsset;
+    previoNombreAsset();
     document.getElementById('modal-edit-asset-overlay').classList.add('visible');
 }
 
@@ -5147,13 +5213,21 @@ async function guardarEditarAsset() {
     const a = c.assets.find(x => x.id === editAssetId);
     if (!a) return;
 
+    // Solo los campos que este tipo de recurso muestra (antes un recurso no-tablatura recibía el instrumento y la
+    // dificultad que habían quedado de la última tablatura editada)
     const cambios = {
-        instrumento: document.getElementById('edit-instrumento').value.trim(),
-        dificultad:  document.getElementById('edit-dificultad').value.trim(),
-        tonalidad:   document.getElementById('edit-tonalidad').value.trim(),
         etiqueta:    document.getElementById('edit-etiqueta').value.trim(),
         mensaje:     document.getElementById('edit-mensaje').value.trim() || null,
     };
+    if (a.tipo === 'tab') {
+        cambios.instrumento = document.getElementById('edit-instrumento').value.trim();
+        cambios.tonalidad   = document.getElementById('edit-tonalidad').value.trim();
+    }
+    if (esDeInstrumento(a)) {
+        cambios.dificultad   = document.getElementById('edit-dificultad').value.trim();
+        cambios.clase        = claseEditada();
+        cambios.simplificado = document.getElementById('edit-simplificado').checked;
+    }
     if (a.tipo === 'audio') {
         const rol = document.getElementById('edit-rol').value;
         if (rol !== a.rol) {
@@ -5171,7 +5245,7 @@ async function guardarEditarAsset() {
 
     // Solo los campos del formulario: reenviar el asset completo pisaba tab_sync/estado guardados desde el Lector
     const { error } = await sb.from('repertorio_assets').update(cambios).eq('id', a.id);
-    if (error) { toast('Error al guardar: ' + error.message); return; }
+    if (error) { toast(/clase|simplificado/.test(error.message || '') ? 'Falta actualizar Supabase (repertorio_assets_clase.sql)' : 'Error al guardar: ' + error.message); return; }
     Object.assign(a, cambios);
     cerrarEditarAsset();
     songActiva = c;

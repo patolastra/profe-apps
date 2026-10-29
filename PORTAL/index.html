@@ -10,7 +10,7 @@
     <script src="../supabase/contextos.js"></script>
     <script src="../comun/clase-vivo.js"></script>
     <script src="../comun/puntero.js"></script>
-    <script src="../comun/nombre-asset.js"></script>
+    <script src="../comun/nombre-asset.js?v=ep3"></script>
     <script src="../comun/asistencia.js"></script>
     <script src="../comun/recurrentes.js"></script>
     <script src="../comun/fecha-pizarra.js"></script>
@@ -4511,7 +4511,7 @@ async function abrirPickerMetal() {
 
     const { data, error } = await sb
         .from('repertorio_assets')
-        .select('id, etiqueta, nombre_archivo, storage_path, cancion_id, repertorio_canciones(nombre)')
+        .select('id, etiqueta, nombre_archivo, storage_path, cancion_id, dificultad, clase, simplificado, repertorio_canciones(nombre)')
         .eq('tipo', 'metalofono')
         .not('storage_path', 'is', null)
         .neq('storage_path', '');
@@ -4528,7 +4528,7 @@ async function abrirPickerMetal() {
     list.innerHTML = data.map(a => {
         // Nombre de cortesía (comun/nombre-asset.js): descripción, nunca el nombre del archivo
         const cancion = a.repertorio_canciones?.nombre || '';
-        const nombre = partesAsset({ ...a, tipo: 'metalofono' }).descripcion || cancion || 'Melodía';
+        const nombre = partesAsset({ ...a, tipo: 'metalofono' }).detalle || cancion || 'Melodía';
         const url = SUPABASE_URL + '/storage/v1/object/public/repertorio-assets/' + a.storage_path;
         return `<div class="metal-item" data-nombre="${nombre.replace(/"/g,'&quot;')}" data-url="${url}" onclick="insertarMetal(this.dataset.nombre,this.dataset.url)">
             <div class="metal-item-ico">🎹</div>
@@ -5039,7 +5039,7 @@ function cargarBib(forzar) {
     if (bibCanciones && !forzar) return Promise.resolve(bibCanciones);
     if (!bibCargando) bibCargando = Promise.all([
         sb.from('repertorio_canciones').select('id, nombre, artista'),
-        sb.from('repertorio_assets').select('id, cancion_id, tipo, etiqueta, dificultad, instrumento, tonalidad, orden, storage_path, nombre_archivo, tab_sync')
+        sb.from('repertorio_assets').select('id, cancion_id, tipo, etiqueta, dificultad, instrumento, tonalidad, clase, simplificado, orden, storage_path, nombre_archivo, tab_sync')
             .in('tipo', ['metalofono', 'ritmo', 'tab'])
     ]).then(([rc, ra]) => {
         bibCargando = null;
@@ -5062,7 +5062,7 @@ function vinculo(x) {
     const r = bibRecursos?.get(x.asset_id);
     const tipo = r?.tipo === 'ritmo' ? 'ritmo' : r?.tipo === 'tab' ? 'tab' : 'metalofono';
     const p = r ? partesAsset(r) : {};
-    const sub = r ? [tipo === 'tab' ? p.instrumento : '', p.descripcion, p.dificultad, x.seccion ? '▸ ' + x.seccion : ''].filter(Boolean).join(' · ')
+    const sub = r ? [tipo === 'tab' ? p.instrumento : '', p.detalle, p.dificultad, x.seccion ? '▸ ' + x.seccion : ''].filter(Boolean).join(' · ')
                   : (bibRecursos ? 'Recurso no encontrado' : '');
     return { tipo, ico: VINC_TIPO[tipo].ico, nom: cancion, sub, corto: cancion + (sub ? ' · ' + sub : ''),
              ayuda: tipo === 'ritmo' ? 'Abrir el ritmo' : tipo === 'tab' ? 'Abrir en el Lector de tablaturas' : 'Abrir la melodía en el metalófono' };

@@ -7212,7 +7212,7 @@ las sesiones"). DECISIÓN del PO: busca en **toda la Biblioteca**, no solo en la
 
 ---
 
-### EP. Biblioteca — ordenar los recursos (ficha por instrumento, clase del recurso, pestañas del catálogo) — APROBADA (PO 2026-10-29), entregas 1 y 2 hechas
+### EP. Biblioteca — ordenar los recursos (ficha por instrumento, clase del recurso, pestañas del catálogo) — APROBADA (PO 2026-10-29), entregas 1, 2 y 3 hechas (3 espera el SQL)
 *Origen: PO 2026-10-29 ("quiero ordenar un poco todo eso de los assets en la Biblioteca; está creciendo, pero tiende
 a desordenarse"). Hoy: 125 fichas (102 canciones, 20 materiales, 3 estilos) y 318 recursos (100 letras, 90 audios,
 92 tablaturas, 15 ritmos, 14 metalófono, 5 cajón, 2 melodías); 223 en borrador, 89 publicados.*
@@ -7247,3 +7247,17 @@ a desordenarse"). Hoy: 125 fichas (102 canciones, 20 materiales, 3 estilos) y 31
   grupo y del lote; el orden guardado sigue lo que se ve (los ocultos por el filtro no se mueven).
   Prueba (navegador): Go Away → Canción 2 (con 2 extractos), Guitarra 5 (4 + 1 borrador), Bajo 3, Piano 1;
   Publicado → Canción 0 / 2, Guitarra 4 / 5; Borrador → Guitarra 1 / 5; Aló, Aló muestra "sin dificultad"; sin errores.
+- **Entrega 3 hecha (2026-10-29), espera correr `supabase/repertorio_assets_clase.sql`:** columnas `clase`
+  (armonia · melodia · riff · acompanamiento · quintas, con verificación) y `simplificado` (no cambia lo existente).
+  Editor del recurso (`REPERTORIO`): para todo recurso de instrumento, **Clase** (clic en la elegida la quita),
+  **Simplificado(a)**, **Dificultad** (antes solo en tablaturas) y **Detalle** (ex Etiqueta), con "Se verá: …" al
+  vuelo. Ritmo, cajón y melodía (su ✏️ abre su editor) suman 🏷 para eso. Corrección de paso: editar un recurso que
+  no es tablatura ya no le copia el instrumento/dificultad de la última tablatura editada.
+  Nombre (`comun/nombre-asset.js`, `?v=ep3`): **Canción · Instrumento · Clase · Detalle · Dificultad** ("Armonía
+  simplificada", "Riff simplificado", "Quintas simplificadas"; sin "Melodía · Melodía"); nuevo `detalle` (clase +
+  descripción) donde el instrumento ya se ve. Lugares (regla 11): Biblioteca (ficha, selector de tablaturas),
+  Lector (`tabs/`), Planificador (canciones de las actividades, selector de metalófono) y Planificación del mes;
+  sus consultas piden ahora `clase, simplificado`. Ficha: "sin clase · sin dificultad" en naranjo; catálogo:
+  botón **🏷 Sin clase** (fichas con algo por clasificar: 25 canciones hoy).
+  Prueba (navegador, antes del SQL): editor de Go Away / Guitarra → "Se verá: Go Away (feat. Best Coast) · Guitarra
+  · Armonía simplificada · Parte C · Inicial"; nombres de ejemplo correctos; guardar queda para después del SQL.
