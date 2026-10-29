@@ -4089,6 +4089,7 @@ async function setEstadoAsset(nuevoEstado) {
             .update({ estado: nuevoEstado }).eq('id', assetId);
         if (error) throw error;
         toast(`Estado: ${ESTADOS_ASSET[nuevoEstado].label}`);
+        if (asset.tipo === 'letra' || asset.tipo === 'audio') cancionPublicaAlDia(asset.cancion_id);   // EQ
     } catch (e) {
         asset.estado = previo;                // revertir si falló
         renderPanel();
@@ -4162,7 +4163,8 @@ function assetItemHTML(a, i) {
                 : a.tipo === 'cajon'
                 ? `${estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirCajon('${a.id}', this)" title="Compartir con los estudiantes (celular): link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
                    <button class="btn-icon" onclick="abrirCajon('${songActiva.id}','${a.id}')" title="Abrir en el Cajón (tocar y editar)">✏️</button>`
-                : `<button class="btn-icon" onclick="verAsset('${songActiva.id}','${a.id}')" title="Ver">👁</button>
+                : `${a.tipo === 'letra' && cancionCompartible(songActiva) ? `<button class="btn-icon" onclick="compartirCancion('${songActiva.id}', this)" title="Compartir la canción (audio y letra) con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
+                   <button class="btn-icon" onclick="verAsset('${songActiva.id}','${a.id}')" title="Ver">👁</button>
                    <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>`}
             <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}','${a.id}')" title="Eliminar">🗑</button>
         </div>
@@ -5263,6 +5265,7 @@ async function guardarEditarAsset() {
     cerrarEditarAsset();
     songActiva = c;
     renderPanel();
+    if (a.tipo === 'letra' || a.tipo === 'audio') cancionPublicaAlDia(c.id);   // EQ
     toast('Asset actualizado ✓');
 }
 
@@ -5298,6 +5301,7 @@ async function eliminarAsset(songId, assetId) {
 
     await sbEliminarAsset(c.assets[idx]);
     c.assets.splice(idx, 1);
+    if (asset.tipo === 'letra' || asset.tipo === 'audio') cancionPublicaAlDia(c.id);   // EQ
     songActiva = c;
     renderPanel();
     toast('Asset eliminado');
@@ -5453,6 +5457,63 @@ async function compartirCajon(assetId, boton) {
     } catch (e) { toast('No se pudo preparar el ritmo para los estudiantes: ' + (e.message || e)); return; }
     const url = `${CAJON_LINK_ALUMNO}?a=${encodeURIComponent(asset.id)}&n=${encodeURIComponent(nombre)}`;
     Compartir.abrir(boton, { url, titulo: nombre, cancion: nombre, instrumento: 'Cajón', sb });
+}
+
+// ── Canción para estudiantes (deuda EQ): audio + letra sincronizada en CANTAR/ (enlace corto l/?a=&n=) ──
+// Sin base de datos: lee el archivo público cancion/<id>.json. Se comparte desde el ✈ de la Letra si la letra está
+// publicada y sincronizada y hay un audio publicado (solo van los audios publicados). El archivo se pone al día solo
+// al guardar la letra o su sincronización y al cambiar el estado o el rol de la letra o de un audio; si la canción
+// deja de cumplir, se quita (el link avisa "no disponible").
+const CANTAR_LINK_ALUMNO = 'https://patolastra.github.io/profe-apps/l/';
+function letraDe(c) { return (c?.assets || []).find(a => a.tipo === 'letra') || null; }
+function cancionCompartible(c) {
+    const l = letraDe(c);
+    const pub = a => a && a.storage_path && estadoDe(a) === 'publicado';
+    return !!(l && estadoDe(l) === 'publicado' && (l.synced || '').trim() && (pub(audioDe(c, 'melodia')) || pub(audioDe(c, 'karaoke'))));
+}
+// Las líneas como las arma el Entrenador: el orden de la letra (con sus estrofas) y los tiempos de la sincronía.
+function lineasPublicas(l) {
+    const cola = new Map();
+    parseLRC(l.synced).forEach(x => { if (!cola.has(x.text)) cola.set(x.text, []); cola.get(x.text).push(x); });
+    const base = l.contenido ? l.contenido.split('\n') : parseLRC(l.synced).map(x => x.text);
+    return base.map(raw => {
+        const x = raw.trim(), ts = x ? cola.get(x)?.shift() : null;
+        return { t: ts ? ts.time / 1000 : null, f: ts?.timeOut != null ? ts.timeOut / 1000 : null, x };
+    });
+}
+async function escribirCancionPublica(c) {
+    const pub = a => a && a.storage_path && estadoDe(a) === 'publicado' ? storageUrl(a.storage_path) : null;
+    const m = audioDe(c, 'melodia'), k = audioDe(c, 'karaoke');
+    const datos = { v: 1, nombre: c.nombre, artista: c.artista || '', artwork: c.artwork_url || '', lineas: lineasPublicas(letraDe(c)),
+        audios: { melodia: pub(m), karaoke: k && k !== m ? pub(k) : null } };
+    const { error } = await sb.storage.from(BUCKET).upload(`cancion/${c.id}.json`,
+        new Blob([JSON.stringify(datos)], { type: 'application/json' }), { upsert: true, contentType: 'application/json' });
+    if (error) throw error;
+}
+// Al día solo (sin avisar): espera un momento para juntar varios cambios seguidos.
+const cancionPublicaT = {};
+function cancionPublicaAlDia(cancionId, letraGuardada) {
+    clearTimeout(cancionPublicaT[cancionId]);
+    cancionPublicaT[cancionId] = setTimeout(async () => {
+        const c = canciones.find(x => x.id === cancionId);
+        if (!c || !sb) return;
+        // la letra recién guardada en el Entrenador (su copia puede ir más adelante que la de la lista)
+        const l = letraDe(c);
+        if (l && letraGuardada && l.id === letraGuardada.id && l !== letraGuardada) Object.assign(l, { contenido: letraGuardada.contenido, synced: letraGuardada.synced });
+        try {
+            if (cancionCompartible(c)) await escribirCancionPublica(c);
+            else await sb.storage.from(BUCKET).remove([`cancion/${c.id}.json`]);
+        } catch (e) { console.warn('Canción para estudiantes sin actualizar:', e); }
+    }, 1500);
+}
+async function compartirCancion(cancionId, boton) {
+    const c = canciones.find(x => x.id === cancionId);
+    if (!c) return;
+    if (!cancionCompartible(c)) { toast('Para compartir: letra publicada y sincronizada, y un audio publicado'); return; }
+    try { await escribirCancionPublica(c); }
+    catch (e) { toast('No se pudo preparar la canción para los estudiantes: ' + (e.message || e)); return; }
+    const url = `${CANTAR_LINK_ALUMNO}?a=${encodeURIComponent(c.id)}&n=${encodeURIComponent(c.nombre)}`;
+    Compartir.abrir(boton, { url, titulo: c.nombre, cancion: c.nombre, instrumento: 'Canción', sb });
 }
 
 // Ritmo de cajón (deuda EF): el Cajón con su programador, en una pestaña cerrable del Workspace.
@@ -9111,6 +9172,7 @@ function entGuardarAssetActivo(asset) {
     const run = async () => {
         try {
             await sbUpsertAsset(asset);
+            if (asset.tipo === 'letra') cancionPublicaAlDia(asset.cancion_id, asset);   // EQ: la versión estudiante al día
         } catch (e) {
             console.error('Error guardando asset del Entrenador:', e);
             toast('⚠ No se pudo guardar — revisá la conexión');

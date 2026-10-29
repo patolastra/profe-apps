@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cantar</title>
+<!--
+  Cantar (deuda EQ): versión para estudiantes de una canción de la Biblioteca — su audio (🎤 Melodía / 🎶 Karaoke)
+  con la letra sincronizada, el verso que suena resaltado y avanzando solo. Tocar un verso salta ahí.
+  Sin clave ni base de datos: lee el archivo público repertorio-assets/cancion/<id>.json que escribe la Biblioteca
+  al compartir (✈ de la Letra) y que se pone al día al guardar la letra o cambiar el estado de la letra o un audio.
+  Dirección: ?a=<id de la canción>&n=<nombre> (enlace corto l/?a=&n=).
+-->
+<style>
+    :root { --bg: #0b1120; --panel: #131c2e; --borde: #253455; --texto: #f1f5f9; --tenue: #7a8ba8; --activo: #fbbf24; --acento: #3b82f6; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; -webkit-tap-highlight-color: transparent; }
+    body { display: flex; flex-direction: column; height: 100dvh; }
+
+    #cab { display: flex; align-items: center; gap: 12px; padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+        background: var(--panel); border-bottom: 1px solid var(--borde); flex: 0 0 auto; }
+    #caratula { width: 46px; height: 46px; border-radius: 8px; object-fit: cover; background: #1a2540; flex: 0 0 auto; }
+    #caratula[hidden] { display: none; }
+    #titulos { flex: 1; min-width: 0; }
+    #nombre { font-weight: 700; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #artista { color: var(--tenue); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #rol { display: inline-flex; border: 1px solid var(--borde); border-radius: 10px; overflow: hidden; flex: 0 0 auto; }
+    #rol[hidden] { display: none; }
+    #rol button { width: 104px; height: 36px; border: 0; background: none; color: var(--tenue); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    #rol button.on { background: #1a2540; color: var(--texto); }
+
+    #letra { flex: 1 1 auto; overflow-y: auto; padding: 30vh 20px 40vh; text-align: center; scroll-behavior: smooth; }
+    .verso { font-size: clamp(1.2rem, 4.6vw, 2rem); line-height: 1.35; padding: 6px 8px; margin: 0 auto; max-width: 900px;
+        color: #64748b; border-radius: 10px; cursor: pointer; transition: color .2s, transform .2s; }
+    .verso.pasado { color: #94a3b8; }
+    .verso.activo { color: var(--activo); font-weight: 700; transform: scale(1.04); }
+    .verso:active { background: rgba(255,255,255,.05); }
+    .estrofa { height: 1.4em; }
+
+    #pie { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+        background: var(--panel); border-top: 1px solid var(--borde); }
+    #pie button { flex: 0 0 auto; border: 1px solid var(--borde); background: #1a2540; color: var(--texto); border-radius: 50%; cursor: pointer; font: inherit; }
+    #b-atras { width: 44px; height: 44px; font-size: 0.8rem; font-weight: 700; }
+    #b-play { width: 56px; height: 56px; font-size: 1.4rem; background: #15803d !important; border-color: #22c55e !important; }
+    #b-play:disabled { opacity: .4; }
+    #barra { flex: 1; min-width: 0; accent-color: var(--acento); }
+    #tiempo { font-variant-numeric: tabular-nums; color: var(--tenue); font-size: 0.85rem; width: 92px; text-align: right; flex: 0 0 auto; }
+
+    #aviso { position: fixed; left: 50%; top: 45%; transform: translate(-50%, -50%); max-width: 88%; text-align: center;
+        background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 16px 20px; color: var(--tenue); }
+    #aviso.error { color: #fca5a5; border-color: #b91c1c; }
+    #aviso[hidden] { display: none; }
+
+    @media (max-width: 520px) {
+        #rol button { width: 84px; font-size: 0.78rem; }
+        #caratula { width: 38px; height: 38px; }
+        #tiempo { width: 78px; font-size: 0.78rem; }
+    }
+    @media (max-height: 480px) {   /* celular horizontal */
+        #letra { padding-top: 22vh; padding-bottom: 30vh; }
+        .verso { font-size: clamp(1.1rem, 3.4vw, 1.7rem); padding: 3px 8px; }
+        #pie { padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+        #b-play { width: 46px; height: 46px; }
+    }
+</style>
+</head>
+<body>
+<header id="cab">
+    <img id="caratula" alt="" hidden>
+    <div id="titulos"><div id="nombre">Cantar</div><div id="artista"></div></div>
+    <div id="rol" hidden><button data-rol="melodia" class="on">🎤 Melodía</button><button data-rol="karaoke">🎶 Karaoke</button></div>
+</header>
+<main id="letra" aria-live="off"></main>
+<footer id="pie">
+    <button id="b-atras" title="Atrás 5 segundos">⏪ 5</button>
+    <button id="b-play" title="Tocar / pausa" disabled>▶</button>
+    <input id="barra" type="range" min="0" max="0" step="0.1" value="0" aria-label="Avance">
+    <span id="tiempo">0:00 / 0:00</span>
+</footer>
+<div id="aviso">Cargando la canción…</div>
+<audio id="audio" preload="auto"></audio>
+
+<script>
+'use strict';
+const STORAGE = 'https://bfinpxcwcsteintikrtt.supabase.co/storage/v1/object/public/repertorio-assets/';
+const $ = (id) => document.getElementById(id);
+const audio = $('audio'), zona = $('letra');
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+let datos = null, versos = [], nodos = [], actual = -2, rol = 'melodia', manualHasta = 0;
+
+function aviso(txt, error) { const a = $('aviso'); a.textContent = txt || ''; a.hidden = !txt; a.classList.toggle('error', !!error); }
+
+function pintarLetra() {
+    // lineas: [{ t: segundos | null, f: segundos de salida | null, x: texto }]; texto vacío = entre estrofas
+    zona.innerHTML = datos.lineas.map((l, i) => l.x
+        ? `<div class="verso" data-i="${i}">${esc(l.x)}</div>` : '<div class="estrofa"></div>').join('');
+    versos = datos.lineas.map((l, i) => ({ ...l, i })).filter(l => l.x && l.t != null);
+    nodos = [];
+    zona.querySelectorAll('.verso').forEach(n => { nodos[+n.dataset.i] = n; });
+}
+// El verso que suena: el último que ya entró (si tiene salida y ya pasó, ninguno hasta el siguiente)
+function versoEn(t) {
+    let k = -1;
+    for (let j = 0; j < versos.length && versos[j].t <= t + 0.05; j++) k = j;
+    if (k >= 0 && versos[k].f != null && t > versos[k].f) return { idx: -1, previo: versos[k].i };
+    return { idx: k >= 0 ? versos[k].i : -1, previo: k >= 0 ? versos[k].i : -1 };
+}
+function marcar(t) {
+    const { idx, previo } = versoEn(t);
+    if (idx === actual) return;
+    actual = idx;
+    nodos.forEach((n, i) => { if (!n) return; n.classList.toggle('activo', i === idx); n.classList.toggle('pasado', i < previo || (idx < 0 && i === previo)); });
+    if (idx >= 0 && Date.now() > manualHasta) {
+        const n = nodos[idx];
+        zona.scrollTo({ top: n.offsetTop - zona.clientHeight * 0.38, behavior: 'smooth' });
+    }
+}
+function cuadro() {
+    if (datos) {
+        marcar(audio.currentTime);
+        if (!arrastrando) $('barra').value = audio.currentTime;
+        $('tiempo').textContent = `${fmt(audio.currentTime)} / ${fmt(audio.duration)}`;
+    }
+    requestAnimationFrame(cuadro);
+}
+function pintarPlay() { $('b-play').textContent = audio.paused ? '▶' : '⏸'; }
+
+function ponerAudio(nuevo) {
+    const url = datos.audios[nuevo];
+    if (!url) return;
+    const t = audio.currentTime || 0, sonaba = !audio.paused;
+    rol = nuevo;
+    document.querySelectorAll('#rol button').forEach(b => b.classList.toggle('on', b.dataset.rol === rol));
+    audio.src = url;
+    audio.addEventListener('loadedmetadata', () => {
+        audio.currentTime = Math.min(t, audio.duration || t);
+        if (sonaba) audio.play().catch(() => {});
+    }, { once: true });
+}
+
+let arrastrando = false;
+$('barra').addEventListener('input', () => { arrastrando = true; $('tiempo').textContent = `${fmt($('barra').value)} / ${fmt(audio.duration)}`; });
+$('barra').addEventListener('change', () => { audio.currentTime = +$('barra').value; arrastrando = false; actual = -2; });
+$('b-play').onclick = () => { if (audio.paused) audio.play().catch(() => {}); else audio.pause(); };
+$('b-atras').onclick = () => { audio.currentTime = Math.max(0, audio.currentTime - 5); actual = -2; };
+audio.addEventListener('play', pintarPlay);
+audio.addEventListener('pause', pintarPlay);
+audio.addEventListener('loadedmetadata', () => { $('barra').max = audio.duration || 0; $('b-play').disabled = false; });
+audio.addEventListener('error', () => aviso('No se pudo cargar el audio. Revisa la conexión.', true));
+document.querySelectorAll('#rol button').forEach(b => b.onclick = () => { if (b.dataset.rol !== rol) ponerAudio(b.dataset.rol); });
+// Tocar un verso: la canción salta ahí y suena
+zona.addEventListener('click', (e) => {
+    const n = e.target.closest('.verso'); if (!n) return;
+    const l = datos.lineas[+n.dataset.i];
+    if (l.t == null) return;
+    audio.currentTime = Math.max(0, l.t - 0.15); actual = -2; manualHasta = 0;
+    if (audio.paused) audio.play().catch(() => {});
+});
+// Si el estudiante desplaza la letra con el dedo, no se la quitamos por unos segundos
+['wheel', 'touchmove'].forEach(ev => zona.addEventListener(ev, () => { manualHasta = Date.now() + 4000; }, { passive: true }));
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && e.target.tagName !== 'INPUT') { e.preventDefault(); $('b-play').click(); }
+});
+
+(async () => {
+    const q = new URLSearchParams(location.search);
+    try {
+        const r = await fetch(`${STORAGE}cancion/${encodeURIComponent(q.get('a') || '')}.json?t=${Date.now()}`, { cache: 'no-store' });
+        if (!r.ok) throw new Error();
+        datos = await r.json();
+        if (!datos.audios || !(datos.audios.melodia || datos.audios.karaoke) || !(datos.lineas || []).length) throw new Error();
+    } catch (e) { aviso('Esta canción no está disponible. Pídele al profe el enlace de nuevo.', true); return; }
+    const nombre = q.get('n') || datos.nombre || 'Canción';
+    $('nombre').textContent = datos.nombre || nombre; $('artista').textContent = datos.artista || '';
+    document.title = (datos.nombre || nombre) + ' · Cantar';
+    if (datos.artwork) { $('caratula').src = datos.artwork; $('caratula').hidden = false; }
+    $('rol').hidden = !(datos.audios.melodia && datos.audios.karaoke);
+    pintarLetra();
+    ponerAudio(datos.audios.melodia ? 'melodia' : 'karaoke');
+    aviso('');
+    requestAnimationFrame(cuadro);
+})();
+</script>
+</body>
+</html>

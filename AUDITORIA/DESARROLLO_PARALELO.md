@@ -7269,3 +7269,41 @@ a desordenarse"). Hoy: 125 fichas (102 canciones, 20 materiales, 3 estilos) y 31
   Audio, con **EXTRACTO** (o VERSIÓN) y debajo, más chico, su parte ("Parte C"); el nombre del archivo no se muestra
   (queda al pasar el mouse). Orden: extractos según las partes de la canción, luego versiones y otros. El número de
   Canción los cuenta. Prueba: Go Away → Canción 4 (Letra, Audio, Extracto Parte C, Extracto Coro); ▶ reproduce ahí.
+
+---
+
+### EQ. 🎤 Compartir una canción (audio + letra sincronizada) con los estudiantes por link o QR — HECHA
+*Origen: PO 2026-10-29 ("¿puedo compartir canciones (melodía/karaoke) con letra vía link o QR?" → hoy no; "prepara
+el plan"). Ya figuraba como siguiente paso del celular (DG/DH): "versión para alumnos por enlace / QR por canción".*
+- **Auditoría:** el ✈ (`comun/compartir.js`: link, QR, guía QR) existe para metalófono (`m/`), piano (`p/`),
+  tablaturas (`t/`) y cajón (`c/`); no para canciones. La letra es el recurso `letra` (`contenido` = texto con
+  estrofas separadas por línea en blanco; `synced` = LRC con tiempos de entrada y, a veces, de salida) y los audios
+  son recursos `audio` con `rol` melodia / karaoke, en el bucket público `repertorio-assets` (la sincronía es una sola
+  y sirve a los dos audios). Las versiones de estudiante no usan la base de datos: leen un archivo público
+  (`cajon/<id>.json`, `melodia/<id>.json`), y así sería aquí. **Sin cambios en tablas de Supabase.**
+- **Plan:**
+  1. **Página para estudiantes** nueva, `CANTAR/index.html`, con enlace corto `l/?a=<id de la canción>&n=<nombre>`.
+     Sin clave ni base de datos; celular (vertical u horizontal) y PC. Muestra nombre, artista y carátula; la
+     **letra con el verso que suena resaltado**, avanzando sola y con las estrofas separadas (como el modo Scroll del
+     Entrenador); ▶ / ⏸, barra de avance, ⏪ 5 s; **tocar un verso salta ahí**; botón **🎤 Melodía / 🎶 Karaoke**
+     (solo si la canción tiene los dos). Sin edición, colores, loops ni velocidad.
+  2. **Compartir desde la ficha:** ✈ en la fila de la **Letra**, solo si la letra está **publicada y sincronizada** y
+     hay al menos un audio **publicado** (solo se comparten los audios publicados). Al tocarlo se escribe el archivo
+     público `cancion/<id>.json` (nombre, artista, carátula, letra, sincronía y direcciones de los audios) y se abre el
+     menú de siempre (link, QR, guía QR, con la guía guardada en 📁 Archivos del curso).
+  3. **Al día solo:** si la canción ya se compartió, el archivo se renueva cada vez que se guarda la letra o su
+     sincronización en el Entrenador, o cambia el estado de la letra o de un audio (así un link ya entregado muestra
+     siempre lo último).
+  - Lugares (regla 11): ficha de la Biblioteca (PC) y el Entrenador (al guardar). El celular del profe no cambia.
+  - Fuera de este paso (a decidir después): compartir por partes de la letra, velocidad / tono, y abrir la versión
+    estudiante desde la Biblioteca del celular.
+- **Hecho (2026-10-29):** `CANTAR/index.html` (página del estudiante) + `l/index.html` (enlace corto) y, en
+  `REPERTORIO/index.html`, `cancionCompartible` · `lineasPublicas` (mismo armado de líneas que el Entrenador) ·
+  `escribirCancionPublica` (archivo `cancion/<id>.json`: nombre, artista, carátula, líneas con tiempo de entrada y
+  salida, y los audios publicados) · `compartirCancion` (✈ en la fila de la Letra) · `cancionPublicaAlDia` (renueva o
+  quita el archivo 1,5 s después de: guardar la letra o su sincronía en el Entrenador, cambiar el estado de la letra o
+  de un audio, editar su ficha —rol del audio— o borrarlos). Al guardar la letra del Entrenador se usa su copia.
+  Hoy cumple 1 canción (From The Start, con Melodía y Karaoke): las demás tienen la letra o el audio en borrador.
+  Prueba (navegador, 375×812): l/?a=… lleva a CANTAR; carátula, nombre, Melodía / Karaoke; 35 líneas (30 con tiempo,
+  5 entre estrofas); en 0:39 resalta el verso que suena; cambiar a Karaoke sigue en el mismo segundo y sonando; sin
+  errores.
