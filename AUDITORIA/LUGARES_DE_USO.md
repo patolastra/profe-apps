@@ -18,6 +18,7 @@
 | Copia en la Pizarra | `?espejo=1`, capa encima de la Pizarra | solo obedece al profe, en silencio, sin barra |
 | Pizarra, tecla T | `?practicar=|cancion=…&proyeccion=1` | barra oculta al abrir; **por eliminar** (Notion, PO 2026-10-24) |
 | Metalófono dentro del Entrenador | `#metal-overlay` (iframe del Metalófono) | ver Metalófono |
+| Estudiantes: canción compartida | `CANTAR/index.html` (enlace corto `l/?a=&n=`, deuda EQ) | **otro archivo, copia del estilo** del Entrenador del celular (clases `ent-*`): un cambio de estilo de la letra o del reproductor se repite allá |
 
 ## Lector de tablaturas (`tabs/index.html`, archivo único)
 
