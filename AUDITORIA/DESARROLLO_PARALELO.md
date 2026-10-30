@@ -7612,3 +7612,8 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
   - Marcando, `J` (o ⏪) vuelve 5 s, borra lo marcado desde ese punto y se sigue marcando sin detenerse.
   - Prueba (navegador): `{ {` → 0.9x, `+` → 1x; marcando desde 0:10, 6 pulsos, J en 0:13,4 → vuelve a 0:08,8 sin
     pulsos y sigue; 4 pulsos más → quedan esos 4.
+- **Ajuste 2 (PO 2026-10-30, "lo antinatural es que cada toque debería armar un compás, y está armando un compás con
+  4 de mis toques"):** "Cada toque: **Compás** · Pulso" (parte en Compás; se recuerda en el equipo). Con Compás, cada
+  Espacio es el 1 de un compás y la app reparte entre un toque y el siguiente tantos pulsos parejos como diga la cifra
+  de ese compás; el compás 1 queda en un toque. Con Pulso, igual que antes. El botón pasa a "⏺ Marcar".
+  Prueba (navegador): 4 toques cada 1,6 s desde 0:10 → 13 pulsos, compases 1.1 … 3.4 y 4.1, ♩ 149,5.

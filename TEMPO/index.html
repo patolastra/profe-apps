@@ -54,13 +54,13 @@
     .fila { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
     .fila > .rot { color: var(--tenue); }
     .caja { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 8px 12px; }
-    #pos { font-variant-numeric: tabular-nums; width: 300px; color: var(--tenue); }
+    #pos { font-variant-numeric: tabular-nums; width: 240px; color: var(--tenue); }
     #pos b { color: var(--texto); }
     #b-tocar { width: 104px; }
     /* Velocidad: el mismo chip del Entrenador (atajos { } +) */
     #vel { background: #334155; border: 1.5px solid #475569; color: #94a3b8; border-radius: 20px; padding: 4px 12px; font-size: 0.72rem;
         font-weight: 600; white-space: nowrap; line-height: 1; width: 52px; text-align: center; font-variant-numeric: tabular-nums; cursor: default; }
-    #b-marcar { width: 170px; }
+    #b-marcar { width: 124px; }
     #b-marcar.on { background: #c2410c; border-color: #fb923c; }
     #info { color: var(--tenue); font-size: 13px; }
     #cifras { display: inline-flex; gap: 6px; flex-wrap: wrap; }
@@ -99,9 +99,12 @@
 <div id="cuerpo">
     <div class="caja fila">
         <button class="btn grande" id="b-tocar">▶ Tocar</button>
-        <button class="btn grande" id="b-marcar" title="Suena desde el cursor y cada Espacio marca un pulso. J vuelve 5 s y sigues marcando desde ahí. Esc o Enter para terminar">⏺ Marcar pulsos</button>
+        <button class="btn grande" id="b-marcar" title="Suena desde el cursor y cada Espacio marca un compás o un pulso (según Cada toque). J vuelve 5 s y sigues marcando desde ahí. Esc o Enter para terminar">⏺ Marcar</button>
         <button class="btn" id="b-atras" title="Volver 5 s (J). Marcando: borra lo marcado desde ahí y sigues">⏪ 5 s</button>
         <button class="btn" id="b-adelante" title="Adelantar 5 s (L)">5 s ⏩</button>
+        <span class="rot">Cada toque</span>
+        <div class="seg" id="seg-toque" title="Qué marcas con cada Espacio: el comienzo de cada compás (la app reparte sus pulsos) o cada pulso">
+            <button class="btn" data-v="compas">Compás</button><button class="btn" data-v="pulso">Pulso</button></div>
         <span id="vel" title="Velocidad: { baja 5 % · } sube 5 % · + normal">1x</span>
         <button class="btn" id="b-clic" title="Un clic en cada pulso mientras suena, para comprobar">🔔 Clic</button>
         <span id="pos"></span>
@@ -135,7 +138,7 @@
         Marcar sobre pulsos que ya existen los reemplaza en ese tramo. En rojo, los pulsos que se ven disparejos.
     </div>
 </div>
-<div id="marcando">Marcando pulsos · <b id="marc-n">0</b><div class="ayuda">Espacio en cada pulso · <kbd>J</kbd> vuelve 5 s y sigues desde ahí · <kbd>Retroceso</kbd> quita el último · Esc o Enter para terminar</div></div>
+<div id="marcando"><span id="marc-que">Marcando compases</span> · <b id="marc-n">0</b><div class="ayuda">Espacio en <span id="marc-cada">el 1 de cada compás</span> · <kbd>J</kbd> vuelve 5 s y sigues desde ahí · <kbd>Retroceso</kbd> quita el último · Esc o Enter para terminar</div></div>
 <div id="importar"><div class="caja">
     <h3>📥 Importar un mapa de tempo</h3>
     <div class="ayuda">Reemplaza los pulsos actuales (se puede deshacer). Supone que el audio de Reaper empieza en el segundo 0 de esta grabación.</div>
@@ -269,6 +272,33 @@ function clic(t, fuerte) {
 
 // ══ Marcar pulsos ══════════════════════════════════════════════════════════════════════
 let taps = null;
+// Cada toque = el 1 de un compás (la app reparte sus pulsos, según la cifra) o un pulso
+let porCompas = (() => { try { return localStorage.getItem('tempo_toque') !== 'pulso'; } catch (_) { return true; } })();
+function pintarToque() {
+    document.querySelectorAll('#seg-toque .btn').forEach(b => b.classList.toggle('on', (b.dataset.v === 'compas') === porCompas));
+    $('marc-que').textContent = porCompas ? 'Marcando compases' : 'Marcando pulsos';
+    $('marc-cada').textContent = porCompas ? 'el 1 de cada compás' : 'cada pulso';
+}
+$('seg-toque').onclick = e => {
+    const b = e.target.closest('[data-v]'); if (!b || taps) return;
+    porCompas = b.dataset.v === 'compas';
+    try { localStorage.setItem('tempo_toque', porCompas ? 'compas' : 'pulso'); } catch (_) {}
+    pintarToque();
+};
+pintarToque();
+// Toques de compás → pulsos: entre un toque y el siguiente, tantos pulsos parejos como diga la cifra de ese compás
+function repartir(t) {
+    const out = [];
+    let c = mapa.vacio ? 1 : mapa.compasDePulso(Math.round(mapa.pulsoDeSeg(t[0]))).compas;
+    if (S.c1 === null || mapa.vacio) c = 1;
+    for (let i = 0; i < t.length; i++, c++) {
+        out.push(t[i]);
+        if (i + 1 === t.length) break;
+        const n = mapa.cifraEn(c), d = (t[i + 1] - t[i]) / n;
+        for (let k = 1; k < n; k++) out.push(t[i] + k * d);
+    }
+    return out;
+}
 async function empezarMarcar() {
     if (!buf || taps) return;
     taps = [];
@@ -279,18 +309,19 @@ function terminarMarcar() {
     if (!taps) return;
     const t = taps; taps = null;
     detener();
-    $('marcando').classList.remove('on'); $('b-marcar').classList.remove('on'); $('b-marcar').textContent = '⏺ Marcar pulsos';
+    $('marcando').classList.remove('on'); $('b-marcar').classList.remove('on'); $('b-marcar').textContent = '⏺ Marcar';
     pintarTransporte();
     if (t.length < 2) { sucio = true; return; }
     antes();
+    const nuevos = porCompas ? repartir(t) : t;
     // Lo marcado reemplaza los pulsos que había en ese tramo
-    const difs = t.slice(1).map((x, i) => x - t[i]).sort((a, b) => a - b), med = difs[Math.floor(difs.length / 2)];
+    const difs = nuevos.slice(1).map((x, i) => x - nuevos[i]).sort((a, b) => a - b), med = difs[Math.floor(difs.length / 2)];
     const ini = t[0] - med / 2, fin = t[t.length - 1] + med / 2;
     const c1Dentro = S.c1 !== null && S.c1 >= ini && S.c1 <= fin;
-    S.pulsos = S.pulsos.filter(x => x < ini || x > fin).concat(t);
-    if (c1Dentro) S.c1 = t[idxEn(t, S.c1)];
+    S.pulsos = S.pulsos.filter(x => x < ini || x > fin).concat(nuevos);
+    if (c1Dentro) S.c1 = t[idxEn(t, S.c1)];   // el compás 1 queda en un toque (con Compás, un tiempo 1)
     rehacer();
-    toast(`${t.length} pulsos marcados`);
+    toast(porCompas ? `${t.length - 1} compases marcados (${nuevos.length} pulsos)` : `${t.length} pulsos marcados`);
 }
 const idxEn = (arr, s) => arr.reduce((k, x, i) => Math.abs(x - s) < Math.abs(arr[k] - s) ? i : k, 0);
 
@@ -533,7 +564,7 @@ function pintarControles() {
         const mal = disparejos().size;
         $('info').textContent = `${P.length} pulsos · ${ult} compases · ♩ ${med.toFixed(1)} (entre ${Math.round(o[Math.floor(o.length * 0.03)])} y ${Math.round(o[Math.floor(o.length * 0.97)])})`
             + (mal ? ` · ${mal} ${mal === 1 ? 'pulso dispar' : 'pulsos disparejos'}` : '');
-    } else $('info').textContent = buf ? 'Sin pulsos todavía: pon el cursor al comienzo y ⏺ Marcar pulsos.' : '';
+    } else $('info').textContent = buf ? 'Sin pulsos todavía: pon el cursor al comienzo y ⏺ Marcar (Espacio en el 1 de cada compás).' : '';
     $('b-emparejar').disabled = $('b-golpes').disabled = $('b-limpiar').disabled = P.length < 3;
     document.querySelectorAll('#seg-grab .btn').forEach(b => { b.classList.toggle('on', b.dataset.v === rol); b.disabled = !audios[b.dataset.v]; });
 }
