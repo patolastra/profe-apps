@@ -7459,3 +7459,48 @@ compartible con los estudiantes hasta una fecha límite"). Primera prueba de un 
     antes. Arreglo de prueba y su archivo borrados. Sin errores.
 - **Pendiente / futuro:** la rítmica sobre los mismos acordes (etapa 2); si la grabación cambia de tempo, marcar
   compás por compás; abrir arreglos desde el Entrenador o el Plan; probar el calce real con Coqueta y en un celular.
+
+### ET. 🎤↔🎶 Cambio limpio entre Melodía y Karaoke — HECHA
+*Origen: PO 2026-10-30 ("al tocar Melodía / Karaoke se produce un salto en el audio, se pierde la continuidad; el paso
+entre esos dos audios debe ser completamente limpio", en todas las versiones del Entrenador y al compartir por QR o
+link).*
+- **Necesidad:** en clase y en la casa se cambia entre la canción con voz y sin voz para cantar solos; el corte rompe
+  el pulso del curso.
+- **Auditoría:** hoy el cambio **reemplaza el archivo** del único reproductor: se descarga el otro audio, se espera a
+  que cargue, se salta al mismo segundo y se vuelve a tocar. Eso deja un silencio (lo que tarda en cargar) y un salto
+  (el segundo exacto se pierde). Lugares:
+  - Entrenador (`REPERTORIO/index.html`, `entCambiarAudio`): Biblioteca, sesión del curso, Plan (mínimo), celular
+    (`?movil=1`); la copia en la Pizarra (`?espejo=1`) no suena y solo sigue al profe. Con **Pitch** activo el cambio
+    además vuelve a descargar y decodificar el audio (`entActivarPitch`), con un corte más largo.
+  - Cantar (`CANTAR/index.html`, `ponerAudio`): mismo mecanismo.
+  - Piano con arreglo (`PIANO/`, ES): el 🎤/🎶 detiene y vuelve a empezar desde donde iba.
+- **Plan propuesto:**
+  1. **Los dos audios cargados y sonando juntos desde el principio**, uno en silencio. El de Melodía sigue mandando el
+     tiempo (letra, loops, velocidad, saltos); el de Karaoke lo sigue (play, pausa, saltos, velocidad) y se corrige
+     solo si se adelanta o atrasa (acelerándolo o frenándolo apenas, sin saltos). Cambiar = pasar el volumen de uno al
+     otro en un fundido muy corto (~80 ms): sin silencio, sin salto y sin "clic".
+  2. **Con Pitch:** las dos grabaciones quedan decodificadas y el cambio toma la otra en la misma muestra.
+  3. **Cantar** y el **Piano con arreglo** usan la misma idea (Piano: `comun/grabacion-tono.js` cambia de grabación en
+     la misma posición).
+  - Costo: el celular descarga los dos audios al abrir la canción (hoy descarga el segundo al cambiar).
+  - Lugares (regla 11): Entrenador en Biblioteca, sesión del curso, Plan mínimo y celular; Cantar; Piano con arreglo.
+    La Pizarra (espejo) no cambia.
+- **Decisión del PO (2026-10-30):** plan aprobado tal cual.
+- **Hecho (2026-10-30):**
+  - Entrenador (`REPERTORIO/index.html`): segundo reproductor `#entrenador-audio-k` con el Karaoke, cargado al abrir la
+    canción (`entPrepararKaraoke`, en `abrirEntrenador` y `abrirEntrenadorConConfig`) y pausado al cerrar;
+    `entSeguirMelodia` lo mantiene a la par de la Melodía (play, pausa, saltos, velocidad; cada 200 ms corrige
+    acelerando o frenando hasta 4 %, o salta si se corrió más de 0,25 s); `entCambiarAudio` ya no cambia el archivo:
+    `entFundir` pasa el volumen en 80 ms. `entAplicarSalidaAudio` decide cuál suena (también con el 🔊 Volumen, con
+    Pitch y en la copia de la Pizarra, que no suena); en iPhone, que no deja cambiar el volumen de un audio, calla
+    uno y da voz al otro en el mismo toque. Con **Pitch**: las dos grabaciones quedan decodificadas
+    (`entPitchBuffers`) y SoundTouch lee la elegida en cada bloque (`entPitchCambiarBuffer`), sin rehacer nada.
+  - Cantar (`CANTAR/index.html`): lo mismo con `#audio-k` (`seguir`, `fundir`, `ponerAudio`). Es copia de la lógica
+    del Entrenador: si una cambia, cambiar la otra.
+  - Piano con arreglo: `comun/grabacion-tono.js` suma `precargar` y `cambiar` (la fuente lee la grabación vigente en
+    cada bloque, misma muestra); el 🎤/🎶 del Piano ya no detiene ni reinicia.
+  - Prueba (navegador): Entrenador con COQUETA sonando desde 0:20 → Karaoke: la Melodía nunca se pausó, volúmenes
+    1→0 y 0→1, desfase entre ambos 2 ms; vuelta a Melodía igual; con Pitch +2, el cambio usa la otra grabación en
+    el mismo reproductor (sin recargar) y al quitar el Pitch vuelve la mezcla correcta. Cantar (From The Start,
+    `l/`): mismo resultado, desfase 24 ms en corrección. Piano con arreglo: sonando, 🎤→🎶 sigue en la misma
+    reproducción y el tiempo avanza sin corte. Sin errores. Falta probarlo en un celular (iPhone usa callar/dar voz).
