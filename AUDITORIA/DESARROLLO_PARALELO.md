@@ -7539,4 +7539,7 @@ link).*
     de apps o la cortina de avisos (como el Lector, deuda DP). El Entrenador del PC sigue sonando (en clase se cambia
     de ventana con la música andando) y la vista previa del Editor de Arreglos tampoco se detiene.
     Prueba: con Cantar sonando, al cerrar la página se detuvo y se apagó el reproductor.
-  - Pendiente revisar lo mismo en Metalófono y Cajón de estudiantes.
+  - Metalófono (modo alumno, `stopAudio`) y Cajón (versión estudiante, `pausar`) tampoco se detenían: ahora lo hacen
+    igual (ocultarse, cerrar, selector de apps). El modo profesor de ambos no cambia (PO 2026-10-30).
+    Prueba: Cajón `c/` y Metalófono `m/` sonando → al salir se detienen. Con esto todas las versiones de estudiante
+    (Lector, Cantar, Piano, Metalófono, Cajón) y el Entrenador del celular se detienen al salir de la app.
