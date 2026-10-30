@@ -22,7 +22,7 @@
 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../supabase/config.js"></script>
-<script src="../comun/tempo-mapa.js"></script>
+<script src="../comun/tempo-mapa.js?v=ev2"></script>
 <style>
     :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; }
     * { box-sizing: border-box; }
@@ -50,6 +50,11 @@
     .card h3 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
     .card h3 small { font-weight: 400; color: var(--tenue); font-size: 12px; }
     .fila { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; font-size: 14px; }
+    /* Distinto de la ficha oficial de la canción (deuda EV): espacio reservado, se ve solo si difiere */
+    .dif { min-width: 150px; height: 26px; padding: 0 8px; border-radius: 13px; border: 1px solid #f59e0b; background: rgba(245,158,11,.15);
+        color: #fbbf24; font-size: 12px; cursor: pointer; white-space: nowrap; visibility: hidden; }
+    .dif.on { visibility: visible; }
+    .dif:disabled { cursor: default; }
     .fila > span:first-child { color: var(--tenue); }
     .ayuda { color: var(--tenue); font-size: 12px; margin: 4px 0; line-height: 1.4; }
     .btn { height: 30px; padding: 0 10px; border-radius: 7px; border: 1px solid #475569; background: #334155; cursor: pointer; font-size: 13px; white-space: nowrap; }
@@ -106,8 +111,10 @@
         <div class="card">
             <h3>① Base</h3>
             <div class="fila"><span>Tonalidad</span><select id="tonica"></select>
-                <div class="seg" id="seg-modo"><button class="btn" data-v="mayor">Mayor</button><button class="btn" data-v="menor">Menor</button></div></div>
+                <div class="seg" id="seg-modo"><button class="btn" data-v="mayor">Mayor</button><button class="btn" data-v="menor">Menor</button></div>
+                <button class="dif" id="dif-ton"></button></div>
             <div class="fila"><span>Compás</span><div class="seg" id="seg-compas"><button class="btn" data-v="2">2/4</button><button class="btn" data-v="3">3/4</button><button class="btn" data-v="4">4/4</button></div>
+                <button class="dif" id="dif-compas"></button>
                 <span>Tempo ♩</span><input id="tempo" type="number" min="30" max="240" step="0.01"></div>
             <div class="fila"><span>Melodía</span><select id="mel-elegir"></select><button class="btn" id="b-copiar-mel">Copiar</button></div>
             <div class="ayuda" id="mel-info"></div>
@@ -137,7 +144,7 @@
         <div class="card">
             <h3>⑤ Grabación</h3>
             <div class="ayuda" id="audio-info"></div>
-            <div class="fila"><span>Tono original</span><select id="original"></select><span id="semis"></span></div>
+            <div class="fila"><span>Tono original</span><select id="original"></select><span id="semis"></span><button class="dif" id="dif-orig"></button></div>
             <div id="tempo-si">
                 <div class="ayuda" id="tempo-info"></div>
                 <div class="fila"><span>El arreglo empieza en el compás</span><input id="desde" type="number" min="-8" step="1" style="width:64px"><span>de la canción</span></div>
@@ -353,7 +360,33 @@ function datosPublicos(hasta) {
 }
 
 // ══ Pintar ══════════════════════════════════════════════════════════════════════════════
+// Ficha oficial de la canción (su Mapa de tempo, deuda EV): si el arreglo queda distinto se avisa; tocar adopta lo oficial
+const tonOficial = () => mapaTempo?.tonalidad || null;
+const tonicaDe = (lista, t) => lista.find(x => x === t.tonica) || lista.find(x => TempoMapa.mismaTonalidad({ tonica: x, modo: t.modo }, t)) || null;
+function pintarDif() {
+    const n = mapaTempo ? mapaTempo.compasSimple() : 0, ct = mapaTempo ? mapaTempo.cifraTexto(1) : '';
+    const dc = $('dif-compas'), difC = !!mapaTempo && n !== A.compas;
+    dc.classList.toggle('on', difC); dc.textContent = difC ? `≠ canción: ${ct}` : ''; dc.disabled = !n;
+    dc.title = n ? `La canción está en ${ct} (su Mapa de tempo). Toca para usarlo.` : `La canción está en ${ct}: el arreglo aún no lo escribe.`;
+    const t = tonOficial(), nom = TempoMapa.nombreTonalidad(t);
+    const dt = $('dif-ton'), difT = !!t && !TempoMapa.mismaTonalidad(t, { tonica: A.tonica, modo: A.modo });
+    dt.classList.toggle('on', difT); dt.textContent = difT ? `≠ canción: ${nom}` : '';
+    dt.title = difT ? `La canción está en ${nom} (su Mapa de tempo). Un arreglo puede ir en otro tono; toca para usar el de la canción.` : '';
+    const dor = $('dif-orig'), difO = !!t && (audios.melodia || audios.karaoke) && !TempoMapa.mismaTonalidad({ tonica: t.tonica, modo: 'mayor' }, { tonica: A.audio.original, modo: 'mayor' });
+    dor.classList.toggle('on', !!difO); dor.textContent = difO ? `≠ canción: ${nombreTon(t.tonica)}` : '';
+    dor.title = difO ? `Según el Mapa de tempo, la grabación está en ${nom}. Toca para usarlo.` : '';
+}
+$('dif-compas').onclick = e => { e.target.blur(); const n = mapaTempo?.compasSimple(); if (!n) return; A.compas = n; pintarBase(); pintarOrden(); cambio(); };
+$('dif-ton').onclick = e => {
+    e.target.blur(); const t = tonOficial(); if (!t) return;
+    A.modo = t.modo; A.tonica = tonicaDe(TONICAS[t.modo], t) || A.tonica; pintarBase(); pintarAudio(); cambio();
+};
+$('dif-orig').onclick = e => {
+    e.target.blur(); const t = tonOficial(); if (!t) return;
+    A.audio.original = tonicaDe(TODAS, { tonica: t.tonica, modo: t.modo }) || A.audio.original; pintarAudio(); cambio();
+};
 function pintarBase() {
+    pintarDif();
     const t = $('tonica');
     t.innerHTML = TONICAS[A.modo].map(x => `<option value="${x}">${nombreTon(x)}</option>`).join('');
     if (!TONICAS[A.modo].includes(A.tonica)) A.tonica = TONICAS[A.modo][0];
@@ -454,6 +487,7 @@ function pintarAcordes() {
     }).join('') || '<div class="ayuda">Los acordes aparecen aquí al escribir las secciones.</div>';
 }
 function pintarAudio() {
+    pintarDif();
     const hay = [audios.melodia && '🎤 Melodía', audios.karaoke && '🎶 Karaoke'].filter(Boolean);
     $('audio-info').textContent = hay.length ? `Grabaciones de la canción: ${hay.join(' y ')}. El estudiante cambia entre ellas con un botón.`
         : 'La canción no tiene grabación: el arreglo sonará solo con el piano.';
@@ -719,6 +753,7 @@ async function iniciar() {
             $('etiqueta').value = etiquetaBase;
             if (data.contenido) { cargarContenido(data.contenido); contenidoBase = data.contenido; }
         }
+        await cargarTempo();
         if (sb && cancionId) {
             const [c, as] = await Promise.all([
                 sb.from('repertorio_canciones').select('nombre').eq('id', cancionId).single(),
@@ -744,8 +779,14 @@ async function iniciar() {
                     A.audio.original = A.tonica;
                 }
             }
+            // …y por sobre ella, la ficha oficial de la canción (Mapa de tempo, deuda EV): la grabación ES la canción
+            if (!assetId && mapaTempo) {
+                const t = tonOficial();
+                if (t) { A.modo = t.modo; A.tonica = tonicaDe(TONICAS[t.modo], t) || A.tonica; A.audio.original = tonicaDe(TODAS, t) || A.tonica; }
+                if (mapaTempo.compasSimple()) A.compas = mapaTempo.compasSimple();
+                if (mapaTempo.bpm && mapaTempo.cifras[0].d === 4) A.tempo = mapaTempo.bpm;
+            }
         }
-        await cargarTempo();
     } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }
     if (!assetId) contenidoBase = contenidoActual();
     try {

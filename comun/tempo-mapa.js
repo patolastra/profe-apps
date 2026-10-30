@@ -18,12 +18,15 @@
 //   m.cifraEn(c)         → pulsos del compás c; m.cifraTexto(c) → "4/4", "6/8"… (sin c: la del compás 1)
 //   m.bpm                → tempo de referencia (la mediana de lo marcado, redondeado; 0 si no hay)
 //   m.tonalidad          → { tonica, modo } o null; TempoMapa.nombreTonalidad(t) → "La mayor", "Fa♯ menor"
+//   TempoMapa.mismaTonalidad(a, b) → misma tónica (Re♭ = Do♯) y mismo modo
+//   m.compasSimple()     → pulsos por compás si la cifra del compás 1 es 2/4, 3/4 o 4/4 (lo que escriben Melodía y Arreglo); si no, 0
 //   m.bpmEn(p)           → tempo alrededor del pulso p
 //   m.secciones          → [{ compas, nombre }] en orden; m.seccionEn(c) → la sección del compás c (o null)
 //   Fuera de los pulsos marcados se sigue con el tempo del borde.
 //   await TempoMapa.cargar(baseStorage, cancionId) → mapa o null (lee el archivo público; sin clave)
 //   TempoMapa.desdeReaper(map, startQn, duracion)  → datos a partir de un mapa de Reaper (PT qn bpm; QN 0 = segundo 0)
-// Usada por la app Tempo (TEMPO/), el Editor de Arreglos (ARREGLO/), el Piano (PIANO/) y la ficha de la canción (REPERTORIO/).
+// Usada por la app Tempo (TEMPO/), el Editor de Arreglos (ARREGLO/), el Editor de Melodías (MELODIA/), el Piano (PIANO/)
+// y la ficha de la canción (REPERTORIO/).
 (function () {
     function crear(d) {
         const P = (d?.pulsos || []).filter(x => typeof x === 'number' && isFinite(x)).sort((a, b) => a - b);
@@ -71,6 +74,7 @@
             return lo + (s - P[lo]) / (P[hi] - P[lo]) - i0;
         };
         m.cifraEn = c => { let n = cifras[0].n; for (const x of cifras) if (x.compas <= c) n = x.n; return n; };
+        m.compasSimple = () => { const y = cifras.filter(x => x.compas <= 1).pop() || cifras[0]; return y.d === 4 && y.n >= 2 && y.n <= 4 ? y.n : 0; };
         m.cifraTexto = (c = 1) => { let y = cifras[0]; for (const x of cifras) if (x.compas <= c) y = x; return `${y.n}/${y.d}`; };
         m.pulsoDeCompas = c => {
             let p = 0;
@@ -126,6 +130,8 @@
     }
 
     const SOLF = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
+    const pcDe = t => ({ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[t[0]] + (t[1] === '#' ? 1 : t[1] === 'b' ? -1 : 0) + 12) % 12;
+    const mismaTonalidad = (a, b) => !!(a?.tonica && b?.tonica) && a.modo === b.modo && pcDe(a.tonica) === pcDe(b.tonica);
     const nombreTonalidad = t => t?.tonica ? `${SOLF[t.tonica[0]]}${t.tonica[1] === '#' ? '♯' : t.tonica[1] === 'b' ? '♭' : ''} ${t.modo}` : '';
     // Las tónicas que se ofrecen (las mismas del Editor de Melodías y del Arreglo)
     const TONICAS = {
@@ -133,5 +139,5 @@
         menor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'],
     };
 
-    window.TempoMapa = { crear, cargar, desdeReaper, nombreTonalidad, TONICAS };
+    window.TempoMapa = { crear, cargar, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS };
 })();

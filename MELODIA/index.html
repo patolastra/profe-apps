@@ -18,6 +18,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../supabase/config.js"></script>
 <script src="../vendor/vexflow.js"></script>
+<script src="../comun/tempo-mapa.js?v=ev2"></script>
 <style>
     :root {
         --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8;
@@ -60,6 +61,11 @@
     .paso { display: none; align-items: center; gap: 14px; width: 100%; }
     .paso.on { display: flex; }
     .grupo { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--tenue); }
+    /* Distinto de la ficha oficial de la canción (deuda EV): espacio reservado, se ve solo si difiere */
+    .dif { min-width: 150px; height: 26px; padding: 0 8px; border-radius: 13px; border: 1px solid #f59e0b; background: rgba(245,158,11,.15);
+        color: #fbbf24; font-size: 12px; cursor: pointer; white-space: nowrap; visibility: hidden; }
+    .dif.on { visibility: visible; }
+    .dif:disabled { cursor: default; }
     .grupo > span { margin-right: 4px; }
     .seg button, .btn { height: 32px; padding: 0 10px; border-radius: 7px; border: 1px solid #475569;
         background: #334155; color: var(--texto); cursor: pointer; font-size: 14px; white-space: nowrap; }
@@ -169,6 +175,7 @@
         </div>
         <div class="grupo"><span>Compás</span>
             <div class="seg" id="seg-compas"><button data-v="2">2/4</button><button data-v="3">3/4</button><button data-v="4" class="on">4/4</button></div>
+            <button class="dif" id="dif-compas"></button>
         </div>
         <div class="grupo"><span>Figura más corta</span>
             <div class="seg" id="seg-fig"><button data-v="4">♩ Negra</button><button data-v="2" class="on">♪ Corchea</button><button data-v="1">Semicorchea</button></div>
@@ -183,6 +190,7 @@
         <div class="grupo"><span>Tónica</span><select id="tonica"></select></div>
         <div class="grupo"><span>Modo</span>
             <div class="seg" id="seg-modo"><button data-v="mayor" class="on">Mayor</button><button data-v="menor">Menor</button></div>
+            <button class="dif" id="dif-ton"></button>
         </div>
     </div>
     <div class="paso" data-paso="3">
@@ -698,6 +706,7 @@ function pintarBotones() {
     document.getElementById('estado').textContent = guardando ? 'Guardando…' : !assetId && !M.notas.length ? '' : cambios ? 'Sin guardar' : 'Guardado ✓';
 }
 function pintarTodo() {
+    pintarDif();
     pintarBloques();
     pintarPartitura();
     pintarBotones();
@@ -889,6 +898,46 @@ function setTempo(v) {
 document.getElementById('tempo').addEventListener('change', e => setTempo(e.target.value));
 document.getElementById('tempo-menos').onclick = () => setTempo(M.tempo - 5);
 document.getElementById('tempo-mas').onclick = () => setTempo(M.tempo + 5);
+// Ficha oficial de la canción (Mapa de tempo, deuda EV): una melodía nueva parte con ella; si queda distinta se avisa
+let oficial = null;
+function pintarDif() {
+    const dc = document.getElementById('dif-compas'), dt = document.getElementById('dif-ton');
+    const n = oficial ? oficial.compasSimple() : 0, ct = oficial ? oficial.cifraTexto(1) : '';
+    const difC = !!oficial && (n ? n !== M.compas : true);
+    dc.classList.toggle('on', difC);
+    dc.textContent = difC ? `≠ canción: ${ct}` : '';
+    dc.disabled = !n;
+    dc.title = n ? `La canción está en ${ct} (su Mapa de tempo). Toca para usarlo.` : `La canción está en ${ct}: el editor de melodías aún no lo escribe.`;
+    const t = oficial?.tonalidad, difT = !!t && !TempoMapa.mismaTonalidad(t, { tonica: M.tonica, modo: M.modo });
+    dt.classList.toggle('on', difT);
+    dt.textContent = difT ? `≠ canción: ${TempoMapa.nombreTonalidad(t)}` : '';
+    dt.title = difT ? `La canción está en ${TempoMapa.nombreTonalidad(t)} (su Mapa de tempo). Toca para usarla: la melodía se mueve con ella.` : '';
+}
+// Lo oficial sobre la melodía: tonalidad y compás siempre; el tempo solo al crearla (se practica más lento a propósito)
+function usarOficial({ tempo = false } = {}) {
+    if (!oficial) return;
+    const t = oficial.tonalidad;
+    if (t) { M.modo = t.modo; M.tonica = TONICAS[t.modo].find(x => TempoMapa.mismaTonalidad({ tonica: x, modo: t.modo }, t)) || M.tonica; }
+    if (oficial.compasSimple()) M.compas = oficial.compasSimple();
+    if (tempo && oficial.bpm && oficial.cifras[0].d === 4) M.tempo = Math.max(30, Math.min(240, oficial.bpm));
+}
+document.getElementById('dif-compas').onclick = e => {
+    e.target.blur(); if (rec || !oficial?.compasSimple()) return;
+    M.compas = oficial.compasSimple(); compasSel = null; setSeg('seg-compas', M.compas); huboCambio(); pintarTodo();
+};
+document.getElementById('dif-ton').onclick = e => {
+    e.target.blur(); const t = oficial?.tonalidad; if (!t) return;
+    M.modo = t.modo; M.tonica = TONICAS[t.modo].find(x => TempoMapa.mismaTonalidad({ tonica: x, modo: t.modo }, t)) || M.tonica;
+    setSeg('seg-modo', M.modo); llenarTonicas(); huboCambio(); pintarTodo();
+};
+// Al guardar el Mapa de tempo de esta canción en otra pestaña, el aviso se pone al día
+try {
+    new BroadcastChannel('profe-tempo').onmessage = async e => {
+        if (e.data?.tipo !== 'tempo-guardado' || e.data.cancion !== cancionId) return;
+        oficial = await TempoMapa.cargar(`${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/`, cancionId);
+        pintarDif();
+    };
+} catch (_) {}
 function llenarTonicas() {
     const sel = document.getElementById('tonica');
     if (!TONICAS[M.modo].includes(M.tonica)) M.tonica = TONICAS[M.modo][0];
@@ -1224,9 +1273,10 @@ async function iniciar() {
             cancionNombre = data?.nombre || '';
             const { data: audios } = await sb.from('repertorio_assets').select('id').eq('cancion_id', cancionId).eq('tipo', 'audio').limit(1);
             document.getElementById('b-cancion').classList.toggle('on', !!audios?.length);
+            oficial = await TempoMapa.cargar(`${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/`, cancionId);
         }
     } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }
-    if (!assetId) contenidoBase = contenidoActual();
+    if (!assetId) { usarOficial({ tempo: true }); contenidoBase = contenidoActual(); }
     // Borrador guardado en este equipo (solo si parte de la misma versión)
     try {
         const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null');

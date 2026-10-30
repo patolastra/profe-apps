@@ -7683,7 +7683,7 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
     temblor de 2 px → no se movió; chip "Estrofa" → vista y cursor en 0:10,2; sonando desde 0:20, clic al 80 % de la
     canción → vista en 3:08 y ⌖ visible; ⌖ → vista en 0:20 siguiendo lo que suena y el botón se oculta.
 
-### EV. ⏱ El Mapa de tempo como ficha oficial de la canción (tonalidad, cifra, tempo, secciones) — HECHA (paso 1)
+### EV. ⏱ El Mapa de tempo como ficha oficial de la canción (tonalidad, cifra, tempo, secciones) — HECHA (pasos 1 y 2)
 *Origen: PO 2026-10-30 ("el tempomapper debería ser la declaración de los estándares de las canciones: el tempomap,
 las secciones, la tonalidad, cifra de compás, y eso debería poder leerse desde las otras instancias; desde aquí se
 entrega lo oficial").*
@@ -7721,3 +7721,25 @@ entrega lo oficial").*
     borrador borrado. Ficha: texto real y uno simulado ("Fa♯ menor · 4/4 (cambia) …"). `TempoMapa.cargar` de COQUETA
     da los mismos segundos que antes.
   - Falta: que el PO declare la tonalidad de COQUETA; pasos 2 y 3.
+- **Paso 2 (aprobado PO 2026-10-30, "ok, paso dos"): Editor de Melodías y Arreglo parten con lo oficial.**
+  - Auditoría: la Melodía nueva parte en 90 · 4/4 · Do mayor (solo admite 2/4, 3/4, 4/4); el Arreglo nuevo copia
+    tempo, compás y tonalidad de la primera Melodía de la canción, y su "tono original de la grabación" parte en esa
+    tonalidad. Ninguno lee la tonalidad ni la cifra del mapa.
+  - Plan: (1) nuevo recurso → tonalidad, cifra (si es x/4 de 2 a 4) y tempo de referencia oficiales; en el Arreglo,
+    el tono original de la grabación = la tonalidad oficial (la grabación ES la canción). Sin ficha oficial, como hoy.
+    (2) Si la tonalidad o el compás quedan distintos de la canción, al lado se ve "≠ canción: La mayor", que al
+    tocarlo adopta lo oficial; no impide nada (un arreglo puede ir en otro tono). El tempo no se marca (se practica
+    más lento a propósito).
+  - Lugares: Editor de Melodías (pasos ① y ②), Editor de Arreglos (① Base y ⑤ Grabación). El Piano no cambia.
+  - **Hecho (2026-10-30):** `TempoMapa.mismaTonalidad(a, b)` (Re♭ = Do♯) y `m.compasSimple()`. Editor de Melodías:
+    nueva → tonalidad, compás y ♩ oficiales; avisos "≠ canción" junto a Compás (paso ①) y Modo (paso ②), que al
+    tocarlos adoptan lo oficial (con una cifra que no escribe, p. ej. 6/8, el aviso se ve pero no se toca); se pone al
+    día al guardar el mapa (canal `profe-tempo`). Arreglo: nuevo → lo oficial por sobre lo de la Melodía, y el tono
+    original de la grabación = la tónica oficial; avisos junto a Tonalidad, Compás y Tono original.
+  - Prueba (navegador, COQUETA = Mi mayor declarada por el PO, sin guardar): Melodía nueva → Mi mayor · 4/4 · ♩ 79;
+    oficial simulado Fa♯ menor 3/4 → avisos, al tocarlos la melodía queda en Fa♯ menor 3/4; 6/8 → aviso sin acción.
+    Arreglo guardado (La mayor, grabación en Mi) → "≠ canción: Mi mayor" solo en Tonalidad. Arreglo nuevo → Mi mayor,
+    4/4, ♩ 79, tono original Mi; tono original a La → aviso, tocarlo vuelve a Mi. Borradores de prueba borrados.
+  - Visto en la prueba (preexistente, no de EV): el arreglo de COQUETA abre "Sin guardar" porque se guardó antes del
+    Mapa de tempo (le falta `audio.desde`); al guardarlo una vez queda al día.
+  - Falta: paso 3 (Lector, Cajón y Metrónomo leen secciones y tempo).
