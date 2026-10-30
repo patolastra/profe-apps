@@ -13,7 +13,8 @@
     · Melodía: copia de una Melodía de la canción (Editor de Melodías), para la mano derecha, en las secciones
       que la llevan. Es copia: corregir la melodía después no cambia el arreglo.
     · Grabación: la de la canción (Melodía / Karaoke), con su tono original y cuántos semitonos se mueve para
-      quedar en la tonalidad del arreglo; dónde empieza el compás 1 y el tempo (marcando pulsos con Espacio).
+      quedar en la tonalidad del arreglo. El calce lo da el mapa de tempo de la canción (TEMPO/, deuda EU): el arreglo
+      dice desde qué compás de la canción empieza y sigue la grabación aunque cambie de velocidad.
   Se guarda como recurso `arreglo` de la canción (repertorio_assets.contenido = este JSON) y el archivo público
   repertorio-assets/arreglo/<id>.json con todas las notas desplegadas, que lee el Piano del estudiante (PIANO/?r=).
   La vista previa a la derecha es el mismo Piano (PIANO/?vista=editor), al día con cada cambio.
@@ -21,7 +22,7 @@
 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../supabase/config.js"></script>
-<script src="../comun/grabacion-tono.js"></script>
+<script src="../comun/tempo-mapa.js"></script>
 <style>
     :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; }
     * { box-sizing: border-box; }
@@ -83,9 +84,8 @@
     .aco .ctr .btn { height: 26px; padding: 0 7px; }
     .aco input { width: 70px; height: 26px; text-align: center; margin-top: 4px; }
 
-    #tap { display: none; margin-top: 8px; padding: 10px; border-radius: 8px; background: #7c2d12; text-align: center; }
-    #tap.on { display: block; }
-    #tap-n { font-size: 28px; font-weight: 800; }
+    #tempo-si, #tempo-no { display: none; }
+    #tempo-si.on, #tempo-no.on { display: block; }
 
     #toast { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); background: #0b1222; border: 1px solid #475569;
         padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 30; max-width: 80vw; }
@@ -137,14 +137,15 @@
             <h3>⑤ Grabación</h3>
             <div class="ayuda" id="audio-info"></div>
             <div class="fila"><span>Tono original</span><select id="original"></select><span id="semis"></span></div>
-            <div class="fila"><span>Compás 1 en</span><button class="btn" data-ini="-0.05">−</button><input id="inicio" type="number" step="0.01" min="0"><button class="btn" data-ini="0.05">+</button><span>seg</span></div>
-            <div class="fila"><span>Tempo ♩</span><button class="btn" data-bpm="-0.05">−</button><span id="tempo2"></span><button class="btn" data-bpm="0.05">+</button></div>
-            <div class="fila"><span>Marcar pulsos desde el segundo</span><input id="tap-desde" type="number" min="0" step="1" value="0">
-                <span>empezando en el compás</span><input id="tap-compas" type="number" min="1" step="1" value="1" style="width:56px"></div>
-            <div class="fila"><button class="btn" id="b-tap">⏺ Marcar pulsos</button></div>
-            <div id="tap"><div>Toca <b>Espacio</b> en cada pulso, desde el tiempo 1 del compás elegido. Enter o ■ para terminar.</div>
-                <div id="tap-n">0</div><button class="btn" id="b-tap-fin">■ Terminar</button></div>
-            <div class="ayuda">Después ajusta con − / + mirando la vista previa: las notas deben caer justo con la grabación.</div>
+            <div id="tempo-si">
+                <div class="ayuda" id="tempo-info"></div>
+                <div class="fila"><span>El arreglo empieza en el compás</span><input id="desde" type="number" min="-8" step="1" style="width:64px"><span>de la canción</span></div>
+                <div class="fila"><button class="btn" data-tempo>⏱ Editar el mapa de tempo</button></div>
+            </div>
+            <div id="tempo-no">
+                <div class="ayuda">La canción aún no tiene mapa de tempo: sin él, el arreglo suena solo con el piano (sin la grabación).</div>
+                <div class="fila"><button class="btn" data-tempo>⏱ Hacer el mapa de tempo</button></div>
+            </div>
         </div>
     </div>
     <div id="vista">
@@ -171,6 +172,7 @@ let cancionNombre = '';
 let melodias = [];              // melodías de la canción: { id, etiqueta, tonalidad }
 let audios = { melodia: null, karaoke: null };   // dirección pública de cada grabación
 let contenidoBase = '', etiquetaBase = '';
+let mapaTempo = null, tempoV = 0;  // mapa de tempo de la canción (TempoMapa, deuda EU)
 
 // ══ El arreglo ══════════════════════════════════════════════════════════════════════════
 const A = {
@@ -179,7 +181,7 @@ const A = {
     secciones: [],              // { id, nombre, acordes (texto), melodia (bool), melDesde (compás) }
     orden: [],                  // ids de secciones
     voicings: {},               // nombre del acorde → { m: [midi…] de grave a agudo, dedos: [5, 3, 1] }
-    audio: { original: 'C', inicio: 0 },
+    audio: { original: 'C', desde: 1 },    // desde = compás de la canción donde empieza el arreglo
 };
 
 // ══ Tonalidad y nombres ═════════════════════════════════════════════════════════════════
@@ -343,7 +345,9 @@ function datosPublicos(hasta) {
     const d = desplegar();
     return { v: 1, tipo: 'arreglo', cancion: cancionNombre, etiqueta: $('etiqueta').value.trim(), tempo: A.tempo, compas: A.compas,
         tonalidad: nombreTonalidad(), notas: d.notas, acordes: d.acordes, secciones: d.secciones,
-        audio: (audios.melodia || audios.karaoke) ? { melodia: audios.melodia, karaoke: audios.karaoke, semitonos: semitonos(), inicio: A.audio.inicio } : null,
+        // La grabación va solo con mapa de tempo: el Piano lo lee (tempo/<cancion>.json) para calzar cada pulso
+        audio: (audios.melodia || audios.karaoke) && mapaTempo ? { melodia: audios.melodia, karaoke: audios.karaoke, semitonos: semitonos(),
+            cancion: cancionId, desde: A.audio.desde || 1, tempoV } : null,
         ...(hasta ? { hasta } : {}) };
 }
 
@@ -439,9 +443,15 @@ function pintarAudio() {
     $('original').value = A.audio.original;
     const s = semitonos();
     $('semis').textContent = s ? `se ${s > 0 ? 'sube' : 'baja'} ${Math.abs(s)} semitono${Math.abs(s) === 1 ? '' : 's'} para quedar en ${nombreTon(A.tonica)}` : `ya está en ${nombreTon(A.tonica)}`;
-    $('inicio').value = A.audio.inicio;
-    $('tempo2').textContent = A.tempo;
-    document.querySelectorAll('#form [data-ini], #form [data-bpm], #b-tap, #original, #inicio').forEach(el => el.disabled = !hay.length);
+    $('original').disabled = !hay.length;
+    $('tempo-si').classList.toggle('on', !!(hay.length && mapaTempo));
+    $('tempo-no').classList.toggle('on', !!(hay.length && !mapaTempo));
+    if (mapaTempo) {
+        const P = mapaTempo.pulsos, ult = mapaTempo.compasDePulso(P.length - 1 - mapaTempo.compas1).compas;
+        const bpms = P.slice(1).map((x, i) => 60 / (x - P[i])).sort((a, b) => a - b);
+        $('tempo-info').textContent = `⏱ Sigue el mapa de tempo de la canción: ${ult} compases, ♩ ${Math.round(bpms[Math.floor(bpms.length / 2)])} (entre ${Math.round(bpms[Math.floor(bpms.length * 0.03)])} y ${Math.round(bpms[Math.floor(bpms.length * 0.97)])}). El piano calza con la grabación aunque cambie de velocidad.`;
+        $('desde').value = A.audio.desde || 1;
+    }
 }
 function pintarTodo() { pintarBase(); pintarSecciones(); pintarOrden(); pintarAcordes(); pintarAudio(); cambio(); }
 
@@ -558,8 +568,8 @@ $('acordes').addEventListener('change', e => {
 });
 $('b-recalcular').onclick = () => { completarVoicings(true); pintarAcordes(); cambio(); };
 
-// ══ Sonido del editor (escuchar un acorde y marcar pulsos) ═══════════════════════════════
-let ctx = null, grab = null;
+// ══ Sonido del editor (escuchar un acorde) ════════════════════════════════════════════════
+let ctx = null;
 function audio() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === 'suspended') ctx.resume();
@@ -574,52 +584,29 @@ function sonarAcorde(ms) {
         o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 1.3);
     }
 }
-// Grabación: tono, compás 1 y tempo
+// Grabación: tono y desde qué compás de la canción
 $('original').onchange = e => { A.audio.original = e.target.value; pintarAudio(); cambio(); };
-$('inicio').onchange = e => { A.audio.inicio = Math.max(0, Math.round((+e.target.value || 0) * 1000) / 1000); pintarAudio(); cambio(); };
-document.querySelectorAll('[data-ini]').forEach(b => b.onclick = () => { A.audio.inicio = Math.max(0, Math.round((A.audio.inicio + +b.dataset.ini) * 1000) / 1000); pintarAudio(); cambio(); });
-document.querySelectorAll('[data-bpm]').forEach(b => b.onclick = () => { A.tempo = Math.round((A.tempo + +b.dataset.bpm) * 100) / 100; pintarBase(); pintarOrden(); pintarAudio(); cambio(); });
-
-let taps = null;
-$('b-tap').onclick = async () => {
-    const url = audios.melodia || audios.karaoke; if (!url) return;
-    try { $('previa').contentWindow.postMessage({ tipo: 'arreglo-detener' }, '*'); } catch (_) {}
-    try {
-        $('b-tap').disabled = true; toast('Cargando la grabación…');
-        grab = grab || GrabacionTono.crear(audio(), audio().destination);
-        await grab.cargar(url);
-        await grab.tocar(Math.max(0, +$('tap-desde').value || 0), semitonos(), 1);
-        grab.alTerminar = terminarTaps;
-        taps = []; $('tap-n').textContent = '0'; $('tap').classList.add('on');
-    } catch (err) { toast('No se pudo cargar la grabación: ' + (err.message || err)); }
-    finally { $('b-tap').disabled = false; }
-};
-document.addEventListener('keydown', e => {
-    if (!taps) return;
-    if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) { const s = grab.oido(); if (s !== null) { taps.push(s); $('tap-n').textContent = taps.length; } } }
-    else if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); terminarTaps(); }
-});
-$('b-tap-fin').onclick = terminarTaps;
-function terminarTaps() {
-    if (!taps) return;
-    grab?.detener();
-    const t = taps; taps = null;
-    $('tap').classList.remove('on');
-    if (t.length < 4) { toast('Faltan pulsos: marca al menos 4'); return; }
-    // Periodo con los primeros pulsos; cada toque se cuenta como el pulso más cercano (sirve aunque falten algunos)
-    const difs = t.slice(1, 6).map((x, i) => x - t[i]).sort((a, b) => a - b);
-    let per = difs[Math.floor(difs.length / 2)];
-    const k = t.map(x => Math.round((x - t[0]) / per));
-    // Recta por mínimos cuadrados: segundo = a + b · pulso
-    const n = t.length, sk = k.reduce((s, x) => s + x, 0), st = t.reduce((s, x) => s + x, 0);
-    const skk = k.reduce((s, x) => s + x * x, 0), skt = k.reduce((s, x, i) => s + x * t[i], 0);
-    const b = (n * skt - sk * st) / (n * skk - sk * sk), a = (st - b * sk) / n;
-    if (!(b > 0.2 && b < 2)) { toast('No se entendieron los pulsos, prueba de nuevo'); return; }
-    A.tempo = Math.round(6000 / b) / 100;
-    A.audio.inicio = Math.max(0, Math.round((a - (Math.max(1, +$('tap-compas').value || 1) - 1) * A.compas * b) * 1000) / 1000);
-    toast(`Compás 1 en ${A.audio.inicio.toFixed(2)} s · tempo ${A.tempo}`);
-    pintarBase(); pintarOrden(); pintarAudio(); cambio();
+$('desde').onchange = e => { A.audio.desde = Math.round(+e.target.value || 1); pintarAudio(); cambio(); };
+document.querySelectorAll('[data-tempo]').forEach(b => b.onclick = abrirTempo);
+// Mapa de tempo: se edita en su app (pestaña del Workspace); al guardarlo allí, aquí se pone al día
+function abrirTempo() {
+    const src = `../TEMPO/index.html?cancion=${encodeURIComponent(cancionId)}`;
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ tipo: 'ws-abrir', key: `tempo:${cancionId}`, titulo: `${cancionNombre || 'Canción'} · Tempo`, ico: '⏱', src, guardarAlCerrar: true }, '*'); return; } catch (_) {}
+    }
+    window.open(src, '_blank');
 }
+async function cargarTempo() {
+    mapaTempo = await TempoMapa.cargar(publica(''), cancionId);
+    tempoV = Date.now();
+}
+try {
+    new BroadcastChannel('profe-tempo').onmessage = async e => {
+        if (e.data?.tipo !== 'tempo-guardado' || e.data.cancion !== cancionId) return;
+        await cargarTempo(); pintarAudio(); cambio();
+        toast('Se puso al día el mapa de tempo');
+    };
+} catch (_) {}
 
 // ══ Guardar ═════════════════════════════════════════════════════════════════════════════
 let guardando = false;
@@ -686,7 +673,7 @@ function toast(t) {
 // ══ Inicio ══════════════════════════════════════════════════════════════════════════════
 function cargarContenido(txt) {
     const j = JSON.parse(txt);
-    Object.assign(A, j, { audio: { original: 'C', inicio: 0, ...(j.audio || {}) } });
+    Object.assign(A, j, { audio: { original: 'C', desde: 1, ...(j.audio || {}) } });
 }
 async function iniciar() {
     if (!assetId && !cancionId) { $('sin').style.display = 'flex'; return; }
@@ -725,6 +712,7 @@ async function iniciar() {
                 }
             }
         }
+        await cargarTempo();
     } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }
     if (!assetId) contenidoBase = contenidoActual();
     try {

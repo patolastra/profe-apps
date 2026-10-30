@@ -7543,3 +7543,65 @@ link).*
     igual (ocultarse, cerrar, selector de apps). El modo profesor de ambos no cambia (PO 2026-10-30).
     Prueba: Cajón `c/` y Metalófono `m/` sonando → al salir se detienen. Con esto todas las versiones de estudiante
     (Lector, Cantar, Piano, Metalófono, Cajón) y el Entrenador del celular se detienen al salir de la app.
+
+### EU. ⏱ Mapa de tempo de cada canción (pieza para el Arreglo y lo que venga) — HECHA (etapa 1)
+*Origen: PO 2026-10-30 ("iteremos el arreglo de piano; antes necesito una pieza importante que se ocupará para muchas
+cosas: una app que me permita hacer tempomaps de las canciones").*
+- **Necesidad:** las grabaciones reales no tienen un tempo fijo (se aceleran, frenan, hay calderones). Para que el
+  arreglo, y después la letra por compás, los loops, el cajón o el metrónomo, calcen con la grabación, hace falta saber
+  dónde cae cada pulso de la canción.
+- **Auditoría:**
+  - Editor de Arreglos (ES): un solo tempo + "Compás 1 en" (recta por los pulsos marcados con Espacio). Si la
+    grabación cambia de velocidad, el piano se descuadra. El Piano convierte pulso ↔ segundo con esa recta
+    (`srcDePulso` / `pulsoDeSrc`).
+  - Lector: lee mapas de tempo de Reaper (texto `PT` o `.mid`) por tablatura (`repertorio_assets.tab_sync`,
+    `mode: 'tempomap'`, `map: [{ qn, bpm }]`, `start_qn`); no existe un mapa de la canción.
+  - Melodía y Karaoke de una canción van exactamente juntas (ET): un mapa sirve para las dos.
+  - `repertorio_assets.tipo` no tiene restricción: un tipo nuevo `tempo` no pide SQL.
+- **Plan aprobado (PO 2026-10-30), etapa 1:**
+  1. **App ⏱ Tempo** (`TEMPO/index.html`, pestaña cerrable del Workspace, desde la ficha de la canción): carga la
+     grabación (Melodía o Karaoke); se marca el pulso con Espacio mientras suena (también más lenta sin cambiar el
+     tono) y se guarda **cada pulso**; forma de onda con las marcas para arrastrar, borrar o agregar; dónde empieza el
+     compás 1, la cifra y sus cambios; clic de metrónomo encima para comprobar. Importa mapas de Reaper.
+  2. **Recurso de la canción** `⏱ Mapa de tempo` (`tipo = 'tempo'`, uno por canción, `contenido` = JSON) en el grupo
+     🎵 Canción, y archivo público `tempo/<cancion_id>.json` para las páginas de estudiantes.
+  3. **Pieza compartida** `comun/tempo-mapa.js` (`TempoMapa`): segundo ↔ pulso ↔ compás.
+  4. **Arreglo usándola:** ya no pide pulsos ni tempo; dice desde qué compás de la canción empieza, y el Piano sigue
+     la grabación aunque cambie de velocidad.
+  - Sin cambios en Supabase.
+  - Lugares (regla 11): Biblioteca (ficha), app Tempo, Editor de Arreglos (vista previa incluida), Piano con arreglo
+    (PC y celular).
+  - Después (cada uno aparte): Lector sin Reaper, loops del Entrenador por compás, Cajón y Metrónomo con la
+    grabación, Editor de Melodías calzado con la canción.
+- **Hecho (2026-10-30):**
+  - `TEMPO/index.html`: barra con 🎤 Melodía / 🎶 Karaoke; ▶ Tocar (Espacio), ⏺ Marcar pulsos (desde el cursor; cada
+    Espacio un pulso, Retroceso quita el último, Esc/Enter termina; lo marcado reemplaza los pulsos de ese tramo),
+    velocidad 50–100 % sin cambiar el tono (`GrabacionTono`), 🔔 Clic en cada pulso (más agudo el tiempo 1), ↶ Deshacer
+    (Ctrl+Z). Arriba la canción entera con su curva de tempo (amarilla) y lo que se ve abajo; abajo la onda con los
+    pulsos: tiempo 1 en blanco con el número de compás, compás 1 en verde, el elegido en celeste, en rojo los
+    intervalos disparejos (>18 % de sus vecinos); clic = cursor, arrastrar = mover, doble clic = agregar, Supr =
+    borrar, ← → = pasar de pulso, rueda = acercar, Mayús+rueda = desplazar. "Aquí empieza el compás 1", cifra desde el
+    compás del pulso elegido (2–7 pulsos; los cambios se listan con ✕). ✨ Emparejar (cada pulso a la recta de sus
+    6 vecinos), 🎯 Ajustar a los golpes (el ataque más fuerte a ±60 ms, si destaca), 📥 Importar (líneas `PT` o `.mid`
+    de Reaper, o el mapa de una tablatura de la canción). Guarda el recurso `tempo` (publicado, sin dificultad) y
+    `tempo/<cancion_id>.json`; avisa a las otras pestañas (canal `profe-tempo`). Borrador en el equipo y guardado al
+    cerrar la pestaña.
+  - `comun/tempo-mapa.js` (`TempoMapa`): `segDePulso`, `pulsoDeSeg`, `pulsoDeCompas`, `compasDePulso`, `cifraEn`,
+    `bpmEn` (fuera de lo marcado sigue el tempo del borde), `cargar` (archivo público) y `desdeReaper`.
+  - Biblioteca: ⏱ Mapa de tempo en el grupo 🎵 Canción (✏️ y 🗑, sin estado ni dificultad, siempre visible);
+    "+ Mapa de tempo" si la canción tiene audio y aún no tiene mapa; borrar el recurso o la canción borra el archivo;
+    el Entrenador lo esconde. `comun/nombre-asset.js`: "Mapa de tempo".
+  - Editor de Arreglos: ⑤ Grabación ya no marca pulsos ni pide "Compás 1 en" / tempo: con mapa muestra un resumen y
+    "El arreglo empieza en el compás N de la canción" + ⏱ Editar el mapa; sin mapa, ⏱ Hacer el mapa de tempo (y el
+    arreglo va sin grabación). Se pone al día solo al guardar el mapa en su pestaña. El archivo público lleva
+    `audio.cancion` y `audio.desde`.
+  - Piano con arreglo: con `audio.cancion` lee `tempo/<cancion>.json` y convierte pulso ↔ segundo con el mapa
+    (arreglos antiguos: `inicio` + tempo fijo).
+  - Sin cambios en Supabase.
+  - Prueba (navegador, COQUETA): marcar 5 pulsos sonando → 5 pulsos, compás 1 en el primero, ♩ 118,8; importar
+    `PT 0 120 / PT 40 100` con compás 1 en QN 4 → 410 pulsos, curva 120→100; cifra 3 desde el compás 5 (pulso 20 =
+    compás 6.2); disparejo en rojo, elegido y compás 1 visibles; Emparejar, Ajustar a los golpes y Deshacer;
+    guardado → recurso + archivo; la ficha lo muestra; Arreglo: resumen "134 compases, ♩ 100 (entre 100 y 120)",
+    vista previa con pulso 0 = 2 s y pulso 40 = 22,4 s (tramo lento), "desde el compás 3" → pulso 0 = 6 s, y sonando
+    2,5 s el pulso del piano coincide con la grabación. Mapa de prueba borrado (recurso y archivo); vuelve a verse
+    "+ Mapa de tempo". Falta: el mapa real de COQUETA (lo marca el PO) y probarlo en el celular.

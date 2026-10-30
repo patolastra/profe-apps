@@ -10,7 +10,7 @@
 //   g.oido()        → segundo de la grabación que suena ahora (null si no suena)
 //   g.aCtx(seg)     → hora del AudioContext en que sonará ese segundo de la grabación
 //   g.detener() · g.duracion · g.sonando · g.alTerminar = fn
-// Usada por el Editor de Arreglos (ARREGLO/) y el Piano del estudiante (PIANO/).
+// Usada por el Piano del estudiante (PIANO/) y el Mapa de tempo (TEMPO/).
 (function () {
     let lib = null;
     async function cargarLib() {

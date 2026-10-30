@@ -69,7 +69,8 @@
 | `libro-proyeccion.js` | Libro (📽️ Proyectar) · Pizarra · Workspace |
 | `cuaderno.js` | Plan (📔) · Cursos (📔 Cuaderno) · Pizarra (espejo) |
 | `compartir.js` | Biblioteca: ficha de la canción, ✈ de la melodía de metalófono, del piano, del arreglo de piano (con `plazo`, ES) y de cada tablatura y sección publicada (deudas DQ y DP) |
-| `grabacion-tono.js` | Editor de Arreglos (marcar pulsos) · Piano del estudiante con arreglo (grabación en el tono del arreglo, más lenta sin cambiar el tono; ES); 🎤/🎶 sin corte, ET) |
+| `grabacion-tono.js` | Mapa de tempo (`TEMPO/`, tocar más lento y marcar pulsos; EU) · Piano del estudiante con arreglo (grabación en el tono del arreglo, más lenta sin cambiar el tono; ES); 🎤/🎶 sin corte, ET) |
+| `tempo-mapa.js` (EU) | Mapa de tempo de la canción (segundo ↔ pulso ↔ compás): app `TEMPO/` · Editor de Arreglos (resumen y vista previa) · Piano con arreglo (calce con la grabación, PC y celular). Siguen: Lector, loops del Entrenador, Cajón y Metrónomo con la grabación, Editor de Melodías |
 | `dos-grabaciones.js` (ET) | Melodía ↔ Karaoke exacto en un solo reproductor: Entrenador en todas sus versiones (también es su motor de Pitch y velocidad; la copia de la Pizarra no suena) · Cantar. El Piano con arreglo hace lo mismo con `grabacion-tono.js` |
 | `redactar-oa.js` | Libro: ✨ Redactar OA en Nueva evaluación y en la cabecera (solo cursos; DS) · llamada a Gemini compartida |
 | `citar.js` | ❝ Citar de 📚 Estudios: Cursos del PC y Bitácora del celular (deuda EC) |

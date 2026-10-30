@@ -17,6 +17,7 @@
   ?vista=editor: la vista previa del Editor de Arreglos (ARREGLO/), que le manda los datos por mensaje.
 -->
 <script src="../comun/grabacion-tono.js"></script>
+<script src="../comun/tempo-mapa.js"></script>
 <style>
     :root { --bg: #0b1020; --panel: #151c2f; --borde: #2a3550; --texto: #e2e8f0; --tenue: #94a3b8; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -258,9 +259,20 @@ let ARR = false;
 let rep = null;                 // { g (GrabacionTono) | null, t0, p0, desde, salida, piano (ganancia), hasta (pulso ya programado) }
 let velocidad = 1, rol = 'melodia', pianoOn = leer('piano_arr_piano', '1') === '1', secSel = 0;
 let grab = null;
-const spb = () => 60 / MEL.tempo;                                     // segundos por pulso en la grabación
-const srcDePulso = p => MEL.audio.inicio + p * spb();
-const pulsoDeSrc = s => (s - MEL.audio.inicio) / spb();
+const spb = () => 60 / MEL.tempo;                                     // segundos por pulso sin grabación
+// Con grabación, el mapa de tempo de la canción (deuda EU) dice dónde cae cada pulso; el arreglo empieza en el
+// compás `desde` de la canción. (Arreglos antiguos: compás 1 en `inicio` y tempo fijo.)
+let MAPA = null, mapaClave = '';
+async function prepararMapa() {
+    const a = MEL?.audio, clave = a?.cancion ? a.cancion + ':' + (a.tempoV || '') : '';
+    if (clave === mapaClave) return;
+    mapaClave = clave;
+    const m = clave ? await TempoMapa.cargar(STORAGE, a.cancion) : null;
+    if (mapaClave === clave) MAPA = m;
+}
+const offMapa = () => MAPA.pulsoDeCompas(MEL.audio.desde || 1);
+const srcDePulso = p => MAPA ? MAPA.segDePulso(p + offMapa()) : (MEL.audio.inicio || 0) + p * spb();
+const pulsoDeSrc = s => MAPA ? MAPA.pulsoDeSeg(s) - offMapa() : (s - (MEL.audio.inicio || 0)) / spb();
 const inicioSeccion = () => (MEL.secciones?.[secSel]?.t || 0) / 4;
 const audioUrl = () => MEL.audio && (MEL.audio[rol] || MEL.audio.melodia || MEL.audio.karaoke);
 function pulsoArr() {
@@ -287,6 +299,7 @@ async function tocarArr(desde = null, precuenta = true) {
             if (grab.url !== url) aviso.textContent = 'Cargando la grabación…';
             await grab.cargar(url);
             grab.precargar(MEL.audio.melodia === url ? MEL.audio.karaoke : MEL.audio.melodia);   // la otra, lista para cambiar (ET)
+            await prepararMapa();
             aviso.textContent = '';
         } catch (_) { document.getElementById('aviso').textContent = 'No se pudo cargar la grabación.'; rep = null; pintarBarra(); return; }
         if (rep !== r) return;
@@ -615,7 +628,7 @@ function aplicarDatos(datos) {
     medir();
     pintarBarra();
     pintarMano();
-    if (ARR) { llenarSecciones(); pintarArr(); }
+    if (ARR) { llenarSecciones(); pintarArr(); prepararMapa(); }
 }
 // Sin melodía en la dirección (abierto por el profe desde el menú + del Workspace): lista de melodías.
 // Solo aquí se usa la base de datos; el enlace del estudiante (?a=) nunca la toca.
