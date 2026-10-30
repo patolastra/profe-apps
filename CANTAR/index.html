@@ -173,16 +173,28 @@ function fundir(hacia) {
         if (x >= 1) clearInterval(fundidoT);
     }, 10);
 }
+// Solo se corrige la grabación que está en silencio (la que suena nunca se acelera, frena ni salta)
+let corrigiendo = false;
 function seguir(fuerte) {
     if (!audioK.getAttribute('src')) return;
     if (audio.paused || audio.ended) { if (!audioK.paused) audioK.pause(); if (fuerte) try { audioK.currentTime = audio.currentTime; } catch (_) {} return; }
-    const d = audioK.currentTime - audio.currentTime;
-    if (fuerte || Math.abs(d) > 0.25) { try { audioK.currentTime = audio.currentTime; } catch (_) {} audioK.playbackRate = 1; }
-    else audioK.playbackRate = Math.abs(d) > 0.012 ? 1 - Math.max(-0.04, Math.min(0.04, d * 0.6)) : 1;
+    if (fuerte) { try { audioK.currentTime = audio.currentTime; } catch (_) {} audioK.playbackRate = 1; }
+    else {
+        const callada = mezcla >= 0.5 ? audio : audioK, guia = callada === audio ? audioK : audio;
+        const d = callada.currentTime - guia.currentTime;
+        if (guia.playbackRate !== 1) guia.playbackRate = 1;
+        if (Math.abs(d) > 0.3) { if (callada === audio) corrigiendo = true; try { callada.currentTime = guia.currentTime; } catch (_) {} callada.playbackRate = 1; }
+        else {
+            const r = Math.abs(d) > 0.03 ? 1 - Math.max(-0.05, Math.min(0.05, d * 0.5)) : 1;
+            if (Math.abs(callada.playbackRate - r) > 0.002) callada.playbackRate = r;
+        }
+    }
     if (audioK.paused && audio.currentTime < (audioK.duration || Infinity)) audioK.play().catch(() => {});
 }
-['play', 'pause', 'seeked'].forEach(ev => audio.addEventListener(ev, () => seguir(true)));
-setInterval(() => seguir(false), 200);
+audio.addEventListener('play', () => seguir(true));
+audio.addEventListener('pause', () => seguir(true));
+audio.addEventListener('seeked', () => { if (corrigiendo) { corrigiendo = false; return; } seguir(true); });
+setInterval(() => seguir(false), 250);
 function ponerAudio(nuevo) {
     if (!datos.audios[nuevo]) return;
     rol = nuevo;

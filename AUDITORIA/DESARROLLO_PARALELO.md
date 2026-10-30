@@ -7504,3 +7504,10 @@ link).*
     el mismo reproductor (sin recargar) y al quitar el Pitch vuelve la mezcla correcta. Cantar (From The Start,
     `l/`): mismo resultado, desfase 24 ms en corrección. Piano con arreglo: sonando, 🎤→🎶 sigue en la misma
     reproducción y el tiempo avanza sin corte. Sin errores. Falta probarlo en un celular (iPhone usa callar/dar voz).
+- **Ajuste (PO 2026-10-30, "el karaoke suena cortado"):** la corrección aceleraba o frenaba cada 200 ms al Karaoke
+  también mientras sonaba, y eso lo entrecortaba. Ahora **solo se corrige la grabación que está en silencio**: si
+  suena el Karaoke, es la Melodía (callada) la que se ajusta a él; la que suena no se acelera, frena ni salta (salvo
+  play, pausa o un salto del usuario). Corrección cada 250 ms, desde 30 ms de desfase, hasta 5 %; salto solo sobre la
+  callada si pasa de 0,3 s (sin arrastrar a la otra). Igual en Cantar.
+  Prueba (navegador): con el Karaoke sonando, 0 cambios de velocidad y 0 saltos en el Karaoke durante 6–8 s; desfase
+  estable de 1–25 ms (Entrenador con COQUETA y Cantar con From The Start).

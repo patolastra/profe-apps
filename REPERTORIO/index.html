@@ -5998,6 +5998,9 @@ function entPrepararKaraoke(c) {
     if ((k.getAttribute('src') || '') !== src) { if (src) k.src = src; else { k.removeAttribute('src'); k.load(); } }
     entAplicarSalidaAudio();
 }
+// Solo se corrige la grabación que está en silencio: la que suena nunca se acelera, frena ni salta (ajuste ET:
+// corregir la que sonaba la dejaba entrecortada). Si suena el Karaoke, es la Melodía la que se ajusta a él.
+let entCorrigiendo = false;     // un salto hecho aquí a la Melodía no debe mover al Karaoke
 function entSeguirMelodia(fuerte) {
     const m = entAudio(), k = entAudioK();
     if (!k.getAttribute('src') || ESPEJO) return;
@@ -6006,19 +6009,31 @@ function entSeguirMelodia(fuerte) {
         if (fuerte && isFinite(m.currentTime)) try { k.currentTime = m.currentTime; } catch (_) {}
         return;
     }
-    const d = k.currentTime - m.currentTime;
-    if (fuerte || Math.abs(d) > 0.25) { try { k.currentTime = m.currentTime; } catch (_) {} k.playbackRate = m.playbackRate; }
-    else k.playbackRate = m.playbackRate * (Math.abs(d) > 0.012 ? 1 - Math.max(-0.04, Math.min(0.04, d * 0.6)) : 1);
+    const base = entrenadorVelocidad || 1;
+    if (fuerte) { try { k.currentTime = m.currentTime; } catch (_) {} k.playbackRate = base; }
+    else {
+        const suenaK = entMezcla >= 0.5 && !entPitchNode;
+        const callada = suenaK ? m : k, guia = suenaK ? k : m;
+        const d = callada.currentTime - guia.currentTime;
+        if (guia.playbackRate !== base) guia.playbackRate = base;
+        if (Math.abs(d) > 0.3) {
+            if (callada === m) entCorrigiendo = true;
+            try { callada.currentTime = guia.currentTime; } catch (_) {}
+            callada.playbackRate = base;
+        } else {
+            const r = Math.abs(d) > 0.03 ? base * (1 - Math.max(-0.05, Math.min(0.05, d * 0.5))) : base;
+            if (Math.abs(callada.playbackRate - r) > 0.002) callada.playbackRate = r;
+        }
+    }
     if (k.paused && m.currentTime < (k.duration || Infinity)) k.play().catch(() => {});
 }
 (() => {
     const m = entAudio();
     m.addEventListener('play', () => entSeguirMelodia(true));
     m.addEventListener('pause', () => entSeguirMelodia(true));
-    m.addEventListener('seeked', () => entSeguirMelodia(true));
-    m.addEventListener('ratechange', () => entSeguirMelodia(false));
+    m.addEventListener('seeked', () => { if (entCorrigiendo) { entCorrigiendo = false; return; } entSeguirMelodia(true); });
     m.addEventListener('emptied', () => entAudioK().pause());
-    setInterval(() => entSeguirMelodia(false), 200);
+    setInterval(() => entSeguirMelodia(false), 250);
 })();
 // Con el tono cambiado: SoundTouch lee la grabación elegida; el cambio la reemplaza en la misma muestra
 const entPitchBuffers = {};     // id del audio → AudioBuffer decodificado
