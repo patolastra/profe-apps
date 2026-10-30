@@ -130,6 +130,7 @@
     <div class="caja fila">
         <span class="rot">Cifras:</span><span id="cifras"></span>
         <div class="sep"></div>
+        <button class="btn" id="b-a-compases" title="Si marcaste un toque por compás y quedaron como pulsos: cada pulso pasa a ser el 1 de un compás y se reparten sus pulsos según la cifra">÷ Eran compases</button>
         <button class="btn" id="b-emparejar" title="Corrige pequeñas diferencias de los toques, respetando cuando la canción acelera o frena">✨ Emparejar</button>
         <button class="btn" id="b-golpes" title="Mueve cada pulso al golpe más cercano de la grabación (si lo hay)">🎯 Ajustar a los golpes</button>
         <button class="btn" id="b-importar" title="Desde Reaper o desde una tablatura de la canción">📥 Importar</button>
@@ -594,7 +595,7 @@ function pintarControles() {
         $('info').textContent = `${P.length} pulsos · ${ult} compases · ♩ ${med.toFixed(1)} (entre ${Math.round(o[Math.floor(o.length * 0.03)])} y ${Math.round(o[Math.floor(o.length * 0.97)])})`
             + (mal ? ` · ${mal} ${mal === 1 ? 'pulso dispar' : 'pulsos disparejos'}` : '');
     } else $('info').textContent = buf ? 'Sin pulsos todavía: pon el cursor al comienzo y ⏺ Marcar (Espacio en el 1 de cada compás).' : '';
-    $('b-emparejar').disabled = $('b-golpes').disabled = $('b-limpiar').disabled = P.length < 3;
+    $('b-a-compases').disabled = $('b-emparejar').disabled = $('b-golpes').disabled = $('b-limpiar').disabled = P.length < 3;
     document.querySelectorAll('#seg-grab .btn').forEach(b => { b.classList.toggle('on', b.dataset.v === rol); b.disabled = !audios[b.dataset.v]; });
 }
 function borrarSel() {
@@ -653,6 +654,22 @@ $('seg-grab').onclick = async e => {
 $('b-limpiar').onclick = () => {
     if (!confirm('¿Borrar todos los pulsos? (se puede deshacer)')) return;
     antes(); S.pulsos = []; S.c1 = null; sel = null; rehacer();
+};
+
+// ÷ Eran compases: los pulsos marcados pasan a ser el 1 de cada compás y se reparten sus pulsos (según la cifra)
+$('b-a-compases').onclick = () => {
+    const P = S.pulsos; if (P.length < 2) return;
+    antes();
+    const i0 = idxCercano(S.c1);
+    const nuevo = [];
+    for (let i = 0; i < P.length; i++) {
+        nuevo.push(P[i]);
+        if (i + 1 === P.length) break;
+        const n = mapa.cifraEn(i - i0 + 1), d = (P[i + 1] - P[i]) / n;
+        for (let k = 1; k < n; k++) nuevo.push(P[i] + k * d);
+    }
+    S.c1 = P[i0]; S.pulsos = nuevo;
+    rehacer(); toast(`${P.length - 1} compases, ahora con ${nuevo.length} pulsos`);
 };
 
 // ✨ Emparejar: cada pulso va a la recta de sus vecinos (±3); sigue los cambios graduales de tempo

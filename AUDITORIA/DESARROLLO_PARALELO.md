@@ -7628,3 +7628,7 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
   cada 3 s → 13 pulsos parejos (3 compases): el reparto funciona; el mapa guardado era de antes. Corregido: al
   remarcar por compás, lo reemplazado llega hasta medio compás después del último toque (quedaba pegado un pulso
   viejo, que se veía disparejo). Prueba: el pulso viejo de 0:22,5 ya no queda.
+- **Ajuste 5 (PO 2026-10-30, "¿tengo que marcar de nuevo el 1 de cada compás? Que lo interprete automáticamente"):**
+  botón **÷ Eran compases**: los pulsos ya marcados pasan a ser el 1 de cada compás (el compás 1 se mantiene) y entre
+  cada uno se reparten los pulsos de su cifra; se puede deshacer. Prueba (mapa guardado de COQUETA, sin guardar):
+  76 pulsos → 301 pulsos, 76 compases, ♩ 78,9, compases 1.1 1.2 1.3 1.4 2.1…; Deshacer vuelve a 76.
