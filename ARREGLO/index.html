@@ -117,6 +117,7 @@
             <h3>② Secciones <small>un acorde por compás, separados por |</small></h3>
             <div id="secciones"></div>
             <button class="btn" id="b-nueva-sec">＋ Sección</button>
+            <button class="btn" id="b-traer-sec" title="Crea las secciones que faltan y arma el orden con las secciones del mapa de tempo de la canción">⏱ Traer del mapa de tempo</button>
             <div class="ayuda">Ejemplo: <code>A | E | F#m | D</code> · dos acordes en un compás: <code>A E</code> · <code>%</code> repite el anterior · también do re mi: <code>La | Mi | Fa#m</code>.</div>
         </div>
 
@@ -383,15 +384,32 @@ function pintarSecciones() {
             <textarea data-c="acordes" placeholder="A | E | F#m | D" spellcheck="false">${esc(s.acordes)}</textarea>
             <div class="sec-mel"><label><input type="checkbox" data-c="melodia" ${s.melodia ? 'checked' : ''} ${A.melodia ? '' : 'disabled'}> Lleva la melodía</label>
                 <span>desde el compás</span><input type="number" data-c="melDesde" min="1" value="${s.melDesde || 1}"></div>
-            <div class="sec-info">${compases.length} ${compases.length === 1 ? 'compás' : 'compases'}${malos.length ? ` · <span class="mal">No entiendo: ${esc(malos.join(', '))}</span>` : ''}</div>
+            <div class="sec-info">${infoSeccion(s, compases, malos)}</div>
         </div>`;
     }).join('') || '<div class="ayuda">Aún no hay secciones.</div>';
+    $('b-traer-sec').disabled = !seccionesMapa().length;
+}
+// Secciones del mapa de tempo (deuda EU): cada vez que suena una, desde su compás hasta la siguiente
+const normSec = n => String(n || '').trim().toLowerCase();
+function seccionesMapa() {
+    const m = mapaTempo; if (!m?.secciones?.length) return [];
+    const fin = m.compasDePulso(m.pulsos.length - 1 - m.compas1).compas;
+    return m.secciones.map((x, i) => ({ nombre: x.nombre, compas: x.compas, largo: (m.secciones[i + 1]?.compas ?? fin) - x.compas }));
+}
+function infoSeccion(s, compases, malos) {
+    let t = `${compases.length} ${compases.length === 1 ? 'compás' : 'compases'}`;
+    const largos = [...new Set(seccionesMapa().filter(x => normSec(x.nombre) === normSec(s.nombre)).map(x => x.largo))];
+    if (largos.length) {
+        const calza = !compases.length || largos.includes(compases.length);
+        t += ` · <span class="${calza ? '' : 'mal'}">en la canción: ${largos.join(' o ')} ${largos.length === 1 && largos[0] === 1 ? 'compás' : 'compases'}</span>`;
+    }
+    return t + (malos.length ? ` · <span class="mal">No entiendo: ${esc(malos.join(', '))}</span>` : '');
 }
 function pintarInfoSecciones() {
     document.querySelectorAll('.sec').forEach(el => {
         const s = A.secciones.find(x => x.id === el.dataset.id); if (!s) return;
         const { compases, malos } = compasesDe(s);
-        el.querySelector('.sec-info').innerHTML = `${compases.length} ${compases.length === 1 ? 'compás' : 'compases'}${malos.length ? ` · <span class="mal">No entiendo: ${esc(malos.join(', '))}</span>` : ''}`;
+        el.querySelector('.sec-info').innerHTML = infoSeccion(s, compases, malos);
     });
 }
 function pintarOrden() {
@@ -596,6 +614,21 @@ function abrirTempo() {
     }
     window.open(src, '_blank');
 }
+// ⏱ Traer del mapa de tempo: una sección por nombre (las que ya existen se conservan con sus acordes), el orden como
+// suenan en la canción y el arreglo empieza en el compás de la primera
+$('b-traer-sec').onclick = () => {
+    const ms = seccionesMapa(); if (!ms.length) return;
+    if (A.orden.length && !confirm('El orden se reemplaza por el de la canción. Las secciones que ya escribiste se conservan con sus acordes. ¿Seguir?')) return;
+    const nuevas = [];
+    A.orden = ms.map(x => {
+        let s = A.secciones.find(y => normSec(y.nombre) === normSec(x.nombre));
+        if (!s) { s = { id: genId(), nombre: x.nombre, acordes: '', melodia: false, melDesde: 1 }; A.secciones.push(s); nuevas.push(x.nombre); }
+        return s.id;
+    });
+    A.audio.desde = ms[0].compas;
+    completarVoicings(); pintarTodo();
+    toast(`${ms.length} secciones en el orden de la canción${nuevas.length ? ` · nuevas: ${[...new Set(nuevas)].join(', ')}` : ''}`);
+};
 async function cargarTempo() {
     mapaTempo = await TempoMapa.cargar(publica(''), cancionId);
     tempoV = Date.now();
@@ -603,7 +636,7 @@ async function cargarTempo() {
 try {
     new BroadcastChannel('profe-tempo').onmessage = async e => {
         if (e.data?.tipo !== 'tempo-guardado' || e.data.cancion !== cancionId) return;
-        await cargarTempo(); pintarAudio(); cambio();
+        await cargarTempo(); pintarSecciones(); pintarAudio(); cambio();
         toast('Se puso al día el mapa de tempo');
     };
 } catch (_) {}

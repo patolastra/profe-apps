@@ -7657,3 +7657,14 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
   público); `TempoMapa` da `m.secciones` y `m.seccionEn(c)` para el Arreglo y lo que venga.
   Prueba (COQUETA, sin guardar): Intro 0, Estrofa 1 4, Coro 12, Estrofa 2 20 → franjas y lista; al arrastrar el 1
   del compás 4 la Estrofa 1 lo siguió; `seccionEn(14)` = Coro. Deshecho, el mapa guardado quedó igual.
+- **Ajuste 9 (PO 2026-10-30, "sí, que el Arreglo tome las secciones; y el metrónomo tiene que sonar siempre en esta
+  app, sin interruptor"):**
+  - Tempo: se quitó 🔔 Clic; el clic suena siempre que suena la grabación (se baja con su barra del mezclador).
+  - Editor de Arreglos, ② Secciones: **⏱ Traer del mapa de tempo** (activo si el mapa tiene secciones) crea una
+    sección por nombre (las que ya existen por nombre se conservan con sus acordes), arma el orden como suenan en la
+    canción (pide confirmar si ya había orden) y el arreglo empieza en el compás de la primera. Cada sección muestra
+    "en la canción: N compases" (en rojo si sus acordes no dan ese largo).
+  - Prueba (COQUETA, sin guardar; secciones de prueba Intro 0 · Estrofa 4 · Coro 12 · Estrofa 20 · Coro 28 y un Coro
+    ya escrito con 4 acordes): orden Intro · Estrofa · Coro · Estrofa · Coro, nuevas Intro y Estrofa, el Coro conservó
+    sus acordes y quedó en rojo "en la canción: 8 o 49 compases", el arreglo empieza en el compás 0. Tempo: sonando
+    desde 0:20 los clics se programan solos y ya no hay botón.
