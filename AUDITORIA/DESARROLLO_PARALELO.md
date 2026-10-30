@@ -7682,3 +7682,42 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
   - Prueba (COQUETA, sin guardar): fijos, arrastrar 30 px el compás 4 → no se movió y quedó elegido; editables,
     temblor de 2 px → no se movió; chip "Estrofa" → vista y cursor en 0:10,2; sonando desde 0:20, clic al 80 % de la
     canción → vista en 3:08 y ⌖ visible; ⌖ → vista en 0:20 siguiendo lo que suena y el botón se oculta.
+
+### EV. ⏱ El Mapa de tempo como ficha oficial de la canción (tonalidad, cifra, tempo, secciones) — HECHA (paso 1)
+*Origen: PO 2026-10-30 ("el tempomapper debería ser la declaración de los estándares de las canciones: el tempomap,
+las secciones, la tonalidad, cifra de compás, y eso debería poder leerse desde las otras instancias; desde aquí se
+entrega lo oficial").*
+- **Necesidad:** hoy cada app anota por su lado la tonalidad (cada melodía, cada tablatura), el tempo y la cifra
+  (Editor de Melodías, Lector, Cajón, ritmos del Entrenador) y las secciones (mapa y Lector). Hace falta una sola
+  verdad por canción que todas puedan leer.
+- **Auditoría:**
+  - El mapa (`tipo = 'tempo'`, `tempo/<cancion_id>.json`) guarda pulsos, compás 1, cifras y secciones. La cifra es
+    solo "n pulsos" (sin el número de abajo: 6/8 y 3/4 no se distinguen). **No guarda tonalidad.** Lo leen solo el
+    Arreglo de piano y el Piano (`TempoMapa.cargar`).
+  - Tonalidad: en `repertorio_assets.tonalidad` por recurso; Melodía y Arreglo usan `{ tonica: 'A', modo: 'mayor' }`
+    (letras en inglés, se muestra "La mayor").
+  - La canción (`repertorio_canciones`) no tiene tonalidad ni tempo.
+- **Plan aprobado (PO 2026-10-30), en 3 pasos (este es el 1):**
+  1. **Ficha oficial en el Mapa de tempo:** tonalidad (tónica + mayor/menor), cifra completa (2/4, 3/4, 4/4, 6/8…)
+     con sus cambios, tempo de referencia (calculado de lo marcado), compás 1 y secciones. La pieza `TempoMapa`
+     entrega esos datos a cualquier app (`m.tonalidad`, `m.cifraTexto(c)`, `m.bpm`) y la ficha de la canción en la
+     Biblioteca los muestra. Los mapas antiguos siguen sirviendo (sin número de abajo = /4).
+  2. (Después) Editor de Melodías y Arreglo parten con lo oficial; si quedan distintos se marca "distinto de la canción".
+  3. (Después, uno por uno) Lector, Cajón y Metrónomo leen secciones y tempo de la canción.
+  - Sin cambios en Supabase (todo va en el mismo recurso y su archivo público).
+  - Lugares (regla 11): app Tempo, `comun/tempo-mapa.js` (la leen Arreglo y Piano: no deben cambiar), Biblioteca (ficha).
+- **Hecho (2026-10-30, paso 1):**
+  - `comun/tempo-mapa.js`: cifras con `d` (número de abajo; sin él = 4), `tonalidad: { tonica, modo }`,
+    `m.cifraTexto(c)`, `m.bpm` (mediana de lo marcado), `TempoMapa.nombreTonalidad(t)` ("Fa♯ menor") y
+    `TempoMapa.TONICAS`; el archivo guardado lleva también `tonalidad` y `bpm`. `cifraEn` sigue siendo los pulsos del
+    compás (Arreglo y Piano no cambian; en 6/8 se reparten 6 corcheas).
+  - App Tempo: **Tonalidad** en la barra de arriba (tónica, — = sin declarar; mayor/menor con la misma tónica:
+    La mayor → La menor); la cifra desde el compás elegido es un menú (2/4 3/4 4/4 5/4 6/4 7/4 2/2 3/8 6/8 7/8 9/8
+    12/8) y los chips muestran "4/4"; la línea de abajo dice "tempo de referencia ♩ N".
+  - Biblioteca: el ⏱ Mapa de tempo de la ficha muestra lo oficial ("sin tonalidad · 4/4 · ♩ 79 · 77 compases ·
+    8 secciones").
+  - Prueba (navegador, COQUETA, sin guardar): el mapa guardado abre como "Guardado" (4/4, ♩ 79); La → La menor →
+    Mi♭ mayor; 6/8 desde el compás 5 (chip "Compás 5: 6/8", 6 pulsos por compás) → "Sin guardar"; deshecho y
+    borrador borrado. Ficha: texto real y uno simulado ("Fa♯ menor · 4/4 (cambia) …"). `TempoMapa.cargar` de COQUETA
+    da los mismos segundos que antes.
+  - Falta: que el PO declare la tonalidad de COQUETA; pasos 2 y 3.

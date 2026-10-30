@@ -8,7 +8,8 @@
   Mapa de tempo de una canción (deuda EU): dónde cae cada pulso de su grabación.
     · Se marca el pulso con Espacio mientras suena (también más lenta, sin cambiar el tono); cada pulso se guarda.
     · Forma de onda con los pulsos: arrastrar para mover, doble clic para agregar, Supr para borrar.
-    · Dónde empieza el compás 1 y la cifra (pulsos por compás) con sus cambios.
+    · Dónde empieza el compás 1 y la cifra (4/4, 3/4, 6/8…) con sus cambios.
+    · Es la ficha oficial de la canción (deuda EV): también su tonalidad; el tempo de referencia sale de lo marcado.
     · 🔔 Clic de metrónomo sobre la grabación para comprobar; ✨ Emparejar y 🎯 Ajustar a los golpes.
     · Importa mapas de Reaper (.mid o texto PT) o el de una tablatura de la canción (Lector).
   Se guarda como recurso `tempo` de la canción (uno por canción; repertorio_assets.contenido = JSON) y el archivo
@@ -73,6 +74,9 @@
     #cifras { display: inline-flex; gap: 6px; flex-wrap: wrap; }
     .cifra { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; background: #0e7490; font-size: 13px; }
     .cifra button { border: 0; background: rgba(0,0,0,.25); color: #fff; width: 20px; height: 20px; border-radius: 10px; cursor: pointer; font-size: 11px; }
+    #ton { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--tenue); }
+    #ton select { width: 96px; }
+    #sel-cifra { width: 76px; }
     #sel-info { width: 170px; color: var(--tenue); font-size: 13px; }
     #sec-nombre { width: 190px; height: 32px; background: #0f172a; border: 1px solid #475569; border-radius: 7px; padding: 0 8px; }
     #secciones { display: inline-flex; gap: 6px; flex-wrap: wrap; }
@@ -103,6 +107,8 @@
     <div id="cancion">⏱ Mapa de tempo</div>
     <div class="seg" id="seg-grab" title="Grabación que suena (Melodía y Karaoke van juntas: el mapa sirve para las dos)">
         <button class="btn" data-v="melodia">🎤 Melodía</button><button class="btn" data-v="karaoke">🎶 Karaoke</button></div>
+    <span id="ton" title="Tonalidad oficial de la canción (la leen las otras apps)">Tonalidad
+        <select id="ton-tonica"></select><select id="ton-modo"><option value="mayor">mayor</option><option value="menor">menor</option></select></span>
     <div class="sep"></div>
     <div id="estado"></div>
     <button id="b-guardar">Guardar</button>
@@ -132,7 +138,7 @@
         <input id="sec-nombre" list="sec-lista" placeholder="🏷 Sección desde aquí" title="Nombre de la sección que empieza en este compás (Enter). Vacío: la quita" disabled>
         <datalist id="sec-lista"><option>Intro</option><option>Estrofa</option><option>Pre-coro</option><option>Coro</option><option>Puente</option><option>Interludio</option><option>Solo</option><option>Mambo</option><option>Final</option></datalist>
         <span class="rot">Cifra desde este compás</span>
-        <div class="seg" id="seg-cifra"></div>
+        <select id="sel-cifra"></select>
         <button class="btn" id="b-borrar" title="Borrar el compás elegido: se junta con el anterior (Supr)">🗑 Borrar compás</button>
     </div>
     <div class="caja fila">
@@ -185,7 +191,7 @@ let tabs = [];                   // tablaturas de la canción con mapa de Reaper
 
 // ══ El mapa: el 1 de cada compás en segundos (lo único que se marca y se mueve); compás 1 como segundo ══
 // Los pulsos (lo que se guarda y leen las otras apps) se reparten parejos entre un 1 y el siguiente, según la cifra.
-const S = { compases: [], c1: null, cifras: [{ compas: 1, n: 4 }], secciones: [] };   // secciones: [{ t (su 1), nombre }]
+const S = { compases: [], c1: null, cifras: [{ compas: 1, n: 4, d: 4 }], secciones: [], tonalidad: null };   // secciones: [{ t (su 1), nombre }]
 let mapa = TempoMapa.crear({ pulsos: [] });
 let sel = null;                  // índice del compás elegido
 let base = '';
@@ -209,7 +215,7 @@ function datos() {
         for (let k = 1; k < n; k++) pulsos.push(C[i] + k * d);
     }
     const secciones = S.secciones.map(x => ({ compas: idxCercano(x.t) - i0 + 1, nombre: x.nombre }));
-    return { v: 1, pulsos, compas1, cifras: S.cifras, secciones };
+    return { v: 1, pulsos, compas1, cifras: S.cifras, secciones, ...(S.tonalidad ? { tonalidad: S.tonalidad } : {}) };
 }
 // Un mapa de pulsos (guardado o importado) → el 1 de cada compás
 function aCompases(d) {
@@ -217,7 +223,7 @@ function aCompases(d) {
     const C = m.pulsos.filter((_, i) => m.compasDePulso(i - m.compas1).tiempo === 1);
     const i0 = C.indexOf(m.pulsos[m.compas1]);
     const secciones = m.secciones.map(x => ({ t: C[i0 + x.compas - 1], nombre: x.nombre })).filter(x => x.t !== undefined);
-    return { compases: C, c1: m.pulsos.length ? m.pulsos[m.compas1] : null, cifras: m.cifras.map(x => ({ ...x })), secciones };
+    return { compases: C, c1: m.pulsos.length ? m.pulsos[m.compas1] : null, cifras: m.cifras.map(x => ({ ...x })), secciones, tonalidad: m.tonalidad };
 }
 const guardable = () => JSON.stringify(TempoMapa.crear(datos()).datos());
 function rehacer() {
@@ -641,15 +647,20 @@ function pintarControles() {
         || '<span class="ayuda">Elige un compás y escribe su sección.</span>';
     if ($('secciones').innerHTML !== chips) $('secciones').innerHTML = chips;   // redibujar en medio de un clic lo perdería
 
-    const n = mapa.cifraEn(hay ? c : 1);
-    $('seg-cifra').innerHTML = [2, 3, 4, 5, 6, 7].map(k => `<button class="btn${k === n ? ' on' : ''}" data-n="${k}" ${hay ? '' : 'disabled'}>${k}</button>`).join('');
-    $('cifras').innerHTML = S.cifras.map((x, i) => `<span class="cifra">${i === 0 ? 'Desde el inicio' : 'Compás ' + x.compas}: ${x.n} pulsos${i ? `<button data-quitar="${i}" title="Quitar este cambio">✕</button>` : '<span style="width:6px"></span>'}</span>`).join('');
+    const ct = mapa.cifraTexto(hay ? c : 1);
+    $('sel-cifra').innerHTML = (CIFRAS.includes(ct) ? CIFRAS : [...CIFRAS, ct]).map(k => `<option${k === ct ? ' selected' : ''}>${k}</option>`).join('');
+    $('sel-cifra').disabled = !hay;
+    $('cifras').innerHTML = S.cifras.map((x, i) => `<span class="cifra">${i === 0 ? 'Desde el inicio' : 'Compás ' + x.compas}: ${x.n}/${x.d || 4}${i ? `<button data-quitar="${i}" title="Quitar este cambio">✕</button>` : '<span style="width:6px"></span>'}</span>`).join('');
+    const tt = $('ton-tonica'), tm = $('ton-modo');
+    tm.value = S.tonalidad?.modo || 'mayor';
+    tt.innerHTML = '<option value="">—</option>' + TempoMapa.TONICAS[tm.value].map(t => `<option value="${t}"${t === S.tonalidad?.tonica ? ' selected' : ''}>${TempoMapa.nombreTonalidad({ tonica: t, modo: tm.value }).split(' ')[0]}</option>`).join('');
+    tm.disabled = !S.tonalidad;
     const C = S.compases, P = mapa.pulsos;
     if (C.length > 1) {
         const bpms = []; for (let i = 0; i + 1 < P.length; i++) bpms.push(60 / (P[i + 1] - P[i]));
         const o = [...bpms].sort((a, b) => a - b), med = o[Math.floor(o.length / 2)];
         const mal = disparejos().size;
-        $('info').textContent = `${C.length - 1} compases · ♩ ${med.toFixed(1)} (entre ${Math.round(o[Math.floor(o.length * 0.03)])} y ${Math.round(o[Math.floor(o.length * 0.97)])})`
+        $('info').textContent = `${C.length - 1} compases · tempo de referencia ♩ ${mapa.bpm} (entre ${Math.round(o[Math.floor(o.length * 0.03)])} y ${Math.round(o[Math.floor(o.length * 0.97)])})`
             + (mal ? ` · ${mal} ${mal === 1 ? 'compás dispar' : 'compases disparejos'}` : '');
     } else $('info').textContent = buf ? 'Sin compases todavía: pon el cursor al comienzo, ⏺ Marcar y Espacio en el 1 de cada compás.' : '';
     $('b-emparejar').disabled = $('b-golpes').disabled = $('b-limpiar').disabled = C.length < 3 || fijos;
@@ -692,18 +703,39 @@ $('b-deshacer').onclick = deshacer;
 $('b-deshacer').disabled = true;
 $('b-borrar').onclick = borrarSel;
 $('b-c1').onclick = () => { if (sel === null) return; antes(); S.c1 = S.compases[sel]; rehacer(); };
-$('seg-cifra').onclick = e => {
-    const b = e.target.closest('[data-n]'); if (!b || sel === null) return;
-    const c = sel - idxCercano(S.c1) + 1, n = +b.dataset.n;
+// Cifras que se ofrecen: n pulsos de valor 1/d (en 6/8 se reparten 6 corcheas por compás)
+const CIFRAS = ['2/4', '3/4', '4/4', '5/4', '6/4', '7/4', '2/2', '3/8', '6/8', '7/8', '9/8', '12/8'];
+$('sel-cifra').onchange = e => {
+    e.target.blur();
+    if (sel === null) return;
+    const [n, d] = e.target.value.split('/').map(Number), c = sel - idxCercano(S.c1) + 1;
     antes();
-    if (c <= S.cifras[0].compas) S.cifras[0].n = n;
+    if (c <= S.cifras[0].compas) Object.assign(S.cifras[0], { n, d });
     else {
         const x = S.cifras.find(y => y.compas === c);
-        if (x) x.n = n; else S.cifras.push({ compas: c, n });
+        if (x) Object.assign(x, { n, d }); else S.cifras.push({ compas: c, n, d });
         S.cifras.sort((a, b) => a.compas - b.compas);
         // un cambio que repite la cifra anterior sobra
-        S.cifras = S.cifras.filter((y, i) => i === 0 || y.n !== S.cifras[i - 1].n);
+        S.cifras = S.cifras.filter((y, i) => i === 0 || y.n !== S.cifras[i - 1].n || (y.d || 4) !== (S.cifras[i - 1].d || 4));
     }
+    rehacer();
+};
+// Tonalidad oficial de la canción: — la deja sin declarar
+$('ton-tonica').onchange = e => {
+    e.target.blur();
+    antes();
+    S.tonalidad = e.target.value ? { tonica: e.target.value, modo: $('ton-modo').value } : null;
+    rehacer();
+};
+$('ton-modo').onchange = e => {
+    e.target.blur();
+    if (!S.tonalidad) return;
+    antes();
+    const modo = e.target.value;
+    // Mayor ↔ menor con la misma tónica (La mayor → La menor; Re♭ mayor → Do♯ menor)
+    const pc = t => ({ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[t[0]] + (t[1] === '#' ? 1 : t[1] === 'b' ? -1 : 0) + 12) % 12;
+    const tonica = TempoMapa.TONICAS[modo].find(t => pc(t) === pc(S.tonalidad.tonica)) || TempoMapa.TONICAS[modo][0];
+    S.tonalidad = { tonica, modo };
     rehacer();
 };
 // Secciones: el nombre se escribe con un compás elegido (Enter); vacío la quita

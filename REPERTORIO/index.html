@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="../comun/compartir.css?v=eq">
     <script src="../comun/compartir.js?v=eq"></script>
     <script src="../comun/dos-grabaciones.js"></script>
+    <script src="../comun/tempo-mapa.js?v=ev"></script>
     <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
@@ -4111,11 +4112,23 @@ async function setEstadoAsset(nuevoEstado) {
     }
 }
 
+// Ficha oficial de la canción (deuda EV): lo declarado en su Mapa de tempo
+function fichaOficial(a) {
+    let m = null;
+    try { m = TempoMapa.crear(JSON.parse(a.contenido || '{}')); } catch (_) { return ''; }
+    if (m.vacio) return '';
+    const cambios = m.cifras.length > 1 ? ' (cambia)' : '';
+    const nCompases = m.compasDePulso(m.pulsos.length - 1 - m.compas1).compas;
+    return [TempoMapa.nombreTonalidad(m.tonalidad) || 'sin tonalidad', m.cifraTexto() + cambios, m.bpm ? '♩ ' + m.bpm : '',
+        nCompases + ' compases', m.secciones.length ? m.secciones.length + (m.secciones.length === 1 ? ' sección' : ' secciones') : '']
+        .filter(Boolean).join(' · ');
+}
+
 function assetItemHTML(a, i) {
     const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo, clase: '' };
     // Nombre de cortesía (comun/nombre-asset.js): el tipo ya se muestra arriba, aquí descripción · dificultad
     const pa = partesAsset(a);
-    const sublabel = [pa.detalle, pa.dificultad].filter(Boolean).join(' · ');
+    const sublabel = a.tipo === 'tempo' ? fichaOficial(a) : [pa.detalle, pa.dificultad].filter(Boolean).join(' · ');
     const etiq = sublabel ? `<div class="asset-item-etiqueta">${sublabel}</div>` : '';
     const sinDif = esDeInstrumento(a) ? marcasFaltan(a) : '';
     const btnClase = ['ritmo', 'cajon', 'melodia', 'arreglo'].includes(a.tipo)

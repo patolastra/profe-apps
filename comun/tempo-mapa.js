@@ -4,26 +4,31 @@
 //   Datos (recurso `tempo` de la canción y archivo público repertorio-assets/tempo/<cancion_id>.json):
 //     { v: 1, pulsos: [seg…],            // cada pulso, en segundos de la grabación original, en orden
 //       compas1: i,                      // índice del pulso donde empieza el compás 1 (los anteriores: compás 0, −1…)
-//       cifras: [{ compas: 1, n: 4 }],   // pulsos por compás desde ese compás (la primera vale también hacia atrás)
-//       secciones: [{ compas, nombre }] } // Intro, Estrofa, Coro…: cada una desde su compás hasta la siguiente (opcional)
+//       cifras: [{ compas: 1, n: 4, d: 4 }], // cifra desde ese compás: n pulsos de valor 1/d (4/4, 3/4, 6/8…; sin d = /4);
+//                                        // la primera vale también hacia atrás
+//       secciones: [{ compas, nombre }],  // Intro, Estrofa, Coro…: cada una desde su compás hasta la siguiente (opcional)
+//       tonalidad: { tonica: 'A', modo: 'mayor' } } // la de la canción (opcional; letras C D E F G A B con # o b)
+//   Es la ficha oficial de la canción (deuda EV): tonalidad, cifra, tempo y secciones se leen de aquí.
 //
 //   const m = TempoMapa.crear(datos);
 //   m.segDePulso(p)      → segundo de la grabación del pulso p (p = 0 es el tiempo 1 del compás 1; admite decimales)
 //   m.pulsoDeSeg(s)      → pulso (con decimales) que suena en el segundo s
 //   m.pulsoDeCompas(c)   → pulso donde empieza el compás c
 //   m.compasDePulso(p)   → { compas, tiempo } (tiempo 1 = el primero del compás)
-//   m.cifraEn(c)         → pulsos del compás c
+//   m.cifraEn(c)         → pulsos del compás c; m.cifraTexto(c) → "4/4", "6/8"… (sin c: la del compás 1)
+//   m.bpm                → tempo de referencia (la mediana de lo marcado, redondeado; 0 si no hay)
+//   m.tonalidad          → { tonica, modo } o null; TempoMapa.nombreTonalidad(t) → "La mayor", "Fa♯ menor"
 //   m.bpmEn(p)           → tempo alrededor del pulso p
 //   m.secciones          → [{ compas, nombre }] en orden; m.seccionEn(c) → la sección del compás c (o null)
 //   Fuera de los pulsos marcados se sigue con el tempo del borde.
 //   await TempoMapa.cargar(baseStorage, cancionId) → mapa o null (lee el archivo público; sin clave)
 //   TempoMapa.desdeReaper(map, startQn, duracion)  → datos a partir de un mapa de Reaper (PT qn bpm; QN 0 = segundo 0)
-// Usada por la app Tempo (TEMPO/), el Editor de Arreglos (ARREGLO/) y el Piano (PIANO/).
+// Usada por la app Tempo (TEMPO/), el Editor de Arreglos (ARREGLO/), el Piano (PIANO/) y la ficha de la canción (REPERTORIO/).
 (function () {
     function crear(d) {
         const P = (d?.pulsos || []).filter(x => typeof x === 'number' && isFinite(x)).sort((a, b) => a - b);
         const i0 = Math.max(0, Math.min(P.length - 1, d?.compas1 | 0));
-        const cifras = (d?.cifras?.length ? d.cifras : [{ compas: 1, n: 4 }]).map(c => ({ compas: c.compas | 0, n: Math.max(1, c.n | 0) }))
+        const cifras = (d?.cifras?.length ? d.cifras : [{ compas: 1, n: 4 }]).map(c => ({ compas: c.compas | 0, n: Math.max(1, c.n | 0), d: [2, 4, 8, 16].includes(c.d) ? c.d : 4 }))
             .sort((a, b) => a.compas - b.compas);
         // Periodo en un borde: mediana de los últimos intervalos (un pulso mal marcado no lo arruina)
         const periodo = desdeFin => {
@@ -39,7 +44,15 @@
 
         const secciones = (d?.secciones || []).filter(x => x && x.nombre).map(x => ({ compas: x.compas | 0, nombre: String(x.nombre) }))
             .sort((a, b) => a.compas - b.compas);
-        const m = { pulsos: P, compas1: i0, cifras, secciones, vacio: P.length < 2 };
+        const tonalidad = d?.tonalidad && /^[A-G][#b]?$/.test(d.tonalidad.tonica) && (d.tonalidad.modo === 'mayor' || d.tonalidad.modo === 'menor')
+            ? { tonica: d.tonalidad.tonica, modo: d.tonalidad.modo } : null;
+        const m = { pulsos: P, compas1: i0, cifras, secciones, tonalidad, vacio: P.length < 2 };
+        // Tempo de referencia: la mediana de los intervalos (los extremos y un pulso mal puesto no lo mueven)
+        m.bpm = (() => {
+            const b = []; for (let k = 0; k + 1 < P.length; k++) if (P[k + 1] > P[k]) b.push(60 / (P[k + 1] - P[k]));
+            b.sort((x, y) => x - y);
+            return b.length ? Math.round(b[Math.floor(b.length / 2)]) : 0;
+        })();
         m.seccionEn = c => { let s = null; for (const x of secciones) if (x.compas <= c) s = x; return s; };
         m.segDePulso = p => {
             if (!P.length) return 0;
@@ -58,6 +71,7 @@
             return lo + (s - P[lo]) / (P[hi] - P[lo]) - i0;
         };
         m.cifraEn = c => { let n = cifras[0].n; for (const x of cifras) if (x.compas <= c) n = x.n; return n; };
+        m.cifraTexto = (c = 1) => { let y = cifras[0]; for (const x of cifras) if (x.compas <= c) y = x; return `${y.n}/${y.d}`; };
         m.pulsoDeCompas = c => {
             let p = 0;
             if (c >= 1) for (let k = 1; k < c; k++) p += m.cifraEn(k);
@@ -77,7 +91,8 @@
             const k = Math.max(0, Math.min(P.length - 2, x));
             return 60 / (P[k + 1] - P[k]);
         };
-        m.datos = () => ({ v: 1, pulsos: P.map(x => Math.round(x * 1000) / 1000), compas1: i0, cifras, ...(secciones.length ? { secciones } : {}) });
+        m.datos = () => ({ v: 1, pulsos: P.map(x => Math.round(x * 1000) / 1000), compas1: i0, cifras, ...(secciones.length ? { secciones } : {}),
+            ...(tonalidad ? { tonalidad } : {}), ...(m.bpm ? { bpm: m.bpm } : {}) });
         return m;
     }
 
@@ -110,5 +125,13 @@
         return { v: 1, pulsos, compas1: Math.max(0, Math.round(startQn || 0)), cifras: [{ compas: 1, n }] };
     }
 
-    window.TempoMapa = { crear, cargar, desdeReaper };
+    const SOLF = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
+    const nombreTonalidad = t => t?.tonica ? `${SOLF[t.tonica[0]]}${t.tonica[1] === '#' ? '♯' : t.tonica[1] === 'b' ? '♭' : ''} ${t.modo}` : '';
+    // Las tónicas que se ofrecen (las mismas del Editor de Melodías y del Arreglo)
+    const TONICAS = {
+        mayor: ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'],
+        menor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'],
+    };
+
+    window.TempoMapa = { crear, cargar, desdeReaper, nombreTonalidad, TONICAS };
 })();
