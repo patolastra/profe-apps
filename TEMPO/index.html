@@ -57,6 +57,9 @@
     #pos { font-variant-numeric: tabular-nums; width: 240px; color: var(--tenue); }
     #pos b { color: var(--texto); }
     #b-tocar { width: 104px; }
+    /* Mezclador mínimo: grabación y clic */
+    .mezcla { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+    .mezcla input { width: 80px; accent-color: var(--acento); }
     /* Velocidad: el mismo chip del Entrenador (atajos { } +) */
     #vel { background: #334155; border: 1.5px solid #475569; color: #94a3b8; border-radius: 20px; padding: 4px 12px; font-size: 0.72rem;
         font-weight: 600; white-space: nowrap; line-height: 1; width: 52px; text-align: center; font-variant-numeric: tabular-nums; cursor: default; }
@@ -107,6 +110,8 @@
             <button class="btn" data-v="compas">Compás</button><button class="btn" data-v="pulso">Pulso</button></div>
         <span id="vel" title="Velocidad: { baja 5 % · } sube 5 % · + normal">1x</span>
         <button class="btn" id="b-clic" title="Un clic en cada pulso mientras suena, para comprobar">🔔 Clic</button>
+        <span class="mezcla" title="Volumen de la grabación"><span>🎵</span><input type="range" id="vol-musica" min="0" max="100"></span>
+        <span class="mezcla" title="Volumen del clic"><span>🔔</span><input type="range" id="vol-clic" min="0" max="100"></span>
         <span id="pos"></span>
         <div class="sep"></div>
         <button class="btn" id="b-deshacer" title="Deshacer (Ctrl+Z)">↶ Deshacer</button>
@@ -210,7 +215,7 @@ async function cargarGrabacion() {
     if (!url) return;
     $('pos').textContent = 'Cargando la grabación…';
     try {
-        grab = grab || GrabacionTono.crear(audio(), audio().destination);
+        grab = grab || GrabacionTono.crear(audio(), mezcla().musica);
         if (grab.sonando) await grab.cambiar(url); else await grab.cargar(url);
         if (!buf) { buf = grab.buffer; calcularPicos(); vista.dur = Math.min(10, buf.duration); }
         grab.precargar(url === audios.melodia ? audios.karaoke : audios.melodia);
@@ -250,6 +255,8 @@ function pintarTransporte() { $('b-tocar').textContent = grab?.sonando && !taps 
 
 // Clic de metrónomo en cada pulso (se programa un poco por delante)
 let clicsHasta = 0;
+// Su propio reloj (no el del dibujo, que se frena cuando la pantalla no se redibuja)
+setInterval(() => programarClics(), 25);
 function programarClics() {
     if (!clicOn || !grab?.sonando || mapa.vacio) return;
     const s = oido(); if (s === null) return;
@@ -265,10 +272,31 @@ function programarClics() {
 }
 function clic(t, fuerte) {
     const c = audio(), o = c.createOscillator(), g = c.createGain();
-    o.frequency.value = fuerte ? 1760 : 1175;
+    o.type = 'square'; o.frequency.value = fuerte ? 1760 : 1175;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(fuerte ? 0.5 : 0.3, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.06);
+    o.connect(g); g.connect(mezcla().clic); o.start(t); o.stop(t + 0.06);
 }
+// Mezclador mínimo: volumen de la grabación y del clic (se recuerda en el equipo)
+let mez = null;
+const leerVol = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : +v; } catch (_) { return d; } };
+function mezcla() {
+    if (mez) return mez;
+    const c = audio();
+    mez = { musica: c.createGain(), clic: c.createGain() };
+    mez.musica.connect(c.destination); mez.clic.connect(c.destination);
+    aplicarMezcla();
+    return mez;
+}
+function aplicarMezcla() {
+    const m = +$('vol-musica').value / 100, k = +$('vol-clic').value / 100;
+    if (mez) { mez.musica.gain.value = m * m; mez.clic.gain.value = k * k * 2.5; }   // curva suave; el clic puede quedar sobre la música
+    try { localStorage.setItem('tempo_vol_musica', $('vol-musica').value); localStorage.setItem('tempo_vol_clic', $('vol-clic').value); } catch (_) {}
+}
+$('vol-musica').value = leerVol('tempo_vol_musica', 70);
+$('vol-clic').value = leerVol('tempo_vol_clic', 80);
+$('vol-musica').oninput = $('vol-clic').oninput = aplicarMezcla;
+// Soltar la barra devuelve el teclado a la app (Espacio, J, L…)
+$('vol-musica').onchange = $('vol-clic').onchange = e => e.target.blur();
 
 // ══ Marcar pulsos ══════════════════════════════════════════════════════════════════════
 let taps = null;
@@ -432,7 +460,6 @@ function pintarPos() {
 function bucle() {
     const s = oido();
     if (s !== null) {
-        programarClics();
         // La vista sigue a lo que suena
         if (s > vista.ini + vista.dur * 0.85 || s < vista.ini) { vista.ini = Math.max(0, Math.min(duracion() - vista.dur, s - vista.dur * 0.15)); }
         sucio = true;

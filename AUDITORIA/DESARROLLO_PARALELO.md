@@ -7617,3 +7617,9 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
   Espacio es el 1 de un compás y la app reparte entre un toque y el siguiente tantos pulsos parejos como diga la cifra
   de ese compás; el compás 1 queda en un toque. Con Pulso, igual que antes. El botón pasa a "⏺ Marcar".
   Prueba (navegador): 4 toques cada 1,6 s desde 0:10 → 13 pulsos, compases 1.1 … 3.4 y 4.1, ♩ 149,5.
+- **Ajuste 3 (PO 2026-10-30, "no escucho el clic contra la música, necesito un mezclador mínimo"):** dos barras en la
+  barra de arriba, 🎵 grabación y 🔔 clic (se recuerdan en el equipo; el clic puede quedar más fuerte que la música);
+  el clic suena más brillante (onda cuadrada) y se programa con su propio reloj cada 25 ms (antes iba con el dibujo de
+  la pantalla, que se frena y lo podía atrasar o saltar). Soltar una barra devuelve el teclado a la app.
+  Prueba (navegador): sonando desde 0:10, a los 2 s los clics ya estaban programados hasta 0:12 (suena 0:11,8);
+  volumen de la grabación 30 % y del clic 80 % aplicados y guardados.
