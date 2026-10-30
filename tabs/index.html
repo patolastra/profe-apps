@@ -2057,36 +2057,47 @@ function getBlockEndTime(note) {
     ).map(n => n.time + n.durSec));
 }
 
+// Extremo de nota (comienzo o final) VISUALMENTE más cercano a un click.
+// El loop no está limitado a compases: puede empezar/terminar en cualquier onset/offset.
+// Candidatos = los mismos extremos que se RENDERIZAN:
+//   · notas de melodía (pills; drawNotes → !esAcordeReal): time (comienzo) y time+durSec (final);
+//   · bloques de acorde (drawChordBlocks → chordEvents): tStart (comienzo) y tEnd (final).
+// Se deduplican por tiempo musical (un acorde comparte onset/offset entre sus cuerdas → un único
+// candidato). La distancia se mide en el MISMO espacio de pantalla que el click: se proyecta
+// getX(t) a la y del click (project), respetando zoom, scroll, tamaño de canvas y perspectiva.
+// Empate exacto → candidato temporalmente anterior (menor t, recorridos en orden creciente).
+function nearestNoteEdgeTime(clickX, clickY) {
+    const times = new Map();                       // clave por ms → tiempo musical (dedup)
+    const add = t => { const k = Math.round(t * 1000); if (!times.has(k)) times.set(k, t); };
+    for (const n of notes) { if (!n.esAcordeReal) { add(n.time); add(n.time + n.durSec); } }
+    for (const ev of chordEvents) { add(ev.tStart); add(ev.tEnd); }
+    if (!times.size) return null;
+    let best = null, bestDist = Infinity;
+    for (const t of [...times.values()].sort((a, b) => a - b)) {
+        const d = Math.abs(project(getX(t), clickY).x - clickX);
+        if (d < bestDist - 1e-6) { bestDist = d; best = t; }   // '<' estricto: en empate conserva el t menor
+    }
+    return best;
+}
 canvas.addEventListener('click', e => {
     if (!selIn && !selOut) return;
     const rect   = canvas.getBoundingClientRect();
-    const clickX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const clickX = (e.clientX - rect.left) * (canvas.width  / rect.width);
+    const clickY = (e.clientY - rect.top)  * (canvas.height / rect.height);
 
-    function hitTest(tolerance) {
-        let found = null, minDist = Infinity;
-        for (const note of notes) {
-            const nw = note.durSec * note.zoom;
-            const cy = START_Y + (note.string - 1) * STR_SPACING;
-            const { x: px } = project(getX(note.time) + nw / 2, cy);
-            if (clickX < px - nw / 2 - tolerance || clickX > px + nw / 2 + tolerance) continue;
-            const d = Math.abs(clickX - px);
-            if (d < minDist) { minDist = d; found = note; }
-        }
-        return found;
-    }
+    // 1) ¿Qué extremo de nota quiso el usuario? → el visualmente más cercano al click.
+    const edgeTime = nearestNoteEdgeTime(clickX, clickY);
+    if (edgeTime == null) return;
 
-    const found = hitTest(0) ?? hitTest(6);
-
-    if (!found) return;
+    // 2) ¿Es válido como IN/OUT? → regla del loop (IN < OUT). Ser OUT NO cambia el extremo elegido.
     if (selIn) {
-        loopIn = getBlockStartTime(found); selIn = false;
+        loopIn = edgeTime; selIn = false;
         loopActive = loopOut > loopIn;
         canvas.classList.remove('selecting');
         document.getElementById('btnLoopIn').classList.remove('btn-active');
     } else if (selOut) {
-        const endT = getBlockEndTime(found);
-        if (endT > loopIn) {
-            loopOut = endT; loopActive = true; selOut = false;
+        if (edgeTime > loopIn) {
+            loopOut = edgeTime; loopActive = true; selOut = false;
             canvas.classList.remove('selecting');
             document.getElementById('btnLoopOut').classList.remove('btn-active');
         }

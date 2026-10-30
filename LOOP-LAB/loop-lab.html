@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LOOP LAB — precuenta y espacio entre repeticiones</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#14171c; color:#dfe4ea; font:13px/1.4 system-ui, sans-serif; }
+  h1 { font-size:15px; margin:0; padding:10px 14px; background:#0e1116; border-bottom:1px solid #2a2f38; }
+  h1 small { color:#7d8794; font-weight:400; }
+  .wrap { padding:12px 14px 40px; }
+  .panel { background:#1b1f26; border:1px solid #2a2f38; border-radius:8px; padding:12px; margin-bottom:12px; }
+  .panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#8aa0b6; margin:0 0 10px; }
+  .row { display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; }
+  .fld { display:flex; flex-direction:column; gap:3px; }
+  .fld label { font-size:11px; color:#9aa4b0; }
+  .fld input[type=number] { width:74px; }
+  input, select { background:#0f1319; color:#e6ebf1; border:1px solid #333b46; border-radius:5px; padding:5px 7px; font:inherit; }
+  input[type=range] { width:180px; }
+  .presets { display:flex; flex-wrap:wrap; gap:5px; }
+  button { background:#252c36; color:#e6ebf1; border:1px solid #3a4450; border-radius:6px; padding:6px 10px; cursor:pointer; font:inherit; }
+  button:hover { background:#2f3742; }
+  button.on { background:#2563eb; border-color:#2563eb; color:#fff; }
+  button.play { background:#16a34a; border-color:#16a34a; color:#fff; font-weight:600; padding:8px 20px; }
+  button.stop { background:#b91c1c; border-color:#b91c1c; color:#fff; font-weight:600; padding:8px 20px; }
+  .scrollbox { overflow-x:auto; border:1px solid #2a2f38; border-radius:8px; background:#0d1015; }
+  canvas { display:block; }
+  .readout { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:6px 18px; }
+  .readout div { font-size:12px; }
+  .readout b { color:#e6ebf1; }
+  .readout span { color:#93e0a3; }
+  .warn { color:#f4b860; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:11px; color:#9aa4b0; margin-top:8px; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:2px; vertical-align:-2px; margin-right:4px; }
+  .note-hint { color:#7d8794; font-size:11px; margin-top:4px; }
+  .flag { background:#3a2d12; border:1px solid #6b5320; color:#f4d58d; padding:8px 10px; border-radius:6px; font-size:12px; margin-top:8px; }
+</style>
+</head>
+<body>
+<h1>🔁 LOOP LAB &nbsp;<small>precuenta inicial + espacio entre repeticiones · 4/4 · laboratorio aislado (no toca el Lector)</small></h1>
+<div class="wrap">
+
+  <div class="panel">
+    <h2>Modelo musical</h2>
+    <div class="row">
+      <div class="fld"><label>Tempo (BPM)</label><input type="number" id="bpm" value="90" min="30" max="240" step="1"></div>
+      <div class="fld"><label>Compás 1ª nota (0..)</label><input type="number" id="firstMeasure" value="1" min="0" max="8" step="1"></div>
+      <div class="fld"><label>Compás última nota</label><input type="number" id="lastMeasure" value="2" min="0" max="10" step="1"></div>
+      <div class="fld"><label>Dur. notas medias (pulsos)</label><input type="number" id="noteDur" value="0.5" min="0.1" max="4" step="0.05"></div>
+      <div class="fld"><label>Dur. última nota (pulsos)</label><input type="number" id="lastNoteDur" value="1" min="0.1" max="8" step="0.05"></div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="fld"><label>Posición métrica de la <b>primera</b> nota</label></div>
+      <div class="presets" id="firstPos"></div>
+    </div>
+    <div style="margin-top:10px">
+      <div class="fld"><label>Posición métrica de la <b>última</b> nota</label></div>
+      <div class="presets" id="lastPos"></div>
+    </div>
+    <div class="note-hint">Las notas del loop se generan como una pequeña escala ascendente desde la primera hasta la última nota (una nota por pulso). La primera y la última se resaltan.</div>
+  </div>
+
+  <div class="panel">
+    <h2>IN / OUT (marcadores — no gobiernan la repetición, ver Fase 5)</h2>
+    <div class="row">
+      <div class="fld"><label>IN (pulso absoluto) <span id="inLbl"></span></label><input type="range" id="inBeat" min="0" max="40" step="0.5"></div>
+      <div class="fld"><label>OUT (pulso absoluto) <span id="outLbl"></span></label><input type="range" id="outBeat" min="0" max="40" step="0.5"></div>
+      <button id="btnNatural">IN/OUT natural (IN=1ª nota, OUT=fin última nota)</button>
+    </div>
+    <div class="note-hint">En este laboratorio IN/OUT se muestran y se puede leer su relación con las notas, pero la transición entre repeticiones se deriva de los <b>compases</b> de la primera y última nota, no de IN/OUT.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Precuenta inicial (solo primera reproducción)</h2>
+    <div class="row">
+      <div class="fld"><label>Regla de precuenta</label>
+        <select id="precountRule">
+          <option value="experimental">Experimental (1,1&,2,2&,3,3& → +1 compás · 4 → no)</option>
+          <option value="always1">Siempre 1 compás</option>
+          <option value="two">Siempre 2 compases</option>
+          <option value="never">Sin precuenta</option>
+        </select>
+      </div>
+      <div class="fld"><label>4& (no definido en la regla)</label>
+        <select id="fourAnd">
+          <option value="no">Tratar 4& como 4 → sin compás extra</option>
+          <option value="yes">Tratar 4& como el resto → +1 compás</option>
+        </select>
+      </div>
+    </div>
+    <div class="note-hint">La regla es experimental y se puede cambiar aquí para comparar. El caso <b>4&</b> no está definido en el plan (Fase 4): se marca como hipótesis.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Estrategia de repetición</h2>
+    <div class="row">
+      <div class="presets" id="strategy"></div>
+      <div class="fld"><label>Período manual (pulsos) <span id="manLbl"></span></label><input type="range" id="manualPeriod" min="1" max="32" step="0.5" value="8"></div>
+      <div class="fld"><label>Repeticiones</label><input type="number" id="reps" value="4" min="1" max="8" step="1"></div>
+      <div class="fld"><label>Zoom (px/pulso)</label><input type="range" id="zoom" min="18" max="80" step="2" value="46"></div>
+    </div>
+    <div class="note-hint">
+      <b>A — dos compases completos:</b> compás de última nota íntegro → compás de primera nota íntegro → primera nota (período = compases que abarcan de la 1ª a la última).<br>
+      <b>B — solapamiento:</b> el compás de la última nota funciona también como compás de la primera de la siguiente rep (período − 1 compás).<br>
+      <b>C — +precuenta:</b> se agrega un compás completo extra (período + 1 compás), para espacios que resulten cortos.<br>
+      <b>Manual:</b> período libre en pulsos (para escuchar transiciones muy cortas / cómodas / largas / ~2 compases). Valores no múltiplos de 4 desalinean la rejilla — se oye a propósito.
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Reproducción</h2>
+    <div class="row" style="align-items:center">
+      <button class="play" id="btnPlay">▶ Reproducir</button>
+      <button class="stop" id="btnStop">■ Detener</button>
+      <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="metroOn" checked> Metrónomo</label>
+      <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="musicOn" checked> Música</label>
+    </div>
+    <div class="scrollbox" id="scrollbox" style="margin-top:12px">
+      <canvas id="cv" width="1200" height="270"></canvas>
+    </div>
+    <div class="legend">
+      <span><i style="background:#2b6cff"></i>pulso 1 (compás)</span>
+      <span><i style="background:#3a4450"></i>pulso</span>
+      <span><i style="background:#4ea1ff"></i>nota</span>
+      <span><i style="background:#16a34a"></i>primera nota</span>
+      <span><i style="background:#e0484b"></i>última nota</span>
+      <span><i style="background:#7bd88f"></i>IN</span>
+      <span><i style="background:#f26d6f"></i>OUT</span>
+      <span><i style="background:#454b2a"></i>precuenta</span>
+      <span><i style="background:#3a2f1a"></i>espacio (M2+M1)</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Cálculos (lo que está sonando)</h2>
+    <div class="readout" id="readout"></div>
+    <div class="flag" id="flags"></div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+// ─────────────────────────────────────────────────────────────────────────────
+// LOOP LAB — laboratorio aislado. 4/4. Un compás = 4 pulsos (negras).
+// Todo el tiempo se maneja en PULSOS ABSOLUTOS (float). Compases en beats 0,4,8…
+// El metrónomo vive en la rejilla ABSOLUTA y nunca se reinicia en IN.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BEATS_PER_BAR = 4;              // 4/4 fijo en esta fase
+const POS_NAMES = ['1','1&','2','2&','3','3&','4','4&'];
+
+const el = id => document.getElementById(id);
+const state = {
+  bpm:90, firstMeasure:1, lastMeasure:2, firstPos:0, lastPos:4,
+  noteDur:0.5, lastNoteDur:1,
+  inBeat:null, outBeat:null,          // null = auto (natural)
+  precountRule:'experimental', fourAnd:'no',
+  strategy:'A', manualPeriod:8, reps:4, zoom:46
+};
+
+// ── Presets de posición métrica ──────────────────────────────────────────────
+function buildPosButtons(containerId, key){
+  const c = el(containerId); c.innerHTML='';
+  POS_NAMES.forEach((name,i)=>{
+    const b=document.createElement('button');
+    b.textContent=name; b.dataset.v=i;
+    b.onclick=()=>{ state[key]=i; state.inBeat=null; state.outBeat=null; syncPosButtons(); recompute(); };
+    c.appendChild(b);
+  });
+}
+function syncPosButtons(){
+  el('firstPos').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===state.firstPos));
+  el('lastPos').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===state.lastPos));
+}
+function buildStrategyButtons(){
+  const c=el('strategy'); c.innerHTML='';
+  [['A','A · dos compases'],['B','B · solapamiento'],['C','C · +precuenta'],['manual','Manual']].forEach(([v,txt])=>{
+    const b=document.createElement('button'); b.textContent=txt; b.dataset.v=v;
+    b.onclick=()=>{ state.strategy=v; syncStrategy(); recompute(); };
+    c.appendChild(b);
+  });
+}
+function syncStrategy(){ el('strategy').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===state.strategy)); }
+
+// ── Derivar el modelo desde el estado ────────────────────────────────────────
+function posLabel(beatWithinBar){
+  const e=Math.round(beatWithinBar*2);
+  if(Math.abs(beatWithinBar*2-e)<1e-6 && e>=0 && e<8) return POS_NAMES[e];
+  return '+'+beatWithinBar.toFixed(2);
+}
+function derive(){
+  const bpm=state.bpm, beatDur=60/bpm;
+  const firstMeasureStart=state.firstMeasure*BEATS_PER_BAR;
+  const lastMeasureStart =state.lastMeasure*BEATS_PER_BAR;
+  const firstNoteAbs=firstMeasureStart + state.firstPos*0.5;
+  const lastNoteAbs =lastMeasureStart  + state.lastPos*0.5;
+  const lastNoteEnd =lastNoteAbs + state.lastNoteDur;
+  const lastMeasureEnd=lastMeasureStart + BEATS_PER_BAR;
+  const M1=firstNoteAbs - firstMeasureStart;        // silencio inicial del compás de la 1ª nota
+  const M2=lastMeasureEnd - lastNoteEnd;            // desde fin real de la última nota hasta fin de su compás
+
+  // Notas del loop (rep 0): una nota por pulso desde la 1ª hasta la última.
+  const scale=[0,2,4,5,7,9,11,12,14];
+  const notes=[]; let idx=0;
+  for(let b=firstNoteAbs; b<lastNoteAbs-1e-6; b+=1){ notes.push({beat:b,dur:state.noteDur,semi:scale[idx%scale.length],role:'mid'}); idx++; }
+  notes.push({beat:lastNoteAbs,dur:state.lastNoteDur,semi:scale[Math.min(idx,scale.length-1)],role:'last'});
+  notes[0].role = (notes.length===1)?'firstlast':'first';
+
+  // Período (pulsos) según estrategia.
+  const periodA=lastMeasureEnd - firstMeasureStart;   // compases 1ª..última, íntegros
+  let period, stratNote='';
+  if(state.strategy==='A'){ period=periodA; }
+  else if(state.strategy==='B'){ period=Math.max(BEATS_PER_BAR, periodA-BEATS_PER_BAR); if(periodA<=BEATS_PER_BAR) stratNote='B no aplica (1ª y última en el mismo compás): se usa período mínimo de 1 compás'; }
+  else if(state.strategy==='C'){ period=periodA+BEATS_PER_BAR; }
+  else { period=state.manualPeriod; }
+
+  const contentSpan=lastNoteEnd - firstNoteAbs;
+  const gap=period - contentSpan;                    // espacio real entre fin de última nota y la 1ª de la sig. rep
+  const nextFirstNote=firstNoteAbs + period;
+
+  // Precuenta inicial (solo antes de la 1ª rep).
+  let precountMeasures=0, precountNote='';
+  if(state.precountRule==='never') precountMeasures=0;
+  else if(state.precountRule==='always1') precountMeasures=1;
+  else if(state.precountRule==='two') precountMeasures=2;
+  else { // experimental
+    if(state.firstPos<=5) precountMeasures=1;                 // 1,1&,2,2&,3,3&
+    else if(state.firstPos===6) precountMeasures=0;           // 4 → sin compás extra
+    else { precountMeasures=(state.fourAnd==='yes')?1:0; precountNote='4& no definido por la regla (hipótesis)'; }
+  }
+  const precountStart=firstMeasureStart - precountMeasures*BEATS_PER_BAR;
+
+  // IN/OUT (auto = natural si null)
+  const inBeat  = state.inBeat  ?? firstNoteAbs;
+  const outBeat = state.outBeat ?? lastNoteEnd;
+
+  return { bpm,beatDur, firstMeasureStart,lastMeasureStart,lastMeasureEnd,
+           firstNoteAbs,lastNoteAbs,lastNoteEnd, M1,M2, notes,
+           periodA,period,stratNote,contentSpan,gap,nextFirstNote,
+           precountMeasures,precountStart,precountNote, inBeat,outBeat };
+}
+
+// ── Construir la lista de eventos para toda la reproducción ──────────────────
+function buildTimeline(m){
+  const reps=state.reps;
+  const noteEvents=[];   // {beat,dur,semi,role,rep}
+  for(let k=0;k<reps;k++){
+    for(const n of m.notes){
+      noteEvents.push({beat:n.beat + k*m.period, dur:n.dur, semi:n.semi, role:n.role, rep:k});
+    }
+  }
+  const lastNoteEndAll = m.lastNoteEnd + (reps-1)*m.period;
+  // Fin de reproducción: cierra el último compás de la última rep + 1 compás de cola.
+  let playEnd = Math.ceil((lastNoteEndAll + m.M2)/BEATS_PER_BAR)*BEATS_PER_BAR + BEATS_PER_BAR;
+  // Metrónomo: pulsos absolutos (cada 1 pulso) desde precountStart hasta playEnd.
+  const clicks=[];
+  const start=Math.floor(m.precountStart);
+  for(let b=start; b<=playEnd+1e-6; b+=1){
+    clicks.push({beat:b, accent:(((b%BEATS_PER_BAR)+BEATS_PER_BAR)%BEATS_PER_BAR)===0});
+  }
+  return { noteEvents, clicks, playEnd, playStart:m.precountStart };
+}
+
+// ── Audio (WebAudio, sencillo) ───────────────────────────────────────────────
+let actx=null, sources=[], playing=false, rafId=0, startCtxTime=0, curModel=null, curTL=null;
+function ensureCtx(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }
+function tone(freq, t0, dur, gain){
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type='triangle'; o.frequency.value=freq;
+  const a=0.006, r=Math.min(0.12, dur*0.4);
+  g.gain.setValueAtTime(0,t0);
+  g.gain.linearRampToValueAtTime(gain,t0+a);
+  g.gain.setValueAtTime(gain,t0+Math.max(a,dur-r));
+  g.gain.linearRampToValueAtTime(0.0001,t0+dur);
+  o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0+dur+0.02);
+  sources.push(o);
+}
+function click(t0, accent){
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type='square'; o.frequency.value=accent?2000:1200;
+  const dur=0.03, gain=accent?0.28:0.14;
+  g.gain.setValueAtTime(gain,t0); g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0+dur+0.01);
+  sources.push(o);
+}
+function play(){
+  stop();
+  ensureCtx();
+  const m=curModel=derive();
+  const tl=curTL=buildTimeline(m);
+  const bd=m.beatDur, lead=0.15;
+  startCtxTime=actx.currentTime + lead;      // ctx-time correspondiente a playStart (beat = tl.playStart)
+  const B2T = beat => startCtxTime + (beat - tl.playStart)*bd;
+  if(el('metroOn').checked) for(const c of tl.clicks) click(B2T(c.beat), c.accent);
+  if(el('musicOn').checked) for(const n of tl.noteEvents){
+    const freq=261.63*Math.pow(2,n.semi/12);
+    const gain=(n.role==='first'||n.role==='last'||n.role==='firstlast')?0.32:0.20;
+    tone(freq, B2T(n.beat), n.dur*bd, gain);
+  }
+  playing=true;
+  loop();
+}
+function stop(){
+  playing=false;
+  if(rafId) cancelAnimationFrame(rafId), rafId=0;
+  for(const s of sources){ try{ s.stop(); }catch(e){} }
+  sources=[];
+  draw(null);
+}
+function currentBeat(){
+  if(!playing||!actx||!curTL) return null;
+  const b=curTL.playStart + (actx.currentTime - startCtxTime)/curModel.beatDur;
+  return b;
+}
+function loop(){
+  const b=currentBeat();
+  draw(b);
+  if(b!==null && b>curTL.playEnd){ stop(); return; }
+  rafId=requestAnimationFrame(loop);
+}
+
+// ── Dibujo ───────────────────────────────────────────────────────────────────
+const cv=el('cv'), ctx=cv.getContext('2d');
+function draw(playBeat){
+  const m=curModel||derive();
+  const tl=curTL||buildTimeline(m);
+  const px=state.zoom;
+  const beat0=Math.floor(m.precountStart)-1;
+  const beatN=tl.playEnd+1;
+  const W=Math.max(1100,(beatN-beat0)*px), H=270;
+  cv.width=W; cv.height=H;
+  const X=b=>(b-beat0)*px;
+  const laneTop=70, laneBot=150;
+
+  ctx.fillStyle='#0d1015'; ctx.fillRect(0,0,W,H);
+
+  // Precuenta (fondo)
+  if(m.precountMeasures>0){ ctx.fillStyle='#20240f'; ctx.fillRect(X(m.precountStart),40,X(m.firstMeasureStart)-X(m.precountStart),H-40); }
+
+  // Espacios entre repeticiones (M2+M1) sombreado
+  for(let k=0;k<state.reps;k++){
+    const endK=m.lastNoteEnd + k*m.period;
+    const nextFirst=m.firstNoteAbs + (k+1)*m.period;
+    if(nextFirst>endK){ ctx.fillStyle='rgba(120,90,30,.18)'; ctx.fillRect(X(endK),laneTop-8,X(nextFirst)-X(endK),laneBot-laneTop+16); }
+  }
+
+  // Pulsos y compases
+  for(let b=Math.ceil(beat0); b<=beatN; b++){
+    const isBar=(((b%BEATS_PER_BAR)+BEATS_PER_BAR)%BEATS_PER_BAR)===0;
+    ctx.strokeStyle=isBar?'#2b6cff':'#2a313b'; ctx.lineWidth=isBar?2:1;
+    ctx.beginPath(); ctx.moveTo(X(b),40); ctx.lineTo(X(b),H); ctx.stroke();
+    // etiqueta de pulso
+    const bwm=(((b%BEATS_PER_BAR)+BEATS_PER_BAR)%BEATS_PER_BAR);
+    ctx.fillStyle=isBar?'#8ab4ff':'#5a6472';
+    ctx.font=isBar?'bold 13px system-ui':'11px system-ui';
+    ctx.fillText(String(bwm+1), X(b)+3, 56);
+    if(isBar){ ctx.fillStyle='#3a4658'; ctx.font='10px system-ui'; ctx.fillText('c'+(b/BEATS_PER_BAR+1), X(b)+3, 30); }
+  }
+
+  // Notas
+  for(const n of tl.noteEvents){
+    const x=X(n.beat), w=Math.max(4,n.dur*px);
+    const first=(n.role==='first'||n.role==='firstlast'), last=(n.role==='last'||n.role==='firstlast');
+    ctx.fillStyle='#4ea1ff'; ctx.fillRect(x,laneTop,w,laneBot-laneTop);
+    if(first){ ctx.strokeStyle='#16a34a'; ctx.lineWidth=3; ctx.strokeRect(x+1,laneTop+1,w-2,laneBot-laneTop-2); }
+    if(last){ ctx.strokeStyle='#e0484b'; ctx.lineWidth=3; ctx.strokeRect(x+1,laneTop+1,w-2,laneBot-laneTop-2); }
+    ctx.fillStyle='#0d1015'; ctx.font='10px system-ui';
+    if(first) ctx.fillText('1ª',x+3,laneTop+13);
+    if(last)  ctx.fillText('últ',x+3,laneBot-4);
+  }
+
+  // IN / OUT (rep 0)
+  const drawMark=(beat,color,label)=>{ ctx.strokeStyle=color; ctx.lineWidth=2; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(X(beat),40); ctx.lineTo(X(beat),H); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=color; ctx.font='bold 11px system-ui'; ctx.fillText(label,X(beat)+2,laneBot+16); };
+  drawMark(m.inBeat,'#7bd88f','IN');
+  drawMark(m.outBeat,'#f26d6f','OUT');
+
+  // Brackets M1 / M2 (rep 0)
+  ctx.strokeStyle='#c9932f'; ctx.lineWidth=1.5; ctx.fillStyle='#e0b45f'; ctx.font='11px system-ui';
+  const bracket=(a,b,y,txt)=>{ if(b-a<0.01) return; ctx.beginPath(); ctx.moveTo(X(a),y); ctx.lineTo(X(b),y);
+    ctx.moveTo(X(a),y-4);ctx.lineTo(X(a),y+4); ctx.moveTo(X(b),y-4);ctx.lineTo(X(b),y+4); ctx.stroke();
+    ctx.fillText(txt,(X(a)+X(b))/2-14,y-6); };
+  bracket(m.firstMeasureStart,m.firstNoteAbs,laneBot+34,'M1='+m.M1.toFixed(2));
+  bracket(m.lastNoteEnd,m.lastMeasureEnd,laneBot+34,'M2='+m.M2.toFixed(2));
+
+  // Playhead
+  if(playBeat!==null){ ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(X(playBeat),40); ctx.lineTo(X(playBeat),H); ctx.stroke();
+    // auto-scroll
+    const sb=el('scrollbox'); const xpix=X(playBeat);
+    if(xpix<sb.scrollLeft+80 || xpix>sb.scrollLeft+sb.clientWidth-80) sb.scrollLeft=xpix-sb.clientWidth*0.4;
+  }
+}
+
+// ── Readout ──────────────────────────────────────────────────────────────────
+function updateReadout(m){
+  const r=el('readout'); const bd=m.beatDur;
+  const line=(k,v)=>`<div><b>${k}:</b> <span>${v}</span></div>`;
+  const inBar=Math.floor(m.inBeat/BEATS_PER_BAR)+1, outBar=Math.floor(m.outBeat/BEATS_PER_BAR)+1;
+  r.innerHTML=[
+    line('Compás 1ª nota','c'+(state.firstMeasure+1)),
+    line('Posición métrica 1ª nota', posLabel(m.M1)+'  (M1='+m.M1.toFixed(2)+' pulsos)'),
+    line('Compás última nota','c'+(state.lastMeasure+1)),
+    line('Posición métrica última nota', posLabel(m.lastNoteAbs-m.lastMeasureStart)),
+    line('Fin real última nota','pulso '+m.lastNoteEnd.toFixed(2)+' ('+(m.lastNoteEnd*bd).toFixed(3)+' s)'),
+    line('M2 (fin nota → fin compás)', m.M2.toFixed(2)+' pulsos ('+(m.M2*bd).toFixed(3)+' s)'),
+    line('M1 (inicio compás → 1ª nota)', m.M1.toFixed(2)+' pulsos ('+(m.M1*bd).toFixed(3)+' s)'),
+    line('Espacio total últ.nota→sig.1ª (gap)', m.gap.toFixed(2)+' pulsos = '+(m.gap/BEATS_PER_BAR).toFixed(2)+' compases ('+(m.gap*bd).toFixed(3)+' s)'),
+    line('Período de repetición', m.period.toFixed(2)+' pulsos = '+(m.period/BEATS_PER_BAR).toFixed(2)+' compases'),
+    line('Precuenta inicial', m.precountMeasures+' compás(es)'),
+    line('IN', 'pulso '+m.inBeat.toFixed(2)+' (c'+inBar+', '+posLabel(m.inBeat-(inBar-1)*BEATS_PER_BAR)+')'),
+    line('OUT', 'pulso '+m.outBeat.toFixed(2)+' (c'+outBar+', '+posLabel(m.outBeat-(outBar-1)*BEATS_PER_BAR)+')'),
+  ].join('');
+
+  const flags=[];
+  if(m.stratNote) flags.push('⚠ '+m.stratNote);
+  if(m.precountNote) flags.push('⚠ '+m.precountNote);
+  if(m.gap<0) flags.push('⚠ gap NEGATIVO: el período es menor que el contenido → las repeticiones se solapan (última nota aún sonando cuando entra la siguiente). Útil para escuchar el extremo, pero corta material.');
+  if(m.inBeat>=m.outBeat) flags.push('⚠ IN ≥ OUT (intervalo inválido en la definición de selección).');
+  if(m.lastNoteEnd<=m.firstNoteAbs) flags.push('⚠ última nota no está después de la primera.');
+  if(state.precountRule==='experimental' && state.firstPos===7) flags.push('ℹ 4& depende del selector de arriba (hipótesis, no está en la regla de Fase 4).');
+  el('flags').innerHTML = flags.length? flags.map(f=>'<div class="warn">'+f+'</div>').join('') : 'Sin observaciones. (Los valores 0.5/1.5/2 compases NO están fijados: se exploran con la estrategia y el período manual.)';
+}
+
+// ── Recompute + sync UI ──────────────────────────────────────────────────────
+function recompute(){
+  // clamp IN/OUT ranges to timeline
+  const m0=derive();
+  const maxB=Math.max(40,(state.lastMeasure+2)*BEATS_PER_BAR);
+  el('inBeat').max=maxB; el('outBeat').max=maxB;
+  el('inBeat').value = state.inBeat ?? m0.firstNoteAbs;
+  el('outBeat').value= state.outBeat ?? m0.lastNoteEnd;
+  el('inLbl').textContent='('+(+el('inBeat').value).toFixed(1)+')';
+  el('outLbl').textContent='('+(+el('outBeat').value).toFixed(1)+')';
+  el('manLbl').textContent='('+state.manualPeriod.toFixed(1)+')';
+  const m=derive();
+  curModel=m; curTL=buildTimeline(m);
+  draw(playing?currentBeat():null);
+  updateReadout(m);
+}
+
+// ── Wiring ───────────────────────────────────────────────────────────────────
+buildPosButtons('firstPos','firstPos');
+buildPosButtons('lastPos','lastPos');
+buildStrategyButtons();
+syncPosButtons(); syncStrategy();
+
+el('bpm').oninput=e=>{state.bpm=+e.target.value||90; recompute();};
+el('firstMeasure').oninput=e=>{state.firstMeasure=+e.target.value||0; state.inBeat=null;state.outBeat=null; recompute();};
+el('lastMeasure').oninput=e=>{state.lastMeasure=+e.target.value||0; state.inBeat=null;state.outBeat=null; recompute();};
+el('noteDur').oninput=e=>{state.noteDur=+e.target.value||0.5; recompute();};
+el('lastNoteDur').oninput=e=>{state.lastNoteDur=+e.target.value||1; state.outBeat=null; recompute();};
+el('inBeat').oninput=e=>{state.inBeat=+e.target.value; recompute();};
+el('outBeat').oninput=e=>{state.outBeat=+e.target.value; recompute();};
+el('btnNatural').onclick=()=>{state.inBeat=null;state.outBeat=null;recompute();};
+el('precountRule').onchange=e=>{state.precountRule=e.target.value; recompute();};
+el('fourAnd').onchange=e=>{state.fourAnd=e.target.value; recompute();};
+el('manualPeriod').oninput=e=>{state.manualPeriod=+e.target.value; if(state.strategy!=='manual'){state.strategy='manual';syncStrategy();} recompute();};
+el('reps').oninput=e=>{state.reps=Math.max(1,Math.min(8,+e.target.value||1)); recompute();};
+el('zoom').oninput=e=>{state.zoom=+e.target.value; recompute();};
+el('metroOn').onchange=()=>{}; el('musicOn').onchange=()=>{};
+el('btnPlay').onclick=play;
+el('btnStop').onclick=stop;
+
+recompute();
+</script>
+</body>
+</html>
