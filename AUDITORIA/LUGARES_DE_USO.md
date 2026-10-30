@@ -70,7 +70,7 @@
 | `cuaderno.js` | Plan (📔) · Cursos (📔 Cuaderno) · Pizarra (espejo) |
 | `compartir.js` | Biblioteca: ficha de la canción, ✈ de la melodía de metalófono, del piano, del arreglo de piano (con `plazo`, ES) y de cada tablatura y sección publicada (deudas DQ y DP) |
 | `grabacion-tono.js` | Editor de Arreglos (marcar pulsos) · Piano del estudiante con arreglo (grabación en el tono del arreglo, más lenta sin cambiar el tono; ES); 🎤/🎶 sin corte, ET) |
-| Cambio limpio Melodía ↔ Karaoke (ET) | Entrenador en todas sus versiones (`entCambiarAudio`) · Cantar (`ponerAudio`, copia de la misma lógica) · Piano con arreglo (`grabacion-tono.js`) |
+| `dos-grabaciones.js` (ET) | Melodía ↔ Karaoke exacto en un solo reproductor: Entrenador en todas sus versiones (también es su motor de Pitch y velocidad; la copia de la Pizarra no suena) · Cantar. El Piano con arreglo hace lo mismo con `grabacion-tono.js` |
 | `redactar-oa.js` | Libro: ✨ Redactar OA en Nueva evaluación y en la cabecera (solo cursos; DS) · llamada a Gemini compartida |
 | `citar.js` | ❝ Citar de 📚 Estudios: Cursos del PC y Bitácora del celular (deuda EC) |
 | `rubrica-ia.js` | Libro: ✨ Proponer con IA en el editor de instrumentos y en Plantillas (solo cursos; DT) |

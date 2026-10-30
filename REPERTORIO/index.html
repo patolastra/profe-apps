@@ -15,6 +15,7 @@
     <script src="../comun/archivos-curso.js?v=ej1"></script>
     <link rel="stylesheet" href="../comun/compartir.css?v=eq">
     <script src="../comun/compartir.js?v=eq"></script>
+    <script src="../comun/dos-grabaciones.js"></script>
     <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
@@ -3211,7 +3212,6 @@
         </div>
     </div>
     <audio id="entrenador-audio"></audio>
-    <audio id="entrenador-audio-k" preload="auto"></audio>
     <div id="ent-atajos-overlay" onclick="if(event.target===this)entCerrarAtajos()">
         <div id="ent-atajos-box">
             <div id="ent-atajos-head">
@@ -5822,8 +5822,7 @@ let entrenadorOcultar      = false;
 let entPitchSemitones  = 0;
 let entPitchCtx        = null;   // AudioContext (se crea una vez)
 let entPitchBuffer     = null;   // AudioBuffer del song actual (caché por song)
-let entPitchFilter     = null;   // SimpleFilter de SoundTouch
-let entPitchNode       = null;   // ScriptProcessorNode
+let entPitchNode       = null;   // reproductor de comun/dos-grabaciones.js (tono, velocidad y Melodía ↔ Karaoke)
 let entPitchST         = null;   // SoundTouch instance
 let entPitchLib        = null;   // módulo SoundTouch cargado dinámicamente
 
@@ -5845,12 +5844,10 @@ async function entrenadorSetPitch(val) {
 
     entCerrarPitchInput();
 
-    if (semitones === 0 && prev !== 0) {
-        entDesactivarPitch();
-    } else if (semitones !== 0 && prev === 0) {
-        await entActivarPitch();
-    } else if (semitones !== 0 && entPitchST) {
-        entPitchST.pitchSemitones = semitones;
+    // Con las dos grabaciones listas (ET) el reproductor sigue aunque el tono vuelva a 0
+    if (semitones !== prev) {
+        if (entMotorActivo()) await entActivarPitch();
+        else entDesactivarPitch();
     }
 
     if (entModoSesion || entModoEditSesion) entPersistirConfigSesion();
@@ -5947,111 +5944,89 @@ function entCambiarAudio(rol, silencioso = false) {
     if (rol === 'karaoke' && entSyncMode && !silencioso) { toast('La sincronización se edita con la Melodía'); return; }
     const asset = rol === 'karaoke' ? audioDe(entrenadorSong, 'karaoke') : audioDe(entrenadorSong, 'melodia');
     if (!asset?.storage_path) return;
-    const m = entAudio(), k = entAudioK();
+    if (!ESPEJO && !entDosListas) return;          // aún preparándose (el botón muestra la barra)
     entAudioRol = rol;
-    if (!silencioso && rol === 'karaoke' && isFinite(m.duration) && isFinite(k.duration) && Math.abs(k.duration - m.duration) > 0.5)
-        toast(`⚠ El karaoke dura distinto que la Melodía (${Math.abs(k.duration - m.duration).toFixed(1)} s): la letra puede ir desfasada`);
-    // Cambio limpio (ET): los dos ya suenan juntos; solo se pasa el volumen de uno al otro
-    entFundir(rol === 'karaoke' ? 1 : 0);
-    if (entPitchNode && !ESPEJO) entPitchCambiarBuffer();   // con el tono cambiado: la otra grabación en la misma muestra
+    if (!ESPEJO) {
+        // Cambio exacto (ET): el mismo reproductor pasa a la otra grabación en la misma muestra
+        entPitchCambiarBuffer();
+        const m = entPitchBuffers[audioDe(entrenadorSong, 'melodia')?.id]?.valor, k = entPitchBuffers[audioDe(entrenadorSong, 'karaoke')?.id]?.valor;
+        if (!silencioso && rol === 'karaoke' && m && k && Math.abs(k.duration - m.duration) > 0.5)
+            toast(`⚠ El karaoke dura distinto que la Melodía (${Math.abs(k.duration - m.duration).toFixed(1)} s): la letra puede ir desfasada`);
+    }
     entPintarSelectorAudio();
     entPintarSync();
     if (typeof espejoEmitir === 'function') espejoEmitir();
 }
-// ── Cambio limpio Melodía ↔ Karaoke (deuda ET) ──
-// El karaoke suena junto a la Melodía desde que se abre la canción, en silencio, siguiéndola (play, pausa, saltos,
-// velocidad; si se corre, se acelera o frena apenas). Cambiar = fundido de ~80 ms entre los dos: sin cargar ni saltar.
-// La Melodía (#entrenador-audio) sigue mandando el tiempo de todo el Entrenador.
-function entAudioK() { return document.getElementById('entrenador-audio-k'); }
-let entMezcla = 0;              // 0 = suena la Melodía, 1 = el Karaoke (valores intermedios durante el fundido)
-let entFundidoT = null;
-// iPhone no deja cambiar el volumen de un audio: ahí el cambio es callar uno y dar voz al otro
-const entVolumenReal = (() => { try { const a = new Audio(); a.volume = 0.5; return a.volume === 0.5; } catch (_) { return false; } })();
+// ── Melodía ↔ Karaoke en un solo reproductor (deuda ET) ──
+// Al abrir una canción con Karaoke se descargan y decodifican las dos grabaciones (barra mínima en el botón). Listas,
+// suena el reproductor de comun/dos-grabaciones.js —el mismo del Pitch— y el <audio> queda en silencio como reloj
+// (letra, loops, saltos). Cambiar = la otra grabación en la misma muestra con un fundido de 25 ms: exacto.
+// Mientras se preparan, suena el <audio> con la Melodía y el botón espera.
+let entDosListas = false;       // las dos grabaciones de la canción abierta, decodificadas
+let entDosCarga = 0;            // número de la carga en curso (abrir otra canción la anula)
+const entMotorActivo = () => !ESPEJO && (entPitchSemitones !== 0 || entDosListas);
 function entAplicarSalidaAudio() {
-    const m = entAudio(), k = entAudioK();
-    const callar = ESPEJO || !!entPitchNode;      // la copia de la Pizarra no suena; con tono cambiado suena SoundTouch
-    const n = entNivelVolumen();
-    if (entVolumenReal) {
-        m.muted = callar; k.muted = callar;
-        try { m.volume = n * (1 - entMezcla); k.volume = n * entMezcla; } catch (_) {}
-    } else {
-        m.muted = callar || entMezcla >= 0.5; k.muted = callar || entMezcla < 0.5;
-    }
+    const m = entAudio();
+    m.muted = ESPEJO || !!entPitchNode;           // la copia de la Pizarra no suena; con el reproductor, suena él
+    try { m.volume = entNivelVolumen(); } catch (_) {}
 }
-function entFundir(hacia) {
-    clearInterval(entFundidoT);
-    if (!entVolumenReal || ESPEJO) { entMezcla = hacia; entAplicarSalidaAudio(); return; }   // dentro del mismo toque
-    const ini = entMezcla, t0 = performance.now(), dur = 80;
-    entFundidoT = setInterval(() => {
-        const x = Math.min(1, (performance.now() - t0) / dur);
-        entMezcla = ini + (hacia - ini) * x;
-        entAplicarSalidaAudio();
-        if (x >= 1) clearInterval(entFundidoT);
-    }, 10);
+// Barra mínima: una línea en el borde de abajo del botón Melodía / Karaoke (x = 0..1; null = lista)
+function entPintarCargaAudio(x) {
+    const b = document.getElementById('ent-btn-audio');
+    if (!b) return;
+    b.disabled = x !== null;
+    b.style.backgroundImage = x === null ? '' : 'linear-gradient(#ea580c, #ea580c)';
+    b.style.backgroundRepeat = 'no-repeat';
+    b.style.backgroundPosition = 'left bottom';
+    b.style.backgroundSize = x === null ? '' : `${Math.round(x * 100)}% 3px`;
+    if (x !== null) b.title = 'Preparando el Karaoke para cambiar sin cortes…';
+    else entPintarSelectorAudio();
 }
-// Al abrir una canción: el karaoke queda cargado (o vacío si no tiene) y suena la Melodía
-function entPrepararKaraoke(c) {
-    const k = entAudioK(), a = c && tieneKaraoke(c) ? audioDe(c, 'karaoke') : null;
-    clearInterval(entFundidoT); entMezcla = 0;
-    k.pause();
-    const src = a?.storage_path ? storageUrl(a.storage_path) : '';
-    if ((k.getAttribute('src') || '') !== src) { if (src) k.src = src; else { k.removeAttribute('src'); k.load(); } }
-    entAplicarSalidaAudio();
-}
-// Solo se corrige la grabación que está en silencio: la que suena nunca se acelera, frena ni salta (ajuste ET:
-// corregir la que sonaba la dejaba entrecortada). Si suena el Karaoke, es la Melodía la que se ajusta a él.
-let entCorrigiendo = false;     // un salto hecho aquí a la Melodía no debe mover al Karaoke
-function entSeguirMelodia(fuerte) {
-    const m = entAudio(), k = entAudioK();
-    if (!k.getAttribute('src') || ESPEJO) return;
-    if (m.paused || m.ended || !m.getAttribute('src')) {
-        if (!k.paused) k.pause();
-        if (fuerte && isFinite(m.currentTime)) try { k.currentTime = m.currentTime; } catch (_) {}
+async function entPrepararKaraoke(c) {
+    const carga = ++entDosCarga;
+    entDosListas = false;
+    entDesactivarPitch();
+    for (const k in entPitchBuffers) delete entPitchBuffers[k];     // solo quedan las de la canción abierta
+    entPitchBuffer = null;
+    if (ESPEJO || !c || !tieneKaraoke(c)) { entPintarCargaAudio(null); return; }
+    if (!entPitchCtx || entPitchCtx.state === 'closed') entPitchCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const prog = { melodia: 0, karaoke: 0 };
+    const pintar = () => { if (carga === entDosCarga) entPintarCargaAudio((prog.melodia + prog.karaoke) / 2); };
+    pintar();
+    try {
+        await Promise.all(['melodia', 'karaoke'].map(r => entPitchCargarBuffer(audioDe(c, r), x => { prog[r] = x; pintar(); })));
+    } catch (_) {
+        if (carga === entDosCarga) { entPintarCargaAudio(null); toast('No se pudo preparar el Karaoke: revisa la conexión'); }
         return;
     }
-    const base = entrenadorVelocidad || 1;
-    if (fuerte) { try { k.currentTime = m.currentTime; } catch (_) {} k.playbackRate = base; }
-    else {
-        const suenaK = entMezcla >= 0.5 && !entPitchNode;
-        const callada = suenaK ? m : k, guia = suenaK ? k : m;
-        const d = callada.currentTime - guia.currentTime;
-        if (guia.playbackRate !== base) guia.playbackRate = base;
-        if (Math.abs(d) > 0.3) {
-            if (callada === m) entCorrigiendo = true;
-            try { callada.currentTime = guia.currentTime; } catch (_) {}
-            callada.playbackRate = base;
-        } else {
-            const r = Math.abs(d) > 0.03 ? base * (1 - Math.max(-0.05, Math.min(0.05, d * 0.5))) : base;
-            if (Math.abs(callada.playbackRate - r) > 0.002) callada.playbackRate = r;
-        }
-    }
-    if (k.paused && m.currentTime < (k.duration || Infinity)) k.play().catch(() => {});
+    if (carga !== entDosCarga) return;
+    entDosListas = true;
+    entPintarCargaAudio(null);
+    if (!entPitchNode) entActivarPitch();          // traspaso al reproductor, sin que se note
 }
-(() => {
-    const m = entAudio();
-    m.addEventListener('play', () => entSeguirMelodia(true));
-    m.addEventListener('pause', () => entSeguirMelodia(true));
-    m.addEventListener('seeked', () => { if (entCorrigiendo) { entCorrigiendo = false; return; } entSeguirMelodia(true); });
-    m.addEventListener('emptied', () => entAudioK().pause());
-    setInterval(() => entSeguirMelodia(false), 250);
-})();
-// Con el tono cambiado: SoundTouch lee la grabación elegida; el cambio la reemplaza en la misma muestra
-const entPitchBuffers = {};     // id del audio → AudioBuffer decodificado
-async function entPitchCargarBuffer(asset) {
-    if (!asset?.storage_path) return null;
-    if (entPitchBuffers[asset.id]) return entPitchBuffers[asset.id];
-    const resp = await fetch(storageUrl(asset.storage_path));
-    const b = await entPitchCtx.decodeAudioData(await resp.arrayBuffer());
-    b._songId = asset.id;
-    return (entPitchBuffers[asset.id] = b);
+// Grabaciones decodificadas por id del audio: { promesa, valor }
+const entPitchBuffers = {};
+function entPitchCargarBuffer(asset, alProgreso) {
+    if (!asset?.storage_path) return Promise.reject(new Error('sin audio'));
+    const e = entPitchBuffers[asset.id];
+    if (e) return e.promesa;
+    const reg = {};
+    reg.promesa = DosGrabaciones.cargar(entPitchCtx, storageUrl(asset.storage_path), alProgreso)
+        .then(b => { b._songId = asset.id; reg.valor = b; return b; })
+        .catch(err => { if (entPitchBuffers[asset.id] === reg) delete entPitchBuffers[asset.id]; throw err; });
+    entPitchBuffers[asset.id] = reg;
+    return reg.promesa;
 }
 async function entPitchCambiarBuffer() {
     const asset = entAudioAsset();
     try {
         const b = await entPitchCargarBuffer(asset);
-        if (b && entPitchNode && entAudioAsset() === asset) entPitchBuffer = b;
-    } catch (_) { toast('No se pudo cargar la otra grabación con el tono cambiado'); }
+        if (!b || entAudioAsset() !== asset) return;
+        entPitchBuffer = b;
+        entPitchNode?.cambiar(b);
+    } catch (_) { toast('No se pudo cargar la otra grabación'); }
 }
+
 // Sync solo con la Melodía: con el karaoke el botón queda desactivado.
 function entPintarSync() {
     const s = document.getElementById('ent-btn-sync');
@@ -6061,21 +6036,26 @@ function entPintarSync() {
 async function entActivarPitch() {
     const audioEl = entAudio();
     const audioAsset = entAudioAsset();
-    if (!audioAsset) return;
+    if (!audioAsset || ESPEJO) return;
+    const conTono = entPitchSemitones !== 0;
+    if (conTono) toast('Cargando modo pitch…');
 
-    toast('Cargando modo pitch…');
+    // Helper: cancela silenciosamente si el usuario cerró el entrenador o ya no hace falta el reproductor
+    const entPitchAbortado = () => !entrenadorSong || !entMotorActivo();
 
-    // Helper: cancela silenciosamente si el usuario cerró el entrenador o volvió a 0
-    const entPitchAbortado = () => !entrenadorSong || entPitchSemitones === 0;
-
-    // 1. Cargar SoundTouch (lazy, solo la primera vez)
-    const lib = await entCargarSoundTouch();
-    if (entPitchAbortado()) return;
-    if (!lib || !lib.SoundTouch) {
-        toast('No se pudo cargar SoundTouch — verificar conexión');
-        entPitchSemitones = 0;
-        entCerrarPitchInput();
-        return;
+    // 1. SoundTouch solo si cambia el tono o la velocidad (sin cambios, la grabación se lee directo)
+    const vel = audioEl.playbackRate || 1;
+    const usarST = conTono || Math.abs(vel - 1) > 0.001;
+    let lib = null;
+    if (usarST) {
+        lib = await entCargarSoundTouch();
+        if (entPitchAbortado()) return;
+        if (!lib || !lib.SoundTouch) {
+            toast('No se pudo cargar SoundTouch — verificar conexión');
+            entPitchSemitones = 0;
+            entCerrarPitchInput();
+            return;
+        }
     }
 
     // 2. Crear AudioContext (requiere gesto de usuario — ya lo tenemos por el slider)
@@ -6084,76 +6064,65 @@ async function entActivarPitch() {
     }
 
     // 3. Descargar y decodificar audio (caché por audio: Melodía y Karaoke son distintos)
-    if (!entPitchBuffer || entPitchBuffer._songId !== audioAsset.id) {
-        try {
-            const decoded = await entPitchCargarBuffer(audioAsset);
-            if (entPitchAbortado()) return;  // cerró o volvió a 0 mientras descargaba
-            entPitchBuffer = decoded;
-            // la otra grabación (Melodía / Karaoke) queda lista para cambiar sin corte (ET)
-            if (tieneKaraoke(entrenadorSong)) entPitchCargarBuffer(audioAsset === audioDe(entrenadorSong, 'karaoke') ? audioDe(entrenadorSong, 'melodia') : audioDe(entrenadorSong, 'karaoke')).catch(() => {});
-        } catch(e) {
-            if (entPitchAbortado()) return;
-            toast('Error al descargar audio para modo pitch');
-            entPitchSemitones = 0;
-            entCerrarPitchInput();
-            return;
-        }
+    try {
+        const decoded = await entPitchCargarBuffer(audioAsset);
+        if (entPitchAbortado()) return;  // cerró o ya no hace falta mientras descargaba
+        entPitchBuffer = decoded;
+    } catch(e) {
+        if (entPitchAbortado()) return;
+        toast('Error al descargar audio para modo pitch');
+        entPitchSemitones = 0;
+        entCerrarPitchInput();
+        return;
     }
 
-    // 4. Construir grafo SoundTouch
-    // Limpiar nodo anterior si existía
-    if (entPitchNode) { try { entPitchNode.disconnect(); } catch(_) {} }
-
-    entPitchST = new lib.SoundTouch();
-    entPitchST.pitchSemitones = entPitchSemitones;
-    entPitchST.tempo = entrenadorVelocidad;
-
-    const bufSrc = {
-        extract(target, numFrames, position) {
-            // se lee la grabación vigente en cada bloque: el cambio Melodía ↔ Karaoke la reemplaza al vuelo (ET)
-            const ch0 = entPitchBuffer.getChannelData(0);
-            const ch1 = entPitchBuffer.numberOfChannels > 1 ? entPitchBuffer.getChannelData(1) : ch0;
-            const avail = Math.min(numFrames, entPitchBuffer.length - position);
-            if (avail <= 0) return 0;
-            for (let i = 0; i < avail; i++) {
-                target[i * 2]     = ch0[position + i];
-                target[i * 2 + 1] = ch1[position + i];
-            }
-            return avail;
-        }
-    };
-    entPitchFilter = new lib.SimpleFilter(bufSrc, entPitchST);
-    entPitchFilter.sourcePosition = Math.floor(audioEl.currentTime * entPitchBuffer.sampleRate);
-
-    entPitchNode = lib.getWebAudioNode(entPitchCtx, entPitchFilter);
-    entPitchNode.connect(entPitchSalida());   // pasa por el volumen (deuda DA)
-
-    // 5. Silenciar <audio> (sigue controlando tiempo/seek), también el karaoke que la sigue (ET)
-    entAplicarSalidaAudio();
-    if (audioEl.paused) {
-        entPitchCtx.suspend();
-    } else {
-        entPitchCtx.resume();
-    }
-
-    toast('♭♯ Modo pitch activo');
+    // 4. El reproductor nuevo (el <audio> sigue controlando tiempo/seek, en silencio)
+    entCrearMotor(usarST);
+    if (conTono) toast('♭♯ Modo pitch activo');
+}
+// Arma el reproductor desde donde va el <audio>; el anterior (si había) se calla justo cuando el nuevo empieza a
+// oírse. Se rehace en cada play: así no queda sonando un pedazo viejo al reanudar.
+function entCrearMotor(usarST = !!entPitchST) {
+    if (!entPitchBuffer || !entPitchCtx) return;
+    const audioEl = entAudio(), vel = audioEl.playbackRate || 1, ctx = entPitchCtx;
+    const anterior = entPitchNode;
+    if (usarST && entPitchLib) {
+        entPitchST = new entPitchLib.SoundTouch();
+        entPitchST.pitchSemitones = entPitchSemitones;
+        entPitchST.tempo = vel;
+    } else entPitchST = null;
+    entPitchNode = DosGrabaciones.motor(ctx, entPitchSalida(), {   // pasa por el volumen (deuda DA)
+        buffer: entPitchBuffer, reloj: () => entAudio().currentTime, vel,
+        st: entPitchST ? { SimpleFilter: entPitchLib.SimpleFilter, pipe: entPitchST } : null,
+        alEmpezar: t => setTimeout(() => { anterior?.detener(); entAplicarSalidaAudio(); }, Math.max(0, (t - ctx.currentTime) * 1000)),
+    });
+    if (audioEl.paused) { anterior?.detener(); entAplicarSalidaAudio(); entPitchNode.detener(); }   // espera al play
+    else ctx.resume();
 }
 
 function entDesactivarPitch() {
     if (entPitchNode) {
-        try { entPitchNode.disconnect(); } catch(_) {}
+        entPitchNode.detener();
         entPitchNode = null;
     }
-    entPitchFilter = null;
     entPitchST     = null;
     entAplicarSalidaAudio();
     if (entPitchCtx) entPitchCtx.resume();
 }
 
 function entPitchSyncPos() {
-    if (!entPitchFilter || !entPitchBuffer || !entPitchCtx) return;
-    entPitchFilter.sourcePosition = Math.floor(entAudio().currentTime * entPitchBuffer.sampleRate);
+    if (!entPitchNode || entAudio().paused) return;   // detenido: el play rehace el reproductor desde ahí
+    entCrearMotor();
 }
+// La velocidad cambió (barra, loop): el reproductor la sigue (con o sin SoundTouch según haga falta)
+function entMotorVelocidad() {
+    if (!entPitchNode) return;
+    const v = entAudio().playbackRate || 1;
+    const usarST = entPitchSemitones !== 0 || Math.abs(v - 1) > 0.001;
+    if (usarST !== !!entPitchST) { if (usarST && !entPitchLib) entActivarPitch(); else entCrearMotor(usarST); }
+    else if (entPitchST) entPitchST.tempo = v;
+}
+entAudio().addEventListener('ratechange', entMotorVelocidad);   // también los loops con su velocidad
 // ─────────────────────────────────────────────────────────────────────────────
 let entrenadorLineasOcultas = new Set();
 let entrenadorLineasColoreadas = new Set();  // origIdx de versos marcados (referencia visual de clase)
@@ -6361,8 +6330,8 @@ function abrirEntrenador(songId) {
     audioEl.ontimeupdate     = entOnTimeUpdate;
     audioEl.onloadedmetadata = entActualizarMarcadores;
     audioEl.onseeked     = entPitchSyncPos;
-    audioEl.onplay       = () => { if (entPitchCtx && entPitchSemitones !== 0) { entPitchSyncPos(); entPitchCtx.resume(); } };
-    audioEl.onpause      = () => { if (entPitchCtx && entPitchSemitones !== 0) entPitchCtx.suspend(); };
+    audioEl.onplay       = () => { if (entPitchCtx && entPitchNode) entCrearMotor(); };
+    audioEl.onpause      = () => { if (entPitchCtx && entPitchNode) entPitchNode.detener(); };
 
     document.getElementById('ent-vel-label').textContent = entFmtVel(entrenadorVelocidad);
     entPitchSemitones = 0;
@@ -6407,9 +6376,9 @@ function cerrarEntrenador() {
     if (entRitmoPlayer) { try { entRitmoPlayer.stop(); } catch (_) {} entRitmoPlayer = null; }
     const audioEl = entAudio();
     audioEl.pause(); audioEl.src = '';
-    entAudioK().pause();
     audioEl.ontimeupdate = null; audioEl.onloadedmetadata = null;
     audioEl.onseeked = null; audioEl.onplay = null; audioEl.onpause = null;
+    entDosCarga++; entDosListas = false;   // ET: una carga en curso ya no sirve
     entDesactivarPitch();
     entPitchSemitones = 0;
     entPitchBuffer = null;
@@ -7672,7 +7641,7 @@ function entrenadorTogglePlay() {
     const audioEl = entAudio();
     const btn = document.getElementById('ent-btn-play');
     // Tono cambiado: el sonido sale por otro camino que el celular deja en pausa hasta un toque; se reanuda aquí mismo.
-    if (audioEl.paused && entPitchCtx && entPitchSemitones !== 0 && entPitchCtx.state === 'suspended') entPitchCtx.resume();
+    if (audioEl.paused && entPitchCtx && entPitchNode && entPitchCtx.state === 'suspended') entPitchCtx.resume();
     if (audioEl.paused) { audioEl.play(); entPintarPlay('pausa'); }
     else                { audioEl.pause(); entPintarPlay('play'); }
 }
@@ -7686,7 +7655,7 @@ function entrenadorSetVelocidad(val) {
     entrenadorVelocidad = parseFloat(val);
     entAudio().playbackRate = entrenadorVelocidad;
     document.getElementById('ent-vel-label').textContent = entFmtVel(entrenadorVelocidad);
-    if (entPitchST) entPitchST.tempo = entrenadorVelocidad;
+    entMotorVelocidad();
     if (entModoSesion || entModoEditSesion) entPersistirConfigSesion();
 }
 
@@ -8680,8 +8649,8 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     audioEl.onloadedmetadata = entActualizarMarcadores;
     audioEl.onended          = entOnAudioEnded;
     audioEl.onseeked     = entPitchSyncPos;
-    audioEl.onplay       = () => { if (entPitchCtx && entPitchSemitones !== 0) { entPitchSyncPos(); entPitchCtx.resume(); } };
-    audioEl.onpause      = () => { if (entPitchCtx && entPitchSemitones !== 0) entPitchCtx.suspend(); };
+    audioEl.onplay       = () => { if (entPitchCtx && entPitchNode) entCrearMotor(); };
+    audioEl.onpause      = () => { if (entPitchCtx && entPitchNode) entPitchNode.detener(); };
 
     // Reinicio explícito al cambiar de canción: arrancar como si fuera una canción nueva.
     audioEl.currentTime = 0;
@@ -8739,8 +8708,8 @@ function cerrarEntrenadorModoEdicion() {
     if (entModoEdicion) entSalirEdicion();   // guardar la letra en edición antes de cerrar
     const audioEl = entAudio();
     audioEl.pause(); audioEl.src = '';
-    entAudioK().pause();
     audioEl.ontimeupdate = null; audioEl.onloadedmetadata = null; audioEl.onended = null;
+    entDosCarga++; entDosListas = false; entDesactivarPitch();   // ET: sin reproductor de las dos grabaciones
     // Guardar los loops en la sesión que se está editando
     entSesionActual.canciones[entSesionCIdx].loops = [...entrenadorLoops];
     document.getElementById('ent-btn-cerrar').onclick = cerrarEntrenador;

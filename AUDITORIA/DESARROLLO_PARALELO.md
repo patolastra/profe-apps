@@ -7511,3 +7511,22 @@ link).*
   callada si pasa de 0,3 s (sin arrastrar a la otra). Igual en Cantar.
   Prueba (navegador): con el Karaoke sonando, 0 cambios de velocidad y 0 saltos en el Karaoke durante 6–8 s; desfase
   estable de 1–25 ms (Entrenador con COQUETA y Cantar con From The Start).
+- **Ajuste 2 (PO 2026-10-30, "se pierde la línea temporal, da tropiezos, no es musicalmente perfecto"; pidió una
+  barra mínima de carga):** dos reproductores separados nunca quedan exactos (en Android, centésimas que se oyen al
+  cambiar). Ahora **un solo reproductor** para las dos grabaciones: `comun/dos-grabaciones.js` (`DosGrabaciones`)
+  descarga con avance y decodifica las dos; el reproductor lee la elegida muestra a muestra y cambiar es pasar a la
+  otra **en la misma muestra** con un fundido de 25 ms. El `<audio>` queda en silencio como reloj (letra, loops,
+  saltos); el reproductor se arma alineado a él en cada play o salto y el traspaso se hace justo cuando empieza a
+  oírse. Con tono o velocidad distintos usa SoundTouch (el mismo Pitch de antes); sin cambios lee la grabación directo.
+  Mientras se preparan suena el `<audio>` con la Melodía y el botón Melodía / Karaoke espera con una **barra mínima**
+  (línea naranja de 3 px en su borde de abajo que se llena). Se quitó el segundo `<audio>` y la corrección continua.
+  - Entrenador: `entPrepararKaraoke` (carga con avance, `entPintarCargaAudio`), `entPitchCargarBuffer` (caché por
+    audio de la canción abierta), `entActivarPitch` / `entCrearMotor` (con o sin SoundTouch), `entMotorVelocidad`
+    (barra y loops), `entCambiarAudio` (espera a que estén listas; la copia de la Pizarra solo cambia el rol).
+  - Cantar: `prepararDos`, `arrancarMotor` / `pararMotor`, `ponerAudio`; despierta el reproductor en el toque de ▶ y
+    al tocar un verso (iPhone).
+  - Costo: el celular descarga y decodifica las dos grabaciones completas al abrir la canción.
+  - Prueba (navegador): Entrenador con COQUETA → barra y luego botón activo; sonando desde 0:20 el `<audio>` queda
+    callado y suena el reproductor; al cambiar a Karaoke el mismo reproductor sigue (85 ms leídos en 50 ms: sin
+    pausa) con la grabación del Karaoke. Cantar con From The Start: lo mismo; al pausar el reproductor se detiene.
+    Barra: `45% 3px` en el borde del botón. Falta probarlo en el celular.
