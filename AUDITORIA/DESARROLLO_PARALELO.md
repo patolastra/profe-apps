@@ -7643,3 +7643,8 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
   301 pulsos, ♩ 78,9, compás 1 en el primer toque. Prueba: al mover el 1 del compás 3, sus pulsos y los del compás 2
   se reparten parejos; cifra 3 desde el compás 5 → 230 pulsos con los 1 en su lugar; Deshacer; guardado en la base y
   en el archivo público (301 pulsos, último = compás 76.1) y al volver a abrir quedan 76 compases.
+- **Ajuste 7 (PO 2026-10-30, "navego con dos dedos y al soltar se hace un pequeño zoom"):** cada gesto de dos dedos
+  o de rueda queda como desplazar o acercar según cómo empieza, hasta soltarlo (250 ms sin movimiento); el final de un
+  deslizamiento horizontal ya no acerca. El zoom va según cuánto se mueve (parejo con dos dedos; con la rueda del
+  mouse, lo mismo que antes). Prueba: deslizamiento horizontal que termina en vertical → se movió 1 s y el zoom no
+  cambió; después la rueda acerca y aleja.

@@ -513,16 +513,21 @@ zoom.addEventListener('dblclick', e => {
     S.compases.push(s); rehacer();
     sel = S.compases.indexOf(s); pintarControles();
 });
+// Un gesto (dos dedos o rueda) es desplazar o acercar según cómo empieza, y lo sigue siendo hasta soltarlo:
+// el final de un deslizamiento horizontal ya no se vuelve un pequeño zoom.
+let gesto = null, gestoT = 0;
 zoom.addEventListener('wheel', e => {
     if (!buf) return;
     e.preventDefault();
     const r = zoom.getBoundingClientRect(), D = duracion();
-    if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        const d = (e.shiftKey ? e.deltaY : e.deltaX) / r.width * vista.dur;
+    if (!gesto || e.timeStamp - gestoT > 250) gesto = e.shiftKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? 'mover' : 'zoom';
+    gestoT = e.timeStamp;
+    if (gesto === 'mover') {
+        const d = (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) / r.width * vista.dur;
         vista.ini = Math.max(0, Math.min(D - vista.dur, vista.ini + d));
     } else {
         const s = segDeX(e.clientX - r.left, r.width), durPrev = vista.dur;
-        vista.dur = Math.max(1, Math.min(D, vista.dur * (e.deltaY > 0 ? 1.2 : 1 / 1.2)));
+        vista.dur = Math.max(1, Math.min(D, vista.dur * Math.exp(Math.max(-60, Math.min(60, e.deltaY)) * 0.003)));
         vista.ini = Math.max(0, Math.min(D - vista.dur, s - (s - vista.ini) * vista.dur / durPrev));
     }
     sucio = true;
