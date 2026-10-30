@@ -7623,3 +7623,8 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
   la pantalla, que se frena y lo podía atrasar o saltar). Soltar una barra devuelve el teclado a la app.
   Prueba (navegador): sonando desde 0:10, a los 2 s los clics ya estaban programados hasta 0:12 (suena 0:11,8);
   volumen de la grabación 30 % y del clic 80 % aplicados y guardados.
+- **Ajuste 4 (PO 2026-10-30, "Compás / Pulso no hace diferencia, cada toque lo toma como un pulso"):** en la versión
+  en línea, marcando sobre el mapa guardado de COQUETA (76 pulsos cada ~3 s, hechos antes del Ajuste 2), 4 toques
+  cada 3 s → 13 pulsos parejos (3 compases): el reparto funciona; el mapa guardado era de antes. Corregido: al
+  remarcar por compás, lo reemplazado llega hasta medio compás después del último toque (quedaba pegado un pulso
+  viejo, que se veía disparejo). Prueba: el pulso viejo de 0:22,5 ya no queda.
