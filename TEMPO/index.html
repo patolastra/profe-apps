@@ -57,6 +57,9 @@
     #pos { font-variant-numeric: tabular-nums; width: 300px; color: var(--tenue); }
     #pos b { color: var(--texto); }
     #b-tocar { width: 104px; }
+    /* Velocidad: el mismo chip del Entrenador (atajos { } +) */
+    #vel { background: #334155; border: 1.5px solid #475569; color: #94a3b8; border-radius: 20px; padding: 4px 12px; font-size: 0.72rem;
+        font-weight: 600; white-space: nowrap; line-height: 1; width: 52px; text-align: center; font-variant-numeric: tabular-nums; cursor: default; }
     #b-marcar { width: 170px; }
     #b-marcar.on { background: #c2410c; border-color: #fb923c; }
     #info { color: var(--tenue); font-size: 13px; }
@@ -96,9 +99,10 @@
 <div id="cuerpo">
     <div class="caja fila">
         <button class="btn grande" id="b-tocar">▶ Tocar</button>
-        <button class="btn grande" id="b-marcar" title="Suena desde el cursor y cada Espacio marca un pulso. Esc o Enter para terminar">⏺ Marcar pulsos</button>
-        <span class="rot">Velocidad</span>
-        <select id="vel"><option value="1">100 %</option><option value="0.9">90 %</option><option value="0.8">80 %</option><option value="0.7">70 %</option><option value="0.6">60 %</option><option value="0.5">50 %</option></select>
+        <button class="btn grande" id="b-marcar" title="Suena desde el cursor y cada Espacio marca un pulso. J vuelve 5 s y sigues marcando desde ahí. Esc o Enter para terminar">⏺ Marcar pulsos</button>
+        <button class="btn" id="b-atras" title="Volver 5 s (J). Marcando: borra lo marcado desde ahí y sigues">⏪ 5 s</button>
+        <button class="btn" id="b-adelante" title="Adelantar 5 s (L)">5 s ⏩</button>
+        <span id="vel" title="Velocidad: { baja 5 % · } sube 5 % · + normal">1x</span>
         <button class="btn" id="b-clic" title="Un clic en cada pulso mientras suena, para comprobar">🔔 Clic</button>
         <span id="pos"></span>
         <div class="sep"></div>
@@ -126,11 +130,12 @@
     <div class="fila"><span id="info"></span></div>
     <div class="ayuda">
         Clic en la onda: mover el cursor · arrastrar un pulso: moverlo · doble clic: agregar un pulso · <kbd>Supr</kbd>: borrar el elegido ·
-        rueda: acercar o alejar · <kbd>Mayús</kbd>+rueda: desplazar · <kbd>Espacio</kbd>: tocar / detener (marcando: un pulso; <kbd>Retroceso</kbd> quita el último).
+        rueda: acercar o alejar · <kbd>Mayús</kbd>+rueda: desplazar · <kbd>Espacio</kbd> o <kbd>K</kbd>: tocar / detener (marcando, Espacio = un pulso) ·
+        <kbd>J</kbd> / <kbd>L</kbd>: 5 s atrás / adelante (marcando, J borra lo marcado desde ahí y sigues) · <kbd>{</kbd> <kbd>}</kbd> velocidad −/+ 5 %, <kbd>+</kbd> normal.
         Marcar sobre pulsos que ya existen los reemplaza en ese tramo. En rojo, los pulsos que se ven disparejos.
     </div>
 </div>
-<div id="marcando">Marcando pulsos · <b id="marc-n">0</b><div class="ayuda">Espacio en cada pulso · Esc o Enter para terminar</div></div>
+<div id="marcando">Marcando pulsos · <b id="marc-n">0</b><div class="ayuda">Espacio en cada pulso · <kbd>J</kbd> vuelve 5 s y sigues desde ahí · <kbd>Retroceso</kbd> quita el último · Esc o Enter para terminar</div></div>
 <div id="importar"><div class="caja">
     <h3>📥 Importar un mapa de tempo</h3>
     <div class="ayuda">Reemplaza los pulsos actuales (se puede deshacer). Supone que el audio de Reaper empieza en el segundo 0 de esta grabación.</div>
@@ -481,13 +486,19 @@ window.addEventListener('keydown', e => {
     if (taps) {
         if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) { const s = oido(); if (s !== null) { taps.push(s); $('marc-n').textContent = taps.length; sucio = true; } } }
         else if (e.key === 'Backspace') { e.preventDefault(); taps.pop(); $('marc-n').textContent = taps.length; sucio = true; }
+        else if (e.key === 'j' || e.key === 'J') { e.preventDefault(); saltar(-5); }
+        else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); saltar(5); }
+        else if (/^[{}+]$/.test(e.key)) { e.preventDefault(); teclaVel(e.key); }
         else if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); terminarMarcar(); }
         return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); guardar(); return; }
     if (enTexto) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); deshacer(); return; }
-    if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) tocarODetener(); }
+    if (e.code === 'Space' || e.key === 'k' || e.key === 'K') { e.preventDefault(); if (!e.repeat) tocarODetener(); }
+    else if (e.key === 'j' || e.key === 'J') { e.preventDefault(); saltar(-5); }
+    else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); saltar(5); }
+    else if (/^[{}+]$/.test(e.key)) { e.preventDefault(); teclaVel(e.key); }
     else if ((e.key === 'Delete' || e.key === 'Backspace') && sel !== null) { e.preventDefault(); borrarSel(); }
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         if (sel === null || !S.pulsos.length) return;
@@ -535,7 +546,26 @@ function borrarSel() {
 }
 $('b-tocar').onclick = () => tocarODetener();
 $('b-marcar').onclick = () => taps ? terminarMarcar() : empezarMarcar();
-$('vel').onchange = e => { vel = +e.target.value; if (grab?.sonando && !taps) { const s = oido(); tocar(s ?? cursor); } };
+// Velocidad como en el Entrenador: { −5 %, } +5 %, + normal (50 % a 150 %); sonando sigue desde donde iba
+function teclaVel(k) {
+    const nueva = k === '+' ? 1 : Math.round(Math.max(0.5, Math.min(1.5, vel + (k === '}' ? 0.05 : -0.05))) * 100) / 100;
+    if (nueva === vel) return;
+    vel = nueva;
+    $('vel').textContent = parseFloat(vel).toFixed(2).replace(/0+$/, '').replace(/\.$/, '') + 'x';
+    if (grab?.sonando) { const s = oido(); tocar(s ?? cursor); }
+}
+// J / L: 5 s atrás o adelante. Marcando, volver atrás borra lo marcado desde ahí y se sigue marcando.
+function saltar(d) {
+    if (!buf) return;
+    const s = Math.max(0, Math.min(duracion() - 0.1, ahora() + d));
+    if (taps && d < 0) { taps = taps.filter(t => t < s); $('marc-n').textContent = taps.length; }
+    cursor = s;
+    if (s < vista.ini || s > vista.ini + vista.dur) vista.ini = Math.max(0, Math.min(duracion() - vista.dur, s - vista.dur * 0.15));
+    if (grab?.sonando) tocar(s);
+    sucio = true;
+}
+$('b-atras').onclick = () => saltar(-5);
+$('b-adelante').onclick = () => saltar(5);
 $('b-clic').onclick = () => { clicOn = !clicOn; $('b-clic').classList.toggle('on', clicOn); clicsHasta = (oido() ?? cursor); };
 $('b-deshacer').onclick = deshacer;
 $('b-deshacer').disabled = true;

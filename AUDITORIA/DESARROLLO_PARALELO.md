@@ -7605,3 +7605,10 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
     vista previa con pulso 0 = 2 s y pulso 40 = 22,4 s (tramo lento), "desde el compás 3" → pulso 0 = 6 s, y sonando
     2,5 s el pulso del piano coincide con la grabación. Mapa de prueba borrado (recurso y archivo); vuelve a verse
     "+ Mapa de tempo". Falta: el mapa real de COQUETA (lo marca el PO) y probarlo en el celular.
+- **Ajuste (PO 2026-10-30, "si me equivoqué en un pulso no hay forma rápida de retroceder y retomar"; "el
+  desplegable de velocidad no sirve, necesitamos el de siempre, el del Entrenador con los mismos atajos"):**
+  - Velocidad = el chip del Entrenador (`1x`): `{` baja 5 %, `}` sube 5 %, `+` normal (50–150 %); sonando sigue desde
+    donde iba. También `K` toca / detiene y `J` / `L` van 5 s atrás / adelante (botones ⏪ 5 s y 5 s ⏩).
+  - Marcando, `J` (o ⏪) vuelve 5 s, borra lo marcado desde ese punto y se sigue marcando sin detenerse.
+  - Prueba (navegador): `{ {` → 0.9x, `+` → 1x; marcando desde 0:10, 6 pulsos, J en 0:13,4 → vuelve a 0:08,8 sin
+    pulsos y sigue; 4 pulsos más → quedan esos 4.
