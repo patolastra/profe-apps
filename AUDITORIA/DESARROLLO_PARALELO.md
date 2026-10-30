@@ -7683,7 +7683,7 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
     temblor de 2 px → no se movió; chip "Estrofa" → vista y cursor en 0:10,2; sonando desde 0:20, clic al 80 % de la
     canción → vista en 3:08 y ⌖ visible; ⌖ → vista en 0:20 siguiendo lo que suena y el botón se oculta.
 
-### EV. ⏱ El Mapa de tempo como ficha oficial de la canción (tonalidad, cifra, tempo, secciones) — HECHA (pasos 1, 2 y 3a Cajón)
+### EV. ⏱ El Mapa de tempo como ficha oficial de la canción (tonalidad, cifra, tempo, secciones) — HECHA (pasos 1, 2, 3a Cajón y 3b Metrónomo)
 *Origen: PO 2026-10-30 ("el tempomapper debería ser la declaración de los estándares de las canciones: el tempomap,
 las secciones, la tonalidad, cifra de compás, y eso debería poder leerse desde las otras instancias; desde aquí se
 entrega lo oficial").*
@@ -7758,3 +7758,20 @@ entrega lo oficial").*
     simulado 6/8 → "≠ canción: 6/8" visible, al tocarlo la cuadrícula pasa a 6/8; 9/8 → aviso sin acción;
     versión estudiante (`?modo=alumno`) sin base de datos ni TempoMapa y sin errores.
   - Siguen: 3b Metrónomo (elegir una canción) y 3c Lector (antes, decidir el Loop en pausa).
+- **Paso 3b — ⏱ Metrónomo (aprobado PO 2026-10-30, "Sí, Metrónomo").**
+  - Auditoría: `RITMOS/index.html` no conoce canciones ni usa la base de datos; ajustes en el equipo (cifra 2/4 3/4
+    4/4 5/4 6/8; Fijo o Va subiendo desde/hasta). En 6/8 el pulso es la negra con punto.
+  - Plan: botón **🎵 Canción** en la fila Tempo: elige entre las canciones que tienen Mapa de tempo (buscador); el
+    metrónomo toma su cifra (si la tiene) y su tempo (en 6/8, ♪ → negra con punto): en Fijo, ese tempo; en Va
+    subiendo, ese tempo pasa a ser el "hasta" (meta de práctica) y el "desde" baja si quedaba más alto. Se ve el
+    nombre de la canción (✕ la quita) y "≠ canción" si después cambia el compás. También `?cancion=<id>`. Ritmos pasa
+    a cargar Supabase solo para la lista de canciones (el resto sigue en el equipo).
+  - **Hecho (2026-10-30):** Ritmos carga Supabase y `comun/tempo-mapa.js`. **🎵 Canción** (ancho fijo, ✕ para quitarla)
+    abre un buscador con las canciones que tienen Mapa de tempo; al elegir una toma su cifra (si el metrónomo la
+    tiene) y su tempo (6/8: ♪ ÷ 3 = negra con punto): Fijo = ese tempo; Va subiendo = la meta ("hasta") y el
+    "desde" queda 20 abajo si no era menor (también al cambiar de modo con la canción puesta). "≠ canción" junto a
+    Compás (espacio reservado). Se recuerda en el equipo; `?cancion=<id>`; se pone al día al guardar el mapa.
+    De paso: "compáses" → "compases" en el texto de estado.
+  - Prueba (navegador): partiendo de Fijo 3/4 a 100 → COQUETA (única con mapa; buscar "coq") → 4/4, 79; Va subiendo
+    → de 59 a 79; 2/4 → "≠ canción: 4/4" visible, al tocarlo vuelve a 4/4; recargar → la recuerda; ✕ → "🎵 Canción".
+  - Sigue: 3c Lector (antes, decidir qué pasa con el Loop en pausa sin commitear en `tabs/index.html`).
