@@ -22,7 +22,8 @@
 <script>
     // El estudiante no se conecta a la base de datos: solo el profe carga Supabase.
     if (new URLSearchParams(location.search).get('modo') !== 'alumno') {
-        document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script><script src="../supabase/config.js"><\/script>');
+        document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script><script src="../supabase/config.js"><\/script>'
+            + '<script src="../comun/tempo-mapa.js?v=ev3"><\/script>');
     }
 </script>
 <style>
@@ -81,6 +82,10 @@
     .prog-config select, .prog-config button { background: #334155; color: var(--texto); border: 1px solid #475569;
         border-radius: 8px; height: 32px; padding: 0 10px; font-size: 14px; cursor: pointer; }
     .prog-config button.on { background: #0e7490; border-color: #22d3ee; }
+    /* Distinto de la ficha oficial de la canción (deuda EV): espacio reservado, se ve solo si difiere */
+    .prog-config button.dif { min-width: 130px; height: 26px; padding: 0 8px; border-radius: 13px; border-color: #f59e0b; background: rgba(245,158,11,.15);
+        color: #fbbf24; font-size: 12px; white-space: nowrap; visibility: hidden; }
+    .prog-config button.dif.on { visibility: visible; }
     .prog-ayuda { font-size: 13px; }
     .prog-recurso { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
     #p-cancion { width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--texto); font-size: 14px; font-weight: 600; }
@@ -250,6 +255,7 @@
     </div>
     <div class="prog-config">
         <label>Compás <select id="p-cifra"></select></label>
+        <button id="p-dif" class="dif"></button>
         <label>División <select id="p-div">
             <option value="corchea">Corcheas</option>
             <option value="tresillo">Tresillos</option>
@@ -856,6 +862,7 @@ const CIFRAS = ['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '12/8'];
 const PASO = { corchea: 240, tresillo: 160, semicorchea: 120 };
 const CLAVE_PROG = 'profe_cajon_programa';
 let prog = { cifra: '4/4', div: 'corchea', compases: 2, bpm: 100, metro: true, agudo: [], grave: [], mano: {}, regla: 'auto' };
+let oficial = null;          // ficha oficial de la canción del ritmo (TempoMapa, deuda EV)
 // Manos (EH): `mano` = mano elegida golpe a golpe { 'grave:0:240': 'R' | 'L' }; `regla` = 'auto' | 'gD' (grave D,
 // agudo I) | 'gI' (grave I, agudo D). La elegida golpe a golpe manda sobre la regla.
 let pincel = 'auto';         // mano con que se marcan los golpes: 'auto' | 'R' | 'L'
@@ -1004,6 +1011,7 @@ function cambiarConfig(cambio, filtro) {
     pintarConfig(); pintarProg(); aplicarProg();
 }
 function pintarConfig() {
+    pintarDif();
     $('p-cifra').value = prog.cifra; $('p-div').value = prog.div; $('p-cuantos').value = String(prog.compases);
     $('p-regla').value = prog.regla || 'auto';
     document.querySelectorAll('#p-pincel button').forEach(b => b.classList.toggle('sel', b.dataset.m === pincel));
@@ -1066,6 +1074,7 @@ function ponerEdicion(on) {
     document.body.classList.toggle('viendo', modo === 'prog' && !on);
     $('b-editar').classList.toggle('oculto', ALUMNO || modo !== 'prog' || on);
     if (!on) marcarPaso(null);
+    pintarDif();
 }
 // ═══════════════════════════════════════════════════════════════════════════
 // BIBLIOTECA (deuda EF, paso 2): el ritmo se guarda como recurso 🪘 Cajón de una canción
@@ -1165,6 +1174,8 @@ async function abrirRecurso(id, editar) {
     if (error || !data) { avisoBreve('No se pudo abrir el ritmo', true); return; }
     let r = null; try { r = JSON.parse(data.contenido || 'null'); } catch (_) {}
     recurso = { id: data.id, cancion_id: data.cancion_id, cancion: data.repertorio_canciones?.nombre || 'Canción' };
+    oficial = null;
+    cargarOficial().then(() => pintarDif());
     ponerRitmo(r, data.etiqueta);
     base = estadoActual();
     // Lo que no alcanzó a guardarse en este equipo (solo si parte de esta misma versión)
@@ -1176,10 +1187,43 @@ async function abrirRecurso(id, editar) {
     guardarProg();
     cargarHermanos();
 }
-function nuevoRitmo(cancion) {
+// Ficha oficial de la canción (su Mapa de tempo, deuda EV): un ritmo nuevo parte con su cifra y su tempo;
+// si la cifra queda distinta se avisa (el tempo no: se practica más lento a propósito). `oficial` va arriba, junto a `prog`.
+async function cargarOficial() {
+    const cid = recurso && recurso.cancion_id;
+    const m = cid && window.TempoMapa && typeof SUPABASE_URL !== 'undefined' ? await TempoMapa.cargar(`${SUPABASE_URL}/storage/v1/object/public/repertorio-assets/`, cid) : null;
+    if ((recurso && recurso.cancion_id) === cid) oficial = m;
+    return m;
+}
+// El Cajón lleva el tempo en negras; el mapa, en los pulsos de su cifra (en 6/8, corcheas)
+const bpmOficial = () => oficial && oficial.bpm ? Math.max(30, Math.min(300, Math.round(oficial.bpm * 4 / oficial.cifras[0].d))) : 0;
+function pintarDif() {
+    const b = $('p-dif'), ct = oficial ? oficial.cifraTexto(1) : '';
+    const dif = !ALUMNO && !!oficial && ct !== prog.cifra;
+    b.classList.toggle('on', dif);
+    b.textContent = dif ? `≠ canción: ${ct}` : '';
+    b.disabled = !dif || !CIFRAS.includes(ct) || !editando;
+    b.title = !dif ? '' : CIFRAS.includes(ct) ? `La canción está en ${ct} (su Mapa de tempo). Toca para usarlo.` : `La canción está en ${ct}: el Cajón aún no lo tiene.`;
+}
+$('p-dif').onclick = () => {
+    $('p-dif').blur();
+    const ct = oficial && oficial.cifraTexto(1);
+    if (!ct || !CIFRAS.includes(ct)) return;
+    $('p-cifra').value = ct; $('p-cifra').dispatchEvent(new Event('change'));
+};
+try {
+    new BroadcastChannel('profe-tempo').onmessage = async e => {
+        if (e.data?.tipo !== 'tempo-guardado' || !recurso || e.data.cancion !== recurso.cancion_id) return;
+        await cargarOficial(); pintarDif();
+    };
+} catch (_) {}
+async function nuevoRitmo(cancion) {
     if (hayCambios() && !confirm('Hay cambios sin guardar. ¿Empezar un ritmo nuevo igual?')) return;
     recurso = cancion ? { id: null, cancion_id: cancion.id, cancion: cancion.nombre } : null;
-    ponerRitmo(null, '');
+    oficial = null;
+    await cargarOficial();
+    const ct = oficial ? oficial.cifraTexto(1) : '';
+    ponerRitmo(oficial ? { ...(CIFRAS.includes(ct) ? { cifra: ct } : {}), ...(bpmOficial() ? { bpm: bpmOficial() } : {}) } : null, '');
     base = estadoActual(); ponerEdicion(true); pintarGuardar();
     cargarHermanos();
 }

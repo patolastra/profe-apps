@@ -7683,7 +7683,7 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
     temblor de 2 px → no se movió; chip "Estrofa" → vista y cursor en 0:10,2; sonando desde 0:20, clic al 80 % de la
     canción → vista en 3:08 y ⌖ visible; ⌖ → vista en 0:20 siguiendo lo que suena y el botón se oculta.
 
-### EV. ⏱ El Mapa de tempo como ficha oficial de la canción (tonalidad, cifra, tempo, secciones) — HECHA (pasos 1 y 2)
+### EV. ⏱ El Mapa de tempo como ficha oficial de la canción (tonalidad, cifra, tempo, secciones) — HECHA (pasos 1, 2 y 3a Cajón)
 *Origen: PO 2026-10-30 ("el tempomapper debería ser la declaración de los estándares de las canciones: el tempomap,
 las secciones, la tonalidad, cifra de compás, y eso debería poder leerse desde las otras instancias; desde aquí se
 entrega lo oficial").*
@@ -7743,3 +7743,18 @@ entrega lo oficial").*
   - Visto en la prueba (preexistente, no de EV): el arreglo de COQUETA abre "Sin guardar" porque se guardó antes del
     Mapa de tempo (le falta `audio.desde`); al guardarlo una vez queda al día.
   - Falta: paso 3 (Lector, Cajón y Metrónomo leen secciones y tempo).
+- **Paso 3a — 🪘 Cajón (aprobado PO 2026-10-30, "Sí, Cajón"; orden propuesto: Cajón → Metrónomo → Lector, este
+  último después de decidir qué pasa con el Loop en pausa sin commitear en `tabs/index.html`).**
+  - Auditoría: un ritmo nuevo de una canción parte en 4/4 a 100 (`prog`); cifras 2/4 3/4 4/4 5/4 6/8 7/8 12/8; el
+    tempo del Cajón va en negras (`ritmo = bpm / 120`). La versión estudiante no carga la base de datos.
+  - Plan: ritmo nuevo de una canción con ficha oficial → cifra (si el Cajón la tiene) y tempo oficiales (pasado a
+    negras: en 6/8, ♪ 180 = ♩ 90); aviso "≠ canción: 6/8" junto a Compás, que al tocarlo cambia la cifra; el tempo
+    no se marca. Estilos (Festejo, Landó…) no tienen mapa: como hoy. Versión estudiante sin cambios.
+  - **Hecho (2026-10-30):** el Cajón (no la versión estudiante) carga `comun/tempo-mapa.js`; `nuevoRitmo` lee la
+    ficha oficial de la canción y parte con su cifra (si está en la lista) y su tempo en negras; botón "≠ canción"
+    junto a Compás (espacio reservado; deshabilitado si la cifra no existe en el Cajón o el ritmo está solo para
+    mirar); se pone al día al guardar el mapa (`profe-tempo`). Abrir un ritmo guardado también muestra el aviso.
+  - Prueba (navegador, sin guardar): ritmo nuevo de COQUETA → 4/4 · 79 BPM, sin aviso y sin "cambios"; oficial
+    simulado 6/8 → "≠ canción: 6/8" visible, al tocarlo la cuadrícula pasa a 6/8; 9/8 → aviso sin acción;
+    versión estudiante (`?modo=alumno`) sin base de datos ni TempoMapa y sin errores.
+  - Siguen: 3b Metrónomo (elegir una canción) y 3c Lector (antes, decidir el Loop en pausa).
