@@ -7632,3 +7632,14 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
   botón **÷ Eran compases**: los pulsos ya marcados pasan a ser el 1 de cada compás (el compás 1 se mantiene) y entre
   cada uno se reparten los pulsos de su cifra; se puede deshacer. Prueba (mapa guardado de COQUETA, sin guardar):
   76 pulsos → 301 pulsos, 76 compases, ♩ 78,9, compases 1.1 1.2 1.3 1.4 2.1…; Deshacer vuelve a 76.
+- **Ajuste 6 (PO 2026-10-30, "¿qué hace la app para subdividir? ¿por qué me deja mover los golpes dentro de los
+  compases?"; quitar "÷ Eran compases"; "solo quiero que Coqueta quede hecha correctamente"):** la app trabaja **solo
+  con el 1 de cada compás**: es lo único que se marca (cada Espacio), se ve en blanco con su número y se arrastra,
+  agrega (doble clic) o borra; los pulsos de adentro se ven tenues, no se toman y se reparten solos, parejos, según la
+  cifra (al mover un 1 se reparten de nuevo los dos compases que toca). Emparejar, Ajustar a los golpes y lo disparejo
+  (rojo) van sobre los compases. Se quitaron "Cada toque: Compás / Pulso" y "÷ Eran compases". Lo guardado sigue
+  siendo la lista de pulsos (las otras apps no cambian); al abrir, la app toma de ahí el 1 de cada compás.
+  COQUETA (único mapa hecho): sus 76 toques eran el 1 de cada compás → guardado como 76 compases (75 completos),
+  301 pulsos, ♩ 78,9, compás 1 en el primer toque. Prueba: al mover el 1 del compás 3, sus pulsos y los del compás 2
+  se reparten parejos; cifra 3 desde el compás 5 → 230 pulsos con los 1 en su lugar; Deshacer; guardado en la base y
+  en el archivo público (301 pulsos, último = compás 76.1) y al volver a abrir quedan 76 compases.
