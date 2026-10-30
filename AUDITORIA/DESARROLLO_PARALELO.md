@@ -7530,3 +7530,13 @@ link).*
     callado y suena el reproductor; al cambiar a Karaoke el mismo reproductor sigue (85 ms leídos en 50 ms: sin
     pausa) con la grabación del Karaoke. Cantar con From The Start: lo mismo; al pausar el reproductor se detiene.
     Barra: `45% 3px` en el borde del botón. Falta probarlo en el celular.
+- **Ajuste 3 (PO 2026-10-30, celular Android: "funciona"; pero al manipular mucho Cantar quedaban varios versos en
+  naranjo, y al ir a WhatsApp el audio se trababa; "el audio debe apagarse siempre que salga de la app"):**
+  - Versos: al saltar (tocar un verso, ⏭ estrofa, barra) el verso marcado no se apagaba y se acumulaban; `ir` ahora
+    lo apaga. Prueba: 9 saltos seguidos → 1 solo verso en naranjo.
+  - Salir de la app: Cantar, Piano (estudiante) y el Entrenador del celular (`?movil=1`) se detienen al ocultarse la
+    página (otra app, minimizar, apagar la pantalla) y al cerrarla; en pantallas táctiles también al abrir el selector
+    de apps o la cortina de avisos (como el Lector, deuda DP). El Entrenador del PC sigue sonando (en clase se cambia
+    de ventana con la música andando) y la vista previa del Editor de Arreglos tampoco se detiene.
+    Prueba: con Cantar sonando, al cerrar la página se detuvo y se apagó el reproductor.
+  - Pendiente revisar lo mismo en Metalófono y Cajón de estudiantes.
