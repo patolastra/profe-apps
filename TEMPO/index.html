@@ -55,6 +55,10 @@
     .fila > .rot { color: var(--tenue); }
     .caja { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 8px 12px; }
     #pos { font-variant-numeric: tabular-nums; width: 240px; color: var(--tenue); }
+    #b-volver { width: 150px; }
+    #b-volver.oculto { visibility: hidden; }
+    #b-fijar { width: 168px; }
+    #b-fijar.on { background: #854d0e; border-color: #facc15; }
     #pos b { color: var(--texto); }
     #b-tocar { width: 104px; }
     /* Mezclador mínimo: grabación y clic */
@@ -113,6 +117,7 @@
         <span class="mezcla" title="Volumen de la grabación"><span>🎵</span><input type="range" id="vol-musica" min="0" max="100"></span>
         <span class="mezcla" title="Volumen del clic"><span>🔔</span><input type="range" id="vol-clic" min="0" max="100"></span>
         <span id="pos"></span>
+        <button class="btn oculto" id="b-volver" title="La vista vuelve a seguir lo que suena (o al cursor)">⌖ Volver al cursor</button>
         <div class="sep"></div>
         <button class="btn" id="b-deshacer" title="Deshacer (Ctrl+Z)">↶ Deshacer</button>
     </div>
@@ -121,6 +126,7 @@
         <canvas id="c-zoom"></canvas>
     </div>
     <div class="caja fila">
+        <button class="btn" id="b-fijar" title="Fija los compases (solo lectura): se eligen sin moverse, para poner secciones o cifras">🔓 Compases editables</button>
         <span id="sel-info">Ningún compás elegido</span>
         <button class="btn" id="b-c1" title="El compás elegido pasa a ser el compás 1">Aquí empieza el compás 1</button>
         <input id="sec-nombre" list="sec-lista" placeholder="🏷 Sección desde aquí" title="Nombre de la sección que empieza en este compás (Enter). Vacío: la quita" disabled>
@@ -269,6 +275,7 @@ const ahora = () => { const s = oido(); return s === null ? cursor : Math.max(0,
 
 async function tocar(desde = cursor) {
     if (!buf) return;
+    seguir = true;
     clicsHasta = desde - 0.001;
     await grab.tocar(Math.max(0, Math.min(desde, duracion() - 0.05)), 0, vel);
     grab.alTerminar = () => { if (taps) terminarMarcar(); else { cursor = 0; pintarTransporte(); } };
@@ -285,7 +292,7 @@ function pintarTransporte() { $('b-tocar').textContent = grab?.sonando && !taps 
 // Clic de metrónomo en cada pulso: siempre suena (sin él no se puede contrastar; se baja con su barra). Se programa un poco por delante
 let clicsHasta = 0;
 // Su propio reloj (no el del dibujo, que se frena cuando la pantalla no se redibuja)
-setInterval(() => programarClics(), 25);
+setInterval(() => { programarClics(); pintarVolver(); }, 25);
 function programarClics() {
     if (!grab?.sonando || mapa.vacio) return;
     const s = oido(); if (s === null) return;
@@ -330,7 +337,7 @@ $('vol-musica').onchange = $('vol-clic').onchange = e => e.target.blur();
 // ══ Marcar compases ══════════════════════════════════════════════════════════════════════
 let taps = null;
 async function empezarMarcar() {
-    if (!buf || taps) return;
+    if (!buf || taps || fijos) return;
     taps = [];
     $('marc-n').textContent = '0'; $('marcando').classList.add('on'); $('b-marcar').classList.add('on'); $('b-marcar').textContent = '■ Terminar';
     await tocar(cursor);
@@ -479,14 +486,31 @@ function pintarPos() {
     }
     $('pos').innerHTML = txt;
 }
+// La vista sigue a lo que suena, salvo que uno navegue a otra parte sonando (rueda, la canción entera):
+// entonces aparece ⌖ Volver al cursor
+let seguir = true;
+function navegar() { if (grab?.sonando) seguir = false; }
+function volverAlCursor() {
+    seguir = true;
+    const s = ahora();
+    vista.ini = Math.max(0, Math.min(duracion() - vista.dur, s - vista.dur * 0.15));
+    sucio = true;
+}
+// La vista sigue a lo que suena (con el reloj del clic, que no se frena) y ⌖ Volver al cursor se ve solo cuando lo que
+// suena (o el cursor) quedó fuera de la vista
+function pintarVolver() {
+    const a = ahora();
+    if (seguir && oido() !== null && (a > vista.ini + vista.dur * 0.85 || a < vista.ini)) { vista.ini = Math.max(0, Math.min(duracion() - vista.dur, a - vista.dur * 0.15)); sucio = true; }
+    $('b-volver').classList.toggle('oculto', !buf || (a >= vista.ini && a <= vista.ini + vista.dur));
+}
 function bucle() {
     const s = oido();
     if (s !== null) {
-        // La vista sigue a lo que suena
-        if (s > vista.ini + vista.dur * 0.85 || s < vista.ini) { vista.ini = Math.max(0, Math.min(duracion() - vista.dur, s - vista.dur * 0.15)); }
         sucio = true;
     }
-    if (sucio) { dibujarTodo(); dibujarZoom(); pintarPos(); sucio = false; }
+    if (sucio) {
+        dibujarTodo(); dibujarZoom(); pintarPos(); sucio = false;
+    }
     requestAnimationFrame(bucle);
 }
 window.addEventListener('resize', () => { sucio = true; });
@@ -503,9 +527,10 @@ zoom.addEventListener('mousedown', e => {
     if (!buf || taps) return;
     const r = zoom.getBoundingClientRect(), x = e.clientX - r.left, W = r.width;
     const k = pulsoBajo(x, W);
+    if (k !== null && fijos) { sel = k; pintarControles(); sucio = true; return; }   // fijos: solo se elige
     if (k !== null) {
         sel = k; antes();
-        arrastre = { k, eraC1: k === idxCercano(S.c1) && S.c1 !== null, sec: S.secciones.find(x => x.t === S.compases[k]) || null, movio: false };
+        arrastre = { x0: e.clientX, k, eraC1: k === idxCercano(S.c1) && S.c1 !== null, sec: S.secciones.find(x => x.t === S.compases[k]) || null, movio: false };
         pintarControles(); sucio = true;
         return;
     }
@@ -517,6 +542,7 @@ zoom.addEventListener('mousedown', e => {
 window.addEventListener('mousemove', e => {
     const r = zoom.getBoundingClientRect(), x = e.clientX - r.left;
     if (!arrastre) { zoom.classList.toggle('mover', e.target === zoom && pulsoBajo(x, r.width) !== null); return; }
+    if (!arrastre.movio && Math.abs(e.clientX - arrastre.x0) < 4) return;   // un clic con pulso tembloroso no mueve el compás
     const P = S.compases, k = arrastre.k;
     const lo = k > 0 ? P[k - 1] + 0.05 : 0, hi = k + 1 < P.length ? P[k + 1] - 0.05 : duracion();
     P[k] = Math.max(lo, Math.min(hi, segDeX(x, r.width)));
@@ -531,7 +557,7 @@ window.addEventListener('mouseup', () => {
     arrastre = null; rehacer();
 });
 zoom.addEventListener('dblclick', e => {
-    if (!buf || taps) return;
+    if (!buf || taps || fijos) return;
     const r = zoom.getBoundingClientRect(), x = e.clientX - r.left;
     if (pulsoBajo(x, r.width) !== null) return;
     antes();
@@ -546,6 +572,7 @@ zoom.addEventListener('wheel', e => {
     if (!buf) return;
     e.preventDefault();
     const r = zoom.getBoundingClientRect(), D = duracion();
+    navegar();
     if (!gesto || e.timeStamp - gestoT > 250) gesto = e.shiftKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? 'mover' : 'zoom';
     gestoT = e.timeStamp;
     if (gesto === 'mover') {
@@ -563,7 +590,7 @@ $('c-todo').addEventListener('mousedown', e => {
     const r = e.currentTarget.getBoundingClientRect(), D = duracion();
     const s = (e.clientX - r.left) / r.width * D;
     vista.ini = Math.max(0, Math.min(D - vista.dur, s - vista.dur / 2));
-    sucio = true;
+    navegar(); sucio = true;
 });
 
 // ══ Teclado ════════════════════════════════════════════════════════════════════════════
@@ -610,9 +637,10 @@ function pintarControles() {
     const sn = $('sec-nombre');
     sn.disabled = !hay;
     if (document.activeElement !== sn) sn.value = hay ? (S.secciones.find(x => x.t === S.compases[sel])?.nombre || '') : '';
-    $('secciones').innerHTML = S.secciones.map((x, i) => `<span class="seccion" style="background:${colorSeccion(x.nombre)}" data-ir="${i}" title="Ir a la sección">${esc(x.nombre)} · ${idxCercano(x.t) - i0 + 1}<button data-quitar-sec="${i}" title="Quitar la sección">✕</button></span>`).join('')
+    const chips = S.secciones.map((x, i) => `<span class="seccion" style="background:${colorSeccion(x.nombre)}" data-ir="${i}" title="Ir a la sección">${esc(x.nombre)} · ${idxCercano(x.t) - i0 + 1}<button data-quitar-sec="${i}" title="Quitar la sección">✕</button></span>`).join('')
         || '<span class="ayuda">Elige un compás y escribe su sección.</span>';
-    $('b-borrar').disabled = !hay;
+    if ($('secciones').innerHTML !== chips) $('secciones').innerHTML = chips;   // redibujar en medio de un clic lo perdería
+
     const n = mapa.cifraEn(hay ? c : 1);
     $('seg-cifra').innerHTML = [2, 3, 4, 5, 6, 7].map(k => `<button class="btn${k === n ? ' on' : ''}" data-n="${k}" ${hay ? '' : 'disabled'}>${k}</button>`).join('');
     $('cifras').innerHTML = S.cifras.map((x, i) => `<span class="cifra">${i === 0 ? 'Desde el inicio' : 'Compás ' + x.compas}: ${x.n} pulsos${i ? `<button data-quitar="${i}" title="Quitar este cambio">✕</button>` : '<span style="width:6px"></span>'}</span>`).join('');
@@ -624,11 +652,15 @@ function pintarControles() {
         $('info').textContent = `${C.length - 1} compases · ♩ ${med.toFixed(1)} (entre ${Math.round(o[Math.floor(o.length * 0.03)])} y ${Math.round(o[Math.floor(o.length * 0.97)])})`
             + (mal ? ` · ${mal} ${mal === 1 ? 'compás dispar' : 'compases disparejos'}` : '');
     } else $('info').textContent = buf ? 'Sin compases todavía: pon el cursor al comienzo, ⏺ Marcar y Espacio en el 1 de cada compás.' : '';
-    $('b-emparejar').disabled = $('b-golpes').disabled = $('b-limpiar').disabled = C.length < 3;
+    $('b-emparejar').disabled = $('b-golpes').disabled = $('b-limpiar').disabled = C.length < 3 || fijos;
+    $('b-importar').disabled = $('b-marcar').disabled = fijos;
+    $('b-borrar').disabled = !hay || fijos;
+    $('b-fijar').classList.toggle('on', fijos);
+    $('b-fijar').textContent = fijos ? '🔒 Compases fijos' : '🔓 Compases editables';
     document.querySelectorAll('#seg-grab .btn').forEach(b => { b.classList.toggle('on', b.dataset.v === rol); b.disabled = !audios[b.dataset.v]; });
 }
 function borrarSel() {
-    if (sel === null) return;
+    if (sel === null || fijos) return;
     antes();
     S.compases.splice(sel, 1);
     sel = S.compases.length ? Math.min(sel, S.compases.length - 1) : null;
@@ -695,6 +727,14 @@ $('sec-nombre').addEventListener('keydown', e => {
     else if (e.key === 'Escape') { e.preventDefault(); e.target.value = ''; e.target.blur(); pintarControles(); }
 });
 $('sec-nombre').addEventListener('change', ponerSeccion);
+// 🔒 Compases fijos (se recuerda en el equipo): se eligen sin moverse; no se marca, agrega, borra ni ajusta
+let fijos = (() => { try { return localStorage.getItem('tempo_fijos') === '1'; } catch (_) { return false; } })();
+$('b-fijar').onclick = () => {
+    fijos = !fijos;
+    try { localStorage.setItem('tempo_fijos', fijos ? '1' : '0'); } catch (_) {}
+    pintarControles();
+};
+$('b-volver').onclick = volverAlCursor;
 $('secciones').onclick = e => {
     const q = e.target.closest('[data-quitar-sec]');
     if (q) { antes(); S.secciones.splice(+q.dataset.quitarSec, 1); rehacer(); return; }
@@ -702,6 +742,7 @@ $('secciones').onclick = e => {
     const t = S.secciones[+b.dataset.ir].t;
     sel = S.compases.indexOf(t); cursor = t;
     vista.ini = Math.max(0, Math.min(duracion() - vista.dur, t - vista.dur * 0.1));
+    if (grab?.sonando) tocar(t);
     pintarControles(); sucio = true;
 };
 $('cifras').onclick = e => { const b = e.target.closest('[data-quitar]'); if (!b) return; antes(); S.cifras.splice(+b.dataset.quitar, 1); rehacer(); };

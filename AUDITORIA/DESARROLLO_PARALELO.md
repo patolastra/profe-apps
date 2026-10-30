@@ -7668,3 +7668,17 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
     ya escrito con 4 acordes): orden Intro · Estrofa · Coro · Estrofa · Coro, nuevas Intro y Estrofa, el Coro conservó
     sus acordes y quedó en rojo "en la canción: 8 o 49 compases", el arreglo empieza en el compás 0. Tempo: sonando
     desde 0:20 los clics se programan solos y ya no hay botón.
+- **Ajuste 10 (PO 2026-10-30, "dejar fijos los inicios de compás: al elegir uno para poner una sección se mueve";
+  "al hacer clic en los chips, ir a la sección"; "reproduciendo, si hago clic en otro lugar quiero ir allá aunque
+  perdamos el cursor, y un botón que me devuelva al cursor"):**
+  - **🔓 Compases editables / 🔒 Compases fijos** (se recuerda en el equipo): fijos, un clic solo elige el compás (para
+    sección o cifra); no se marca, arrastra, agrega, borra, importa, empareja ni ajusta. Editables, un arrastre de
+    menos de 4 px ya no mueve el compás (antes el pulso de la mano lo corría al elegirlo).
+  - Chips de sección: llevan la vista y el cursor a la sección (sonando, suena desde ahí). Antes la lista se volvía
+    a dibujar en medio del clic y el clic se perdía.
+  - Sonando, la rueda o un clic en la canción entera llevan la vista allá y la vista deja de seguir lo que suena;
+    aparece **⌖ Volver al cursor** (espacio reservado en la barra) cuando lo que suena o el cursor queda fuera de la
+    vista, y al tocarlo la vista vuelve a seguir. Seguir lo que suena va ahora con el reloj del clic (no se frena).
+  - Prueba (COQUETA, sin guardar): fijos, arrastrar 30 px el compás 4 → no se movió y quedó elegido; editables,
+    temblor de 2 px → no se movió; chip "Estrofa" → vista y cursor en 0:10,2; sonando desde 0:20, clic al 80 % de la
+    canción → vista en 3:08 y ⌖ visible; ⌖ → vista en 0:20 siguiendo lo que suena y el botón se oculta.
