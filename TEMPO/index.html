@@ -70,6 +70,10 @@
     .cifra { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; background: #0e7490; font-size: 13px; }
     .cifra button { border: 0; background: rgba(0,0,0,.25); color: #fff; width: 20px; height: 20px; border-radius: 10px; cursor: pointer; font-size: 11px; }
     #sel-info { width: 170px; color: var(--tenue); font-size: 13px; }
+    #sec-nombre { width: 190px; height: 32px; background: #0f172a; border: 1px solid #475569; border-radius: 7px; padding: 0 8px; }
+    #secciones { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+    .seccion { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; font-size: 13px; color: #0f172a; font-weight: 600; cursor: pointer; }
+    .seccion button { border: 0; background: rgba(0,0,0,.2); color: #0f172a; width: 20px; height: 20px; border-radius: 10px; cursor: pointer; font-size: 11px; }
     .ayuda { color: var(--tenue); font-size: 12px; line-height: 1.5; }
     kbd { background: #334155; border-radius: 4px; padding: 0 5px; font-size: 11px; }
 
@@ -120,11 +124,14 @@
     <div class="caja fila">
         <span id="sel-info">Ningún compás elegido</span>
         <button class="btn" id="b-c1" title="El compás elegido pasa a ser el compás 1">Aquí empieza el compás 1</button>
+        <input id="sec-nombre" list="sec-lista" placeholder="🏷 Sección desde aquí" title="Nombre de la sección que empieza en este compás (Enter). Vacío: la quita" disabled>
+        <datalist id="sec-lista"><option>Intro</option><option>Estrofa</option><option>Pre-coro</option><option>Coro</option><option>Puente</option><option>Interludio</option><option>Solo</option><option>Mambo</option><option>Final</option></datalist>
         <span class="rot">Cifra desde este compás</span>
         <div class="seg" id="seg-cifra"></div>
         <button class="btn" id="b-borrar" title="Borrar el compás elegido: se junta con el anterior (Supr)">🗑 Borrar compás</button>
     </div>
     <div class="caja fila">
+        <span class="rot">Secciones:</span><span id="secciones"></span>
         <span class="rot">Cifras:</span><span id="cifras"></span>
         <div class="sep"></div>
         <button class="btn" id="b-emparejar" title="Corrige pequeñas diferencias de los toques, respetando cuando la canción acelera o frena">✨ Emparejar</button>
@@ -173,7 +180,7 @@ let tabs = [];                   // tablaturas de la canción con mapa de Reaper
 
 // ══ El mapa: el 1 de cada compás en segundos (lo único que se marca y se mueve); compás 1 como segundo ══
 // Los pulsos (lo que se guarda y leen las otras apps) se reparten parejos entre un 1 y el siguiente, según la cifra.
-const S = { compases: [], c1: null, cifras: [{ compas: 1, n: 4 }] };
+const S = { compases: [], c1: null, cifras: [{ compas: 1, n: 4 }], secciones: [] };   // secciones: [{ t (su 1), nombre }]
 let mapa = TempoMapa.crear({ pulsos: [] });
 let sel = null;                  // índice del compás elegido
 let base = '';
@@ -196,19 +203,25 @@ function datos() {
         const n = cifraDe(i - i0 + 1), d = (C[i + 1] - C[i]) / n;
         for (let k = 1; k < n; k++) pulsos.push(C[i] + k * d);
     }
-    return { v: 1, pulsos, compas1, cifras: S.cifras };
+    const secciones = S.secciones.map(x => ({ compas: idxCercano(x.t) - i0 + 1, nombre: x.nombre }));
+    return { v: 1, pulsos, compas1, cifras: S.cifras, secciones };
 }
 // Un mapa de pulsos (guardado o importado) → el 1 de cada compás
 function aCompases(d) {
     const m = TempoMapa.crear(d);
     const C = m.pulsos.filter((_, i) => m.compasDePulso(i - m.compas1).tiempo === 1);
-    return { compases: C, c1: m.pulsos.length ? m.pulsos[m.compas1] : null, cifras: m.cifras.map(x => ({ ...x })) };
+    const i0 = C.indexOf(m.pulsos[m.compas1]);
+    const secciones = m.secciones.map(x => ({ t: C[i0 + x.compas - 1], nombre: x.nombre })).filter(x => x.t !== undefined);
+    return { compases: C, c1: m.pulsos.length ? m.pulsos[m.compas1] : null, cifras: m.cifras.map(x => ({ ...x })), secciones };
 }
 const guardable = () => JSON.stringify(TempoMapa.crear(datos()).datos());
 function rehacer() {
     S.compases.sort((a, b) => a - b);
     if (S.c1 === null && S.compases.length) S.c1 = S.compases[0];
     if (!S.compases.length) S.c1 = null;
+    // Cada sección queda pegada al 1 de su compás (sigue al mover; si se borra, pasa al vecino); una por compás
+    S.secciones = (S.secciones || []).filter(x => S.compases.length).map(x => ({ t: S.compases[idxCercano(x.t)], nombre: x.nombre }))
+        .sort((a, b) => a.t - b.t).filter((x, i, v) => i === v.length - 1 || v[i + 1].t !== x.t);
     mapa = TempoMapa.crear(datos());
     if (sel !== null && sel >= S.compases.length) sel = null;
     pintarControles(); cambio(); sucio = true;
@@ -390,6 +403,11 @@ function dibujarTodo() {
         g.fillStyle = '#facc15'; g.font = '11px system-ui';
         g.fillText(`♩ ${Math.round(hi)}`, 4, 12); g.fillText(`♩ ${Math.round(lo)}`, 4, H - 4);
     }
+    // Secciones arriba
+    S.secciones.forEach((x, i) => {
+        const fin = i + 1 < S.secciones.length ? S.secciones[i + 1].t : (S.compases[S.compases.length - 1] ?? D);
+        g.fillStyle = colorSeccion(x.nombre); g.fillRect(x.t / D * W, 0, Math.max(2, (fin - x.t) / D * W - 1), 5);
+    });
     // Lo que se ve abajo
     g.fillStyle = 'rgba(34,211,238,.15)'; g.strokeStyle = '#22d3ee'; g.lineWidth = 1;
     const x0 = vista.ini / D * W, w = vista.dur / D * W;
@@ -402,8 +420,16 @@ function dibujarZoom() {
     const { g, W, H } = prepararCanvas($('c-zoom'));
     g.clearRect(0, 0, W, H);
     if (!buf) { g.fillStyle = '#94a3b8'; g.font = '14px system-ui'; g.fillText(audios.melodia || audios.karaoke ? 'Cargando la grabación…' : 'La canción no tiene grabación.', 16, 30); return; }
-    const top = 22, bot = 16, alto = H - top - bot, medio = top + alto / 2;
+    const top = 40, bot = 16, alto = H - top - bot, medio = top + alto / 2;
     const P = S.compases, mal = disparejos();
+    // Secciones: franja de color con su nombre, desde su compás hasta la siguiente
+    g.font = '600 12px system-ui';
+    S.secciones.forEach((x, i) => {
+        const a = xDeSeg(x.t, W), fin = i + 1 < S.secciones.length ? S.secciones[i + 1].t : (P[P.length - 1] ?? duracion()), b = xDeSeg(fin, W);
+        if (b < 0 || a > W) return;
+        g.fillStyle = colorSeccion(x.nombre); g.fillRect(a, 21, Math.max(2, b - a - 1), 16);
+        g.fillStyle = '#0f172a'; g.fillText(x.nombre, Math.max(a, 0) + 5, 33, Math.max(10, b - Math.max(a, 0) - 8));
+    });
     // Intervalos disparejos en rojo
     g.fillStyle = 'rgba(239,68,68,.16)';
     for (const i of mal) { const a = xDeSeg(P[i], W), b = xDeSeg(P[i + 1], W); if (b > 0 && a < W) g.fillRect(a, top, b - a, alto); }
@@ -480,7 +506,7 @@ zoom.addEventListener('mousedown', e => {
     const k = pulsoBajo(x, W);
     if (k !== null) {
         sel = k; antes();
-        arrastre = { k, eraC1: k === idxCercano(S.c1) && S.c1 !== null, movio: false };
+        arrastre = { k, eraC1: k === idxCercano(S.c1) && S.c1 !== null, sec: S.secciones.find(x => x.t === S.compases[k]) || null, movio: false };
         pintarControles(); sucio = true;
         return;
     }
@@ -496,6 +522,7 @@ window.addEventListener('mousemove', e => {
     const lo = k > 0 ? P[k - 1] + 0.05 : 0, hi = k + 1 < P.length ? P[k + 1] - 0.05 : duracion();
     P[k] = Math.max(lo, Math.min(hi, segDeX(x, r.width)));
     if (arrastre.eraC1) S.c1 = P[k];
+    if (arrastre.sec) arrastre.sec.t = P[k];
     arrastre.movio = true;
     mapa = TempoMapa.crear(datos()); sucio = true;
 });
@@ -581,6 +608,11 @@ function pintarControles() {
         $('sel-info').textContent = `Compás ${c} · ${reloj(S.compases[sel], true)}`;
     } else $('sel-info').textContent = 'Ningún compás elegido';
     $('b-c1').disabled = !hay || sel === i0;
+    const sn = $('sec-nombre');
+    sn.disabled = !hay;
+    if (document.activeElement !== sn) sn.value = hay ? (S.secciones.find(x => x.t === S.compases[sel])?.nombre || '') : '';
+    $('secciones').innerHTML = S.secciones.map((x, i) => `<span class="seccion" style="background:${colorSeccion(x.nombre)}" data-ir="${i}" title="Ir a la sección">${esc(x.nombre)} · ${idxCercano(x.t) - i0 + 1}<button data-quitar-sec="${i}" title="Quitar la sección">✕</button></span>`).join('')
+        || '<span class="ayuda">Elige un compás y escribe su sección.</span>';
     $('b-borrar').disabled = !hay;
     const n = mapa.cifraEn(hay ? c : 1);
     $('seg-cifra').innerHTML = [2, 3, 4, 5, 6, 7].map(k => `<button class="btn${k === n ? ' on' : ''}" data-n="${k}" ${hay ? '' : 'disabled'}>${k}</button>`).join('');
@@ -643,6 +675,36 @@ $('seg-cifra').onclick = e => {
         S.cifras = S.cifras.filter((y, i) => i === 0 || y.n !== S.cifras[i - 1].n);
     }
     rehacer();
+};
+// Secciones: el nombre se escribe con un compás elegido (Enter); vacío la quita
+const COLORES_SEC = ['#fbbf24', '#34d399', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#2dd4bf', '#f87171', '#a3e635'];
+function colorSeccion(nombre) {
+    const n = String(nombre).toLowerCase().replace(/\s*\d+$/, '').trim();   // Estrofa 1 y Estrofa 2, mismo color
+    let h = 0; for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return COLORES_SEC[h % COLORES_SEC.length];
+}
+function ponerSeccion() {
+    if (sel === null) return;
+    const t = S.compases[sel], nombre = $('sec-nombre').value.trim(), hab = S.secciones.find(x => x.t === t);
+    if ((hab?.nombre || '') === nombre) return;
+    antes();
+    S.secciones = S.secciones.filter(x => x.t !== t);
+    if (nombre) S.secciones.push({ t, nombre });
+    rehacer();
+}
+$('sec-nombre').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); ponerSeccion(); e.target.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.target.value = ''; e.target.blur(); pintarControles(); }
+});
+$('sec-nombre').addEventListener('change', ponerSeccion);
+$('secciones').onclick = e => {
+    const q = e.target.closest('[data-quitar-sec]');
+    if (q) { antes(); S.secciones.splice(+q.dataset.quitarSec, 1); rehacer(); return; }
+    const b = e.target.closest('[data-ir]'); if (!b) return;
+    const t = S.secciones[+b.dataset.ir].t;
+    sel = S.compases.indexOf(t); cursor = t;
+    vista.ini = Math.max(0, Math.min(duracion() - vista.dur, t - vista.dur * 0.1));
+    pintarControles(); sucio = true;
 };
 $('cifras').onclick = e => { const b = e.target.closest('[data-quitar]'); if (!b) return; antes(); S.cifras.splice(+b.dataset.quitar, 1); rehacer(); };
 $('seg-grab').onclick = async e => {

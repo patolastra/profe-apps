@@ -7648,3 +7648,12 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
   deslizamiento horizontal ya no acerca. El zoom va según cuánto se mueve (parejo con dos dedos; con la rueda del
   mouse, lo mismo que antes). Prueba: deslizamiento horizontal que termina en vertical → se movió 1 s y el zoom no
   cambió; después la rueda acerca y aleja.
+- **Ajuste 8 (PO 2026-10-30, "aquí mismo quiero poder etiquetar secciones, luego de haber hecho el tempo map"):**
+  con un compás elegido, "🏷 Sección desde aquí" (Intro, Estrofa, Pre-coro, Coro, Puente, Interludio, Solo, Mambo,
+  Final o cualquier nombre; Enter pone, vacío quita). Cada sección va desde su compás hasta la siguiente: franja de
+  color con el nombre sobre la onda y raya de color arriba en la canción entera (mismo color para "Estrofa 1" y
+  "Estrofa 2"); lista "Secciones" con el compás de cada una (clic = ir ahí, ✕ = quitar). La sección queda pegada al 1
+  de su compás (lo sigue al moverlo). Se guarda en el mapa (`secciones: [{ compas, nombre }]`, también en el archivo
+  público); `TempoMapa` da `m.secciones` y `m.seccionEn(c)` para el Arreglo y lo que venga.
+  Prueba (COQUETA, sin guardar): Intro 0, Estrofa 1 4, Coro 12, Estrofa 2 20 → franjas y lista; al arrastrar el 1
+  del compás 4 la Estrofa 1 lo siguió; `seccionEn(14)` = Coro. Deshecho, el mapa guardado quedó igual.

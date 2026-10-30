@@ -4,7 +4,8 @@
 //   Datos (recurso `tempo` de la canción y archivo público repertorio-assets/tempo/<cancion_id>.json):
 //     { v: 1, pulsos: [seg…],            // cada pulso, en segundos de la grabación original, en orden
 //       compas1: i,                      // índice del pulso donde empieza el compás 1 (los anteriores: compás 0, −1…)
-//       cifras: [{ compas: 1, n: 4 }] }  // pulsos por compás desde ese compás (la primera vale también hacia atrás)
+//       cifras: [{ compas: 1, n: 4 }],   // pulsos por compás desde ese compás (la primera vale también hacia atrás)
+//       secciones: [{ compas, nombre }] } // Intro, Estrofa, Coro…: cada una desde su compás hasta la siguiente (opcional)
 //
 //   const m = TempoMapa.crear(datos);
 //   m.segDePulso(p)      → segundo de la grabación del pulso p (p = 0 es el tiempo 1 del compás 1; admite decimales)
@@ -13,6 +14,7 @@
 //   m.compasDePulso(p)   → { compas, tiempo } (tiempo 1 = el primero del compás)
 //   m.cifraEn(c)         → pulsos del compás c
 //   m.bpmEn(p)           → tempo alrededor del pulso p
+//   m.secciones          → [{ compas, nombre }] en orden; m.seccionEn(c) → la sección del compás c (o null)
 //   Fuera de los pulsos marcados se sigue con el tempo del borde.
 //   await TempoMapa.cargar(baseStorage, cancionId) → mapa o null (lee el archivo público; sin clave)
 //   TempoMapa.desdeReaper(map, startQn, duracion)  → datos a partir de un mapa de Reaper (PT qn bpm; QN 0 = segundo 0)
@@ -35,7 +37,10 @@
         };
         const perIni = periodo(false), perFin = periodo(true);
 
-        const m = { pulsos: P, compas1: i0, cifras, vacio: P.length < 2 };
+        const secciones = (d?.secciones || []).filter(x => x && x.nombre).map(x => ({ compas: x.compas | 0, nombre: String(x.nombre) }))
+            .sort((a, b) => a.compas - b.compas);
+        const m = { pulsos: P, compas1: i0, cifras, secciones, vacio: P.length < 2 };
+        m.seccionEn = c => { let s = null; for (const x of secciones) if (x.compas <= c) s = x; return s; };
         m.segDePulso = p => {
             if (!P.length) return 0;
             const x = i0 + p;
@@ -72,7 +77,7 @@
             const k = Math.max(0, Math.min(P.length - 2, x));
             return 60 / (P[k + 1] - P[k]);
         };
-        m.datos = () => ({ v: 1, pulsos: P.map(x => Math.round(x * 1000) / 1000), compas1: i0, cifras });
+        m.datos = () => ({ v: 1, pulsos: P.map(x => Math.round(x * 1000) / 1000), compas1: i0, cifras, ...(secciones.length ? { secciones } : {}) });
         return m;
     }
 
