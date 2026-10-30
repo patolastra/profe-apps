@@ -7775,3 +7775,8 @@ entrega lo oficial").*
   - Prueba (navegador): partiendo de Fijo 3/4 a 100 → COQUETA (única con mapa; buscar "coq") → 4/4, 79; Va subiendo
     → de 59 a 79; 2/4 → "≠ canción: 4/4" visible, al tocarlo vuelve a 4/4; recargar → la recuerda; ✕ → "🎵 Canción".
   - Sigue: 3c Lector (antes, decidir qué pasa con el Loop en pausa sin commitear en `tabs/index.html`).
+- **Loop IN/OUT en pausa — guardado (PO 2026-10-30, "Guardarlo como está"), antes del paso 3c (Lector):** los
+  cambios sin commitear del Loop (IN/OUT en el extremo de nota visualmente más cercano, `nearestNoteEdgeTime`, en
+  `tabs/index.html`) y el laboratorio `LOOP-LAB/loop-lab.html` se guardaron tal cual en el commit **1c318e7**; enseguida
+  se revirtió solo `tabs/index.html` (commit siguiente), así el Lector en línea sigue como estaba y el Loop queda en
+  pausa, recuperable desde 1c318e7. `LOOP-LAB/` (congelado) queda en el repositorio, sin enlaces.
