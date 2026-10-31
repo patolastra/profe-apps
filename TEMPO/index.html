@@ -89,6 +89,7 @@
     body:not(.estr) .fila-estr { display: none !important; }
     #seg-modo .btn { width: 118px; }
     #es-info { width: 200px; color: var(--tenue); font-size: 13px; }
+    #es-letra { width: 280px; }
     #es-nombre { width: 190px; height: 32px; background: #0f172a; border: 1px solid #475569; border-radius: 7px; padding: 0 8px; }
     kbd { background: #334155; border-radius: 4px; padding: 0 5px; font-size: 11px; }
 
@@ -153,6 +154,8 @@
     <div class="caja fila fila-estr">
         <span id="es-info">Ninguna sección elegida</span>
         <input id="es-nombre" list="sec-lista" placeholder="Nombre de la sección" title="Nombre de la sección elegida (Enter). Vacío: la quita" disabled>
+        <span class="rot">🔗 Letra</span>
+        <select id="es-letra" title="La estrofa de la letra que es esta sección (por cercanía de tiempo; se puede cambiar o quitar)" disabled></select>
         <button class="btn" id="b-es-quitar" title="Quitar la sección elegida (Supr)" disabled>🗑 Quitar sección</button>
     </div>
     <div class="caja fila">
@@ -226,6 +229,9 @@ let mapa = TempoMapa.crear({ pulsos: [] });
 let sel = null;                  // índice del compás elegido
 let modo = 'tempo';              // 'tempo' | 'estr' (🧩 Estructura, EW)
 let selSec = null;               // índice de la sección elegida (Estructura)
+let estrofas = [];               // estrofas de la letra sincronizada: [{ seg, texto }] (EX)
+// Unión con la letra (EX): letra: false = desligada a mano; letraSeg = ligada a mano a la estrofa que empieza ahí
+const extraLetra = x => x.letra === false ? { letra: false } : x.letraSeg !== undefined ? { letraSeg: x.letraSeg } : {};
 let base = '';
 function idxCercano(s) {
     const P = S.compases;
@@ -235,6 +241,9 @@ function idxCercano(s) {
     for (let i = 1; i < P.length; i++) if (Math.abs(P[i] - s) < Math.abs(P[k] - s)) k = i;
     return k;
 }
+// La estrofa de cada sección (en el orden de S.secciones): [{ estrofa, auto }] (EX)
+const uniones = (secs = S.secciones) => TempoMapa.crear({ secciones: secs.map(x => ({ seg: x.t, nombre: x.nombre, ...extraLetra(x) })) })
+    .letraDeSecciones(estrofas.map(e => e.seg));
 // Una sección cae en lo marcado si está entre el primer y el último compás (± medio compás): ahí va por compás
 function enRango(t) {
     const C = S.compases; if (C.length < 2) return false;
@@ -252,7 +261,7 @@ function datos() {
         const n = cifraDe(i - i0 + 1), d = (C[i + 1] - C[i]) / n;
         for (let k = 1; k < n; k++) pulsos.push(C[i] + k * d);
     }
-    const secciones = S.secciones.map(x => enRango(x.t) ? { compas: idxCercano(x.t) - i0 + 1, seg: x.t, nombre: x.nombre } : { seg: x.t, nombre: x.nombre });
+    const secciones = S.secciones.map(x => enRango(x.t) ? { compas: idxCercano(x.t) - i0 + 1, seg: x.t, nombre: x.nombre, ...extraLetra(x) } : { seg: x.t, nombre: x.nombre, ...extraLetra(x) });
     return { v: 1, pulsos, compas1, cifras: S.cifras, secciones, ...(S.tonalidad ? { tonalidad: S.tonalidad } : {}) };
 }
 // Un mapa de pulsos (guardado o importado) → el 1 de cada compás
@@ -260,7 +269,7 @@ function aCompases(d) {
     const m = TempoMapa.crear(d);
     const C = m.pulsos.filter((_, i) => m.compasDePulso(i - m.compas1).tiempo === 1);
     const i0 = C.indexOf(m.pulsos[m.compas1]);
-    const secciones = m.secciones.map(x => ({ t: (x.compas !== null ? C[i0 + x.compas - 1] : undefined) ?? x.seg, nombre: x.nombre })).filter(x => x.t != null);
+    const secciones = m.secciones.map(x => ({ t: (x.compas !== null ? C[i0 + x.compas - 1] : undefined) ?? x.seg, nombre: x.nombre, ...extraLetra(x) })).filter(x => x.t != null);
     return { compases: C, c1: m.pulsos.length ? m.pulsos[m.compas1] : null, cifras: m.cifras.map(x => ({ ...x })), secciones, tonalidad: m.tonalidad };
 }
 const guardable = () => JSON.stringify(TempoMapa.crear(datos()).datos());
@@ -271,7 +280,7 @@ function rehacer() {
     // En lo marcado, cada sección queda pegada al 1 de su compás (sigue al mover; si se borra, pasa al vecino); una por
     // comienzo. Fuera de lo marcado (o sin tempo) va por su segundo. La elegida sigue elegida.
     const elegida = S.secciones[selSec];
-    S.secciones = (S.secciones || []).map(x => ({ t: enRango(x.t) ? S.compases[idxCercano(x.t)] : x.t, nombre: x.nombre, e: x === elegida }))
+    S.secciones = (S.secciones || []).map(x => ({ t: enRango(x.t) ? S.compases[idxCercano(x.t)] : x.t, nombre: x.nombre, ...extraLetra(x), e: x === elegida }))
         .sort((a, b) => a.t - b.t).filter((x, i, v) => i === v.length - 1 || v[i + 1].t !== x.t);
     selSec = S.secciones.findIndex(x => x.e); if (selSec < 0) selSec = null;
     S.secciones.forEach(x => delete x.e);
@@ -541,6 +550,20 @@ function dibujarEstructura(g, W, H, top, bot, alto, medio) {
         const x = xDeSeg(s, W); g.fillRect(x, H - bot, 1, 4);
         g.fillText(reloj(s, paso < 1), x + 3, H - 3);
     }
+    const U = uniones(), deEstrofa = new Map();
+    U.forEach((u, i) => { if (u.estrofa !== null) deEstrofa.set(u.estrofa, i); });
+    g.font = '12px system-ui';
+    const yE = H - bot - 6;
+    estrofas.forEach((e, k) => {
+        if (e.seg === null) return;
+        const a = xDeSeg(e.seg, W), sig = estrofas.slice(k + 1).find(y => y.seg !== null), b = sig ? xDeSeg(sig.seg, W) : W;
+        if (b < 0 || a > W) return;
+        const i = deEstrofa.get(k), col = i !== undefined ? colorSeccion(S.secciones[i].nombre) : '#94a3b8';
+        g.fillStyle = col;
+        g.beginPath(); g.moveTo(a, yE - 12); g.lineTo(a + 7, yE - 12); g.lineTo(a, yE - 2); g.closePath(); g.fill();
+        g.fillRect(a, yE - 12, 1, 12);
+        g.fillText(e.texto, a + 9, yE - 3, Math.max(10, b - a - 14));
+    });
     S.secciones.forEach((x, i) => {
         const a = xDeSeg(x.t, W); if (a < -3 || a > W + 3) return;
         g.fillStyle = i === selSec ? '#22d3ee' : '#e2e8f0';
@@ -756,12 +779,14 @@ function pintarControles() {
     const sn = $('sec-nombre');
     sn.disabled = !hay;
     if (document.activeElement !== sn) sn.value = hay ? (S.secciones.find(x => x.t === S.compases[sel])?.nombre || '') : '';
-    const chips = S.secciones.map((x, i) => `<span class="seccion" style="background:${colorSeccion(x.nombre)}${modo === 'estr' && i === selSec ? ';outline:2px solid #22d3ee' : ''}" data-ir="${i}" title="Ir a la sección">${esc(x.nombre)} · ${enRango(x.t) ? idxCercano(x.t) - i0 + 1 : reloj(x.t)}<button data-quitar-sec="${i}" title="Quitar la sección">✕</button></span>`).join('')
+    const U = uniones();
+    const chips = S.secciones.map((x, i) => `<span class="seccion" style="background:${colorSeccion(x.nombre)}${modo === 'estr' && i === selSec ? ';outline:2px solid #22d3ee' : ''}" data-ir="${i}" title="${U[i]?.estrofa != null ? 'Ligada a la letra: «' + esc(estrofas[U[i].estrofa].texto) + '» · ' : ''}Ir a la sección">${U[i]?.estrofa != null ? '🔗 ' : ''}${esc(x.nombre)} · ${enRango(x.t) ? idxCercano(x.t) - i0 + 1 : reloj(x.t)}<button data-quitar-sec="${i}" title="Quitar la sección">✕</button></span>`).join('')
         || `<span class="ayuda">${modo === 'estr' ? 'Toca la canción y Enter donde empieza cada parte.' : 'Elige un compás y escribe su sección.'}</span>`;
     const hs = selSec !== null && selSec < S.secciones.length, en = $('es-nombre');
     $('es-info').textContent = hs ? `Sección elegida · ${reloj(S.secciones[selSec].t, true)}` : 'Ninguna sección elegida';
     en.disabled = $('b-es-quitar').disabled = !hs;
     if (document.activeElement !== en) en.value = hs ? S.secciones[selSec].nombre : '';
+    pintarLetra(hs, U);
     document.querySelectorAll('#seg-modo .btn').forEach(b => b.classList.toggle('on', b.dataset.m === modo));
     if ($('secciones').innerHTML !== chips) $('secciones').innerHTML = chips;   // redibujar en medio de un clic lo perdería
 
@@ -897,6 +922,37 @@ $('secciones').onclick = e => {
     if (grab?.sonando) tocar(t);
     pintarControles(); sucio = true;
 };
+// 🔗 Letra de la sección elegida (EX): — sin letra · las estrofas que empiezan cerca (desde 3 s antes hasta la sección
+// siguiente) · la automática dice "(por cercanía)"
+function cercanasA(i) {
+    const x = S.secciones[i], sig = S.secciones[i + 1]?.t ?? Infinity, ya = uniones()[i]?.estrofa;
+    return estrofas.map((e, k) => ({ ...e, k })).filter(e => e.seg !== null && ((e.seg >= x.t - 3 && e.seg < sig) || e.k === ya)).slice(0, 12);
+}
+function autoDe(i) {   // la estrofa que le tocaría por cercanía, sin lo hecho a mano
+    const copia = S.secciones.map((x, j) => j === i ? { t: x.t, nombre: x.nombre } : x);
+    return uniones(copia)[i]?.estrofa ?? null;
+}
+function pintarLetra(hs, U) {
+    const el = $('es-letra');
+    if (document.activeElement === el) return;
+    if (!estrofas.some(e => e.seg !== null)) { el.innerHTML = '<option>La canción no tiene letra sincronizada</option>'; el.disabled = true; return; }
+    if (!hs) { el.innerHTML = '<option>—</option>'; el.disabled = true; return; }
+    const u = U[selSec], auto = autoDe(selSec);
+    el.innerHTML = `<option value="no"${u.estrofa === null ? ' selected' : ''}>— sin letra</option>` + cercanasA(selSec).map(e =>
+        `<option value="${e.k}"${u.estrofa === e.k ? ' selected' : ''}>${reloj(e.seg)} · ${esc(e.texto)}${e.k === auto ? ' (por cercanía)' : ''}</option>`).join('');
+    el.disabled = false;
+}
+$('es-letra').onchange = e => {
+    e.target.blur();
+    if (selSec === null) return;
+    const x = S.secciones[selSec], v = e.target.value, auto = autoDe(selSec);
+    antes();
+    delete x.letra; delete x.letraSeg;
+    if (v === 'no') { if (auto !== null) x.letra = false; }
+    else if (+v !== auto) x.letraSeg = estrofas[+v].seg;
+    rehacer();
+};
+
 // ══ 🧩 Estructura (EW): el comienzo de cada parte, por su segundo ══════════════════════════════
 function agregarSeccion(t) {
     if (S.secciones.some(x => Math.abs(x.t - t) < 0.3)) return;   // un doble toque no crea dos
@@ -1139,7 +1195,7 @@ async function iniciar() {
         if (sb) {
             const [c, as] = await Promise.all([
                 sb.from('repertorio_canciones').select('nombre').eq('id', cancionId).single(),
-                sb.from('repertorio_assets').select('id, tipo, rol, etiqueta, instrumento, storage_path, contenido, tab_sync, orden, created_at').eq('cancion_id', cancionId).in('tipo', ['audio', 'tempo', 'tab']),
+                sb.from('repertorio_assets').select('id, tipo, rol, etiqueta, instrumento, storage_path, contenido, synced, tab_sync, orden, created_at').eq('cancion_id', cancionId).in('tipo', ['audio', 'tempo', 'tab', 'letra']),
             ]);
             cancionNombre = c.data?.nombre || '';
             const lista = (as.data || []).sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.created_at || '').localeCompare(String(b.created_at || '')));
@@ -1151,6 +1207,8 @@ async function iniciar() {
             if (!audios.melodia) rol = 'karaoke';
             const t = lista.find(a => a.tipo === 'tempo');
             if (t) { assetId = t.id; try { cargarDatos(JSON.parse(t.contenido || '{}')); } catch (_) {} }
+            const letra = lista.find(a => a.tipo === 'letra');   // la misma que abre el Entrenador
+            if (letra?.synced?.trim()) estrofas = TempoMapa.estrofasDeLetra(letra.contenido, letra.synced);
             tabs = lista.filter(a => a.tipo === 'tab' && a.tab_sync?.mode === 'tempomap' && a.tab_sync.map?.length)
                 .map(a => ({ nombre: (window.nombreAsset ? nombreAsset(a) : '') || a.etiqueta || a.instrumento || 'Tablatura', map: a.tab_sync.map, start_qn: a.tab_sync.start_qn || 0 }));
         }

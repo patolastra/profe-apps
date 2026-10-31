@@ -7910,3 +7910,53 @@ marcando compases, estoy marcando comienzos de secciones").*
   última que pasó (detenida, la última antes del cursor); Supr quita la elegida. Ayudas y avisos al día.
   Prueba (navegador, OLIMPO, sin guardar): Estructura: Espacio toca, 3 Enter → 3 partes, Retroceso → 2, Espacio
   detiene sin agregar; Tempo: 4 Enter marcando → Retroceso → 3, Espacio termina y detiene → 3 compases.
+
+### EX. 🔗 Secciones de la Ficha ligadas a las estrofas de la letra — HECHA
+*Origen: PO 2026-10-31 ("quiero que se puedan ligar algunas secciones (no todas) a letras de la canción; debería poderse
+por proximidad de tiempo").*
+- **Necesidad:** saber qué estrofa de la letra es el Coro, la Estrofa 2… sin escribirlo dos veces, para verlo al
+  ensayar y, después, para repetir una sección desde la letra.
+- **Auditoría:**
+  - Letra: recurso `letra` (`contenido` = texto, una línea vacía entre estrofas; `synced` = LRC con el segundo de
+    cada verso, en la misma grabación que Melodía/Karaoke, ET). El Entrenador une texto y tiempos con una cola por
+    texto (`entrenadorLines`, `sinTiempo` si un verso no tiene tiempo) y arma las estrofas (`entParseStanzas`).
+  - Secciones de la Ficha: `{ compas?, seg, nombre }` (EW); el segundo es de la misma grabación.
+  - El Entrenador dibuja cada estrofa con `entStanzaHTML` (Scroll y Diapositiva; Sync y Edición tienen su propio
+    dibujo); el tamaño de letra se pone verso a verso (`entAjustarFontSize`, Diapositiva). Ya carga `tempo-mapa.js`.
+- **Plan aprobado (PO 2026-10-31, "apruebo"):**
+  1. **Por cercanía:** una sección se liga a la estrofa cuyo primer verso con tiempo cae desde 1 s antes de su
+     comienzo hasta 8 s después (sin pasar del comienzo de la siguiente sección); la más cercana. Así Coro y Estrofas
+     se ligan solas e Intro/Mambo no.
+  2. **Se corrige en la Ficha (vista 🧩 Estructura):** sobre la onda, una marca por estrofa con su primer verso (del
+     color de su sección si está ligada, gris si no); la sección elegida tiene un menú "Letra" (— sin letra · las
+     estrofas cercanas · la automática marcada); los chips de sección llevan 🔗 si están ligadas.
+  3. **Se guarda poco:** en la sección, `letra: false` (desligada a mano) o `letraSeg: s` (ligada a mano a la estrofa
+     que empieza en ese segundo); sin nada = automática. La estrofa se busca siempre por tiempo: corregir la letra o su
+     sincronía no rompe la unión. Pieza: `TempoMapa.estrofasDeLetra(contenido, synced)` y `m.letraDeSecciones(inicios)`.
+  4. **Entrenador:** sobre la estrofa ligada, una etiqueta chica con el nombre de la sección (Scroll y Diapositiva, con
+     su tamaño proporcional a la letra). Sin letra sincronizada o sin Ficha, nada cambia.
+  - Sin cambios en Supabase.
+  - Lugares (regla 11): app `TEMPO/` (Estructura), `comun/tempo-mapa.js`, Entrenador en todos sus lugares (Biblioteca,
+    sesión del curso, Plan/mínimo, celular `?movil=1`, copia en la Pizarra `?espejo=1`: mismo archivo y mismo
+    `entStanzaHTML`).
+  - Después (cada uno con su ficha): loop de una sección desde la letra, Cantar con los nombres, letra por sección en el
+    Arreglo.
+- **Hecho (2026-10-31):**
+  - `comun/tempo-mapa.js`: `TempoMapa.estrofasDeLetra(contenido, synced)` (mismo armado que el Entrenador) y
+    `m.letraDeSecciones(inicios)` → `{ estrofa, auto }` por sección; primero las ligadas a mano (mandan), después las
+    automáticas con las estrofas que quedan (una estrofa, una sección). Las secciones guardan `letra: false` o
+    `letraSeg`. Versión de la pieza `ex1` en Biblioteca, Arreglo, Melodía, Cajón, Ritmos y Lector.
+  - App de la Ficha (Estructura): abajo de la onda, una marca por estrofa con su primer verso (color de su sección si
+    está ligada, gris si no); chips con 🔗 (el primer verso en el `title`); en la fila de la sección elegida, menú
+    **🔗 Letra** (— sin letra · estrofas desde 3 s antes hasta la sección siguiente · "(por cercanía)" en la
+    automática). Elegir la automática no guarda nada; otra = `letraSeg`; "sin letra" = `letra: false`. Lee la primera
+    letra de la canción (la del Entrenador) si está sincronizada.
+  - Entrenador: `entCalcularSecciones` (al dibujar Scroll y Diapositiva) y etiqueta `.ent-sec-tag` sobre la estrofa,
+    sin ocupar lugar, ~38 % del tamaño de la letra (también en el modo Diapositiva que reparte versos sueltos).
+  - Prueba (navegador, COQUETA, sin escribir en la base): la Ficha abre "Guardado"; se ligan solas Estrofa → "Pensando
+    y viendo…" (9,8 s), Coro → "Coqueta, si me quieres…" (47 s), "Dame" (71 s), y lo mismo en la segunda vuelta; los
+    dos Mambo quedan sin letra. Coro → "sin letra" guarda `letra: false`; Mambo → la estrofa "Mambo" (1:44) guarda
+    `letraSeg: 104.24`; deshecho. Entrenador (Biblioteca y celular `?movil=1`): etiquetas ESTROFA · CORO · "DAME" ×2
+    visibles en Scroll y en Diapositiva. La copia en la Pizarra y el Entrenador mínimo usan el mismo dibujo (no
+    probados aparte).
+  - **Falta:** que el PO lo vea en la Ficha y en el Entrenador con una canción real.

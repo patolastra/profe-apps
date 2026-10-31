@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="../comun/compartir.css?v=eq">
     <script src="../comun/compartir.js?v=eq"></script>
     <script src="../comun/dos-grabaciones.js"></script>
-    <script src="../comun/tempo-mapa.js?v=ev6"></script>
+    <script src="../comun/tempo-mapa.js?v=ex1"></script>
     <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
@@ -1935,6 +1935,10 @@
             height: 48px;
             width: 100%;
         }
+        /* Sección de la Ficha ligada a la estrofa (EX): una etiqueta chica justo arriba, sin ocupar lugar */
+        .ent-sec-tag { height: 0; position: relative; }
+        .ent-sec-tag span { position: absolute; left: 0; bottom: .25em; font-size: .9rem; font-weight: 700; font-style: normal; line-height: 1;
+            letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; white-space: nowrap; pointer-events: none; line-height: 1; }
         .ent-stanza-dim {
         }
         .ent-lyric-line {
@@ -5920,6 +5924,7 @@ document.addEventListener('keydown', e => {
 let entrenadorSong         = null;
 let entrenadorLines        = [];
 let entrenadorStanzas      = [];
+let entSecDeEstrofa        = new Map();   // primer verso (origIdx) de una estrofa → nombre de su sección en la Ficha (EX)
 let entrenadorLineIdx      = -1;
 let entrenadorLoops        = [];
 let entrenadorLoopActivo   = null;
@@ -7166,8 +7171,24 @@ function entLineSpanHTML(l) {
         ><span class="ent-lyric-text">${texto}</span></span>`;
 }
 function entStanzaHTML(stanza) {
-    return `<div class="ent-stanza">${stanza.map(entLineSpanHTML).join('')}</div>`;
+    const sec = entSecDeEstrofa.get(stanza[0]?.origIdx);
+    return `<div class="ent-stanza">${sec ? `<div class="ent-sec-tag"><span>${entEsc(sec)}</span></div>` : ''}${stanza.map(entLineSpanHTML).join('')}</div>`;
 }
+// Secciones de la Ficha ligadas a las estrofas (EX): por cercanía de tiempo o a mano en la Ficha. Solo con letra
+// sincronizada (el segundo de cada estrofa es el de su primer verso con tiempo).
+function entCalcularSecciones() {
+    entSecDeEstrofa = new Map();
+    if (!entrenadorAssetActivo?.synced || !window.TempoMapa) return;
+    const f = (entrenadorSong?.assets || []).find(a => a.tipo === 'tempo');
+    let d = null; try { d = JSON.parse(f?.contenido || 'null'); } catch (_) {}
+    if (!d?.secciones?.length) return;
+    const m = TempoMapa.crear(d);
+    const inicios = entrenadorStanzas.map(st => { const l = st.find(x => !x.sinTiempo); return l ? l.time / 1000 : null; });
+    m.letraDeSecciones(inicios).forEach((u, i) => {
+        if (u.estrofa !== null) entSecDeEstrofa.set(entrenadorStanzas[u.estrofa][0].origIdx, m.secciones[i].nombre);
+    });
+}
+const entTamTags = (zona, fs) => zona.querySelectorAll('.ent-sec-tag span').forEach(el => el.style.fontSize = Math.max(6, fs * 0.38) + 'px');
 
 function entRenderZona(forzarOrigIdx = null) {
     const zona = document.getElementById('ent-zona');
@@ -7180,6 +7201,7 @@ function entRenderZona(forzarOrigIdx = null) {
         zona.innerHTML = '<div style="color:#94a3b8">Sin letra</div>'; return;
     }
 
+    entCalcularSecciones();
     // Diapositiva compone TODA la letra en el área visible (multi-columna, sin scroll).
     // Sync y Edición tienen su propio render → no entran al compositor.
     const esPantalla = entViewMode === 'pantalla' && !entSyncMode && !entModoEdicion;
@@ -7212,6 +7234,7 @@ function entRenderDiapositiva() {
     if (!zona || !entrenadorStanzas.length) return;
     if (entViewMode !== 'pantalla' || entSyncMode || entModoEdicion) return;
     if (entVersoEnEdicion) return;   // no destruir una edición rápida en curso
+    entCalcularSecciones();
     zona.style.overflowY = 'hidden';
 
     const cs = getComputedStyle(zona);
@@ -7313,6 +7336,8 @@ function entRenderDiapositiva() {
             let inner = '', prevSi = -1;
             col.forEach((u, i) => {
                 if (i && u.si !== prevSi) inner += `<div class="ent-stanza-sep" style="height:${sepH(fs)}px"></div>`;
+                const sec = entSecDeEstrofa.get(u.l.origIdx);   // primer verso de una estrofa ligada (EX)
+                if (sec) inner += `<div class="ent-sec-tag"><span>${entEsc(sec)}</span></div>`;
                 inner += entLineSpanHTML(u.l);
                 prevSi = u.si;
             });
@@ -7322,6 +7347,7 @@ function entRenderDiapositiva() {
     html += `</div>`;
     zona.innerHTML = html;
     zona.querySelectorAll('.ent-lyric-line').forEach(el => el.style.fontSize = fs + 'px');
+    entTamTags(zona, fs);
 
     // Guarda anti-overflow: si por diferencias de métrica/envolvimiento real una columna
     // rebasa el alto, reduce la fuente uniformemente hasta que TODO quepa (nunca overflow).
@@ -7335,6 +7361,7 @@ function entRenderDiapositiva() {
         fs = Math.max(8, fs * 0.96);
         zona.querySelectorAll('.ent-lyric-line').forEach(el => el.style.fontSize = fs + 'px');
         zona.querySelectorAll('.ent-stanza-sep').forEach(el => el.style.height = Math.round(fs * 0.75) + 'px');
+        entTamTags(zona, fs);
     }
 }
 
@@ -9142,6 +9169,7 @@ function entAjustarFontSize() {
         // Sep igual a la altura de una línea vacía en el textarea
         const sepH = entFontSizeGlobal * 1.35 + 4;
         zona.querySelectorAll('.ent-stanza-sep').forEach(el => el.style.height = sepH + 'px');
+        entTamTags(zona, entFontSizeGlobal);
         const port = zona.querySelector('.ent-portada');
         if (port) {
             port.querySelector('.ent-portada-tit').style.fontSize = (entFontSizeGlobal * 1.2) + 'px';

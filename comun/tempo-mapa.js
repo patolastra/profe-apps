@@ -24,6 +24,9 @@
 //   m.bpmEn(p)           → tempo alrededor del pulso p
 //   m.secciones          → [{ compas, seg, nombre }] en orden (compas null = sin tempo en ese punto)
 //   m.seccionEn(c)       → la sección del compás c (o null); m.seccionEnSeg(s) → la que suena en el segundo s (o null)
+//   Sección ligada a la letra (EX): sin nada = la estrofa que empieza cerca de su comienzo (−1 s a +8 s); `letra: false`
+//   = desligada a mano; `letraSeg: s` = ligada a mano a la estrofa que empieza en s.
+//   TempoMapa.estrofasDeLetra(contenido, synced) → [{ seg, texto }]; m.letraDeSecciones(inicios) → [{ estrofa, auto }]
 //   Fuera de los pulsos marcados se sigue con el tempo del borde.
 //   await TempoMapa.cargar(baseStorage, cancionId) → mapa o null (lee el archivo público; sin clave); null si no hay
 //                                                   pulsos marcados (lo que sigue la grabación necesita el tempo)
@@ -52,7 +55,8 @@
         // Cada sección: su segundo (`seg`) y, si cae en lo marcado, su compás (EW: la estructura puede ir sin tempo)
         const secciones = (d?.secciones || []).filter(x => x && x.nombre).map(x => ({
             compas: typeof x.compas === 'number' && isFinite(x.compas) ? x.compas | 0 : null,
-            seg: typeof x.seg === 'number' && isFinite(x.seg) ? x.seg : null, nombre: String(x.nombre) }));
+            seg: typeof x.seg === 'number' && isFinite(x.seg) ? x.seg : null, nombre: String(x.nombre),
+            ...(x.letra === false ? { letra: false } : typeof x.letraSeg === 'number' && isFinite(x.letraSeg) ? { letraSeg: x.letraSeg } : {}) }));
         const tonalidad = d?.tonalidad && /^[A-G][#b]?$/.test(d.tonalidad.tonica) && (d.tonalidad.modo === 'mayor' || d.tonalidad.modo === 'menor')
             ? { tonica: d.tonalidad.tonica, modo: d.tonalidad.modo } : null;
         const m = { pulsos: P, compas1: i0, cifras, secciones, tonalidad, vacio: P.length < 2 };
@@ -106,10 +110,59 @@
             .sort((a, b) => (a.seg ?? 0) - (b.seg ?? 0) || (a.compas ?? 0) - (b.compas ?? 0)));
         m.seccionEn = c => { let s = null; for (const x of secciones) if (x.compas !== null && x.compas <= c) s = x; return s; };
         m.seccionEnSeg = t => { let s = null; for (const x of secciones) if (x.seg !== null && x.seg <= t + 1e-6) s = x; return s; };
-        const secDatos = () => secciones.map(x => ({ ...(x.compas !== null ? { compas: x.compas } : {}), ...(x.seg !== null ? { seg: Math.round(x.seg * 1000) / 1000 } : {}), nombre: x.nombre }));
+        const secDatos = () => secciones.map(x => ({ ...(x.compas !== null ? { compas: x.compas } : {}), ...(x.seg !== null ? { seg: Math.round(x.seg * 1000) / 1000 } : {}), nombre: x.nombre,
+            ...(x.letra === false ? { letra: false } : x.letraSeg !== undefined ? { letraSeg: Math.round(x.letraSeg * 1000) / 1000 } : {}) }));
+        // La estrofa de cada sección (EX). inicios = segundo donde empieza cada estrofa (null si no tiene tiempo).
+        // → por sección (en el orden de m.secciones): { estrofa (índice o null), auto (si es la de por cercanía) }
+        m.letraDeSecciones = inicios => {
+            // Primero las ligadas a mano (mandan); después las automáticas, con las estrofas que quedan
+            const usadas = new Set();
+            const res = secciones.map(x => {
+                if (x.letraSeg === undefined) return null;
+                const e = cercana(inicios, x.letraSeg, x.letraSeg - 3, x.letraSeg + 3, usadas);
+                if (e !== null) usadas.add(e);
+                return { estrofa: e, auto: false };
+            });
+            return secciones.map((x, i) => {
+                if (res[i]) return res[i];
+                if (x.letra === false || x.seg === null) return { estrofa: null, auto: false };
+                const sig = secciones[i + 1]?.seg ?? Infinity;
+                const e = cercana(inicios, x.seg, x.seg - 1, Math.min(x.seg + 8, sig - 0.5), usadas);
+                if (e !== null) usadas.add(e);
+                return { estrofa: e, auto: e !== null };
+            });
+        };
         m.datos = () => ({ v: 1, pulsos: P.map(x => Math.round(x * 1000) / 1000), compas1: i0, cifras, ...(secciones.length ? { secciones: secDatos() } : {}),
             ...(tonalidad ? { tonalidad } : {}), ...(m.bpm ? { bpm: m.bpm } : {}) });
         return m;
+    }
+
+    // La estrofa (índice) cuyo comienzo está entre a y b, la más cercana a t; null si no hay
+    function cercana(inicios, t, a, b, usadas) {
+        let k = null;
+        (inicios || []).forEach((s, i) => {
+            if (s === null || s < a || s > b || usadas.has(i)) return;
+            if (k === null || Math.abs(s - t) < Math.abs(inicios[k] - t)) k = i;
+        });
+        return k;
+    }
+    // Estrofas de una letra sincronizada, como las arma el Entrenador (EX): el texto da el orden y las estrofas (una
+    // línea vacía entre ellas); el LRC da el segundo de cada verso (una cola por texto, para versos repetidos).
+    // → [{ seg (primer verso con tiempo, o null), texto (primer verso) }]
+    function estrofasDeLetra(contenido, synced) {
+        const cola = new Map(), re = /\[(\d{2}):(\d{2})[.:](\d{2,3})(?:-[^\]]*)?\](.*)$/gm;
+        const lrc = []; let r;
+        while ((r = re.exec(synced || '')) !== null) lrc.push({ seg: +r[1] * 60 + +r[2] + (r[3].length === 2 ? +r[3] / 100 : +r[3] / 1000), texto: r[4].trim() });
+        lrc.sort((a, b) => a.seg - b.seg).forEach(x => { if (!cola.has(x.texto)) cola.set(x.texto, []); cola.get(x.texto).push(x.seg); });
+        const base = contenido ? contenido.split('\n') : lrc.map(x => x.texto);
+        const out = []; let cur = null;
+        for (const raw of base) {
+            const t = raw.trim();
+            if (!t) { cur = null; continue; }
+            const seg = cola.get(t)?.shift() ?? null;
+            if (!cur) { cur = { seg, texto: t }; out.push(cur); } else if (cur.seg === null && seg !== null) cur.seg = seg;
+        }
+        return out;
     }
 
     async function leer(base, cancionId) {
@@ -157,5 +210,5 @@
         menor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'],
     };
 
-    window.TempoMapa = { crear, cargar, cargarFicha, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS };
+    window.TempoMapa = { crear, cargar, cargarFicha, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS, estrofasDeLetra };
 })();
