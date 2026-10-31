@@ -7941,7 +7941,7 @@ por proximidad de tiempo").*
     `entStanzaHTML`).
   - Después (cada uno con su ficha): loop de una sección desde la letra, Cantar con los nombres, letra por sección en el
     Arreglo.
-- **Hecho (2026-10-31):**
+- **Hecho (2026-10-31, commit 5b575d2):**
   - `comun/tempo-mapa.js`: `TempoMapa.estrofasDeLetra(contenido, synced)` (mismo armado que el Entrenador) y
     `m.letraDeSecciones(inicios)` → `{ estrofa, auto }` por sección; primero las ligadas a mano (mandan), después las
     automáticas con las estrofas que quedan (una estrofa, una sección). Las secciones guardan `letra: false` o
