@@ -7966,3 +7966,13 @@ por proximidad de tiempo").*
   sección se ven inhabilitadas con su nombre ("(Mambo)"). El primer verso de cada estrofa bajo la onda va en itálica.
   Prueba (COQUETA, sin guardar): Mambo ofrece 1:23 y 1:44; ligado Mambo a 1:23, "Dame" muestra 1:11 (por cercanía) y
   1:23 inhabilitada "(Mambo)"; deshecho.
+- **Ajuste 2 (PO 2026-10-31, "que muestre versos"):** la unión es ahora con un **verso** (no con la estrofa entera):
+  - `TempoMapa.versosDeLetra` (reemplaza a `estrofasDeLetra`) → `{ seg, texto, estrofa, primero }` por verso;
+    `m.letraDeSecciones(versos)` → `{ verso, auto }`. Lo automático sigue buscando un comienzo de estrofa (−1 s a
+    +8 s); a mano (`letraSeg`) se puede elegir cualquier verso. Pieza `ex2`.
+  - Ficha: el menú 🔗 Letra lista los versos de ±20 s (ocupados inhabilitados con su sección); bajo la onda, una marca
+    por comienzo de estrofa y por verso ligado.
+  - Entrenador: la etiqueta va sobre el verso ligado; en medio de una estrofa abre su propio espacio (`.medio`).
+  - Prueba (COQUETA, ligado solo en memoria): Mambo ofrece 8 versos (1:18 a 1:44); ligado a "Nomás contigo" (1:21, en
+    medio de la estrofa) → la Ficha guarda `letraSeg: 81.98` y el Entrenador muestra MAMBO sobre ese verso, con
+    espacio propio; las automáticas no cambian. Nada guardado en la base.

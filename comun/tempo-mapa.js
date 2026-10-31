@@ -24,9 +24,10 @@
 //   m.bpmEn(p)           → tempo alrededor del pulso p
 //   m.secciones          → [{ compas, seg, nombre }] en orden (compas null = sin tempo en ese punto)
 //   m.seccionEn(c)       → la sección del compás c (o null); m.seccionEnSeg(s) → la que suena en el segundo s (o null)
-//   Sección ligada a la letra (EX): sin nada = la estrofa que empieza cerca de su comienzo (−1 s a +8 s); `letra: false`
-//   = desligada a mano; `letraSeg: s` = ligada a mano a la estrofa que empieza en s.
-//   TempoMapa.estrofasDeLetra(contenido, synced) → [{ seg, texto }]; m.letraDeSecciones(inicios) → [{ estrofa, auto }]
+//   Sección ligada a un verso de la letra (EX): sin nada = el comienzo de estrofa más cercano a su comienzo (−1 s a +8 s);
+//   `letra: false` = desligada a mano; `letraSeg: s` = ligada a mano al verso (cualquiera) que se canta en s.
+//   TempoMapa.versosDeLetra(contenido, synced) → [{ seg, texto, estrofa, primero }];
+//   m.letraDeSecciones(versos) → por sección [{ verso (índice o null), auto }]
 //   Fuera de los pulsos marcados se sigue con el tempo del borde.
 //   await TempoMapa.cargar(baseStorage, cancionId) → mapa o null (lee el archivo público; sin clave); null si no hay
 //                                                   pulsos marcados (lo que sigue la grabación necesita el tempo)
@@ -112,24 +113,25 @@
         m.seccionEnSeg = t => { let s = null; for (const x of secciones) if (x.seg !== null && x.seg <= t + 1e-6) s = x; return s; };
         const secDatos = () => secciones.map(x => ({ ...(x.compas !== null ? { compas: x.compas } : {}), ...(x.seg !== null ? { seg: Math.round(x.seg * 1000) / 1000 } : {}), nombre: x.nombre,
             ...(x.letra === false ? { letra: false } : x.letraSeg !== undefined ? { letraSeg: Math.round(x.letraSeg * 1000) / 1000 } : {}) }));
-        // La estrofa de cada sección (EX). inicios = segundo donde empieza cada estrofa (null si no tiene tiempo).
-        // → por sección (en el orden de m.secciones): { estrofa (índice o null), auto (si es la de por cercanía) }
-        m.letraDeSecciones = inicios => {
-            // Primero las ligadas a mano (mandan); después las automáticas, con las estrofas que quedan
-            const usadas = new Set();
+        // El verso de cada sección (EX). versos = [{ seg (null sin tiempo), primero (comienzo de estrofa) }].
+        // → por sección (en el orden de m.secciones): { verso (índice o null), auto (si es el de por cercanía) }
+        m.letraDeSecciones = versos => {
+            const T = (versos || []).map(v => v.seg ?? null), inicios = (versos || []).map(v => v.primero ? v.seg ?? null : null);
+            // Primero las ligadas a mano (mandan; a cualquier verso); después las automáticas (a un comienzo de estrofa)
+            const usados = new Set();
             const res = secciones.map(x => {
                 if (x.letraSeg === undefined) return null;
-                const e = cercana(inicios, x.letraSeg, x.letraSeg - 3, x.letraSeg + 3, usadas);
-                if (e !== null) usadas.add(e);
-                return { estrofa: e, auto: false };
+                const v = cercana(T, x.letraSeg, x.letraSeg - 3, x.letraSeg + 3, usados);
+                if (v !== null) usados.add(v);
+                return { verso: v, auto: false };
             });
             return secciones.map((x, i) => {
                 if (res[i]) return res[i];
-                if (x.letra === false || x.seg === null) return { estrofa: null, auto: false };
+                if (x.letra === false || x.seg === null) return { verso: null, auto: false };
                 const sig = secciones[i + 1]?.seg ?? Infinity;
-                const e = cercana(inicios, x.seg, x.seg - 1, Math.min(x.seg + 8, sig - 0.5), usadas);
-                if (e !== null) usadas.add(e);
-                return { estrofa: e, auto: e !== null };
+                const v = cercana(inicios, x.seg, x.seg - 1, Math.min(x.seg + 8, sig - 0.5), usados);
+                if (v !== null) usados.add(v);
+                return { verso: v, auto: v !== null };
             });
         };
         m.datos = () => ({ v: 1, pulsos: P.map(x => Math.round(x * 1000) / 1000), compas1: i0, cifras, ...(secciones.length ? { secciones: secDatos() } : {}),
@@ -137,7 +139,7 @@
         return m;
     }
 
-    // La estrofa (índice) cuyo comienzo está entre a y b, la más cercana a t; null si no hay
+    // El índice cuyo segundo está entre a y b, el más cercano a t; null si no hay
     function cercana(inicios, t, a, b, usadas) {
         let k = null;
         (inicios || []).forEach((s, i) => {
@@ -146,21 +148,24 @@
         });
         return k;
     }
-    // Estrofas de una letra sincronizada, como las arma el Entrenador (EX): el texto da el orden y las estrofas (una
+    // Versos de una letra sincronizada, como los arma el Entrenador (EX): el texto da el orden y las estrofas (una
     // línea vacía entre ellas); el LRC da el segundo de cada verso (una cola por texto, para versos repetidos).
-    // → [{ seg (primer verso con tiempo, o null), texto (primer verso) }]
-    function estrofasDeLetra(contenido, synced) {
+    // → [{ seg (o null), texto, estrofa (n°), primero (el primer verso con tiempo de su estrofa) }]
+    function versosDeLetra(contenido, synced) {
         const cola = new Map(), re = /\[(\d{2}):(\d{2})[.:](\d{2,3})(?:-[^\]]*)?\](.*)$/gm;
         const lrc = []; let r;
         while ((r = re.exec(synced || '')) !== null) lrc.push({ seg: +r[1] * 60 + +r[2] + (r[3].length === 2 ? +r[3] / 100 : +r[3] / 1000), texto: r[4].trim() });
         lrc.sort((a, b) => a.seg - b.seg).forEach(x => { if (!cola.has(x.texto)) cola.set(x.texto, []); cola.get(x.texto).push(x.seg); });
         const base = contenido ? contenido.split('\n') : lrc.map(x => x.texto);
-        const out = []; let cur = null;
+        const out = []; let e = -1, nueva = true, conPrimero = false;
         for (const raw of base) {
             const t = raw.trim();
-            if (!t) { cur = null; continue; }
+            if (!t) { nueva = true; continue; }
+            if (nueva) { e++; nueva = false; conPrimero = false; }
             const seg = cola.get(t)?.shift() ?? null;
-            if (!cur) { cur = { seg, texto: t }; out.push(cur); } else if (cur.seg === null && seg !== null) cur.seg = seg;
+            const primero = seg !== null && !conPrimero;
+            if (primero) conPrimero = true;
+            out.push({ seg, texto: t, estrofa: e, primero });
         }
         return out;
     }
@@ -210,5 +215,5 @@
         menor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'],
     };
 
-    window.TempoMapa = { crear, cargar, cargarFicha, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS, estrofasDeLetra };
+    window.TempoMapa = { crear, cargar, cargarFicha, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS, versosDeLetra };
 })();

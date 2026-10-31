@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="../comun/compartir.css?v=eq">
     <script src="../comun/compartir.js?v=eq"></script>
     <script src="../comun/dos-grabaciones.js"></script>
-    <script src="../comun/tempo-mapa.js?v=ex1"></script>
+    <script src="../comun/tempo-mapa.js?v=ex2"></script>
     <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
@@ -1937,6 +1937,8 @@
         }
         /* Sección de la Ficha ligada a la estrofa (EX): una etiqueta chica justo arriba, sin ocupar lugar */
         .ent-sec-tag { height: 0; position: relative; }
+        .ent-sec-tag.medio { height: auto; }
+        .ent-sec-tag.medio span { position: static; display: block; padding-top: .5em; }
         .ent-sec-tag span { position: absolute; left: 0; bottom: .25em; font-size: .9rem; font-weight: 700; font-style: normal; line-height: 1;
             letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; white-space: nowrap; pointer-events: none; line-height: 1; }
         .ent-stanza-dim {
@@ -5924,7 +5926,7 @@ document.addEventListener('keydown', e => {
 let entrenadorSong         = null;
 let entrenadorLines        = [];
 let entrenadorStanzas      = [];
-let entSecDeEstrofa        = new Map();   // primer verso (origIdx) de una estrofa → nombre de su sección en la Ficha (EX)
+let entSecDeEstrofa        = new Map();   // verso (origIdx) donde empieza una sección de la Ficha → su nombre (EX)
 let entrenadorLineIdx      = -1;
 let entrenadorLoops        = [];
 let entrenadorLoopActivo   = null;
@@ -7170,12 +7172,17 @@ function entLineSpanHTML(l) {
         title="Click: ir al punto · Alt+click: esconder verso · Alt+doble click: esconder estrofa · Shift+click: colorear · Ctrl+Shift+click: colorear estrofa · Ctrl+click: crear loop · Click derecho: editar"
         ><span class="ent-lyric-text">${texto}</span></span>`;
 }
+// Sobre el primer verso de una estrofa va en el espacio entre estrofas; en medio de una estrofa abre su propio espacio
+const entSecTagHTML = l => {
+    const sec = entSecDeEstrofa.get(l.origIdx); if (!sec) return '';
+    const medio = !!entrenadorLines[l.origIdx - 1]?.text?.trim();
+    return `<div class="ent-sec-tag${medio ? ' medio' : ''}"><span>${entEsc(sec)}</span></div>`;
+};
 function entStanzaHTML(stanza) {
-    const sec = entSecDeEstrofa.get(stanza[0]?.origIdx);
-    return `<div class="ent-stanza">${sec ? `<div class="ent-sec-tag"><span>${entEsc(sec)}</span></div>` : ''}${stanza.map(entLineSpanHTML).join('')}</div>`;
+    return `<div class="ent-stanza">${stanza.map(l => entSecTagHTML(l) + entLineSpanHTML(l)).join('')}</div>`;
 }
-// Secciones de la Ficha ligadas a las estrofas (EX): por cercanía de tiempo o a mano en la Ficha. Solo con letra
-// sincronizada (el segundo de cada estrofa es el de su primer verso con tiempo).
+// Secciones de la Ficha ligadas a los versos (EX): por cercanía de tiempo a un comienzo de estrofa, o a mano (cualquier
+// verso) en la Ficha. Solo con letra sincronizada.
 function entCalcularSecciones() {
     entSecDeEstrofa = new Map();
     if (!entrenadorAssetActivo?.synced || !window.TempoMapa) return;
@@ -7183,10 +7190,11 @@ function entCalcularSecciones() {
     let d = null; try { d = JSON.parse(f?.contenido || 'null'); } catch (_) {}
     if (!d?.secciones?.length) return;
     const m = TempoMapa.crear(d);
-    const inicios = entrenadorStanzas.map(st => { const l = st.find(x => !x.sinTiempo); return l ? l.time / 1000 : null; });
-    m.letraDeSecciones(inicios).forEach((u, i) => {
-        if (u.estrofa !== null) entSecDeEstrofa.set(entrenadorStanzas[u.estrofa][0].origIdx, m.secciones[i].nombre);
+    const versos = entrenadorStanzas.flatMap(st => {
+        let hay = false;
+        return st.map(l => { const primero = !l.sinTiempo && !hay; if (primero) hay = true; return { seg: l.sinTiempo ? null : l.time / 1000, primero, origIdx: l.origIdx }; });
     });
+    m.letraDeSecciones(versos).forEach((u, i) => { if (u.verso !== null) entSecDeEstrofa.set(versos[u.verso].origIdx, m.secciones[i].nombre); });
 }
 const entTamTags = (zona, fs) => zona.querySelectorAll('.ent-sec-tag span').forEach(el => el.style.fontSize = Math.max(6, fs * 0.38) + 'px');
 
@@ -7336,9 +7344,7 @@ function entRenderDiapositiva() {
             let inner = '', prevSi = -1;
             col.forEach((u, i) => {
                 if (i && u.si !== prevSi) inner += `<div class="ent-stanza-sep" style="height:${sepH(fs)}px"></div>`;
-                const sec = entSecDeEstrofa.get(u.l.origIdx);   // primer verso de una estrofa ligada (EX)
-                if (sec) inner += `<div class="ent-sec-tag"><span>${entEsc(sec)}</span></div>`;
-                inner += entLineSpanHTML(u.l);
+                inner += entSecTagHTML(u.l) + entLineSpanHTML(u.l);   // verso donde empieza una sección (EX)
                 prevSi = u.si;
             });
             return `<div class="ent-dia-col" style="width:${Math.round(cw)}px"><div class="ent-stanza">${inner}</div></div>`;
