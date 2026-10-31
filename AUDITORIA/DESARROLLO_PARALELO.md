@@ -8035,3 +8035,19 @@ no tienen letra: intro, mambo, coda…").*
   Prueba (navegador, COQUETA): botón visible; menú con 8 secciones bajo el botón; clic en Mambo → audio en 1:35,
   verso activo "Mambo", la letra muestra "♪ MAMBO" sobre él con su espacio; el segundo Mambo (3:36) queda al final;
   apagado = 0 etiquetas, encendido = 8.
+- **Ajuste (PO 2026-10-31, "corrige esto, tienen que verse consistentemente bien"; "el botón de Estructura no es
+  consistente visualmente con el resto y debe mostrar su data no en menú dropdown sino como se muestra Loops"; "mientras
+  se reproduce, poder romper la navegación y estar en otra parte de la canción sin que te devuelva siempre al verso
+  activo, con botón que te devuelva"):**
+  - Etiquetas: cuando un verso tiene más de una (♪ INTRO, ♪ ENTRA BANDA, ESTROFA 1) o alguna sin letra, todas van una
+    bajo la otra, cada una con su espacio (antes la ligada flotaba encima de las otras).
+  - Estructura como Loops: sale el botón de texto y el menú; entra el botón 🧩 junto a ⟳ (mismo estilo; oculto con su
+    espacio si la canción no tiene secciones) y un panel lateral igual al de Loops (encabezado ESTRUCTURA con "En la
+    letra" encendido/apagado; filas como las de un loop: ●/○, nombre, tiempo y el verso en itálica; la que suena,
+    marcada). Clic en una fila = ir ahí. Celular, Pizarra y canciones sin audio: oculto como Loops.
+  - Navegar libre: sonando, mover la letra (rueda, dedo o barra) deja de seguir lo que suena y aparece **⌖ Volver al
+    verso** (abajo, al centro); al tocarlo, o al elegir un verso, una sección o un salto (↑ ↓, ⏮ ⏭), la letra vuelve
+    a seguir. No aplica en Diapositiva, Sync ni Edición.
+  - Prueba (navegador, Sin Sentimiento, 20 secciones): ♪ INTRO / ♪ ENTRA BANDA / ESTROFA 1 una bajo la otra (sin
+    encimarse); 🧩 abre el panel con las 20 secciones y sus versos; sonando desde 0:30, una rueda deja la letra lejos
+    6 s (sin volver) con ⌖ visible; ⌖ → el verso activo vuelve a la vista y el botón se oculta.
