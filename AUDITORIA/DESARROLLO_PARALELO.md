@@ -8097,8 +8097,11 @@ otros audios también: para extractos o versiones, no se muestra la letra").*
   un botón **🎧 Audios** con la misma lista (Canción + Extractos y versiones), como ventana al centro; el extracto o
   versión se ve en la tarjeta en lugar de la letra, igual que en el celular. La copia en la Pizarra sigue mostrando la
   letra (el extracto suena solo en el computador del profe).
+  Hecho: `#ent-btn-audios` en el PC dice "🎧 Audios" (o el extracto puesto) con el estilo de los otros botones; la lista
+  se abre al centro. Prueba (Sin Sentimiento, PC): 🎧 Audios → Melodía y ✂️ Coro: segunda voz; elegirlo → tarjeta con
+  su audio y sin reproductor de abajo; Volver → la letra. Lugares: celular y PC (la Pizarra no lo muestra).
 
-### FB. 🧩 Pantalla de estructura en el Entrenador del celular — APROBADA (PO 2026-10-31, pedido directo)
+### FB. 🧩 Pantalla de estructura en el Entrenador del celular — HECHA
 *Origen: PO 2026-10-31 ("en pwa móvil necesito una pantalla para ver la estructura, no como un menú, sino como una
 pantalla en sí (que tape la letra), que me permita navegar entre las secciones, escuchando el audio, y que pueda
 volver a la letra sin problemas").*
@@ -8109,3 +8112,9 @@ volver a la letra sin problemas").*
   sección con su nombre, tiempo y verso en itálica; la que suena en naranjo y a la vista. Tocar una sección = el audio
   va ahí y suena (si estaba detenido, parte). **← Letra** (arriba) vuelve a la letra en lo que suena.
   - Sin cambios en Supabase. Lugares: Entrenador del celular (`?movil=1`).
+- **Hecho (2026-10-31, commit 0408436):** botón 🧩 en la barra del celular (oculto con su espacio si no hay secciones;
+  naranjo con la pantalla abierta); pantalla sobre la letra, hasta el reproductor de abajo; filas grandes (○/●, nombre,
+  tiempo, verso en itálica); la que suena en naranjo y a la vista; tocar = ir ahí y sonar; ← Letra cierra y la letra va
+  a lo que suena. Elegir un extracto o abrir otra canción la cierra.
+  Prueba (vista de celular, Sin Sentimiento): 20 secciones; tocar "Estrofa 2" → audio en 0:38 sonando y Estrofa 2 en
+  naranjo; ← Letra → la letra (54 versos); el reproductor de abajo visible con la pantalla abierta.
