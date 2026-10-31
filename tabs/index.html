@@ -20,6 +20,7 @@
         })();
     </script>
     <script src="../comun/nombre-asset.js?v=ep3"></script>
+    <script src="../comun/tempo-mapa.js?v=ev5"></script>
     <style>
         * { box-sizing: border-box; }
         body { font-family: 'Segoe UI', sans-serif; background: #222; color: white;
@@ -1024,6 +1025,7 @@
         <div class="sync-tabs">
             <button class="sync-tab-btn active" onclick="cambiarSyncTab('grid',this)">Grilla (BPM fijo)</button>
             <button class="sync-tab-btn" onclick="cambiarSyncTab('tempomap',this)">Tempo Map (Reaper)</button>
+            <button class="sync-tab-btn" onclick="cambiarSyncTab('cancion',this)">⏱ Mapa de la canción</button>
         </div>
 
         <!-- Panel grilla -->
@@ -1072,6 +1074,18 @@
                     <textarea id="sync-tempomap-text" placeholder="PT 0 120 0&#10;PT 480 90 0&#10;PT 1440 140 0" style="margin-top:6px"></textarea>
                     <small style="color:#666;font-size:.78rem">Abrí el .rpp en un editor de texto, copiá el bloque TEMPOENVEX</small>
                 </details>
+            </div>
+        </div>
+
+        <!-- Panel mapa de la canción (deuda EV) -->
+        <div class="sync-panel" id="sync-panel-cancion">
+            <div class="sync-field">
+                <label>La partitura empieza en el compás de la canción</label>
+                <input type="number" id="sync-desde" min="-8" value="1" step="1" style="width:120px">
+                <small style="color:#666;font-size:.78rem">El compás 1 completo de la partitura (si empieza con anacrusa, el compás que le sigue). Si la tab cubre toda la canción, 1.</small>
+            </div>
+            <div class="sync-field">
+                <small id="sync-cancion-info" style="color:#888;font-size:.82rem"></small>
             </div>
         </div>
 
@@ -2514,6 +2528,7 @@ function parseXML(doc, fromToggle = false) {
 
     notes = out;
     syncAnchorTime = notes.length ? notes[0].time : (measureData[0]?.tStart ?? 0);
+    ajustarSyncCancion();
     buildChordEvents();
     actualizarBadgeAcordes();
     chordOverlayCurLabel = null; chordOverlaySigLabel = null;
@@ -4048,6 +4063,7 @@ function actualizarLimitesBarraAudio() {
 function tieneSyncReal(d) {
     if (d?.mode === 'grid')     return d.bpm > 0;
     if (d?.mode === 'tempomap') return Array.isArray(d.map) && d.map.length > 0;
+    if (d?.mode === 'cancion')  return !!tabSyncBuilt?.length;   // listo cuando cargó el mapa de la canción
     return false;
 }
 
@@ -4058,6 +4074,8 @@ function actualizarSyncStatus() {
     if (tieneSyncReal(tabSyncData)) {
         const modo = tabSyncData.mode === 'grid'
             ? `Grilla ${tabSyncData.bpm} BPM`
+            : tabSyncData.mode === 'cancion'
+            ? `⏱ Canción desde el compás ${tabSyncData.desde ?? 1}`
             : `Tempo map (${tabSyncData.map?.length || 0} pts)`;
         lbl.textContent = '✓ ' + modo;
         btn.classList.add('sincronizado');
@@ -4153,7 +4171,10 @@ function abrirConfigSync() {
             syncOffsetGrid = tabSyncData.offset_ms || 0;
             document.getElementById('sync-offset-display').textContent = (syncOffsetGrid / 1000).toFixed(3) + ' s';
             cambiarSyncTab('grid', document.querySelector('.sync-tab-btn'));
-        } else {
+        } else if (tabSyncData.mode === 'cancion') {
+            document.getElementById('sync-desde').value = tabSyncData.desde ?? 1;
+            cambiarSyncTab('cancion', document.querySelectorAll('.sync-tab-btn')[2]);
+        } else if (tabSyncData.mode === 'tempomap') {
             syncOffsetTm = tabSyncData.offset_ms || 0;
             document.getElementById('sync-offset-display-tm').textContent = (syncOffsetTm / 1000).toFixed(3) + ' s';
             document.getElementById('sync-start-qn').value = tabSyncData.start_qn || 0;
@@ -4161,13 +4182,15 @@ function abrirConfigSync() {
             document.getElementById('sync-tempomap-text').value = pts;
             cambiarSyncTab('tempomap', document.querySelectorAll('.sync-tab-btn')[1]);
         }
-    } else {
+    }
+    if (!tieneSyncReal(tabSyncData)) {
         document.getElementById('sync-bpm').value = bpm || 120;
         syncOffsetGrid = 0;
         syncOffsetTm   = 0;
         document.getElementById('sync-offset-display').textContent = '0.000 s';
         document.getElementById('sync-offset-display-tm').textContent = '0.000 s';
     }
+    infoSyncCancion();
     document.getElementById('modal-sync').classList.add('open');
 }
 
@@ -4215,6 +4238,12 @@ async function guardarConfigSync() {
         const bpmVal = parseFloat(document.getElementById('sync-bpm').value);
         if (!bpmVal || bpmVal <= 0) { alert('BPM inválido'); return; }
         syncData = { mode: 'grid', bpm: bpmVal, offset_ms: Math.round(syncOffsetGrid) };
+    } else if (syncCurrentTab === 'cancion') {
+        const m = await mapaDeCancion();
+        if (!m) { alert('La canción aún no tiene Mapa de tempo: hazlo desde su ficha en la Biblioteca (⏱).'); return; }
+        const desde = Math.round(parseFloat(document.getElementById('sync-desde').value));
+        if (!isFinite(desde)) { alert('Compás inválido'); return; }
+        syncData = { mode: 'cancion', desde, ...(tabSyncData?.secciones ? { secciones: tabSyncData.secciones } : {}) };
     } else {
         const txt = document.getElementById('sync-tempomap-text').value.trim();
         if (!txt) { alert('Pegá el tempo map de Reaper'); return; }
@@ -4237,8 +4266,62 @@ async function guardarConfigSync() {
     tabSyncBuilt = syncData.mode === 'tempomap'
         ? buildTempoMapMs(syncData.map, syncData.offset_ms)
         : null;
+    if (syncData.mode === 'cancion') await prepararSyncCancion();
     actualizarSyncStatus();
     cerrarConfigSync();
+}
+
+// ─── SYNC CON EL MAPA DE TEMPO DE LA CANCIÓN (deuda EV) ─────────────────────
+// tab_sync = { mode: 'cancion', desde: N }: la partitura empieza en el compás N de la canción y sigue su Mapa de
+// tempo (comun/tempo-mapa.js, archivo público tempo/<cancion_id>.json). Se arma el mismo mapa por tramos que el
+// modo tempomap ([{ qn, bpm, startMs }], un tramo por pulso; QN 0 = compás 1 de la canción) y start_qn = el QN donde
+// suena notes[0]; el resto del motor no cambia.
+let mapaCancion = null, mapaCancionId = null;   // TempoMapa de la canción de la tab abierta
+async function mapaDeCancion() {
+    const cid = currentTabCancionId;
+    if (!cid) return null;
+    if (mapaCancionId === cid && mapaCancion) return mapaCancion;
+    const m = await TempoMapa.cargar(`${SB_URL}/storage/v1/object/public/repertorio-assets/`, cid);
+    if (cid === currentTabCancionId) { mapaCancion = m; mapaCancionId = cid; }
+    return m;
+}
+async function prepararSyncCancion() {
+    if (tabSyncData?.mode !== 'cancion') return;
+    mapaCancionId = null;                       // siempre la versión guardada más reciente
+    const m = await mapaDeCancion();
+    if (tabSyncData?.mode !== 'cancion') return;
+    tabSyncBuilt = m ? construirSyncCancion(m) : null;
+    ajustarSyncCancion();
+    actualizarSyncStatus();
+}
+function construirSyncCancion(m) {
+    const P = m.pulsos, q = 4 / (m.cifras[0].d || 4), out = [];   // negras por pulso (la cifra base del mapa)
+    for (let i = 0; i < P.length; i++) {
+        const k = Math.min(i, P.length - 2);
+        out.push({ qn: (i - m.compas1) * q, bpm: 60 * q / (P[k + 1] - P[k]), startMs: P[i] * 1000 });
+    }
+    return out;
+}
+// start_qn = QN de la canción donde suena notes[0]. Se recalcula al volver a leer la partitura (cambia notes[0]).
+function ajustarSyncCancion() {
+    if (tabSyncData?.mode !== 'cancion' || !mapaCancion || !tabSyncBuilt || !measureData.length) return;
+    const q = 4 / (mapaCancion.cifras[0].d || 4);
+    // Compás 1 de la partitura: el primero completo (si el primero es una anacrusa, el siguiente)
+    const durCompas = beatsPerBar * (4 / beatType) * 60 / bpm;
+    const m0 = measureData[0];
+    const c1 = (m0.tEnd - m0.tStart) < durCompas * 0.95 && measureData[1] ? measureData[1] : m0;
+    tabSyncData.start_qn = mapaCancion.pulsoDeCompas(tabSyncData.desde ?? 1) * q + (syncAnchorTime - c1.tStart) * bpm / 60;
+}
+async function infoSyncCancion() {
+    const el = document.getElementById('sync-cancion-info');
+    el.textContent = 'Buscando el Mapa de tempo de la canción…';
+    const m = await mapaDeCancion();
+    if (!m) { el.textContent = 'La canción aún no tiene Mapa de tempo: hazlo desde su ficha en la Biblioteca (⏱).'; return; }
+    const ult = m.compasDePulso(m.pulsos.length - 1 - m.compas1).compas;
+    el.textContent = `Mapa de la canción: ${ult} compases · ${m.cifraTexto(1)} · ♩ ${m.bpm}`
+        + (m.secciones.length ? ` · ${m.secciones.map(x => `${x.nombre} (${x.compas})`).join(', ')}` : '')
+        + '. La tablatura sigue la grabación aunque cambie de velocidad.';
+    if (!tieneSyncReal(tabSyncData) && syncCurrentTab !== 'cancion') cambiarSyncTab('cancion', document.querySelectorAll('.sync-tab-btn')[2]);
 }
 
 // ─── REPERTORIO ───────────────────────────────────────────────────────────
@@ -4488,6 +4571,7 @@ async function cargarDesdeStorage(storagePath, nombreArchivo, meta = {}) {
             xml = await resp.text();
         }
         parseXML(new DOMParser().parseFromString(xml, 'text/xml'));
+        if (tabSyncData?.mode === 'cancion') prepararSyncCancion();
         if (currentTabAssetId) guardarSecciones(currentTabAssetId);
         seccionActiva = null;
         tabAudioEl.volume = 1;   // sin sección → volumen normal (no heredar fades)

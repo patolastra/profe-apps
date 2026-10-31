@@ -7683,7 +7683,7 @@ cosas: una app que me permita hacer tempomaps de las canciones").*
     temblor de 2 px → no se movió; chip "Estrofa" → vista y cursor en 0:10,2; sonando desde 0:20, clic al 80 % de la
     canción → vista en 3:08 y ⌖ visible; ⌖ → vista en 0:20 siguiendo lo que suena y el botón se oculta.
 
-### EV. ⏱ El Mapa de tempo como ficha oficial de la canción (tonalidad, cifra, tempo, secciones) — HECHA (pasos 1, 2, 3a Cajón y 3b Metrónomo)
+### EV. ⏱ El Mapa de tempo como ficha oficial de la canción (tonalidad, cifra, tempo, secciones) — HECHA (pasos 1, 2 y 3: Cajón, Metrónomo y Lector)
 *Origen: PO 2026-10-30 ("el tempomapper debería ser la declaración de los estándares de las canciones: el tempomap,
 las secciones, la tonalidad, cifra de compás, y eso debería poder leerse desde las otras instancias; desde aquí se
 entrega lo oficial").*
@@ -7780,3 +7780,26 @@ entrega lo oficial").*
   `tabs/index.html`) y el laboratorio `LOOP-LAB/loop-lab.html` se guardaron tal cual en el commit **1c318e7**; enseguida
   se revirtió solo `tabs/index.html` (commit siguiente), así el Lector en línea sigue como estaba y el Loop queda en
   pausa, recuperable desde 1c318e7. `LOOP-LAB/` (congelado) queda en el repositorio, sin enlaces.
+- **Paso 3c — 🎼 Lector sincronizado con el Mapa de la canción (aprobado PO 2026-10-30, "Sí, apruebo").**
+  - Auditoría: cada tablatura guarda su propia sincronización en `repertorio_assets.tab_sync`: `grid` (bpm + offset)
+    o `tempomap` (mapa de Reaper `[{ qn, bpm }]` + `start_qn` = QN donde suena `notes[0]`); el motor convierte
+    segundo ↔ QN con un mapa por tramos `[{ qn, bpm, startMs }]` (`tabSyncBuilt`). Las secciones salen de las marcas
+    de ensayo de la partitura y las asignaciones a estudiantes van por su nombre (`alumno_tab_secciones`).
+  - Plan: tercer modo **⏱ Mapa de la canción** (`tab_sync = { mode: 'cancion', desde: N }`, "la partitura empieza en
+    el compás N de la canción"): se arma el mismo mapa por tramos desde el Mapa de tempo de la canción (un tramo por
+    pulso; QN 0 = compás 1 de la canción) y `start_qn` = QN donde suena la primera nota (si el primer compás de la
+    partitura es una anacrusa, el compás N es el primero completo). El motor no cambia. Las tablaturas con Reaper o
+    grilla siguen igual; las secciones de la partitura no se tocan. Sirve también para el link de estudiantes
+    (lee el archivo público del mapa).
+  - **Hecho (2026-10-30):** `tabs/index.html` carga `comun/tempo-mapa.js`; en 🎵 Sincronización, tercera pestaña
+    **⏱ Mapa de la canción** ("La partitura empieza en el compás N de la canción" + resumen del mapa: compases, cifra,
+    ♩ y secciones; si la canción no tiene mapa, lo dice y no deja guardar). Si la tab no tiene sincronización, la
+    ventana abre en esa pestaña cuando la canción tiene mapa. `tieneSyncReal` acepta `cancion` cuando el mapa cargó;
+    estado "✓ ⏱ Canción desde el compás N". `construirSyncCancion` (un tramo por pulso) y `ajustarSyncCancion`
+    (start_qn; anacrusa → el primer compás completo; se recalcula al volver a leer la partitura). Guardar conserva las
+    secciones de `tab_sync`. Abrir la ventana sin sincronización real ya no precarga el panel de Reaper con datos vacíos.
+  - Prueba (navegador, Hakuna Matata con mapa de Reaper, sin guardar): con un mapa de la canción armado desde el mismo
+    Reaper (como 📥 Importar del Mapa de tempo), audio → partitura en 0/10/30/60/90 s y partitura → audio en 5/20/40 s
+    dan **exactamente** lo mismo que el modo Reaper; "desde el compás 3" → start_qn 8 y estado "✓ ⏱ Canción desde el
+    compás 3"; ventana con la pestaña nueva y el aviso "aún no tiene Mapa de tempo"; vuelta al modo Reaper intacta.
+  - Falta: probarlo con una tablatura real de una canción con mapa (hoy solo COQUETA tiene mapa y no tiene tablaturas).
