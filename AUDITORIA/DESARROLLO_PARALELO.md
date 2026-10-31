@@ -8057,3 +8057,8 @@ no tienen letra: intro, mambo, coda…").*
   en blanco (2 em); la de la sección que suena va en naranjo, como el verso activo (se revisa cada 250 ms, también con
   el panel cerrado). Prueba (Sin Sentimiento): clic en ♪ ENTRA BANDA → audio en 0:12,1 y esa etiqueta en naranjo;
   INTRO · ENTRA BANDA · ESTROFA 1 con una línea en blanco entre cada una.
+- **Ajuste 3 (PO 2026-10-31, "si hay una sección pero no un verso, Volver al verso no funciona; y el botón debería
+  tener otro texto, más genérico"):** el botón dice **⌖ Volver a lo que suena** y lleva al verso activo o, si después de
+  él empezó una sección sin verso (Intro, Mambo…), a su etiqueta (`entElemSonando`); sin nada activo, al comienzo.
+  Siguiendo lo que suena, al empezar una sección sin verso la letra va sola a su etiqueta. Prueba (Sin Sentimiento,
+  sonando en 3:19, dentro de Mambo 1): lo que suena = "♪ Mambo 1".

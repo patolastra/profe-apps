@@ -3226,7 +3226,7 @@
         <div id="ent-left">
             <div id="ent-prueba-bar" hidden></div>
             <div id="ent-zona"></div>
-            <button id="ent-volver-verso" onclick="entVolverAlVerso()" title="La letra vuelve a seguir lo que suena">⌖ Volver al verso</button>
+            <button id="ent-volver-verso" onclick="entVolverAlVerso()" title="La letra vuelve a seguir lo que suena">⌖ Volver a lo que suena</button>
             <!-- Reproductor en una sola franja (deuda DC): ⏮ comienzo · ▶ · ⏭ estrofa siguiente · tiempo · avance · duración · volumen -->
             <div id="ent-controles">
                 <div id="ent-playcontrols">
@@ -7270,13 +7270,20 @@ function entToggleEstrPanel() {
     requestAnimationFrame(entReflowLetra);
 }
 // La sección que va sonando, marcada en el panel
-let entEstrSonando = -2;
+let entEstrSonando = -2, entEstrTagK = -2;
 function entMarcarEstrSonando() {
     if (!entEstrLista.length) return;
     const t = entAudio().currentTime || 0;
     let k = -1; entEstrLista.forEach((x, i) => { if (x.seg <= t + 0.05) k = i; });
     // Las etiquetas de la letra (se vuelven a dibujar con la letra: se revisan siempre)
     document.querySelectorAll('#ent-zona .ent-sec-tag span[data-sec]').forEach(el => el.classList.toggle('activa', +el.dataset.sec === k));
+    // Siguiendo lo que suena: al empezar una sección sin verso (Intro, Mambo…), la letra va a su etiqueta
+    if (k !== entEstrTagK) {
+        entEstrTagK = k;
+        const el = entElemSonando();
+        if (el?.closest('.ent-sec-tag') && !entNavLibre && entSonando() && entViewMode !== 'pantalla' && !ESPEJO && !entSyncMode && !entModoEdicion)
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
     const panel = document.getElementById('ent-estr-panel');
     if (!panel || panel.style.display === 'none' || k === entEstrSonando) return;
     entEstrSonando = k;
@@ -7762,10 +7769,18 @@ function entSoltarNav() {
     entNavLibre = true;
     document.getElementById('ent-volver-verso')?.classList.add('visible');
 }
+// Lo que suena: el verso activo o, si después de él empezó una sección sin verso (Intro, Mambo…), su etiqueta
+function entElemSonando() {
+    const v = document.querySelector('#ent-zona .ent-lyric-line.activa'), tag = document.querySelector('#ent-zona .ent-sec-tag span.activa');
+    const tv = v ? (entrenadorLines[+v.dataset.orig]?.time ?? -1) / 1000 : -1, ts = tag ? entEstrLista[+tag.dataset.sec]?.seg ?? -1 : -1;
+    return tag && (!v || ts > tv + 0.05) ? tag : v;
+}
 function entVolverAlVerso() {
     entNavLibre = false;
     document.getElementById('ent-volver-verso')?.classList.remove('visible');
-    document.querySelector('#ent-zona .ent-lyric-line.activa')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const el = entElemSonando();
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    else document.getElementById('ent-zona')?.scrollTo({ top: 0, behavior: 'smooth' });
 }
 (() => {
     const z = document.getElementById('ent-zona'); if (!z) return;
