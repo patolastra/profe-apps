@@ -8100,6 +8100,19 @@ otros audios también: para extractos o versiones, no se muestra la letra").*
   Hecho: `#ent-btn-audios` en el PC dice "🎧 Audios" (o el extracto puesto) con el estilo de los otros botones; la lista
   se abre al centro. Prueba (Sin Sentimiento, PC): 🎧 Audios → Melodía y ✂️ Coro: segunda voz; elegirlo → tarjeta con
   su audio y sin reproductor de abajo; Volver → la letra. Lugares: celular y PC (la Pizarra no lo muestra).
+- **Ajuste 2 (PO 2026-10-31, "el toggle Melodía/Karaoke es bueno, no toques eso: agrega otro botón para otros audios,
+  con un menú dropdown como el de Recursos"):** el botón Melodía ↔ Karaoke vuelve tal cual también al celular (con un
+  extracto puesto, tocarlo vuelve a la canción). En vez de la hoja y de 🎧 Audios, un desplegable **🎧 Otros audios ▾**
+  con el mismo componente de Recursos (`.ent-res-dd`), solo con extractos, versiones y otros audios (y "← Volver a la
+  letra" si hay uno puesto); se ve solo si la canción los tiene (su lugar queda reservado). En el celular el menú se
+  centra bajo el botón.
+  Prueba (PC y vista de celular): Sin Sentimiento → Otros audios con "✂️ Coro: segunda voz", al elegirlo la tarjeta y
+  el botón en naranjo; Milagro de Amor → el desplegable oculto y el toggle Melodía/Karaoke a la vista (también en el
+  celular); en el celular el menú queda dentro de la pantalla (48–315 de 375 px).
+- **Corrección (PO 2026-10-31, "agregué un extracto y quedó ligado a Taller de Cuerdas sin yo haber hecho nada"):** el
+  formulario "+ Audio → Extracto/Versión" de la Biblioteca dejaba elegido el último curso usado (se guardaba en el
+  equipo). Ahora parte en "Curso…" y hay que elegirlo; se dejó de recordar. Nota: un extracto siempre pertenece a un
+  curso (vive en 📁 Archivos del curso; `curso_archivos.contexto_id` es obligatorio en Supabase).
 
 ### FB. 🧩 Pantalla de estructura en el Entrenador del celular — HECHA
 *Origen: PO 2026-10-31 ("en pwa móvil necesito una pantalla para ver la estructura, no como un menú, sino como una
