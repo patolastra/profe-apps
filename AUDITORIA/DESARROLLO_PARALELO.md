@@ -7960,3 +7960,9 @@ por proximidad de tiempo").*
     visibles en Scroll y en Diapositiva. La copia en la Pizarra y el Entrenador mínimo usan el mismo dibujo (no
     probados aparte).
   - **Falta:** que el PO lo vea en la Ficha y en el Entrenador con una canción real.
+- **Ajuste (PO 2026-10-31, "hay versos que no alcanzan a quedar ligados; que se muestren los cercanos, 20 s antes y 20 s
+  después, y los ocupados inhabilitados"; "eso en itálica"):** el menú 🔗 Letra ofrece las estrofas que empiezan hasta
+  20 s antes o después del comienzo de la sección (antes: desde 3 s antes hasta la sección siguiente); las ligadas a otra
+  sección se ven inhabilitadas con su nombre ("(Mambo)"). El primer verso de cada estrofa bajo la onda va en itálica.
+  Prueba (COQUETA, sin guardar): Mambo ofrece 1:23 y 1:44; ligado Mambo a 1:23, "Dame" muestra 1:11 (por cercanía) y
+  1:23 inhabilitada "(Mambo)"; deshecho.

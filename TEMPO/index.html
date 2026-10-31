@@ -552,7 +552,7 @@ function dibujarEstructura(g, W, H, top, bot, alto, medio) {
     }
     const U = uniones(), deEstrofa = new Map();
     U.forEach((u, i) => { if (u.estrofa !== null) deEstrofa.set(u.estrofa, i); });
-    g.font = '12px system-ui';
+    g.font = 'italic 12px system-ui';
     const yE = H - bot - 6;
     estrofas.forEach((e, k) => {
         if (e.seg === null) return;
@@ -922,11 +922,11 @@ $('secciones').onclick = e => {
     if (grab?.sonando) tocar(t);
     pintarControles(); sucio = true;
 };
-// 🔗 Letra de la sección elegida (EX): — sin letra · las estrofas que empiezan cerca (desde 3 s antes hasta la sección
-// siguiente) · la automática dice "(por cercanía)"
+// 🔗 Letra de la sección elegida (EX): — sin letra · las estrofas que empiezan hasta 20 s antes o después de la sección
+// (las ligadas a otra sección se ven, inhabilitadas, con su nombre) · la automática dice "(por cercanía)"
 function cercanasA(i) {
-    const x = S.secciones[i], sig = S.secciones[i + 1]?.t ?? Infinity, ya = uniones()[i]?.estrofa;
-    return estrofas.map((e, k) => ({ ...e, k })).filter(e => e.seg !== null && ((e.seg >= x.t - 3 && e.seg < sig) || e.k === ya)).slice(0, 12);
+    const x = S.secciones[i], ya = uniones()[i]?.estrofa;
+    return estrofas.map((e, k) => ({ ...e, k })).filter(e => e.seg !== null && (Math.abs(e.seg - x.t) <= 20 || e.k === ya));
 }
 function autoDe(i) {   // la estrofa que le tocaría por cercanía, sin lo hecho a mano
     const copia = S.secciones.map((x, j) => j === i ? { t: x.t, nombre: x.nombre } : x);
@@ -938,8 +938,9 @@ function pintarLetra(hs, U) {
     if (!estrofas.some(e => e.seg !== null)) { el.innerHTML = '<option>La canción no tiene letra sincronizada</option>'; el.disabled = true; return; }
     if (!hs) { el.innerHTML = '<option>—</option>'; el.disabled = true; return; }
     const u = U[selSec], auto = autoDe(selSec);
+    const de = new Map(); U.forEach((v, j) => { if (v.estrofa !== null && j !== selSec) de.set(v.estrofa, S.secciones[j].nombre); });
     el.innerHTML = `<option value="no"${u.estrofa === null ? ' selected' : ''}>— sin letra</option>` + cercanasA(selSec).map(e =>
-        `<option value="${e.k}"${u.estrofa === e.k ? ' selected' : ''}>${reloj(e.seg)} · ${esc(e.texto)}${e.k === auto ? ' (por cercanía)' : ''}</option>`).join('');
+        `<option value="${e.k}"${u.estrofa === e.k ? ' selected' : ''}${de.has(e.k) ? ' disabled' : ''}>${reloj(e.seg)} · ${esc(e.texto)}${de.has(e.k) ? ` (${esc(de.get(e.k))})` : e.k === auto ? ' (por cercanía)' : ''}</option>`).join('');
     el.disabled = false;
 }
 $('es-letra').onchange = e => {
