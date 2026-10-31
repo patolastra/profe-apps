@@ -7840,3 +7840,66 @@ entrega lo oficial").*
     deshabilitado. "+ Audio" → Versión abre el formulario en Versión con archivo y enlace. Arreglo y Melodía nuevos de
     COQUETA parten en Mi mayor · 4/4 · 79. Sin extractos, no se ve nada. **Falta:** que el PO pruebe el guardado real
     en la Biblioteca.
+
+### EW. 🧩 Estructura de la canción sin mapa de tempo (secciones por segundo) — HECHA
+*Origen: PO 2026-10-31 ("a veces voy a querer estructurar las partes de una canción y no tener necesariamente un
+tempomap; en la misma interfaz necesito una opción para marcar tempomap o estructura; si marco estructura no estoy
+marcando compases, estoy marcando comienzos de secciones").*
+- **Necesidad:** poner Intro, Estrofa, Coro… a una canción rápido, escuchándola, sin tener que marcar antes el 1 de
+  cada compás. Lo que va por tiempo (saltar a una parte, loops por sección, Cantar) no necesita compases.
+- **Auditoría:**
+  - Hoy la sección se guarda "desde el compás N" (`secciones: [{ compas, nombre }]` en el recurso `tempo` y en
+    `tempo/<cancion_id>.json`); sin pulsos no se puede poner ninguna ("🏷 Sección desde aquí" pide un compás elegido).
+  - Adentro, la app `TEMPO/` ya guarda cada sección por su **segundo** (`S.secciones: [{ t, nombre }]`) y la pasa a
+    compás solo al guardar: el cambio es chico.
+  - Quién las lee hoy: solo el **Arreglo de piano** (📋 Traer de la Ficha, por compás) con `TempoMapa.secciones` /
+    `seccionEn(c)`. El Piano y el Lector no las leen (el Lector tiene las suyas, de la partitura).
+  - Una Ficha ya puede existir sin pulsos (EV, `cargarFicha`).
+- **Plan aprobado (PO 2026-10-31, "Sí, apruebo"):**
+  1. **Selector arriba en la app de la Ficha: ⏱ Tempo / 🧩 Estructura** (se recuerda en el equipo; si la canción no
+     tiene pulsos, abre en Estructura).
+     - **Tempo:** como hoy.
+     - **Estructura:** sin metrónomo ni compases a la vista (la onda limpia). Suena la canción; **Espacio** pone el
+       comienzo de una sección donde va sonando (nombre "Sección N" provisional, se cambia en la lista o con
+       Intro/Estrofa/Coro…); **K** toca / detiene, J / L y la velocidad como en Tempo. Sobre la onda: arrastrar el
+       comienzo para corregirlo, doble clic = nueva, Supr = quitar; chips con el nombre (clic = ir ahí).
+       Mismos colores que hoy.
+  2. **Cómo se guarda:** cada sección lleva siempre su **segundo** (`seg`) y, si hay pulsos, también su `compas`.
+     - Sin pulsos: manda el segundo.
+     - Con pulsos: manda el compás (como hoy) y el segundo se calcula.
+     - Al marcar el tempo **después**, cada sección se pega sola al 1 del compás más cercano (se ve en la lista; se
+       puede mover). Las fichas antiguas (solo `compas`) siguen igual.
+  3. **`TempoMapa`:** cada sección trae `seg` además de `compas` (este puede faltar sin pulsos) y suma
+     `seccionEnSeg(s)`. `seccionEn(c)` no cambia.
+  4. **Arreglo:** "📋 Traer de la Ficha" solo con secciones con compás; si la Ficha tiene estructura pero no tempo,
+     dice "falta marcar el tempo de la Ficha".
+  - Sin cambios en Supabase (mismo recurso `tempo` y su archivo).
+  - Lugares (regla 11): app `TEMPO/` (las dos vistas), `comun/tempo-mapa.js` (lo leen Arreglo, Piano, Melodía,
+    Cajón, Metrónomo y Lector: solo el Arreglo usa secciones), Editor de Arreglos (② Secciones), Biblioteca (la línea
+    📋 Ficha: el botón ⏱ Tempo abre la app; sin audio sigue deshabilitado).
+  - Después (cada uno aparte, con su ficha): Entrenador (saltar a una sección, loop por sección) y Cantar.
+  - Prueba: COQUETA (tiene pulsos) y una canción con audio y sin pulsos: marcar 4 secciones sonando, moverlas,
+    guardar, volver a abrir; marcar después unos compases y ver que se pegan; Arreglo con y sin tempo.
+- **Hecho (2026-10-31):**
+  - `comun/tempo-mapa.js`: cada sección `{ compas, seg, nombre }` (`compas` null sin tempo en ese punto; con pulsos el
+    `seg` se calcula del compás); `m.seccionEnSeg(s)`; `seccionEn(c)` solo mira las que tienen compás. Fichas antiguas
+    (solo `compas`) se leen igual y al guardarse llevan también `seg`.
+  - App de la Ficha (`TEMPO/`): selector ⏱ Tempo / 🧩 Estructura en la barra (abre en Estructura si no hay compases; si
+    no, el último usado en el equipo). Estructura: sin ⏺ Marcar ni barra del clic (espacio reservado), sin la fila de
+    compases ni Cifras/Emparejar/Ajustar/Importar/Borrar todos, sin clic de metrónomo, onda limpia con una línea por
+    comienzo de parte (la elegida en celeste); Espacio = nueva parte donde suena (detenida, toca), "Sección N" de nombre
+    provisional; fila con la sección elegida, su nombre (Enter; vacío = quitar) y 🗑 Quitar sección; arrastrar, doble
+    clic, Supr, ← →; chips con el segundo (o el compás si cae en lo marcado). La posición de arriba dice en qué parte va.
+    En las dos vistas, una sección dentro de lo marcado (± medio compás) se pega al 1 del compás más cercano; fuera, va
+    por su segundo. Se puede guardar sin compases (solo estructura, tonalidad o cifra); un solo compás no.
+  - Editor de Arreglos: "📋 Traer de la Ficha" usa solo las secciones con compás; si la Ficha tiene secciones pero no
+    tempo, dice "La Ficha tiene secciones, pero falta marcar su tempo" (espacio reservado).
+  - Prueba (navegador, sin escribir en la base): OLIMPO (sin Ficha) abre en Estructura; Espacio detenida toca, 3
+    Espacios sonando + doble clic → 4 partes (11,2 · 12,4 · 13,7 · 40 s), renombrar a Intro; datos `{ seg, nombre }`;
+    recargar → se recupera el borrador; a Tempo con 11 compases (10–30 s) → las de dentro se pegan (12 s = compás 2,
+    14 s = compás 3) y la de 40 s sigue por segundo; ida y vuelta guardar/leer igual; `seccionEnSeg(41)` y
+    `seccionEn(3)` correctos. COQUETA abre "Guardado" (sin cambios), en Estructura muestra sus 8 secciones. Arreglo de
+    COQUETA: 8 secciones (Estrofa 12 compases, Coro 8…); con una Ficha simulada sin tempo, aviso visible y botón apagado.
+    Visto en la prueba: dos partes a menos de un compás una de otra, al marcar el tempo, caen en el mismo compás y queda
+    solo la segunda (en una canción real las partes están a varios compases).
+  - **Falta:** que el PO marque la estructura de una canción real y la guarde.

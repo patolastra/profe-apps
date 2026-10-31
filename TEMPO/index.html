@@ -83,6 +83,13 @@
     .seccion { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; font-size: 13px; color: #0f172a; font-weight: 600; cursor: pointer; }
     .seccion button { border: 0; background: rgba(0,0,0,.2); color: #0f172a; width: 20px; height: 20px; border-radius: 10px; cursor: pointer; font-size: 11px; }
     .ayuda { color: var(--tenue); font-size: 12px; line-height: 1.5; }
+    /* ⏱ Tempo / 🧩 Estructura (EW): en Estructura no hay compases ni metrónomo */
+    body.estr .solo-tempo { visibility: hidden !important; }
+    body.estr .fila-tempo { display: none !important; }
+    body:not(.estr) .fila-estr { display: none !important; }
+    #seg-modo .btn { width: 118px; }
+    #es-info { width: 200px; color: var(--tenue); font-size: 13px; }
+    #es-nombre { width: 190px; height: 32px; background: #0f172a; border: 1px solid #475569; border-radius: 7px; padding: 0 8px; }
     kbd { background: #334155; border-radius: 4px; padding: 0 5px; font-size: 11px; }
 
     #marcando { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); background: #7c2d12; border: 1px solid #fb923c; border-radius: 10px;
@@ -105,6 +112,8 @@
 <body>
 <div id="barra">
     <div id="cancion">📋 Ficha de la canción</div>
+    <div class="seg" id="seg-modo" title="⏱ Tempo: el 1 de cada compás · 🧩 Estructura: dónde empieza cada parte, sin compases">
+        <button class="btn" data-m="tempo">⏱ Tempo</button><button class="btn" data-m="estr">🧩 Estructura</button></div>
     <div class="seg" id="seg-grab" title="Grabación que suena (Melodía y Karaoke van juntas: el mapa sirve para las dos)">
         <button class="btn" data-v="melodia">🎤 Melodía</button><button class="btn" data-v="karaoke">🎶 Karaoke</button></div>
     <span id="ton" title="Tonalidad oficial de la canción (la leen las otras apps)">Tonalidad
@@ -116,12 +125,12 @@
 <div id="cuerpo">
     <div class="caja fila">
         <button class="btn grande" id="b-tocar">▶ Tocar</button>
-        <button class="btn grande" id="b-marcar" title="Suena desde el cursor y cada Espacio marca el 1 de un compás (la app reparte sus pulsos). J vuelve 5 s y sigues marcando desde ahí. Esc o Enter para terminar">⏺ Marcar</button>
+        <button class="btn grande solo-tempo" id="b-marcar" title="Suena desde el cursor y cada Espacio marca el 1 de un compás (la app reparte sus pulsos). J vuelve 5 s y sigues marcando desde ahí. Esc o Enter para terminar">⏺ Marcar</button>
         <button class="btn" id="b-atras" title="Volver 5 s (J). Marcando: borra lo marcado desde ahí y sigues">⏪ 5 s</button>
         <button class="btn" id="b-adelante" title="Adelantar 5 s (L)">5 s ⏩</button>
         <span id="vel" title="Velocidad: { baja 5 % · } sube 5 % · + normal">1x</span>
         <span class="mezcla" title="Volumen de la grabación"><span>🎵</span><input type="range" id="vol-musica" min="0" max="100"></span>
-        <span class="mezcla" title="Volumen del clic"><span>🔔</span><input type="range" id="vol-clic" min="0" max="100"></span>
+        <span class="mezcla solo-tempo" title="Volumen del clic"><span>🔔</span><input type="range" id="vol-clic" min="0" max="100"></span>
         <span id="pos"></span>
         <button class="btn oculto" id="b-volver" title="La vista vuelve a seguir lo que suena (o al cursor)">⌖ Volver al cursor</button>
         <div class="sep"></div>
@@ -131,7 +140,7 @@
         <canvas id="c-todo" title="La canción entera y su tempo: clic para ir ahí"></canvas>
         <canvas id="c-zoom"></canvas>
     </div>
-    <div class="caja fila">
+    <div class="caja fila fila-tempo">
         <button class="btn" id="b-fijar" title="Fija los compases (solo lectura): se eligen sin moverse, para poner secciones o cifras">🔓 Compases editables</button>
         <span id="sel-info">Ningún compás elegido</span>
         <button class="btn" id="b-c1" title="El compás elegido pasa a ser el compás 1">Aquí empieza el compás 1</button>
@@ -141,17 +150,28 @@
         <select id="sel-cifra"></select>
         <button class="btn" id="b-borrar" title="Borrar el compás elegido: se junta con el anterior (Supr)">🗑 Borrar compás</button>
     </div>
+    <div class="caja fila fila-estr">
+        <span id="es-info">Ninguna sección elegida</span>
+        <input id="es-nombre" list="sec-lista" placeholder="Nombre de la sección" title="Nombre de la sección elegida (Enter). Vacío: la quita" disabled>
+        <button class="btn" id="b-es-quitar" title="Quitar la sección elegida (Supr)" disabled>🗑 Quitar sección</button>
+    </div>
     <div class="caja fila">
         <span class="rot">Secciones:</span><span id="secciones"></span>
-        <span class="rot">Cifras:</span><span id="cifras"></span>
+        <span class="rot fila-tempo">Cifras:</span><span id="cifras" class="fila-tempo"></span>
         <div class="sep"></div>
-        <button class="btn" id="b-emparejar" title="Corrige pequeñas diferencias de los toques, respetando cuando la canción acelera o frena">✨ Emparejar</button>
-        <button class="btn" id="b-golpes" title="Mueve el 1 de cada compás al golpe más cercano de la grabación (si lo hay)">🎯 Ajustar a los golpes</button>
-        <button class="btn" id="b-importar" title="Desde Reaper o desde una tablatura de la canción">📥 Importar</button>
-        <button class="btn" id="b-limpiar" title="Borra todos los compases">Borrar todos</button>
+        <button class="btn fila-tempo" id="b-emparejar" title="Corrige pequeñas diferencias de los toques, respetando cuando la canción acelera o frena">✨ Emparejar</button>
+        <button class="btn fila-tempo" id="b-golpes" title="Mueve el 1 de cada compás al golpe más cercano de la grabación (si lo hay)">🎯 Ajustar a los golpes</button>
+        <button class="btn fila-tempo" id="b-importar" title="Desde Reaper o desde una tablatura de la canción">📥 Importar</button>
+        <button class="btn fila-tempo" id="b-limpiar" title="Borra todos los compases">Borrar todos</button>
     </div>
     <div class="fila"><span id="info"></span></div>
-    <div class="ayuda">
+    <div class="ayuda fila-estr">
+        Suena la canción y <kbd>Espacio</kbd> pone el comienzo de una parte donde va sonando (detenida, Espacio toca) · <kbd>K</kbd>: tocar / detener ·
+        clic en la onda: mover el cursor · arrastrar el comienzo de una parte: moverlo · doble clic: nueva parte · <kbd>Supr</kbd>: quitar la elegida ·
+        <kbd>←</kbd> <kbd>→</kbd>: pasar de parte · <kbd>J</kbd> / <kbd>L</kbd>: 5 s atrás / adelante · <kbd>{</kbd> <kbd>}</kbd> velocidad −/+ 5 %, <kbd>+</kbd> normal.
+        Sin compases: cada parte va por su segundo. Al marcar el tempo, las que caen en lo marcado se pegan al 1 del compás más cercano.
+    </div>
+    <div class="ayuda fila-tempo">
         Se marca y se mueve solo el 1 de cada compás (líneas blancas); sus pulsos (líneas tenues) se reparten solos, parejos.
         Clic en la onda: mover el cursor · arrastrar un 1: moverlo · doble clic: agregar un compás · <kbd>Supr</kbd>: borrar el elegido ·
         rueda: acercar o alejar · <kbd>Mayús</kbd>+rueda: desplazar · <kbd>Espacio</kbd> o <kbd>K</kbd>: tocar / detener (marcando, Espacio = el 1 de un compás) ·
@@ -201,9 +221,11 @@ let tabs = [];                   // tablaturas de la canción con mapa de Reaper
 
 // ══ El mapa: el 1 de cada compás en segundos (lo único que se marca y se mueve); compás 1 como segundo ══
 // Los pulsos (lo que se guarda y leen las otras apps) se reparten parejos entre un 1 y el siguiente, según la cifra.
-const S = { compases: [], c1: null, cifras: [{ compas: 1, n: 4, d: 4 }], secciones: [], tonalidad: null };   // secciones: [{ t (su 1), nombre }]
+const S = { compases: [], c1: null, cifras: [{ compas: 1, n: 4, d: 4 }], secciones: [], tonalidad: null };   // secciones: [{ t (su comienzo, en segundos), nombre }]
 let mapa = TempoMapa.crear({ pulsos: [] });
 let sel = null;                  // índice del compás elegido
+let modo = 'tempo';              // 'tempo' | 'estr' (🧩 Estructura, EW)
+let selSec = null;               // índice de la sección elegida (Estructura)
 let base = '';
 function idxCercano(s) {
     const P = S.compases;
@@ -212,6 +234,12 @@ function idxCercano(s) {
     let k = 0;
     for (let i = 1; i < P.length; i++) if (Math.abs(P[i] - s) < Math.abs(P[k] - s)) k = i;
     return k;
+}
+// Una sección cae en lo marcado si está entre el primer y el último compás (± medio compás): ahí va por compás
+function enRango(t) {
+    const C = S.compases; if (C.length < 2) return false;
+    const per = (C[C.length - 1] - C[0]) / (C.length - 1);
+    return t >= C[0] - per / 2 && t <= C[C.length - 1] + per / 2;
 }
 const cifraDe = c => { let n = S.cifras[0].n; for (const x of S.cifras) if (x.compas <= c) n = x.n; return n; };
 function datos() {
@@ -224,7 +252,7 @@ function datos() {
         const n = cifraDe(i - i0 + 1), d = (C[i + 1] - C[i]) / n;
         for (let k = 1; k < n; k++) pulsos.push(C[i] + k * d);
     }
-    const secciones = S.secciones.map(x => ({ compas: idxCercano(x.t) - i0 + 1, nombre: x.nombre }));
+    const secciones = S.secciones.map(x => enRango(x.t) ? { compas: idxCercano(x.t) - i0 + 1, seg: x.t, nombre: x.nombre } : { seg: x.t, nombre: x.nombre });
     return { v: 1, pulsos, compas1, cifras: S.cifras, secciones, ...(S.tonalidad ? { tonalidad: S.tonalidad } : {}) };
 }
 // Un mapa de pulsos (guardado o importado) → el 1 de cada compás
@@ -232,7 +260,7 @@ function aCompases(d) {
     const m = TempoMapa.crear(d);
     const C = m.pulsos.filter((_, i) => m.compasDePulso(i - m.compas1).tiempo === 1);
     const i0 = C.indexOf(m.pulsos[m.compas1]);
-    const secciones = m.secciones.map(x => ({ t: C[i0 + x.compas - 1], nombre: x.nombre })).filter(x => x.t !== undefined);
+    const secciones = m.secciones.map(x => ({ t: (x.compas !== null ? C[i0 + x.compas - 1] : undefined) ?? x.seg, nombre: x.nombre })).filter(x => x.t != null);
     return { compases: C, c1: m.pulsos.length ? m.pulsos[m.compas1] : null, cifras: m.cifras.map(x => ({ ...x })), secciones, tonalidad: m.tonalidad };
 }
 const guardable = () => JSON.stringify(TempoMapa.crear(datos()).datos());
@@ -240,9 +268,13 @@ function rehacer() {
     S.compases.sort((a, b) => a - b);
     if (S.c1 === null && S.compases.length) S.c1 = S.compases[0];
     if (!S.compases.length) S.c1 = null;
-    // Cada sección queda pegada al 1 de su compás (sigue al mover; si se borra, pasa al vecino); una por compás
-    S.secciones = (S.secciones || []).filter(x => S.compases.length).map(x => ({ t: S.compases[idxCercano(x.t)], nombre: x.nombre }))
+    // En lo marcado, cada sección queda pegada al 1 de su compás (sigue al mover; si se borra, pasa al vecino); una por
+    // comienzo. Fuera de lo marcado (o sin tempo) va por su segundo. La elegida sigue elegida.
+    const elegida = S.secciones[selSec];
+    S.secciones = (S.secciones || []).map(x => ({ t: enRango(x.t) ? S.compases[idxCercano(x.t)] : x.t, nombre: x.nombre, e: x === elegida }))
         .sort((a, b) => a.t - b.t).filter((x, i, v) => i === v.length - 1 || v[i + 1].t !== x.t);
+    selSec = S.secciones.findIndex(x => x.e); if (selSec < 0) selSec = null;
+    S.secciones.forEach(x => delete x.e);
     mapa = TempoMapa.crear(datos());
     if (sel !== null && sel >= S.compases.length) sel = null;
     pintarControles(); cambio(); sucio = true;
@@ -310,7 +342,7 @@ let clicsHasta = 0;
 // Su propio reloj (no el del dibujo, que se frena cuando la pantalla no se redibuja)
 setInterval(() => { programarClics(); pintarVolver(); }, 25);
 function programarClics() {
-    if (!grab?.sonando || mapa.vacio) return;
+    if (!grab?.sonando || mapa.vacio || modo === 'estr') return;
     const s = oido(); if (s === null) return;
     const lim = s + 0.35 * vel;
     for (let i = 0; i < mapa.pulsos.length; i++) {
@@ -353,7 +385,7 @@ $('vol-musica').onchange = $('vol-clic').onchange = e => e.target.blur();
 // ══ Marcar compases ══════════════════════════════════════════════════════════════════════
 let taps = null;
 async function empezarMarcar() {
-    if (!buf || taps || fijos) return;
+    if (!buf || taps || fijos || modo === 'estr') return;
     taps = [];
     $('marc-n').textContent = '0'; $('marcando').classList.add('on'); $('b-marcar').classList.add('on'); $('b-marcar').textContent = '■ Terminar';
     await tocar(cursor);
@@ -427,7 +459,7 @@ function dibujarTodo() {
     }
     // Secciones arriba
     S.secciones.forEach((x, i) => {
-        const fin = i + 1 < S.secciones.length ? S.secciones[i + 1].t : (S.compases[S.compases.length - 1] ?? D);
+        const fin = finSeccion(i);
         g.fillStyle = colorSeccion(x.nombre); g.fillRect(x.t / D * W, 0, Math.max(2, (fin - x.t) / D * W - 1), 5);
     });
     // Lo que se ve abajo
@@ -435,6 +467,12 @@ function dibujarTodo() {
     const x0 = vista.ini / D * W, w = vista.dur / D * W;
     g.fillRect(x0, 0, w, H); g.strokeRect(x0 + .5, .5, Math.max(2, w - 1), H - 1);
     g.fillStyle = '#f43f5e'; g.fillRect(ahora() / D * W, 0, 2, H);
+}
+// Hasta dónde va una sección: la siguiente; la última, hasta el último compás (si cae en lo marcado) o el final
+function finSeccion(i) {
+    if (i + 1 < S.secciones.length) return S.secciones[i + 1].t;
+    const C = S.compases;
+    return modo !== 'estr' && enRango(S.secciones[i].t) ? C[C.length - 1] : duracion();
 }
 const xDeSeg = (s, W) => (s - vista.ini) / vista.dur * W;
 const segDeX = (x, W) => vista.ini + x / W * vista.dur;
@@ -447,11 +485,12 @@ function dibujarZoom() {
     // Secciones: franja de color con su nombre, desde su compás hasta la siguiente
     g.font = '600 12px system-ui';
     S.secciones.forEach((x, i) => {
-        const a = xDeSeg(x.t, W), fin = i + 1 < S.secciones.length ? S.secciones[i + 1].t : (P[P.length - 1] ?? duracion()), b = xDeSeg(fin, W);
+        const a = xDeSeg(x.t, W), b = xDeSeg(finSeccion(i), W);
         if (b < 0 || a > W) return;
         g.fillStyle = colorSeccion(x.nombre); g.fillRect(a, 21, Math.max(2, b - a - 1), 16);
         g.fillStyle = '#0f172a'; g.fillText(x.nombre, Math.max(a, 0) + 5, 33, Math.max(10, b - Math.max(a, 0) - 8));
     });
+    if (modo === 'estr') { dibujarEstructura(g, W, H, top, bot, alto, medio); return; }
     // Intervalos disparejos en rojo
     g.fillStyle = 'rgba(239,68,68,.16)';
     for (const i of mal) { const a = xDeSeg(P[i], W), b = xDeSeg(P[i + 1], W); if (b > 0 && a < W) g.fillRect(a, top, b - a, alto); }
@@ -492,14 +531,35 @@ function dibujarZoom() {
     const s = oido();
     if (s !== null) { g.fillStyle = '#f43f5e'; g.fillRect(xDeSeg(s, W) - 1, 0, 2, H); }
 }
+// 🧩 Estructura: la onda limpia (sin compases ni pulsos) y el comienzo de cada parte
+function dibujarEstructura(g, W, H, top, bot, alto, medio) {
+    g.fillStyle = '#475569';
+    for (let x = 0; x < W; x++) { const v = picoEntre(segDeX(x, W), segDeX(x + 1, W)) * (alto / 2 - 2); g.fillRect(x, medio - v, 1, Math.max(1, v * 2)); }
+    g.fillStyle = '#64748b'; g.font = '11px system-ui';
+    const paso = vista.dur > 40 ? 10 : vista.dur > 16 ? 5 : vista.dur > 6 ? 1 : 0.5;
+    for (let s = Math.ceil(vista.ini / paso) * paso; s < vista.ini + vista.dur; s += paso) {
+        const x = xDeSeg(s, W); g.fillRect(x, H - bot, 1, 4);
+        g.fillText(reloj(s, paso < 1), x + 3, H - 3);
+    }
+    S.secciones.forEach((x, i) => {
+        const a = xDeSeg(x.t, W); if (a < -3 || a > W + 3) return;
+        g.fillStyle = i === selSec ? '#22d3ee' : '#e2e8f0';
+        g.fillRect(Math.round(a) - 1, 21, i === selSec ? 3 : 2, alto + top - 21);
+    });
+    g.fillStyle = '#94a3b8'; g.fillRect(xDeSeg(cursor, W), top - 4, 1, alto + 4);
+    const s = oido();
+    if (s !== null) { g.fillStyle = '#f43f5e'; g.fillRect(xDeSeg(s, W) - 1, 0, 2, H); }
+}
 const reloj = (s, dec) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}${dec ? '.' + Math.floor((s % 1) * 10) : ''}`;
 function pintarPos() {
     const s = ahora();
     let txt = `<b>${reloj(s, true)}</b>`;
-    if (!mapa.vacio) {
+    if (!mapa.vacio && modo !== 'estr') {
         const p = mapa.pulsoDeSeg(s), { compas, tiempo } = mapa.compasDePulso(p);
         txt += ` · compás <b>${compas}</b>.${tiempo} · ♩ ${Math.round(mapa.bpmEn(p))}`;
     }
+    const sec = [...S.secciones].reverse().find(x => x.t <= s + 1e-6);
+    if (sec) txt += ` · ${esc(sec.nombre)}`;
     $('pos').innerHTML = txt;
 }
 // La vista sigue a lo que suena, salvo que uno navegue a otra parte sonando (rueda, la canción entera):
@@ -539,9 +599,23 @@ function pulsoBajo(x, W) {   // el 1 de compás bajo el ratón
     return k;
 }
 let arrastre = null;
+function seccionBajo(x, W) {   // el comienzo de sección bajo el ratón
+    let k = null, dmin = 7;
+    S.secciones.forEach((s, i) => { const d = Math.abs(xDeSeg(s.t, W) - x); if (d < dmin) { dmin = d; k = i; } });
+    return k;
+}
 zoom.addEventListener('mousedown', e => {
     if (!buf || taps) return;
     const r = zoom.getBoundingClientRect(), x = e.clientX - r.left, W = r.width;
+    if (modo === 'estr') {
+        const k = seccionBajo(x, W);
+        if (k !== null) { selSec = k; antes(); arrastre = { x0: e.clientX, secK: k, movio: false }; pintarControles(); sucio = true; return; }
+        selSec = null; pintarControles();
+        cursor = Math.max(0, Math.min(duracion(), segDeX(x, W)));
+        if (grab?.sonando) tocar(cursor);
+        sucio = true;
+        return;
+    }
     const k = pulsoBajo(x, W);
     if (k !== null && fijos) { sel = k; pintarControles(); sucio = true; return; }   // fijos: solo se elige
     if (k !== null) {
@@ -557,8 +631,15 @@ zoom.addEventListener('mousedown', e => {
 });
 window.addEventListener('mousemove', e => {
     const r = zoom.getBoundingClientRect(), x = e.clientX - r.left;
-    if (!arrastre) { zoom.classList.toggle('mover', e.target === zoom && pulsoBajo(x, r.width) !== null); return; }
+    if (!arrastre) { zoom.classList.toggle('mover', e.target === zoom && (modo === 'estr' ? seccionBajo(x, r.width) : pulsoBajo(x, r.width)) !== null); return; }
     if (!arrastre.movio && Math.abs(e.clientX - arrastre.x0) < 4) return;   // un clic con pulso tembloroso no mueve el compás
+    if (arrastre.secK !== undefined) {   // Estructura: el comienzo de la parte, entre sus vecinas
+        const L = S.secciones, k = arrastre.secK;
+        const lo = k > 0 ? L[k - 1].t + 0.05 : 0, hi = k + 1 < L.length ? L[k + 1].t - 0.05 : duracion();
+        L[k].t = Math.max(lo, Math.min(hi, segDeX(x, r.width)));
+        arrastre.movio = true; sucio = true;
+        return;
+    }
     const P = S.compases, k = arrastre.k;
     const lo = k > 0 ? P[k - 1] + 0.05 : 0, hi = k + 1 < P.length ? P[k + 1] - 0.05 : duracion();
     P[k] = Math.max(lo, Math.min(hi, segDeX(x, r.width)));
@@ -573,8 +654,10 @@ window.addEventListener('mouseup', () => {
     arrastre = null; rehacer();
 });
 zoom.addEventListener('dblclick', e => {
-    if (!buf || taps || fijos) return;
+    if (!buf || taps) return;
     const r = zoom.getBoundingClientRect(), x = e.clientX - r.left;
+    if (modo === 'estr') { if (seccionBajo(x, r.width) === null) agregarSeccion(segDeX(x, r.width)); return; }
+    if (fijos) return;
     if (pulsoBajo(x, r.width) !== null) return;
     antes();
     const s = segDeX(x, r.width);
@@ -624,6 +707,17 @@ window.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); guardar(); return; }
     if (enTexto) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); deshacer(); return; }
+    if (modo === 'estr') {
+        if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) { const s = oido(); if (s !== null) agregarSeccion(s); else tocar(); } return; }
+        if ((e.key === 'Delete' || e.key === 'Backspace') && selSec !== null) { e.preventDefault(); quitarSeccion(selSec); return; }
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            if (!S.secciones.length) return;
+            e.preventDefault();
+            selSec = selSec === null ? 0 : Math.max(0, Math.min(S.secciones.length - 1, selSec + (e.key === 'ArrowLeft' ? -1 : 1)));
+            irASeccion(selSec);
+            return;
+        }
+    }
     if (e.code === 'Space' || e.key === 'k' || e.key === 'K') { e.preventDefault(); if (!e.repeat) tocarODetener(); }
     else if (e.key === 'j' || e.key === 'J') { e.preventDefault(); saltar(-5); }
     else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); saltar(5); }
@@ -653,8 +747,13 @@ function pintarControles() {
     const sn = $('sec-nombre');
     sn.disabled = !hay;
     if (document.activeElement !== sn) sn.value = hay ? (S.secciones.find(x => x.t === S.compases[sel])?.nombre || '') : '';
-    const chips = S.secciones.map((x, i) => `<span class="seccion" style="background:${colorSeccion(x.nombre)}" data-ir="${i}" title="Ir a la sección">${esc(x.nombre)} · ${idxCercano(x.t) - i0 + 1}<button data-quitar-sec="${i}" title="Quitar la sección">✕</button></span>`).join('')
-        || '<span class="ayuda">Elige un compás y escribe su sección.</span>';
+    const chips = S.secciones.map((x, i) => `<span class="seccion" style="background:${colorSeccion(x.nombre)}${modo === 'estr' && i === selSec ? ';outline:2px solid #22d3ee' : ''}" data-ir="${i}" title="Ir a la sección">${esc(x.nombre)} · ${enRango(x.t) ? idxCercano(x.t) - i0 + 1 : reloj(x.t)}<button data-quitar-sec="${i}" title="Quitar la sección">✕</button></span>`).join('')
+        || `<span class="ayuda">${modo === 'estr' ? 'Toca la canción y Espacio donde empieza cada parte.' : 'Elige un compás y escribe su sección.'}</span>`;
+    const hs = selSec !== null && selSec < S.secciones.length, en = $('es-nombre');
+    $('es-info').textContent = hs ? `Sección elegida · ${reloj(S.secciones[selSec].t, true)}` : 'Ninguna sección elegida';
+    en.disabled = $('b-es-quitar').disabled = !hs;
+    if (document.activeElement !== en) en.value = hs ? S.secciones[selSec].nombre : '';
+    document.querySelectorAll('#seg-modo .btn').forEach(b => b.classList.toggle('on', b.dataset.m === modo));
     if ($('secciones').innerHTML !== chips) $('secciones').innerHTML = chips;   // redibujar en medio de un clic lo perdería
 
     const ct = mapa.cifraTexto(hay ? c : 1);
@@ -673,6 +772,7 @@ function pintarControles() {
         $('info').textContent = `${C.length - 1} compases · tempo de referencia ♩ ${mapa.bpm} (entre ${Math.round(o[Math.floor(o.length * 0.03)])} y ${Math.round(o[Math.floor(o.length * 0.97)])})`
             + (mal ? ` · ${mal} ${mal === 1 ? 'compás dispar' : 'compases disparejos'}` : '');
     } else $('info').textContent = buf ? 'Sin compases todavía: pon el cursor al comienzo, ⏺ Marcar y Espacio en el 1 de cada compás.' : '';
+    if (modo === 'estr') { const n = S.secciones.length; $('info').textContent = n ? `${n} ${n === 1 ? 'sección' : 'secciones'}` + (C.length > 1 ? ' · con tempo marcado' : ' · sin tempo') : ''; }
     $('b-emparejar').disabled = $('b-golpes').disabled = $('b-limpiar').disabled = C.length < 3 || fijos;
     $('b-importar').disabled = $('b-marcar').disabled = fijos;
     $('b-borrar').disabled = !hay || fijos;
@@ -779,14 +879,57 @@ $('b-fijar').onclick = () => {
 $('b-volver').onclick = volverAlCursor;
 $('secciones').onclick = e => {
     const q = e.target.closest('[data-quitar-sec]');
-    if (q) { antes(); S.secciones.splice(+q.dataset.quitarSec, 1); rehacer(); return; }
+    if (q) { quitarSeccion(+q.dataset.quitarSec); return; }
     const b = e.target.closest('[data-ir]'); if (!b) return;
+    if (modo === 'estr') { selSec = +b.dataset.ir; irASeccion(selSec); return; }
     const t = S.secciones[+b.dataset.ir].t;
     sel = S.compases.indexOf(t); cursor = t;
     vista.ini = Math.max(0, Math.min(duracion() - vista.dur, t - vista.dur * 0.1));
     if (grab?.sonando) tocar(t);
     pintarControles(); sucio = true;
 };
+// ══ 🧩 Estructura (EW): el comienzo de cada parte, por su segundo ══════════════════════════════
+function agregarSeccion(t) {
+    if (S.secciones.some(x => Math.abs(x.t - t) < 0.3)) return;   // un doble toque no crea dos
+    antes();
+    const n = 1 + Math.max(0, ...S.secciones.map(x => +(/^Sección (\d+)$/.exec(x.nombre)?.[1] || 0)));
+    S.secciones.push({ t: Math.max(0, t), nombre: `Sección ${n}` });
+    selSec = S.secciones.length - 1;
+    rehacer();
+}
+function quitarSeccion(i) {
+    if (i === null || !S.secciones[i]) return;
+    antes(); S.secciones.splice(i, 1); selSec = null; rehacer();
+}
+function irASeccion(i) {
+    const t = S.secciones[i]?.t; if (t === undefined) return;
+    cursor = t;
+    if (t < vista.ini || t > vista.ini + vista.dur * 0.9) vista.ini = Math.max(0, Math.min(duracion() - vista.dur, t - vista.dur * 0.1));
+    if (grab?.sonando) tocar(t);
+    pintarControles(); sucio = true;
+}
+function renombrarSeccion() {
+    if (selSec === null || !S.secciones[selSec]) return;
+    const nombre = $('es-nombre').value.trim();
+    if (!nombre) { quitarSeccion(selSec); return; }
+    if (S.secciones[selSec].nombre === nombre) return;
+    antes(); S.secciones[selSec].nombre = nombre; rehacer();
+}
+$('es-nombre').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); renombrarSeccion(); e.target.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.target.blur(); pintarControles(); }
+});
+$('es-nombre').addEventListener('change', renombrarSeccion);
+$('b-es-quitar').onclick = () => quitarSeccion(selSec);
+function ponerModo(m, recordar = true) {
+    if (taps) terminarMarcar();
+    modo = m === 'estr' ? 'estr' : 'tempo';
+    document.body.classList.toggle('estr', modo === 'estr');
+    if (recordar) try { localStorage.setItem('tempo_modo', modo); } catch (_) {}
+    sel = null; selSec = null;
+    pintarControles(); sucio = true;
+}
+$('seg-modo').onclick = e => { const b = e.target.closest('[data-m]'); if (b) ponerModo(b.dataset.m); };
 $('cifras').onclick = e => { const b = e.target.closest('[data-quitar]'); if (!b) return; antes(); S.cifras.splice(+b.dataset.quitar, 1); rehacer(); };
 $('seg-grab').onclick = async e => {
     const b = e.target.closest('[data-v]'); if (!b || !audios[b.dataset.v]) return;
@@ -926,14 +1069,14 @@ const hayCambios = () => guardable() !== base;
 const claveBorrador = () => 'tempo_borrador:' + cancionId;
 function cambio() {
     $('estado').textContent = guardando ? 'Guardando…' : hayCambios() ? 'Sin guardar' : (assetId ? 'Guardado' : '');
-    $('b-guardar').disabled = guardando || !hayCambios() || S.compases.length < 2;
+    $('b-guardar').disabled = guardando || !hayCambios() || S.compases.length === 1;
     try {
         if (hayCambios()) localStorage.setItem(claveBorrador(), JSON.stringify({ base, S }));
         else localStorage.removeItem(claveBorrador());
     } catch (_) {}
 }
 async function guardar() {
-    if (guardando || !hayCambios() || S.compases.length < 2) return true;
+    if (guardando || !hayCambios() || S.compases.length === 1) return true;
     if (!sb) { toast('Sin conexión con la base de datos'); return false; }
     guardando = true; cambio();
     try {
@@ -968,7 +1111,7 @@ $('b-guardar').onclick = guardar;
 // Workspace: al cerrar la pestaña se guarda lo pendiente
 window.addEventListener('message', e => {
     if (e.data?.tipo !== 'ws-guardar' || e.source !== window.parent) return;
-    Promise.resolve(hayCambios() && S.compases.length >= 2 ? guardar() : true).then(ok =>
+    Promise.resolve(hayCambios() && S.compases.length !== 1 ? guardar() : true).then(ok =>
         window.parent.postMessage({ tipo: 'ws-guardado', reqId: e.data.reqId, ok: ok !== false }, '*'));
 });
 window.addEventListener('beforeunload', e => { if (hayCambios() && window.parent === window) { e.preventDefault(); e.returnValue = ''; } });
@@ -1011,6 +1154,7 @@ async function iniciar() {
     $('cancion').textContent = '📋 ' + (cancionNombre || 'Ficha de la canción'); $('cancion').title = cancionNombre;
     document.title = `${cancionNombre || 'Canción'} · Ficha`;
     rehacer();
+    ponerModo(S.compases.length < 2 ? 'estr' : (() => { try { return localStorage.getItem('tempo_modo') || 'tempo'; } catch (_) { return 'tempo'; } })(), false);
     pintarTransporte();
     requestAnimationFrame(bucle);
     await cargarGrabacion();

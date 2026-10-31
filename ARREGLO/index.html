@@ -125,6 +125,7 @@
             <div id="secciones"></div>
             <button class="btn" id="b-nueva-sec">＋ Sección</button>
             <button class="btn" id="b-traer-sec" title="Crea las secciones que faltan y arma el orden con las secciones de la Ficha de la canción">📋 Traer de la Ficha</button>
+            <span class="ayuda" id="sec-sin-tempo" style="visibility:hidden">La Ficha tiene secciones, pero falta marcar su tempo.</span>
             <div class="ayuda">Ejemplo: <code>A | E | F#m | D</code> · dos acordes en un compás: <code>A E</code> · <code>%</code> repite el anterior · también do re mi: <code>La | Mi | Fa#m</code>.</div>
         </div>
 
@@ -421,13 +422,16 @@ function pintarSecciones() {
         </div>`;
     }).join('') || '<div class="ayuda">Aún no hay secciones.</div>';
     $('b-traer-sec').disabled = !seccionesMapa().length;
+    // Estructura sin tempo (EW): las secciones existen por segundo, pero el arreglo va por compás
+    $('sec-sin-tempo').style.visibility = !seccionesMapa().length && fichaCancion?.secciones?.length ? 'visible' : 'hidden';
 }
 // Secciones del mapa de tempo (deuda EU): cada vez que suena una, desde su compás hasta la siguiente
 const normSec = n => String(n || '').trim().toLowerCase();
 function seccionesMapa() {
     const m = mapaTempo; if (!m?.secciones?.length) return [];
     const fin = m.compasDePulso(m.pulsos.length - 1 - m.compas1).compas;
-    return m.secciones.map((x, i) => ({ nombre: x.nombre, compas: x.compas, largo: (m.secciones[i + 1]?.compas ?? fin) - x.compas }));
+    const S = m.secciones.filter(x => x.compas !== null);   // las de la estructura sin tempo no tienen compás (EW)
+    return S.map((x, i) => ({ nombre: x.nombre, compas: x.compas, largo: (S[i + 1]?.compas ?? fin) - x.compas }));
 }
 function infoSeccion(s, compases, malos) {
     let t = `${compases.length} ${compases.length === 1 ? 'compás' : 'compases'}`;

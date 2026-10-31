@@ -6,7 +6,8 @@
 //       compas1: i,                      // índice del pulso donde empieza el compás 1 (los anteriores: compás 0, −1…)
 //       cifras: [{ compas: 1, n: 4, d: 4 }], // cifra desde ese compás: n pulsos de valor 1/d (4/4, 3/4, 6/8…; sin d = /4);
 //                                        // la primera vale también hacia atrás
-//       secciones: [{ compas, nombre }],  // Intro, Estrofa, Coro…: cada una desde su compás hasta la siguiente (opcional)
+//       secciones: [{ compas, seg, nombre }], // Intro, Estrofa, Coro…: cada una desde su comienzo hasta la siguiente (opcional);
+//                                        // seg = segundo de la grabación; compas solo si cae en lo marcado (EW: puede no haber tempo)
 //       tonalidad: { tonica: 'A', modo: 'mayor' } } // la de la canción (opcional; letras C D E F G A B con # o b)
 //   Es la ficha oficial de la canción (deuda EV): tonalidad, cifra, tempo y secciones se leen de aquí.
 //
@@ -21,7 +22,8 @@
 //   TempoMapa.mismaTonalidad(a, b) → misma tónica (Re♭ = Do♯) y mismo modo
 //   m.compasSimple()     → pulsos por compás si la cifra del compás 1 es 2/4, 3/4 o 4/4 (lo que escriben Melodía y Arreglo); si no, 0
 //   m.bpmEn(p)           → tempo alrededor del pulso p
-//   m.secciones          → [{ compas, nombre }] en orden; m.seccionEn(c) → la sección del compás c (o null)
+//   m.secciones          → [{ compas, seg, nombre }] en orden (compas null = sin tempo en ese punto)
+//   m.seccionEn(c)       → la sección del compás c (o null); m.seccionEnSeg(s) → la que suena en el segundo s (o null)
 //   Fuera de los pulsos marcados se sigue con el tempo del borde.
 //   await TempoMapa.cargar(baseStorage, cancionId) → mapa o null (lee el archivo público; sin clave); null si no hay
 //                                                   pulsos marcados (lo que sigue la grabación necesita el tempo)
@@ -47,8 +49,10 @@
         };
         const perIni = periodo(false), perFin = periodo(true);
 
-        const secciones = (d?.secciones || []).filter(x => x && x.nombre).map(x => ({ compas: x.compas | 0, nombre: String(x.nombre) }))
-            .sort((a, b) => a.compas - b.compas);
+        // Cada sección: su segundo (`seg`) y, si cae en lo marcado, su compás (EW: la estructura puede ir sin tempo)
+        const secciones = (d?.secciones || []).filter(x => x && x.nombre).map(x => ({
+            compas: typeof x.compas === 'number' && isFinite(x.compas) ? x.compas | 0 : null,
+            seg: typeof x.seg === 'number' && isFinite(x.seg) ? x.seg : null, nombre: String(x.nombre) }));
         const tonalidad = d?.tonalidad && /^[A-G][#b]?$/.test(d.tonalidad.tonica) && (d.tonalidad.modo === 'mayor' || d.tonalidad.modo === 'menor')
             ? { tonica: d.tonalidad.tonica, modo: d.tonalidad.modo } : null;
         const m = { pulsos: P, compas1: i0, cifras, secciones, tonalidad, vacio: P.length < 2 };
@@ -58,7 +62,6 @@
             b.sort((x, y) => x - y);
             return b.length ? Math.round(b[Math.floor(b.length / 2)]) : 0;
         })();
-        m.seccionEn = c => { let s = null; for (const x of secciones) if (x.compas <= c) s = x; return s; };
         m.segDePulso = p => {
             if (!P.length) return 0;
             const x = i0 + p;
@@ -97,7 +100,14 @@
             const k = Math.max(0, Math.min(P.length - 2, x));
             return 60 / (P[k + 1] - P[k]);
         };
-        m.datos = () => ({ v: 1, pulsos: P.map(x => Math.round(x * 1000) / 1000), compas1: i0, cifras, ...(secciones.length ? { secciones } : {}),
+        // Con pulsos manda el compás (el segundo se calcula); sin compás, manda el segundo
+        if (P.length >= 2) for (const x of secciones) if (x.compas !== null) x.seg = m.segDePulso(m.pulsoDeCompas(x.compas));
+        secciones.splice(0, secciones.length, ...secciones.filter(x => x.seg !== null || x.compas !== null)
+            .sort((a, b) => (a.seg ?? 0) - (b.seg ?? 0) || (a.compas ?? 0) - (b.compas ?? 0)));
+        m.seccionEn = c => { let s = null; for (const x of secciones) if (x.compas !== null && x.compas <= c) s = x; return s; };
+        m.seccionEnSeg = t => { let s = null; for (const x of secciones) if (x.seg !== null && x.seg <= t + 1e-6) s = x; return s; };
+        const secDatos = () => secciones.map(x => ({ ...(x.compas !== null ? { compas: x.compas } : {}), ...(x.seg !== null ? { seg: Math.round(x.seg * 1000) / 1000 } : {}), nombre: x.nombre }));
+        m.datos = () => ({ v: 1, pulsos: P.map(x => Math.round(x * 1000) / 1000), compas1: i0, cifras, ...(secciones.length ? { secciones: secDatos() } : {}),
             ...(tonalidad ? { tonalidad } : {}), ...(m.bpm ? { bpm: m.bpm } : {}) });
         return m;
     }
