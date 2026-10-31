@@ -8131,3 +8131,43 @@ volver a la letra sin problemas").*
   a lo que suena. Elegir un extracto o abrir otra canción la cierra.
   Prueba (vista de celular, Sin Sentimiento): 20 secciones; tocar "Estrofa 2" → audio en 0:38 sonando y Estrofa 2 en
   naranjo; ← Letra → la letra (54 versos); el reproductor de abajo visible con la pantalla abierta.
+
+### FC. 🎧 Biblioteca de otros audios en el Entrenador (tipo audios de WhatsApp) — HECHA (falta correr el SQL)
+*Origen: PO 2026-10-31 ("Otros audios en el Entrenador debería ser una biblioteca de audios tipo varios audios en
+wasap: tenerlos todos a la vista, en una pantalla dedicada, con info mínima: primero los extractos (un título de
+sección), mencionando solo lo necesario, p. ej. "Coro: segunda voz", no importa fecha (sí curso si hubiera), y luego
+versiones; esto para el celular; en el PC un menú lateral como el de la estructura, con el mismo orden; el extracto de
+Sin Sentimiento déjalo sin curso").*
+- **Auditoría:** "🎧 Otros audios" es hoy un desplegable (FA ajuste 2) que muestra un extracto a la vez en una tarjeta
+  en lugar de la letra. Los extractos y versiones viven en `curso_archivos` con `contexto_id` obligatorio (la ruta del
+  archivo empieza por el curso).
+- **Plan:**
+  1. **Lista de audios a la vista**, cada uno con su reproductor propio (▶/⏸ redondo, barra de avance que se puede
+     tocar, tiempo), como los audios de WhatsApp; uno a la vez (al tocar otro, el anterior se detiene; también se
+     detiene la canción y viceversa). Orden: **Extractos** (título de sección; en el orden de las secciones de la Ficha,
+     solo su nombre, p. ej. "Coro: segunda voz", y el curso si tiene), **Versiones** y **Otros audios**. Sin fechas.
+     Un video se ve ahí mismo al tocar ▶; un enlace de YouTube/Drive se abre aparte (↗).
+  2. **Celular:** botón 🎧 en la barra (solo si hay) → pantalla propia sobre la letra (como 🧩 Estructura), "← Letra"
+     para volver. **PC:** botón 🎧 junto a 🧩 y ⟳ → panel lateral como el de Estructura. Sale el desplegable y la
+     tarjeta en lugar de la letra.
+  3. **Extractos sin curso:** `supabase/medios_sin_curso.sql` deja `contexto_id` opcional (lo corre el PO); el
+     formulario de la Biblioteca ofrece "Sin curso" (archivo en `sin-curso/<año>/…`); un extracto sin curso no aparece
+     en 📁 Archivos de ningún curso, solo en la canción. Con el SQL corrido, el extracto de Sin Sentimiento queda sin
+     curso.
+  - Lugares: Entrenador del celular y del PC (no la Pizarra), formulario de medios de la Biblioteca, `comun/archivos-curso.js`.
+- **Hecho (2026-10-31):** `REPERTORIO/index.html`: fuera el desplegable "Otros audios" y la tarjeta en lugar de la letra.
+  Un solo reproductor (`entOa`; los videos en su propio `<video>` dentro de la fila); la canción y los otros audios no
+  suenan juntos. Lista `entOaHTML`: títulos Extractos / Versiones / Otros audios; cada fila ▶/⏸ redondo, nombre (la
+  parte; si no, el nombre sin extensión), curso solo si tiene, barra que se toca para saltar y tiempo; enlaces con ↗.
+  Extractos en el orden de las secciones de la Ficha. Celular: botón 🎧 (oculto con su espacio si no hay) → pantalla
+  `#ent-oa-pantalla` sobre la letra hasta el reproductor de abajo (← Letra; abrir 🧩 la cierra y viceversa). PC: botón 🎧
+  junto a 🧩 y ⟳ → panel `#ent-oa-panel` con los estilos de Loops/Estructura. Al salir de la app (celular) o abrir otra
+  canción, se detiene. Biblioteca: el formulario de medios ofrece "Sin curso"; un medio sin curso muestra 🗑 en vez de ✏️
+  (no está en 📁 Archivos de ningún curso). `comun/archivos-curso.js`: sin curso → `contexto_id` null y archivo en
+  `sin-curso/<año>/…`. `supabase/medios_sin_curso.sql` (lo corre el PO).
+  Prueba (navegador, Sin Sentimiento): PC → 🎧 abre el panel con EXTRACTOS · "Coro: segunda voz" (Taller de Cuerdas);
+  ▶ suena (barra al 11 % a 1,7 s, botón ⏸); dar ▶ a la canción detiene el extracto. Vista de celular → 🎧 abre la
+  pantalla con la misma fila; ▶ suena; 🧩 cierra la de audios y abre la de estructura; la pantalla llega justo al
+  reproductor de abajo.
+  - **Falta:** que el PO corra `supabase/medios_sin_curso.sql`; luego Claude deja sin curso el extracto de Sin
+    Sentimiento.

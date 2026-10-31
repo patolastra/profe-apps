@@ -98,17 +98,17 @@ const ArchivosCurso = (() => {
         if (archivo.size > MAX_BYTES) throw new Error('too large');
         const anio = anioActual();
         const tipoMime = mime || archivo.type || 'application/octet-stream';
-        const path = `${contextoId}/${anio}/${Date.now().toString(36)}-${limpio(nombre)}`;
+        const path = `${contextoId || 'sin-curso'}/${anio}/${Date.now().toString(36)}-${limpio(nombre)}`;   // sin curso: solo de la canción (FC)
         const up = await sb.storage.from(BUCKET).upload(path, archivo, { contentType: tipoMime, upsert: false });
         if (up.error) throw up.error;
-        const fila = { contexto_id: contextoId, anio, nombre, tipo: tipoDe(tipoMime), mime: tipoMime,
+        const fila = { contexto_id: contextoId || null, anio, nombre, tipo: tipoDe(tipoMime), mime: tipoMime,
                        storage_path: path, tamano: archivo.size ?? null, origen, descripcion, ...extras(resto) };
         const { data, error } = await sb.from('curso_archivos').insert(fila).select().single();
         if (error) { await sb.storage.from(BUCKET).remove([path]); throw error; }
         return { ...data, url: url(data) };
     }
     async function guardarEnlace(sb, { contextoId, nombre, url: enlace, origen = 'enlace', ...resto }) {
-        const fila = { contexto_id: contextoId, anio: anioActual(), nombre, tipo: 'video', mime: null,
+        const fila = { contexto_id: contextoId || null, anio: anioActual(), nombre, tipo: 'video', mime: null,
                        storage_path: null, url: String(enlace).trim(), origen, ...extras(resto) };
         const { data, error } = await sb.from('curso_archivos').insert(fila).select().single();
         if (error) throw error;
