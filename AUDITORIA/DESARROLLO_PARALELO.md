@@ -8093,3 +8093,19 @@ otros audios también: para extractos o versiones, no se muestra la letra").*
   voz" (Extracto · Taller de Cuerdas · 31/10/2026); al elegirlo, tarjeta con su audio (.opus), sin reproductor de abajo
   y el botón dice "✂️ Coro: segunda voz ▾"; redibujar no lo reinicia; Volver → 54 versos de nuevo. Milagro de Amor:
   Melodía y Karaoke; Karaoke cambia (🎶 Karaoke ▾). PC sin cambios.
+- **Ajuste (PO 2026-10-31, "sí, llévalos al PC"):** en el PC, junto al botón Melodía ↔ Karaoke (que se queda: un clic),
+  un botón **🎧 Audios** con la misma lista (Canción + Extractos y versiones), como ventana al centro; el extracto o
+  versión se ve en la tarjeta en lugar de la letra, igual que en el celular. La copia en la Pizarra sigue mostrando la
+  letra (el extracto suena solo en el computador del profe).
+
+### FB. 🧩 Pantalla de estructura en el Entrenador del celular — APROBADA (PO 2026-10-31, pedido directo)
+*Origen: PO 2026-10-31 ("en pwa móvil necesito una pantalla para ver la estructura, no como un menú, sino como una
+pantalla en sí (que tape la letra), que me permita navegar entre las secciones, escuchando el audio, y que pueda
+volver a la letra sin problemas").*
+- **Auditoría:** el panel 🧩 Estructura (EZ) está oculto en el celular (como Loops); las secciones ya se calculan
+  (`entEstrLista`) y saltar a una es `entEstrIr`.
+- **Plan (decisiones de detalle de Claude, a validar por el PO):** botón **🧩** en la barra del celular (solo si la
+  canción tiene secciones). Abre una pantalla sobre la letra (el reproductor de abajo queda visible): una fila grande por
+  sección con su nombre, tiempo y verso en itálica; la que suena en naranjo y a la vista. Tocar una sección = el audio
+  va ahí y suena (si estaba detenido, parte). **← Letra** (arriba) vuelve a la letra en lo que suena.
+  - Sin cambios en Supabase. Lugares: Entrenador del celular (`?movil=1`).
