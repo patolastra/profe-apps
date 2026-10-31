@@ -7880,7 +7880,7 @@ marcando compases, estoy marcando comienzos de secciones").*
   - Después (cada uno aparte, con su ficha): Entrenador (saltar a una sección, loop por sección) y Cantar.
   - Prueba: COQUETA (tiene pulsos) y una canción con audio y sin pulsos: marcar 4 secciones sonando, moverlas,
     guardar, volver a abrir; marcar después unos compases y ver que se pegan; Arreglo con y sin tempo.
-- **Hecho (2026-10-31):**
+- **Hecho (2026-10-31, commit d945793):**
   - `comun/tempo-mapa.js`: cada sección `{ compas, seg, nombre }` (`compas` null sin tempo en ese punto; con pulsos el
     `seg` se calcula del compás); `m.seccionEnSeg(s)`; `seccionEn(c)` solo mira las que tienen compás. Fichas antiguas
     (solo `compas`) se leen igual y al guardarse llevan también `seg`.
