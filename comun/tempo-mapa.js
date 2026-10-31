@@ -23,7 +23,9 @@
 //   m.bpmEn(p)           → tempo alrededor del pulso p
 //   m.secciones          → [{ compas, nombre }] en orden; m.seccionEn(c) → la sección del compás c (o null)
 //   Fuera de los pulsos marcados se sigue con el tempo del borde.
-//   await TempoMapa.cargar(baseStorage, cancionId) → mapa o null (lee el archivo público; sin clave)
+//   await TempoMapa.cargar(baseStorage, cancionId) → mapa o null (lee el archivo público; sin clave); null si no hay
+//                                                   pulsos marcados (lo que sigue la grabación necesita el tempo)
+//   await TempoMapa.cargarFicha(baseStorage, cancionId) → la Ficha aunque no tenga tempo (tonalidad y cifra), o null
 //   TempoMapa.desdeReaper(map, startQn, duracion)  → datos a partir de un mapa de Reaper (PT qn bpm; QN 0 = segundo 0)
 // Usada por la app Tempo (TEMPO/), el Editor de Arreglos (ARREGLO/), el Editor de Melodías (MELODIA/), el Piano (PIANO/)
 // y la ficha de la canción (REPERTORIO/).
@@ -100,14 +102,20 @@
         return m;
     }
 
-    async function cargar(base, cancionId) {
+    async function leer(base, cancionId) {
         if (!cancionId) return null;
         try {
             const r = await fetch(`${base}tempo/${encodeURIComponent(cancionId)}.json?t=${Date.now()}`, { cache: 'no-store' });
-            if (!r.ok) return null;
-            const d = await r.json();
-            return d?.pulsos?.length >= 2 ? crear(d) : null;
+            return r.ok ? await r.json() : null;
         } catch (_) { return null; }
+    }
+    async function cargar(base, cancionId) {
+        const d = await leer(base, cancionId);
+        return d?.pulsos?.length >= 2 ? crear(d) : null;
+    }
+    async function cargarFicha(base, cancionId) {
+        const d = await leer(base, cancionId);
+        return d ? crear(d) : null;
     }
 
     // Reaper: QN 0 = segundo 0 de la grabación; start_qn = donde empieza el compás 1 de la partitura
@@ -139,5 +147,5 @@
         menor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'],
     };
 
-    window.TempoMapa = { crear, cargar, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS };
+    window.TempoMapa = { crear, cargar, cargarFicha, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS };
 })();

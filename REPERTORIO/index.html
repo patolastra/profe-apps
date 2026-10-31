@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="../comun/compartir.css?v=eq">
     <script src="../comun/compartir.js?v=eq"></script>
     <script src="../comun/dos-grabaciones.js"></script>
-    <script src="../comun/tempo-mapa.js?v=ev"></script>
+    <script src="../comun/tempo-mapa.js?v=ev6"></script>
     <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
@@ -595,12 +595,16 @@
         .ficha-ver button.on { background: var(--accent); color: #fff; }
         .grupo-ficha { margin-bottom: 8px; }
         /* 📋 Ficha de la canción (EV): una línea discreta */
-        .ficha-oficial { display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 12px; font-size: 0.75rem; color: var(--muted);
-            border-bottom: 1px solid var(--border); cursor: pointer; }
-        .ficha-oficial:hover { background: #f1f5f9; color: var(--text); }
-        .ficha-oficial.vacia { justify-content: flex-start; font-weight: 600; }
-        .fo-tit { font-weight: 700; color: var(--text); white-space: nowrap; }
-        .fo-datos { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ficha-oficial { display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 12px; font-size: 0.75rem; color: var(--muted);
+            border-bottom: 1px solid var(--border); }
+        .ficha-oficial:hover { background: #f8fafc; }
+        .fo-tit { font-weight: 700; color: var(--text); white-space: nowrap; margin-right: 2px; }
+        .ficha-oficial select, .fo-tempo { height: 24px; font: inherit; font-size: 0.75rem; color: var(--text); background: #fff;
+            border: 1px solid var(--border); border-radius: 6px; padding: 0 4px; cursor: pointer; }
+        .ficha-oficial select:disabled, .fo-tempo:disabled { color: var(--muted); cursor: default; }
+        .fo-ton { width: 96px; } .fo-modo { width: 72px; } .fo-cifra { width: 60px; }
+        .fo-tempo { width: 92px; text-align: left; white-space: nowrap; }
+        .fo-sep { flex: 1; }
         .fo-borrar { visibility: hidden; padding: 0 4px; font-size: 0.78rem; line-height: 1; }
         .ficha-oficial:hover .fo-borrar { visibility: visible; }
         .ficha-lote > .asset-item { border-radius: 0; border-bottom: 1px solid var(--border); background: #fff; }
@@ -2892,6 +2896,8 @@
                             <select id="asset-audio-rol" style="flex:1">
                                 <option value="melodia">🎤 Melodía (con voz)</option>
                                 <option value="karaoke">🎶 Karaoke (sin voz)</option>
+                                <option value="extracto">✂️ Extracto (grabado en clase)</option>
+                                <option value="version">🎙 Versión (íntegra / trabajo final)</option>
                             </select></label>
                         <input id="asset-audio-file" type="file" accept="audio/*" style="display:none" onchange="manejarAudio(this)">
                         <button class="btn-secondary" style="width:100%;margin-top:4px" onclick="document.getElementById('asset-audio-file').click()">
@@ -3811,7 +3817,6 @@ function fichaGruposHTML(c, assets) {
             + (g.k === 'cancion' ? `<div class="ficha-medios" id="medios-cancion">
                 <div id="medios-lista"><div class="med-vacio">Cargando…</div></div>
                 <div id="medios-form"></div>
-                <button class="btn-add-asset" onclick="abrirFormMedio()">+ Agregar extracto o versión</button>
             </div>` : '');
         return `<div class="asset-group grupo-ficha" data-grupo="${g.k}">
             <div class="asset-group-header" onclick="toggleGrupoFicha('${g.k}')">
@@ -3925,7 +3930,7 @@ function pintarMediosCancion() {
     const lista = document.getElementById('medios-lista');
     if (!lista) return;
     if (!mediosCancion.length) {
-        lista.innerHTML = '<div class="med-vacio">Sin extractos ni versiones todavía. Se agregan aquí (o soltando un archivo) o desde 📷 Subir del celular, y luego ✏️ en 📁 Archivos del curso.</div>';
+        lista.innerHTML = '';   // nada que mostrar (se agregan con + Audio o soltando un archivo aquí)
         return;
     }
     // Cada medio como una fila más de 🎵 Canción (PO 2026-10-29): EXTRACTO / VERSIÓN y, más chico, su parte;
@@ -3984,7 +3989,7 @@ function editarMedio(id) {
         if (songActiva) cargarMediosCancion(songActiva.id);
     }, 600);
 }
-async function abrirFormMedio(archivo) {
+async function abrirFormMedio(archivo, uso) {
     const cont = document.getElementById('medios-form');
     if (!cont || !songActiva) return;
     if (!mediosCursos) {
@@ -4008,6 +4013,7 @@ async function abrirFormMedio(archivo) {
             <button class="btn-secondary" onclick="document.getElementById('medios-form').innerHTML=''">Cancelar</button>
             <button class="btn-primary" id="med-guardar" onclick="guardarMedio()">Guardar</button></div>
     </div>`;
+    if (uso) { document.getElementById('med-uso').value = uso; document.getElementById('med-parte').hidden = uso !== 'extracto'; }
 }
 async function guardarMedio() {
     const est = t => { const e = document.getElementById('med-estado'); if (e) e.textContent = t; };
@@ -4123,31 +4129,74 @@ async function setEstadoAsset(nuevoEstado) {
 
 // 📋 Ficha de la canción (deuda EV): una sola línea discreta arriba del grupo 🎵 Canción; clic = editarla,
 // 🗑 al pasar el mouse. Sin Ficha y con audio: "＋ Ficha de la canción" en el mismo lugar.
+// Mínima (PO 2026-10-30): tonalidad y cifra se eligen ahí mismo y se guardan solas; ⏱ Tempo abre la parte de marcar
+// el pulso (TEMPO/). Una Ficha puede existir sin tempo marcado.
+const FICHA_CIFRAS = ['2/4', '3/4', '4/4', '5/4', '6/4', '7/4', '2/2', '3/8', '6/8', '7/8', '9/8', '12/8'];
 function lineaFicha(c, ficha, todos) {
-    if (!ficha) return todos.some(a => a.tipo === 'audio')
-        ? `<div class="ficha-oficial vacia" onclick="abrirTempo('${c.id}')" title="Tonalidad, cifra, tempo y secciones de la canción (marcando su pulso): la leen las otras apps">＋ Ficha de la canción</div>` : '';
-    return `<div class="ficha-oficial" onclick="abrirTempo('${c.id}')" title="Editar la Ficha de la canción">
-        <span class="fo-tit">📋 Ficha</span><span class="fo-datos">${fichaOficial(ficha) || 'sin compases marcados'}</span>
-        <button class="btn-icon danger fo-borrar" onclick="event.stopPropagation(); eliminarAsset('${c.id}','${ficha.id}')" title="Borrar la Ficha">🗑</button>
+    if (c.categoria && c.categoria !== 'cancion') return '';
+    let m = null; try { m = ficha ? TempoMapa.crear(JSON.parse(ficha.contenido || '{}')) : null; } catch (_) {}
+    const t = m?.tonalidad, modo = t?.modo || 'mayor', ct = m ? m.cifraTexto(1) : '4/4';
+    const conAudio = todos.some(a => a.tipo === 'audio');
+    const tonicas = '<option value="">Tonalidad</option>' + TempoMapa.TONICAS[modo].map(x =>
+        `<option value="${x}"${x === t?.tonica ? ' selected' : ''}>${TempoMapa.nombreTonalidad({ tonica: x, modo }).split(' ')[0]}</option>`).join('');
+    const cifras = (FICHA_CIFRAS.includes(ct) ? FICHA_CIFRAS : [...FICHA_CIFRAS, ct]).map(x => `<option${x === ct ? ' selected' : ''}>${x}</option>`).join('');
+    return `<div class="ficha-oficial" data-cancion="${c.id}" title="Lo oficial de la canción: lo leen Melodía, Arreglo, Cajón, Metrónomo y Lector">
+        <span class="fo-tit">📋 Ficha</span>
+        <select class="fo-ton" onchange="cambiarFicha('${c.id}')">${tonicas}</select>
+        <select class="fo-modo" onchange="cambiarFicha('${c.id}', 'modo')"${t ? '' : ' disabled'}><option value="mayor"${modo === 'mayor' ? ' selected' : ''}>mayor</option><option value="menor"${modo === 'menor' ? ' selected' : ''}>menor</option></select>
+        <select class="fo-cifra" onchange="cambiarFicha('${c.id}')" title="Cifra de compás">${cifras}</select>
+        <button class="fo-tempo" onclick="abrirTempo('${c.id}')"${conAudio ? '' : ' disabled'} title="${conAudio ? 'Marcar el pulso de la grabación (tempo, compases y secciones)' : 'Necesita el audio de la canción'}">⏱ Tempo${m?.bpm ? ' ♩ ' + m.bpm : ''}</button>
+        <span class="fo-sep"></span>
+        ${ficha ? `<button class="btn-icon danger fo-borrar" onclick="eliminarAsset('${c.id}','${ficha.id}')" title="Borrar la Ficha (también el tempo marcado)">🗑</button>` : ''}
     </div>`;
 }
-// Lo declarado en la Ficha (su Mapa de tempo)
-function fichaOficial(a) {
-    let m = null;
-    try { m = TempoMapa.crear(JSON.parse(a.contenido || '{}')); } catch (_) { return ''; }
-    if (m.vacio) return '';
-    const cambios = m.cifras.length > 1 ? ' (cambia)' : '';
-    const nCompases = m.compasDePulso(m.pulsos.length - 1 - m.compas1).compas;
-    return [TempoMapa.nombreTonalidad(m.tonalidad) || 'sin tonalidad', m.cifraTexto() + cambios, m.bpm ? '♩ ' + m.bpm : '',
-        nCompases + ' compases', m.secciones.length ? m.secciones.length + (m.secciones.length === 1 ? ' sección' : ' secciones') : '']
-        .filter(Boolean).join(' · ');
+async function cambiarFicha(cid, que) {
+    const fila = document.querySelector(`.ficha-oficial[data-cancion="${cid}"]`), c = canciones.find(x => x.id === cid);
+    if (!fila || !c) return;
+    const ficha = (c.assets || []).find(a => a.tipo === 'tempo');
+    let d = {}; try { d = JSON.parse(ficha?.contenido || '{}') || {}; } catch (_) {}
+    const ton = fila.querySelector('.fo-ton').value, modo = fila.querySelector('.fo-modo').value;
+    if (que === 'modo') {       // mayor ↔ menor con la misma tónica (La mayor → La menor)
+        const t = d.tonalidad;
+        if (t) d.tonalidad = { tonica: TempoMapa.TONICAS[modo].find(x => TempoMapa.mismaTonalidad({ tonica: x, modo }, { tonica: t.tonica, modo })) || TempoMapa.TONICAS[modo][0], modo };
+    } else if (ton) d.tonalidad = { tonica: ton, modo };
+    else delete d.tonalidad;
+    const [n, den] = fila.querySelector('.fo-cifra').value.split('/').map(Number);
+    d.cifras = (d.cifras?.length ? d.cifras : [{ compas: 1, n: 4 }]).map((x, i) => i ? x : { ...x, n, d: den });
+    const datos = TempoMapa.crear(d).datos(), contenido = JSON.stringify(datos);
+    fila.querySelectorAll('select').forEach(x => x.disabled = true);
+    try {
+        if (ficha) {
+            const { error } = await sb.from('repertorio_assets').update({ contenido }).eq('id', ficha.id);
+            if (error) throw error;
+            ficha.contenido = contenido;
+        } else {
+            const nueva = { id: genId(), cancion_id: cid, tipo: 'tempo', etiqueta: '', instrumento: '', contenido, storage_path: '',
+                nombre_archivo: '', synced: '', orden: 0, dificultad: '', estado: 'publicado' };
+            const { error } = await sb.from('repertorio_assets').insert(nueva);
+            if (error) throw error;
+            (c.assets = c.assets || []).push(nueva);
+        }
+        // El archivo público, que leen las otras apps (y las páginas de estudiantes)
+        const { error: e2 } = await sb.storage.from(BUCKET).upload(`tempo/${cid}.json`,
+            new Blob([JSON.stringify({ ...datos, cancion: c.nombre })], { type: 'application/json' }), { upsert: true, contentType: 'application/json' });
+        if (e2) throw e2;
+        try {
+            const bc = new BroadcastChannel('profe-tempo');
+            bc.postMessage({ tipo: 'ficha-datos', cancion: cid, tonalidad: datos.tonalidad || null, cifra: datos.cifras[0] });   // a la app del tempo abierta
+            bc.postMessage({ tipo: 'tempo-guardado', cancion: cid });                                                         // a las demás
+            bc.close();
+        } catch (_) {}
+        toast('Ficha guardada');
+    } catch (e) { toast('No se pudo guardar la Ficha: ' + (e.message || e)); }
+    renderPanel();
 }
 
 function assetItemHTML(a, i) {
     const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo, clase: '' };
     // Nombre de cortesía (comun/nombre-asset.js): el tipo ya se muestra arriba, aquí descripción · dificultad
     const pa = partesAsset(a);
-    const sublabel = a.tipo === 'tempo' ? fichaOficial(a) : [pa.detalle, pa.dificultad].filter(Boolean).join(' · ');
+    const sublabel = [pa.detalle, pa.dificultad].filter(Boolean).join(' · ');
     const etiq = sublabel ? `<div class="asset-item-etiqueta">${sublabel}</div>` : '';
     const sinDif = esDeInstrumento(a) ? marcasFaltan(a) : '';
     const btnClase = ['ritmo', 'cajon', 'melodia', 'arreglo'].includes(a.tipo)
@@ -5003,7 +5052,8 @@ function selTipo(btn) {
     if (isAudio) {
         // Proponer el tipo que le falta a la canción (Melodía primero).
         const cA = canciones.find(x => x.id === assetSongId);
-        document.getElementById('asset-audio-rol').value = (cA && audiosDe(cA).some(a => a.rol === 'melodia')) ? 'karaoke' : 'melodia';
+        const tiene = r => cA && audiosDe(cA).some(a => a.rol === r);
+        document.getElementById('asset-audio-rol').value = !tiene('melodia') ? 'melodia' : !tiene('karaoke') ? 'karaoke' : 'extracto';
         document.getElementById('asset-audio-file').click();
     }
 
@@ -5097,9 +5147,18 @@ async function guardarAsset() {
     const metaFields = { instrumento, dificultad, tonalidad };
 
     if (tipoSeleccionado === 'audio') {
+        const rol = document.getElementById('asset-audio-rol').value;
+        // Extracto o versión (EV): van a 📁 Archivos del curso; se termina en el formulario de la canción (curso y parte)
+        if (rol === 'extracto' || rol === 'version') {
+            const archivo = audioFile;
+            cerrarModalAsset();
+            fichaPlegados.delete('cancion'); songActiva = c; renderPanel();
+            await abrirFormMedio(archivo || null, rol);
+            document.getElementById('medios-form')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            return;
+        }
         if (!audioFile) { toast('Selecciona un archivo de audio'); return; }
         // Melodía / Karaoke: máximo uno de cada tipo por canción.
-        const rol = document.getElementById('asset-audio-rol').value;
         if (audiosDe(c).some(a => a.rol === rol)) {
             toast(`Esta canción ya tiene ${rol === 'karaoke' ? 'Karaoke' : 'Melodía'}: edita o elimina ese audio primero`); return;
         }

@@ -22,7 +22,7 @@
 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../supabase/config.js"></script>
-<script src="../comun/tempo-mapa.js?v=ev2"></script>
+<script src="../comun/tempo-mapa.js?v=ev6"></script>
 <style>
     :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; }
     * { box-sizing: border-box; }
@@ -180,7 +180,7 @@ let cancionNombre = '';
 let melodias = [];              // melodías de la canción: { id, etiqueta, tonalidad }
 let audios = { melodia: null, karaoke: null };   // dirección pública de cada grabación
 let contenidoBase = '', etiquetaBase = '';
-let mapaTempo = null, tempoV = 0;  // mapa de tempo de la canción (TempoMapa, deuda EU)
+let mapaTempo = null, tempoV = 0, fichaCancion = null;   // fichaCancion: la Ficha aunque no tenga tempo (EV)  // mapa de tempo de la canción (TempoMapa, deuda EU)
 
 // ══ El arreglo ══════════════════════════════════════════════════════════════════════════
 const A = {
@@ -361,11 +361,11 @@ function datosPublicos(hasta) {
 
 // ══ Pintar ══════════════════════════════════════════════════════════════════════════════
 // Ficha oficial de la canción (su Mapa de tempo, deuda EV): si el arreglo queda distinto se avisa; tocar adopta lo oficial
-const tonOficial = () => mapaTempo?.tonalidad || null;
+const tonOficial = () => fichaCancion?.tonalidad || null;
 const tonicaDe = (lista, t) => lista.find(x => x === t.tonica) || lista.find(x => TempoMapa.mismaTonalidad({ tonica: x, modo: t.modo }, t)) || null;
 function pintarDif() {
-    const n = mapaTempo ? mapaTempo.compasSimple() : 0, ct = mapaTempo ? mapaTempo.cifraTexto(1) : '';
-    const dc = $('dif-compas'), difC = !!mapaTempo && n !== A.compas;
+    const n = fichaCancion ? fichaCancion.compasSimple() : 0, ct = fichaCancion ? fichaCancion.cifraTexto(1) : '';
+    const dc = $('dif-compas'), difC = !!fichaCancion && n !== A.compas;
     dc.classList.toggle('on', difC); dc.textContent = difC ? `≠ canción: ${ct}` : ''; dc.disabled = !n;
     dc.title = n ? `La canción está en ${ct} (su Ficha). Toca para usarlo.` : `La canción está en ${ct}: el arreglo aún no lo escribe.`;
     const t = tonOficial(), nom = TempoMapa.nombreTonalidad(t);
@@ -376,7 +376,7 @@ function pintarDif() {
     dor.classList.toggle('on', !!difO); dor.textContent = difO ? `≠ canción: ${nombreTon(t.tonica)}` : '';
     dor.title = difO ? `Según la Ficha de la canción, la grabación está en ${nom}. Toca para usarlo.` : '';
 }
-$('dif-compas').onclick = e => { e.target.blur(); const n = mapaTempo?.compasSimple(); if (!n) return; A.compas = n; pintarBase(); pintarOrden(); cambio(); };
+$('dif-compas').onclick = e => { e.target.blur(); const n = fichaCancion?.compasSimple(); if (!n) return; A.compas = n; pintarBase(); pintarOrden(); cambio(); };
 $('dif-ton').onclick = e => {
     e.target.blur(); const t = tonOficial(); if (!t) return;
     A.modo = t.modo; A.tonica = tonicaDe(TONICAS[t.modo], t) || A.tonica; pintarBase(); pintarAudio(); cambio();
@@ -664,7 +664,7 @@ $('b-traer-sec').onclick = () => {
     toast(`${ms.length} secciones en el orden de la canción${nuevas.length ? ` · nuevas: ${[...new Set(nuevas)].join(', ')}` : ''}`);
 };
 async function cargarTempo() {
-    mapaTempo = await TempoMapa.cargar(publica(''), cancionId);
+    [mapaTempo, fichaCancion] = await Promise.all([TempoMapa.cargar(publica(''), cancionId), TempoMapa.cargarFicha(publica(''), cancionId)]);
     tempoV = Date.now();
 }
 try {
@@ -780,11 +780,11 @@ async function iniciar() {
                 }
             }
             // …y por sobre ella, la ficha oficial de la canción (Mapa de tempo, deuda EV): la grabación ES la canción
-            if (!assetId && mapaTempo) {
+            if (!assetId && fichaCancion) {
                 const t = tonOficial();
                 if (t) { A.modo = t.modo; A.tonica = tonicaDe(TONICAS[t.modo], t) || A.tonica; A.audio.original = tonicaDe(TODAS, t) || A.tonica; }
-                if (mapaTempo.compasSimple()) A.compas = mapaTempo.compasSimple();
-                if (mapaTempo.bpm && mapaTempo.cifras[0].d === 4) A.tempo = mapaTempo.bpm;
+                if (fichaCancion.compasSimple()) A.compas = fichaCancion.compasSimple();
+                if (fichaCancion.bpm && fichaCancion.cifras[0].d === 4) A.tempo = fichaCancion.bpm;
             }
         }
     } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }

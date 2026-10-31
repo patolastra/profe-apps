@@ -7813,3 +7813,30 @@ entrega lo oficial").*
   = editarla, 🗑 solo al pasar el mouse; no cuenta en el número del grupo); sin Ficha y con audio, "＋ Ficha de la
   canción" en el mismo lugar. Prueba (navegador, COQUETA): la línea se ve, mide 33 px (un recurso 46), 🗑 solo con el
   mouse encima; el grupo cuenta 3 (Letra, Melodía, Karaoke).
+- **Ajuste 2 (PO 2026-10-30, aprobado "Sí, apruebo"): Ficha mínima + extractos desde "+ Audio".** "La ficha debe
+  tener una primera interfaz mínima, donde poner la tonalidad, la cifra de compás, y ya al querer agregar tempomap
+  entramos a la parte de tempomap; no necesito saber cuántos compases tiene ni cuántas secciones"; "no necesito
+  saber que no hay extractos, ni un botón especial para agregar extractos: hay un audio Melodía, un Karaoke y el
+  resto pueden ser extractos o versiones".
+  - Plan: la línea 📋 Ficha de la Biblioteca se edita ahí mismo (tónica · modo · cifra, se guardan solas; ⏱ Tempo ♩ N
+    abre la app de marcar el pulso; 🗑 al pasar el mouse); una Ficha puede existir sin tempo marcado (solo tonalidad y
+    cifra) y las apps que leen lo oficial (Melodía, Arreglo, Cajón, Metrónomo) la leen igual
+    (`TempoMapa.cargarFicha`); lo que sigue la grabación (Arreglo/Piano/Lector) sigue pidiendo pulsos. Extractos y
+    versiones: sin texto de "no hay" ni botón propio; "+ Audio" ofrece Melodía · Karaoke · Extracto · Versión (los dos
+    últimos piden curso y parte y van a 📁 Archivos del curso como hoy); soltar un archivo sobre 🎵 Canción sigue.
+  - **Hecho (2026-10-30):** `TempoMapa.cargarFicha` (la Ficha aunque no tenga pulsos); la usan Melodía, Cajón,
+    Metrónomo y el Arreglo (`fichaCancion` para tonalidad/compás/tempo inicial; el calce con la grabación sigue con
+    `mapaTempo`); el Lector avisa "la Ficha aún no tiene el tempo marcado". Biblioteca: `lineaFicha` = 📋 Ficha ·
+    tónica · modo · cifra · ⏱ Tempo ♩ N (deshabilitado sin audio) · 🗑 al pasar el mouse; solo en canciones (no en
+    materiales ni estilos); `cambiarFicha` guarda solo (crea el recurso `tempo` si no existe, sube `tempo/<id>.json`,
+    avisa por `profe-tempo`). La app del tempo toma la tonalidad y la cifra que llegan de la Biblioteca sin pisar sus
+    pulsos (`ficha-datos`). Se quitó el resumen largo (`fichaOficial`). Extractos y versiones: sin el texto "Sin
+    extractos…" ni el botón "+ Agregar extracto o versión"; "+ Audio" → Melodía · Karaoke · ✂️ Extracto · 🎙 Versión
+    (propone el que falta; con los dos audios, Extracto), los dos últimos cierran la ventana y abren el formulario de
+    la canción con ese tipo y el archivo elegido (o archivo/enlace si no se eligió). Soltar un archivo sigue igual.
+  - Prueba (navegador, COQUETA): la línea muestra Mi · mayor · 4/4 · ⏱ Tempo ♩ 79 (35 px); con el guardado
+    **simulado** (no se permite escribir en la base real desde la prueba): modo → Mi menor, cifra → 6/8 (pulsos
+    intactos, archivo público tempo/<id>.json con el nombre), sin tónica → se quita la tonalidad y "modo" queda
+    deshabilitado. "+ Audio" → Versión abre el formulario en Versión con archivo y enlace. Arreglo y Melodía nuevos de
+    COQUETA parten en Mi mayor · 4/4 · 79. Sin extractos, no se ve nada. **Falta:** que el PO pruebe el guardado real
+    en la Biblioteca.
