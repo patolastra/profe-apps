@@ -8062,3 +8062,34 @@ no tienen letra: intro, mambo, coda…").*
   él empezó una sección sin verso (Intro, Mambo…), a su etiqueta (`entElemSonando`); sin nada activo, al comienzo.
   Siguiendo lo que suena, al empezar una sección sin verso la letra va sola a su etiqueta. Prueba (Sin Sentimiento,
   sonando en 3:19, dentro de Mambo 1): lo que suena = "♪ Mambo 1".
+
+### FA. 🎧 Audios de la canción en el Entrenador del celular (Melodía, Karaoke, extractos y versiones) — HECHA
+*Origen: PO 2026-10-31 ("en pwa, cuando renderizo letra de una canción veo modo claro/oscuro, letra, pero también
+necesito poder navegar entre los audios de la canción: melodía, karaoke (si hubiera, y coordinado, como en Cantar) y
+otros audios también: para extractos o versiones, no se muestra la letra").*
+- **Auditoría:** en el celular (`REPERTORIO/?movil=1`) el único control de audio es el botón Melodía ↔ Karaoke, que solo
+  aparece si la canción tiene Karaoke (el cambio ya es exacto, ET). Los extractos y versiones son medios de los cursos
+  ligados a la canción (`curso_archivos.cancion_id`, `uso` extracto/version; archivo en `curso-archivos` o enlace);
+  hoy solo se ven en la ficha de la Biblioteca del PC. Otros audios de la canción (recursos `audio` que no son Melodía
+  ni Karaoke) no tienen cómo sonar en el Entrenador.
+- **Plan (decisiones de detalle de Claude, a validar por el PO):**
+  1. En el celular, el botón de audio pasa a ser **🎧 <lo que suena> ▾** (siempre que la canción tenga algún audio) y
+     abre una hoja desde abajo: **Canción** (🎤 Melodía · 🎶 Karaoke, cambio exacto como hoy) y **Extractos y
+     versiones** (✂️ / 🎙 con su parte, curso y fecha; también los otros audios de la canción).
+  2. Al elegir un extracto, versión u otro audio: el audio de la canción se detiene y en lugar de la letra se ve una
+     tarjeta con su nombre, curso y fecha y su reproductor (audio o video; un enlace de YouTube/Drive se abre aparte).
+     Elegir Melodía o Karaoke vuelve a la letra. Al salir de la app se detiene (como todo el celular, ET).
+  3. PC sin cambios por ahora (allá Melodía ↔ Karaoke sigue en su botón y los extractos están en la ficha); se puede
+     llevar después si el PO lo pide.
+  - Sin cambios en Supabase. Lugares: Entrenador del celular (`?movil=1`).
+- **Hecho (2026-10-31):** `REPERTORIO/index.html` (solo `body.movil`): botón **🎧 <lo que suena> ▾** (ancho fijo, en vez
+  de Melodía ↔ Karaoke) y hoja desde abajo con **Canción** (Melodía · Karaoke con `entCambiarAudio`, deshabilitado
+  "Preparando…" hasta tener las dos grabaciones) y **Extractos y versiones** (`curso_archivos` de la canción: audio,
+  video o enlace; con parte, curso y fecha; luego los otros audios de la canción). Elegir uno detiene la canción,
+  esconde el reproductor de abajo (`.con-medio`) y muestra la tarjeta con su reproductor (`entPintarMedio`, que no se
+  rehace al redibujar); "← Volver a la letra" o elegir Melodía/Karaoke vuelven a la letra; abrir otra canción también.
+  Al salir de la app se detiene el extracto (como la canción).
+  Prueba (navegador, vista de celular): Sin Sentimiento → 🎤 Melodía ▾; la hoja muestra Melodía y ✂️ "Coro: segunda
+  voz" (Extracto · Taller de Cuerdas · 31/10/2026); al elegirlo, tarjeta con su audio (.opus), sin reproductor de abajo
+  y el botón dice "✂️ Coro: segunda voz ▾"; redibujar no lo reinicia; Volver → 54 versos de nuevo. Milagro de Amor:
+  Melodía y Karaoke; Karaoke cambia (🎶 Karaoke ▾). PC sin cambios.

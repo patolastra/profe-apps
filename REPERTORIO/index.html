@@ -2142,6 +2142,32 @@
         body.movil #ent-asset-chips, body.movil #ent-btn-mini-x, body.movil #ent-link, body.movil #ent-vol,
         body.movil #ent-song-text, body.movil #ent-btn-lectura { display: none !important; }   /* el nombre ya está en la portada; Lectura no hace falta (PO 2026-10-25) */
         body.movil .ent-lyric-line { white-space: normal; overflow-wrap: break-word; }
+        /* 🎧 Audios de la canción en el celular (FA): un botón y una hoja desde abajo */
+        #ent-btn-audios { display: none; }
+        body.movil #ent-btn-audio { display: none !important; }
+        body.movil #ent-btn-audios { display: inline-block; width: 150px; overflow: hidden; text-overflow: ellipsis; text-align: center;
+            background: #334155; border: 1.5px solid #475569; color: #e2e8f0; border-radius: 20px; padding: 7px 12px; font-size: .85rem; font-weight: 600; white-space: nowrap; }
+        body.movil #ent-btn-audios.oculto { visibility: hidden; }
+        #ent-audios-hoja { display: none; position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,.5); align-items: flex-end; }
+        #ent-audios-hoja.visible { display: flex; }
+        .eah-caja { width: 100%; max-height: 75vh; overflow-y: auto; background: #0f172a; color: #e2e8f0; border-radius: 16px 16px 0 0;
+            padding: 10px 12px calc(14px + env(safe-area-inset-bottom, 0px)); }
+        .eah-tit { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #64748b; padding: 10px 6px 4px; }
+        .eah-item { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; color: inherit; padding: 11px 10px; font-size: 1rem; }
+        .eah-item.on { background: #1e293b; color: #fb923c; }
+        .eah-item:disabled { opacity: .45; }
+        .eah-item small { display: block; color: #94a3b8; font-size: .78rem; margin-top: 2px; }
+        .eah-vacio { color: #64748b; font-size: .85rem; padding: 6px 10px; }
+        #entrenador-overlay.con-medio #ent-controles { display: none; }
+        .ent-medio { margin: auto; width: min(560px, 100%); display: flex; flex-direction: column; gap: 10px; align-items: stretch; text-align: center; padding: 10px; }
+        .ent-medio .em-tipo { color: #fb923c; font-weight: 700; font-size: .9rem; }
+        .ent-medio .em-nombre { font-size: 1.5rem; font-weight: 700; }
+        .ent-medio .em-sub { color: #94a3b8; font-size: .9rem; }
+        .ent-medio audio, .ent-medio video { width: 100%; }
+        .ent-medio a, .ent-medio button { align-self: center; border-radius: 20px; padding: 9px 18px; font-weight: 600; font-size: .9rem;
+            background: #334155; border: 1.5px solid #475569; color: #e2e8f0; text-decoration: none; }
+        #entrenador-overlay.ent-light .ent-medio .em-nombre { color: #0f172a; }
+        #entrenador-overlay.ent-light .ent-medio a, #entrenador-overlay.ent-light .ent-medio button { background: #e2e8f0; border-color: #cbd5e1; color: #334155; }
         body.movil #ent-header { height: auto; min-height: 52px; padding: calc(6px + env(safe-area-inset-top, 0px)) 8px 6px; flex-wrap: wrap; row-gap: 6px; }
         body.movil #ent-header-tools, body.movil #ent-mode-btns { flex-wrap: wrap; row-gap: 6px; flex-shrink: 1; min-width: 0; }
         body.movil #ent-header-tools button, body.movil #ent-mode-btns button { font-size: 0.85rem; padding: 7px 12px; }
@@ -3195,6 +3221,7 @@
             <button id="ent-btn-tema" onclick="entToggleTema()" title="Modo claro">☀️</button>
             <button id="ent-btn-atajos" onclick="entAbrirAtajos()" title="Atajos de teclado">⌨</button>
             <button id="ent-btn-audio" onclick="entCambiarAudio()" style="display:none">🎤 Melodía</button>
+            <button id="ent-btn-audios" class="oculto" onclick="entAudiosAbrir()" title="Audios de la canción: Melodía, Karaoke, extractos y versiones">🎤 Melodía ▾</button>
             <button id="ent-btn-pitch" onclick="entTogglePitchInput()" title="Cambiar tono (−6 a +6 semitonos)">Pitch</button>
             <input id="ent-pitch-input" type="number" min="-6" max="6" step="1" value="0"
                    style="display:none" onkeydown="entPitchInputKey(event)" onblur="entPitchInputBlur()">
@@ -3226,6 +3253,7 @@
         <div id="ent-left">
             <div id="ent-prueba-bar" hidden></div>
             <div id="ent-zona"></div>
+            <div id="ent-audios-hoja" onclick="if (event.target === this) entAudiosCerrar()"><div class="eah-caja" id="ent-audios-caja"></div></div>
             <button id="ent-volver-verso" onclick="entVolverAlVerso()" title="La letra vuelve a seguir lo que suena">⌖ Volver a lo que suena</button>
             <!-- Reproductor en una sola franja (deuda DC): ⏮ comienzo · ▶ · ⏭ estrofa siguiente · tiempo · avance · duración · volumen -->
             <div id="ent-controles">
@@ -6075,6 +6103,7 @@ async function difDuracionConMelodia(c, url, excluirId = null) {
 // Selector Melodía / Karaoke (solo si la canción tiene los dos). Conserva el punto, la
 // reproducción, la velocidad, los loops y el verso (todo va por tiempo).
 function entPintarSelectorAudio() {
+    entPintarAudios();
     const b = document.getElementById('ent-btn-audio');
     if (!b) return;
     const doble = tieneKaraoke(entrenadorSong);
@@ -6083,6 +6112,87 @@ function entPintarSelectorAudio() {
     b.classList.toggle('activo', entAudioRol === 'karaoke');
     b.title = entAudioRol === 'karaoke' ? 'Sonando el karaoke (sin voz). Clic: volver a la Melodía'
                                         : 'Sonando la Melodía (con voz). Clic: cambiar al Karaoke';
+}
+// ── 🎧 Audios de la canción en el celular (FA): Melodía · Karaoke (cambio exacto) · extractos, versiones y otros
+// audios, que suenan en una tarjeta en lugar de la letra ──
+let entMedio = null;                          // extracto / versión / otro audio puesto (null = la letra)
+let entMediosCache = { id: null, lista: [] };
+const entMedioIcono = f => f.otro ? '🎵' : f.uso === 'extracto' ? '✂️' : f.uso === 'version' ? '🎙' : '🎵';
+const entMedioTipo = f => f.otro ? 'Otro audio' : f.uso === 'extracto' ? 'Extracto' : f.uso === 'version' ? 'Versión' : 'Audio';
+function entPintarAudios() {
+    const b = document.getElementById('ent-btn-audios'); if (!b) return;
+    b.classList.toggle('oculto', !audiosDe(entrenadorSong).length);
+    b.textContent = entMedio ? `${entMedioIcono(entMedio)} ${entMedio.titulo} ▾` : entAudioRol === 'karaoke' ? '🎶 Karaoke ▾' : '🎤 Melodía ▾';
+}
+async function entMediosDe(c) {
+    if (entMediosCache.id === c.id) return entMediosCache.lista;
+    let lista = [];
+    try {
+        const { data } = await sb.from('curso_archivos').select('*, contextos(nombre)').eq('cancion_id', c.id).order('fecha', { ascending: false });
+        lista = (data || []).filter(f => f.url || f.tipo === 'audio' || f.tipo === 'video').map(f => ({
+            ...f, titulo: f.parte || f.nombre, src: f.url || ArchivosCurso.url(f),
+            sub: [f.contextos?.nombre ? ctxDisplay(f.contextos.nombre) : '', f.fecha ? f.fecha.split('-').reverse().join('/') : ''].filter(Boolean).join(' · ') }));
+        const orden = { extracto: 0, version: 1 };
+        lista.sort((a, b) => (orden[a.uso] ?? 2) - (orden[b.uso] ?? 2));
+    } catch (_) {}
+    const m = audioDe(c, 'melodia'), k = audioDe(c, 'karaoke');
+    audiosDe(c).filter(a => a !== m && a !== k && a.storage_path).forEach(a => lista.push({
+        otro: true, id: a.id, tipo: 'audio', titulo: (window.nombreAsset ? nombreAsset(a) : '') || a.etiqueta || 'Audio', sub: '', src: storageUrl(a.storage_path) }));
+    entMediosCache = { id: c.id, lista };
+    return lista;
+}
+async function entAudiosAbrir() {
+    const c = entrenadorSong; if (!c) return;
+    const caja = document.getElementById('ent-audios-caja');
+    const karaoke = tieneKaraoke(c);
+    const cancion = `<div class="eah-tit">Canción</div>
+        <button class="eah-item${!entMedio && entAudioRol !== 'karaoke' ? ' on' : ''}" onclick="entAudiosElegir('melodia')">🎤 Melodía</button>
+        ${karaoke ? `<button class="eah-item${!entMedio && entAudioRol === 'karaoke' ? ' on' : ''}" onclick="entAudiosElegir('karaoke')" ${entDosListas ? '' : 'disabled'}>🎶 Karaoke${entDosListas ? '' : '<small>Preparando…</small>'}</button>` : ''}`;
+    caja.innerHTML = cancion + '<div class="eah-tit">Extractos y versiones</div><div class="eah-vacio">Cargando…</div>';
+    document.getElementById('ent-audios-hoja').classList.add('visible');
+    const lista = await entMediosDe(c);
+    if (entrenadorSong !== c) return;
+    caja.innerHTML = cancion + '<div class="eah-tit">Extractos y versiones</div>' + (lista.length ? lista.map((f, i) =>
+        `<button class="eah-item${entMedio && entMedio.id === f.id ? ' on' : ''}" onclick="entAudiosElegir(${i})">${entMedioIcono(f)} ${entEsc(f.titulo)}<small>${entEsc([entMedioTipo(f), f.sub].filter(Boolean).join(' · '))}</small></button>`).join('')
+        : '<div class="eah-vacio">Esta canción no tiene extractos ni versiones.</div>');
+}
+function entAudiosCerrar() { document.getElementById('ent-audios-hoja')?.classList.remove('visible'); }
+function entAudiosElegir(x) {
+    entAudiosCerrar();
+    if (x === 'melodia' || x === 'karaoke') {
+        entMedioSalir(true);
+        if (x !== entAudioRol) entCambiarAudio(x);
+        entPintarAudios();
+        return;
+    }
+    const f = entMediosCache.lista[x]; if (!f) return;
+    const a = entAudio(); if (!a.paused) { a.pause(); entPintarPlay('play'); }   // la canción se detiene
+    entMedio = f;
+    document.getElementById('entrenador-overlay').classList.add('con-medio');
+    document.getElementById('ent-zona').innerHTML = '';
+    entPintarMedio(); entPintarAudios();
+}
+// Tarjeta del medio en lugar de la letra (una sola vez: volver a dibujarla lo reiniciaría)
+function entPintarMedio() {
+    const zona = document.getElementById('ent-zona'), f = entMedio;
+    if (!zona || !f || zona.querySelector('.ent-medio')) return;
+    const src = entEsc(f.src), enlace = !!f.url;
+    zona.innerHTML = `<div class="ent-medio">
+        <div class="em-tipo">${entMedioIcono(f)} ${entMedioTipo(f)}</div>
+        <div class="em-nombre">${entEsc(f.titulo)}</div>
+        ${f.sub ? `<div class="em-sub">${entEsc(f.sub)}</div>` : ''}
+        ${enlace ? `<a href="${src}" target="_blank" rel="noopener">Abrir ↗</a>`
+            : f.tipo === 'video' ? `<video controls autoplay playsinline src="${src}"></video>` : `<audio controls autoplay src="${src}"></audio>`}
+        <button onclick="entMedioSalir(true)">← Volver a la letra</button>
+    </div>`;
+}
+function entMedioSalir(dibujar = true) {
+    if (!entMedio) return;
+    document.querySelectorAll('#ent-zona .ent-medio audio, #ent-zona .ent-medio video').forEach(m => m.pause());
+    entMedio = null;
+    document.getElementById('entrenador-overlay')?.classList.remove('con-medio');
+    entPintarAudios();
+    if (dibujar) { document.getElementById('ent-zona').innerHTML = ''; entFontSizeGlobal = null; entRenderZona(); }
 }
 function entCambiarAudio(rol, silencioso = false) {
     if (!entrenadorSong) return;
@@ -6908,6 +7018,7 @@ function entCargarAsset(asset, userInitiated = false) {
         entrenadorStanzas = entParseStanzas();
         entrenadorLineIdx = -1;
         entNavLibre = false; document.getElementById('ent-volver-verso')?.classList.remove('visible');
+        entMedioSalir(false);
         entFontSizeGlobal = null;
         entSyncMode = false;
         ocultarRow.style.display = ''; ocultarRow.classList.remove('ent-tools-disabled');
@@ -7314,6 +7425,7 @@ const entTamTags = (zona, fs) => zona.querySelectorAll('.ent-sec-tag span').forE
 
 function entRenderZona(forzarOrigIdx = null) {
     const zona = document.getElementById('ent-zona');
+    if (entMedio) { entPintarMedio(); return; }
     // Ritmo, metalófono, PDF…: tienen su propio dibujo; la letra no se pinta encima.
     const tipoActivo = entrenadorAssetActivo?.tipo;
     if (tipoActivo && tipoActivo !== 'letra' && tipoActivo !== 'cifrado') return;
@@ -7353,6 +7465,7 @@ function entRenderZona(forzarOrigIdx = null) {
 // Reutiliza EXACTAMENTE el markup de verso de Scroll (entLineSpanHTML/entStanzaHTML).
 function entRenderDiapositiva() {
     const zona = document.getElementById('ent-zona');
+    if (entMedio) { entPintarMedio(); return; }
     if (!zona || !entrenadorStanzas.length) return;
     if (entViewMode !== 'pantalla' || entSyncMode || entModoEdicion) return;
     if (entVersoEnEdicion) return;   // no destruir una edición rápida en curso
@@ -9694,7 +9807,10 @@ const MOVIL = new URLSearchParams(location.search).get('movil') === '1';
 // Celular: al salir de la app (otra app, minimizar, apagar la pantalla) la canción se detiene siempre (ET).
 // En el PC sigue sonando (en clase se cambia de ventana con la música andando).
 if (MOVIL) {
-    const alSalir = () => { const a = entAudio(); if (!a.paused) { a.pause(); entPintarPlay('play'); } };
+    const alSalir = () => {
+        const a = entAudio(); if (!a.paused) { a.pause(); entPintarPlay('play'); }
+        document.querySelectorAll('#ent-zona .ent-medio audio, #ent-zona .ent-medio video').forEach(m => m.pause());   // FA
+    };
     document.addEventListener('visibilitychange', () => { if (document.hidden) alSalir(); });
     window.addEventListener('pagehide', alSalir);
     window.addEventListener('blur', alSalir);   // selector de apps, cortina de avisos (como el Lector)
