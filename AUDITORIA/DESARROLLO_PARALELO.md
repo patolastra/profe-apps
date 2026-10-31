@@ -8132,7 +8132,7 @@ volver a la letra sin problemas").*
   Prueba (vista de celular, Sin Sentimiento): 20 secciones; tocar "Estrofa 2" → audio en 0:38 sonando y Estrofa 2 en
   naranjo; ← Letra → la letra (54 versos); el reproductor de abajo visible con la pantalla abierta.
 
-### FC. 🎧 Biblioteca de otros audios en el Entrenador (tipo audios de WhatsApp) — HECHA (falta correr el SQL)
+### FC. 🎧 Biblioteca de otros audios en el Entrenador (tipo audios de WhatsApp) — HECHA
 *Origen: PO 2026-10-31 ("Otros audios en el Entrenador debería ser una biblioteca de audios tipo varios audios en
 wasap: tenerlos todos a la vista, en una pantalla dedicada, con info mínima: primero los extractos (un título de
 sección), mencionando solo lo necesario, p. ej. "Coro: segunda voz", no importa fecha (sí curso si hubiera), y luego
@@ -8169,5 +8169,6 @@ Sin Sentimiento déjalo sin curso").*
   ▶ suena (barra al 11 % a 1,7 s, botón ⏸); dar ▶ a la canción detiene el extracto. Vista de celular → 🎧 abre la
   pantalla con la misma fila; ▶ suena; 🧩 cierra la de audios y abre la de estructura; la pantalla llega justo al
   reproductor de abajo.
-  - **Falta:** que el PO corra `supabase/medios_sin_curso.sql`; luego Claude deja sin curso el extracto de Sin
-    Sentimiento.
+  - SQL corrido por el PO (2026-10-31). El extracto "Coro: segunda voz" de Sin Sentimiento quedó sin curso
+    (`contexto_id` null; su archivo sigue en la carpeta del Taller de Cuerdas en el bucket, sin efecto visible); el
+    Entrenador lo muestra sin curso.
