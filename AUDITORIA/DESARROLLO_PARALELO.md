@@ -8005,3 +8005,33 @@ hay una "Estrofa" se empiezan a enumerar 1, 2, 3…; un botón "Editar nombres";
   Prueba (OLIMPO, sin guardar): 6 secciones; Intro, Estrofa, Coro, Estrofa con Enter → Intro · Estrofa 1 · Coro ·
   Estrofa 2 · Sección 1 · Sección 2, foco en la 5ª y sonando desde 0:55; Estrofa 2 → Puente deja "Estrofa" sola; ← en
   el borde vuelve a la anterior; versos ligados visibles en itálica. Deshecho.
+
+### EZ. 🧩 Estructura en el Entrenador: menú, mostrar/ocultar y secciones sin letra — HECHA
+*Origen: PO 2026-10-31 ("en el entrenador, para las canciones que cuentan con ello, debería haber un menú de
+estructura y la posibilidad de mostrar/ocultar la estructura en la letra; además, que se vean aquellas secciones que
+no tienen letra: intro, mambo, coda…").*
+- **Auditoría:** las etiquetas de sección (EX) salen de `entCalcularSecciones` (`entSecDeEstrofa`, solo secciones con
+  verso). Las secciones sin verso no se dibujan. Saltar en el audio: `entAudio().currentTime` + `entPitchSyncPos()`
+  (como `entSiguienteEstrofa`). La copia de la Pizarra comparte `localStorage` con el Entrenador del profe.
+- **Plan (decisiones de detalle de Claude, a validar por el PO):**
+  1. Botón **🧩 Estructura** en la barra de la letra (junto a Letra), solo visible si la canción tiene secciones en su
+     Ficha (espacio reservado, no baila). Abre un menú: casilla **Mostrar en la letra** (se recuerda en el equipo;
+     parte encendida) y la lista de secciones (nombre · tiempo · verso ligado en itálica); clic = ir a esa sección
+     (el audio salta a su comienzo; si suena, sigue sonando).
+  2. **Secciones sin letra** en la letra: una etiqueta con su propio espacio ("♪ MAMBO") justo antes del primer verso
+     que se canta después de su comienzo; las que van después del último verso (Coda, Final) quedan al final.
+  3. Apagado "Mostrar en la letra" no se ve ninguna etiqueta; el menú sigue sirviendo para saltar.
+  - Sin cambios en Supabase ni en la Ficha. Lugares: Entrenador en todos sus lugares (Biblioteca, sesión del curso,
+    Plan/mínimo, celular, copia en la Pizarra: la casilla se comparte por ser el mismo equipo).
+- **Hecho (2026-10-31):** `REPERTORIO/index.html`: botón 🧩 Estructura entre Letra y Sync (oculto con espacio reservado
+  si la canción no tiene secciones en su Ficha o el recurso no es letra); menú (se mueve a `body` para quedar bajo el
+  botón y sobre el Entrenador) con "Mostrar en la letra" (`localStorage` `ent_estructura_ver`; la copia de la Pizarra se
+  redibuja con el evento `storage`) y la lista nombre · tiempo · verso en itálica; clic = el audio salta al comienzo de
+  la sección y se activa el primer verso que se canta desde ahí; Esc o clic afuera cierran. `entCalcularSecciones`
+  ahora da varias etiquetas por verso (`[{ nombre, sola }]`): las secciones sin verso ligado van como "♪ NOMBRE" con
+  espacio propio antes del primer verso que se canta después de su comienzo; las de después del último verso
+  (`entSecFinal`) al final de la última estrofa (Scroll y Diapositiva). Sin letra sincronizada, el menú sirve igual
+  para saltar y la letra no lleva etiquetas.
+  Prueba (navegador, COQUETA): botón visible; menú con 8 secciones bajo el botón; clic en Mambo → audio en 1:35,
+  verso activo "Mambo", la letra muestra "♪ MAMBO" sobre él con su espacio; el segundo Mambo (3:36) queda al final;
+  apagado = 0 etiquetas, encendido = 8.

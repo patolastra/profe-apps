@@ -1937,8 +1937,20 @@
         }
         /* Sección de la Ficha ligada a la estrofa (EX): una etiqueta chica justo arriba, sin ocupar lugar */
         .ent-sec-tag { height: 0; position: relative; }
-        .ent-sec-tag.medio { height: auto; }
-        .ent-sec-tag.medio span { position: static; display: block; padding-top: .5em; }
+        .ent-sec-tag.medio, .ent-sec-tag.sola { height: auto; }
+        .ent-sec-tag.medio span, .ent-sec-tag.sola span { position: static; display: block; padding-top: .5em; }
+        .ent-sec-tag.sola span { padding-bottom: .9em; opacity: .8; }
+        /* 🧩 Estructura (EZ): botón y menú */
+        #ent-btn-estructura.oculto { visibility: hidden; }
+        #ent-estr-menu { display: none; position: fixed; z-index: 800; min-width: 280px; max-width: min(420px, 92vw); max-height: 70vh; overflow-y: auto;
+            background: #0f172a; border: 1px solid #334155; border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,.45); padding: 6px; color: #e2e8f0; font-size: .85rem; }
+        #ent-estr-menu.visible { display: block; }
+        #ent-estr-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #1e293b; margin-bottom: 4px; }
+        .ent-estr-item { display: grid; grid-template-columns: auto 44px; gap: 2px 8px; padding: 6px 8px; border-radius: 7px; cursor: pointer; }
+        .ent-estr-item:hover { background: #1e293b; }
+        .ent-estr-item b { font-weight: 600; }
+        .ent-estr-item .t { color: #94a3b8; text-align: right; font-variant-numeric: tabular-nums; }
+        .ent-estr-item i { grid-column: 1 / -1; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .ent-sec-tag span { position: absolute; left: 0; bottom: .25em; font-size: .9rem; font-weight: 700; font-style: normal; line-height: 1;
             letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; white-space: nowrap; pointer-events: none; line-height: 1; }
         .ent-stanza-dim {
@@ -3182,6 +3194,7 @@
             <div id="ent-mode-btns">
                 <button id="ent-btn-lectura" onclick="entToggleLectura()" title="Modo lectura: ↑ ↓ pasan de verso sin mover el audio; el teclado no reproduce ni cambia de canción">📖 Lectura</button>
                 <button id="ent-btn-ocultar" onclick="entrenadorToggleOcultar()" title="Esconder toda la letra (luego Alt+clic muestra un verso y Alt+doble clic una estrofa) · si hay versos escondidos, mostrarla toda">Letra</button>
+                <button id="ent-btn-estructura" class="oculto" onclick="entEstrAbrir(event)" title="Estructura de la canción (de su Ficha): ir a una sección · mostrar u ocultar en la letra">🧩 Estructura</button>
                 <button id="ent-btn-sync" onclick="entToggleSync()">Sync</button>
                 <button id="ent-btn-sync-save" onclick="entGuardarSyncAsset()" style="display:none">Guardar</button>
                 <button id="ent-btn-editar" onclick="entToggleEdicion()" title="Modo edición de letra (Esc para salir)">Editar</button>
@@ -3191,6 +3204,7 @@
             </div>
             <button id="ent-btn-mini-x" onclick="cerrarEntrenador()" title="Cerrar y volver a la presentación">✕</button>
         </div>
+        <div id="ent-estr-menu"></div>
         <div id="ent-sesion-nav" style="display:none">
             <button class="esn-btn" onclick="entSesionAnterior()">‹</button>
             <span id="esn-label"></span>
@@ -5926,7 +5940,10 @@ document.addEventListener('keydown', e => {
 let entrenadorSong         = null;
 let entrenadorLines        = [];
 let entrenadorStanzas      = [];
-let entSecDeEstrofa        = new Map();   // verso (origIdx) donde empieza una sección de la Ficha → su nombre (EX)
+let entSecDeEstrofa        = new Map();   // verso (origIdx) → [{ nombre, sola }]: secciones que empiezan ahí (EX, EZ)
+let entSecFinal            = [];          // secciones sin letra después del último verso (Coda, Final…) (EZ)
+let entEstrLista           = [];          // secciones de la Ficha para el menú 🧩: [{ nombre, seg, verso }] (EZ)
+const entEstrVer = () => { try { return localStorage.getItem('ent_estructura_ver') !== '0'; } catch (_) { return true; } };
 let entrenadorLineIdx      = -1;
 let entrenadorLoops        = [];
 let entrenadorLoopActivo   = null;
@@ -7173,29 +7190,86 @@ function entLineSpanHTML(l) {
         ><span class="ent-lyric-text">${texto}</span></span>`;
 }
 // Sobre el primer verso de una estrofa va en el espacio entre estrofas; en medio de una estrofa abre su propio espacio
+// Una sección sin letra ("♪ MAMBO") abre siempre su propio espacio, antes del primer verso que se canta después de ella
 const entSecTagHTML = l => {
-    const sec = entSecDeEstrofa.get(l.origIdx); if (!sec) return '';
+    const L = entSecDeEstrofa.get(l.origIdx); if (!L) return '';
     const medio = !!entrenadorLines[l.origIdx - 1]?.text?.trim();
-    return `<div class="ent-sec-tag${medio ? ' medio' : ''}"><span>${entEsc(sec)}</span></div>`;
+    return L.map(x => `<div class="ent-sec-tag${x.sola ? ' sola' : medio ? ' medio' : ''}"><span>${x.sola ? '♪ ' : ''}${entEsc(x.nombre)}</span></div>`).join('');
 };
+const entSecFinalHTML = () => entSecFinal.map(n => `<div class="ent-sec-tag sola"><span>♪ ${entEsc(n)}</span></div>`).join('');
 function entStanzaHTML(stanza) {
-    return `<div class="ent-stanza">${stanza.map(l => entSecTagHTML(l) + entLineSpanHTML(l)).join('')}</div>`;
+    const ultima = stanza[0] && stanza[0].origIdx === entrenadorStanzas.at(-1)?.[0]?.origIdx;
+    return `<div class="ent-stanza">${stanza.map(l => entSecTagHTML(l) + entLineSpanHTML(l)).join('')}${ultima ? entSecFinalHTML() : ''}</div>`;
 }
 // Secciones de la Ficha ligadas a los versos (EX): por cercanía de tiempo a un comienzo de estrofa, o a mano (cualquier
 // verso) en la Ficha. Solo con letra sincronizada.
 function entCalcularSecciones() {
-    entSecDeEstrofa = new Map();
-    if (!entrenadorAssetActivo?.synced || !window.TempoMapa) return;
+    entSecDeEstrofa = new Map(); entSecFinal = []; entEstrLista = [];
     const f = (entrenadorSong?.assets || []).find(a => a.tipo === 'tempo');
     let d = null; try { d = JSON.parse(f?.contenido || 'null'); } catch (_) {}
-    if (!d?.secciones?.length) return;
-    const m = TempoMapa.crear(d);
-    const versos = entrenadorStanzas.flatMap(st => {
+    const m = d?.secciones?.length && window.TempoMapa ? TempoMapa.crear(d) : null;
+    const conLetra = (entrenadorAssetActivo?.tipo === 'letra' || entrenadorAssetActivo?.tipo === 'cifrado') && !!m?.secciones.length;
+    const synced = conLetra && !!entrenadorAssetActivo?.synced;
+    const versos = !synced ? [] : entrenadorStanzas.flatMap(st => {
         let hay = false;
-        return st.map(l => { const primero = !l.sinTiempo && !hay; if (primero) hay = true; return { seg: l.sinTiempo ? null : l.time / 1000, primero, origIdx: l.origIdx }; });
+        return st.map(l => { const primero = !l.sinTiempo && !hay; if (primero) hay = true; return { seg: l.sinTiempo ? null : l.time / 1000, primero, origIdx: l.origIdx, text: l.text }; });
     });
-    m.letraDeSecciones(versos).forEach((u, i) => { if (u.verso !== null) entSecDeEstrofa.set(versos[u.verso].origIdx, m.secciones[i].nombre); });
+    const U = synced ? m.letraDeSecciones(versos) : [];
+    if (conLetra) entEstrLista = m.secciones.filter(x => x.seg !== null).map(x => {
+        const u = U[m.secciones.indexOf(x)];
+        return { nombre: x.nombre, seg: x.seg, verso: u?.verso != null ? versos[u.verso].text : '' };
+    });
+    document.getElementById('ent-btn-estructura')?.classList.toggle('oculto', !entEstrLista.length);
+    if (!synced || !entEstrVer()) return;
+    const poner = (k, x) => { if (!entSecDeEstrofa.has(k)) entSecDeEstrofa.set(k, []); entSecDeEstrofa.get(k).push(x); };
+    m.secciones.forEach((x, i) => {
+        if (U[i].verso !== null) { poner(versos[U[i].verso].origIdx, { nombre: x.nombre, sola: false }); return; }
+        if (x.seg === null) return;
+        // Sin letra: antes del primer verso que se canta después de su comienzo; si no hay, al final
+        const v = versos.find(y => y.seg !== null && y.seg >= x.seg - 0.3);
+        if (v) poner(v.origIdx, { nombre: x.nombre, sola: true }); else entSecFinal.push(x.nombre);
+    });
+    // En cada verso, primero las sin letra (suenan antes) y después la que empieza con él
+    entSecDeEstrofa.forEach(L => L.sort((a, b) => b.sola - a.sola));
 }
+// ── 🧩 Menú de estructura (EZ) ──
+function entEstrAbrir(e) {
+    e?.stopPropagation();
+    const menu = document.getElementById('ent-estr-menu');
+    if (menu.parentNode !== document.body) document.body.appendChild(menu);   // fuera de la barra: su posición fija es la de la ventana
+    if (menu.classList.contains('visible')) { entEstrCerrar(); return; }
+    entCalcularSecciones();
+    const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    menu.innerHTML = `<label><input type="checkbox" ${entEstrVer() ? 'checked' : ''} onchange="entEstrVerCambiar(this.checked)"> Mostrar en la letra</label>`
+        + entEstrLista.map((x, i) => `<div class="ent-estr-item" onclick="entEstrIr(${i})"><b>${entEsc(x.nombre)}</b><span class="t">${fmt(x.seg)}</span>${x.verso ? `<i>${entEsc(x.verso)}</i>` : ''}</div>`).join('');
+    menu.classList.add('visible');
+    const ubicar = () => {   // bajo el botón (después de un cuadro: recién abierto el Entrenador, la barra aún se acomoda)
+        const r = document.getElementById('ent-btn-estructura').getBoundingClientRect();
+        menu.style.top = Math.round(r.bottom + 6) + 'px';
+        const ancho = document.documentElement.clientWidth || innerWidth;
+        menu.style.left = Math.round(Math.max(8, Math.min(ancho - menu.offsetWidth - 8, r.left))) + 'px';
+    };
+    ubicar(); requestAnimationFrame(ubicar);
+}
+function entEstrCerrar() { document.getElementById('ent-estr-menu')?.classList.remove('visible'); }
+function entEstrVerCambiar(v) {
+    try { localStorage.setItem('ent_estructura_ver', v ? '1' : '0'); } catch (_) {}
+    entRenderZona();
+}
+// Ir a una sección: el audio salta a su comienzo (si suena, sigue sonando)
+function entEstrIr(i) {
+    const x = entEstrLista[i]; if (!x) return;
+    const audioEl = entAudio();
+    entLineaManualHasta = Date.now() + 600;
+    if (audioEl.duration) { audioEl.currentTime = x.seg; entPitchSyncPos(); }
+    const L = entrenadorLines, k = L.findIndex(l => !l.sinTiempo && (l.text || '').trim() && l.time / 1000 >= x.seg - 0.3);
+    if (k >= 0) entActualizarLinea(k);
+    entEstrCerrar();
+}
+document.addEventListener('click', e => { if (!e.target.closest?.('#ent-estr-menu, #ent-btn-estructura')) entEstrCerrar(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') entEstrCerrar(); });
+// La copia de la Pizarra (mismo equipo) muestra u oculta la estructura al cambiarla el profe
+window.addEventListener('storage', e => { if (e.key === 'ent_estructura_ver' && entrenadorStanzas.length) entRenderZona(); });
 const entTamTags = (zona, fs) => zona.querySelectorAll('.ent-sec-tag span').forEach(el => el.style.fontSize = Math.max(6, fs * 0.38) + 'px');
 
 function entRenderZona(forzarOrigIdx = null) {
@@ -7345,6 +7419,7 @@ function entRenderDiapositiva() {
             col.forEach((u, i) => {
                 if (i && u.si !== prevSi) inner += `<div class="ent-stanza-sep" style="height:${sepH(fs)}px"></div>`;
                 inner += entSecTagHTML(u.l) + entLineSpanHTML(u.l);   // verso donde empieza una sección (EX)
+                if (u.l.origIdx === entrenadorStanzas[entrenadorStanzas.length - 1]?.at(-1)?.origIdx) inner += entSecFinalHTML();
                 prevSi = u.si;
             });
             return `<div class="ent-dia-col" style="width:${Math.round(cw)}px"><div class="ent-stanza">${inner}</div></div>`;
