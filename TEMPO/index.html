@@ -6,7 +6,7 @@
 <title>Ficha de la canción</title>
 <!--
   Mapa de tempo de una canción (deuda EU): dónde cae cada pulso de su grabación.
-    · Se marca el pulso con Espacio mientras suena (también más lenta, sin cambiar el tono); cada pulso se guarda.
+    · Se marca el 1 de cada compás con Enter mientras suena (Espacio detiene) (también más lenta, sin cambiar el tono); cada pulso se guarda.
     · Forma de onda con los pulsos: arrastrar para mover, doble clic para agregar, Supr para borrar.
     · Dónde empieza el compás 1 y la cifra (4/4, 3/4, 6/8…) con sus cambios.
     · Es la ficha oficial de la canción (deuda EV): también su tonalidad; el tempo de referencia sale de lo marcado.
@@ -125,7 +125,7 @@
 <div id="cuerpo">
     <div class="caja fila">
         <button class="btn grande" id="b-tocar">▶ Tocar</button>
-        <button class="btn grande solo-tempo" id="b-marcar" title="Suena desde el cursor y cada Espacio marca el 1 de un compás (la app reparte sus pulsos). J vuelve 5 s y sigues marcando desde ahí. Esc o Enter para terminar">⏺ Marcar</button>
+        <button class="btn grande solo-tempo" id="b-marcar" title="Suena desde el cursor y cada Enter marca el 1 de un compás (la app reparte sus pulsos). Retroceso quita el último; J vuelve 5 s y sigues marcando desde ahí. Espacio o Esc para terminar">⏺ Marcar</button>
         <button class="btn" id="b-atras" title="Volver 5 s (J). Marcando: borra lo marcado desde ahí y sigues">⏪ 5 s</button>
         <button class="btn" id="b-adelante" title="Adelantar 5 s (L)">5 s ⏩</button>
         <span id="vel" title="Velocidad: { baja 5 % · } sube 5 % · + normal">1x</span>
@@ -166,7 +166,7 @@
     </div>
     <div class="fila"><span id="info"></span></div>
     <div class="ayuda fila-estr">
-        Suena la canción y <kbd>Espacio</kbd> pone el comienzo de una parte donde va sonando (detenida, Espacio toca) · <kbd>K</kbd>: tocar / detener ·
+        <kbd>Espacio</kbd> o <kbd>K</kbd>: tocar / detener · sonando, <kbd>Enter</kbd> pone el comienzo de una parte donde va y <kbd>Retroceso</kbd> quita la última que pasó ·
         clic en la onda: mover el cursor · arrastrar el comienzo de una parte: moverlo · doble clic: nueva parte · <kbd>Supr</kbd>: quitar la elegida ·
         <kbd>←</kbd> <kbd>→</kbd>: pasar de parte · <kbd>J</kbd> / <kbd>L</kbd>: 5 s atrás / adelante · <kbd>{</kbd> <kbd>}</kbd> velocidad −/+ 5 %, <kbd>+</kbd> normal.
         Sin compases: cada parte va por su segundo. Al marcar el tempo, las que caen en lo marcado se pegan al 1 del compás más cercano.
@@ -174,12 +174,12 @@
     <div class="ayuda fila-tempo">
         Se marca y se mueve solo el 1 de cada compás (líneas blancas); sus pulsos (líneas tenues) se reparten solos, parejos.
         Clic en la onda: mover el cursor · arrastrar un 1: moverlo · doble clic: agregar un compás · <kbd>Supr</kbd>: borrar el elegido ·
-        rueda: acercar o alejar · <kbd>Mayús</kbd>+rueda: desplazar · <kbd>Espacio</kbd> o <kbd>K</kbd>: tocar / detener (marcando, Espacio = el 1 de un compás) ·
+        rueda: acercar o alejar · <kbd>Mayús</kbd>+rueda: desplazar · <kbd>Espacio</kbd> o <kbd>K</kbd>: tocar / detener (marcando, <kbd>Enter</kbd> = el 1 de un compás, <kbd>Retroceso</kbd> quita el último y Espacio termina) ·
         <kbd>J</kbd> / <kbd>L</kbd>: 5 s atrás / adelante (marcando, J borra lo marcado desde ahí y sigues) · <kbd>{</kbd> <kbd>}</kbd> velocidad −/+ 5 %, <kbd>+</kbd> normal.
         Marcar sobre compases que ya existen los reemplaza en ese tramo. En rojo, los compases que se ven disparejos.
     </div>
 </div>
-<div id="marcando">Marcando compases · <b id="marc-n">0</b><div class="ayuda">Espacio en el 1 de cada compás · <kbd>J</kbd> vuelve 5 s y sigues desde ahí · <kbd>Retroceso</kbd> quita el último · Esc o Enter para terminar</div></div>
+<div id="marcando">Marcando compases · <b id="marc-n">0</b><div class="ayuda"><kbd>Enter</kbd> en el 1 de cada compás · <kbd>Retroceso</kbd> quita el último · <kbd>J</kbd> vuelve 5 s y sigues desde ahí · Espacio o Esc para terminar</div></div>
 <div id="importar"><div class="caja">
     <h3>📥 Importar un mapa de tempo</h3>
     <div class="ayuda">Reemplaza los compases actuales (se puede deshacer). Supone que el audio de Reaper empieza en el segundo 0 de esta grabación.</div>
@@ -696,20 +696,29 @@ $('c-todo').addEventListener('mousedown', e => {
 window.addEventListener('keydown', e => {
     const enTexto = e.target.closest?.('input, textarea, select');
     if (taps) {
-        if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) { const s = oido(); if (s !== null) { taps.push(s); $('marc-n').textContent = taps.length; sucio = true; } } }
+        // Enter marca (Espacio era fácil de confundir con detener): Espacio y Esc terminan
+        if (e.key === 'Enter') { e.preventDefault(); if (!e.repeat) { const s = oido(); if (s !== null) { taps.push(s); $('marc-n').textContent = taps.length; sucio = true; } } }
         else if (e.key === 'Backspace') { e.preventDefault(); taps.pop(); $('marc-n').textContent = taps.length; sucio = true; }
         else if (e.key === 'j' || e.key === 'J') { e.preventDefault(); saltar(-5); }
         else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); saltar(5); }
         else if (/^[{}+]$/.test(e.key)) { e.preventDefault(); teclaVel(e.key); }
-        else if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); terminarMarcar(); }
+        else if (e.key === 'Escape' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) terminarMarcar(); }
         return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); guardar(); return; }
     if (enTexto) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); deshacer(); return; }
     if (modo === 'estr') {
-        if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) { const s = oido(); if (s !== null) agregarSeccion(s); else tocar(); } return; }
-        if ((e.key === 'Delete' || e.key === 'Backspace') && selSec !== null) { e.preventDefault(); quitarSeccion(selSec); return; }
+        if (e.code === 'Space' || e.key === 'k' || e.key === 'K') { e.preventDefault(); if (!e.repeat) tocarODetener(); return; }
+        // Sonando, Enter pone una parte donde va; Retroceso quita la última que pasó (o antes del cursor); Supr, la elegida
+        if (e.key === 'Enter') { e.preventDefault(); if (!e.repeat) { const s = oido(); if (s !== null) agregarSeccion(s); } return; }
+        if (e.key === 'Backspace') {
+            e.preventDefault();
+            const s = ahora(); let k = -1; S.secciones.forEach((x, i) => { if (x.t <= s + 0.05) k = i; });
+            if (k >= 0) quitarSeccion(k);
+            return;
+        }
+        if (e.key === 'Delete' && selSec !== null) { e.preventDefault(); quitarSeccion(selSec); return; }
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
             if (!S.secciones.length) return;
             e.preventDefault();
@@ -748,7 +757,7 @@ function pintarControles() {
     sn.disabled = !hay;
     if (document.activeElement !== sn) sn.value = hay ? (S.secciones.find(x => x.t === S.compases[sel])?.nombre || '') : '';
     const chips = S.secciones.map((x, i) => `<span class="seccion" style="background:${colorSeccion(x.nombre)}${modo === 'estr' && i === selSec ? ';outline:2px solid #22d3ee' : ''}" data-ir="${i}" title="Ir a la sección">${esc(x.nombre)} · ${enRango(x.t) ? idxCercano(x.t) - i0 + 1 : reloj(x.t)}<button data-quitar-sec="${i}" title="Quitar la sección">✕</button></span>`).join('')
-        || `<span class="ayuda">${modo === 'estr' ? 'Toca la canción y Espacio donde empieza cada parte.' : 'Elige un compás y escribe su sección.'}</span>`;
+        || `<span class="ayuda">${modo === 'estr' ? 'Toca la canción y Enter donde empieza cada parte.' : 'Elige un compás y escribe su sección.'}</span>`;
     const hs = selSec !== null && selSec < S.secciones.length, en = $('es-nombre');
     $('es-info').textContent = hs ? `Sección elegida · ${reloj(S.secciones[selSec].t, true)}` : 'Ninguna sección elegida';
     en.disabled = $('b-es-quitar').disabled = !hs;
@@ -771,7 +780,7 @@ function pintarControles() {
         const mal = disparejos().size;
         $('info').textContent = `${C.length - 1} compases · tempo de referencia ♩ ${mapa.bpm} (entre ${Math.round(o[Math.floor(o.length * 0.03)])} y ${Math.round(o[Math.floor(o.length * 0.97)])})`
             + (mal ? ` · ${mal} ${mal === 1 ? 'compás dispar' : 'compases disparejos'}` : '');
-    } else $('info').textContent = buf ? 'Sin compases todavía: pon el cursor al comienzo, ⏺ Marcar y Espacio en el 1 de cada compás.' : '';
+    } else $('info').textContent = buf ? 'Sin compases todavía: pon el cursor al comienzo, ⏺ Marcar y Enter en el 1 de cada compás.' : '';
     if (modo === 'estr') { const n = S.secciones.length; $('info').textContent = n ? `${n} ${n === 1 ? 'sección' : 'secciones'}` + (C.length > 1 ? ' · con tempo marcado' : ' · sin tempo') : ''; }
     $('b-emparejar').disabled = $('b-golpes').disabled = $('b-limpiar').disabled = C.length < 3 || fijos;
     $('b-importar').disabled = $('b-marcar').disabled = fijos;

@@ -7903,3 +7903,10 @@ marcando compases, estoy marcando comienzos de secciones").*
     Visto en la prueba: dos partes a menos de un compás una de otra, al marcar el tempo, caen en el mismo compás y queda
     solo la segunda (en una canción real las partes están a varios compases).
   - **Falta:** que el PO marque la estructura de una canción real y la guarde.
+- **Ajuste (PO 2026-10-31, "que la tecla para agregar marcadores sea Enter: le doy a Espacio para detener y se agregan
+  marcadores erróneos; y que Retroceso vaya borrando desde el último"):** en las dos vistas **Espacio (o K) solo toca /
+  detiene**. Tempo, marcando: **Enter** = el 1 de un compás, Retroceso quita el último, Espacio o Esc terminan (antes
+  Espacio marcaba y Enter terminaba). Estructura: sonando, **Enter** pone una parte donde va; **Retroceso** quita la
+  última que pasó (detenida, la última antes del cursor); Supr quita la elegida. Ayudas y avisos al día.
+  Prueba (navegador, OLIMPO, sin guardar): Estructura: Espacio toca, 3 Enter → 3 partes, Retroceso → 2, Espacio
+  detiene sin agregar; Tempo: 4 Enter marcando → Retroceso → 3, Espacio termina y detiene → 3 compases.
