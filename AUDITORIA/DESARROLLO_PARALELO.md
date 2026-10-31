@@ -7976,3 +7976,32 @@ por proximidad de tiempo").*
   - Prueba (COQUETA, ligado solo en memoria): Mambo ofrece 8 versos (1:18 a 1:44); ligado a "Nomás contigo" (1:21, en
     medio de la estrofa) → la Ficha guarda `letraSeg: 81.98` y el Entrenador muestra MAMBO sobre ese verso, con
     espacio propio; las automáticas no cambian. Nada guardado en la base.
+
+### EY. ✏️ Editor rápido de nombres de las secciones (Ficha) — HECHA
+*Origen: PO 2026-10-31 ("un editor rápido de nombres de las estructuras, sencillo, mínimo: un listado con las
+estructuras, al lado la letra si tiene ligada (siempre en itálica); moverme por los nombres con Enter o flechas; si ya
+hay una "Estrofa" se empiezan a enumerar 1, 2, 3…; un botón "Editar nombres"; escuchar las secciones mientras navego").*
+- **Necesidad:** después de marcar la estructura con Enter quedan "Sección 1…20"; nombrarlas una por una con el menú
+  es lento.
+- **Auditoría:** las secciones viven en `S.secciones` de `TEMPO/` (`{ t, nombre, letra?/letraSeg? }`); el verso ligado
+  sale de `uniones()` (EX); renombrar ya existe para la elegida (`renombrarSeccion`). Sin cambios en la pieza ni en
+  Supabase; las otras apps leen el nombre como siempre.
+- **Plan (decisiones de detalle de Claude, a validar por el PO):**
+  1. Botón **✏️ Editar nombres** junto a "Secciones:" (las dos vistas). Abre un panel: una fila por sección con su
+     tiempo, el nombre editable y, al lado, el verso ligado en itálica (vacío si no tiene).
+  2. **Enter** o **↓** = siguiente, **↑** = anterior; **← / →** pasan a la anterior / siguiente cuando el cursor está en
+     el borde del texto (si no, mueven el cursor dentro del nombre). Al llegar a una fila, el nombre queda
+     seleccionado (se escribe encima) y **la canción suena desde el comienzo de esa sección**; ⏸ / ▶ en el panel; la
+     fila que va sonando se marca. **Esc** o **Listo** cierran (y detienen).
+  3. **Numeración sola:** si un nombre se repite (sin contar el número del final), todas las secciones con ese nombre
+     se numeran en orden: Estrofa 1, Estrofa 2…; si queda una sola, pierde el número. Se aplica al nombre que se
+     escribe y al que tenía antes (así las "Sección N" que quedan se renumeran). Un nombre vacío no se acepta (vuelve
+     al anterior). Cada cambio se deshace con ↶.
+  - Lugares: solo la app de la Ficha (`TEMPO/`).
+- **Hecho (2026-10-31):** botón ✏️ Editar nombres junto a "Secciones:"; panel con tiempo · nombre · verso ligado en
+  itálica; Enter/↓, ↑, ←/→ en el borde; al llegar a una fila suena desde su comienzo (con 120 ms de espera: al pasar
+  rápido por varias suena solo la última); la fila que suena con raya roja; ⏸/▶ y Listo/Esc (detiene); clic en el
+  tiempo = escucharla. Numeración sola al escribir; la provisional "Sección" conserva su número aunque quede una.
+  Prueba (OLIMPO, sin guardar): 6 secciones; Intro, Estrofa, Coro, Estrofa con Enter → Intro · Estrofa 1 · Coro ·
+  Estrofa 2 · Sección 1 · Sección 2, foco en la 5ª y sonando desde 0:55; Estrofa 2 → Puente deja "Estrofa" sola; ← en
+  el borde vuelve a la anterior; versos ligados visibles en itálica. Deshecho.
