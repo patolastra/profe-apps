@@ -594,6 +594,15 @@
         .ficha-ver button + button { border-left: 1px solid var(--border); }
         .ficha-ver button.on { background: var(--accent); color: #fff; }
         .grupo-ficha { margin-bottom: 8px; }
+        /* 📋 Ficha de la canción (EV): una línea discreta */
+        .ficha-oficial { display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 12px; font-size: 0.75rem; color: var(--muted);
+            border-bottom: 1px solid var(--border); cursor: pointer; }
+        .ficha-oficial:hover { background: #f1f5f9; color: var(--text); }
+        .ficha-oficial.vacia { justify-content: flex-start; font-weight: 600; }
+        .fo-tit { font-weight: 700; color: var(--text); white-space: nowrap; }
+        .fo-datos { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .fo-borrar { visibility: hidden; padding: 0 4px; font-size: 0.78rem; line-height: 1; }
+        .ficha-oficial:hover .fo-borrar { visibility: visible; }
         .ficha-lote > .asset-item { border-radius: 0; border-bottom: 1px solid var(--border); background: #fff; }
         .ficha-lote > .asset-item:hover { background: #f1f5f9; }
         .ficha-lote > :last-child { border-bottom: none; }
@@ -3257,7 +3266,7 @@ const TIPOS_ASSET = {
     melodia:   { ico: '♬',  label: 'Melodía',    clase: 'melodia' },
     cajon:     { ico: '🪘', label: 'Cajón',      clase: 'cajon'   },
     arreglo:   { ico: '🎹', label: 'Arreglo',    clase: 'arreglo' },
-    tempo:     { ico: '⏱', label: 'Mapa de tempo', clase: 'tempo' },
+    tempo:     { ico: '📋', label: 'Ficha de la canción', clase: 'tempo' },
 };
 
 const TIPO_ORD  = { letra:0, audio:1, tab:2, cifrado:3, metalofono:4, flauta:5, ritmo:6, melodia:7, cajon:8, arreglo:9, tempo:1 };
@@ -3783,7 +3792,8 @@ const fichaSeVe = a => fichaVer === 'ambos' || a.tipo === 'tempo' || (fichaVer =
 function fichaGruposHTML(c, assets) {
     const item = a => a.tipo === 'tab' ? tabEntryHTML(a, c.id) : assetItemHTML(a);
     return GRUPOS_FICHA.map(g => {
-        const todos = assets.filter(a => grupoDeAsset(a) === g.k);
+        const ficha = g.k === 'cancion' ? assets.find(a => a.tipo === 'tempo') : null;   // 📋 Ficha de la canción (EV): línea aparte
+        const todos = assets.filter(a => grupoDeAsset(a) === g.k && a.tipo !== 'tempo');
         if (!todos.length && g.k !== 'cancion') return '';
         const ver = todos.filter(fichaSeVe);
         const pub = ver.filter(a => estadoDe(a) === 'publicado'), resto = ver.filter(a => estadoDe(a) !== 'publicado');
@@ -3792,13 +3802,12 @@ function fichaGruposHTML(c, assets) {
         const vacio = todos.length
             ? `Sin recursos ${fichaVer === 'publicado' ? 'publicados' : 'en borrador'} (${oculto} oculto${oculto === 1 ? '' : 's'}).`
             : 'Sin letra ni audio todavía.';
-        const cuerpo = (ver.length ? '' : `<div class="ficha-vacio">${vacio}</div>`)
+        const cuerpo = (g.k === 'cancion' ? lineaFicha(c, ficha, todos) : '')
+            + (ver.length ? '' : `<div class="ficha-vacio">${vacio}</div>`)
             + (pub.length ? `<div class="ficha-lote">${pub.map(item).join('')}</div>` : '')
             + (pub.length && resto.length ? '<div class="ficha-sep">Borradores</div>' : '')
             + (resto.length ? `<div class="ficha-lote">${resto.map(item).join('')}</div>` : '')
             + (g.k === 'piano' ? `<button class="btn-add-asset" onclick="abrirEditorArreglo('${c.id}', null)">+ Arreglo de piano</button>` : '')
-            + (g.k === 'cancion' && !todos.some(a => a.tipo === 'tempo') && todos.some(a => a.tipo === 'audio')
-                ? `<button class="btn-add-asset" onclick="abrirTempo('${c.id}')" title="Dónde cae cada pulso de la grabación: lo usan el Arreglo de piano y otras apps">+ Mapa de tempo</button>` : '')
             + (g.k === 'cancion' ? `<div class="ficha-medios" id="medios-cancion">
                 <div id="medios-lista"><div class="med-vacio">Cargando…</div></div>
                 <div id="medios-form"></div>
@@ -4112,7 +4121,17 @@ async function setEstadoAsset(nuevoEstado) {
     }
 }
 
-// Ficha oficial de la canción (deuda EV): lo declarado en su Mapa de tempo
+// 📋 Ficha de la canción (deuda EV): una sola línea discreta arriba del grupo 🎵 Canción; clic = editarla,
+// 🗑 al pasar el mouse. Sin Ficha y con audio: "＋ Ficha de la canción" en el mismo lugar.
+function lineaFicha(c, ficha, todos) {
+    if (!ficha) return todos.some(a => a.tipo === 'audio')
+        ? `<div class="ficha-oficial vacia" onclick="abrirTempo('${c.id}')" title="Tonalidad, cifra, tempo y secciones de la canción (marcando su pulso): la leen las otras apps">＋ Ficha de la canción</div>` : '';
+    return `<div class="ficha-oficial" onclick="abrirTempo('${c.id}')" title="Editar la Ficha de la canción">
+        <span class="fo-tit">📋 Ficha</span><span class="fo-datos">${fichaOficial(ficha) || 'sin compases marcados'}</span>
+        <button class="btn-icon danger fo-borrar" onclick="event.stopPropagation(); eliminarAsset('${c.id}','${ficha.id}')" title="Borrar la Ficha">🗑</button>
+    </div>`;
+}
+// Lo declarado en la Ficha (su Mapa de tempo)
 function fichaOficial(a) {
     let m = null;
     try { m = TempoMapa.crear(JSON.parse(a.contenido || '{}')); } catch (_) { return ''; }
@@ -4188,7 +4207,7 @@ function assetItemHTML(a, i) {
             ${a.tipo === 'ritmo'
                 ? `<button class="btn-icon" onclick="abrirEditorRitmo('${songActiva.id}','${a.id}')" title="Editar ritmo">✏️</button>`
                 : a.tipo === 'tempo'
-                ? `<button class="btn-icon" onclick="abrirTempo('${songActiva.id}')" title="Editar el mapa de tempo">✏️</button>`
+                ? `<button class="btn-icon" onclick="abrirTempo('${songActiva.id}')" title="Editar la Ficha de la canción">✏️</button>`
                 : a.tipo === 'arreglo'
                 ? `${estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirArreglo('${a.id}', this)" title="Compartir el arreglo con los estudiantes: link, QR o guía QR, y hasta qué fecha">${Compartir.ICONO}</button>` : ''}
                    <button class="btn-icon" onclick="abrirArreglo('${a.id}')" title="Abrir en el piano (como lo ve el estudiante)">🎹</button>
@@ -5493,7 +5512,7 @@ function abrirTempo(songId) {
     const src = `../TEMPO/index.html?cancion=${encodeURIComponent(songId)}`;
     if (window.parent && window.parent !== window) {
         try {
-            window.parent.postMessage({ tipo: 'ws-abrir', key: `tempo:${songId}`, titulo: `${c?.nombre || 'Canción'} · Tempo`, ico: '⏱', src, guardarAlCerrar: true }, '*');
+            window.parent.postMessage({ tipo: 'ws-abrir', key: `tempo:${songId}`, titulo: `${c?.nombre || 'Canción'} · Ficha`, ico: '📋', src, guardarAlCerrar: true }, '*');
             return;
         } catch (_) {}
     }

@@ -13,7 +13,7 @@
 (function () {
     const TIPO = { letra: 'Letra', audio: 'Audio', tab: 'Tab', metalofono: 'Metalófono',
                    flauta: 'Flauta', cifrado: 'Cifrado', ritmo: 'Ritmo', melodia: 'Melodía', cajon: 'Cajón',
-                   arreglo: 'Arreglo de piano', tempo: 'Mapa de tempo' };
+                   arreglo: 'Arreglo de piano', tempo: 'Ficha de la canción' };
     const DIFIC = { inicial: 'Inicial', media: 'Media', dificil: 'Difícil', experto: 'Experto' };
     // Clase del recurso (EP) y cómo se dice "simplificado" con cada una
     const CLASE = { armonia: ['Armonía', 'simplificada'], melodia: ['Melodía', 'simplificada'], riff: ['Riff', 'simplificado'],

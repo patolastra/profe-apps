@@ -7803,3 +7803,13 @@ entrega lo oficial").*
     dan **exactamente** lo mismo que el modo Reaper; "desde el compás 3" → start_qn 8 y estado "✓ ⏱ Canción desde el
     compás 3"; ventana con la pestaña nueva y el aviso "aún no tiene Mapa de tempo"; vuelta al modo Reaper intacta.
   - Falta: probarlo con una tablatura real de una canción con mapa (hoy solo COQUETA tiene mapa y no tiene tablaturas).
+- **Ajuste (PO 2026-10-30, "renombrar esa sección, algo tipo Info General" → elige **Ficha de la canción**, "dale un
+  aspecto mínimo"):** en todo lo visible "Mapa de tempo" pasa a **📋 Ficha de la canción** (o "su Ficha" en los avisos
+  "≠ canción"): Biblioteca, app `TEMPO/` (título, pestaña del Workspace "<canción> · Ficha", 📋), Arreglo (📋 Traer de
+  la Ficha, Hacer/Editar la Ficha), Melodía, Cajón, Metrónomo y Lector (pestaña 📋 Ficha de la canción, estado
+  "✓ 📋 Ficha, desde el compás N"); `nombre-asset.js`: "Ficha de la canción". No cambian el tipo `tempo`, el archivo
+  `tempo/<id>.json` ni `TempoMapa`. En la ficha de la Biblioteca la Ficha ya no es un recurso de la lista: es **una
+  línea discreta** arriba del grupo 🎵 Canción ("📋 Ficha  Mi mayor · 4/4 · ♩ 79 · 77 compases · 8 secciones"; clic
+  = editarla, 🗑 solo al pasar el mouse; no cuenta en el número del grupo); sin Ficha y con audio, "＋ Ficha de la
+  canción" en el mismo lugar. Prueba (navegador, COQUETA): la línea se ve, mide 33 px (un recurso 46), 🗑 solo con el
+  mouse encima; el grupo cuenta 3 (Letra, Melodía, Karaoke).
