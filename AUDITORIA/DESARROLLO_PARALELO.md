@@ -8051,3 +8051,9 @@ no tienen letra: intro, mambo, coda…").*
   - Prueba (navegador, Sin Sentimiento, 20 secciones): ♪ INTRO / ♪ ENTRA BANDA / ESTROFA 1 una bajo la otra (sin
     encimarse); 🧩 abre el panel con las 20 secciones y sus versos; sonando desde 0:30, una rueda deja la letra lejos
     6 s (sin volver) con ⌖ visible; ⌖ → el verso activo vuelve a la vista y el botón se oculta.
+- **Ajuste 2 (PO 2026-10-31, "en estas etiquetas también debería poder hacer clic y que me lleve; separa esas etiquetas
+  con por lo menos un enter; colorea la que esté activa, como los versos"):** cada etiqueta de la letra (también las ♪
+  sin letra y las del final) lleva a su sección con un clic (como el panel); entre dos etiquetas seguidas hay una línea
+  en blanco (2 em); la de la sección que suena va en naranjo, como el verso activo (se revisa cada 250 ms, también con
+  el panel cerrado). Prueba (Sin Sentimiento): clic en ♪ ENTRA BANDA → audio en 0:12,1 y esa etiqueta en naranjo;
+  INTRO · ENTRA BANDA · ESTROFA 1 con una línea en blanco entre cada una.

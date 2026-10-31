@@ -1941,6 +1941,9 @@
            la otra, cada una con su propio espacio (nunca encimadas) */
         .ent-sec-tag.medio { height: auto; }
         .ent-sec-tag.medio span { position: static; display: block; padding: .45em 0 .15em; }
+        .ent-sec-tag.medio + .ent-sec-tag.medio span { padding-top: 2em; }   /* entre una y otra, al menos una línea */
+        .ent-sec-tag span.activa { color: #ea580c; opacity: 1; }                /* la sección que suena, como el verso */
+        .ent-sec-tag span:hover { color: #ea580c; }
         .ent-sec-tag.sola span { opacity: .8; }
         /* 🧩 Estructura (EZ): botón como el de Loops (solo si la canción tiene secciones) y su panel */
         #ent-btn-toggle-estr.sin-estr { visibility: hidden; pointer-events: none; }
@@ -1955,7 +1958,7 @@
         #ent-volver-verso.visible { display: block; }
         body.espejo #ent-volver-verso, body.espejo #ent-btn-toggle-estr { display: none !important; }
         .ent-sec-tag span { position: absolute; left: 0; bottom: .25em; font-size: .9rem; font-weight: 700; font-style: normal; line-height: 1;
-            letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; white-space: nowrap; pointer-events: none; line-height: 1; }
+            letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; white-space: nowrap; cursor: pointer; line-height: 1; }
         .ent-stanza-dim {
         }
         .ent-lyric-line {
@@ -7206,9 +7209,9 @@ function entLineSpanHTML(l) {
 const entSecTagHTML = l => {
     const L = entSecDeEstrofa.get(l.origIdx); if (!L) return '';
     const propio = L.length > 1 || L[0].sola || !!entrenadorLines[l.origIdx - 1]?.text?.trim();
-    return L.map(x => `<div class="ent-sec-tag${propio ? ' medio' : ''}${x.sola ? ' sola' : ''}"><span>${x.sola ? '♪ ' : ''}${entEsc(x.nombre)}</span></div>`).join('');
+    return L.map(x => `<div class="ent-sec-tag${propio ? ' medio' : ''}${x.sola ? ' sola' : ''}"><span data-sec="${x.k}" onclick="entEstrIr(${x.k})" title="Ir a esta sección">${x.sola ? '♪ ' : ''}${entEsc(x.nombre)}</span></div>`).join('');
 };
-const entSecFinalHTML = () => entSecFinal.map(n => `<div class="ent-sec-tag medio sola"><span>♪ ${entEsc(n)}</span></div>`).join('');
+const entSecFinalHTML = () => entSecFinal.map(x => `<div class="ent-sec-tag medio sola"><span data-sec="${x.k}" onclick="entEstrIr(${x.k})" title="Ir a esta sección">♪ ${entEsc(x.nombre)}</span></div>`).join('');
 function entStanzaHTML(stanza) {
     const ultima = stanza[0] && stanza[0].origIdx === entrenadorStanzas.at(-1)?.[0]?.origIdx;
     return `<div class="ent-stanza">${stanza.map(l => entSecTagHTML(l) + entLineSpanHTML(l)).join('')}${ultima ? entSecFinalHTML() : ''}</div>`;
@@ -7229,17 +7232,18 @@ function entCalcularSecciones() {
     const U = synced ? m.letraDeSecciones(versos) : [];
     if (conLetra) entEstrLista = m.secciones.filter(x => x.seg !== null).map(x => {
         const u = U[m.secciones.indexOf(x)];
-        return { nombre: x.nombre, seg: x.seg, verso: u?.verso != null ? versos[u.verso].text : '' };
+        return { nombre: x.nombre, seg: x.seg, verso: u?.verso != null ? versos[u.verso].text : '', i: m.secciones.indexOf(x) };
     });
     entPintarEstrPanel();
     if (!synced || !entEstrVer()) return;
     const poner = (k, x) => { if (!entSecDeEstrofa.has(k)) entSecDeEstrofa.set(k, []); entSecDeEstrofa.get(k).push(x); };
     m.secciones.forEach((x, i) => {
-        if (U[i].verso !== null) { poner(versos[U[i].verso].origIdx, { nombre: x.nombre, sola: false }); return; }
+        const k = entEstrLista.findIndex(y => y.i === i);   // su fila en el panel (para ir ahí con un clic)
+        if (U[i].verso !== null) { poner(versos[U[i].verso].origIdx, { nombre: x.nombre, sola: false, k }); return; }
         if (x.seg === null) return;
         // Sin letra: antes del primer verso que se canta después de su comienzo; si no hay, al final
         const v = versos.find(y => y.seg !== null && y.seg >= x.seg - 0.3);
-        if (v) poner(v.origIdx, { nombre: x.nombre, sola: true }); else entSecFinal.push(x.nombre);
+        if (v) poner(v.origIdx, { nombre: x.nombre, sola: true, k }); else entSecFinal.push({ nombre: x.nombre, k });
     });
     // En cada verso, primero las sin letra (suenan antes) y después la que empieza con él
     entSecDeEstrofa.forEach(L => L.sort((a, b) => b.sola - a.sola));
@@ -7268,11 +7272,13 @@ function entToggleEstrPanel() {
 // La sección que va sonando, marcada en el panel
 let entEstrSonando = -2;
 function entMarcarEstrSonando() {
-    const panel = document.getElementById('ent-estr-panel');
-    if (!panel || panel.style.display === 'none' || !entEstrLista.length) return;
+    if (!entEstrLista.length) return;
     const t = entAudio().currentTime || 0;
     let k = -1; entEstrLista.forEach((x, i) => { if (x.seg <= t + 0.05) k = i; });
-    if (k === entEstrSonando) return;
+    // Las etiquetas de la letra (se vuelven a dibujar con la letra: se revisan siempre)
+    document.querySelectorAll('#ent-zona .ent-sec-tag span[data-sec]').forEach(el => el.classList.toggle('activa', +el.dataset.sec === k));
+    const panel = document.getElementById('ent-estr-panel');
+    if (!panel || panel.style.display === 'none' || k === entEstrSonando) return;
     entEstrSonando = k;
     panel.querySelectorAll('.ent-estr-item').forEach(el => {
         const on = +el.dataset.i === k;
