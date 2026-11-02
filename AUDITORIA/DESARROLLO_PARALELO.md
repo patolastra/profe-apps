@@ -8231,3 +8231,6 @@ Aprobado: "hacerlo así" (una sola pieza).*
   en columnas de ~180 px (texto cortado y montado); después, en vista de clase con 3 y 4 por fila y en Vista previa
   con 1 y 2 columnas, a 800, 1000 y 1400 px de ancho, cada diapositiva mide lo mismo que su caja y se ve completa.
   Sin probar: el modo remoto de la Pizarra en el celular.
+- **Ajuste (PO 2026-11-02):** al insertar una imagen desde ＋ Insertar, la línea queda solo `@img:<dirección>`, sin
+  `|<nombre del archivo>` (el nombre salía como título bajo la imagen y es irrelevante; el título sigue siendo
+  opcional escribiéndolo a mano). Las imágenes ya insertadas no cambian.
