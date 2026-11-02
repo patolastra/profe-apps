@@ -8355,3 +8355,5 @@ miércoles, también incluye pruebas pendientes").*
   Cuarto → la pestaña 🎭 del Dashboard muestra "4️⃣ CUARTO" con los dos (la prueba con 📝) y el número 2; ✓ deja el
   ensayo en "✓ Hechos (1)"; en el editor, Enter sobre "/ensayo Cantantes: subir la voz" lo envía y el bloque queda
   "🎭 Cantantes: subir la voz"; el celular muestra la pestaña 🎭. Las dos filas de prueba se borraron. Sin errores.
+- **Ajuste FI (PO 2026-11-02):** el QR del Lector va **sin "Generar guía QR"**: opción `sinGuia` de `Compartir.abrir`
+  (los demás ✈ de la Biblioteca no cambian). Prueba: el menú muestra solo Copiar link y Generar QR.

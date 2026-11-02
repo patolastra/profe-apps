@@ -8,6 +8,7 @@
 //                          La guía se guarda en 📁 Archivos del curso (comun/archivos-curso.js) y se abre con "Abrir".
 //
 //   Compartir.abrir(boton, { url, titulo, cancion, instrumento, sb, plazo })
+//   sinGuia (opcional, deuda FI): true = sin "Generar guía QR" (el QR del Lector).
 //   plazo (opcional, deuda EQ): { valor: 'AAAA-MM-DD' | null, guardar: async (fecha | null) => bool } → el menú suma
 //   "📅 Disponible hasta" (último día en que el link funciona; vacío = sin fecha límite).
 //   Compartir.ICONO  → el avioncito de papel (SVG) para el botón
@@ -87,7 +88,7 @@ const Compartir = (() => {
         menu.innerHTML = `
             <button data-a="link">🔗 Copiar link</button>
             <button data-a="qr">▦ Generar QR</button>
-            <button data-a="guia">🖨️ Generar guía QR</button>
+            ${op.sinGuia ? '' : '<button data-a="guia">🖨️ Generar guía QR</button>'}
             ${op.plazo ? `<div class="cmp-plazo">
                 <label>📅 Disponible hasta</label>
                 <div class="cmp-plazo-fila"><input type="date" value="${esc(op.plazo.valor || '')}"><button type="button" data-p="sin" title="Sin fecha límite">✕</button></div>
