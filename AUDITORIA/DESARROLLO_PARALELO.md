@@ -8219,3 +8219,15 @@ Aprobado: "hacerlo así" (una sola pieza).*
   textos ya escritos; la referencia de markdown muestra `!L`). La línea `!L` ya no suma espacio: era un `inline-block`
   dentro del párrafo, que guardaba el alto de la letra grande aunque la línea se achicara; ahora es un bloque y cada
   línea mide 1,3 veces su propia letra, como las demás.
+- **Corrección (PO 2026-11-02, "al presentar se ven mal"):** con la clase en curso las miniaturas salían cortadas a la
+  derecha y montadas unas sobre otras (vista de clase con 3 / 4 por fila y Vista previa en 2 columnas). Causa: la
+  miniatura fijaba su **alto** en píxeles y, como también tiene proporción 16:9, ese alto amarraba su **ancho**; al
+  angostarse la columna (otra vista, otro número por fila, ventana más chica) la caja no se achicaba y la diapositiva
+  quedaba más grande que su lugar. Ahora la caja toma la forma de la Pizarra **por proporción** (`aspect-ratio` =
+  ancho / alto de la ventana de la Pizarra) y cada miniatura se vuelve a escalar sola cuando cambia de ancho
+  (`ResizeObserver` en `Diapo.miniatura`). Lugares: Vista previa, vista de clase y modo remoto de la Pizarra (la
+  misma función); el Plan, al rehacer la Vista previa, traspasa la proporción en vez del alto.
+  Prueba (navegador, Orientación 2/11, Pizarra anotada a 1280 × 720): antes, con la clase en curso, cajas de 293 px
+  en columnas de ~180 px (texto cortado y montado); después, en vista de clase con 3 y 4 por fila y en Vista previa
+  con 1 y 2 columnas, a 800, 1000 y 1400 px de ancho, cada diapositiva mide lo mismo que su caja y se ve completa.
+  Sin probar: el modo remoto de la Pizarra en el celular.

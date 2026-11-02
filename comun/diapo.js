@@ -206,14 +206,25 @@
     }
 
     // ── MINIATURA ── dibuja `raw` dentro de `caja` (position: relative; overflow: hidden) como se ve en la Pizarra.
-    // La caja toma la forma de la ventana de la Pizarra. Si ya está dibujada igual, solo vuelve a escalar.
+    // La caja toma la forma de la ventana de la Pizarra (por proporción: un alto fijo amarraría también su ancho
+    // y no se achicaría al angostarse la columna). Si ya está dibujada igual, solo vuelve a escalar.
     function miniatura(caja, raw) {
         const { w, h } = tamPizarra();
+        caja.style.height = '';
+        caja.style.aspectRatio = w + ' / ' + h;
+        caja._diapoRaw = raw;
+        // Si la caja cambia de ancho (3 / 4 por fila, columna más angosta…), se vuelve a escalar sola.
+        if (!caja._diapoObs && window.ResizeObserver) {
+            let antes = caja.clientWidth;
+            caja._diapoObs = new ResizeObserver(() => {
+                if (caja.clientWidth !== antes) { antes = caja.clientWidth; miniatura(caja, caja._diapoRaw); }
+            });
+            caja._diapoObs.observe(caja);
+        }
         const ancho = caja.clientWidth;
         let esc_ = caja.querySelector(':scope > .diapo-escena');
         const clave = w + 'x' + h + '\n' + raw;
         if (!ancho) { if (esc_) esc_.dataset.ok = ''; return; }   // oculta: se dibuja al verse
-        caja.style.height = Math.round(ancho * h / w) + 'px';
         if (!esc_ || esc_.dataset.clave !== clave || !esc_.dataset.ok) {
             esc_?.remove();
             esc_ = document.createElement('div');
