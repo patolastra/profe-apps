@@ -230,7 +230,8 @@
   .grupo-badge{font-size:10px;text-transform:uppercase;letter-spacing:.03em;padding:1px 7px;border-radius:999px;white-space:nowrap;background:rgba(76,175,80,.18);color:#9ff0a8}
   .grupo-badge.eval{background:#20303f;color:var(--mut)}
   /* Lo típico del grupo (deuda ER) */
-  .grupo-tip{display:flex;align-items:center;gap:6px;margin:0 0 4px;font-size:12px;color:#fde68a;min-height:22px}
+  .grupo-tips{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin:0 0 6px}
+  .grupo-tip{display:flex;align-items:center;gap:6px;width:100%;font-size:12px;color:#fde68a;min-height:20px}
   .grupo-tip .gt-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .grupo-tip .gt-x{background:none;border:0;color:var(--mut);cursor:pointer;padding:0 4px;font-size:12px}
   .grupo-tip .gt-x:hover{color:var(--danger)}
@@ -246,6 +247,10 @@
   .tip-it.on{background:rgba(76,175,80,.18)}
   .tip-it small{color:var(--mut)}
   .tip-vacio{color:var(--mut);font-size:12px;padding:4px 10px 8px}
+  .tip-elegidos{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+  .tip-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 4px 3px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:12px;color:#fde68a}
+  .tip-chip button{background:none;border:0;color:var(--mut);cursor:pointer;padding:0 4px;font-size:11px}
+  .tip-chip button:hover{color:var(--danger)}
   .tip-texto{display:flex;gap:6px;margin-top:6px}
   .tip-texto input{flex:1}
   /* Modal de evaluación (grupo / individual) */
@@ -1097,7 +1102,7 @@ async function abrirDetalle(evId){
     } else {
       const cg = await sb.from('libro_evaluacion_grupos').select('*').eq('evaluacion_id', evId).order('created_at');
       grupos = (cg.error && tablaFalta(cg)) ? [] : (cg.data || []);
-      if (grupos.some(g => g.cancion_id)) { try { await tipCargarBib(); } catch (_) {} }   // deuda ER: nombres de las canciones
+      if (grupos.some(g => tipLista(g).some(x => x.cancion_id))) { try { await tipCargarBib(); } catch (_) {} }   // deuda ER: nombres de las canciones
     }
     if (cn.error) throw cn.error;
     evalActual = ce.data;
@@ -1328,7 +1333,7 @@ function proyFoto(){
     const nom = n => nombreDe(n.estudiante);
     const disp = notas.filter(estDisponible).sort(ord);
     return { ...b, tipo: 'grupos',
-      grupos: grupos.map(g => ({ nombre: g.nombre, terminado: grupoTerminado(g), tipico: tipicoTxt(g),
+      grupos: grupos.map(g => ({ nombre: g.nombre, terminado: grupoTerminado(g), tipicos: tipicosTxt(g),
         miembros: notas.filter(n => n.grupo_id === g.id).sort(ord).map(nom) })),
       armando: disp.filter(n => grupoSelIds.has(n.id)).map(nom),     // el grupo que el profe está armando
       sinGrupo: disp.filter(n => !grupoSelIds.has(n.id)).map(nom) };
@@ -1971,8 +1976,9 @@ async function evalRenombrarGrupo(gid, nombre){
   try { await evalUpsertGrupo(g); evalRefrescar(); }
   catch (e) { toast('No se pudo renombrar: ' + e.message, 'err'); }
 }
-// ── Lo típico del grupo (deuda ER): una canción del repertorio del curso (su sesión del Entrenador),
-// cualquier canción de la Biblioteca o un texto libre. Uno u otro (cancion_id | tipico).
+// ── Lo típico del grupo (deuda ER): una lista de ítems, en orden y mezclables: canciones del repertorio
+// del curso (su sesión del Entrenador) o de la Biblioteca, y líneas de texto libre.
+// Columna tipicos = [{ cancion_id } | { texto }]; los grupos anteriores (cancion_id / tipico) se leen igual.
 let tipBib = null;    // Map id → { id, nombre, artista, categoria } de la Biblioteca (se lee una vez)
 let tipCurso = [];    // ids de las canciones de la sesión del curso, en su orden
 let tipGid = null;    // grupo al que se le está eligiendo
@@ -1990,21 +1996,30 @@ async function tipCargarCurso(){
     tipCurso = cs.map(i => i && i.cancion_id).filter(Boolean);
   } catch (_) { tipCurso = []; }
 }
-// { ico, txt } de lo típico del grupo, o null (una canción que ya no existe no se muestra).
-function tipicoDe(g){
-  if (g && g.cancion_id) { const c = tipBib && tipBib.get(g.cancion_id); if (c) return { ico: '🎵', txt: c.nombre }; }
-  const t = ((g && g.tipico) || '').trim();
-  return t ? { ico: '✏️', txt: t } : null;
+// La lista guardada del grupo (o la de antes: una canción o un texto).
+function tipLista(g){
+  if (!g) return [];
+  if (Array.isArray(g.tipicos)) return g.tipicos.filter(x => x && (x.cancion_id || (x.texto || '').trim()));
+  if (g.cancion_id) return [{ cancion_id: g.cancion_id }];
+  const t = (g.tipico || '').trim();
+  return t ? [{ texto: t }] : [];
 }
-function tipicoTxt(g){ const t = tipicoDe(g); return t ? (t.ico === '🎵' ? '🎵 ' : '') + t.txt : ''; }
+// Ítems para mostrar: { ico, txt, sub, k } (k = posición en la lista; una canción que ya no existe no se muestra).
+function tipItems(g){
+  return tipLista(g).map((x, k) => {
+    if (x.cancion_id) { const c = tipBib && tipBib.get(x.cancion_id); return c ? { ico: '🎵', txt: c.nombre, sub: c.artista || '', k } : null; }
+    return { ico: '✏️', txt: x.texto.trim(), sub: '', k };
+  }).filter(Boolean);
+}
+function tipItemTxt(it){ return (it.ico === '🎵' ? '🎵 ' : '') + it.txt; }
+function tipicosTxt(g){ return tipItems(g).map(tipItemTxt); }        // una línea por ítem (Proyectar)
+function tipicoTxt(g){ return tipicosTxt(g).join(' · '); }           // todo en una línea (Resultados)
 function tipicoHTML(g, editable){
-  const t = tipicoDe(g);
-  if (!t && !editable) return '';
-  const c = t && t.ico === '🎵' ? tipBib.get(g.cancion_id) : null;
-  return `<div class="grupo-tip">
-      ${t ? `<span class="gt-txt" title="${esc(t.txt + (c && c.artista ? ' · ' + c.artista : ''))}">${t.ico} ${esc(t.txt)}</span>` : ''}
-      ${editable ? `<button class="btn mini" onclick="tipAbrir('${g.id}')">${t ? 'Cambiar' : '🎵 Elegir canción o texto…'}</button>` : ''}
-      ${(editable && t) ? `<button class="gt-x" title="Quitar" onclick="tipGuardar('${g.id}',{ cancion_id:null, tipico:null })">✕</button>` : ''}
+  const its = tipItems(g);
+  if (!its.length && !editable) return '';
+  return `<div class="grupo-tips">
+      ${its.map(it => `<div class="grupo-tip"><span class="gt-txt" title="${esc(it.txt + (it.sub ? ' · ' + it.sub : ''))}">${it.ico} ${esc(it.txt)}</span>${editable ? `<button class="gt-x" title="Quitar" onclick="tipQuitar('${g.id}',${it.k})">✕</button>` : ''}</div>`).join('')}
+      ${editable ? `<button class="btn mini" onclick="tipAbrir('${g.id}')">${its.length ? '＋ Agregar' : '🎵 Agregar canción o texto…'}</button>` : ''}
     </div>`;
 }
 async function tipAbrir(gid){
@@ -2017,42 +2032,73 @@ async function tipAbrir(gid){
   catch (e) { card.innerHTML = `<button class="em-close" onclick="tipCerrar()" title="Cerrar">✕</button><p class="hint">No se pudo leer la Biblioteca: ${esc(e.message)}</p>`; return; }
   card.innerHTML = `<button class="em-close" onclick="tipCerrar()" title="Cerrar">✕</button>
     <p class="sec-title" style="margin:0 0 10px;padding-right:24px">Lo típico de ${esc(g.nombre)}</p>
+    <div id="tip-elegidos"></div>
     <input id="tip-buscar" class="tip-buscar" placeholder="Buscar canción o artista…" oninput="tipPintarLista()" autocomplete="off">
     <div class="tip-lista" id="tip-lista"></div>
-    <p class="gm-sub" style="margin:12px 0 0">✏️ O escribe otra cosa</p>
-    <div class="tip-texto"><input id="tip-texto" placeholder="Ej.: una obra, un instrumento, un tema…" value="${esc(g.cancion_id ? '' : (g.tipico || ''))}"
-        onkeydown="if(event.key==='Enter')tipGuardarTexto()"><button class="btn primary" onclick="tipGuardarTexto()">Guardar</button></div>`;
-  tipPintarLista();
+    <p class="gm-sub" style="margin:12px 0 0">✏️ O escribe otra cosa (una línea por ítem)</p>
+    <div class="tip-texto"><input id="tip-texto" placeholder="Ej.: una obra, un instrumento, un tema…"
+        onkeydown="if(event.key==='Enter')tipAgregarTexto()"><button class="btn" onclick="tipAgregarTexto()">＋ Agregar</button></div>
+    <div class="mm-actions"><button class="btn primary" onclick="tipCerrar()">Listo</button></div>`;
+  tipPintar();
   document.getElementById('tip-buscar').focus();
+}
+// Lo ya elegido (arriba del buscador) + la lista de canciones.
+function tipPintar(){
+  const box = document.getElementById('tip-elegidos'); if (!box) return;
+  const g = grupos.find(x => x.id === tipGid);
+  const its = tipItems(g);
+  box.innerHTML = its.length ? `<div class="tip-elegidos">${its.map(it => `<span class="tip-chip">${it.ico} ${esc(it.txt)}<button title="Quitar" onclick="tipQuitar('${tipGid}',${it.k})">✕</button></span>`).join('')}</div>` : '';
+  tipPintarLista();
 }
 function tipPintarLista(){
   const out = document.getElementById('tip-lista'); if (!out || !tipBib) return;
   const g = grupos.find(x => x.id === tipGid);
+  const elegidas = new Set(tipLista(g).map(x => x.cancion_id).filter(Boolean));
   const q = normBuscar(document.getElementById('tip-buscar')?.value || '');
   const pasa = c => !q || normBuscar(c.nombre + ' ' + (c.artista || '')).includes(q);
-  const it = c => `<button class="tip-it ${g && g.cancion_id === c.id ? 'on' : ''}" onclick="tipGuardar('${tipGid}',{ cancion_id:'${c.id}', tipico:null })">${esc(c.nombre)}${c.artista ? ` <small>· ${esc(c.artista)}</small>` : ''}</button>`;
+  const it = c => `<button class="tip-it ${elegidas.has(c.id) ? 'on' : ''}" title="${elegidas.has(c.id) ? 'Quitar' : 'Agregar'}" onclick="tipAlternarCancion('${c.id}')">${elegidas.has(c.id) ? '✓ ' : ''}${esc(c.nombre)}${c.artista ? ` <small>· ${esc(c.artista)}</small>` : ''}</button>`;
   const enCurso = new Set(tipCurso);
   const curso = tipCurso.map(id => tipBib.get(id)).filter(c => c && pasa(c));
   const resto = [...tipBib.values()].filter(c => !enCurso.has(c.id) && c.categoria !== 'estilo' && pasa(c))
     .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+  const y = out.scrollTop;
   out.innerHTML = `<div class="tip-sec">Repertorio del curso</div>
     ${curso.length ? curso.map(it).join('') : `<div class="tip-vacio">${tipCurso.length ? 'Ninguna coincide.' : 'El curso no tiene canciones en su sesión del Entrenador.'}</div>`}
     <div class="tip-sec">Biblioteca</div>
     ${resto.length ? resto.map(it).join('') : '<div class="tip-vacio">Ninguna coincide.</div>'}`;
+  out.scrollTop = y;
 }
 function tipCerrar(){ document.getElementById('tip-modal').classList.remove('show'); tipGid = null; }
-function tipGuardarTexto(){
-  const t = (document.getElementById('tip-texto')?.value || '').trim();
-  if (!t) { toast('Escribe algo o elige una canción.', 'err'); return; }
-  tipGuardar(tipGid, { cancion_id: null, tipico: t });
+// Tocar una canción la agrega al final; tocarla de nuevo la quita.
+function tipAlternarCancion(cid){
+  const g = grupos.find(x => x.id === tipGid); if (!g) return;
+  const l = tipLista(g);
+  const i = l.findIndex(x => x.cancion_id === cid);
+  if (i >= 0) l.splice(i, 1); else l.push({ cancion_id: cid });
+  tipGuardar(tipGid, l);
 }
-async function tipGuardar(gid, cambios){
+function tipAgregarTexto(){
+  const inp = document.getElementById('tip-texto');
+  const t = (inp?.value || '').trim();
+  if (!t) { toast('Escribe algo o elige una canción.', 'err'); return; }
+  const g = grupos.find(x => x.id === tipGid); if (!g) return;
+  inp.value = '';
+  tipGuardar(tipGid, [...tipLista(g), { texto: t }]);
+}
+function tipQuitar(gid, k){
+  const g = grupos.find(x => x.id === gid); if (!g) return;
+  const l = tipLista(g); l.splice(k, 1);
+  tipGuardar(gid, l);
+}
+// Guarda la lista entera (y deja vacíos los campos de antes). Sigue abierto el selector si lo está.
+async function tipGuardar(gid, lista){
   const g = grupos.find(x => x.id === gid); if (!g) return;
   if (grupoTerminado(g)) { toast('El grupo está terminado: reábrelo para cambiarlo.', 'err'); return; }
+  const cambios = { tipicos: lista.length ? lista : null, cancion_id: null, tipico: null };
   const { error } = await sb.from('libro_evaluacion_grupos').update(cambios).eq('id', gid);
   if (error) { toast('No se pudo guardar: ' + error.message, 'err'); return; }
   Object.assign(g, cambios);
-  tipCerrar();
+  if (tipGid === gid) tipPintar();
   evalRefrescar();
 }
 async function evalEliminarGrupo(gid){

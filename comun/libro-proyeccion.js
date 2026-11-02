@@ -5,7 +5,7 @@
 //   · sin clase, a pantalla completa en la misma ventana (abrirLocal()).
 // Fotos: { tipo:'general', curso, titulo, fecha, oa }
 //        { tipo:'instr', curso, titulo, instr:{ nombre, clase:'rubrica'|'cotejo', niveles:[lab], items:[{ texto, desc:[..] }] } }
-//        { tipo:'grupos', curso, titulo, grupos:[{ nombre, tipico, miembros:[..], terminado }], armando:[..], sinGrupo:[..] }
+//        { tipo:'grupos', curso, titulo, grupos:[{ nombre, tipicos:[..], miembros:[..], terminado }], armando:[..], sinGrupo:[..] }
 //        { tipo:'pend', curso, titulo, total, evaluados, pendientes:[..], ausentes:[..] }
 //        { tipo:'entrega', curso, titulo, hicieron, deben, faltan:[..], listos:[..] }
 //        { tipo:'part', curso, titulo, tablero:{ contador, cntEsp, cntSi, esp, si, vaciaEsp, vaciaSi, cerrada, big } }
@@ -86,7 +86,7 @@
         }
         if (f.tipo === 'grupos') {
             const tarj = f.grupos.map(g => `<div class="lpro-g${g.terminado ? ' listo' : ''}"><h3>${esc(g.nombre)}<span>${g.terminado ? '✓' : g.miembros.length}</span></h3>
-                ${g.tipico ? `<p class="lpro-tip">${esc(g.tipico)}</p>` : ''}
+                ${(g.tipicos || (g.tipico ? [g.tipico] : [])).map(t => `<p class="lpro-tip">${esc(t)}</p>`).join('')}
                 <ul>${g.miembros.map(m => `<li>${esc(m)}</li>`).join('') || '<li style="color:#64748b">Sin integrantes</li>'}</ul></div>`).join('');
             const arm = f.armando.length ? `<div class="lpro-g armando"><h3>Nuevo grupo…<span>${f.armando.length}</span></h3>
                 <ul>${f.armando.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>` : '';

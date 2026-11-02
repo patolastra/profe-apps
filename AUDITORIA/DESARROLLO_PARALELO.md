@@ -7363,6 +7363,23 @@ sesión del curso en el Entrenador, cualquier canción de la Biblioteca o un tex
   Prueba (navegador, evaluación Karaoke de 8°): buscador con el repertorio de 8° arriba y la Biblioteca abajo; Grupo 1
   con canción y Grupo 2 con texto, guardados en la base y visibles al recargar en la tarjeta, Evaluar grupo,
   Resultados, Proyectar a pantalla completa y Evaluar del celular; después se dejaron vacíos como estaban. Sin errores.
+- **Ajuste (PO 2026-11-02): varios ítems por grupo** — "debe poder incluir varios ítems por grupo (varias canciones, o
+  varias líneas por separado de texto libre)". Plan: una lista por grupo, en orden y mezclable (canciones y líneas de
+  texto), en una columna nueva `tipicos` (`supabase/libro_grupo_tipicos.sql`, lo corre el PO); `cancion_id` / `tipico`
+  quedan sin uso (se leen si un grupo aún no tiene lista y se vacían al guardar; sin migrar datos, porque actualizar un
+  grupo terminado o de una evaluación cerrada choca con sus bloqueos). En el selector, tocar una canción la agrega
+  (✓) y tocarla de nuevo la quita; el texto se agrega línea por línea con ＋ Agregar; arriba se ven los elegidos con ✕;
+  "Listo" cierra. Cada ítem se ve en su línea en la tarjeta del grupo (✕ por ítem, ＋ Agregar) y en Evaluar grupo; en
+  Proyectar, una línea por ítem; en Resultados y el celular, en una línea separados por " · ".
+  Lugares (regla 11): los mismos de ER (Libro PC: tarjeta, Evaluar grupo, Resultados, Proyectar → Pizarra; celular
+  Evaluar). `comun/libro-proyeccion.js` acepta también el formato anterior (`tipico`).
+  Hecho (2026-11-02): `supabase/libro_grupo_tipicos.sql` (corrido por el PO); en `LIBRO/index.html` `tipLista` (lista
+  o formato anterior), `tipItems`, `tipicosTxt` / `tipicoTxt`, `tipicoHTML` (un ítem por línea), selector con
+  `tipPintar`, `tipAlternarCancion`, `tipAgregarTexto`, `tipQuitar` y `tipGuardar(gid, lista)`. Prueba (navegador,
+  Karaoke de 8°): el Grupo 3 (que tenía tres canciones escritas en un solo texto) quedó, a pedido del PO, como From
+  the Start (Good Kid) · Para No Verte Más · "Plan A (Paulo Londra)" en texto (no está en la Biblioteca); en el
+  Grupo 1 se agregaron y quitaron una canción y una línea (quedó solo Coqueta); al recargar se ve igual en la
+  tarjeta, Resultados, Proyectar (una línea por ítem) y Evaluar del celular. Sin errores.
 
 ### ES. 🎹 Arreglo de piano: la armonía por compás de toda la canción + la melodía, con la grabación — HECHA (etapa 1)
 *Origen: PO 2026-10-29 ("un arreglo de piano completo de una canción que ya está en la Biblioteca: la armonía con una

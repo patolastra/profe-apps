@@ -238,10 +238,12 @@ async function traerEvaluacion(e, k) {
         }));
         const gs = cg.error ? [] : (cg.data || []);
         // Lo típico de cada grupo (deuda ER): el nombre de su canción o su texto.
-        const ids = [...new Set(gs.map(g => g.cancion_id).filter(Boolean))];
+        // Lista de ítems (tipicos); los grupos de antes tienen una canción o un texto.
+        const lista = g => Array.isArray(g.tipicos) ? g.tipicos : (g.cancion_id ? [{ cancion_id: g.cancion_id }] : ((g.tipico || '').trim() ? [{ texto: g.tipico }] : []));
+        const ids = [...new Set(gs.flatMap(g => lista(g).map(x => x.cancion_id)).filter(Boolean))];
         let cancs = {};
         if (ids.length) { try { const { data } = await sb.from('repertorio_canciones').select('id,nombre').in('id', ids); (data || []).forEach(c => { cancs[c.id] = c.nombre; }); } catch (_) {} }
-        gs.forEach(g => { g.tip = (g.cancion_id && cancs[g.cancion_id]) ? '🎵 ' + cancs[g.cancion_id] : (g.tipico || '').trim(); });
+        gs.forEach(g => { g.tip = lista(g).map(x => x.cancion_id ? (cancs[x.cancion_id] ? '🎵 ' + cancs[x.cancion_id] : '') : (x.texto || '').trim()).filter(Boolean).join(' · '); });
         const datos = { notas: filas, grupos: gs };
         guardarJSON(k, datos);
         return datos;
