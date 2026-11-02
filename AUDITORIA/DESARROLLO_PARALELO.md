@@ -8329,3 +8329,29 @@ actividad"), sobre sus notas de Notion "Actividades y juegos como objetos de la 
   menú de Compartir (`comun/compartir.js`: Copiar link · Generar QR · Generar guía QR) con
   `https://patolastra.github.io/profe-apps/tabs/`. Sus piezas (supabase-js, config, contextos, compartir, archivos del
   curso) se cargan solo al tocarlo. Prueba (navegador): QR con ese link; la guía QR lista los cursos. Sin errores.
+
+### FJ. 🎭 Ensayos (y pruebas pendientes): un nuevo tipo de pendiente
+*Origen: PO 2026-11-02 ("un nuevo tipo de pendiente: ensayos: es una lista de ensayos para tener durante los días
+miércoles, también incluye pruebas pendientes").*
+- **Auditoría:** los ✉️ Mensajes (deuda DD) ya son "otro tipo de pendiente": se anotan con `/msj a quién: qué` en un
+  pendiente o en el editor de bloques (`Pendientes.desdeTexto` → `comoOtra`), quedan en `pendientes` con su propia
+  categoría y se ven en su pestaña del Dashboard y del celular (`comun/mensajes.js`). La columna `categoria` es texto
+  libre: un tipo nuevo no necesita cambios en Supabase.
+- **Decisión del PO (2026-11-02):** cada ensayo = **quién** y **qué** (el curso se toma solo: donde se escribió); las
+  pruebas pendientes **se anotan a mano**; se ve en una **pestaña propia del Dashboard** y **en el celular**; se anota
+  con **/ensayo** en cualquier lado.
+- **Plan:** `/ensayo quién: qué` y `/prueba quién: qué` (la prueba lleva 📝) en un pendiente, la bitácora, una
+  actividad, el Historial o Cursos (también en el menú "/" del editor, sección Anotar) → categoría `ensayo`, texto
+  "quién\nqué" (la prueba con "📝 " adelante). Pieza **`comun/ensayos.js`** + `ensayos.css` (como Mensajes): agrupados
+  por curso, ✓ Hecho los deja abajo plegados (se dejan de ver a las 2 semanas), ✕ borra; al instante entre equipos.
+  Pestaña 🎭 en el Dashboard y en el inicio del celular sin clase (que funciona sin señal: copia en el equipo).
+  - Lugares: Dashboard, celular (inicio), editor de bloques (Plan, bitácora, Historial, Cursos PC y celular),
+    pendientes (cualquier lista).
+- **Hecho (2026-11-02):** `comun/ensayos.js` + `ensayos.css` (nuevos); `comun/pendientes.js` (`partesEnsayo`, `comoOtra`
+  → categoría `ensayo`); `comun/editor-bloques.js` (`/ensayo` y `/prueba` en los comandos, marca 🎭 / 📝, y en el menú
+  "/" → Anotar); Dashboard (`PORTAL/index.html`, pestaña 🎭 con su número); celular (`MOVIL/index.html`, pestaña 🎭;
+  `sw-movil.js` suma las dos piezas y pasa a `profe-movil-v16`). Sin cambios en Supabase. Mapa en `LUGARES_DE_USO.md`.
+  Prueba (navegador): "/ensayo Cajones: entrada de Anacleto" y "/prueba Javier: melodía en metalófono" con el curso
+  Cuarto → la pestaña 🎭 del Dashboard muestra "4️⃣ CUARTO" con los dos (la prueba con 📝) y el número 2; ✓ deja el
+  ensayo en "✓ Hechos (1)"; en el editor, Enter sobre "/ensayo Cantantes: subir la voz" lo envía y el bloque queda
+  "🎭 Cantantes: subir la voz"; el celular muestra la pestaña 🎭. Las dos filas de prueba se borraron. Sin errores.

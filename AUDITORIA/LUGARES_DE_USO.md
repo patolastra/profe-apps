@@ -84,6 +84,7 @@
 | `puntero.js` | Entrenador del profe (completo y mínimo, mientras proyecta) → copia en la Pizarra · Plan: Vista previa y vista de clase → Pizarra · Pasar lista (Plan y Libro) → Pizarra · Cuaderno del Plan → Pizarra · Metalófono del Entrenador → copia en la Pizarra · Participación del Libro → Pizarra (Evaluaciones y Entregas: no, la lámina proyectada es distinta). Un solo botón 🔴, en la barra del Plan |
 | `volumen.js` | Entrenador del profe (Biblioteca, sesión del curso, mínimo del Plan): canción, ritmos (`ritmo-render.js`) y Metalófono · celular: 🔊 VOLUMEN en el inicio con la clase en curso · copia de la Pizarra: siempre muda |
 | `mensajes.js` | Dashboard: pestaña ✉️ · celular: inicio sin clase, pestaña ✉️. Se anotan con `/mensaje` en todo cuadro de `pendientes.js` (Dashboard, Plan, Bitácora, Cursos, celular) |
+| `ensayos.js` (FJ) | Dashboard: pestaña 🎭 · celular: inicio sin clase, pestaña 🎭. Se anotan con `/ensayo` o `/prueba` en todo cuadro de `pendientes.js` y en el editor de bloques (Dashboard, Plan, Bitácora, Historial, Cursos, celular) |
 | `nombre-asset.js` | Biblioteca/Entrenador · Lector · Plan · Planificaciones · Workspace |
 
 ## Libro de clases (`LIBRO/index.html`)

@@ -13,8 +13,10 @@
     <script src="../comun/clase-vivo.js"></script>
     <script src="../comun/volumen.js"></script>
     <script src="../comun/mensajes.js"></script>
+    <script src="../comun/ensayos.js"></script>
     <link rel="stylesheet" href="../comun/pendientes.css">
     <link rel="stylesheet" href="../comun/mensajes.css">
+    <link rel="stylesheet" href="../comun/ensayos.css">
     <script src="../comun/pendientes.js"></script>
     <link rel="stylesheet" href="../comun/apoderados.css">
     <script src="../comun/apoderados.js"></script>
@@ -115,7 +117,7 @@
         .vistas button.activa { background: var(--card); color: var(--text); }
         #hoy-n { color: var(--yellow); font-weight: 700; }
         #hoy-n:empty { display: none; }
-        #v-hoy[hidden], #v-todos[hidden], #sug[hidden], #v-msj[hidden], #v-apo[hidden], #citas-hoy[hidden] { display: none; }
+        #v-hoy[hidden], #v-todos[hidden], #sug[hidden], #v-msj[hidden], #v-ens[hidden], #v-apo[hidden], #citas-hoy[hidden] { display: none; }
         #apo-n { color: var(--yellow); font-weight: 700; }
         #apo-n:empty { display: none; }
         #citas-hoy { background: #0f2238; border: 1px solid #1d4ed8; border-radius: 14px; padding: 8px 12px 10px; margin-bottom: 10px; }
@@ -293,6 +295,7 @@
                 <button type="button" data-vista="hoy">☀️ Hoy <span id="hoy-n"></span></button>
                 <button type="button" data-vista="todos">Todos</button>
                 <button type="button" data-vista="msj" title="Mensajes por dar">✉️ <span id="msj-n"></span></button>
+                <button type="button" data-vista="ens" title="Ensayos y pruebas pendientes">🎭 <span id="ens-n"></span></button>
                 <button type="button" data-vista="apo" title="Citas a apoderados">👪 <span id="apo-n"></span></button>
             </div>
         </div>
@@ -303,6 +306,7 @@
         </div>
         <div id="v-todos" hidden><div class="panel" id="grupos"></div></div>
         <div id="v-msj" hidden><div class="panel" id="msj-lista"></div></div>
+        <div id="v-ens" hidden><div class="panel" id="ens-lista"></div></div>
         <div id="v-apo" hidden><div class="panel" id="apo-lista"></div></div>
         <div id="aviso-gesto">Desliza → ☀️ Hoy · ← borrar · mantén presionado y arrastra sobre otro para hacerlo subpendiente</div>
     </div>
@@ -441,7 +445,7 @@ async function revisarVersion() {
 async function cargarVersion() {
     const b = $('aviso-version'); b.textContent = '🔄 Cargando…';
     const urls = ['index.html', 'cursos.html', 'evaluar.html', 'subir.html', '../comun/archivos-curso.js', '../comun/archivos-curso.css', '../comun/fotos-clase.js', '../REPERTORIO/index.html', '../ritmo.js?v=by1', '../ritmo-render.js?v=da1',
-        '../comun/clase-vivo.js', '../comun/pendientes.js', '../comun/pendientes.css', '../comun/mensajes.js', '../comun/mensajes.css',
+        '../comun/clase-vivo.js', '../comun/pendientes.js', '../comun/pendientes.css', '../comun/mensajes.js', '../comun/mensajes.css', '../comun/ensayos.js', '../comun/ensayos.css',
         '../comun/apoderados.js', '../comun/apoderados.css', '../comun/volumen.js', '../comun/editor-bloques.js', '../comun/editor-bloques.css',
         '../comun/tiempo-real.js', '../comun/asistencia.js', '../comun/puntero.js', '../comun/nombre-asset.js', '../supabase/config.js', '../supabase/contextos.js'];
     await Promise.all(urls.map(u => fetch(new URL(u, location.href).href, { cache: 'reload' }).catch(() => {})));
@@ -484,6 +488,7 @@ function mostrarVista(v) {
     $('v-hoy').hidden = v !== 'hoy';
     $('v-todos').hidden = v !== 'todos';
     $('v-msj').hidden = v !== 'msj';
+    $('v-ens').hidden = v !== 'ens';
     $('v-apo').hidden = v !== 'apo';
     document.querySelectorAll('.vistas button').forEach(b => b.classList.toggle('activa', b.dataset.vista === v));
 }
@@ -581,6 +586,12 @@ async function iniciarPendientes() {
     Mensajes.lista($('msj-lista'), {
         curso: cid => { const c = contextos.find(x => x.id === cid); return c ? { texto: typeof ctxMinimo === 'function' ? ctxMinimo(c.nombre) : c.nombre, titulo: c.nombre } : null; },
         alCambiar: n => { $('msj-n').textContent = n.activos || ''; },
+    });
+    // 🎭 Ensayos (deuda FJ): quién ensaya qué y pruebas pendientes, como en el Dashboard.
+    Ensayos.conectar(sb);
+    Ensayos.lista($('ens-lista'), {
+        curso: cid => { const c = contextos.find(x => x.id === cid); return c ? { texto: typeof ctxMinimo === 'function' ? ctxMinimo(c.nombre) : '', titulo: typeof ctxDisplay === 'function' ? ctxDisplay(c.nombre) : c.nombre } : null; },
+        alCambiar: n => { $('ens-n').textContent = n.activos || ''; },
     });
     // 👪 Citas a apoderados (deuda DF): las de hoy arriba de ☀ Hoy y todas en su pestaña, como en el Dashboard.
     Apoderados.conectar(sb);

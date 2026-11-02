@@ -18,8 +18,9 @@
 //   EditorBloques.html(texto, op)  → vista de solo lectura (HTML); op.objetivo como en crear
 //   objetivo: un párrafo que empieza con "O:" (o "OA:") es el objetivo y se destaca (Actividades del Plan, deuda BP)
 //   alPendiente(texto) → { ok } (o nada): convertir bloques en pendiente (⋮⋮ / clic derecho) y los comandos (deuda DE):
-//     Enter en un bloque que empieza con /pdte texto · /msj destinatario: mensaje · /bug texto · /mejora texto lo
-//     envía y el bloque se queda marcado (☑ / ✉️ / 🐞 / ✨). "/" en un bloque vacío abre el menú, con "Anotar".
+//     Enter en un bloque que empieza con /pdte texto · /msj destinatario: mensaje · /ensayo o /prueba quién: qué
+//     (deuda FJ) · /bug texto · /mejora texto lo envía y el bloque se queda marcado (☑ / ✉️ / 🎭 / 📝 / 🐞 / ✨).
+//     "/" en un bloque vacío abre el menú, con "Anotar".
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
     'use strict';
@@ -856,12 +857,14 @@
         const anotar = I.op.alPendiente ? [{ tit: 'Anotar' },
             { ico: '☑', lbl: 'Pendiente', atajo: '/pdte', accion: escribir('/pdte ') },
             { ico: '✉️', lbl: 'Mensaje (a quién: qué)', atajo: '/msj', accion: escribir('/msj ') },
+            { ico: '🎭', lbl: 'Ensayo (quién: qué)', atajo: '/ensayo', accion: escribir('/ensayo ') },
+            { ico: '📝', lbl: 'Prueba pendiente (quién: qué)', atajo: '/prueba', accion: escribir('/prueba ') },
             { ico: '🐞', lbl: 'Bug de la app', atajo: '/bug', accion: escribir('/bug ') },
             { ico: '✨', lbl: 'Mejora de la app', atajo: '/mejora', accion: escribir('/mejora ') }] : [];
         abrirMenu([...tipos, ...anotar], el, { titulo: 'Bloques básicos', alCerrar: () => enfocar(id, 'fin') });
     }
     // Comandos al comienzo de un bloque (deuda DE): qué se envía y cómo queda marcado el bloque.
-    const RE_CMD = /^\s*\/(pdte|pendiente|msj|mensaje|bug|mejora)(?![a-záéíóúñ])\s*/i;
+    const RE_CMD = /^\s*\/(pdte|pendiente|msj|mensaje|ensayo|prueba|bug|mejora)(?![a-záéíóúñ])\s*/i;
     function comandoDe(plano) {
         const m = plano.match(RE_CMD);
         if (!m) return null;
@@ -871,6 +874,10 @@
         if (cmd === 'msj' || cmd === 'mensaje') {
             const i = resto.indexOf(':'), para = i > 0 ? resto.slice(0, i).trim() : '', msg = i > 0 ? resto.slice(i + 1).trim() : '';
             return para && msg ? { enviar: `/msj ${para}: ${msg}`, marca: `✉️ ${para}: ${msg}` } : null;
+        }
+        if (cmd === 'ensayo' || cmd === 'prueba') {   // 🎭 Ensayos (deuda FJ)
+            const i = resto.indexOf(':'), quien = i > 0 ? resto.slice(0, i).trim() : '', que = i > 0 ? resto.slice(i + 1).trim() : '';
+            return quien && que ? { enviar: `/${cmd} ${quien}: ${que}`, marca: `${cmd === 'prueba' ? '📝' : '🎭'} ${quien}: ${que}` } : null;
         }
         return { enviar: `/${cmd} ${resto}`, marca: (cmd === 'bug' ? '🐞 ' : '✨ ') + resto };
     }

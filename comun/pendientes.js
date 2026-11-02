@@ -228,12 +228,27 @@
         if (i < 0) return { para: resto.trim(), msg: '' };
         return { para: resto.slice(0, i).trim(), msg: resto.slice(i + 1).replace(/\s*\n\s*/g, ' ').trim() };
     }
-    // Un texto con /bug, /mejora o /mensaje (completo) deja de ser pendiente: a qué categoría va, con qué texto y qué aviso.
+    // 🎭 Ensayos (deuda FJ): "/ensayo quién: qué" o "/prueba quién: qué" (la prueba lleva 📝); el curso es el de origen.
+    const CAT_ENSAYO = 'ensayo';
+    function partesEnsayo(texto) {
+        const m = String(texto || '').match(/^\s*\/(ensayo|prueba)(?![a-záéíóúñ])\s*/i);
+        if (!m) return null;
+        const resto = String(texto).slice(m[0].length);
+        let i = resto.indexOf(':');
+        if (i < 0) i = resto.indexOf('\n');
+        const prueba = m[1].toLowerCase() === 'prueba';
+        if (i < 0) return { quien: resto.trim(), que: '', prueba };
+        return { quien: resto.slice(0, i).trim(), que: resto.slice(i + 1).replace(/\s*\n\s*/g, ' ').trim(), prueba };
+    }
+    // Un texto con /bug, /mejora, /mensaje o /ensayo (completo) deja de ser pendiente: a qué categoría va, con qué texto y qué aviso.
     function comoOtra(texto) {
         const mejora = comoMejora(texto);
         if (mejora) return { categoria: CAT_MEJORA, texto: mejora, aviso: 'Anotado en 🐞 Mejoras de la app.', error: 'No se pudo anotar la mejora — revisa la conexión.' };
         const m = partesMensaje(texto);
         if (m && m.para && m.msg) return { categoria: CAT_MENSAJE, texto: m.para + '\n' + m.msg, aviso: `Anotado en ✉️ Mensajes para ${m.para}.`, error: 'No se pudo anotar el mensaje — revisa la conexión.' };
+        const e = partesEnsayo(texto);
+        if (e && e.quien && e.que) return { categoria: CAT_ENSAYO, texto: (e.prueba ? '📝 ' : '') + e.quien + '\n' + e.que,
+            aviso: `Anotado en 🎭 Ensayos${e.prueba ? ' (prueba)' : ''}: ${e.quien}.`, error: 'No se pudo anotar el ensayo — revisa la conexión.' };
         return null;
     }
     async function crear({ contexto_id, sesion_id, fecha, texto = '', hoy = null, padre_id = null, resolver = false, silencioso = false }) {
