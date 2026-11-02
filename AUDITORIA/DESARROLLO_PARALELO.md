@@ -8320,3 +8320,12 @@ actividad"), sobre sus notas de Notion "Actividades y juegos como objetos de la 
   entrada del Lector); `PC/workspace.html`: "🎚️ Afinador" en el catálogo (menú +, tras Tablaturas). Sin Supabase.
   Prueba (navegador): el menú + lo muestra; la pestaña abre el afinador con Mi Si Sol Re La Mi; la cuerda 6 suena
   repetida y al cerrar se calla. Sin errores en la consola.
+
+### FI. ✈ QR del Lector (entrada de los estudiantes) en Administración — Cuerdas
+*Origen: PO 2026-11-02 ("necesito un QR para compartir el lector tabs"; aprobó agregarlo en Administración).*
+- **Auditoría:** el ✈ de la Biblioteca comparte una tablatura o sección (`t/?a=`); no había forma de compartir la
+  entrada del Lector (`tabs/`: Taller de Cuerdas → Ingresar → ¿Quién eres?). El Lector no usa supabase-js.
+- **Hecho (2026-11-02):** `tabs/index.html`: botón "✈ QR del Lector" en la cabecera del panel de Administración →
+  menú de Compartir (`comun/compartir.js`: Copiar link · Generar QR · Generar guía QR) con
+  `https://patolastra.github.io/profe-apps/tabs/`. Sus piezas (supabase-js, config, contextos, compartir, archivos del
+  curso) se cargan solo al tocarlo. Prueba (navegador): QR con ese link; la guía QR lista los cursos. Sin errores.
