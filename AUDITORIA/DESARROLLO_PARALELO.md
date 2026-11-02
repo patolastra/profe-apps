@@ -8259,3 +8259,17 @@ cerrarlo con una X en una esquina").*
   Plan del 19/10 en gris con su franja, sin ▶ Comenzar clase; desde adentro pasa al 5/10 en la misma capa; la ✕ cierra
   y vuelve al Plan de hoy. Sin errores nuevos en la consola. Sin probar: dentro del Workspace (abrir el Libro o el
   Entrenador desde la clase pasada).
+
+### FF. 🔎 Buscar estudiante en la Administración del Lector (Cuerdas)
+*Origen: PO 2026-11-02 ("en esta sección administrativa del lector de tabs necesito un campo de búsqueda para filtrar
+por estudiante").*
+- **Auditoría:** el panel 🎛 Administración — Cuerdas del Lector (`tabs/index.html`, Ctrl+Shift+A,
+  `renderPanelAlumnos`) lista los alumnos por curso, los particulares y la asistencia de hoy, sin buscador (la columna
+  Biblioteca sí tiene uno).
+- **Plan:** un buscador bajo el título 👨‍🎓 Alumnos (fuera de la lista, así no pierde lo escrito al redibujarse) que
+  deja ver solo los estudiantes cuyo nombre contiene lo escrito (sin importar tildes ni mayúsculas): alumnos por
+  curso (se ocultan los cursos que quedan vacíos), particulares y asistencia de hoy. Solo en pantalla; no toca datos.
+  - Lugares: Lector, panel de Administración (único).
+- **Hecho (2026-11-02):** `tabs/index.html`: buscador `#palAlBuscar` bajo 👨‍🎓 Alumnos + `filtrarAlumnosPanel()` (se
+  vuelve a aplicar cada vez que el panel se redibuja). Prueba (navegador): "lau" deja a Mizhael (5°) y Genesis
+  Laureano (7°) con sus cursos; "DIAZ" encuentra a Aneley Díaz; vacío vuelve a mostrar los 16.
