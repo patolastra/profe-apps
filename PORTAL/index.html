@@ -613,9 +613,9 @@
         .cur-ent { margin-bottom: 14px; }
         .cur-ent-hdr { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 800; color: var(--text, #1e293b); }
         .cur-ent-hdr .cur-f { font-weight: 400; color: var(--muted); }
-        .cur-ent-hdr .cur-tit { flex: 1; min-width: 0; }
-        .cur-edit { visibility: hidden; border: 1px solid var(--border); background: #fff; color: var(--accent); border-radius: 5px; font-size: 0.7rem; font-weight: 700; padding: 1px 7px; cursor: pointer; }
-        .cur-ent:hover .cur-edit, .cur-ent.editando .cur-edit { visibility: visible; }
+        .cur-ent-hdr .cur-tit { flex: 0 1 auto; min-width: 0; }   /* ✏️ Editar e Ir a la clase, junto a la fecha (deuda FE) */
+        .cur-edit, .cur-ir { visibility: hidden; border: 1px solid var(--border); background: #fff; color: var(--accent); border-radius: 5px; font-size: 0.7rem; font-weight: 700; padding: 1px 7px; cursor: pointer; flex-shrink: 0; }
+        .cur-ent:hover .cur-edit, .cur-ent.editando .cur-edit, .cur-ent:hover .cur-ir { visibility: visible; }
         .cur-ent-body { font-size: 13px; padding: 2px 0 0 2px; }
         .cur-ent-body .eb-lectura { font-size: 13px; }
         .cur-ent.vacia .cur-ent-hdr { color: var(--muted); font-weight: 600; }
@@ -1356,6 +1356,15 @@
             white-space: normal; overflow-wrap: anywhere; word-break: break-word;
             line-height: 1.35; resize: none; min-height: 0; overflow-y: hidden;
         }
+        /* ➜ Ir a la clase (deuda FE): el Plan de una clase pasada encima de todo, en gris, con su franja y ✕ */
+        #pasado-capa { position: fixed; inset: 0; z-index: 9000; display: flex; flex-direction: column; background: #fff; }
+        #pasado-capa[hidden] { display: none; }
+        .pasado-franja { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px 6px 16px;
+            background: #475569; color: #f1f5f9; font-size: 0.9rem; flex-shrink: 0; }
+        .pasado-franja button { border: 0; background: rgba(255,255,255,.12); color: #fff; font-size: 1.05rem; width: 34px; height: 30px; border-radius: 6px; cursor: pointer; }
+        .pasado-franja button:hover { background: rgba(255,255,255,.28); }
+        #pasado-capa iframe { flex: 1; width: 100%; border: 0; filter: grayscale(1); }
+        html.pasado #btn-clase { display: none; }   /* una clase pasada no se comienza */
     </style>
 </head>
 <body>
@@ -2714,7 +2723,7 @@ function abrirPizarra() {
 let _claseTick = null;
 
 function botonClase() {
-    if (!sesionActual) return;
+    if (!sesionActual || PASADO) return;
     const st = ClaseVivo.enCurso();
     if (!st) return comenzarClase();
     if (st.aqui && st.sesionId === sesionActual.id) abrirFinClase();
@@ -5600,7 +5609,8 @@ async function cargarCurso() {
             ? `<span class="cur-tit">✍🏼 ${fLarga}${hay ? '' : ' <span class="cur-f">· sin bitácora</span>'}</span>`
             : `<span class="cur-tit">📝 ${escapeHtmlMem(E.titulo || 'Sin título')} <span class="cur-f">· ${fLarga}</span></span>`;
         html += `<div class="cur-ent${hay ? '' : ' vacia'}" data-k="${E.k}">
-            <div class="cur-ent-hdr">${tit}<button class="cur-edit" onclick="editarCursoEnt('${E.k}')">✏️ Editar</button></div>
+            <div class="cur-ent-hdr">${tit}<button class="cur-edit" onclick="editarCursoEnt('${E.k}')">✏️ Editar</button>${E.tipo === 'clase'
+                ? `<button class="cur-ir" onclick="abrirClasePasada('${E.fecha}')" title="Abrir el Plan de esa clase, encima de este">➜ Ir a la clase</button>` : ''}</div>
             <div class="cur-ent-body">${cursoCuerpo(E)}</div>
         </div>`;
     });
@@ -5616,6 +5626,37 @@ async function cargarCurso() {
         });
     });
 }
+// ➜ Ir a la clase (deuda FE): el Plan de esa clase pasada en una capa encima de todo, en gris (todo editable).
+// Dentro de esa capa (?pasado=1) no se comienza la clase, e "Ir a la clase" cambia la misma capa de día.
+const PASADO = new URLSearchParams(location.search).get('pasado') === '1';
+if (PASADO) document.documentElement.classList.add('pasado');
+function abrirClasePasada(fecha) {
+    if (PASADO) { try { return window.parent.abrirClasePasada(fecha); } catch (_) { return; } }
+    if (!sesionActual) return;
+    const nombre = contextos[sesionActual.contexto_id]?.nombre;
+    if (!nombre) return;
+    const d = new Date(fecha + 'T12:00:00');
+    const dia = d.toLocaleDateString('es-CL', { weekday: 'long' });
+    document.getElementById('pasado-tit').innerHTML = `🕘 <b>${dia.charAt(0).toUpperCase() + dia.slice(1)} ${d.getDate()} de ${MESES_CUR[d.getMonth()]}</b> · clase pasada`;
+    const capa = document.getElementById('pasado-capa');
+    capa.querySelector('iframe').src = `index.html?ctx=${encodeURIComponent(nombre)}&fecha=${encodeURIComponent(fecha)}&pasado=1`;
+    capa.hidden = false;
+}
+async function cerrarClasePasada() {
+    const capa = document.getElementById('pasado-capa');
+    const fr = capa.querySelector('iframe');
+    try { await fr.contentWindow.guardarPlanParaCierre?.(); } catch (_) {}   // guarda lo escrito antes de cerrar
+    fr.src = 'about:blank';
+    capa.hidden = true;
+}
+// Lo que el Plan pasado le pide al Workspace (abrir el Libro, el Entrenador…) pasa por este Plan.
+window.addEventListener('message', e => {
+    const fr = document.querySelector('#pasado-capa iframe');
+    const m = e.data;
+    if (!fr || e.source !== fr.contentWindow || typeof m?.tipo !== 'string' || !m.tipo.startsWith('ws-')) return;
+    if (enWorkspace()) { try { window.parent.postMessage(m, '*'); } catch (_) {} }
+    else if (m.tipo === 'ws-abrir' && m.src) window.open(m.src, '_blank');
+});
 function cursoCuerpo(E) {
     const audios = (E.audios || []).map(memAudioHtml).join('');
     const texto = E.contenido.trim();
@@ -6181,6 +6222,11 @@ async function guardarMateriales() {
             <button id="clase-fin-ok" onclick="confirmarFinClase()">Terminar</button>
         </div>
     </div>
+</div>
+<!-- ➜ Ir a la clase (deuda FE): el Plan de una clase pasada, encima y en gris -->
+<div id="pasado-capa" hidden>
+    <div class="pasado-franja"><span id="pasado-tit"></span><button onclick="cerrarClasePasada()" title="Cerrar y volver a la clase de hoy">✕</button></div>
+    <iframe title="Clase pasada"></iframe>
 </div>
 </body>
 </html>

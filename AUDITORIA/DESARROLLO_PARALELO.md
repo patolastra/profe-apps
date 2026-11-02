@@ -8234,3 +8234,28 @@ Aprobado: "hacerlo así" (una sola pieza).*
 - **Ajuste (PO 2026-11-02):** al insertar una imagen desde ＋ Insertar, la línea queda solo `@img:<dirección>`, sin
   `|<nombre del archivo>` (el nombre salía como título bajo la imagen y es irrelevante; el título sigue siendo
   opcional escribiéndolo a mano). Las imágenes ya insertadas no cambian.
+
+### FE. 🕘 Historial del Plan: ✏️ Editar junto a la fecha y "Ir a la clase" (la clase pasada en gris, encima)
+*Origen: PO 2026-11-02 (Historial del Plan de Cuarto: "que el botón de Editar se vea al lado de la fecha, y que además
+exista un botón 'Ir a la clase' que me permita ir al planer de ese día, encima de lo que hay, en escala de grises, y
+cerrarlo con una X en una esquina").*
+- **Auditoría:** el 🕘 Historial del Plan (`cargarCurso` en `PORTAL/index.html`, deuda CL) muestra cada clase y nota
+  con su título y, al pasar el mouse, ✏️ Editar al extremo derecho (el título ocupa todo el ancho). El Plan de otro día
+  hoy solo se abre desde el Dashboard, en otra pestaña del Workspace.
+- **Decisión del PO (2026-11-02):** (1) **capa encima** de todo el Planificador; al cerrar se vuelve a la clase de hoy
+  tal como estaba; (2) la clase pasada es el Plan normal de ese día, **todo editable**; el gris es solo para saber que
+  es el pasado; (3) todo en gris (imágenes y diapositivas incluidas) salvo una **franja** arriba "🕘 <fecha> · clase
+  pasada" con la ✕; (4) **Cursos queda como posibilidad** (se instalará allá si el PO lo necesita).
+- **Plan:** ✏️ Editar y ➜ Ir a la clase (solo en las clases, no en las notas) quedan junto a la fecha, al pasar el
+  mouse. "Ir a la clase" abre una capa con el Plan de ese día (`PORTAL/index.html?ctx=&fecha=&pasado=1`) en gris; en
+  ese Plan no se puede ▶ Comenzar clase, y su "Ir a la clase" cambia la misma capa de día. La ✕ guarda lo escrito y
+  cierra. Lo que ese Plan le pida al Workspace (abrir el Libro, el Entrenador…) pasa por el Plan de hoy.
+  - Lugares: Plan (🕘 Historial). Cursos: no (decisión del PO).
+- **Hecho (2026-11-02):** `PORTAL/index.html`: ✏️ Editar y ➜ Ir a la clase junto a la fecha (al pasar el mouse;
+  "Ir a la clase" solo en las clases); capa `#pasado-capa` (franja gris "🕘 <fecha> · clase pasada" + ✕ y el Plan de
+  ese día en un marco con `filter: grayscale(1)`); `?pasado=1` oculta ▶ Comenzar clase y hace que "Ir a la clase"
+  cambie la capa de día; la ✕ guarda (`guardarPlanParaCierre`) y cierra; los pedidos `ws-*` del Plan pasado se
+  reenvían al Workspace. Prueba (navegador, Cuarto 2/11): botones junto a "Lunes 19 de octubre"; la capa abre el
+  Plan del 19/10 en gris con su franja, sin ▶ Comenzar clase; desde adentro pasa al 5/10 en la misma capa; la ✕ cierra
+  y vuelve al Plan de hoy. Sin errores nuevos en la consola. Sin probar: dentro del Workspace (abrir el Libro o el
+  Entrenador desde la clase pasada).
