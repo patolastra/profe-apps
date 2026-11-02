@@ -8235,6 +8235,13 @@ Aprobado: "hacerlo así" (una sola pieza).*
   `|<nombre del archivo>` (el nombre salía como título bajo la imagen y es irrelevante; el título sigue siendo
   opcional escribiéndolo a mano). Las imágenes ya insertadas no cambian.
 
+- **Segunda corrección (2026-11-02, captura del PO en la clase pasada de Cuarto):** con la Vista previa en 2 columnas
+  y la columna llena, las diapositivas se montaban y los títulos de actividad quedaban aplastados: la cuadrícula
+  encogía sus filas para caber (las cajas tienen `overflow: hidden`, así que el navegador las deja achicarse). Ahora
+  las filas miden lo que su contenido (`grid-auto-rows: max-content`, también en la vista de clase) y la miniatura vuelve
+  a tener **alto en píxeles calculado del ancho**, pero sin proporción en CSS (`aspect-ratio: auto`), así el alto ya no
+  amarra el ancho. Prueba (navegador, Cuarto 19/10 en 2 columnas, a 1900 y 1100 px): sin diapositivas montadas, títulos
+  INICIO / MONTAJE visibles, cada diapositiva del mismo ancho que su caja y en 16:9.
 ### FE. 🕘 Historial del Plan: ✏️ Editar junto a la fecha y "Ir a la clase" (la clase pasada en gris, encima)
 *Origen: PO 2026-11-02 (Historial del Plan de Cuarto: "que el botón de Editar se vea al lado de la fecha, y que además
 exista un botón 'Ir a la clase' que me permita ir al planer de ese día, encima de lo que hay, en escala de grises, y
@@ -8273,3 +8280,5 @@ por estudiante").*
 - **Hecho (2026-11-02):** `tabs/index.html`: buscador `#palAlBuscar` bajo 👨‍🎓 Alumnos + `filtrarAlumnosPanel()` (se
   vuelve a aplicar cada vez que el panel se redibuja). Prueba (navegador): "lau" deja a Mizhael (5°) y Genesis
   Laureano (7°) con sus cursos; "DIAZ" encuentra a Aneley Díaz; vacío vuelve a mostrar los 16.
+- **Ajuste (PO 2026-11-02):** sin franja arriba; el título de la barra dice "Cuarto, lunes 19 de octubre *(clase
+  pasada)*" (en cursiva) y la barra lleva **solo la ✕** en vez de sus botones (Pasar lista, Libro, etc.).

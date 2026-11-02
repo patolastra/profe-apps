@@ -663,7 +663,7 @@
         .cl-canc-ico { font-size: 2.2rem; line-height: 1; }
         .cl-canc-nom { font-size: 1.15rem; font-weight: 800; line-height: 1.2; }
         .cl-canc-art { font-size: 0.85rem; color: #6d28d9; }
-        .cl-grid { display: grid; gap: 12px; align-items: start; }
+        .cl-grid { display: grid; gap: 12px; align-items: start; grid-auto-rows: max-content; }
         .cl-slide { cursor: pointer; }
         .cl-slide .cl-ed { position: absolute; top: 6px; right: 6px; z-index: 2; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; width: 30px; height: 28px; cursor: pointer; font-size: 0.9rem; opacity: .75; }
         .cl-slide .cl-ed:hover { opacity: 1; background: #eef2ff; }
@@ -859,7 +859,8 @@
         .slide-prev.tipo-mensaje .slide-act-btn:hover { background: rgba(255,255,255,0.3); color: #fff; }
 
         /* Slides grid layout */
-        #prev-body.cols-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 311px)); justify-content: center; gap: 8px; padding: 8px !important; align-content: start; }
+        #prev-body.cols-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 311px)); justify-content: center; gap: 8px; padding: 8px !important; align-content: start;
+            grid-auto-rows: max-content; }   /* filas del alto de su contenido: si no, con la columna llena se encogen y las diapositivas se montan (FD) */
         #prev-body.cols-1 { display: flex; flex-direction: column; gap: 8px; padding: 8px !important; }
         #prev-body.cols-1 .slide-prev,
         #prev-body.cols-2 .slide-prev { margin-bottom: 0; }
@@ -1359,12 +1360,12 @@
         /* ➜ Ir a la clase (deuda FE): el Plan de una clase pasada encima de todo, en gris, con su franja y ✕ */
         #pasado-capa { position: fixed; inset: 0; z-index: 9000; display: flex; flex-direction: column; background: #fff; }
         #pasado-capa[hidden] { display: none; }
-        .pasado-franja { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px 6px 16px;
-            background: #475569; color: #f1f5f9; font-size: 0.9rem; flex-shrink: 0; }
-        .pasado-franja button { border: 0; background: rgba(255,255,255,.12); color: #fff; font-size: 1.05rem; width: 34px; height: 30px; border-radius: 6px; cursor: pointer; }
-        .pasado-franja button:hover { background: rgba(255,255,255,.28); }
         #pasado-capa iframe { flex: 1; width: 100%; border: 0; filter: grayscale(1); }
-        html.pasado #btn-clase { display: none; }   /* una clase pasada no se comienza */
+        /* Dentro de la capa: "(clase pasada)" tras el título y, en vez de la barra, solo la ✕ (PO 2026-11-02) */
+        html.pasado #hdr-ses-titulo::after { content: ' (clase pasada)'; font-style: italic; font-weight: 400; }
+        html.pasado .hdr-ses-right > :not(#btn-pasado-cerrar) { display: none !important; }
+        #btn-pasado-cerrar { display: none; }
+        html.pasado #btn-pasado-cerrar { display: inline-flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
@@ -1407,6 +1408,7 @@
             <button class="hdr-btn ico" id="btn-ant-piz" onclick="navPizarra(-1)" data-label="Anterior" aria-label="Anterior" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
             <button class="hdr-btn ico" id="btn-sig-piz" onclick="navPizarra(1)" data-label="Siguiente" aria-label="Siguiente" hidden><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
             <button class="hdr-btn" id="btn-clase" onclick="botonClase()">▶ Comenzar clase</button>
+            <button class="hdr-btn ico" id="btn-pasado-cerrar" onclick="window.parent.cerrarClasePasada?.()" data-label="Cerrar la clase pasada" aria-label="Cerrar la clase pasada">✕</button>
         </div>
     </div>
 </div>
@@ -3960,7 +3962,7 @@ function actualizarPreview() {
         const s = e.querySelector(':scope > .diapo-escena');
         if (!s) return;
         if (!previas.has(e.dataset.raw)) previas.set(e.dataset.raw, []);
-        previas.get(e.dataset.raw).push({ s, ar: e.style.aspectRatio });
+        previas.get(e.dataset.raw).push({ s, h: e.style.height });
     });
     body.innerHTML = '';
 
@@ -4002,7 +4004,7 @@ function actualizarPreview() {
             el.dataset.selStart = charPos + leadWS;
             el.dataset.selEnd   = charPos + part.length - trailWS;
             const previa = previas.get(trimmed)?.shift();
-            if (previa) { el.prepend(previa.s); el.style.aspectRatio = previa.ar; }
+            if (previa) { el.prepend(previa.s); el.style.aspectRatio = 'auto'; el.style.height = previa.h; }
             body.appendChild(el);
         }
         charPos += part.length + (i < rawParts.length - 1 ? SEP.length : 0);
@@ -5635,9 +5637,6 @@ function abrirClasePasada(fecha) {
     if (!sesionActual) return;
     const nombre = contextos[sesionActual.contexto_id]?.nombre;
     if (!nombre) return;
-    const d = new Date(fecha + 'T12:00:00');
-    const dia = d.toLocaleDateString('es-CL', { weekday: 'long' });
-    document.getElementById('pasado-tit').innerHTML = `🕘 <b>${dia.charAt(0).toUpperCase() + dia.slice(1)} ${d.getDate()} de ${MESES_CUR[d.getMonth()]}</b> · clase pasada`;
     const capa = document.getElementById('pasado-capa');
     capa.querySelector('iframe').src = `index.html?ctx=${encodeURIComponent(nombre)}&fecha=${encodeURIComponent(fecha)}&pasado=1`;
     capa.hidden = false;
@@ -6223,9 +6222,8 @@ async function guardarMateriales() {
         </div>
     </div>
 </div>
-<!-- ➜ Ir a la clase (deuda FE): el Plan de una clase pasada, encima y en gris -->
+<!-- ➜ Ir a la clase (deuda FE): el Plan de una clase pasada, encima y en gris (su ✕ está en su propia barra) -->
 <div id="pasado-capa" hidden>
-    <div class="pasado-franja"><span id="pasado-tit"></span><button onclick="cerrarClasePasada()" title="Cerrar y volver a la clase de hoy">✕</button></div>
     <iframe title="Clase pasada"></iframe>
 </div>
 </body>
