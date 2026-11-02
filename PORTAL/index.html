@@ -3944,6 +3944,15 @@ function actualizarPreview() {
     const txt  = taEl ? taEl.value : '';
     const body = document.getElementById('prev-body');
     if (!body) return;
+    // Al escribir no se rehace todo (FD): las miniaturas que no cambiaron pasan tal cual a la lista nueva
+    // (sin volver a cargar sus imágenes) y la lista se queda donde estaba.
+    const previas = new Map(), scroll = body.scrollTop;
+    body.querySelectorAll('.slide-prev').forEach(e => {
+        const s = e.querySelector(':scope > .diapo-escena');
+        if (!s) return;
+        if (!previas.has(e.dataset.raw)) previas.set(e.dataset.raw, []);
+        previas.get(e.dataset.raw).push({ s, h: e.style.height });
+    });
     body.innerHTML = '';
 
     body.classList.toggle('cols-1', slidesColCount === '1');
@@ -3983,6 +3992,8 @@ function actualizarPreview() {
             el.dataset.act = act;
             el.dataset.selStart = charPos + leadWS;
             el.dataset.selEnd   = charPos + part.length - trailWS;
+            const previa = previas.get(trimmed)?.shift();
+            if (previa) { el.prepend(previa.s); el.style.height = previa.h; }
             body.appendChild(el);
         }
         charPos += part.length + (i < rawParts.length - 1 ? SEP.length : 0);
@@ -3995,6 +4006,7 @@ function actualizarPreview() {
         body.innerHTML = '<div class="vacio" style="padding:12px">Sin contenido.</div>';
         return;
     }
+    body.scrollTop = scroll;
     requestAnimationFrame(() => {
         document.querySelectorAll('#prev-body .slide-prev').forEach(autoFitSlide);
     });
