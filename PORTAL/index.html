@@ -603,6 +603,25 @@
         .pcard-pop button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
         .pcard-pop button:hover { background: #f1f5f9; }
         .pcard-pop button.peligro { color: #dc2626; }
+        /* 🧵 Hilo de la actividad (deuda FG) */
+        .pcard-hilo { display: block; margin: 0 0 2px 14px; border: 0; background: none; padding: 0; font-size: 0.72rem; color: var(--muted); cursor: pointer; }
+        .pcard-hilo:hover { color: var(--accent); text-decoration: underline; }
+        #hilo-capa { position: fixed; inset: 0; z-index: 8000; background: rgba(15,23,42,.45); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; }
+        #hilo-capa[hidden] { display: none; }
+        .hilo-caja { background: #fff; border-radius: 12px; width: min(820px, 100%); max-height: calc(100vh - 80px); display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+        .hilo-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); font-weight: 800; font-size: 0.95rem; }
+        .hilo-cab button { border: 0; background: none; font-size: 1.05rem; color: var(--muted); cursor: pointer; padding: 2px 8px; border-radius: 6px; }
+        .hilo-cab button:hover { background: #e2e8f0; color: var(--text, #1e293b); }
+        .hilo-cuerpo { overflow-y: auto; padding: 10px 20px 24px; }
+        .hilo-ent { padding: 10px 0 14px; border-bottom: 1px dashed #cbd5e1; }
+        .hilo-ent:last-child { border-bottom: 0; }
+        .hilo-ent-hdr { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 0.85rem; margin-bottom: 4px; }
+        .hilo-ent-hdr .hilo-n { font-weight: 400; color: var(--muted); }
+        .hilo-ent-hdr button { border: 1px solid var(--border); background: #fff; color: var(--accent); border-radius: 5px; font-size: 0.7rem; font-weight: 700; padding: 1px 7px; cursor: pointer; }
+        .hilo-ent.esta .hilo-ent-hdr { color: #b45309; }
+        .hilo-sub { font-size: 0.7rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin: 8px 0 2px; }
+        .hilo-txt { font-size: 13px; }
+        .hilo-vacio { color: var(--muted); font-size: 0.8rem; font-style: italic; }
         .plan-nueva { width: 100%; border: 1px dashed var(--border); background: none; color: var(--muted); border-radius: 10px; padding: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 700; }
         .plan-nueva:hover { color: var(--accent); border-color: var(--accent); background: #eff6ff; }
         .plan-estado { min-height: 1.2em; font-size: 0.7rem; color: var(--muted); text-align: right; margin-top: 4px; }
@@ -4739,6 +4758,7 @@ function pintarPlan() {
                 <button class="pcard-ir" title="Ir a sus diapositivas">▶</button>
                 <button class="pcard-menu" title="Opciones">⋯</button>
             </div><div class="pcard-libre" hidden title="Tiempo libre: en clase se comienza desde la actividad (pide confirmar los minutos)">⏱ <input type="number" min="1" max="90" class="pcard-min"> min</div>
+            <button class="pcard-hilo" hidden title="Ver el hilo: esta actividad en todas sus clases"></button>
             <div class="pcard-cancs"></div><div class="pcard-ed"></div>`;
         cont.appendChild(el);
         const tit = el.querySelector('.pcard-tit');
@@ -4752,6 +4772,7 @@ function pintarPlan() {
         inMin.addEventListener('change', () => guardarMinutos(c, inMin.value));
         tit.addEventListener('input', () => { c.titulo = tit.value; planCambio(c); presTitulos(); verLibre(); });
         el.querySelector('.pcard-ir').addEventListener('click', e => { e.stopPropagation(); irActividad(c.id); });
+        el.querySelector('.pcard-hilo').addEventListener('click', e => { e.stopPropagation(); verHilo(c); });
         pintarCancionesCard(c, el);
         tit.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (!libreSinTexto(c)) c.ed.enfocar('inicio'); } });
         el.querySelector('.pcard-menu').addEventListener('click', e => { e.stopPropagation(); menuPlanCard(c, e.currentTarget); });
@@ -4767,6 +4788,7 @@ function pintarPlan() {
     presTitulos();       // un cuadro de diapositivas por actividad y rótulos de la vista previa al día (BS)
     marcarEnPizarra();
     pintarClase();
+    pintarHilos();
 }
 // Títulos de las actividades al día en los cuadros y rótulos de la vista previa (BS).
 let libreClave = '';   // actividades Tiempo libre y sus minutos que ya están en la Vista previa (BZ)
@@ -4881,6 +4903,8 @@ function menuPlanCard(c, boton) {
     const pop = document.createElement('div');
     pop.className = 'pcard-pop';
     pop.innerHTML = `${libreSinTexto(c) ? '<button data-a="texto">✏️ Agregar texto</button>' : ''}<button data-a="cancion">🎵 Vincular canción, metalófono o ritmo</button>
+        <button data-a="continuar">➜ Continuar en la próxima clase</button>
+        ${c.hilo_id ? '<button data-a="hilo">🧵 Ver el hilo</button>' : ''}
         ${i > 0 ? '<button data-a="subir">↑ Subir</button>' : ''}
         ${i < planCards.length - 1 ? '<button data-a="bajar">↓ Bajar</button>' : ''}
         <button data-a="borrar" class="peligro">🗑 Eliminar actividad</button>`;
@@ -4892,6 +4916,8 @@ function menuPlanCard(c, boton) {
         const a = e.target.closest('button')?.dataset.a; if (!a) return;
         pop.remove();
         if (a === 'cancion') { elegirCancion(c, boton); return; }
+        if (a === 'continuar') { continuarActividad(c); return; }
+        if (a === 'hilo') { verHilo(c); return; }
         if (a === 'texto') {   // Tiempo libre: muestra su cuadro de texto (BZ)
             c.verTexto = true;
             const ed = document.querySelector(`#plan-cards .pcard[data-id="${c.id}"] .pcard-ed`);
@@ -4916,6 +4942,113 @@ function menuPlanCard(c, boton) {
     setTimeout(() => document.addEventListener('click', function fuera(ev) {
         if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener('click', fuera); }
     }), 0);
+}
+
+// ── 🧵 Actividades que continúan clase a clase (deuda FG) ──
+// "➜ Continuar en la próxima clase" copia la actividad (título, texto, canciones, minutos y sus diapositivas) al final
+// del plan de la clase siguiente del curso. Las copias comparten plan_cards.hilo_id (= id de la primera del hilo):
+// la actividad muestra "🧵 3ª clase de 4" y "Ver el hilo" junta todas sus clases con lo planificado y su bitácora.
+const fechaLargaFG = f => {
+    const d = new Date(f + 'T12:00:00'), dia = d.toLocaleDateString('es-CL', { weekday: 'long' });
+    return `${dia.charAt(0).toUpperCase() + dia.slice(1)} ${d.getDate()} de ${MESES_CUR[d.getMonth()]}`;
+};
+const FALTA_HILO = 'No se pudo guardar el hilo. ¿Falta correr supabase/plan_cards_hilo.sql?';
+async function continuarActividad(c) {
+    if (!sesionActual) return;
+    await guardarPlanTodo();
+    if (presTimer) { clearTimeout(presTimer); await guardarPres(sesionActual.id); }
+    const cid = sesionActual.contexto_id;
+    planEstado('Buscando la próxima clase…');
+    const dest = await Pendientes.proximaClase(cid, { despuesDe: sesionActual.fecha });
+    if (!dest?.sesion_id) { planEstado('No encontré la próxima clase de este curso.', true); return; }
+    const hilo = c.hilo_id || c.id;
+    if (!c.hilo_id) {
+        const { error } = await sb.from('plan_cards').update({ hilo_id: hilo }).eq('id', c.id);
+        if (error) { planEstado(FALTA_HILO, true); return; }
+        c.hilo_id = hilo;
+    }
+    const { data: ya } = await sb.from('plan_cards').select('id').eq('sesion_id', dest.sesion_id).eq('hilo_id', hilo).limit(1);
+    if (ya?.length && !confirm(`"${c.titulo || 'Esta actividad'}" ya continúa el ${fechaLargaFG(dest.fecha)}. ¿Copiarla otra vez?`)) { planEstado(''); return; }
+    const { data: ords } = await sb.from('plan_cards').select('orden').eq('sesion_id', dest.sesion_id).order('orden', { ascending: false }).limit(1);
+    const ahora = new Date().toISOString();
+    const { data: nueva, error } = await sb.from('plan_cards').insert({
+        sesion_id: dest.sesion_id, orden: ords?.length ? (ords[0].orden || 0) + 1 : 0, hilo_id: hilo,
+        titulo: c.titulo || '', contenido: c.ed ? c.ed.texto() : (c.contenido || ''),
+        canciones: cancionesDe(c), minutos: c.minutos ?? null, updated_at: ahora,
+    }).select('id').single();
+    if (error) { planEstado('No se pudo copiar la actividad — revisa la conexión.', true); return; }
+    // Sus diapositivas, tras su marca, al final de la presentación de esa clase (con su diapositiva inicial si no tenía).
+    presArmarModelo();
+    const diapos = presModelo.find(x => x.id === c.id)?.texto || '';
+    if (diapos.trim()) {
+        const { data: p } = await sb.from('presentaciones').select('contenido').eq('sesion_id', dest.sesion_id).maybeSingle();
+        let full = p?.contenido || '';
+        const tipo = contextos[cid]?.tipo, nom = contextos[cid]?.nombre || sesionActual.nombre;
+        if (!full.trim() && tipo !== 'recreo') full = slideInicial(nom, dest.fecha).replace(/\n---\n$/, '');
+        const modelo = presTramos(full).map(t => ({ id: t.id, texto: t.texto }));
+        modelo.push({ id: nueva.id, texto: diapos });
+        const { error: e2 } = await sb.from('presentaciones').upsert(
+            { sesion_id: dest.sesion_id, contenido: presTextoDe(modelo), updated_at: new Date().toISOString() }, { onConflict: 'sesion_id' });
+        if (e2) { planEstado('La actividad se copió, pero sus diapositivas no — revisa la conexión.', true); pintarHilos(); return; }
+    }
+    planEstado(`➜ Continúa el ${fechaLargaFG(dest.fecha)}`);
+    pintarHilos();
+}
+// "🧵 3ª clase de 4" en las actividades con hilo: su lugar entre las clases del hilo, por fecha.
+async function pintarHilos() {
+    const sid = sesionActual?.id;
+    const hilos = [...new Set(planCards.map(c => c.hilo_id).filter(Boolean))];
+    if (!hilos.length) return;
+    const { data } = await sb.from('plan_cards').select('id, hilo_id, sesiones(fecha)').in('hilo_id', hilos);
+    if (!data || sesionActual?.id !== sid) return;
+    planCards.forEach(c => {
+        const b = document.querySelector(`#plan-cards .pcard[data-id="${c.id}"] .pcard-hilo`);
+        if (!b) return;
+        const del = data.filter(r => r.hilo_id === c.hilo_id).map(r => r.sesiones?.fecha || '').sort();
+        if (!c.hilo_id || del.length < 2) { b.hidden = true; return; }
+        b.textContent = `🧵 ${del.filter(f => f <= sesionActual.fecha).length}ª clase de ${del.length}`;
+        b.hidden = false;
+    });
+}
+async function verHilo(c) {
+    if (!c.hilo_id) return;
+    let capa = document.getElementById('hilo-capa');
+    if (!capa) {
+        capa = document.createElement('div');
+        capa.id = 'hilo-capa';
+        capa.innerHTML = `<div class="hilo-caja"><div class="hilo-cab"><span class="hilo-tit"></span>
+            <button title="Cerrar">✕</button></div><div class="hilo-cuerpo"></div></div>`;
+        document.body.appendChild(capa);
+        const cerrar = () => { capa.hidden = true; };
+        capa.querySelector('.hilo-cab button').onclick = cerrar;
+        capa.addEventListener('click', e => {
+            if (e.target === capa) return cerrar();
+            const ir = e.target.closest('[data-ir]');
+            if (ir) { cerrar(); abrirClasePasada(ir.dataset.ir); }
+        });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !capa.hidden) cerrar(); });
+    }
+    capa.querySelector('.hilo-tit').textContent = `🧵 ${(c.titulo || '').trim() || 'Actividad sin título'}`;
+    const cuerpo = capa.querySelector('.hilo-cuerpo');
+    cuerpo.innerHTML = '<div class="cargando">Cargando...</div>';
+    capa.hidden = false;
+    const { data, error } = await sb.from('plan_cards').select('id, titulo, contenido, sesiones(id, fecha, memorias(contenido))').eq('hilo_id', c.hilo_id);
+    if (error) { cuerpo.innerHTML = `<div class="hilo-vacio">${FALTA_HILO}</div>`; return; }
+    const filas = (data || []).filter(r => r.sesiones).sort((a, b) => b.sesiones.fecha.localeCompare(a.sesiones.fecha));
+    cuerpo.innerHTML = filas.map((r, k) => {
+        const m = Array.isArray(r.sesiones.memorias) ? r.sesiones.memorias[0] : r.sesiones.memorias;
+        const bit = bitCuerpo(m?.contenido || '', (r.titulo || '').trim());
+        const esta = r.id === c.id;
+        const txt = esta && c.ed ? c.ed.texto() : (r.contenido || '');
+        return `<div class="hilo-ent${esta ? ' esta' : ''}">
+            <div class="hilo-ent-hdr">${fechaLargaFG(r.sesiones.fecha)} <span class="hilo-n">· ${filas.length - k}ª clase${esta ? ' · esta' : ''}</span>
+                ${esta ? '' : `<button data-ir="${r.sesiones.fecha}">➜ Ir a la clase</button>`}</div>
+            <div class="hilo-sub">Plan</div>
+            <div class="hilo-txt">${txt.trim() ? EditorBloques.html(txt, { objetivo: true }) : '<span class="hilo-vacio">Sin texto.</span>'}</div>
+            <div class="hilo-sub">✍🏼 Bitácora</div>
+            <div class="hilo-txt">${bit.trim() ? EditorBloques.html(bit) : '<span class="hilo-vacio">Sin bitácora de esta actividad.</span>'}</div>
+        </div>`;
+    }).join('');
 }
 
 // ── Canciones de cada actividad (deuda BT): fichas 🎵 que abren el Entrenador del curso en esa canción ──

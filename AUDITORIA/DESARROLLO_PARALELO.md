@@ -8282,3 +8282,32 @@ por estudiante").*
   Laureano (7°) con sus cursos; "DIAZ" encuentra a Aneley Díaz; vacío vuelve a mostrar los 16.
 - **Ajuste (PO 2026-11-02):** sin franja arriba; el título de la barra dice "Cuarto, lunes 19 de octubre *(clase
   pasada)*" (en cursiva) y la barra lleva **solo la ✕** en vez de sus botones (Pasar lista, Libro, etc.).
+
+### FG. 🧵 Actividades que continúan clase a clase (Continuar en la próxima clase + hilo)
+*Origen: PO 2026-11-02 ("en Cuarto tengo que seguir con Anacleto; pensaba en un botón que me permitiera copiar toda la
+actividad"), sobre sus notas de Notion "Actividades y juegos como objetos de la app, con historial clase a clase"
+(2026-10-24) e "Hilos de actividades y objetivos" (2026-10-15). Aprobado: plan B.*
+- **Auditoría:** cada actividad del Plan (`plan_cards`: título, texto, canciones, minutos) vive solo en su clase; sus
+  diapositivas van en `presentaciones.contenido` tras la marca `@actividad:<id>` y su bitácora en
+  `memorias.contenido` bajo `### <título>`. Nada une el "Montaje: Anacleto" de una clase con el de la siguiente.
+- **Decisión del PO:** plan B (primer paso hacia actividades como objetos; la biblioteca de actividades queda para
+  después):
+  1. ⋯ → **➜ Continuar en la próxima clase**: copia título, texto, canciones, minutos y sus diapositivas a la clase
+     siguiente del curso (al final de su plan), lista para ajustar. La bitácora no se copia.
+  2. **Hilo:** la copia queda unida a la anterior; la actividad muestra "🧵 3ª clase".
+  3. **🧵 Ver el hilo:** todas las clases de esa actividad, de la más nueva a la más antigua, con lo planificado y su
+     bitácora, y "Ir a la clase".
+  4. Después, si el PO lo pide: continuar en otro curso; biblioteca de actividades.
+- **Supabase (autorizado por el PO):** columna `plan_cards.hilo_id` (uuid, = id de la primera actividad del hilo) +
+  índice, en `supabase/plan_cards_hilo.sql` (aditiva; la corre el PO en el SQL Editor).
+- **Lugares:** Plan (actividades, ⋯), también dentro de la clase pasada (FE).
+- **Hecho (2026-11-02):** `supabase/plan_cards_hilo.sql` (corrido por el PO). `PORTAL/index.html`: ⋯ → ➜ Continuar en
+  la próxima clase (`continuarActividad`: clase siguiente con `Pendientes.proximaClase(cid, { despuesDe })`; marca el
+  hilo de la original; avisa si ya continúa en esa clase; copia título, texto, canciones y minutos al final de su plan, y
+  sus diapositivas tras su marca al final de su presentación, con la diapositiva de saludo si estaba vacía); "🧵 Nª clase
+  de M" bajo el título (`pintarHilos`); 🧵 Ver el hilo (`verHilo`: cada clase con su Plan, su bitácora —el apartado
+  `### <título>`— y ➜ Ir a la clase, que abre la clase pasada de FE).
+  Prueba (navegador, uso real pedido por el PO): "Montaje: Anacleto" de Cuarto 26/10 → continúa el lunes 2/11 con sus
+  4 canciones y 6 diapositivas; 26/10 muestra "🧵 1ª clase de 2" y 2/11 "🧵 2ª clase de 2"; el hilo muestra las dos
+  clases (la del 26/10 con su bitácora). Antes de correr el SQL, el botón avisaba sin escribir nada. Sin errores en la
+  consola.
