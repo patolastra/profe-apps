@@ -8172,3 +8172,29 @@ Sin Sentimiento déjalo sin curso").*
   - SQL corrido por el PO (2026-10-31). El extracto "Coro: segunda voz" de Sin Sentimiento quedó sin curso
     (`contexto_id` null; su archivo sigue en la carpeta del Taller de Cuerdas en el bucket, sin efecto visible); el
     Entrenador lo muestra sin curso.
+
+### FD. 🖼 Las miniaturas del Plan son la diapositiva real (una sola pieza para la Pizarra y el Plan) — HECHA
+*Origen: PO 2026-11-02 (la miniatura de una diapositiva con imagen muestra el texto `@img:…`; "sospecho que en las
+previsualizaciones en general se ve 'casi' como se vería la diapo, pero no es certero, tiene que verse siempre real").
+Aprobado: "hacerlo así" (una sola pieza).*
+- **Auditoría:** el Plan (Vista previa y vista de clase) dibuja las diapositivas con una **copia** de las reglas de la
+  Pizarra (`renderizarSlideHtml`, `parseInlinePreview`, sus estilos `.slide-prev .slide-content …` y `autoFitSlide`),
+  y el modo remoto de la Pizarra con otra. Las copias se separaron: el Plan no sabe de `@img:` (y los `_` del nombre
+  de la imagen pegada se leen como cursiva), el título usa otro color (`--slide-h1` vs `--slide-text`), los recuadros
+  destacados tienen otros bordes y márgenes, y los márgenes de la diapositiva (6 % / 8 % de la ventana) y el tope de
+  letra se aproximan con porcentajes de la miniatura.
+- **Plan:** pieza **`comun/diapo.js`** (`Diapo`) + **`comun/diapo.css`**: temas, reglas de la diapositiva (texto,
+  mensaje, imagen) y su ajuste de letra, usados por la Pizarra y por el Plan. La miniatura arma la diapositiva **al
+  tamaño real de la ventana de la Pizarra** (la Pizarra lo anota en el equipo; si nunca se abrió, 1920 × 1080) con su
+  franja de arriba y de abajo, y luego la achica como una foto. Video y Metalófono siguen como tarjeta (en la Pizarra
+  son el video / el instrumento). No incluye la 📅 fecha ni lo que se pone encima en clase.
+  - Lugares: Pizarra (diapositiva y modo remoto), Plan: Vista previa y vista de clase.
+- **Hecho (2026-11-02):** `comun/diapo.js` (`Diapo`: temas, `htmlDiapo`, `ajustar`, `miniatura`, `tamPizarra` /
+  `anotarTam`) + `comun/diapo.css` (estilos de texto, mensaje e imagen, con márgenes en `--dvh`/`--dvw`, y **un solo
+  juego de letras** de los temas: el Plan descargaba otra versión de DM Sans, más ancha, y eso cambiaba dónde se
+  cortaban las líneas). Pizarra: sin su copia de reglas y estilos; anota el tamaño de su ventana (`profe_pizarra_tam`,
+  solo como ventana propia); su modo remoto usa la miniatura. Plan: sin su copia; `autoFitSlide` = `Diapo.miniatura`
+  (Vista previa y vista de clase), se redibuja al cambiar la Pizarra de tamaño y al llegar una letra.
+  Prueba (navegador, Tercero 2/11): a 1920 × 1080 la Pizarra y la miniatura dan la **misma letra** en las tres
+  diapositivas de texto (148, 154 y 141 px; antes 141, 154 y 131); las tres con imagen muestran la imagen (antes el
+  texto `@img:…`). Sin errores nuevos en la consola. Sin probar: vista de clase y modo remoto (sin clase en curso).

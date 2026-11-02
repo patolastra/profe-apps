@@ -77,6 +77,7 @@
 | `rubrica-ia.js` | Libro: ✨ Proponer con IA en el editor de instrumentos y en Plantillas (solo cursos; DT) |
 | `archivos-curso.js` | Cursos (📁 Archivos) · Cursos del celular (📁, EJ) · guía QR de `compartir.js` · 📷 Subir del celular · Extractos y versiones de la Biblioteca (DQ, DU) |
 | `fotos-clase.js` | Bitácora: Cursos PC (curso y ☀ Hoy) · Plan (✍🏼 y 🕘 Historial) · Cursos del celular (DU fase 4) |
+| `diapo.js` / `diapo.css` (FD) | Pizarra (diapositiva y modo remoto) · Plan: Vista previa y vista de clase (miniaturas = la diapositiva real a tamaño de la Pizarra, achicada) |
 | `recurrentes.js` / `fecha-pizarra.js` | Plan (🔔) · Pizarra |
 | `clase-vivo.js` | Plan · Pizarra · Libro · Biblioteca/Entrenador · Workspace · Bitácora (MEMORIA) · celular (inicio, Cursos, Evaluar) |
 | `tiempo-real.js` | Plan · Pizarra · Libro · Biblioteca/Entrenador · Cursos · celular (Cursos, Evaluar) |
