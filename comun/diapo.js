@@ -117,11 +117,11 @@
             }
             // '--- = línea horizontal dentro de la diapositiva (--- sin comilla separa diapositivas; deuda CB)
             if (t === "'---") { cerrar(); out += '<hr class="slide-hr">'; continue; }
-            // Prefijos IZ (alinear a la izquierda) y 1L (una sola línea, deuda CA), en cualquier orden
+            // Prefijos IZ (alinear a la izquierda) y !L (una sola línea, deuda CA; el antiguo 1L sigue valiendo), en cualquier orden
             let izq = false, una = false, tc = t;
             for (;;) {
                 if (tc.startsWith('IZ ') || tc === 'IZ') { izq = true; tc = tc.slice(3); continue; }
-                if (tc.startsWith('1L ') || tc === '1L') { una = true; tc = tc.slice(3); continue; }
+                if (/^[!1]L( |$)/.test(tc)) { una = true; tc = tc.slice(3); continue; }
                 break;
             }
             const cls = izq ? ' class="izq"' : '';
@@ -163,7 +163,7 @@
     // ── AJUSTE DE LA LETRA ──
     // Topes pensados para pantallas de hasta 1080 px de alto; en una más grande crecen en la misma proporción.
     const tope = (base, altoVentana) => Math.max(base, Math.round(base * altoVentana / 1080));
-    // 1L (deuda CA): si la línea no cabe a lo ancho, solo ella achica su letra.
+    // !L (deuda CA): si la línea no cabe a lo ancho, solo ella achica su letra.
     function limpiarUnaLinea(content) { content.querySelectorAll('.una-linea').forEach(s => { s.style.fontSize = ''; }); }
     function ajustarUnaLinea(content) {
         content.querySelectorAll('.una-linea').forEach(s => {

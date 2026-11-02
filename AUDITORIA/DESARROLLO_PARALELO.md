@@ -8198,3 +8198,7 @@ Aprobado: "hacerlo así" (una sola pieza).*
   Prueba (navegador, Tercero 2/11): a 1920 × 1080 la Pizarra y la miniatura dan la **misma letra** en las tres
   diapositivas de texto (148, 154 y 141 px; antes 141, 154 y 131); las tres con imagen muestran la imagen (antes el
   texto `@img:…`). Sin errores nuevos en la consola. Sin probar: vista de clase y modo remoto (sin clase en curso).
+- **Ajuste (PO 2026-11-02):** el prefijo de una sola línea pasa a ser **`!L`** (el antiguo `1L` sigue valiendo en los
+  textos ya escritos; la referencia de markdown muestra `!L`). La línea `!L` ya no suma espacio: era un `inline-block`
+  dentro del párrafo, que guardaba el alto de la letra grande aunque la línea se achicara; ahora es un bloque y cada
+  línea mide 1,3 veces su propia letra, como las demás.
