@@ -8311,3 +8311,12 @@ actividad"), sobre sus notas de Notion "Actividades y juegos como objetos de la 
   4 canciones y 6 diapositivas; 26/10 muestra "🧵 1ª clase de 2" y 2/11 "🧵 2ª clase de 2"; el hilo muestra las dos
   clases (la del 26/10 con su bitácora). Antes de correr el SQL, el botón avisaba sin escribir nada. Sin errores en la
   consola.
+
+### FH. 🎚️ Afinador en el menú + del Workspace
+*Origen: PO 2026-11-02 ("en el menú + necesito un acceso al afinador").*
+- **Auditoría:** el afinador (deuda CE) vive en el Lector (`tabs/index.html`, `abrirAfinador`), se abre con 🎚️ Afinar
+  desde una partitura y ya permite elegir Guitarra / Ukelele / Bajo.
+- **Hecho (2026-11-02):** `tabs/index.html?afinador=1` abre el afinador de inmediato (guitarra; al cerrarlo queda la
+  entrada del Lector); `PC/workspace.html`: "🎚️ Afinador" en el catálogo (menú +, tras Tablaturas). Sin Supabase.
+  Prueba (navegador): el menú + lo muestra; la pestaña abre el afinador con Mi Si Sol Re La Mi; la cuerda 6 suena
+  repetida y al cerrar se calla. Sin errores en la consola.
