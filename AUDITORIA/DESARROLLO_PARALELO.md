@@ -8388,4 +8388,4 @@ miércoles, también incluye pruebas pendientes").*
   Afinador; al revés igual; el Cajón dentro de Ritmos pinta Ritmos y se calla con ellos; una grabación en la
   Biblioteca detiene el Metrónomo y se pausa al volver a tocarlo; al callarse, el verde se va a los 2,5 s. Verde y
   verde-activa medidos, mismo ancho de pestaña (136 px) en los tres estados. Todas las apps cargan sin errores.
-  No probado: sonido real por parlantes (ventana oculta) ni YouTube (fuera del alcance).
+  No probado: sonido real por parlantes (ventana oculta) ni YouTube (fuera del alcance). Commit `35488e3`.
