@@ -8588,3 +8588,12 @@ omiten").*
   compás 2 (4+4) queda 4+2 y la del compás 3 sigue igual; la vista previa recibe el tramo; clic en él lo quita y las
   notas vuelven; la rueda mueve la vista 4 pulsos. No probado a la vista (ventana oculta): cómo se ve el rojo y el
   arrastre con el mouse real.
+
+### FS. 🖱 Piano con arreglo: la rueda del mouse mueve la canción también mientras suena
+*Origen: PO 2026-11-04 ("necesito poder subir/bajar en la misma pantalla con el mousewheel mientras se reproduce").*
+- **Hecho (2026-11-04):** `PIANO/index.html`: con un arreglo, la rueda funciona siempre (antes solo detenido y solo en
+  la vista previa del editor): detenido recorre la canción y ▶ toca desde ahí; **sonando, la vista se mueve al tiro y la
+  canción salta ahí al soltar la rueda** (0,22 s), sin detenerse. Rueda hacia arriba = más adelante. Vale en la vista
+  previa del Editor y en el Piano del estudiante (PC). Prueba (navegador, arreglo de Coqueta sin cambios): sonando en el
+  pulso 8,4, dos toques de rueda → la vista va al 24,4 y la grabación sigue desde ahí (24,4 → 29,8 a los 2,5 s);
+  el arreglo sigue "Guardado".

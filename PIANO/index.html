@@ -235,8 +235,9 @@ function detener() {
 // se arrastra para tapar un tramo; el editor lo guarda y vuelve a mandar las notas ya recortadas
 const EDITOR = Q.get('vista') === 'editor';
 let vistaP = null, omitirOn = false, trazoOm = null, geo = null;
+let saltoP = null, saltoT = null;   // rueda mientras suena (FS): adónde se va a saltar (se ve al tiro, suena al soltar)
 function ahora() {
-    if (ARR) return { pulso: rep ? pulsoArr() : (vistaP ?? inicioSeccion() - 0.01), vuelta: null };
+    if (ARR) return { pulso: rep ? (saltoP ?? pulsoArr()) : (vistaP ?? inicioSeccion() - 0.01), vuelta: null };
     if (!vueltas.length) return { pulso: -1, vuelta: null };
     const t = audio().currentTime;
     let v = vueltas[0];
@@ -297,7 +298,7 @@ const ctxDePulso = p => rep.g ? rep.g.aCtx(srcDePulso(p)) : rep.t0 + (p - rep.p0
 async function tocarArr(desde = null, precuenta = true) {
     if (!MEL) return;
     const c = audio();
-    if (desde === null) desde = EDITOR && vistaP !== null ? vistaP : inicioSeccion();   // ▶ desde donde quedó la vista
+    if (desde === null) desde = vistaP !== null ? vistaP : inicioSeccion();   // ▶ desde donde quedó la vista
     vistaP = null;
     const salida = c.createGain(); salida.connect(c.destination);
     const piano = c.createGain(); piano.gain.value = pianoOn ? 1 : 0; piano.connect(salida);
@@ -572,6 +573,17 @@ function cambiarTempo(d) {
     pintarBarra();
 }
 document.getElementById('b-tocar').onclick = e => { tocar(); e.target.blur(); };
+// Rueda del mouse en un arreglo (FR, FS): detenido, recorre la canción (▶ toca desde ahí); sonando, la vista se mueve al
+// tiro y la canción salta ahí al soltar la rueda (sigue sonando). Rueda hacia arriba = más adelante en la canción.
+cv.addEventListener('wheel', e => {
+    if (!ARR || !MEL || !geo) return;
+    e.preventDefault();
+    const paso = e.deltaY / geo.pxPulso;
+    if (!rep) { vistaP = Math.max(-MEL.compas, (vistaP ?? geo.pulso) - paso); return; }
+    saltoP = Math.max(-MEL.compas, Math.min(largo, (saltoP ?? pulsoArr()) - paso));
+    clearTimeout(saltoT);
+    saltoT = setTimeout(() => { const p = saltoP; if (p === null || !rep) { saltoP = null; return; } detenerArr(); saltoP = null; tocarArr(p, false); }, 220);
+}, { passive: false });
 if (EDITOR) {
     document.getElementById('g-omitir').style.display = '';
     const bo = document.getElementById('b-omitir');
@@ -579,11 +591,6 @@ if (EDITOR) {
     const pulsoEnY = y => geo.pulso + (geo.yTecl - y) / geo.pxPulso;
     const ajustar = p => Math.round(p / PU()) * PU();          // al tiempo del compás más cercano
     const yDe = e => e.clientY - cv.getBoundingClientRect().top;
-    cv.addEventListener('wheel', e => {
-        if (!ARR || rep || !geo) return;
-        e.preventDefault();
-        vistaP = Math.max(-MEL.compas, (vistaP ?? geo.pulso) - e.deltaY / geo.pxPulso);
-    }, { passive: false });
     cv.addEventListener('pointerdown', e => {
         if (!omitirOn || !ARR || rep || !geo) return;
         const y = yDe(e); if (y > geo.yTecl) return;
