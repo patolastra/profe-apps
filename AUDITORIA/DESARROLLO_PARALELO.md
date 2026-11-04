@@ -8612,3 +8612,22 @@ omiten").*
   Piano del estudiante (PC y celular). Prueba (navegador, arreglo de Coqueta sin cambios): detenido, deslizar 200 px →
   la vista avanza 4 pulsos; sonando en el 15,3, deslizar 400 px → la vista va al 23,3 y al soltar la grabación sigue
   desde ahí. No probado en un celular real.
+
+### FU. 🎹 Piano con arreglo: acorde que suena, secciones más visibles, sin Melodía/Karaoke; la Estructura marca la que suena
+*Origen: PO 2026-11-04 (capturas de la Estructura y del Piano: "que se coloree la sección que está siendo reproducida";
+"que no se pueda escoger entre melodía y karaoke (por defecto melodía siempre)"; "en el rectángulo rojo se vea el acorde
+que se está tocando (en cifrado latino)"; "la línea amarilla que divide las secciones resalte más y su label 25 % más
+grande"; "el dropdown de las secciones muestre siempre la sección activa y sin 'Desde:'").*
+- **Plan:** `PIANO/` (con arreglo, también estudiantes): se quita 🎤/🎶 (siempre Melodía); arriba a la derecha, el acorde
+  que suena en cifrado latino (Fa♯m, Mi/Sol♯); línea de sección más gruesa y brillante, nombre de 14 → 17,5 px; el menú
+  de secciones dice solo el nombre y sigue a la sección que suena; en la vista previa del Editor manda el pulso al
+  editor. `ARREGLO/`: la fila de la Estructura que suena se colorea (verde suave).
+  - Lugares: Piano del estudiante (`p/?r=`) y vista previa del Editor de Arreglos.
+- **Hecho (2026-11-04):** `PIANO/index.html` (grupo 🎤/🎶 oculto: siempre Melodía; `latino()` y recuadro del acorde que
+  suena arriba a la derecha; línea de sección 3 px dorada con halo y nombre 17,5 px; opciones del menú solo con el nombre
+  y `seccionActiva` lo pone en la que suena —o en la de la vista detenida—; en `?vista=editor` manda `arreglo-pulso`
+  cada 0,25 s) y `ARREGLO/index.html` (`marcarSonando`: la fila de la Estructura que suena en verde suave, se apaga al
+  detener). Prueba (navegador, arreglo de Coqueta sin cambios): F#m → Fa♯m, E/G# → Mi/Sol♯, Bb7 → Si♭7, Ab/Eb →
+  La♭/Mi♭; el botón Melodía/Karaoke no se ve; el menú dice "Estrofa 1 | Coro 1 | …"; sonando en el pulso 98 (c. 25)
+  el menú pasa a "Coro 1", la fila "Coro 1" se pinta y el acorde de ahí es Bm; al detener la fila se apaga. No probado
+  a la vista (ventana oculta): el recuadro del acorde y la línea dorada.

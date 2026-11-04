@@ -93,7 +93,7 @@
     <div id="nombre">Piano</div>
     <div id="mano"></div>
     <div class="grupo solo-arr"><select id="sec" title="Desde dónde tocar"></select></div>
-    <div class="grupo solo-arr"><button class="btn" id="b-rol" title="Cambiar entre la grabación con voz (Melodía) y sin voz (Karaoke)">🎤 Melodía</button></div>
+    <div class="grupo solo-arr" style="display:none"><button class="btn" id="b-rol" title="Cambiar entre la grabación con voz (Melodía) y sin voz (Karaoke)">🎤 Melodía</button></div>
     <div class="grupo solo-arr"><button class="btn" id="vel-menos" title="Más lento">−</button><span id="vel">100%</span><button class="btn" id="vel-mas" title="Más rápido">+</button></div>
     <div class="grupo solo-arr"><button class="btn" id="b-piano" title="Escuchar el piano encima de la grabación">🎹</button></div>
     <div class="grupo solo-mel"><button class="btn" id="tempo-menos">−</button><span id="tempo">♩ 90</span><button class="btn" id="tempo-mas">+</button></div>
@@ -372,13 +372,31 @@ function pintarArr() {
     document.getElementById('vel-menos').disabled = velocidad <= 0.5;
     document.getElementById('vel-mas').disabled = velocidad >= 1;
 }
+// Cifrado latino de un acorde: F#m → Fa♯m, E/G# → Mi/Sol♯, Bb7 → Si♭7 (FU)
+const LATINO = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
+function latino(nombre) {
+    return String(nombre || '').split('/').map(p => p.replace(/^([A-G])([#b]?)/, (_, l, acc) => LATINO[l] + (acc === '#' ? '♯' : acc === 'b' ? '♭' : ''))).join('/');
+}
+// El menú de secciones muestra siempre la que suena (o la de la vista); la vista previa del Editor le avisa al editor
+// qué pulso suena, para colorear esa fila de la Estructura (FU)
+let ultPulsoAviso = 0, ultSec = -1;
+function seccionActiva(pulso) {
+    const S = MEL.secciones || [];
+    let ix = 0; S.forEach((x, i) => { if (x.t / 4 <= pulso + 1e-6) ix = i; });
+    const sel = document.getElementById('sec');
+    if (ix !== ultSec && document.activeElement !== sel) { ultSec = ix; sel.value = ix; if (rep) secSel = ix; }
+    if (EDITOR && performance.now() - ultPulsoAviso > 250) {
+        ultPulsoAviso = performance.now();
+        try { window.parent.postMessage({ tipo: 'arreglo-pulso', pulso: rep ? pulso : null }, '*'); } catch (_) {}
+    }
+}
 function llenarSecciones() {
     const cuenta = {};
     const sel = document.getElementById('sec');
     sel.innerHTML = (MEL.secciones || []).map((x, i) => {
         cuenta[x.nombre] = (cuenta[x.nombre] || 0) + 1;
         const veces = MEL.secciones.filter(y => y.nombre === x.nombre).length;
-        return `<option value="${i}">Desde: ${x.nombre.replace(/[<>&]/g, '')}${veces > 1 ? ' ' + cuenta[x.nombre] : ''}</option>`;
+        return `<option value="${i}">${x.nombre.replace(/[<>&]/g, '')}${veces > 1 ? ' ' + cuenta[x.nombre] : ''}</option>`;
     }).join('');
     if (secSel >= (MEL.secciones || []).length) secSel = 0;
     sel.value = secSel;
@@ -446,9 +464,10 @@ function dibujar() {
     for (const sc of (ARR && MEL.secciones) || []) {
         const y = yTecl - (sc.t / 4 - pulso) * pxPulso;
         if (y < 0 || y > yTecl) continue;
-        g2.fillStyle = 'rgba(245,158,11,.75)'; g2.fillRect(0, y - 1, W, 2);
-        g2.font = '700 14px system-ui, sans-serif'; g2.textAlign = 'left'; g2.textBaseline = 'bottom';
-        g2.fillText(sc.nombre, 8, y - 4);
+        g2.fillStyle = 'rgba(251,191,36,.25)'; g2.fillRect(0, y - 4, W, 8);      // halo
+        g2.fillStyle = '#fbbf24'; g2.fillRect(0, y - 1.5, W, 3);
+        g2.font = '800 17.5px system-ui, sans-serif'; g2.textAlign = 'left'; g2.textBaseline = 'bottom';
+        g2.fillText(sc.nombre, 8, y - 6);
     }
     // Notas que caen
     const activas = new Map();
@@ -494,6 +513,19 @@ function dibujar() {
         g2.fillStyle = '#0b1020'; redondeado((x0 + x1) / 2 - w / 2, y - 11, w, 22, 6); g2.fill();
         g2.strokeStyle = '#60a5fa'; g2.lineWidth = 1.5; g2.stroke();
         g2.fillStyle = '#fff'; g2.fillText(a.nombre, (x0 + x1) / 2, y + 1);
+    }
+    // El acorde que suena, en cifrado latino, arriba a la derecha (FU)
+    if (ARR) {
+        const a = (MEL.acordes || []).find(x => pulso >= x.t / 4 && pulso < (x.t + x.d) / 4);
+        if (a) {
+            const txt = latino(a.nombre), fs = Math.round(Math.max(28, Math.min(64, yTecl * 0.14)));
+            g2.font = `800 ${fs}px system-ui, sans-serif`;
+            const w = Math.max(fs * 2.2, g2.measureText(txt).width + fs * 0.9), h = fs * 1.6, x = W - w - 16, y = 16;
+            g2.fillStyle = 'rgba(15,23,42,.85)'; redondeado(x, y, w, h, 14); g2.fill();
+            g2.strokeStyle = '#60a5fa'; g2.lineWidth = 2; g2.stroke();
+            g2.fillStyle = '#fff'; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText(txt, x + w / 2, y + h / 2 + 2);
+        }
+        seccionActiva(pulso);
     }
     // ✂ Tramos omitidos (y el que se está arrastrando), en rojo
     if (EDITOR && ARR) {

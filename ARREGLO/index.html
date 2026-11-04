@@ -86,6 +86,7 @@
     .est-cab { display: flex; gap: 6px; margin-bottom: 6px; }
     .est-fila { display: grid; grid-template-columns: 22px minmax(0, 1fr) 132px 150px; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid #263247; font-size: 13px; }
     .est-fila.fuera { opacity: .45; }
+    .est-fila.sonando { background: rgba(34,197,94,.18); box-shadow: inset 3px 0 0 #22c55e; }   /* la que suena (FU) */
     .est-tit { text-align: left; border: 0; background: transparent; color: var(--texto); font-weight: 600; cursor: pointer; padding: 4px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .est-tit:hover { color: var(--acento); }
     .est-tit small { color: var(--tenue); font-weight: 400; }
@@ -682,6 +683,16 @@ function itemsEstructura() {
 function fijarEstructura() { A.estructura = itemsEstructura().map(({ clave, incluida, sec }) => ({ clave, incluida, sec })); }
 // Compás de la canción donde está el pulso 0 del arreglo
 const origenArreglo = () => modoFicha() ? seccionesMapa()[0].compas : (A.audio.desde || 1);
+let pulsoSonando = null;
+function marcarSonando(p) {
+    pulsoSonando = typeof p === 'number' ? p : null;
+    const its = modoFicha() ? itemsEstructura() : [];
+    const c = pulsoSonando === null ? null : origenArreglo() + pulsoSonando / A.compas;
+    document.querySelectorAll('#estructura .est-fila').forEach(f => {
+        const x = its[+f.dataset.i];
+        f.classList.toggle('sonando', c !== null && !!x && c >= x.compas - 1e-6 && c < x.compas + x.largo - 1e-6);
+    });
+}
 function pintarEstructura() {
     const its = itemsEstructura();
     const opciones = sel => '<option value="">— sin secuencia —</option>' + A.secciones.map(sq =>
@@ -702,6 +713,7 @@ function pintarEstructura() {
             <select data-sec ${x.incluida ? '' : 'disabled'}>${opciones(x.sec)}</select>
             <span class="est-info ${cls}">${txt}</span></div>`;
     }).join('');
+    marcarSonando(pulsoSonando);
 }
 $('estructura').addEventListener('change', e => {
     const f = e.target.closest('.est-fila'); if (!f) return;
@@ -825,6 +837,8 @@ $('previa').addEventListener('load', enviarPrevia);
 window.addEventListener('message', e => {
     if (e.data?.tipo === 'piano-listo') enviarPrevia();
     if (e.source !== $('previa').contentWindow) return;
+    // La vista previa avisa qué pulso suena: se colorea esa sección de la Estructura (FU)
+    if (e.data?.tipo === 'arreglo-pulso') { marcarSonando(e.data.pulso); return; }
     // ✂ Omitir (FR): la vista previa manda el tramo arrastrado [desde, hasta] (en negras) o el pulso de uno a quitar
     if (e.data?.tipo === 'arreglo-omitir') {
         const a = Math.min(+e.data.desde, +e.data.hasta), b = Math.max(+e.data.desde, +e.data.hasta);
