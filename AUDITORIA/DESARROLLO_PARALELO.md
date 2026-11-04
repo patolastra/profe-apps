@@ -8389,6 +8389,14 @@ miércoles, también incluye pruebas pendientes").*
   Biblioteca detiene el Metrónomo y se pausa al volver a tocarlo; al callarse, el verde se va a los 2,5 s. Verde y
   verde-activa medidos, mismo ancho de pestaña (136 px) en los tres estados. Todas las apps cargan sin errores.
   No probado: sonido real por parlantes (ventana oculta) ni YouTube (fuera del alcance). Commit `35488e3`.
+- **Ajuste (PO 2026-11-04, "toqué una melodía en metalófono desde biblioteca, nunca volvió a pintarse de color
+  normal"):** al cerrar el Metalófono de la Biblioteca con la melodía sonando, su aviso de "me callé" se perdía. Ahora
+  (1) el Workspace revisa cada 2 s, preguntándole directo a cada ventana, si sigue sonando (si se cerró o cambió de
+  página, se apaga el verde); (2) cada app dice si está sonando según su propio ▶/■ (`UnSonido.alDetener(fn,
+  estaSonando)`, revisado cada 0,5 s): un stop que deja notas ya programadas (Piano, Editor de Melodías, Cajón) o
+  tocar una placa o una nota suelta ya no dejan la pestaña verde, y el verde se va al instante al apretar stop.
+  Prueba (navegador): Metrónomo, Afinador y Metalófono (pestaña y dentro de la Biblioteca, cerrado sonando): el verde
+  aparece y se va en menos de 1 s (el cerrado, en menos de 3 s).
 
 ### FL. 🎹 Metalófono: el aviso de "fuera de rango" dice el rango y hacia dónde se sale
 *Origen: PO 2026-11-04 ("que mencione brevemente el rango permitido y si la melodía se sale hacia arriba o hacia abajo").*

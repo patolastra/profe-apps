@@ -473,6 +473,21 @@ function pintarSonido() {
     const keys = new Set(sonandoPor.values());
     tabs.forEach(t => t.tabEl.classList.toggle('sonando', keys.has(t.key)));
 }
+// Revisión cada 2 s: una app que se cerró o cambió de página sonando (p. ej. el Metalófono de la Biblioteca cerrado
+// con la melodía andando) puede no alcanzar a avisar. Se le pregunta directo a cada ventana si sigue sonando.
+function sigueSonando(w) {
+    try {
+        if (!w || w.closed) return false;
+        if (!tabDeVentana(w)) return false;              // su iframe ya no está
+        const u = w.UnSonido;
+        return !!(u && u.sonando);                        // página sin la pieza (about:blank) = no suena
+    } catch (_) { return true; }                          // sin acceso (file://): se confía en sus avisos
+}
+setInterval(() => {
+    let cambio = false;
+    for (const w of [...sonandoPor.keys()]) if (!sigueSonando(w)) { sonandoPor.delete(w); cambio = true; }
+    if (cambio) pintarSonido();
+}, 2000);
 function olvidarSonido(key) {
     for (const [w, k] of sonandoPor) if (k === key) sonandoPor.delete(w);
     pintarSonido();
