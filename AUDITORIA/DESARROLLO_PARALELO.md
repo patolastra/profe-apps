@@ -8394,6 +8394,8 @@ miércoles, también incluye pruebas pendientes").*
 *Origen: PO 2026-11-04 ("que mencione brevemente el rango permitido y si la melodía se sale hacia arriba o hacia abajo").*
 - **Hecho (2026-11-04):** `METALÓFONO APP/METAL21 (ALPHA).HTML` (`validarMidi`): revisa todas las notas y avisa "Hay
   notas fuera del rango del metalófono (del La grave al La agudo): la melodía se sale hacia arriba / hacia abajo /
-  hacia arriba y hacia abajo" (rango MIDI 81–105). Lugares: pestaña Metalófono y Metalófono dentro del Entrenador
+  hacia arriba y hacia abajo" (rango MIDI 81–105). **Ajuste (PO, mismo día):** en técnico, con octava y número MIDI:
+  "Fuera de rango: el metalófono va de La5 (MIDI 81) a La7 (MIDI 105); la melodía se sale hacia arriba hasta Re8
+  (MIDI 110)" (Do4 = MIDI 60; la nota extrema de cada lado). Lugares: pestaña Metalófono y Metalófono dentro del Entrenador
   (mismo archivo); el modo alumno no muestra la barra de estado. Prueba (navegador): MIDIs de prueba en rango, sobre,
   bajo y a ambos lados dan el mensaje correcto.
