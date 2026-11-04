@@ -8413,3 +8413,13 @@ miércoles, también incluye pruebas pendientes").*
   (MIDI 110)" (Do4 = MIDI 60; la nota extrema de cada lado). Lugares: pestaña Metalófono y Metalófono dentro del Entrenador
   (mismo archivo); el modo alumno no muestra la barra de estado. Prueba (navegador): MIDIs de prueba en rango, sobre,
   bajo y a ambos lados dan el mensaje correcto.
+
+### FM. 🎹 Arreglo de piano — "/" para separar compases y ritmo de los acordes por sección
+*Origen: PO 2026-11-04 ("el símbolo | es difícil de conseguir en algunos teclados, cámbialo por /"; "necesito alguna
+manera sencilla de referenciar ritmos para los acordes").*
+- **Auditoría:** `ARREGLO/index.html` (`compasesDe`) separa compases con "|" o salto de línea; la "/" ya se usa para el
+  bajo de un acorde (`E/G#`, `leerAcorde`). Cada acorde suena una vez y se sostiene su compás (o su mitad, si hay dos).
+- **Decisión del PO (2026-11-04):** la "/" **con espacios** separa compases; pegada sigue siendo el bajo ("|" y el salto
+  de línea siguen sirviendo). Ritmo: **uno por sección**, armado en una cuadrícula tipo la del Cajón (propuesta en curso).
+- **Hecho paso 1 (2026-11-04):** `compasesDe` cambia la "/" suelta por "|"; ayuda y ejemplo con "/". Prueba (navegador):
+  `A / E/G# / F#m D` → A · E/G# · F#m D; `A | E | F#m` igual que antes; "/E" pegado mal escrito → "No entiendo".
