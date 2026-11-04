@@ -584,6 +584,30 @@ cv.addEventListener('wheel', e => {
     clearTimeout(saltoT);
     saltoT = setTimeout(() => { const p = saltoP; if (p === null || !rep) { saltoP = null; return; } detenerArr(); saltoP = null; tocarArr(p, false); }, 220);
 }, { passive: false });
+// Deslizar arriba / abajo (dedo o mouse) en un arreglo, igual que la rueda (FT): se arrastra la canción —el dedo hacia
+// abajo trae lo que viene—; sonando, la canción salta ahí al soltar. Con ✂ Omitir activo, arrastrar corta (no desliza).
+let desliz = null;   // { id, y0, p0, movio }
+cv.style.touchAction = 'none';
+cv.addEventListener('pointerdown', e => {
+    if (!ARR || !MEL || !geo || omitirOn) return;
+    desliz = { id: e.pointerId, y0: e.clientY, p0: rep ? (saltoP ?? pulsoArr()) : (vistaP ?? geo.pulso), movio: false };
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+});
+cv.addEventListener('pointermove', e => {
+    if (!desliz || e.pointerId !== desliz.id) return;
+    const dy = e.clientY - desliz.y0;
+    if (!desliz.movio && Math.abs(dy) < 6) return;
+    desliz.movio = true;
+    const p = Math.max(-MEL.compas, Math.min(largo, desliz.p0 + dy / geo.pxPulso));
+    if (rep) { saltoP = p; clearTimeout(saltoT); } else vistaP = p;
+});
+const finDesliz = e => {
+    if (!desliz || (e && e.pointerId !== desliz.id)) return;
+    const d = desliz; desliz = null;
+    if (d.movio && rep && saltoP !== null) { const p = saltoP; detenerArr(); saltoP = null; tocarArr(p, false); }
+};
+cv.addEventListener('pointerup', finDesliz);
+cv.addEventListener('pointercancel', finDesliz);
 if (EDITOR) {
     document.getElementById('g-omitir').style.display = '';
     const bo = document.getElementById('b-omitir');

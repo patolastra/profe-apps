@@ -8602,3 +8602,13 @@ omiten").*
   tramo queda fijo en la canción. Prueba (navegador, arreglo de Coqueta sin guardar; borrador borrado): un tramo en
   medio de una sección detenida ([14, 16]) recorta solo esa parte; sonando desde el pulso 30, arrastrar de 40 a 44
   deja el tramo [40, 44] y la canción sigue sonando.
+
+### FT. 👆 Piano con arreglo: deslizar arriba / abajo para recorrer la canción
+*Origen: PO 2026-11-04 ("que también se pueda navegar con swipe arriba y abajo así como con mousewheel").*
+- **Hecho (2026-11-04):** `PIANO/index.html`: con un arreglo, arrastrar sobre las notas (dedo o mouse) mueve la canción
+  como la rueda (el dedo hacia abajo trae lo que viene); detenido mueve la vista (▶ toca desde ahí); sonando, la vista
+  sigue al dedo y la canción salta ahí al soltar, sin detenerse. Con ✂ Omitir activo, arrastrar corta (no desliza).
+  El lienzo no deja que el navegador use ese gesto (`touch-action: none`). Vale en la vista previa del Editor y en el
+  Piano del estudiante (PC y celular). Prueba (navegador, arreglo de Coqueta sin cambios): detenido, deslizar 200 px →
+  la vista avanza 4 pulsos; sonando en el 15,3, deslizar 400 px → la vista va al 23,3 y al soltar la grabación sigue
+  desde ahí. No probado en un celular real.
