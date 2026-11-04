@@ -4392,7 +4392,7 @@ function assetItemHTML(a, i) {
                 : a.tipo === 'cajon'
                 ? `${estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirCajon('${a.id}', this)" title="Compartir con los estudiantes (celular): link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
                    <button class="btn-icon" onclick="abrirCajon('${songActiva.id}','${a.id}')" title="Abrir en el Cajón (tocar y editar)">✏️</button>`
-                : `${a.tipo === 'letra' && cancionCompartible(songActiva) ? `<button class="btn-icon" onclick="compartirCancion('${songActiva.id}', this)" title="Compartir la canción (audio y letra) con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
+                : `${a.tipo === 'letra' ? `<button class="btn-icon" onclick="compartirCancion('${songActiva.id}', this)" title="${cancionCompartible(songActiva) ? 'Compartir la canción (audio y letra) con los estudiantes: link, QR o guía QR' : escapar(faltaParaCompartir(songActiva)) + ' para compartir la canción'}">${Compartir.ICONO}</button>` : ''}
                    <button class="btn-icon" onclick="verAsset('${songActiva.id}','${a.id}')" title="Ver">👁</button>
                    <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>`}
             <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}','${a.id}')" title="Eliminar">🗑</button>
@@ -5774,11 +5774,17 @@ async function compartirCajon(assetId, boton) {
 // deja de cumplir, se quita (el link avisa "no disponible").
 const CANTAR_LINK_ALUMNO = 'https://patolastra.github.io/profe-apps/l/';
 function letraDe(c) { return (c?.assets || []).find(a => a.tipo === 'letra') || null; }
-function cancionCompartible(c) {
+// Se comparte con la letra publicada y un audio publicado; sin sincronizar también (FW): la letra se ve completa y,
+// cuando se sincroniza, el archivo público se pone al día solo y el link sigue los versos
+function faltaParaCompartir(c) {
     const l = letraDe(c);
     const pub = a => a && a.storage_path && estadoDe(a) === 'publicado';
-    return !!(l && estadoDe(l) === 'publicado' && (l.synced || '').trim() && (pub(audioDe(c, 'melodia')) || pub(audioDe(c, 'karaoke'))));
+    if (!l || !(l.contenido || l.synced || '').trim()) return 'Falta escribir la letra';
+    if (estadoDe(l) !== 'publicado') return 'Falta publicar la letra';
+    if (!pub(audioDe(c, 'melodia')) && !pub(audioDe(c, 'karaoke'))) return 'Falta un audio publicado (Melodía o Karaoke)';
+    return null;
 }
+const cancionCompartible = c => !faltaParaCompartir(c);
 // Las líneas como las arma el Entrenador: el orden de la letra (con sus estrofas) y los tiempos de la sincronía.
 function lineasPublicas(l) {
     const cola = new Map();
@@ -5828,7 +5834,9 @@ function cancionPublicaAlDia(cancionId, letraGuardada) {
 async function compartirCancion(cancionId, boton) {
     const c = canciones.find(x => x.id === cancionId);
     if (!c) return;
-    if (!cancionCompartible(c)) { toast('Para compartir: letra publicada y sincronizada, y un audio publicado'); return; }
+    const falta = faltaParaCompartir(c);
+    if (falta) { toast(`No se puede compartir todavía: ${falta.charAt(0).toLowerCase() + falta.slice(1)}`); return; }
+    if (!(letraDe(c).synced || '').trim()) toast('Se comparte sin sincronizar: los estudiantes ven la letra completa; al sincronizarla, el link sigue los versos solo');
     let hasta = await leerHastaPublico(c.id);
     if (hasta && hoyISO() > hasta) hasta = null;   // ya vencida: compartir de nuevo parte sin fecha
     try { await escribirCancionPublica(c, hasta); }

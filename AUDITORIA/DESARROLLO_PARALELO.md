@@ -8652,3 +8652,22 @@ barra de progreso y cuando se cargue todo, recién empiece a avanzar").*
   ya no se precarga el Karaoke (el arreglo suena siempre con la Melodía). Prueba (navegador, arreglo de Coqueta): al
   apretar ▶ el pulso se queda en −4 con el aviso y la barra (hasta 100 % → "Preparando…"), y recién cuando suena la
   grabación avanza; el aviso desaparece.
+
+### FW. ✈ Compartir una canción (Cantar) aunque la letra no esté sincronizada
+*Origen: PO 2026-11-04 ("acabo de agregar Reflections a la biblioteca pero no puedo compartirla, están todos los recursos
+publicados"; aprobó también compartir sin sincronizar).*
+- **Auditoría:** el ✈ de la Letra solo aparecía con letra publicada **y sincronizada** y un audio publicado; si faltaba
+  algo, no aparecía y no decía nada. Reflections: letra (67 líneas) y los dos audios publicados, letra sin sincronizar.
+- **Decisión del PO (2026-11-04):** el ✈ de la Letra siempre visible; si falta algo, al tocarlo dice qué; y se puede
+  compartir sin sincronizar: el estudiante escucha el audio con la letra completa a la vista (sin el verso que avanza);
+  al sincronizarla, el link la sigue solo.
+- **Plan:** `REPERTORIO/` (`cancionCompartible` sin exigir la sincronía; `faltaParaCompartir`; ✈ siempre en la Letra) y
+  `CANTAR/` (sin tiempos: letra clara, sin marcar versos).
+  - Lugares: ficha de la canción en la Biblioteca (✈ de la Letra) y Cantar (`l/?a=`).
+- **Hecho (2026-11-04):** `REPERTORIO/index.html`: `faltaParaCompartir` (falta escribir la letra / publicarla / un audio
+  publicado) y `cancionCompartible` ya no exige la sincronía; el ✈ de la Letra siempre se ve (su título dice qué falta) y
+  al tocarlo, si falta algo, lo avisa; sin sincronizar comparte y avisa que los estudiantes verán la letra completa.
+  `CANTAR/index.html`: sin tiempos, la letra se ve clara (no gris) y sin verso que avanza. Prueba (navegador):
+  Reflections queda compartible (67 líneas, ninguna con tiempo) y su ficha muestra el ✈ en la Letra; Cantar con una
+  letra sin tiempos la muestra completa en claro, en sus estrofas. No se generó el link (escribe el archivo público:
+  lo hace el PO al compartir).
