@@ -22,6 +22,8 @@
 //   TempoMapa.mismaTonalidad(a, b) → misma tónica (Re♭ = Do♯) y mismo modo
 //   m.compasSimple()     → pulsos por compás si la cifra del compás 1 es 2/4, 3/4 o 4/4; si no, 0
 //   m.cifraApp()         → TempoMapa.cifraInfo de la cifra del compás 1 (o null si no es del sistema; deudas FN y FO)
+//   TempoMapa.cambiarCifra(datos, { compas, n, d }, 'compases' | 'pulsos') → datos con la nueva cifra (las secciones
+//                          quedan en su segundo); TempoMapa.preguntarCambioCifra(datos, cambio) → pregunta cuál (FQ)
 //   TempoMapa.CIFRAS     → las cifras del sistema; TempoMapa.cifraInfo('6/8') → { n, d, compas (negras por compás),
 //                          pulso (negras por pulso contado), pulsos, figura, mapa (negras por pulso del mapa) }
 //   m.bpmEn(p)           → tempo alrededor del pulso p
@@ -228,10 +230,99 @@
         const compas = n * 4 / d;
         return { texto, n, d, compas, pulso, pulsos: Math.round(compas / pulso), figura: { 2: '𝅗𝅥', 1: '♩', 1.5: '♩.', 0.5: '♪' }[pulso], mapa: 4 / d };
     }
+
+    // ── Cambiar la cifra de una Ficha que ya tiene tempo (deuda FQ) ───────────────────────────────────────────
+    // cambio = { compas (desde qué compás; 1 = toda la canción), n, d }. modo:
+    //   'compases' → cada compás sigue empezando donde estaba y dura lo mismo; se reparten de nuevo sus pulsos
+    //   'pulsos'   → los pulsos marcados se quedan y se agrupan en compases del nuevo tamaño
+    // En los dos, las secciones quedan en su segundo de la grabación (se recalcula su compás: el 1 más cercano).
+    function nuevasCifras(cifras, { compas: c = 1, n, d }) {
+        let cs = (cifras?.length ? cifras : [{ compas: 1, n: 4, d: 4 }]).map(x => ({ compas: x.compas | 0, n: x.n, d: x.d || 4 }))
+            .sort((a, b) => a.compas - b.compas);
+        if (c <= cs[0].compas) Object.assign(cs[0], { n, d });
+        else {
+            const x = cs.find(y => y.compas === c);
+            if (x) Object.assign(x, { n, d }); else cs.push({ compas: c, n, d });
+            cs.sort((a, b) => a.compas - b.compas);
+        }
+        return cs.filter((y, i) => i === 0 || y.n !== cs[i - 1].n || y.d !== cs[i - 1].d);   // un cambio que repite la anterior sobra
+    }
+    function cambiarCifra(datos, cambio, modo) {
+        const d0 = JSON.parse(JSON.stringify(datos || {}));
+        const cifras = nuevasCifras(d0.cifras, cambio);
+        const m1 = crear(d0), P = m1.pulsos;
+        let pulsos = P.slice(), compas1 = m1.compas1;
+        if (modo === 'compases' && P.length >= 2) {
+            // El 1 de cada compás (en segundos), del primero al último que cae en lo marcado
+            const cIni = m1.compasDePulso(-m1.compas1).compas, unos = [];
+            for (let c = cIni; ; c++) {
+                const t = m1.segDePulso(m1.pulsoDeCompas(c));
+                if (t > P[P.length - 1] + 1e-3) break;
+                if (t >= P[0] - 1e-3) unos.push({ c, t });
+                if (unos.length > 5000) break;
+            }
+            const m2 = crear({ pulsos: [0, 1], cifras });   // solo para saber cuántos pulsos tiene cada compás
+            pulsos = []; compas1 = 0;
+            unos.forEach((u, i) => {
+                if (u.c === 1) compas1 = pulsos.length;
+                pulsos.push(u.t);
+                const sig = unos[i + 1]; if (!sig) return;
+                const k = m2.cifraEn(u.c), paso = (sig.t - u.t) / k;
+                for (let j = 1; j < k; j++) pulsos.push(u.t + j * paso);
+            });
+        }
+        const nuevo = { ...d0, pulsos, compas1, cifras };
+        const m3 = crear({ ...nuevo, secciones: [] });
+        // Cada sección: su mismo segundo → el 1 de compás más cercano
+        nuevo.secciones = (m1.secciones || []).map(x => {
+            const y = { ...x };
+            if (x.seg !== null && x.compas !== null && m3.pulsos.length >= 2) {
+                const p = m3.pulsoDeSeg(x.seg), c = m3.compasDePulso(p).compas;
+                const a = m3.segDePulso(m3.pulsoDeCompas(c)), b = m3.segDePulso(m3.pulsoDeCompas(c + 1));
+                y.compas = Math.abs(b - x.seg) < Math.abs(a - x.seg) ? c + 1 : c;
+            }
+            if (y.compas === null) delete y.compas;
+            if (y.seg === null) delete y.seg;
+            return y;
+        });
+        return crear(nuevo).datos();
+    }
+    // Pregunta cómo cambiar la cifra (solo si hay tempo marcado) → Promise<{ datos, modo } | null (cancelado)>
+    function preguntarCambioCifra(datos, cambio) {
+        const m = crear(datos);
+        if (m.pulsos.length < 2) return Promise.resolve({ datos: cambiarCifra(datos, cambio, 'pulsos'), modo: 'pulsos' });
+        const texto = `${cambio.n}/${cambio.d}`, antes = m.cifraTexto(Math.max(1, cambio.compas || 1));
+        const op = ['compases', 'pulsos'].map(modo => {
+            const dd = cambiarCifra(datos, cambio, modo), mm = crear(dd), inf = cifraInfo(texto);
+            const tempo = inf ? `${inf.figura} ${Math.round(mm.bpm * inf.mapa / inf.pulso)}` : `${mm.bpm}`;
+            const c = Math.max(1, cambio.compas || 1), dur = mm.segDePulso(mm.pulsoDeCompas(c + 1)) - mm.segDePulso(mm.pulsoDeCompas(c));
+            return { modo, datos: dd, tempo, dur: dur.toFixed(1).replace('.', ',') };
+        });
+        return new Promise(res => {
+            const fondo = document.createElement('div');
+            fondo.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,23,.7);display:flex;align-items:center;justify-content:center;z-index:9999;font-family:system-ui,sans-serif';
+            const b = 'display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px;border-radius:9px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;cursor:pointer;font:inherit';
+            fondo.innerHTML = `<div style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:12px;padding:16px 18px;width:min(460px,92vw)">
+                <div style="font-weight:700;font-size:16px;margin-bottom:6px">Cambiar el compás de ${antes} a ${texto}</div>
+                <div style="font-size:13px;color:#94a3b8;margin-bottom:8px">La canción ya tiene el tempo marcado. Las secciones se quedan en su lugar de la grabación.</div>
+                <button data-m="compases" style="${b}"><b>Mantener los compases</b><br><span style="font-size:13px;color:#94a3b8">Cada compás sigue durando ${op[0].dur} s · tempo ${op[0].tempo}</span></button>
+                <button data-m="pulsos" style="${b}"><b>Mantener los pulsos</b><br><span style="font-size:13px;color:#94a3b8">Tus marcas se agrupan de nuevo: cada compás dura ${op[1].dur} s · tempo ${op[1].tempo}</span></button>
+                <button data-m="" style="${b};text-align:center;background:transparent">Cancelar</button></div>`;
+            const fin = r => { fondo.remove(); document.removeEventListener('keydown', esc, true); res(r); };
+            const esc = e => { if (e.key === 'Escape') { e.preventDefault(); fin(null); } };
+            fondo.addEventListener('click', e => {
+                const x = e.target.closest('[data-m]');
+                if (x) fin(x.dataset.m ? op.find(o => o.modo === x.dataset.m) : null);
+                else if (e.target === fondo) fin(null);
+            });
+            document.addEventListener('keydown', esc, true);
+            document.body.appendChild(fondo);
+        });
+    }
     const TONICAS = {
         mayor: ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'],
         menor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'],
     };
 
-    window.TempoMapa = { crear, cargar, cargarFicha, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS, versosDeLetra, CIFRAS, cifraInfo };
+    window.TempoMapa = { crear, cargar, cargarFicha, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS, versosDeLetra, CIFRAS, cifraInfo, cambiarCifra, preguntarCambioCifra };
 })();

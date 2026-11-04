@@ -233,8 +233,12 @@ if (canal) canal.onmessage = e => {
     const m = e.data;
     if (m?.tipo !== 'ficha-datos' || m.cancion !== cancionId) return;
     const libre = !hayCambios();
-    S.tonalidad = m.tonalidad || null;
-    if (m.cifra) S.cifras[0] = { ...S.cifras[0], n: m.cifra.n, d: m.cifra.d || 4 };
+    // Sin cambios pendientes aquí, se toma la Ficha completa (la cifra pudo cambiar manteniendo los pulsos, FQ)
+    if (libre && m.datos) Object.assign(S, aCompases(m.datos));
+    else {
+        S.tonalidad = m.tonalidad || null;
+        if (m.cifra) S.cifras[0] = { ...S.cifras[0], n: m.cifra.n, d: m.cifra.d || 4 };
+    }
     rehacer();
     if (libre) { base = guardable(); cambio(); }
 };
@@ -874,19 +878,16 @@ $('b-borrar').onclick = borrarSel;
 $('b-c1').onclick = () => { if (sel === null) return; antes(); S.c1 = S.compases[sel]; rehacer(); };
 // Cifras que se ofrecen: n pulsos de valor 1/d (en 6/8 se reparten 6 corcheas por compás)
 const CIFRAS = TempoMapa.CIFRAS;   // la lista del sistema (deuda FO)
-$('sel-cifra').onchange = e => {
+// Cambiar la cifra desde el compás elegido (FQ): se pregunta si se mantienen los compases (el 1 de cada uno queda donde
+// está y se reparten sus pulsos) o los pulsos (las marcas se agrupan de nuevo); las secciones quedan en su segundo
+$('sel-cifra').onchange = async e => {
     e.target.blur();
     if (sel === null) return;
     const [n, d] = e.target.value.split('/').map(Number), c = sel - idxCercano(S.c1) + 1;
+    const r = await TempoMapa.preguntarCambioCifra(datos(), { compas: c, n, d });
+    if (!r) { pintarControles(); return; }       // cancelado: el selector vuelve a la cifra de antes
     antes();
-    if (c <= S.cifras[0].compas) Object.assign(S.cifras[0], { n, d });
-    else {
-        const x = S.cifras.find(y => y.compas === c);
-        if (x) Object.assign(x, { n, d }); else S.cifras.push({ compas: c, n, d });
-        S.cifras.sort((a, b) => a.compas - b.compas);
-        // un cambio que repite la cifra anterior sobra
-        S.cifras = S.cifras.filter((y, i) => i === 0 || y.n !== S.cifras[i - 1].n || (y.d || 4) !== (S.cifras[i - 1].d || 4));
-    }
+    Object.assign(S, aCompases(r.datos));
     rehacer();
 };
 // Tonalidad oficial de la canción: — la deja sin declarar

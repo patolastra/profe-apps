@@ -4258,11 +4258,16 @@ function lineaFicha(c, ficha, todos) {
         <span class="fo-tit">📋 Ficha</span>
         <select class="fo-ton" onchange="cambiarFicha('${c.id}')">${tonicas}</select>
         <select class="fo-modo" onchange="cambiarFicha('${c.id}', 'modo')"${t ? '' : ' disabled'}><option value="mayor"${modo === 'mayor' ? ' selected' : ''}>mayor</option><option value="menor"${modo === 'menor' ? ' selected' : ''}>menor</option></select>
-        <select class="fo-cifra" onchange="cambiarFicha('${c.id}')" title="Cifra de compás">${cifras}</select>
-        <button class="fo-tempo" onclick="abrirTempo('${c.id}')"${conAudio ? '' : ' disabled'} title="${conAudio ? 'Marcar el pulso de la grabación (tempo, compases y secciones)' : 'Necesita el audio de la canción'}">⏱ Tempo${m?.bpm ? ' ♩ ' + m.bpm : ''}</button>
+        <select class="fo-cifra" onchange="cambiarFicha('${c.id}', 'cifra')" title="Cifra de compás">${cifras}</select>
+        <button class="fo-tempo" onclick="abrirTempo('${c.id}')"${conAudio ? '' : ' disabled'} title="${conAudio ? 'Marcar el pulso de la grabación (tempo, compases y secciones)' : 'Necesita el audio de la canción'}">⏱ Tempo${m?.bpm ? ' ' + tempoFicha(m) : ''}</button>
         <span class="fo-sep"></span>
         ${ficha ? `<button class="btn-icon danger fo-borrar" onclick="eliminarAsset('${c.id}','${ficha.id}')" title="Borrar la Ficha (también el tempo marcado)">🗑</button>` : ''}
     </div>`;
+}
+// Tempo de la Ficha en la figura del pulso de su cifra (2/2: 𝅗𝅥 79 · 6/8: ♩. 60; FO)
+function tempoFicha(m) {
+    const i = m.cifraApp && m.cifraApp();
+    return i ? `${i.figura} ${Math.round(m.bpm * i.mapa / i.pulso)}` : `♩ ${m.bpm}`;
 }
 async function cambiarFicha(cid, que) {
     const fila = document.querySelector(`.ficha-oficial[data-cancion="${cid}"]`), c = canciones.find(x => x.id === cid);
@@ -4276,8 +4281,17 @@ async function cambiarFicha(cid, que) {
     } else if (ton) d.tonalidad = { tonica: ton, modo };
     else delete d.tonalidad;
     const [n, den] = fila.querySelector('.fo-cifra').value.split('/').map(Number);
-    d.cifras = (d.cifras?.length ? d.cifras : [{ compas: 1, n: 4 }]).map((x, i) => i ? x : { ...x, n, d: den });
-    const datos = TempoMapa.crear(d).datos(), contenido = JSON.stringify(datos);
+    let datos;
+    if (que === 'cifra') {
+        // Con tempo marcado se pregunta si se mantienen los compases o los pulsos; las secciones no se mueven (FQ)
+        const r = await TempoMapa.preguntarCambioCifra(d, { compas: 1, n, d: den });
+        if (!r) { renderPanel(); return; }          // cancelado: el selector vuelve a la cifra de antes
+        datos = r.datos;
+    } else {
+        d.cifras = (d.cifras?.length ? d.cifras : [{ compas: 1, n: 4 }]).map((x, i) => i ? x : { ...x, n, d: den });
+        datos = TempoMapa.crear(d).datos();
+    }
+    const contenido = JSON.stringify(datos);
     fila.querySelectorAll('select').forEach(x => x.disabled = true);
     try {
         if (ficha) {
@@ -4297,7 +4311,7 @@ async function cambiarFicha(cid, que) {
         if (e2) throw e2;
         try {
             const bc = new BroadcastChannel('profe-tempo');
-            bc.postMessage({ tipo: 'ficha-datos', cancion: cid, tonalidad: datos.tonalidad || null, cifra: datos.cifras[0] });   // a la app del tempo abierta
+            bc.postMessage({ tipo: 'ficha-datos', cancion: cid, tonalidad: datos.tonalidad || null, cifra: datos.cifras[0], datos });   // a la app del tempo abierta
             bc.postMessage({ tipo: 'tempo-guardado', cancion: cid });                                                         // a las demás
             bc.close();
         } catch (_) {}

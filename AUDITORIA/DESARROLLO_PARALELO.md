@@ -8537,3 +8537,30 @@ arreglo").*
   las 8 incluidas sin secuencia, "Crear las que faltan" crea Estrofa, Coro, "Dame", Mambo y las une; tempo ♩140 →
   "≠ canción: 𝅗𝅥 79" y un toque vuelve a ♩158 (𝅗𝅥79); sin Ficha, el orden manual sigue igual. Ojo: en el arreglo de
   Coqueta, las secciones ahora suenan en su lugar real (antes iban una tras otra desde el compás 1).
+
+### FQ. 📋 Cambiar la cifra de una Ficha con tempo ya marcado: las secciones no se mueven
+*Origen: PO 2026-11-04 (la Ficha de Coqueta quedó mal al pasarla de 4/4 a 2/2 desde la Biblioteca; "cómo se puede
+arreglar esto?"; el PO ya corrigió Coqueta a mano: está en 2/2).*
+- **Auditoría:** el selector de compás de la línea de la Ficha en la Biblioteca (`cambiarFicha`) cambia la cifra y deja
+  los pulsos: los reagrupa (4/4 → 2/2 = 2 por compás) y las secciones guardan su n° de compás, así que se corren en el
+  tiempo (Coro c. 13: 46,7 s → 28,5 s). ⏱ Tempo, en cambio, mantiene el 1 de cada compás (reparte de nuevo los pulsos).
+- **Decisión del PO (2026-11-04):** (1) las secciones nunca se mueven en el tiempo: quedan en su segundo y se
+  recalcula su compás; (2) con tempo marcado, al cambiar la cifra se pregunta: **Mantener los compases** / **Mantener
+  los pulsos** / Cancelar, con el tempo que resulta; (3) igual en ⏱ Tempo; (4) sin tempo, directo como hoy.
+- **Plan:** `comun/tempo-mapa.js`: `TempoMapa.cambiarCifra(datos, { compas, n, d }, 'compases' | 'pulsos')` y
+  `TempoMapa.preguntarCambioCifra(...)` (la pregunta, igual en los dos lugares). `REPERTORIO/` (`cambiarFicha`) y
+  `TEMPO/` (selector de cifra) la usan.
+  - Lugares: línea de la Ficha en la Biblioteca y ⏱ Tempo (Ficha de la canción); leen el resultado Arreglo, Melodía,
+    Metrónomo, Cajón, Piano, Entrenador.
+- **Hecho (2026-11-04):** `comun/tempo-mapa.js`: `cambiarCifra` ('compases': el 1 de cada compás queda y se reparten
+  sus pulsos; 'pulsos': las marcas se agrupan de nuevo; en los dos, cada sección queda en su segundo y toma el 1 de
+  compás más cercano) y `preguntarCambioCifra` (ventana con las dos opciones, cuánto dura cada compás y el tempo que
+  resulta, Cancelar / Esc; sin tempo marcado no pregunta). `REPERTORIO/` (`cambiarFicha(cid, 'cifra')` pregunta; al
+  cancelar el selector vuelve; ⏱ Tempo muestra el tempo en la figura del pulso; el aviso a ⏱ Tempo abierto lleva la
+  Ficha completa) y `TEMPO/` (el selector de cifra pregunta igual, desde el compás elegido). Prueba (navegador, sin
+  guardar; el borrador de prueba se borró; la Ficha de Coqueta no se tocó: su última modificación es la del PO,
+  11:36): Coqueta 2/2 → 4/4 "Mantener los pulsos" = compás 3,0 s, ♩79, Coro c. 13 en 46,7 s; "Mantener los
+  compases" = compás 1,5 s, ♩158, Coro c. 25 en 46,7 s; ida y vuelta a 2/2 deja la Ficha idéntica; 6/8 también deja
+  las secciones en su segundo; la ventana muestra los dos textos, Esc cancela; sin tempo cambia directo; en ⏱ Tempo
+  el cambio a 4/4 manteniendo los pulsos deja 78 compases y las secciones en 10,2 / 46,7 / 71,0 s. No probado:
+  aceptar en la Biblioteca (guarda en la base; se probó la misma pieza en ⏱ Tempo).
