@@ -62,6 +62,11 @@
     canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
     #aviso { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
         padding: 24px; font-size: 20px; color: var(--tenue); pointer-events: none; }
+    /* Carga de la grabación (FV): mensaje con barra de avance; mientras, el piano no avanza */
+    #aviso .carga { display: flex; flex-direction: column; align-items: center; gap: 12px; background: rgba(11,16,32,.9);
+        padding: 18px 26px; border-radius: 14px; border: 1px solid #334155; }
+    #aviso .carga-barra { width: min(320px, 60vw); height: 10px; border-radius: 5px; background: #1e293b; overflow: hidden; }
+    #aviso .carga-barra i { display: block; height: 100%; width: 0; background: #f97316; transition: width .15s; }
     #girar { position: fixed; inset: 0; background: var(--bg); display: none; align-items: center; justify-content: center;
         flex-direction: column; gap: 14px; font-size: 20px; text-align: center; padding: 30px; z-index: 5; }
     #girar div { font-size: 54px; }
@@ -291,7 +296,8 @@ const audioUrl = () => MEL.audio && (MEL.audio[rol] || MEL.audio.melodia || MEL.
 function pulsoArr() {
     if (!rep) return -1;
     const c = audio();
-    if (rep.g) { const s = rep.g.oido(); return s === null ? rep.desde : pulsoDeSrc(s); }
+    if (rep.cargando) return rep.p0;      // cargando la grabación: el piano espera quieto (FV)
+    if (rep.g) { const s = rep.g.oido(); return s === null ? rep.p0 : pulsoDeSrc(s); }
     return rep.p0 + (c.currentTime - (c.outputLatency || 0) - rep.t0) / (spb() / velocidad);
 }
 const ctxDePulso = p => rep.g ? rep.g.aCtx(srcDePulso(p)) : rep.t0 + (p - rep.p0) * spb() / velocidad;
@@ -307,19 +313,23 @@ async function tocarArr(desde = null, precuenta = true) {
     rep = r; pintarBarra();
     const url = audioUrl();
     if (url) {
+        // Mientras se descarga y prepara la grabación, el piano espera quieto con un mensaje y su barra de avance (FV)
+        r.cargando = true;
+        const aviso = document.getElementById('aviso');
         try {
             grab = grab || GrabacionTono.crear(c, c.destination);
-            const aviso = document.getElementById('aviso');
-            if (grab.url !== url) aviso.textContent = 'Cargando la grabación…';
-            await grab.cargar(url);
-            grab.precargar(MEL.audio.melodia === url ? MEL.audio.karaoke : MEL.audio.melodia);   // la otra, lista para cambiar (ET)
+            if (grab.url !== url) {
+                aviso.innerHTML = '<div class="carga"><span>Cargando la canción…</span><div class="carga-barra"><i></i></div></div>';
+                const barra = aviso.querySelector('.carga-barra i'), txt = aviso.querySelector('.carga span');
+                await grab.cargar(url, x => { barra.style.width = Math.round(x * 100) + '%'; if (x >= 1) txt.textContent = 'Preparando…'; });
+            }
             await prepararMapa();
-            aviso.textContent = '';
-        } catch (_) { document.getElementById('aviso').textContent = 'No se pudo cargar la grabación.'; rep = null; pintarBarra(); return; }
-        if (rep !== r) return;
+        } catch (_) { aviso.textContent = 'No se pudo cargar la grabación.'; if (rep === r) { rep = null; pintarBarra(); } return; }
+        if (rep !== r) { aviso.textContent = ''; return; }
         r.g = grab;
         r.g.alTerminar = () => { if (rep === r) detenerArr(); };
         await r.g.tocar(Math.max(0, srcDePulso(p0)), MEL.audio.semitonos || 0, velocidad);
+        r.cargando = false; aviso.textContent = '';
         if (rep !== r) { r.g.detener(); return; }
         r.hasta = Math.max(p0, pulsoDeSrc(Math.max(0, srcDePulso(p0))));
     } else {

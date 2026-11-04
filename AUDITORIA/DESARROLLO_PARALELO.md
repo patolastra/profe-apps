@@ -8640,3 +8640,15 @@ grande"; "el dropdown de las secciones muestre siempre la sección activa y sin 
   y horizontal llega al primer toque, como el Lector. − / + de la velocidad: de a 5 % (50–100 %). El Piano de una
   melodía (sin arreglo) no cambia. Prueba (navegador, vista previa del arreglo de Coqueta): la barra queda ▶ Tocar ·
   secciones · − · + · 🎹 · ✂ Omitir; − − − + = 95 → 90 → 85 → 90 %. No probado en un celular real (pantalla completa).
+
+### FV. ⏳ Piano con arreglo: espera quieto mientras carga la canción, con barra de avance
+*Origen: PO 2026-11-04 ("al darle play dice 'cargando…' pero el arreglo empieza a descender; que muestre el mensaje con una
+barra de progreso y cuando se cargue todo, recién empiece a avanzar").*
+- **Auditoría:** mientras se descargaba la grabación, el pulso se calculaba con un reloj sin empezar (`t0 = 0`) y las
+  notas corrían; el piano en sí no sonaba (tickArr esperaba).
+- **Hecho (2026-11-04):** `comun/grabacion-tono.js`: `g.cargar(url, x => …)` informa el avance de la descarga (0..1)
+  (TEMPO lo usa igual, sin avance); `PIANO/`: `rep.cargando` deja el piano quieto en su punto de partida hasta que la
+  grabación suena; el aviso muestra "Cargando la canción…" con barra naranja y "Preparando…" al terminar la descarga;
+  ya no se precarga el Karaoke (el arreglo suena siempre con la Melodía). Prueba (navegador, arreglo de Coqueta): al
+  apretar ▶ el pulso se queda en −4 con el aviso y la barra (hasta 100 % → "Preparando…"), y recién cuando suena la
+  grabación avanza; el aviso desaparece.

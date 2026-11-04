@@ -3,7 +3,7 @@
 // que se escucha, para dibujar y programar notas a la par.
 //
 //   const g = GrabacionTono.crear(ctx, destino);
-//   await g.cargar(url);                    // descarga y decodifica (una vez por url) y la deja elegida
+//   await g.cargar(url, x => …);            // descarga y decodifica (una vez por url) y la deja elegida; x = 0..1 descargado
 //   g.precargar(url)                        // deja lista otra grabación (Melodía / Karaoke) sin elegirla
 //   await g.cambiar(url)                    // sonando, pasa a la otra grabación en la misma muestra (deuda ET)
 //   await g.tocar(desdeSeg, semitonos, velocidad);   // velocidad 1 = normal, 0.5 = mitad
@@ -23,13 +23,31 @@
         const g = { buffer: null, url: null, sonando: false, duracion: 0, alTerminar: null };
         let nodo = null, ancla = null, vel = 1;   // ancla: { ctx, seg } = a esa hora del contexto suena ese segundo
         const cache = {};       // url → AudioBuffer (promesa)
-        const decodificar = url => cache[url] || (cache[url] = fetch(url).then(r => {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.arrayBuffer();
-        }).then(b => ctx.decodeAudioData(b)).catch(e => { delete cache[url]; throw e; }));
-        g.cargar = async (url) => {
+        // Descarga (con avance 0..1 si se pide; FV) y decodifica, una vez por url
+        const progreso = {};    // url → [fn]: quienes esperan el avance de esa descarga
+        const decodificar = (url, alProgreso) => {
+            if (alProgreso) (progreso[url] = progreso[url] || []).push(alProgreso);
+            return cache[url] || (cache[url] = fetch(url).then(async r => {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const total = +r.headers.get('content-length') || 0;
+                if (!r.body || !total) return r.arrayBuffer();
+                const lector = r.body.getReader(), partes = [];
+                let n = 0;
+                for (;;) {
+                    const { done, value } = await lector.read();
+                    if (done) break;
+                    partes.push(value); n += value.length;
+                    (progreso[url] || []).forEach(f => { try { f(Math.min(1, n / total)); } catch (_) {} });
+                }
+                const datos = new Uint8Array(n); let o = 0;
+                for (const p of partes) { datos.set(p, o); o += p.length; }
+                return datos.buffer;
+            }).then(b => { (progreso[url] || []).forEach(f => { try { f(1); } catch (_) {} }); delete progreso[url]; return ctx.decodeAudioData(b); })
+              .catch(e => { delete cache[url]; delete progreso[url]; throw e; }));
+        };
+        g.cargar = async (url, alProgreso) => {
             if (g.url === url && g.buffer) return;
-            g.buffer = await decodificar(url);
+            g.buffer = await decodificar(url, alProgreso);
             g.url = url; g.duracion = g.buffer.duration;
         };
         g.precargar = url => { if (url) decodificar(url).catch(() => {}); };
