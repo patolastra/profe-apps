@@ -693,6 +693,7 @@
             const trackCount = (data[10] << 8) | data[11];
             if (trackCount === 0) { res.error = "El archivo no contiene notas"; return res; }
             pos = 14;
+            let bajo = false, alto = false;     // notas bajo el La grave (81) o sobre el La agudo (105)
             try {
                 for (let t = 0; t < trackCount; t++) {
                     const trackLength = (data[pos+4]<<24)|(data[pos+5]<<16)|(data[pos+6]<<8)|(data[pos+7]);
@@ -706,7 +707,8 @@
                         if (type === 0x90 || type === 0x80) {
                             const p = data[pos++]; const v = data[pos++];
                             if (type === 0x90 && v > 0) {
-                                if (p < 81 || p > 105) return { ok: false, error: "Hay notas fuera del rango del metalófono" };
+                                if (p < 81) bajo = true;
+                                else if (p > 105) alto = true;
                                 res.notes.push(p);
                             }
                         } else if (type === 0xA0 || type === 0xB0 || type === 0xE0) pos += 2;
@@ -717,6 +719,11 @@
                 }
             } catch(e) { res.error = "No se pudo leer el archivo"; return res; }
             if (res.notes.length === 0) { res.error = "El archivo no contiene notas"; return res; }
+            if (bajo || alto) {
+                const hacia = bajo && alto ? "hacia arriba y hacia abajo" : alto ? "hacia arriba" : "hacia abajo";
+                res.error = `Hay notas fuera del rango del metalófono (del La grave al La agudo): la melodía se sale ${hacia}`;
+                return res;
+            }
             res.ok = true; return res;
         }
 

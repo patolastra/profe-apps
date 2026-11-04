@@ -8389,3 +8389,11 @@ miércoles, también incluye pruebas pendientes").*
   Biblioteca detiene el Metrónomo y se pausa al volver a tocarlo; al callarse, el verde se va a los 2,5 s. Verde y
   verde-activa medidos, mismo ancho de pestaña (136 px) en los tres estados. Todas las apps cargan sin errores.
   No probado: sonido real por parlantes (ventana oculta) ni YouTube (fuera del alcance). Commit `35488e3`.
+
+### FL. 🎹 Metalófono: el aviso de "fuera de rango" dice el rango y hacia dónde se sale
+*Origen: PO 2026-11-04 ("que mencione brevemente el rango permitido y si la melodía se sale hacia arriba o hacia abajo").*
+- **Hecho (2026-11-04):** `METALÓFONO APP/METAL21 (ALPHA).HTML` (`validarMidi`): revisa todas las notas y avisa "Hay
+  notas fuera del rango del metalófono (del La grave al La agudo): la melodía se sale hacia arriba / hacia abajo /
+  hacia arriba y hacia abajo" (rango MIDI 81–105). Lugares: pestaña Metalófono y Metalófono dentro del Entrenador
+  (mismo archivo); el modo alumno no muestra la barra de estado. Prueba (navegador): MIDIs de prueba en rango, sobre,
+  bajo y a ambos lados dan el mensaje correcto.
