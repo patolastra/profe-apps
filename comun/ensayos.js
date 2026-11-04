@@ -7,14 +7,17 @@
 //
 // Uso:
 //   Ensayos.conectar(sb)
-//   Ensayos.lista(caja, { curso: cid => ({ texto, titulo }) | null, alCambiar: n => {…} })   → { destruir }
+//   Ensayos.lista(caja, { curso: cid => ({ texto, titulo }) | null, cursos: () => [{ id, texto }],
+//                         alCambiar: n => {…} })   → { destruir }
+//   cursos: los del selector del cuadro para anotar ahí mismo (el último elegido se recuerda en el equipo)
 //   n = { activos }
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
     'use strict';
     const CAT = 'ensayo';
     const PRUEBA = '📝 ';
-    const COPIA = 'profe_ensayos_copia';   // última lista vista (el celular la muestra sin señal)
+    const COPIA = 'profe_ensayos_copia';
+    const ULTIMO = 'profe_ensayos_curso';  // último curso elegido en el cuadro para anotar   // última lista vista (el celular la muestra sin señal)
     let sb = null, filas = [], cargando = null;
     const listas = new Set();
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -76,6 +79,22 @@
         const { error } = await sb.from('pendientes').delete().eq('id', id);
         if (error && antes) { filas.push(antes); pintarTodas(); aviso('No se pudo borrar — revisa la conexión.'); }
     }
+    // Cuadro propio: "quién: qué" (con /prueba adelante, prueba pendiente) en el curso elegido.
+    async function anotar(texto, contexto_id) {
+        let t = String(texto || '').trim(), prueba = false;
+        const m = t.match(/^\/(ensayo|prueba)(?![a-záéíóúñ])\s*/i);
+        if (m) { prueba = m[1].toLowerCase() === 'prueba'; t = t.slice(m[0].length); }
+        const i = t.indexOf(':');
+        const quien = i > 0 ? t.slice(0, i).trim() : '', que = i > 0 ? t.slice(i + 1).trim() : '';
+        if (!quien || !que) { aviso('Escribe quién, dos puntos y qué (ej.: Josefa: estrofa 2). Con /prueba adelante es prueba.'); return false; }
+        const { data, error } = await sb.from('pendientes')
+            .insert({ contexto_id: contexto_id || null, sesion_id: null, categoria: CAT, texto: (prueba ? PRUEBA : '') + quien + '\n' + que, estado: 'activo' })
+            .select('id, contexto_id, sesion_id, texto, estado, completado_en, created_at').single();
+        if (error) { aviso('No se pudo anotar — revisa la conexión.'); return false; }
+        if (!filas.some(f => f.id === data.id)) filas.push(data);
+        pintarTodas();
+        return true;
+    }
     function aviso(t) { listas.forEach(L => { const a = L.caja.querySelector('.ens-aviso'); if (a) { a.textContent = t; setTimeout(() => { a.textContent = ''; }, 5000); } }); }
 
     // Fecha en que se anotó, chico al margen.
@@ -115,7 +134,7 @@
         const hechos = nHechos ? `<button class="ens-hechos-tit" type="button" aria-expanded="${L.verHechos ? 'true' : 'false'}">${L.verHechos ? '▾' : '▸'} ✓ Hechos (${nHechos})</button>
             ${L.verHechos ? `<div class="ens-hechos">${lista.map(g => bloque(g, 'hecho')).join('')}</div>` : ''}` : '';
         L.cuerpo.innerHTML = `${porHacer || '<div class="ens-vacio">No hay ensayos ni pruebas pendientes.</div>'}${hechos}
-            <p class="ens-ayuda">Se anotan con <b>/ensayo quién: qué</b> o <b>/prueba quién: qué</b> en cualquier pendiente, la bitácora o una actividad (el curso es el de donde lo escribes).</p>`;
+            <p class="ens-ayuda">Arriba: curso, <b>quién: qué</b> y Enter (con <b>/prueba</b> adelante, prueba pendiente). También con <b>/ensayo quién: qué</b> o <b>/prueba quién: qué</b> en cualquier pendiente, la bitácora o una actividad (el curso es el de donde lo escribes).</p>`;
         if (L.op.alCambiar) { try { L.op.alCambiar({ activos }); } catch (_) {} }
     }
     function pintarTodas() { listas.forEach(pintar); }
@@ -123,8 +142,25 @@
     function lista(caja, op = {}) {
         const L = { caja, op };
         listas.add(L);
-        caja.innerHTML = `<div class="ens"><div class="ens-aviso"></div><div class="ens-cuerpo"></div></div>`;
+        // El cuadro queda fuera de lo que se repinta: lo que se está escribiendo nunca se pierde.
+        const cursos = (op.cursos ? op.cursos() : []) || [];
+        let ultimo = ''; try { ultimo = localStorage.getItem(ULTIMO) || ''; } catch (_) {}
+        caja.innerHTML = `<div class="ens"><div class="ens-anotar">
+                <select class="ens-sel" title="Curso">${cursos.map(c => `<option value="${esc(c.id)}"${c.id === ultimo ? ' selected' : ''}>${esc(c.texto)}</option>`).join('')}<option value=""${ultimo === '-' ? ' selected' : ''}>Sin curso</option></select>
+                <input class="ens-nuevo" type="text" enterkeyhint="send" autocomplete="off" placeholder="Anotar: quién: qué, y Enter">
+            </div><div class="ens-aviso"></div><div class="ens-cuerpo"></div></div>`;
         L.cuerpo = caja.querySelector('.ens-cuerpo');
+        const sel = caja.querySelector('.ens-sel'), inp = caja.querySelector('.ens-nuevo');
+        sel.addEventListener('change', () => { try { localStorage.setItem(ULTIMO, sel.value || '-'); } catch (_) {} });
+        inp.addEventListener('keydown', async e => {
+            if (e.key !== 'Enter' || !inp.value.trim() || inp.disabled) return;
+            e.preventDefault();
+            inp.disabled = true;
+            const ok = await anotar(inp.value, sel.value);
+            inp.disabled = false;
+            if (ok) inp.value = '';
+            inp.focus();
+        });
         caja.addEventListener('click', e => {
             if (e.target.closest('.ens-hechos-tit')) { L.verHechos = !L.verHechos; pintar(L); return; }
             const it = e.target.closest('.ens-item'); if (!it) return;

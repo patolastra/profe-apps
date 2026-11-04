@@ -8357,6 +8357,12 @@ miércoles, también incluye pruebas pendientes").*
   "🎭 Cantantes: subir la voz"; el celular muestra la pestaña 🎭. Las dos filas de prueba se borraron. Sin errores.
 - **Ajuste FI (PO 2026-11-02):** el QR del Lector va **sin "Generar guía QR"**: opción `sinGuia` de `Compartir.abrir`
   (los demás ✈ de la Biblioteca no cambian). Prueba: el menú muestra solo Copiar link y Generar QR.
+- **Ajuste (PO 2026-11-04, "este apartado también tiene que tener su propio cuadro de texto"):** `comun/ensayos.js` +
+  `ensayos.css`: arriba de la lista, selector de curso (se recuerda el último en el equipo; con "Sin curso") y cuadro
+  "quién: qué" + Enter (con /prueba adelante, prueba pendiente), como el de ✉️ Mensajes. Opción `cursos` en el
+  Dashboard (`PORTAL/`) y el celular (`MOVIL/index.html`; `sw-movil.js` → `profe-movil-v17`). Prueba (navegador):
+  Dashboard: "/prueba ZZ: borrar" en Octavo aparece al tiro en 8️⃣ Octavo con 📝 y el número 1 (la fila se borró);
+  celular a 375 px: selector y cuadro caben sin desbordar.
 
 ### FK. 🔊 Una sola pestaña suena a la vez en el Workspace (la que suena, en verde)
 *Origen: PO 2026-11-04 ("solo una pestaña suene a la vez… la pestaña que está sonando debe pintarse de verde").*
