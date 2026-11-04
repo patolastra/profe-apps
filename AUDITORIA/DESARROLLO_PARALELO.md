@@ -8357,3 +8357,35 @@ miércoles, también incluye pruebas pendientes").*
   "🎭 Cantantes: subir la voz"; el celular muestra la pestaña 🎭. Las dos filas de prueba se borraron. Sin errores.
 - **Ajuste FI (PO 2026-11-02):** el QR del Lector va **sin "Generar guía QR"**: opción `sinGuia` de `Compartir.abrir`
   (los demás ✈ de la Biblioteca no cambian). Prueba: el menú muestra solo Copiar link y Generar QR.
+
+### FK. 🔊 Una sola pestaña suena a la vez en el Workspace (la que suena, en verde)
+*Origen: PO 2026-11-04 ("solo una pestaña suene a la vez… la pestaña que está sonando debe pintarse de verde").*
+- **Auditoría:** cada app suena por su cuenta y el Workspace no se entera: grabaciones con `<audio>`/`<video>`
+  (Entrenador, `comun/dos-grabaciones.js`, Archivos del curso, audios de la bitácora) y sonido fabricado con Web Audio
+  (`ritmo-render.js`, Metrónomo de Ritmos, Cajón, Lector y Afinador, Piano, Arreglo, Editor de Melodías, Ficha de la
+  canción, Cuaderno) o Tone.js (Metalófono). Hay apps dentro de otras (Cajón en Ritmos, Metalófono en el Entrenador,
+  Entrenador mínimo en el Plan). YouTube no avisa si suena.
+- **Decisión del PO (2026-11-04):** al sonar una pestaña, las demás se **detienen** (con su propio stop; no vuelven
+  solas); la que suena se pinta de **verde** en la barra (distinto aun siendo la activa, solo color: barra estable);
+  dentro de una misma pestaña no cambia nada; fuera del Workspace todo igual; **YouTube fuera** por ahora.
+- **Plan:** pieza **`comun/un-sonido.js`** (`UnSonido`) en cada app: detecta sola `<audio>`/`<video>` y los
+  AudioContext que se ponen a sonar; cada app le dice cómo detenerse (`UnSonido.alDetener(fn)`); avisa al Workspace
+  `ws-sonando` y obedece `ws-callar` (también a sus apps internas). `PC/workspace.html`: pestaña `.sonando` verde y
+  orden `ws-callar` a las otras.
+  - Lugares: Biblioteca/Entrenador (catálogo, sesión, Plan mínimo), Metalófono (pestaña y dentro del Entrenador),
+    Lector y Afinador, Ritmos (Metrónomo y Cajón), Cajón, Piano, Arreglo, Editor de Melodías, Ficha de la canción,
+    Cuaderno, Cursos (Archivos), Dashboard/Plan (audios de la bitácora).
+- **Hecho (2026-11-04):** `comun/un-sonido.js` (nueva): detecta `<audio>`/`<video>` y los sonidos de Web Audio
+  (osciladores y grabaciones; no cuentan las señales ConstantSource de Tone.js ni lo marcado mudo, como el ruido de la
+  hoja del Cuaderno) y espera 2,5 s de silencio antes de decir "me callé" (entre golpes de un metrónomo).
+  `comun/grabacion-tono.js` avisa con `UnSonido.suena` (su reproductor no pasa por esas puertas). `PC/workspace.html`:
+  `ws-sonando` (busca la pestaña subiendo por las ventanas, sirve para apps internas), `ws-callar` a las otras,
+  `.tab.sonando` verde `#16a34a` y, siendo la activa, borde claro `#bbf7d0`. Stop propio registrado en Biblioteca
+  (canción, otros audios, ritmos), Metalófono (`stopAudio`), Lector (⏸ y el afinador), Ritmos (`detener`), Cajón
+  (`detener`), Piano (melodía y arreglo), Editor de Melodías (escuchar y grabar), Ficha de la canción; Arreglo, Dashboard/Plan
+  y Cursos solo con la detección (sus sonidos son cortos o `<audio>`). Sin Supabase; `ritmo.js` y `ritmo-render.js`
+  intactos. Prueba (navegador): Metrónomo sonando → verde; tocar el Afinador lo detiene (▶ Tocar) y el verde pasa al
+  Afinador; al revés igual; el Cajón dentro de Ritmos pinta Ritmos y se calla con ellos; una grabación en la
+  Biblioteca detiene el Metrónomo y se pausa al volver a tocarlo; al callarse, el verde se va a los 2,5 s. Verde y
+  verde-activa medidos, mismo ancho de pestaña (136 px) en los tres estados. Todas las apps cargan sin errores.
+  No probado: sonido real por parlantes (ventana oculta) ni YouTube (fuera del alcance).

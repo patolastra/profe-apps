@@ -454,6 +454,7 @@
             const buf = actx.createBuffer(1, n, actx.sampleRate), d = buf.getChannelData(0);
             for (let j = 0; j < n; j++) d[j] = (Math.random() * 2 - 1) * (0.6 + 0.4 * Math.sin(j / n * Math.PI * 3));
             const src = actx.createBufferSource(); src.buffer = buf;
+            src.__unSonidoMudo = true;   // el ruido de la hoja no calla a las otras pestañas (FK)
             const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.8;
             const t = actx.currentTime;
             f.frequency.setValueAtTime(2600, t); f.frequency.exponentialRampToValueAtTime(700, t + dur);

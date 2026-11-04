@@ -57,6 +57,9 @@
     }
     .tab:hover { background: #223052; }
     .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    /* La pestaña que está sonando (deuda FK): verde; si además es la activa, con borde claro. Solo color. */
+    .tab.sonando, .tab.sonando:hover { background: #16a34a; border-color: #16a34a; color: #fff; }
+    .tab.active.sonando { border-color: #bbf7d0; box-shadow: inset 0 0 0 1px #bbf7d0; }
     .tab-ico { font-size: 1rem; }
     .tab-close {
         display: flex; align-items: center; justify-content: center;
@@ -413,6 +416,7 @@ async function cerrarTab(key) {
     t.iframeEl.remove();   // destrucción real del iframe
     t.tabEl.remove();
     tabs.splice(i, 1);
+    olvidarSonido(key);
 
     if (activeKey === key) {
         // Microiteración: si tras cerrar solo quedan las pestañas FIJAS (Dashboard +
@@ -450,6 +454,49 @@ function renombrarTab(key, titulo) {
 //   { tipo:'ws-etiqueta', texto, x }              → muestra `texto` en esta barra sobre
 //                                                   la posición x del iframe ('' la oculta)
 let tituloVentanaOriginal = null;   // título guardado mientras hay uno temporal
+// ── UNA SOLA PESTAÑA SUENA (deuda FK) ──────────────────────────────────────
+// Cada app avisa { tipo:'ws-sonando', sonando } (comun/un-sonido.js), también las que están dentro de otra
+// (Cajón en Ritmos…): se busca la pestaña subiendo por sus ventanas. Cuando una pestaña empieza a sonar, las
+// demás que suenan reciben { tipo:'ws-callar' }. La que suena se pinta de verde.
+const sonandoPor = new Map();      // ventana que suena → key de su pestaña
+function tabDeVentana(w) {
+    for (let x = w, i = 0; x && i < 10; i++) {
+        const t = tabs.find(t => t.iframeEl && t.iframeEl.contentWindow === x);
+        if (t) return t;
+        let p; try { p = x.parent; } catch (_) { return null; }
+        if (!p || p === x || p === window) return null;
+        x = p;
+    }
+    return null;
+}
+function pintarSonido() {
+    const keys = new Set(sonandoPor.values());
+    tabs.forEach(t => t.tabEl.classList.toggle('sonando', keys.has(t.key)));
+}
+function olvidarSonido(key) {
+    for (const [w, k] of sonandoPor) if (k === key) sonandoPor.delete(w);
+    pintarSonido();
+}
+window.addEventListener('message', (e) => {
+    const m = e.data;
+    if (!m || m.tipo !== 'ws-sonando') return;
+    const t = tabDeVentana(e.source);
+    if (!t) return;
+    if (m.sonando) {
+        const yaSonaba = [...sonandoPor.values()].includes(t.key);
+        sonandoPor.set(e.source, t.key);
+        if (!yaSonaba) {
+            const otras = new Set([...sonandoPor.values()].filter(k => k !== t.key));
+            otras.forEach(k => {
+                const o = tabs.find(x => x.key === k);
+                try { o && o.iframeEl.contentWindow.postMessage({ tipo: 'ws-callar' }, '*'); } catch (_) {}
+                olvidarSonido(k);
+            });
+        }
+    } else sonandoPor.delete(e.source);
+    pintarSonido();
+});
+
 window.addEventListener('message', (e) => {
     const esNuestro = tabs.some(t => t.iframeEl && t.iframeEl.contentWindow === e.source);
     if (!esNuestro) return;

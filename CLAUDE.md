@@ -82,7 +82,7 @@ Estado = clasificación oficial de Fase 1.5 (ver §5 para la leyenda). Detalle p
 
 ### Entrada y navegación (HECHO)
 - La raíz detecta dispositivo: **PC → `PC/workspace.html`** (Workspace, entrada actual); **móvil → `MOVIL/index.html`**.
-- **Workspace PC** (`PC/workspace.html`): modelo de **pestañas con `key` única** + iframes persistentes + canal `postMessage` (`ws-abrir`, `ws-titulo`, `ws-guardar`/`ws-guardado`, `ws-etiqueta` = nombre de un ícono mostrado en la barra de pestañas); pestañas `fijo` (no cerrables) y `guardarAlCerrar` (handshake de guardado). Tiene su propio catálogo de apps y **no lee `modulos.js`**.
+- **Workspace PC** (`PC/workspace.html`): modelo de **pestañas con `key` única** + iframes persistentes + canal `postMessage` (`ws-abrir`, `ws-titulo`, `ws-guardar`/`ws-guardado`, `ws-etiqueta` = nombre de un ícono mostrado en la barra de pestañas, `ws-sonando`/`ws-callar` = una sola pestaña suena y va en verde, pieza `comun/un-sonido.js`, deuda FK); pestañas `fijo` (no cerrables) y `guardarAlCerrar` (handshake de guardado). Tiene su propio catálogo de apps y **no lee `modulos.js`**.
 - Módulos (Portal, SRP, etc.) no son shells: verifican `sessionStorage.profe_auth === '1'` y redirigen si no hay auth.
 
 ### Protocolo de deep linking inter-módulo (HECHO — contrato)

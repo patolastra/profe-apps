@@ -70,10 +70,12 @@
             };
             n.connect(destino);
             nodo = n; g.sonando = true;
+            window.UnSonido?.suena(g, true);     // Workspace: una sola pestaña suena (FK)
         };
         g.detener = () => {
             if (nodo) { nodo.onaudioprocess = null; try { nodo.disconnect(); } catch (_) {} }
             nodo = null; g.sonando = false;
+            window.UnSonido?.suena(g, false);
         };
         const salida = () => ctx.outputLatency || ctx.baseLatency || 0;
         g.oido = () => g.sonando && ancla ? ancla.seg + (ctx.currentTime - salida() - ancla.ctx) * vel : null;
