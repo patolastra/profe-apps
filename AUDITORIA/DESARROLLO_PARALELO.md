@@ -8471,3 +8471,36 @@ manera sencilla de referenciar ritmos para los acordes").*
   = bajo en la 1ª blanca y acorde en la 2ª, la vista previa del Piano recibe pulso 2. Borradores de prueba borrados.
   Ojo: el arreglo ya guardado de Coqueta está en 4/4: con la Ficha en 2/2 hay que tocar "≠ canción" y guardarlo para
   que vuelva a calzar con la grabación.
+
+### FO. 🎼 Todas las cifras del sistema en todas las apps musicales
+*Origen: PO 2026-11-04 ("esa sección debería poder presentar todas las cifras de compás permitidas por el sistema, así
+en todos los lugares").*
+- **Auditoría:** la Ficha ofrece 12 cifras (2/4 3/4 4/4 5/4 6/4 7/4 2/2 3/8 6/8 7/8 9/8 12/8); el Cajón 8, el
+  Metrónomo 6, Melodías y Arreglo 4. Error de FN: al cambiar de cifra el número del tempo se quedaba (4/4 ♩158 →
+  2/2 𝅗𝅥158, el doble de rápido).
+- **Decisión del PO (2026-11-04):** una sola lista (la de la Ficha) en una pieza común, como **lista desplegable** en
+  todas las apps; se cuenta: x/4 en negras (♩), 2/2 en blancas (𝅗𝅥), 6/8 9/8 12/8 en negra con punto (♩.), 3/8 y 7/8 en
+  corcheas (♪); al cambiar de cifra **las notas mantienen su velocidad**; el 🥁 Ritmo adapta sus divisiones y patrones;
+  lo guardado sigue igual.
+- **Plan:** `comun/tempo-mapa.js`: `TempoMapa.CIFRAS` y `TempoMapa.cifraInfo(texto)` → { n, d, compas (negras por
+  compás), pulso (negras por pulso contado), pulsos, figura, mapa (negras por pulso del mapa = 4/d) }; `cifraApp()` la
+  usa. Melodía y Arreglo guardan `cifra` (lo antiguo se lee de `compas` / `pulso`); el Piano cuenta en `pulso` y calza
+  con el mapa en `mapa`. Cajón (lista propia, su versión estudiante no carga la pieza) y Metrónomo con las 12.
+  - Lugares: Editor de Melodías (y su MIDI para el Metalófono), Arreglo (🥁 Ritmo), Piano (melodía, arreglo, vista
+    previa), Cajón (programador y estudiante), Metrónomo, Ficha (misma lista).
+- **Hecho (2026-11-04):** `comun/tempo-mapa.js` (`CIFRAS`, `cifraInfo`; `cifraApp` para las 12); la Ficha (Biblioteca y
+  TEMPO) usa esa lista; `RITMOS/` (desplegable con las 12; 6/8, 9/8, 12/8 en ♩. con tres corcheas; 3/8 y 7/8 en ♪;
+  🎵 Canción convierte el tempo de la Ficha al pulso contado); `CAJON-PERUANO/` (las 12; tiempo del metrónomo según el
+  pulso); `MELODIA/` (desplegable, `M.cifra`; metrónomo de grabar y escuchar en el pulso contado; pentagrama y MIDI con
+  la cifra y su pulso; tempo en la figura del pulso); `ARREGLO/` (desplegable, `A.cifra`; 🥁 Ritmo con divisiones que
+  calzan con el pulso, patrones contados en el pulso —Redonda / Blanca con punto / Todo el compás, Blancas, Negras /
+  Negras con punto / Corcheas, Corcheas, Bajo + acorde o Vals— y los ritmos se acomodan al cambiar de cifra; "¿hay
+  cambios?" compara sin valores por defecto); `PIANO/` (cuenta en `pulso`, calza con el mapa en 4/d, tempo con la
+  figura). Al cambiar de cifra las notas mantienen su velocidad; el tope del tempo va en negras (♩ 30–240). Lo guardado
+  antes abre igual. Prueba (navegador, Coqueta sin guardar; borradores borrados): `cifraInfo` correcta en las 12;
+  Metrónomo: 6/8 = 2 círculos sin tresillos, 7/8 = 7, 9/8 = 3, 3/8 = 3; Editor de Melodías: ♩158 se ve 𝅗𝅥79, ♩.105,
+  ♪316 según la cifra sin cambiar la velocidad, líneas de pulso por compás 3/1/2/6/3; Arreglo: 6/8 ofrece Corcheas y
+  Semicorcheas, Negras con punto = acordes en 1 y 4 (corcheas), 9/8 Vals, 3/8 Corcheas, 7/8 Bajo + acorde, 2/2
+  Blancas, 12/8 numera 1234; el ritmo de Corcheas en 4/4 pasa a 6/8 como 6 corcheas; vista previa del Piano: pulso
+  1,5, mapa 0,5, figura ♩.; el arreglo guardado de Coqueta abre "Guardado" y "≠ canción: 2/2" lo deja en 𝅗𝅥79 (antes
+  quedaba en 𝅗𝅥158, el error de la captura del PO). No probado: tocar con la grabación real en 6/8 (Coqueta es 2/2).

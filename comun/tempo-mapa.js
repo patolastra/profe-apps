@@ -21,8 +21,9 @@
 //   m.tonalidad          → { tonica, modo } o null; TempoMapa.nombreTonalidad(t) → "La mayor", "Fa♯ menor"
 //   TempoMapa.mismaTonalidad(a, b) → misma tónica (Re♭ = Do♯) y mismo modo
 //   m.compasSimple()     → pulsos por compás si la cifra del compás 1 es 2/4, 3/4 o 4/4; si no, 0
-//   m.cifraApp()         → { compas (negras), pulso (negras por pulso), texto } para 2/4, 3/4, 4/4 y 2/2 (lo que escriben
-//                          Melodía y Arreglo, deuda FN); si no, null
+//   m.cifraApp()         → TempoMapa.cifraInfo de la cifra del compás 1 (o null si no es del sistema; deudas FN y FO)
+//   TempoMapa.CIFRAS     → las cifras del sistema; TempoMapa.cifraInfo('6/8') → { n, d, compas (negras por compás),
+//                          pulso (negras por pulso contado), pulsos, figura, mapa (negras por pulso del mapa) }
 //   m.bpmEn(p)           → tempo alrededor del pulso p
 //   m.secciones          → [{ compas, seg, nombre }] en orden (compas null = sin tempo en ese punto)
 //   m.seccionEn(c)       → la sección del compás c (o null); m.seccionEnSeg(s) → la que suena en el segundo s (o null)
@@ -87,13 +88,8 @@
         };
         m.cifraEn = c => { let n = cifras[0].n; for (const x of cifras) if (x.compas <= c) n = x.n; return n; };
         m.compasSimple = () => { const y = cifras.filter(x => x.compas <= 1).pop() || cifras[0]; return y.d === 4 && y.n >= 2 && y.n <= 4 ? y.n : 0; };
-        // Lo que escriben Melodía y Arreglo (deuda FN): compas = negras por compás, pulso = negras por pulso (2/2 = 4 y 2)
-        m.cifraApp = () => {
-            const y = cifras.filter(x => x.compas <= 1).pop() || cifras[0];
-            if (y.d === 4 && y.n >= 2 && y.n <= 4) return { compas: y.n, pulso: 1, texto: `${y.n}/4` };
-            if (y.d === 2 && y.n === 2) return { compas: 4, pulso: 2, texto: '2/2' };
-            return null;
-        };
+        // La cifra del compás 1 como la escriben las apps (deudas FN y FO): cifraInfo, o null si no es del sistema
+        m.cifraApp = () => cifraInfo(m.cifraTexto(1));
         m.cifraTexto = (c = 1) => { let y = cifras[0]; for (const x of cifras) if (x.compas <= c) y = x; return `${y.n}/${y.d}`; };
         m.pulsoDeCompas = c => {
             let p = 0;
@@ -219,10 +215,23 @@
     const mismaTonalidad = (a, b) => !!(a?.tonica && b?.tonica) && a.modo === b.modo && pcDe(a.tonica) === pcDe(b.tonica);
     const nombreTonalidad = t => t?.tonica ? `${SOLF[t.tonica[0]]}${t.tonica[1] === '#' ? '♯' : t.tonica[1] === 'b' ? '♭' : ''} ${t.modo}` : '';
     // Las tónicas que se ofrecen (las mismas del Editor de Melodías y del Arreglo)
+    // Cifras del sistema (deuda FO): las ofrecen la Ficha y todas las apps musicales. Cómo se cuenta cada una:
+    // x/4 en negras · 2/2 en blancas · 6/8, 9/8 y 12/8 en negra con punto · 3/8 y 7/8 en corcheas.
+    const CIFRAS = ['2/4', '3/4', '4/4', '5/4', '6/4', '7/4', '2/2', '3/8', '6/8', '7/8', '9/8', '12/8'];
+    // → { texto, n, d, compas (negras por compás), pulso (negras por pulso contado), pulsos (por compás),
+    //     figura (del pulso: ♩ 𝅗𝅥 ♩. ♪), mapa (negras por pulso del mapa de tempo = 4/d) } o null
+    function cifraInfo(texto) {
+        if (!CIFRAS.includes(texto)) return null;
+        const [n, d] = texto.split('/').map(Number);
+        const compuesta = d === 8 && n % 3 === 0 && n > 3;
+        const pulso = d === 2 ? 2 : d === 4 ? 1 : compuesta ? 1.5 : 0.5;
+        const compas = n * 4 / d;
+        return { texto, n, d, compas, pulso, pulsos: Math.round(compas / pulso), figura: { 2: '𝅗𝅥', 1: '♩', 1.5: '♩.', 0.5: '♪' }[pulso], mapa: 4 / d };
+    }
     const TONICAS = {
         mayor: ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'],
         menor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'],
     };
 
-    window.TempoMapa = { crear, cargar, cargarFicha, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS, versosDeLetra };
+    window.TempoMapa = { crear, cargar, cargarFicha, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS, versosDeLetra, CIFRAS, cifraInfo };
 })();

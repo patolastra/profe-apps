@@ -140,9 +140,9 @@
             <div class="fila"><span>Tonalidad</span><select id="tonica"></select>
                 <div class="seg" id="seg-modo"><button class="btn" data-v="mayor">Mayor</button><button class="btn" data-v="menor">Menor</button></div>
                 <button class="dif" id="dif-ton"></button></div>
-            <div class="fila"><span>Compás</span><div class="seg" id="seg-compas"><button class="btn" data-v="2">2/4</button><button class="btn" data-v="3">3/4</button><button class="btn" data-v="4">4/4</button><button class="btn" data-v="2/2">2/2</button></div>
+            <div class="fila"><span>Compás</span><select id="sel-cifra" title="Cifra de compás"></select>
                 <button class="dif" id="dif-compas"></button>
-                <span>Tempo <span id="tempo-u" style="display:inline-block;width:1.2em;text-align:center">♩</span></span><input id="tempo" type="number" min="30" max="240" step="0.01"></div>
+                <span>Tempo <span id="tempo-u" style="display:inline-block;width:1.2em;text-align:center">♩</span></span><input id="tempo" type="number" min="15" max="480" step="0.01"></div>
             <div class="fila"><span>Melodía</span><select id="mel-elegir"></select><button class="btn" id="b-copiar-mel">Copiar</button></div>
             <div class="ayuda" id="mel-info"></div>
         </div>
@@ -226,7 +226,9 @@ let mapaTempo = null, tempoV = 0, fichaCancion = null;   // fichaCancion: la Fic
 // ══ El arreglo ══════════════════════════════════════════════════════════════════════════
 const A = {
     v: 1, tempo: 120, compas: 4, tonica: 'C', modo: 'mayor',
-    pulso: 1,                   // negras por pulso: 2 = compás 2/2 (compas 4, se cuenta en blancas; deuda FN). tempo, en negras
+    // Cifra (deudas FN y FO, TempoMapa.cifraInfo): compas = negras por compás, pulso = negras por pulso contado
+    // (2/2: 2 · 6/8: 1,5 · 3/8: 0,5). tempo, siempre en negras por minuto; en pantalla, en la figura del pulso.
+    cifra: '4/4', pulso: 1,
     melodia: null,              // { origen, etiqueta, tonalidad, mano, notas: [{ t, d, m, nombre, dedo }] } (t, d en semicorcheas)
     secciones: [],              // { id, nombre, acordes (texto), melodia (bool), melDesde (compás) }
     orden: [],                  // ids de secciones
@@ -369,7 +371,7 @@ function completarVoicings(todos = false) {
 // ══ Ritmo de los acordes por sección (deuda FM) ═══════════════════════════════════════════
 const DIVS = { negra: { n: 1, nombre: 'Negras' }, corchea: { n: 2, nombre: 'Corcheas' }, tresillo: { n: 3, nombre: 'Tresillos' },
     semicorchea: { n: 4, nombre: 'Semicorcheas' } };
-const celdasCompas = r => A.compas * DIVS[r.div].n;     // casillas por compás
+const celdasCompas = r => Math.round(A.compas * DIVS[r.div].n);     // casillas por compás
 const celdaT = r => 4 / DIVS[r.div].n;                  // largo de una casilla, en semicorcheas
 // El acorde para la mano derecha: la posición elegida (④) llevada a la octava de los acordes, con dedos 1-3-5
 function acordeDer(nombre) {
@@ -386,26 +388,52 @@ function bajoDe(nombre) {
     const ac = acordePorNombre(nombre); if (!ac) return null;
     return 12 * (A.octavas.bajo + 1) + (ac.bajo ?? ac.pcs[0]);
 }
-// Patrones listos para un compás de P pulsos: { div, acordes, bajos }
+// Divisiones que calzan con el pulso de la cifra (6/8: corcheas y semicorcheas; x/4: todas)
+const divsValidas = () => Object.keys(DIVS).filter(d => Number.isInteger(Math.round(A.pulso * DIVS[d].n * 1e6) / 1e6));
+// Patrones listos para un compás, contados en el pulso de la cifra (FO): { div, acordes, bajos }
 function patron(id) {
-    const P = A.compas;
-    const rango = (n, largo, desde = 0) => { const o = []; for (let i = desde; i < P * n; i += largo) o.push([i, Math.min(largo, P * n - i)]); return o; };
+    const div = Number.isInteger(A.pulso) ? 'negra' : 'corchea';
+    const N = Math.round(A.compas * DIVS[div].n), cp = Math.round(A.pulso * DIVS[div].n);   // casillas por compás y por pulso
+    const cada = (largo, desde = 0, n = N) => { const o = []; for (let i = desde; i < n; i += largo) o.push([i, Math.min(largo, n - i)]); return o; };
     switch (id) {
-        case 'redonda': return { div: 'negra', acordes: [[0, P]], bajos: [[0, P]] };
-        case 'blancas': return { div: 'negra', acordes: rango(1, 2), bajos: [[0, P]] };
-        case 'negras': return { div: 'negra', acordes: rango(1, 1), bajos: [[0, P]] };
-        case 'corcheas': return { div: 'corchea', acordes: rango(2, 1), bajos: [[0, P * 2]] };
-        case 'bajo-acorde': case 'vals': return { div: 'negra', acordes: rango(1, A.pulso, A.pulso), bajos: [[0, A.pulso]] };   // 2/2: en blancas
+        case 'redonda': return { div, acordes: [[0, N]], bajos: [[0, N]] };
+        case 'blancas': return { div: 'negra', acordes: cada(2), bajos: [[0, N]] };
+        case 'pulsos': case 'negras': return { div, acordes: cada(cp), bajos: [[0, N]] };
+        case 'corcheas': { const n = Math.round(A.compas * 2); return { div: 'corchea', acordes: cada(1, 0, n), bajos: [[0, n]] }; }
+        case 'bajo-acorde': case 'vals': return { div, acordes: cada(cp, cp), bajos: [[0, cp]] };
     }
     return null;
 }
-const PATRONES = () => [['redonda', 'Redonda'], ['blancas', 'Blancas'], ['negras', 'Negras'], ['corcheas', 'Corcheas'],
-    A.compas === 3 ? ['vals', 'Vals'] : ['bajo-acorde', 'Bajo + acorde']];
+function PATRONES() {
+    const I = infoA(), todo = { 4: 'Redonda', 3: 'Blanca con punto', 2: 'Blanca' }[A.compas] || 'Todo el compás';
+    const l = [['redonda', todo]];
+    if (I.d === 4 && I.n % 2 === 0 && I.n > 2) l.push(['blancas', 'Blancas']);
+    l.push(['pulsos', NOMBRE_FIG[I.figura]]);
+    if (A.pulso !== 0.5) l.push(['corcheas', 'Corcheas']);
+    if (I.pulsos >= 2) l.push(I.pulsos === 3 ? ['vals', 'Vals'] : ['bajo-acorde', 'Bajo + acorde']);
+    return l;
+}
+// Lleva un ritmo a otra división y/o a la cifra actual: figuras al valor más cercano, sin pisarse ni pasarse del compás
+function acomodarRitmo(r, div = r.div, viejoT = celdaT(r)) {
+    if (!divsValidas().includes(div)) div = 'corchea';
+    r.div = div;
+    const nuevo = celdaT(r), T = celdasCompas(r) * r.compases;
+    const llevar = lista => {
+        const out = [];
+        for (const [a, l] of lista) {
+            const a2 = Math.round(a * viejoT / nuevo), l2 = Math.max(1, Math.round(l * viejoT / nuevo));
+            if (a2 >= T || out.some(([x, y]) => a2 < x + y)) continue;
+            out.push([a2, Math.min(l2, T - a2)]);
+        }
+        return out;
+    };
+    r.acordes = llevar(r.acordes); r.bajos = llevar(r.bajos);
+}
 // Un patrón de un compás, repetido en los compases del ritmo
 function aplicarPatron(r, id) {
     const q = patron(id); if (!q) return;
     r.div = q.div;
-    const N = A.compas * DIVS[q.div].n;
+    const N = Math.round(A.compas * DIVS[q.div].n);
     const rep = l => Array.from({ length: r.compases }, (_, c) => l.map(([a, b]) => [a + c * N, b])).flat();
     r.acordes = rep(q.acordes); r.bajos = rep(q.bajos);
 }
@@ -472,7 +500,7 @@ function desplegar() {
 }
 function datosPublicos(hasta) {
     const d = desplegar();
-    return { v: 1, tipo: 'arreglo', cancion: cancionNombre, etiqueta: $('etiqueta').value.trim(), tempo: A.tempo, compas: A.compas, pulso: A.pulso,
+    return { v: 1, tipo: 'arreglo', cancion: cancionNombre, etiqueta: $('etiqueta').value.trim(), tempo: A.tempo, compas: A.compas, pulso: A.pulso, cifra: A.cifra,
         tonalidad: nombreTonalidad(), notas: d.notas, acordes: d.acordes, secciones: d.secciones,
         // La grabación va solo con mapa de tempo: el Piano lo lee (tempo/<cancion>.json) para calzar cada pulso
         audio: (audios.melodia || audios.karaoke) && mapaTempo ? { melodia: audios.melodia, karaoke: audios.karaoke, semitonos: semitonos(),
@@ -485,11 +513,17 @@ function datosPublicos(hasta) {
 const tonOficial = () => fichaCancion?.tonalidad || null;
 const tonicaDe = (lista, t) => lista.find(x => x === t.tonica) || lista.find(x => TempoMapa.mismaTonalidad({ tonica: x, modo: t.modo }, t)) || null;
 // Compás del arreglo (FN): "2/4", "3/4", "4/4" o "2/2"; al cambiarlo el número del tempo se queda (cambia la figura que cuenta)
-const cifraA = () => A.pulso === 2 ? '2/2' : String(A.compas);
-function ponerCifra({ compas, pulso }) { const ver = A.tempo / A.pulso; A.compas = compas; A.pulso = pulso; A.tempo = ver * pulso; }
+const infoA = () => TempoMapa.cifraInfo(A.cifra) || TempoMapa.cifraInfo('4/4');
+const NOMBRE_FIG = { '𝅗𝅥': 'Blancas', '♩': 'Negras', '♩.': 'Negras con punto', '♪': 'Corcheas' };
+// Cambiar de cifra no cambia la velocidad de las notas (tempo en negras); los ritmos se acomodan a la nueva
+function ponerCifraA(txt, ajustar = true) {
+    const i = TempoMapa.cifraInfo(txt) || TempoMapa.cifraInfo('4/4');
+    A.cifra = i.texto; A.compas = i.compas; A.pulso = i.pulso;
+    if (ajustar) A.secciones.forEach(s => { if (s.ritmo) acomodarRitmo(s.ritmo); });
+}
 function pintarDif() {
     const ca = fichaCancion ? fichaCancion.cifraApp() : null, n = !!ca, ct = fichaCancion ? fichaCancion.cifraTexto(1) : '';
-    const dc = $('dif-compas'), difC = !!fichaCancion && (!ca || ca.compas !== A.compas || ca.pulso !== A.pulso);
+    const dc = $('dif-compas'), difC = !!fichaCancion && (!ca || ca.texto !== A.cifra);
     dc.classList.toggle('on', difC); dc.textContent = difC ? `≠ canción: ${ct}` : ''; dc.disabled = !n;
     dc.title = n ? `La canción está en ${ct} (su Ficha). Toca para usarlo.` : `La canción está en ${ct}: el arreglo aún no lo escribe.`;
     const t = tonOficial(), nom = TempoMapa.nombreTonalidad(t);
@@ -500,7 +534,7 @@ function pintarDif() {
     dor.classList.toggle('on', !!difO); dor.textContent = difO ? `≠ canción: ${nombreTon(t.tonica)}` : '';
     dor.title = difO ? `Según la Ficha de la canción, la grabación está en ${nom}. Toca para usarlo.` : '';
 }
-$('dif-compas').onclick = e => { e.target.blur(); const ca = fichaCancion?.cifraApp(); if (!ca) return; ponerCifra(ca); pintarBase(); pintarOrden(); cambio(); };
+$('dif-compas').onclick = e => { e.target.blur(); const ca = fichaCancion?.cifraApp(); if (!ca) return; ponerCifraA(ca.texto); pintarBase(); pintarSecciones(); pintarOrden(); cambio(); };
 $('dif-ton').onclick = e => {
     e.target.blur(); const t = tonOficial(); if (!t) return;
     A.modo = t.modo; A.tonica = tonicaDe(TONICAS[t.modo], t) || A.tonica; pintarBase(); pintarAudio(); cambio();
@@ -516,10 +550,10 @@ function pintarBase() {
     if (!TONICAS[A.modo].includes(A.tonica)) A.tonica = TONICAS[A.modo][0];
     t.value = A.tonica;
     document.querySelectorAll('#seg-modo button').forEach(b => b.classList.toggle('on', b.dataset.v === A.modo));
-    document.querySelectorAll('#seg-compas button').forEach(b => b.classList.toggle('on', b.dataset.v === cifraA()));
+    $('sel-cifra').value = A.cifra;
     $('tempo').value = Math.round(A.tempo / A.pulso * 100) / 100;
-    $('tempo-u').textContent = A.pulso === 2 ? '𝅗𝅥' : '♩';
-    $('tempo-u').title = A.pulso === 2 ? 'Blancas por minuto' : 'Negras por minuto';
+    $('tempo-u').textContent = infoA().figura;
+    $('tempo-u').title = `${NOMBRE_FIG[infoA().figura]} por minuto`;
     $('mel-elegir').innerHTML = melodias.length
         ? melodias.map(m => `<option value="${m.id}">${esc(m.etiqueta || 'Melodía')}${m.tonalidad ? ' · ' + esc(m.tonalidad) : ''}</option>`).join('')
         : '<option value="">La canción no tiene melodías</option>';
@@ -583,7 +617,7 @@ function pintarOrden() {
     $('orden-add').innerHTML = A.secciones.map(s => `<button class="btn" data-add="${s.id}">＋ ${esc(s.nombre || 'Sección')}</button>`).join('');
     const d = desplegar();
     const seg = Math.round(d.pulsos * 60 / A.tempo);
-    $('orden-info').textContent = d.pulsos ? `${d.pulsos / A.compas} compases · ${Math.floor(seg / 60)}:${String(seg % 60).padStart(2, '0')} al tempo ${A.tempo}` : '';
+    $('orden-info').textContent = d.pulsos ? `${d.pulsos / A.compas} compases · ${Math.floor(seg / 60)}:${String(seg % 60).padStart(2, '0')} al tempo ${infoA().figura} ${Math.round(A.tempo / A.pulso)}` : '';
 }
 function svgAcorde(ms, dedos) {
     const NEG = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
@@ -638,8 +672,23 @@ function pintarAudio() {
 function pintarTodo() { pintarBase(); pintarSecciones(); pintarOrden(); pintarOctavas(); pintarAcordes(); pintarAudio(); cambio(); }
 
 // ══ Cambios ═════════════════════════════════════════════════════════════════════════════
-const contenidoActual = () => JSON.stringify(A);
-const hayCambios = () => contenidoActual() !== contenidoBase || $('etiqueta').value.trim() !== etiquetaBase;
+// Lo guardado no lleva la cifra cuando es x/4 (así se leía antes de FN/FO)
+const contenidoActual = () => {
+    const o = { ...A };
+    if (o.cifra === o.compas + '/4') { delete o.cifra; delete o.pulso; }
+    return JSON.stringify(o);
+};
+// ¿Hay cambios? Se compara sin los valores por defecto (octavas 4 / 2, cifra x/4) ni el orden de los campos, para que
+// un arreglo guardado antes o después de estas opciones abra igual, sin "Sin guardar"
+function canon(txt) {
+    let o; try { o = JSON.parse(txt || '{}'); } catch (_) { return txt; }
+    if (o.octavas && o.octavas.acordes === 4 && o.octavas.bajo === 2) delete o.octavas;
+    if (!o.cifra || o.cifra === o.compas + '/4') { delete o.cifra; if (!o.pulso || o.pulso === 1) delete o.pulso; }
+    const orden = x => Array.isArray(x) ? x.map(orden) : x && typeof x === 'object'
+        ? Object.fromEntries(Object.keys(x).sort().map(k => [k, orden(x[k])])) : x;
+    return JSON.stringify(orden(o));
+}
+const hayCambios = () => canon(contenidoActual()) !== canon(contenidoBase) || $('etiqueta').value.trim() !== etiquetaBase;
 const claveBorrador = () => 'arreglo_borrador:' + (assetId || 'nuevo:' + cancionId);
 let previaT = null;
 function cambio() {
@@ -660,8 +709,10 @@ window.addEventListener('message', e => { if (e.data?.tipo === 'piano-listo') en
 
 $('tonica').onchange = e => { A.tonica = e.target.value; pintarBase(); pintarAudio(); cambio(); };
 $('seg-modo').onclick = e => { const b = e.target.closest('button'); if (!b) return; A.modo = b.dataset.v; pintarBase(); pintarAudio(); cambio(); };
-$('seg-compas').onclick = e => { const b = e.target.closest('button'); if (!b) return; ponerCifra(b.dataset.v === '2/2' ? { compas: 4, pulso: 2 } : { compas: +b.dataset.v, pulso: 1 }); pintarBase(); pintarOrden(); cambio(); };
-$('tempo').onchange = e => { A.tempo = Math.max(30, Math.min(240, Math.round((+e.target.value || 120) * 100) / 100)) * A.pulso; pintarBase(); pintarOrden(); pintarAudio(); cambio(); };
+$('sel-cifra').innerHTML = TempoMapa.CIFRAS.map(c => `<option>${c}</option>`).join('');
+$('sel-cifra').onchange = e => { ponerCifraA(e.target.value); pintarBase(); pintarSecciones(); pintarOrden(); cambio(); e.target.blur(); };
+// El tempo se escribe en la figura del pulso; el tope va en negras (♩ 30–240)
+$('tempo').onchange = e => { A.tempo = Math.max(30, Math.min(240, Math.round((+e.target.value || 120) * A.pulso * 100) / 100)); pintarBase(); pintarOrden(); pintarAudio(); cambio(); };
 $('etiqueta').oninput = cambio;
 
 // Melodía: se copia el archivo público de la melodía (alturas reales y dedos de piano)
@@ -763,7 +814,7 @@ function abrirRitmo(id) {
     const otras = A.secciones.filter(x => x !== s && x.ritmo);
     $('rit-copiar').innerHTML = '<option value="">' + (otras.length ? 'Elegir…' : '(ninguna con ritmo)') + '</option>' + otras.map(x => `<option value="${x.id}">${esc(x.nombre || 'Sección')}</option>`).join('');
     $('rit-copiar').disabled = !otras.length;
-    $('rit-div').innerHTML = Object.entries(DIVS).map(([v, d]) => `<option value="${v}">${d.nombre}</option>`).join('');
+    $('rit-div').innerHTML = divsValidas().map(v => `<option value="${v}">${DIVS[v].nombre}</option>`).join('');
     $('rit-fondo').classList.add('on');
     pintarRitmo();
 }
@@ -773,7 +824,7 @@ function pintarRitmo() {
     $('rit-patron').value = '';
     $('rit-bajo').checked = r.bajo;
     document.querySelectorAll('#rit-largo .btn').forEach(b => b.classList.toggle('on', +b.dataset.v === r.compases));
-    const N = celdasCompas(r), T = N * r.compases, n = DIVS[r.div].n * A.pulso;   // n = casillas por pulso (2/2: por blanca)
+    const N = celdasCompas(r), T = N * r.compases, n = Math.round(DIVS[r.div].n * A.pulso);   // n = casillas por pulso contado
     const celdas = Array.from({ length: T }, (_, i) =>
         `<div class="rc${i % N === 0 && i ? ' compas' : i % n === 0 && i ? ' pulso' : ''}" style="grid-column:${i + 1}"></div>`).join('');
     const bloques = (f, lista) => lista.map(([a, l]) => `<div class="rb" style="grid-column:${a + 1} / span ${l}"></div>`).join('')
@@ -781,7 +832,7 @@ function pintarRitmo() {
     const conMel = !!(ritSec.melodia && A.melodia);
     const fila = (f, nom, sub, apagada) => `<div class="rf${apagada ? ' apagada' : ''}" data-f="${f}"><div class="rf-nom">${nom}<small>${sub}</small></div>
         <div class="rf-g" style="grid-template-columns:repeat(${T},1fr)">${celdas}${bloques(f, r[f])}</div></div>`;
-    const PC = A.compas / A.pulso;   // pulsos por compás
+    const PC = infoA().pulsos;   // pulsos por compás
     const nums = Array.from({ length: PC * r.compases }, (_, k) => `<span style="grid-column:${k * n + 1} / span ${n}">${(k % PC) + 1}</span>`).join('');
     $('rit-grilla').innerHTML = `<div class="rit-nums"><div class="rf-nom"></div><div class="rf-g" style="grid-template-columns:repeat(${T},1fr)">${nums}</div></div>`
         + fila('acordes', 'Acordes', `mano derecha · octava ${A.octavas.acordes}`, false)
@@ -829,22 +880,7 @@ $('rit-copiar').onchange = e => {
     ritSec.ritmo = JSON.parse(JSON.stringify(o.ritmo)); ritCambio();
 };
 // Cambiar la división: las figuras se llevan al valor más cercano de la nueva (sin pisarse)
-$('rit-div').onchange = e => {
-    const r = ritSec.ritmo, viejo = celdaT(r);
-    r.div = e.target.value;
-    const nuevo = celdaT(r), T = celdasCompas(r) * r.compases;
-    const llevar = lista => {
-        const out = [];
-        for (const [a, l] of lista) {
-            const a2 = Math.round(a * viejo / nuevo), l2 = Math.max(1, Math.round(l * viejo / nuevo));
-            if (a2 >= T || out.some(([x, y]) => a2 < x + y)) continue;
-            out.push([a2, Math.min(l2, T - a2)]);
-        }
-        return out;
-    };
-    r.acordes = llevar(r.acordes); r.bajos = llevar(r.bajos);
-    ritCambio();
-};
+$('rit-div').onchange = e => { acomodarRitmo(ritSec.ritmo, e.target.value); ritCambio(); };
 // 1 ⇄ 2 compases: al pasar a 2 se copia el primero; al volver a 1 se queda el primero
 $('rit-largo').onclick = e => {
     const b = e.target.closest('[data-v]'); if (!b) return;
@@ -885,7 +921,7 @@ $('rit-oir').onclick = () => {
     if (!primero) { toast('Escribe los acordes de la sección para escucharla.'); return; }
     const c = audio(), t0 = c.currentTime + 0.1, sP = 60 / A.tempo, sT = sP / 4, nodos = [];
     const conMel = !!(ritSec.melodia && A.melodia), der = acordeDer(primero), bajo = bajoDe(primero);
-    const PC = A.compas / A.pulso;   // el metrónomo suena en cada pulso (2/2: cada blanca)
+    const PC = infoA().pulsos;   // el metrónomo suena en cada pulso contado (2/2: blanca · 6/8: ♩.)
     for (let k = 0; k < PC * r.compases; k++) nodos.push(nota(c, k % PC ? 84 : 96, t0 + k * sP * A.pulso, 0.04, 0.12, 'square'));
     if (!conMel && der) r.acordes.forEach(([a, l]) => der.m.forEach(m => nodos.push(nota(c, m, t0 + a * celdaT(r) * sT, l * celdaT(r) * sT, 0.12))));
     if (r.bajo && bajo !== null) r.bajos.forEach(([a, l]) => nodos.push(nota(c, bajo, t0 + a * celdaT(r) * sT, l * celdaT(r) * sT, 0.2)));
@@ -1023,7 +1059,8 @@ function toast(t) {
 // ══ Inicio ══════════════════════════════════════════════════════════════════════════════
 function cargarContenido(txt) {
     const j = JSON.parse(txt);
-    Object.assign(A, { pulso: 1 }, j, { audio: { original: 'C', desde: 1, ...(j.audio || {}) }, octavas: { acordes: 4, bajo: 2, ...(j.octavas || {}) } });
+    ponerCifraA(j.cifra || (j.pulso === 2 ? '2/2' : `${j.compas || 4}/4`), false);   // lo antiguo: compas (x/4) o pulso 2
+    Object.assign(A, j, { audio: { original: 'C', desde: 1, ...(j.audio || {}) }, octavas: { acordes: 4, bajo: 2, ...(j.octavas || {}) } });
 }
 async function iniciar() {
     if (!assetId && !cancionId) { $('sin').style.display = 'flex'; return; }
@@ -1052,7 +1089,7 @@ async function iniciar() {
             audios = { melodia: mel ? publica(mel.storage_path) : null, karaoke: kar ? publica(kar.storage_path) : null };
             if (!assetId && melodias[0]) {       // arreglo nuevo: parte en la tonalidad y el tempo de la melodía
                 const r = await fetch(publica(`melodia/${melodias[0].id}.json`)).then(x => x.ok ? x.json() : null).catch(() => null);
-                if (r) { A.tempo = r.tempo || A.tempo; A.compas = r.compas || A.compas; }
+                if (r) { A.tempo = r.tempo || A.tempo; ponerCifraA(r.cifra || (r.pulso === 2 ? '2/2' : `${r.compas || A.compas}/4`), false); }
                 const ton = (melodias[0].tonalidad || '').split(' ');
                 const letra = Object.entries(LET_SOLF).find(([, v]) => ton[0]?.startsWith(v));
                 if (letra) {
@@ -1067,8 +1104,8 @@ async function iniciar() {
                 const t = tonOficial();
                 if (t) { A.modo = t.modo; A.tonica = tonicaDe(TONICAS[t.modo], t) || A.tonica; A.audio.original = tonicaDe(TODAS, t) || A.tonica; }
                 const ca = fichaCancion.cifraApp();
-                if (ca) { A.compas = ca.compas; A.pulso = ca.pulso; }
-                if (fichaCancion.bpm && ca) A.tempo = fichaCancion.bpm * ca.pulso;   // la Ficha va en el pulso de su cifra
+                if (ca) ponerCifraA(ca.texto, false);
+                if (fichaCancion.bpm && ca) A.tempo = fichaCancion.bpm * ca.mapa;   // la Ficha va en la figura de abajo de su cifra
             }
         }
     } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }
