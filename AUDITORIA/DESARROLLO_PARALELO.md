@@ -8597,3 +8597,8 @@ omiten").*
   previa del Editor y en el Piano del estudiante (PC). Prueba (navegador, arreglo de Coqueta sin cambios): sonando en el
   pulso 8,4, dos toques de rueda → la vista va al 24,4 y la grabación sigue desde ahí (24,4 → 29,8 a los 2,5 s);
   el arreglo sigue "Guardado".
+- **Ajuste FR (PO 2026-11-04, "necesito poder hacer recortes entremedio de secciones"):** ✂ Omitir funciona también
+  con la canción sonando (antes solo detenida, por eso en medio de una sección había que detenerse justo ahí); el
+  tramo queda fijo en la canción. Prueba (navegador, arreglo de Coqueta sin guardar; borrador borrado): un tramo en
+  medio de una sección detenida ([14, 16]) recorta solo esa parte; sonando desde el pulso 30, arrastrar de 40 a 44
+  deja el tramo [40, 44] y la canción sigue sonando.
