@@ -8564,3 +8564,27 @@ arreglar esto?"; el PO ya corrigió Coqueta a mano: está en 2/2).*
   las secciones en su segundo; la ventana muestra los dos textos, Esc cancela; sin tempo cambia directo; en ⏱ Tempo
   el cambio a 4/4 manteniendo los pulsos deja 78 compases y las secciones en 10,2 / 46,7 / 71,0 s. No probado:
   aceptar en la Biblioteca (guarda en la base; se probó la misma pieza en ⏱ Tempo).
+
+### FR. ✂ Arreglo: omitir tramos arrastrando en la vista previa
+*Origen: PO 2026-11-04 ("que las secuencias armónicas en algunas secciones terminen antes / comiencen después"; "algo
+visual… drag-drop…; la idea no es que la secuencia comience, desde su comienzo, más tarde, sino que hay partes que se
+omiten").*
+- **Decisión del PO (2026-11-04):** botón **✂ Omitir** en la vista previa del Editor (no lo ven los estudiantes); con el
+  Piano detenido la rueda recorre la canción; arrastrar de arriba abajo tapa un tramo en rojo (se ajusta al tiempo del
+  compás) y ahí no suena el piano (las dos manos); clic sobre un tramo rojo lo quita; la nota cortada suena solo fuera
+  del tramo; el tramo queda en su lugar de la canción aunque cambien la secuencia o su ritmo. Después, si hace falta,
+  omitir solo una mano.
+- **Plan:** `ARREGLO/`: `A.omitidos` = [[desde, hasta]] en negras desde el origen del arreglo (solo si hay); `desplegar`
+  recorta notas y nombres de acordes; mensajes `arreglo-omitir` / `arreglo-restaurar` desde la vista previa.
+  `PIANO/` (solo `?vista=editor`): botón ✂, rueda con el Piano detenido, arrastre y tramos en rojo; ▶ toca desde
+  donde quedó la vista.
+  - Lugares: Editor de Arreglos (vista previa) y Piano del estudiante (recibe las notas ya recortadas).
+- **Hecho (2026-11-04):** `ARREGLO/index.html` (`A.omitidos`, recorte en `desplegar` de notas y nombres de acordes,
+  `omitidos` en los datos de la vista previa, mensajes `arreglo-omitir` —une tramos que se tocan— y
+  `arreglo-restaurar`); `PIANO/index.html` (solo `?vista=editor`: botón ✂ Omitir, rueda con el piano detenido
+  —`vistaP`—, arrastre ajustado al tiempo del compás, tramos en rojo, clic en uno lo quita, al detener la vista queda
+  ahí y ▶ toca desde ahí). Sin tramos, lo guardado no cambia. Prueba (navegador, Coqueta sin guardar; borrador
+  borrado): Estrofa `E / B / C#m / A`; arrastrar de 6,1 a 7,9 negras → tramo [6, 8] (ajustado al tiempo), la nota del
+  compás 2 (4+4) queda 4+2 y la del compás 3 sigue igual; la vista previa recibe el tramo; clic en él lo quita y las
+  notas vuelven; la rueda mueve la vista 4 pulsos. No probado a la vista (ventana oculta): cómo se ve el rojo y el
+  arrastre con el mouse real.

@@ -99,6 +99,7 @@
     <div class="grupo solo-mel"><button class="btn" id="tempo-menos">−</button><span id="tempo">♩ 90</span><button class="btn" id="tempo-mas">+</button></div>
     <div class="grupo solo-mel"><button class="btn" id="b-repetir" title="Repetir la melodía subiendo 5 en cada vuelta, con precuenta entre vueltas. Al detener vuelve a la velocidad inicial.">🔁 +5</button>
         <span id="tope-box">hasta <input id="tope" type="number" min="40" max="240" value="140"></span></div>
+    <div class="grupo" id="g-omitir" style="display:none"><button class="btn" id="b-omitir" title="Omitir tramos: arrastra de arriba abajo sobre las notas (con el piano detenido; la rueda recorre la canción). Clic en un tramo rojo lo quita.">✂ Omitir</button></div>
     <button class="btn" id="b-nombres" title="Mostrar el nombre de cada nota">do re mi</button>
     <button class="btn" id="b-pantalla" title="Pantalla completa">⛶</button>
 </div>
@@ -230,8 +231,12 @@ function detener() {
     pintarBarra();
 }
 // Pulso actual (negativo durante la precuenta) en la vuelta que está sonando
+// ✂ Omitir en la vista previa del Editor de Arreglos (FR): con el piano detenido la rueda recorre la canción (vistaP) y
+// se arrastra para tapar un tramo; el editor lo guarda y vuelve a mandar las notas ya recortadas
+const EDITOR = Q.get('vista') === 'editor';
+let vistaP = null, omitirOn = false, trazoOm = null, geo = null;
 function ahora() {
-    if (ARR) return { pulso: rep ? pulsoArr() : inicioSeccion() - 0.01, vuelta: null };
+    if (ARR) return { pulso: rep ? pulsoArr() : (vistaP ?? inicioSeccion() - 0.01), vuelta: null };
     if (!vueltas.length) return { pulso: -1, vuelta: null };
     const t = audio().currentTime;
     let v = vueltas[0];
@@ -292,7 +297,8 @@ const ctxDePulso = p => rep.g ? rep.g.aCtx(srcDePulso(p)) : rep.t0 + (p - rep.p0
 async function tocarArr(desde = null, precuenta = true) {
     if (!MEL) return;
     const c = audio();
-    if (desde === null) desde = inicioSeccion();
+    if (desde === null) desde = EDITOR && vistaP !== null ? vistaP : inicioSeccion();   // ▶ desde donde quedó la vista
+    vistaP = null;
     const salida = c.createGain(); salida.connect(c.destination);
     const piano = c.createGain(); piano.gain.value = pianoOn ? 1 : 0; piano.connect(salida);
     const p0 = precuenta ? desde - MEL.compas : desde;
@@ -324,6 +330,7 @@ async function tocarArr(desde = null, precuenta = true) {
 UnSonido.alDetener(() => { if (vueltas.length) detener(); detenerArr(); }, () => vueltas.length > 0 || !!rep);
 function detenerArr() {
     if (!rep) return;
+    if (EDITOR) { try { vistaP = pulsoArr(); } catch (_) {} }   // la vista queda donde se detuvo (para omitir ahí)
     const c = audio();
     rep.g?.detener();
     try { rep.salida.gain.setValueAtTime(0, c.currentTime); rep.salida.disconnect(); } catch (_) {}
@@ -375,7 +382,7 @@ function llenarSecciones() {
     if (secSel >= (MEL.secciones || []).length) secSel = 0;
     sel.value = secSel;
 }
-document.getElementById('sec').onchange = e => { secSel = +e.target.value; e.target.blur(); if (rep) retomar(true); };
+document.getElementById('sec').onchange = e => { secSel = +e.target.value; vistaP = null; e.target.blur(); if (rep) retomar(true); };
 // Melodía ↔ Karaoke sin corte (ET): sonando, la grabación cambia en la misma posición
 document.getElementById('b-rol').onclick = async e => {
     e.target.blur(); rol = rol === 'karaoke' ? 'melodia' : 'karaoke'; pintarArr();
@@ -421,6 +428,7 @@ function dibujar() {
     document.getElementById('b-dedos').style.bottom = (altoTeclado + 12) + 'px';
     // Dos compases por delante; en pantallas bajas menos, para que cada pulso mida al menos ~45 px
     const pxPulso = yTecl / Math.max(MEL.compas, Math.min(MEL.compas * 2, yTecl / 45));
+    geo = { pulso, yTecl, pxPulso };
     const dig = DIGITACION();
     g2.clearRect(0, 0, W, H);
     // Fondo: líneas de compás y guías de cada do
@@ -485,6 +493,18 @@ function dibujar() {
         g2.fillStyle = '#0b1020'; redondeado((x0 + x1) / 2 - w / 2, y - 11, w, 22, 6); g2.fill();
         g2.strokeStyle = '#60a5fa'; g2.lineWidth = 1.5; g2.stroke();
         g2.fillStyle = '#fff'; g2.fillText(a.nombre, (x0 + x1) / 2, y + 1);
+    }
+    // ✂ Tramos omitidos (y el que se está arrastrando), en rojo
+    if (EDITOR && ARR) {
+        const banda = (a, b, alfa) => {
+            const y1 = yTecl - (b - pulso) * pxPulso, y2 = yTecl - (a - pulso) * pxPulso;
+            if (y2 < 0 || y1 > yTecl) return;
+            const ya = Math.max(0, y1), yb = Math.min(yTecl, y2);
+            g2.fillStyle = `rgba(239,68,68,${alfa})`; g2.fillRect(0, ya, W, yb - ya);
+            g2.fillStyle = 'rgba(248,113,113,.9)'; if (y1 >= 0) g2.fillRect(0, y1, W, 2); if (y2 <= yTecl) g2.fillRect(0, y2 - 2, W, 2);
+        };
+        for (const [a, b] of MEL.omitidos || []) banda(a, b, 0.22);
+        if (trazoOm) banda(Math.min(trazoOm.a, trazoOm.b), Math.max(trazoOm.a, trazoOm.b), 0.35);
     }
     // Teclado
     g2.fillStyle = '#1e293b'; g2.fillRect(0, yTecl - 3, W, 3);
@@ -552,6 +572,39 @@ function cambiarTempo(d) {
     pintarBarra();
 }
 document.getElementById('b-tocar').onclick = e => { tocar(); e.target.blur(); };
+if (EDITOR) {
+    document.getElementById('g-omitir').style.display = '';
+    const bo = document.getElementById('b-omitir');
+    bo.onclick = e => { omitirOn = !omitirOn; bo.classList.toggle('on', omitirOn); cv.style.cursor = omitirOn ? 'crosshair' : ''; e.target.blur(); };
+    const pulsoEnY = y => geo.pulso + (geo.yTecl - y) / geo.pxPulso;
+    const ajustar = p => Math.round(p / PU()) * PU();          // al tiempo del compás más cercano
+    const yDe = e => e.clientY - cv.getBoundingClientRect().top;
+    cv.addEventListener('wheel', e => {
+        if (!ARR || rep || !geo) return;
+        e.preventDefault();
+        vistaP = Math.max(-MEL.compas, (vistaP ?? geo.pulso) - e.deltaY / geo.pxPulso);
+    }, { passive: false });
+    cv.addEventListener('pointerdown', e => {
+        if (!omitirOn || !ARR || rep || !geo) return;
+        const y = yDe(e); if (y > geo.yTecl) return;
+        const p = pulsoEnY(y);
+        if ((MEL.omitidos || []).some(([a, b]) => p >= a && p <= b)) {     // clic sobre un tramo rojo: se quita
+            try { window.parent.postMessage({ tipo: 'arreglo-restaurar', en: p }, '*'); } catch (_) {}
+            return;
+        }
+        if (vistaP === null) vistaP = geo.pulso;
+        trazoOm = { a: ajustar(p), b: ajustar(p) };
+        try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    cv.addEventListener('pointermove', e => { if (trazoOm && geo) trazoOm.b = ajustar(pulsoEnY(yDe(e))); });
+    const soltar = () => {
+        if (!trazoOm) return;
+        const { a, b } = trazoOm; trazoOm = null;
+        if (a !== b) try { window.parent.postMessage({ tipo: 'arreglo-omitir', desde: Math.min(a, b), hasta: Math.max(a, b) }, '*'); } catch (_) {}
+    };
+    cv.addEventListener('pointerup', soltar);
+    cv.addEventListener('pointercancel', () => { trazoOm = null; });
+}
 document.getElementById('tempo-menos').onclick = () => cambiarTempo(-5);
 document.getElementById('tempo-mas').onclick = () => cambiarTempo(5);
 document.getElementById('b-repetir').onclick = e => { repetir = !repetir; anotar('piano_repetir', repetir ? '1' : '0'); pintarBarra(); e.target.blur(); };
