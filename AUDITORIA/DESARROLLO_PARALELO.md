@@ -8631,3 +8631,5 @@ grande"; "el dropdown de las secciones muestre siempre la sección activa y sin 
   La♭/Mi♭; el botón Melodía/Karaoke no se ve; el menú dice "Estrofa 1 | Coro 1 | …"; sonando en el pulso 98 (c. 25)
   el menú pasa a "Coro 1", la fila "Coro 1" se pinta y el acorde de ahí es Bm; al detener la fila se apaga. No probado
   a la vista (ventana oculta): el recuadro del acorde y la línea dorada.
+- **Ajuste FU (PO 2026-11-04, "borra aquellas claves americanas pequeñas"):** `PIANO/` ya no escribe el nombre de cada
+  acorde (E, Bm…) sobre su bloque; el que suena queda solo en el recuadro grande en cifrado latino.
