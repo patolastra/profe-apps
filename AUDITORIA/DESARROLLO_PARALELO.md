@@ -8504,3 +8504,36 @@ en todos los lugares").*
   Blancas, 12/8 numera 1234; el ritmo de Corcheas en 4/4 pasa a 6/8 como 6 corcheas; vista previa del Piano: pulso
   1,5, mapa 0,5, figura ♩.; el arreglo guardado de Coqueta abre "Guardado" y "≠ canción: 2/2" lo deja en 𝅗𝅥79 (antes
   quedaba en 𝅗𝅥158, el error de la captura del PO). No probado: tocar con la grabación real en 6/8 (Coqueta es 2/2).
+
+### FP. 🎹 Arreglo: heredar la base, Secuencias armónicas y Estructura desde la Ficha
+*Origen: PO 2026-11-04 ("heredar (si se quiere) tonalidad, compás y tempo, con aviso…; lo que se llama secciones son
+secuencias armónicas; el orden debería heredar algunas (o todas) las secciones del tempomapper; hacer match entre
+secuencias armónicas y secciones; clic en el título de una sección: el reproductor me lleva ahí y reproduce, haya o no
+arreglo").*
+- **Auditoría:** tonalidad y compás avisan "≠ canción", el tempo no. "Secciones" = bloques de acordes con nombre libre;
+  "Orden" = fila de esos bloques, contiguos desde "empieza en el compás N"; "📋 Traer de la Ficha" crea bloques con los
+  nombres de la Ficha. La vista previa (Piano `?vista=editor`) solo toca lo que tiene notas.
+- **Decisión del PO (2026-11-04):** ① tonalidad, compás y tempo parten con los de la Ficha y avisan "≠ canción" (un
+  toque vuelve a lo de la canción); ② "Secciones" → **Secuencias armónicas** (nombre libre, acordes, ritmo, melodía);
+  ③ "Orden" → **Estructura**: las secciones de la Ficha (nombre no editable aquí), casilla para incluir cada una
+  (Todas), selector de su secuencia (match), aviso si no calzan los compases; cada sección suena **en su lugar real**
+  (saltarse una = el piano calla y la grabación sigue); **clic en el título** = la vista previa salta ahí y toca la
+  grabación, haya o no arreglo. Sin Ficha con secciones, la Estructura es el orden manual de hoy. Lo guardado se
+  convierte solo (mismo nombre = conectadas).
+  - Lugares: Editor de Arreglos y su vista previa; Piano del estudiante (secciones en su lugar, toca hasta el final).
+- **Hecho (2026-11-04):** `ARREGLO/index.html`: ① tempo en su fila con "≠ canción: 𝅗𝅥 79" (`tempoOficial`, se compara en
+  negras); ② "Secuencias armónicas" (＋ Secuencia, nombre libre; su info dice en qué secciones se usa o "sin usar");
+  "📋 Crear las que faltan" crea una secuencia por nombre de la Ficha sin secuencia y las une; ③ "Estructura":
+  `A.estructura` [{ clave ("coro#2"), incluida, sec }] sobre las secciones de la Ficha (`itemsEstructura`; sin guardar
+  se deduce del orden antiguo por nombre, sin marcar cambios), Todas / Ninguna, casilla, selector, aviso de compases
+  (✓, ×N si la secuencia cabe N veces —se repite hasta llenar— o en rojo); `desplegar` ubica cada sección en
+  (compás − origen) × compás, origen = compás de la 1ª sección de la Ficha, y el arreglo dura hasta el final de la
+  canción (`fin`); "empieza en el compás" solo sin Ficha. Sin secciones en la Ficha, el orden manual de antes.
+  `PIANO/`: `arreglo-tocar` (clic en el título → toca desde ese pulso, sin precuenta, con o sin notas) y el largo
+  llega a `fin`. Prueba (navegador, sin guardar; borradores borrados): el arreglo guardado de Coqueta abre
+  "Guardado" con sus 8 secciones conectadas por nombre (Estrofa ×3 en Estrofa 1, ×4 en Estrofa 2; las demás "sin
+  acordes"), y en la vista previa sale cada sección en su compás (Coro 1 en el 13, Mambo 2 hasta el final); clic en
+  "Coro 1" → el Piano toca la grabación desde el pulso 48 (c. 13); sacar Coro 1 lo saca del arreglo; arreglo nuevo:
+  las 8 incluidas sin secuencia, "Crear las que faltan" crea Estrofa, Coro, "Dame", Mambo y las une; tempo ♩140 →
+  "≠ canción: 𝅗𝅥 79" y un toque vuelve a ♩158 (𝅗𝅥79); sin Ficha, el orden manual sigue igual. Ojo: en el arreglo de
+  Coqueta, las secciones ahora suenan en su lugar real (antes iban una tras otra desde el compás 1).

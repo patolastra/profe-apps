@@ -82,6 +82,16 @@
     .chip button { border: 0; background: rgba(0,0,0,.25); color: #fff; width: 20px; height: 20px; border-radius: 10px; cursor: pointer; font-size: 11px; line-height: 1; }
     .chip.arrastrando { opacity: .4; }
     #orden-add { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    /* Estructura desde la Ficha (deuda FP): una fila por sección de la canción */
+    .est-cab { display: flex; gap: 6px; margin-bottom: 6px; }
+    .est-fila { display: grid; grid-template-columns: 22px minmax(0, 1fr) 132px 150px; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid #263247; font-size: 13px; }
+    .est-fila.fuera { opacity: .45; }
+    .est-tit { text-align: left; border: 0; background: transparent; color: var(--texto); font-weight: 600; cursor: pointer; padding: 4px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .est-tit:hover { color: var(--acento); }
+    .est-tit small { color: var(--tenue); font-weight: 400; }
+    .est-fila select { width: 100%; height: 28px; }
+    .est-info { font-size: 12px; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .est-info.mal { color: #f87171; }
 
     #acordes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
     .aco { border: 1px solid var(--borde); border-radius: 8px; padding: 6px; background: #172033; text-align: center; }
@@ -141,23 +151,25 @@
                 <div class="seg" id="seg-modo"><button class="btn" data-v="mayor">Mayor</button><button class="btn" data-v="menor">Menor</button></div>
                 <button class="dif" id="dif-ton"></button></div>
             <div class="fila"><span>Compás</span><select id="sel-cifra" title="Cifra de compás"></select>
-                <button class="dif" id="dif-compas"></button>
-                <span>Tempo <span id="tempo-u" style="display:inline-block;width:1.2em;text-align:center">♩</span></span><input id="tempo" type="number" min="15" max="480" step="0.01"></div>
+                <button class="dif" id="dif-compas"></button></div>
+            <div class="fila"><span>Tempo <span id="tempo-u" style="display:inline-block;width:1.2em;text-align:center">♩</span></span><input id="tempo" type="number" min="15" max="480" step="0.01">
+                <button class="dif" id="dif-tempo"></button></div>
             <div class="fila"><span>Melodía</span><select id="mel-elegir"></select><button class="btn" id="b-copiar-mel">Copiar</button></div>
             <div class="ayuda" id="mel-info"></div>
         </div>
 
         <div class="card">
-            <h3>② Secciones <small>un acorde por compás, separados por /</small></h3>
+            <h3>② Secuencias armónicas <small>un acorde por compás, separados por /</small></h3>
             <div id="secciones"></div>
-            <button class="btn" id="b-nueva-sec">＋ Sección</button>
-            <button class="btn" id="b-traer-sec" title="Crea las secciones que faltan y arma el orden con las secciones de la Ficha de la canción">📋 Traer de la Ficha</button>
+            <button class="btn" id="b-nueva-sec">＋ Secuencia</button>
+            <button class="btn" id="b-traer-sec" title="Crea una secuencia con el nombre de cada sección de la Ficha que aún no tiene una, y las une en la Estructura">📋 Crear las que faltan</button>
             <span class="ayuda" id="sec-sin-tempo" style="visibility:hidden">La Ficha tiene secciones, pero falta marcar su tempo.</span>
             <div class="ayuda">Ejemplo: <code>A / E / F#m / D</code> (la <code>/</code> con espacios separa compases; pegada es el bajo: <code>E/G#</code>) · dos acordes en un compás: <code>A E</code> · <code>%</code> repite el anterior · también do re mi: <code>La / Mi / Fa#m</code>.</div>
         </div>
 
         <div class="card">
-            <h3>③ Orden <small>arrastra para ordenar</small></h3>
+            <h3>③ Estructura <small id="est-sub">arrastra para ordenar</small></h3>
+            <div id="estructura"></div>
             <div id="orden"></div>
             <div id="orden-add"></div>
             <div class="ayuda" id="orden-info"></div>
@@ -177,7 +189,8 @@
             <div class="fila"><span>Tono original</span><select id="original"></select><span id="semis"></span><button class="dif" id="dif-orig"></button></div>
             <div id="tempo-si">
                 <div class="ayuda" id="tempo-info"></div>
-                <div class="fila"><span>El arreglo empieza en el compás</span><input id="desde" type="number" min="-8" step="1" style="width:64px"><span>de la canción</span></div>
+                <div class="fila" id="fila-desde"><span>El arreglo empieza en el compás</span><input id="desde" type="number" min="-8" step="1" style="width:64px"><span>de la canción</span></div>
+                <div class="ayuda" id="desde-ficha" style="display:none">Cada sección de la Estructura suena en su compás de la canción.</div>
                 <div class="fila"><button class="btn" data-tempo>📋 Editar la Ficha de la canción</button></div>
             </div>
             <div id="tempo-no">
@@ -355,7 +368,8 @@ function voicingAuto(nombre, previo) {
 // Acordes en el orden en que suenan
 function secuencia() {
     const out = [];
-    for (const id of A.orden) { const s = A.secciones.find(x => x.id === id); if (s) compasesDe(s).compases.forEach(c => out.push(...c)); }
+    const ids = modoFicha() ? itemsEstructura().filter(x => x.incluida && x.sec).map(x => x.sec) : A.orden;
+    for (const id of ids) { const s = A.secciones.find(x => x.id === id); if (s) compasesDe(s).compases.forEach(c => out.push(...c)); }
     for (const s of A.secciones) compasesDe(s).compases.forEach(c => out.push(...c));   // también las que aún no están en el orden
     return out;
 }
@@ -451,11 +465,20 @@ function nombreRitmo(r) {
 // ══ Despliegue: todas las notas de la canción (lo que lee el Piano) ═════════════════════════
 function desplegar() {
     const notas = [], acordes = [], secciones = [];
-    let p = 0;                                      // pulso
-    for (const id of A.orden) {
-        const s = A.secciones.find(x => x.id === id);
-        if (!s) continue;
-        const { compases } = compasesDe(s);
+    let p = 0, fin = 0;                             // pulso (negras desde el origen del arreglo)
+    // Qué suena y dónde (FP): con Ficha, cada sección incluida con su secuencia en su compás real (repetida hasta llenar
+    // la sección); sin Ficha, el orden manual, una tras otra
+    const lugares = modoFicha()
+        ? itemsEstructura().filter(x => x.incluida && x.sec).map(x => ({ s: A.secciones.find(y => y.id === x.sec), nombre: x.etiqueta,
+            ini: (x.compas - origenArreglo()) * A.compas, largo: x.largo })).filter(x => x.s && x.ini >= 0)
+        : A.orden.map(id => ({ s: A.secciones.find(x => x.id === id) })).filter(x => x.s).map(x => ({ ...x, nombre: x.s.nombre || 'Sección' }));
+    for (const lugar of lugares) {
+        const s = lugar.s;
+        const base = compasesDe(s).compases;
+        if (!base.length && lugar.largo === undefined) continue;
+        const nC = lugar.largo ?? base.length;
+        const compases = base.length ? Array.from({ length: nC }, (_, k) => base[k % base.length]) : [];
+        if (lugar.ini !== undefined) p = lugar.ini;
         const ini = p;
         const r = s.ritmo, conMel = !!(s.melodia && A.melodia);
         compases.forEach((c, ci) => {
@@ -463,7 +486,7 @@ function desplegar() {
             if (r) {
                 // Con ritmo (FM): cada figura toma el acorde que suena en su momento; en secciones con melodía solo el bajo
                 c.forEach((nombre, i) => { const der = acordeDer(nombre); if (der) acordes.push({ t: (p + i * dur) * 4, d: dur * 4, nombre, ms: der.m }); });
-                const N = celdasCompas(r), cT = celdaT(r), k0 = (ci % r.compases) * N, finSec = (ini + compases.length * A.compas) * 4;
+                const N = celdasCompas(r), cT = celdaT(r), k0 = (ci % r.compases) * N, finSec = (ini + nC * A.compas) * 4;
                 const poner = (lista, fn) => lista.forEach(([a, l]) => {
                     if (a < k0 || a >= k0 + N) return;
                     const off = (a - k0) * cT, t = p * 4 + off, d = Math.min(l * cT, finSec - t);
@@ -486,6 +509,7 @@ function desplegar() {
             });
             p += A.compas;
         });
+        p = ini + nC * A.compas;
         if (s.melodia && A.melodia) {
             const off = (ini + (Math.max(1, s.melDesde || 1) - 1) * A.compas) * 4;
             for (const n of A.melodia.notas) {
@@ -493,10 +517,13 @@ function desplegar() {
                 notas.push({ t: off + n.t, d: Math.min(n.d, p * 4 - off - n.t), m: n.m, nombre: n.nombre, mano: 'der', dig: n.dedo ? { piano: n.dedo } : {} });
             }
         }
-        secciones.push({ nombre: s.nombre || 'Sección', t: ini * 4, compases: compases.length });
+        secciones.push({ nombre: lugar.nombre, t: ini * 4, compases: nC });
+        fin = Math.max(fin, p);
     }
     notas.sort((a, b) => a.t - b.t || a.m - b.m);
-    return { notas, acordes, secciones, pulsos: p };
+    // Con Ficha, el arreglo dura hasta el final de la canción (la grabación sigue aunque el piano calle)
+    if (modoFicha()) { const ms = seccionesMapa(), u = ms[ms.length - 1]; fin = Math.max(fin, (u.compas + u.largo - origenArreglo()) * A.compas); }
+    return { notas, acordes, secciones, pulsos: fin };
 }
 function datosPublicos(hasta) {
     const d = desplegar();
@@ -504,7 +531,8 @@ function datosPublicos(hasta) {
         tonalidad: nombreTonalidad(), notas: d.notas, acordes: d.acordes, secciones: d.secciones,
         // La grabación va solo con mapa de tempo: el Piano lo lee (tempo/<cancion>.json) para calzar cada pulso
         audio: (audios.melodia || audios.karaoke) && mapaTempo ? { melodia: audios.melodia, karaoke: audios.karaoke, semitonos: semitonos(),
-            cancion: cancionId, desde: A.audio.desde || 1, tempoV } : null,
+            cancion: cancionId, desde: origenArreglo(), tempoV } : null,
+        fin: d.pulsos,
         ...(hasta ? { hasta } : {}) };
 }
 
@@ -533,7 +561,18 @@ function pintarDif() {
     const dor = $('dif-orig'), difO = !!t && (audios.melodia || audios.karaoke) && !TempoMapa.mismaTonalidad({ tonica: t.tonica, modo: 'mayor' }, { tonica: A.audio.original, modo: 'mayor' });
     dor.classList.toggle('on', !!difO); dor.textContent = difO ? `≠ canción: ${nombreTon(t.tonica)}` : '';
     dor.title = difO ? `Según la Ficha de la canción, la grabación está en ${nom}. Toca para usarlo.` : '';
+    // Tempo (FP): el de la Ficha va en la figura de abajo de su cifra; se compara en negras y se muestra en su pulso
+    const tq = tempoOficial(), dtp = $('dif-tempo'), difTp = !!tq && Math.abs(tq.negras - A.tempo) >= 0.5;
+    dtp.classList.toggle('on', difTp); dtp.textContent = difTp ? `≠ canción: ${tq.texto}` : '';
+    dtp.title = difTp ? `La canción va a ${tq.texto} (su Ficha). Toca para usarlo.` : '';
 }
+// Tempo de la Ficha: { negras (por minuto), texto ("𝅗𝅥 79") } o null
+function tempoOficial() {
+    if (!fichaCancion?.bpm) return null;
+    const ca = fichaCancion.cifraApp(), negras = fichaCancion.bpm * (ca ? ca.mapa : 1);
+    return { negras, texto: ca ? `${ca.figura} ${Math.round(negras / ca.pulso)}` : `♩ ${Math.round(negras)}` };
+}
+$('dif-tempo').onclick = e => { e.target.blur(); const tq = tempoOficial(); if (!tq) return; A.tempo = tq.negras; pintarBase(); pintarOrden(); pintarAudio(); cambio(); };
 $('dif-compas').onclick = e => { e.target.blur(); const ca = fichaCancion?.cifraApp(); if (!ca) return; ponerCifraA(ca.texto); pintarBase(); pintarSecciones(); pintarOrden(); cambio(); };
 $('dif-ton').onclick = e => {
     e.target.blur(); const t = tonOficial(); if (!t) return;
@@ -560,7 +599,7 @@ function pintarBase() {
     if (A.melodia && melodias.some(m => m.id === A.melodia.origen)) $('mel-elegir').value = A.melodia.origen;
     $('b-copiar-mel').disabled = !melodias.length;
     const M = A.melodia;
-    if (!M) $('mel-info').textContent = 'Sin melodía: elige una y Cópiala para que vaya en las secciones que la llevan.';
+    if (!M) $('mel-info').textContent = 'Sin melodía: elige una y Cópiala para que vaya en las secuencias que la llevan.';
     else {
         const comp = Math.ceil(Math.max(...M.notas.map(n => n.t + n.d)) / 4 / A.compas);
         $('mel-info').textContent = `Copiada: ${M.etiqueta || 'Melodía'} · ${M.tonalidad || ''} · ${comp} ${comp === 1 ? 'compás' : 'compases'} · mano ${M.mano === 'izq' ? 'izquierda' : 'derecha'}`
@@ -571,17 +610,17 @@ function pintarSecciones() {
     $('secciones').innerHTML = A.secciones.map(s => {
         const { compases, malos } = compasesDe(s);
         return `<div class="sec" data-id="${s.id}">
-            <div class="sec-cab"><input type="text" data-c="nombre" value="${esc(s.nombre)}" placeholder="Nombre (Intro, Estrofa…)">
-                <button class="btn" data-acc="sumar" title="Agregar al final del orden">＋ al orden</button>
-                <button class="btn" data-acc="borrar" title="Borrar la sección">🗑</button></div>
+            <div class="sec-cab"><input type="text" data-c="nombre" value="${esc(s.nombre)}" placeholder="Nombre (A, B, Estrofa, Puente…)">
+                <button class="btn" data-acc="sumar" title="Agregar al final de la estructura"${modoFicha() ? ' style="display:none"' : ''}>＋ a la estructura</button>
+                <button class="btn" data-acc="borrar" title="Borrar la secuencia">🗑</button></div>
             <textarea data-c="acordes" placeholder="A / E / F#m / D" spellcheck="false">${esc(s.acordes)}</textarea>
             <div class="sec-mel"><label><input type="checkbox" data-c="melodia" ${s.melodia ? 'checked' : ''} ${A.melodia ? '' : 'disabled'}> Lleva la melodía</label>
                 <span>desde el compás</span><input type="number" data-c="melDesde" min="1" value="${s.melDesde || 1}">
                 <button class="btn btn-ritmo${s.ritmo ? ' on' : ''}" data-acc="ritmo" title="Ritmo de los acordes en esta sección">🥁 ${esc(nombreRitmo(s.ritmo))}</button></div>
             <div class="sec-info">${infoSeccion(s, compases, malos)}</div>
         </div>`;
-    }).join('') || '<div class="ayuda">Aún no hay secciones.</div>';
-    $('b-traer-sec').disabled = !seccionesMapa().length;
+    }).join('') || '<div class="ayuda">Aún no hay secuencias armónicas.</div>';
+    $('b-traer-sec').style.display = modoFicha() ? '' : 'none';
     // Estructura sin tempo (EW): las secciones existen por segundo, pero el arreglo va por compás
     $('sec-sin-tempo').style.visibility = !seccionesMapa().length && fichaCancion?.secciones?.length ? 'visible' : 'hidden';
 }
@@ -595,10 +634,9 @@ function seccionesMapa() {
 }
 function infoSeccion(s, compases, malos) {
     let t = `${compases.length} ${compases.length === 1 ? 'compás' : 'compases'}`;
-    const largos = [...new Set(seccionesMapa().filter(x => normSec(x.nombre) === normSec(s.nombre)).map(x => x.largo))];
-    if (largos.length) {
-        const calza = !compases.length || largos.includes(compases.length);
-        t += ` · <span class="${calza ? '' : 'mal'}">en la canción: ${largos.join(' o ')} ${largos.length === 1 && largos[0] === 1 ? 'compás' : 'compases'}</span>`;
+    if (modoFicha()) {
+        const usa = itemsEstructura().filter(x => x.incluida && x.sec === s.id).map(x => x.etiqueta);
+        t += usa.length ? ` · en: ${esc(usa.join(', '))}` : ' · <span class="mal">sin usar en la Estructura</span>';
     }
     return t + (malos.length ? ` · <span class="mal">No entiendo: ${esc(malos.join(', '))}</span>` : '');
 }
@@ -609,15 +647,83 @@ function pintarInfoSecciones() {
         el.querySelector('.sec-info').innerHTML = infoSeccion(s, compases, malos);
     });
 }
+// ══ Estructura desde la Ficha (deuda FP) ══════════════════════════════════════════════════
+// Con secciones en la Ficha (y su tempo), la Estructura son esas secciones: cada una puede ir o no en el arreglo y se
+// une a una secuencia armónica; suena en su lugar real de la canción. A.estructura = [{ clave, incluida, sec }], clave =
+// nombre + n° de vez que aparece ("coro#2"). Sin A.estructura (arreglos de antes) se deduce del orden: misma secuencia
+// por nombre. Sin secciones en la Ficha, la Estructura es el orden manual (A.orden, contiguo desde "empieza en el compás").
+const modoFicha = () => seccionesMapa().length > 0;
+function itemsEstructura() {
+    const cuenta = {}, ms = seccionesMapa();
+    return ms.map(x => {
+        const k = normSec(x.nombre); cuenta[k] = (cuenta[k] || 0) + 1;
+        const clave = `${k}#${cuenta[k]}`, veces = ms.filter(y => normSec(y.nombre) === k).length;
+        const etiqueta = veces > 1 ? `${x.nombre} ${cuenta[k]}` : x.nombre;
+        const g = (A.estructura || []).find(e => e.clave === clave);
+        const porNombre = A.secciones.find(sq => normSec(sq.nombre) === k);
+        let incluida, sec;
+        if (g) { incluida = g.incluida; sec = A.secciones.some(sq => sq.id === g.sec) ? g.sec : null; }
+        else if (!A.estructura && A.orden.length) { incluida = !!porNombre && A.orden.includes(porNombre.id); sec = incluida ? porNombre.id : null; }
+        else { incluida = true; sec = porNombre ? porNombre.id : null; }
+        return { ...x, clave, etiqueta, incluida, sec };
+    });
+}
+// Al primer cambio en la Estructura se guarda lo que se ve
+function fijarEstructura() { A.estructura = itemsEstructura().map(({ clave, incluida, sec }) => ({ clave, incluida, sec })); }
+// Compás de la canción donde está el pulso 0 del arreglo
+const origenArreglo = () => modoFicha() ? seccionesMapa()[0].compas : (A.audio.desde || 1);
+function pintarEstructura() {
+    const its = itemsEstructura();
+    const opciones = sel => '<option value="">— sin secuencia —</option>' + A.secciones.map(sq =>
+        `<option value="${sq.id}"${sq.id === sel ? ' selected' : ''}>${esc(sq.nombre || 'Secuencia')}</option>`).join('');
+    const info = x => {
+        const sq = A.secciones.find(y => y.id === x.sec); if (!sq || !x.incluida) return ['', ''];
+        const n = compasesDe(sq).compases.length; if (!n) return ['sin acordes', 'mal'];
+        if (n === x.largo) return [`${n} compases ✓`, ''];
+        if (x.largo % n === 0) return [`${n} compases ×${x.largo / n}`, ''];
+        return [`${n} ≠ ${x.largo} compases`, 'mal'];
+    };
+    $('estructura').innerHTML = `<div class="est-cab"><button class="btn" data-todas="1">Todas</button><button class="btn" data-todas="0">Ninguna</button>
+        <span class="ayuda">Clic en una sección: la vista previa toca desde ahí.</span></div>` + its.map((x, i) => {
+        const [txt, cls] = info(x);
+        return `<div class="est-fila${x.incluida ? '' : ' fuera'}" data-i="${i}">
+            <input type="checkbox" data-inc ${x.incluida ? 'checked' : ''} title="Va en el arreglo">
+            <button class="est-tit" data-ir title="Tocar desde aquí">▶ ${esc(x.etiqueta)} <small>c. ${x.compas} · ${x.largo} ${x.largo === 1 ? 'compás' : 'compases'}</small></button>
+            <select data-sec ${x.incluida ? '' : 'disabled'}>${opciones(x.sec)}</select>
+            <span class="est-info ${cls}">${txt}</span></div>`;
+    }).join('');
+}
+$('estructura').addEventListener('change', e => {
+    const f = e.target.closest('.est-fila'); if (!f) return;
+    fijarEstructura();
+    const it = A.estructura[+f.dataset.i];
+    if (e.target.matches('[data-inc]')) it.incluida = e.target.checked;
+    else if (e.target.matches('[data-sec]')) it.sec = e.target.value || null;
+    completarVoicings(); pintarOrden(); pintarInfoSecciones(); pintarAcordes(); cambio();
+});
+$('estructura').addEventListener('click', e => {
+    const t = e.target.closest('[data-todas]');
+    if (t) { fijarEstructura(); A.estructura.forEach(x => { x.incluida = t.dataset.todas === '1'; }); completarVoicings(); pintarOrden(); pintarInfoSecciones(); pintarAcordes(); cambio(); return; }
+    const ir = e.target.closest('[data-ir]'); if (!ir) return;
+    const x = itemsEstructura()[+ir.closest('.est-fila').dataset.i]; if (!x) return;
+    // La vista previa salta a ese compás de la canción y toca (la grabación suena aunque aún no haya arreglo)
+    enviarPrevia();
+    try { $('previa').contentWindow.postMessage({ tipo: 'arreglo-tocar', pulso: (x.compas - origenArreglo()) * A.compas }, '*'); } catch (_) {}
+});
 function pintarOrden() {
+    const ficha = modoFicha();
+    $('estructura').style.display = ficha ? '' : 'none';
+    $('orden').style.display = $('orden-add').style.display = ficha ? 'none' : '';
+    $('est-sub').textContent = ficha ? 'las secciones de la Ficha de la canción' : 'arrastra para ordenar';
+    if (ficha) pintarEstructura();
     $('orden').innerHTML = A.orden.map((id, i) => {
         const s = A.secciones.find(x => x.id === id);
         return s ? `<span class="chip" draggable="true" data-i="${i}">${esc(s.nombre || 'Sección')}<button data-quitar="${i}" title="Quitar">✕</button></span>` : '';
-    }).join('') || '<span class="ayuda">Agrega las secciones en el orden en que suenan.</span>';
+    }).join('') || '<span class="ayuda">Agrega las secuencias en el orden en que suenan.</span>';
     $('orden-add').innerHTML = A.secciones.map(s => `<button class="btn" data-add="${s.id}">＋ ${esc(s.nombre || 'Sección')}</button>`).join('');
     const d = desplegar();
     const seg = Math.round(d.pulsos * 60 / A.tempo);
-    $('orden-info').textContent = d.pulsos ? `${d.pulsos / A.compas} compases · ${Math.floor(seg / 60)}:${String(seg % 60).padStart(2, '0')} al tempo ${infoA().figura} ${Math.round(A.tempo / A.pulso)}` : '';
+    $('orden-info').textContent = d.pulsos ? `${Math.round(d.pulsos / A.compas)} compases · ${Math.floor(seg / 60)}:${String(seg % 60).padStart(2, '0')} al tempo ${infoA().figura} ${Math.round(A.tempo / A.pulso)}` : '';
 }
 function svgAcorde(ms, dedos) {
     const NEG = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
@@ -667,6 +773,7 @@ function pintarAudio() {
         const bpms = P.slice(1).map((x, i) => 60 / (x - P[i])).sort((a, b) => a - b);
         $('tempo-info').textContent = `📋 Sigue el tempo de la Ficha de la canción: ${ult} compases, ♩ ${Math.round(bpms[Math.floor(bpms.length / 2)])} (entre ${Math.round(bpms[Math.floor(bpms.length * 0.03)])} y ${Math.round(bpms[Math.floor(bpms.length * 0.97)])}). El piano calza con la grabación aunque cambie de velocidad.`;
         $('desde').value = A.audio.desde || 1;
+        $('fila-desde').style.display = modoFicha() ? 'none' : ''; $('desde-ficha').style.display = modoFicha() ? '' : 'none';
     }
 }
 function pintarTodo() { pintarBase(); pintarSecciones(); pintarOrden(); pintarOctavas(); pintarAcordes(); pintarAudio(); cambio(); }
@@ -754,9 +861,11 @@ $('secciones').addEventListener('click', e => {
     const id = sec.dataset.id;
     if (b.dataset.acc === 'borrar') {
         const s = A.secciones.find(x => x.id === id);
-        if ((s.acordes || '').trim() && !confirm(`¿Borrar la sección "${s.nombre || 'sin nombre'}"? También sale del orden.`)) return;
+        if ((s.acordes || '').trim() && !confirm(`¿Borrar la secuencia "${s.nombre || 'sin nombre'}"? También sale de la Estructura.`)) return;
+        if (modoFicha()) fijarEstructura();
         A.secciones = A.secciones.filter(x => x.id !== id);
         A.orden = A.orden.filter(x => x !== id);
+        (A.estructura || []).forEach(x => { if (x.sec === id) x.sec = null; });
         pintarSecciones(); pintarAcordes();
     } else if (b.dataset.acc === 'ritmo') { abrirRitmo(id); return; }
     else A.orden.push(id);
@@ -837,7 +946,7 @@ function pintarRitmo() {
     $('rit-grilla').innerHTML = `<div class="rit-nums"><div class="rf-nom"></div><div class="rf-g" style="grid-template-columns:repeat(${T},1fr)">${nums}</div></div>`
         + fila('acordes', 'Acordes', `mano derecha · octava ${A.octavas.acordes}`, false)
         + fila('bajos', 'Bajo', `mano izquierda · octava ${A.octavas.bajo}`, !r.bajo);
-    $('rit-aviso').textContent = conMel ? 'Esta sección lleva la melodía: ahí manda la melodía (mano derecha) y la fila Acordes no suena; suena solo el bajo.' : '';
+    $('rit-aviso').textContent = conMel ? 'Esta secuencia lleva la melodía: ahí manda la melodía (mano derecha) y la fila Acordes no suena; suena solo el bajo.' : '';
 }
 function ritCambio() { pintarRitmo(); pintarSecciones(); cambio(); }
 // Casilla bajo el puntero
@@ -918,7 +1027,7 @@ $('rit-oir').onclick = () => {
     if (ritOir) { detenerRitmo(); return; }
     const r = ritSec?.ritmo; if (!r) return;
     const primero = compasesDe(ritSec).compases.flat()[0];
-    if (!primero) { toast('Escribe los acordes de la sección para escucharla.'); return; }
+    if (!primero) { toast('Escribe los acordes de la secuencia para escucharla.'); return; }
     const c = audio(), t0 = c.currentTime + 0.1, sP = 60 / A.tempo, sT = sP / 4, nodos = [];
     const conMel = !!(ritSec.melodia && A.melodia), der = acordeDer(primero), bajo = bajoDe(primero);
     const PC = infoA().pulsos;   // el metrónomo suena en cada pulso contado (2/2: blanca · 6/8: ♩.)
@@ -969,18 +1078,20 @@ function abrirTempo() {
 }
 // ⏱ Traer del mapa de tempo: una sección por nombre (las que ya existen se conservan con sus acordes), el orden como
 // suenan en la canción y el arreglo empieza en el compás de la primera
+// 📋 Crear las que faltan (FP): una secuencia con el nombre de cada sección de la Ficha incluida que aún no tiene una
+// (una por nombre: Coro 1 y Coro 2 comparten "Coro"), y la une a esas secciones
 $('b-traer-sec').onclick = () => {
-    const ms = seccionesMapa(); if (!ms.length) return;
-    if (A.orden.length && !confirm('El orden se reemplaza por el de la canción. Las secciones que ya escribiste se conservan con sus acordes. ¿Seguir?')) return;
-    const nuevas = [];
-    A.orden = ms.map(x => {
-        let s = A.secciones.find(y => normSec(y.nombre) === normSec(x.nombre));
-        if (!s) { s = { id: genId(), nombre: x.nombre, acordes: '', melodia: false, melDesde: 1 }; A.secciones.push(s); nuevas.push(x.nombre); }
-        return s.id;
+    if (!modoFicha()) return;
+    fijarEstructura();
+    const its = itemsEstructura(), nuevas = [];
+    its.forEach((x, i) => {
+        if (!x.incluida || x.sec) return;
+        let sq = A.secciones.find(y => normSec(y.nombre) === normSec(x.nombre));
+        if (!sq) { sq = { id: genId(), nombre: x.nombre, acordes: '', melodia: false, melDesde: 1 }; A.secciones.push(sq); nuevas.push(x.nombre); }
+        A.estructura[i].sec = sq.id;
     });
-    A.audio.desde = ms[0].compas;
     completarVoicings(); pintarTodo();
-    toast(`${ms.length} secciones en el orden de la canción${nuevas.length ? ` · nuevas: ${[...new Set(nuevas)].join(', ')}` : ''}`);
+    toast(nuevas.length ? `Secuencias nuevas: ${nuevas.join(', ')}` : 'Todas las secciones incluidas ya tienen su secuencia');
 };
 async function cargarTempo() {
     [mapaTempo, fichaCancion] = await Promise.all([TempoMapa.cargar(publica(''), cancionId), TempoMapa.cargarFicha(publica(''), cancionId)]);
@@ -989,7 +1100,7 @@ async function cargarTempo() {
 try {
     new BroadcastChannel('profe-tempo').onmessage = async e => {
         if (e.data?.tipo !== 'tempo-guardado' || e.data.cancion !== cancionId) return;
-        await cargarTempo(); pintarSecciones(); pintarAudio(); cambio();
+        await cargarTempo(); pintarSecciones(); pintarOrden(); pintarAudio(); cambio();
         toast('Se puso al día la Ficha de la canción');
     };
 } catch (_) {}

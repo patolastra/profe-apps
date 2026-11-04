@@ -583,11 +583,13 @@ async function iniciar() {
     const aviso = document.getElementById('aviso');
     // Vista previa del Editor de Arreglos: los datos llegan por mensaje
     if (Q.get('vista') === 'editor') {
-        aviso.textContent = 'Escribe las secciones y el orden para ver el arreglo.';
+        aviso.textContent = 'Escribe las secuencias armónicas y la estructura para ver el arreglo.';
         window.addEventListener('message', e => {
             if (e.source !== window.parent) return;
             if (e.data?.tipo === 'arreglo-datos') aplicarDatos(e.data.datos);
             if (e.data?.tipo === 'arreglo-detener') detenerArr();
+            // Clic en una sección de la Estructura del editor (FP): tocar desde ahí, haya o no notas todavía
+            if (e.data?.tipo === 'arreglo-tocar' && MEL) { detenerArr(); tocarArr(Number(e.data.pulso) || 0, false); }
         });
         try { window.parent.postMessage({ tipo: 'piano-listo' }, '*'); } catch (_) {}
         return;
@@ -619,9 +621,10 @@ function aplicarDatos(datos) {
     MEL = datos;
     ARR = datos.tipo === 'arreglo';
     document.body.classList.toggle('arreglo', ARR);
-    aviso.textContent = MEL.notas?.length ? '' : (ARR ? 'Escribe las secciones y el orden para ver el arreglo.' : '');
+    aviso.textContent = MEL.notas?.length ? '' : (ARR ? 'Escribe las secuencias armónicas y la estructura para ver el arreglo.' : '');
     if (primera || !ARR) bpm = bpmInicial = MEL.tempo || 90;
-    largo = ARR ? (MEL.secciones || []).reduce((s, x) => s + x.compases * MEL.compas, 0)
+    // Arreglo: hasta el final de su última sección o de la canción (MEL.fin, FP: las secciones van en su lugar real)
+    largo = ARR ? Math.max(MEL.fin || 0, ...(MEL.secciones || []).map(x => x.t / 4 + x.compases * MEL.compas), 0)
         : Math.ceil(Math.max(...MEL.notas.map(n => (n.t + n.d) / 4)) / MEL.compas) * MEL.compas;
     const ms = MEL.notas.length ? MEL.notas.map(n => n.m) : [60, 72];
     // La música al centro del teclado: un poco de aire a cada lado y, como mínimo, dos octavas a la vista
