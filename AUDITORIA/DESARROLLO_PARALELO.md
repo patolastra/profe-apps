@@ -8444,3 +8444,30 @@ manera sencilla de referenciar ritmos para los acordes").*
   con melodía dan 0 notas de esa mano; octava 5 sube los acordes; ▶ Escuchar suena y se detiene (pestaña verde); la
   vista previa del Piano recibe 72 notas de la derecha y 3 del bajo. No probado a la vista (ventana oculta): el
   arrastre con el mouse real ni cómo se ve la cuadrícula.
+
+### FN. 🎼 Compás 2/2 en el Arreglo, el Editor de Melodías, el Cajón y el Metrónomo
+*Origen: PO 2026-11-04 ("agrega 2/2; se supone que esta data se comparte con todas las apps musicales").*
+- **Auditoría:** la Ficha de la canción (Biblioteca y TEMPO) ya ofrece 2/2 y su mapa cuenta 2 pulsos (blancas) por
+  compás. El Arreglo y el Editor de Melodías solo escriben 2/4, 3/4 y 4/4 (`compasSimple`), el Cajón 2/4–12/8 sin 2/2 y
+  el Metrónomo 2/4–6/8: con 2/2 muestran "≠ canción" sin poder tomarla.
+- **Decisión del PO (2026-11-04):** 2/2 en las cuatro apps, con **pulso de blanca**: el compás dura 4 negras, se cuenta
+  en 2 (metrónomo y precuenta 2 veces por compás, acento en el 1), el tempo de la Ficha en 2/2 son blancas por minuto.
+- **Plan:** `comun/tempo-mapa.js` `m.cifraApp()` → { compas (negras), pulso (negras por pulso: 1 o 2), texto } para
+  2/4, 3/4, 4/4 y 2/2. Melodía y Arreglo guardan `pulso` (2 = 2/2; sin él = 1, lo guardado no cambia) y lo pasan al
+  archivo público; el **Piano** lo usa para la precuenta y para calzar con el mapa (pulsos de blanca). Tempo en pantalla
+  en la unidad del pulso. MIDI del Editor con cifra 2/2 (el Metalófono ya lee cifras /2). Cajón y Metrónomo: 2/2 en su lista.
+  - Lugares: Editor de Melodías, Arreglo (y su 🥁 Ritmo), Piano (melodía y arreglo; vista previa), Metalófono (MIDI),
+    Cajón (programador; versión estudiante), Metrónomo.
+- **Hecho (2026-11-04):** `comun/tempo-mapa.js` (`cifraApp`); `MELODIA/` (botón 2/2, `M.pulso`, tempo en pantalla en
+  blancas con 𝅗𝅥, metrónomo de grabar y escuchar en cada blanca, líneas de pulso, pentagrama 2/2, MIDI con cifra 2/2,
+  `pulso` en lo guardado y en el archivo público); `ARREGLO/` (botón 2/2, `A.pulso`, tempo 𝅗𝅥, 🥁 Ritmo numerado por
+  blanca y Bajo + acorde en blancas, metrónomo de Escuchar, `pulso` al Piano); `PIANO/` (`PU()`: precuenta y números en
+  el pulso, calce con el mapa dividiendo por el pulso, tempo − / + y 🔁 +5 en blancas); `CAJON-PERUANO/` (2/2 en la
+  lista; el tiempo del metrónomo es la blanca); `RITMOS/` (botón 2/2; 🎵 Canción en 2/2 toma el tempo en blancas).
+  Lo guardado sin `pulso` sigue igual. Prueba (navegador): `cifraApp` da 2/2 → compás 4, pulso 2 (3/4 y 4/4 igual que
+  antes, 6/8 nada); Metrónomo 2/2 = 2 círculos; Cajón 2/2 = compás de 4 negras con tiempo de blanca; Editor de
+  Melodías nuevo de Coqueta (su Ficha ya está en 2/2 a 79) parte en 2/2 con 𝅗𝅥 79, + sube a 84, una línea de pulso por
+  compás, sin "≠ canción", y 4/4 deja ♩ 84; Arreglo nuevo de Coqueta parte en 2/2 𝅗𝅥 79, 🥁 numera "1 2", Bajo + acorde
+  = bajo en la 1ª blanca y acorde en la 2ª, la vista previa del Piano recibe pulso 2. Borradores de prueba borrados.
+  Ojo: el arreglo ya guardado de Coqueta está en 4/4: con la Ficha en 2/2 hay que tocar "≠ canción" y guardarlo para
+  que vuelva a calzar con la grabación.

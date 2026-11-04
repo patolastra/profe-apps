@@ -20,7 +20,9 @@
 //   m.bpm                → tempo de referencia (la mediana de lo marcado, redondeado; 0 si no hay)
 //   m.tonalidad          → { tonica, modo } o null; TempoMapa.nombreTonalidad(t) → "La mayor", "Fa♯ menor"
 //   TempoMapa.mismaTonalidad(a, b) → misma tónica (Re♭ = Do♯) y mismo modo
-//   m.compasSimple()     → pulsos por compás si la cifra del compás 1 es 2/4, 3/4 o 4/4 (lo que escriben Melodía y Arreglo); si no, 0
+//   m.compasSimple()     → pulsos por compás si la cifra del compás 1 es 2/4, 3/4 o 4/4; si no, 0
+//   m.cifraApp()         → { compas (negras), pulso (negras por pulso), texto } para 2/4, 3/4, 4/4 y 2/2 (lo que escriben
+//                          Melodía y Arreglo, deuda FN); si no, null
 //   m.bpmEn(p)           → tempo alrededor del pulso p
 //   m.secciones          → [{ compas, seg, nombre }] en orden (compas null = sin tempo en ese punto)
 //   m.seccionEn(c)       → la sección del compás c (o null); m.seccionEnSeg(s) → la que suena en el segundo s (o null)
@@ -85,6 +87,13 @@
         };
         m.cifraEn = c => { let n = cifras[0].n; for (const x of cifras) if (x.compas <= c) n = x.n; return n; };
         m.compasSimple = () => { const y = cifras.filter(x => x.compas <= 1).pop() || cifras[0]; return y.d === 4 && y.n >= 2 && y.n <= 4 ? y.n : 0; };
+        // Lo que escriben Melodía y Arreglo (deuda FN): compas = negras por compás, pulso = negras por pulso (2/2 = 4 y 2)
+        m.cifraApp = () => {
+            const y = cifras.filter(x => x.compas <= 1).pop() || cifras[0];
+            if (y.d === 4 && y.n >= 2 && y.n <= 4) return { compas: y.n, pulso: 1, texto: `${y.n}/4` };
+            if (y.d === 2 && y.n === 2) return { compas: 4, pulso: 2, texto: '2/2' };
+            return null;
+        };
         m.cifraTexto = (c = 1) => { let y = cifras[0]; for (const x of cifras) if (x.compas <= c) y = x; return `${y.n}/${y.d}`; };
         m.pulsoDeCompas = c => {
             let p = 0;

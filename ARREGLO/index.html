@@ -140,9 +140,9 @@
             <div class="fila"><span>Tonalidad</span><select id="tonica"></select>
                 <div class="seg" id="seg-modo"><button class="btn" data-v="mayor">Mayor</button><button class="btn" data-v="menor">Menor</button></div>
                 <button class="dif" id="dif-ton"></button></div>
-            <div class="fila"><span>Compás</span><div class="seg" id="seg-compas"><button class="btn" data-v="2">2/4</button><button class="btn" data-v="3">3/4</button><button class="btn" data-v="4">4/4</button></div>
+            <div class="fila"><span>Compás</span><div class="seg" id="seg-compas"><button class="btn" data-v="2">2/4</button><button class="btn" data-v="3">3/4</button><button class="btn" data-v="4">4/4</button><button class="btn" data-v="2/2">2/2</button></div>
                 <button class="dif" id="dif-compas"></button>
-                <span>Tempo ♩</span><input id="tempo" type="number" min="30" max="240" step="0.01"></div>
+                <span>Tempo <span id="tempo-u" style="display:inline-block;width:1.2em;text-align:center">♩</span></span><input id="tempo" type="number" min="30" max="240" step="0.01"></div>
             <div class="fila"><span>Melodía</span><select id="mel-elegir"></select><button class="btn" id="b-copiar-mel">Copiar</button></div>
             <div class="ayuda" id="mel-info"></div>
         </div>
@@ -226,6 +226,7 @@ let mapaTempo = null, tempoV = 0, fichaCancion = null;   // fichaCancion: la Fic
 // ══ El arreglo ══════════════════════════════════════════════════════════════════════════
 const A = {
     v: 1, tempo: 120, compas: 4, tonica: 'C', modo: 'mayor',
+    pulso: 1,                   // negras por pulso: 2 = compás 2/2 (compas 4, se cuenta en blancas; deuda FN). tempo, en negras
     melodia: null,              // { origen, etiqueta, tonalidad, mano, notas: [{ t, d, m, nombre, dedo }] } (t, d en semicorcheas)
     secciones: [],              // { id, nombre, acordes (texto), melodia (bool), melDesde (compás) }
     orden: [],                  // ids de secciones
@@ -394,7 +395,7 @@ function patron(id) {
         case 'blancas': return { div: 'negra', acordes: rango(1, 2), bajos: [[0, P]] };
         case 'negras': return { div: 'negra', acordes: rango(1, 1), bajos: [[0, P]] };
         case 'corcheas': return { div: 'corchea', acordes: rango(2, 1), bajos: [[0, P * 2]] };
-        case 'bajo-acorde': case 'vals': return { div: 'negra', acordes: rango(1, 1, 1), bajos: [[0, 1]] };
+        case 'bajo-acorde': case 'vals': return { div: 'negra', acordes: rango(1, A.pulso, A.pulso), bajos: [[0, A.pulso]] };   // 2/2: en blancas
     }
     return null;
 }
@@ -471,7 +472,7 @@ function desplegar() {
 }
 function datosPublicos(hasta) {
     const d = desplegar();
-    return { v: 1, tipo: 'arreglo', cancion: cancionNombre, etiqueta: $('etiqueta').value.trim(), tempo: A.tempo, compas: A.compas,
+    return { v: 1, tipo: 'arreglo', cancion: cancionNombre, etiqueta: $('etiqueta').value.trim(), tempo: A.tempo, compas: A.compas, pulso: A.pulso,
         tonalidad: nombreTonalidad(), notas: d.notas, acordes: d.acordes, secciones: d.secciones,
         // La grabación va solo con mapa de tempo: el Piano lo lee (tempo/<cancion>.json) para calzar cada pulso
         audio: (audios.melodia || audios.karaoke) && mapaTempo ? { melodia: audios.melodia, karaoke: audios.karaoke, semitonos: semitonos(),
@@ -483,9 +484,12 @@ function datosPublicos(hasta) {
 // Ficha oficial de la canción (su Mapa de tempo, deuda EV): si el arreglo queda distinto se avisa; tocar adopta lo oficial
 const tonOficial = () => fichaCancion?.tonalidad || null;
 const tonicaDe = (lista, t) => lista.find(x => x === t.tonica) || lista.find(x => TempoMapa.mismaTonalidad({ tonica: x, modo: t.modo }, t)) || null;
+// Compás del arreglo (FN): "2/4", "3/4", "4/4" o "2/2"; al cambiarlo el número del tempo se queda (cambia la figura que cuenta)
+const cifraA = () => A.pulso === 2 ? '2/2' : String(A.compas);
+function ponerCifra({ compas, pulso }) { const ver = A.tempo / A.pulso; A.compas = compas; A.pulso = pulso; A.tempo = ver * pulso; }
 function pintarDif() {
-    const n = fichaCancion ? fichaCancion.compasSimple() : 0, ct = fichaCancion ? fichaCancion.cifraTexto(1) : '';
-    const dc = $('dif-compas'), difC = !!fichaCancion && n !== A.compas;
+    const ca = fichaCancion ? fichaCancion.cifraApp() : null, n = !!ca, ct = fichaCancion ? fichaCancion.cifraTexto(1) : '';
+    const dc = $('dif-compas'), difC = !!fichaCancion && (!ca || ca.compas !== A.compas || ca.pulso !== A.pulso);
     dc.classList.toggle('on', difC); dc.textContent = difC ? `≠ canción: ${ct}` : ''; dc.disabled = !n;
     dc.title = n ? `La canción está en ${ct} (su Ficha). Toca para usarlo.` : `La canción está en ${ct}: el arreglo aún no lo escribe.`;
     const t = tonOficial(), nom = TempoMapa.nombreTonalidad(t);
@@ -496,7 +500,7 @@ function pintarDif() {
     dor.classList.toggle('on', !!difO); dor.textContent = difO ? `≠ canción: ${nombreTon(t.tonica)}` : '';
     dor.title = difO ? `Según la Ficha de la canción, la grabación está en ${nom}. Toca para usarlo.` : '';
 }
-$('dif-compas').onclick = e => { e.target.blur(); const n = fichaCancion?.compasSimple(); if (!n) return; A.compas = n; pintarBase(); pintarOrden(); cambio(); };
+$('dif-compas').onclick = e => { e.target.blur(); const ca = fichaCancion?.cifraApp(); if (!ca) return; ponerCifra(ca); pintarBase(); pintarOrden(); cambio(); };
 $('dif-ton').onclick = e => {
     e.target.blur(); const t = tonOficial(); if (!t) return;
     A.modo = t.modo; A.tonica = tonicaDe(TONICAS[t.modo], t) || A.tonica; pintarBase(); pintarAudio(); cambio();
@@ -512,8 +516,10 @@ function pintarBase() {
     if (!TONICAS[A.modo].includes(A.tonica)) A.tonica = TONICAS[A.modo][0];
     t.value = A.tonica;
     document.querySelectorAll('#seg-modo button').forEach(b => b.classList.toggle('on', b.dataset.v === A.modo));
-    document.querySelectorAll('#seg-compas button').forEach(b => b.classList.toggle('on', +b.dataset.v === A.compas));
-    $('tempo').value = A.tempo;
+    document.querySelectorAll('#seg-compas button').forEach(b => b.classList.toggle('on', b.dataset.v === cifraA()));
+    $('tempo').value = Math.round(A.tempo / A.pulso * 100) / 100;
+    $('tempo-u').textContent = A.pulso === 2 ? '𝅗𝅥' : '♩';
+    $('tempo-u').title = A.pulso === 2 ? 'Blancas por minuto' : 'Negras por minuto';
     $('mel-elegir').innerHTML = melodias.length
         ? melodias.map(m => `<option value="${m.id}">${esc(m.etiqueta || 'Melodía')}${m.tonalidad ? ' · ' + esc(m.tonalidad) : ''}</option>`).join('')
         : '<option value="">La canción no tiene melodías</option>';
@@ -654,8 +660,8 @@ window.addEventListener('message', e => { if (e.data?.tipo === 'piano-listo') en
 
 $('tonica').onchange = e => { A.tonica = e.target.value; pintarBase(); pintarAudio(); cambio(); };
 $('seg-modo').onclick = e => { const b = e.target.closest('button'); if (!b) return; A.modo = b.dataset.v; pintarBase(); pintarAudio(); cambio(); };
-$('seg-compas').onclick = e => { const b = e.target.closest('button'); if (!b) return; A.compas = +b.dataset.v; pintarBase(); pintarOrden(); cambio(); };
-$('tempo').onchange = e => { A.tempo = Math.max(30, Math.min(240, Math.round((+e.target.value || 120) * 100) / 100)); pintarBase(); pintarOrden(); pintarAudio(); cambio(); };
+$('seg-compas').onclick = e => { const b = e.target.closest('button'); if (!b) return; ponerCifra(b.dataset.v === '2/2' ? { compas: 4, pulso: 2 } : { compas: +b.dataset.v, pulso: 1 }); pintarBase(); pintarOrden(); cambio(); };
+$('tempo').onchange = e => { A.tempo = Math.max(30, Math.min(240, Math.round((+e.target.value || 120) * 100) / 100)) * A.pulso; pintarBase(); pintarOrden(); pintarAudio(); cambio(); };
 $('etiqueta').oninput = cambio;
 
 // Melodía: se copia el archivo público de la melodía (alturas reales y dedos de piano)
@@ -767,7 +773,7 @@ function pintarRitmo() {
     $('rit-patron').value = '';
     $('rit-bajo').checked = r.bajo;
     document.querySelectorAll('#rit-largo .btn').forEach(b => b.classList.toggle('on', +b.dataset.v === r.compases));
-    const N = celdasCompas(r), T = N * r.compases, n = DIVS[r.div].n;
+    const N = celdasCompas(r), T = N * r.compases, n = DIVS[r.div].n * A.pulso;   // n = casillas por pulso (2/2: por blanca)
     const celdas = Array.from({ length: T }, (_, i) =>
         `<div class="rc${i % N === 0 && i ? ' compas' : i % n === 0 && i ? ' pulso' : ''}" style="grid-column:${i + 1}"></div>`).join('');
     const bloques = (f, lista) => lista.map(([a, l]) => `<div class="rb" style="grid-column:${a + 1} / span ${l}"></div>`).join('')
@@ -775,7 +781,8 @@ function pintarRitmo() {
     const conMel = !!(ritSec.melodia && A.melodia);
     const fila = (f, nom, sub, apagada) => `<div class="rf${apagada ? ' apagada' : ''}" data-f="${f}"><div class="rf-nom">${nom}<small>${sub}</small></div>
         <div class="rf-g" style="grid-template-columns:repeat(${T},1fr)">${celdas}${bloques(f, r[f])}</div></div>`;
-    const nums = Array.from({ length: A.compas * r.compases }, (_, k) => `<span style="grid-column:${k * n + 1} / span ${n}">${(k % A.compas) + 1}</span>`).join('');
+    const PC = A.compas / A.pulso;   // pulsos por compás
+    const nums = Array.from({ length: PC * r.compases }, (_, k) => `<span style="grid-column:${k * n + 1} / span ${n}">${(k % PC) + 1}</span>`).join('');
     $('rit-grilla').innerHTML = `<div class="rit-nums"><div class="rf-nom"></div><div class="rf-g" style="grid-template-columns:repeat(${T},1fr)">${nums}</div></div>`
         + fila('acordes', 'Acordes', `mano derecha · octava ${A.octavas.acordes}`, false)
         + fila('bajos', 'Bajo', `mano izquierda · octava ${A.octavas.bajo}`, !r.bajo);
@@ -878,7 +885,8 @@ $('rit-oir').onclick = () => {
     if (!primero) { toast('Escribe los acordes de la sección para escucharla.'); return; }
     const c = audio(), t0 = c.currentTime + 0.1, sP = 60 / A.tempo, sT = sP / 4, nodos = [];
     const conMel = !!(ritSec.melodia && A.melodia), der = acordeDer(primero), bajo = bajoDe(primero);
-    for (let k = 0; k < A.compas * r.compases; k++) nodos.push(nota(c, k % A.compas ? 84 : 96, t0 + k * sP, 0.04, 0.12, 'square'));
+    const PC = A.compas / A.pulso;   // el metrónomo suena en cada pulso (2/2: cada blanca)
+    for (let k = 0; k < PC * r.compases; k++) nodos.push(nota(c, k % PC ? 84 : 96, t0 + k * sP * A.pulso, 0.04, 0.12, 'square'));
     if (!conMel && der) r.acordes.forEach(([a, l]) => der.m.forEach(m => nodos.push(nota(c, m, t0 + a * celdaT(r) * sT, l * celdaT(r) * sT, 0.12))));
     if (r.bajo && bajo !== null) r.bajos.forEach(([a, l]) => nodos.push(nota(c, bajo, t0 + a * celdaT(r) * sT, l * celdaT(r) * sT, 0.2)));
     ritOir = { nodos, timer: setTimeout(detenerRitmo, (A.compas * r.compases * sP + 0.3) * 1000) };
@@ -1015,7 +1023,7 @@ function toast(t) {
 // ══ Inicio ══════════════════════════════════════════════════════════════════════════════
 function cargarContenido(txt) {
     const j = JSON.parse(txt);
-    Object.assign(A, j, { audio: { original: 'C', desde: 1, ...(j.audio || {}) }, octavas: { acordes: 4, bajo: 2, ...(j.octavas || {}) } });
+    Object.assign(A, { pulso: 1 }, j, { audio: { original: 'C', desde: 1, ...(j.audio || {}) }, octavas: { acordes: 4, bajo: 2, ...(j.octavas || {}) } });
 }
 async function iniciar() {
     if (!assetId && !cancionId) { $('sin').style.display = 'flex'; return; }
@@ -1058,8 +1066,9 @@ async function iniciar() {
             if (!assetId && fichaCancion) {
                 const t = tonOficial();
                 if (t) { A.modo = t.modo; A.tonica = tonicaDe(TONICAS[t.modo], t) || A.tonica; A.audio.original = tonicaDe(TODAS, t) || A.tonica; }
-                if (fichaCancion.compasSimple()) A.compas = fichaCancion.compasSimple();
-                if (fichaCancion.bpm && fichaCancion.cifras[0].d === 4) A.tempo = fichaCancion.bpm;
+                const ca = fichaCancion.cifraApp();
+                if (ca) { A.compas = ca.compas; A.pulso = ca.pulso; }
+                if (fichaCancion.bpm && ca) A.tempo = fichaCancion.bpm * ca.pulso;   // la Ficha va en el pulso de su cifra
             }
         }
     } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }

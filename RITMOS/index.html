@@ -99,7 +99,7 @@
         </div>
         <div class="fila">
             <span class="titulo">Sonido</span>
-            <div class="grupo">Compás <div class="seg" id="seg-compas"><button data-v="2/4">2/4</button><button data-v="3/4">3/4</button><button data-v="4/4">4/4</button><button data-v="5/4">5/4</button><button data-v="6/8">6/8</button></div><button class="oculto" id="dif"></button></div>
+            <div class="grupo">Compás <div class="seg" id="seg-compas"><button data-v="2/4">2/4</button><button data-v="3/4">3/4</button><button data-v="4/4">4/4</button><button data-v="2/2">2/2</button><button data-v="5/4">5/4</button><button data-v="6/8">6/8</button></div><button class="oculto" id="dif"></button></div>
             <div class="grupo">Subdivisión <div class="seg" id="seg-sub"><button data-v="1">No</button><button data-v="2">Corcheas</button><button data-v="3">Tresillos</button></div></div>
             <div class="grupo"><button class="btn" id="b-acento">Acento en el 1</button><button class="btn" id="b-precuenta">Precuenta</button></div>
         </div>
@@ -149,7 +149,7 @@ const AJ = {
     modo: leer('metro_modo', 'sube'),
 };
 const guardar = () => Object.entries(AJ).forEach(([k, v]) => anotar('metro_' + k, typeof v === 'boolean' ? (v ? '1' : '0') : String(v)));
-// 6/8: dos pulsos de negra con punto, cada uno con tres corcheas
+// 6/8: dos pulsos de negra con punto, cada uno con tres corcheas · 2/2: dos pulsos de blanca (deuda FN)
 const COMPAS = c => c === '6/8' ? { pulsos: 2, sub: 3 } : { pulsos: +c.split('/')[0], sub: null };
 const subdiv = () => COMPAS(AJ.compas).sub ? (AJ.sub > 1 ? 3 : 1) : AJ.sub;
 
@@ -191,7 +191,7 @@ document.getElementById('b-precuenta').onclick = e => { AJ.precuenta = !AJ.precu
 // ══ 🎵 Canción: la cifra y el tempo de su ficha oficial (Mapa de tempo, deuda EV) ═══════════
 const sb = (() => { try { return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON); } catch (_) { return null; } })();
 const BASE = typeof SUPABASE_URL !== 'undefined' ? `${SUPABASE_URL}/storage/v1/object/public/repertorio-assets/` : '';
-const CIFRAS_METRO = ['2/4', '3/4', '4/4', '5/4', '6/8'];
+const CIFRAS_METRO = ['2/4', '3/4', '4/4', '2/2', '5/4', '6/8'];
 let cancion = null;     // { id, nombre, cifra ('4/4'…), bpm (en el pulso del metrónomo; 6/8 = negra con punto) }
 const esc = t => String(t ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 function pintarCancion() {
@@ -217,8 +217,8 @@ async function ponerCancion(id) {
     let nombre = '';
     if (sb) { const { data } = await sb.from('repertorio_canciones').select('nombre').eq('id', id).single(); nombre = data?.nombre || ''; }
     const ct = m.cifraTexto(1), d = m.cifras[0].d;
-    // El mapa cuenta en los pulsos de su cifra; en 6/8 el metrónomo marca la negra con punto (3 corcheas)
-    cancion = { id, nombre: nombre || 'Canción', cifra: ct, bpm: Math.round(ct === '6/8' ? m.bpm / 3 : m.bpm * 4 / d) };
+    // El mapa cuenta en los pulsos de su cifra; en 6/8 el metrónomo marca la negra con punto (3 corcheas); en 2/2, la blanca
+    cancion = { id, nombre: nombre || 'Canción', cifra: ct, bpm: Math.round(ct === '6/8' ? m.bpm / 3 : ct === '2/2' ? m.bpm : m.bpm * 4 / d) };
     if (sonando) detener();
     if (CIFRAS_METRO.includes(ct)) AJ.compas = ct;
     if (cancion.bpm) aplicarTempo();

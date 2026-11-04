@@ -208,7 +208,7 @@ function programarVuelta(inicio, b) {
     const c = audio();
     const salida = c.createGain(); salida.connect(c.destination);
     const sp = 60 / b;
-    for (let k = 0; k < MEL.compas; k++) clic(salida, inicio + k * sp, k === 0);
+    for (let k = 0; k < MEL.compas; k += PU()) clic(salida, inicio + k * sp, k === 0);
     const cero = inicio + MEL.compas * sp;
     for (const n of MEL.notas) notaPiano(salida, n.m, cero + n.t / 4 * sp, n.d / 4 * sp * 0.95);
     vueltas.push({ inicio, bpm: b, salida });
@@ -244,7 +244,7 @@ function revisarVueltas(pulso, v) {
     if (pulso >= largo - MEL.compas && v === vueltas[vueltas.length - 1] && !siguienteProgramada) {   // un compás antes
         if (repetir) {
             siguienteProgramada = true;
-            const nb = Math.min(Math.max(tope, bpmInicial), v.bpm + 5);
+            const nb = Math.min(Math.max(tope * PU(), bpmInicial), v.bpm + 5 * PU());   // +5 en el pulso (2/2: blancas)
             bpm = nb;
             programarVuelta(finVuelta, nb);
         }
@@ -260,7 +260,10 @@ let ARR = false;
 let rep = null;                 // { g (GrabacionTono) | null, t0, p0, desde, salida, piano (ganancia), hasta (pulso ya programado) }
 let velocidad = 1, rol = 'melodia', pianoOn = leer('piano_arr_piano', '1') === '1', secSel = 0;
 let grab = null;
-const spb = () => 60 / MEL.tempo;                                     // segundos por pulso sin grabación
+const spb = () => 60 / MEL.tempo;                                     // segundos por negra sin grabación
+// Compás 2/2 (deuda FN): MEL.pulso = negras por pulso (2 = se cuenta en blancas). Los tiempos del arreglo y la melodía
+// van en negras; el mapa de tempo de la canción cuenta en el pulso de su cifra (blancas en 2/2).
+const PU = () => (MEL && MEL.pulso) || 1;
 // Con grabación, el mapa de tempo de la canción (deuda EU) dice dónde cae cada pulso; el arreglo empieza en el
 // compás `desde` de la canción. (Arreglos antiguos: compás 1 en `inicio` y tempo fijo.)
 let MAPA = null, mapaClave = '';
@@ -272,8 +275,8 @@ async function prepararMapa() {
     if (mapaClave === clave) MAPA = m;
 }
 const offMapa = () => MAPA.pulsoDeCompas(MEL.audio.desde || 1);
-const srcDePulso = p => MAPA ? MAPA.segDePulso(p + offMapa()) : (MEL.audio.inicio || 0) + p * spb();
-const pulsoDeSrc = s => MAPA ? MAPA.pulsoDeSeg(s) - offMapa() : (s - (MEL.audio.inicio || 0)) / spb();
+const srcDePulso = p => MAPA ? MAPA.segDePulso(p / PU() + offMapa()) : (MEL.audio.inicio || 0) + p * spb();
+const pulsoDeSrc = s => MAPA ? (MAPA.pulsoDeSeg(s) - offMapa()) * PU() : (s - (MEL.audio.inicio || 0)) / spb();
 const inicioSeccion = () => (MEL.secciones?.[secSel]?.t || 0) / 4;
 const audioUrl = () => MEL.audio && (MEL.audio[rol] || MEL.audio.melodia || MEL.audio.karaoke);
 function pulsoArr() {
@@ -311,7 +314,7 @@ async function tocarArr(desde = null, precuenta = true) {
         r.hasta = Math.max(p0, pulsoDeSrc(Math.max(0, srcDePulso(p0))));
     } else {
         r.t0 = c.currentTime + 0.12;
-        if (precuenta) for (let k = 0; k < MEL.compas; k++) clic(salida, r.t0 + k * spb() / velocidad, k === 0);
+        if (precuenta) for (let k = 0; k < MEL.compas; k += PU()) clic(salida, r.t0 + k * spb() / velocidad, k === 0);
     }
 }
 // Workspace PC (FK): si otra pestaña empieza a sonar, la melodía y el arreglo se detienen.
@@ -501,12 +504,12 @@ function dibujar() {
     }
     // Precuenta en grande
     if (ARR && rep && !rep.g && rep.t0 && pulso < rep.desde) {
-        const num = Math.floor(pulso - rep.p0) + 1;
+        const num = Math.floor((pulso - rep.p0) / PU()) + 1;
         g2.fillStyle = 'rgba(249,115,22,.9)'; g2.font = `800 ${Math.round(Math.min(120, yTecl * 0.4))}px system-ui, sans-serif`;
         g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText(String(num), W / 2, yTecl / 2);
     }
     if (vuelta && pulso < 0) {
-        const num = Math.floor(pulso + MEL.compas) + 1;
+        const num = Math.floor((pulso + MEL.compas) / PU()) + 1;
         g2.fillStyle = 'rgba(249,115,22,.9)'; g2.font = `800 ${Math.round(Math.min(120, yTecl * 0.4))}px system-ui, sans-serif`;
         g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText(String(num), W / 2, yTecl / 2);
     }
@@ -535,13 +538,13 @@ function pintarBarra() {
     const suena = ARR ? !!rep : !!vueltas.length;
     bt.textContent = suena ? '■ Detener' : '▶ Tocar';
     bt.classList.toggle('on', suena);
-    document.getElementById('tempo').textContent = '♩ ' + bpm;
+    document.getElementById('tempo').textContent = PU() === 2 ? '𝅗𝅥 ' + Math.round(bpm / 2) : '♩ ' + bpm;
     document.getElementById('b-repetir').classList.toggle('on', repetir);
     document.getElementById('tope-box').classList.toggle('on', repetir);
     document.getElementById('b-nombres').classList.toggle('on', verNombres);
 }
 function cambiarTempo(d) {
-    bpm = Math.max(30, Math.min(240, bpm + d));
+    bpm = Math.max(30 * PU(), Math.min(240 * PU(), bpm + d * PU()));
     if (!vueltas.length) bpmInicial = bpm;      // sonando, vale desde la vuelta siguiente
     pintarBarra();
 }
