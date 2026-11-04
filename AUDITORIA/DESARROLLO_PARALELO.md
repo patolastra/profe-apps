@@ -8423,3 +8423,24 @@ manera sencilla de referenciar ritmos para los acordes").*
   de línea siguen sirviendo). Ritmo: **uno por sección**, armado en una cuadrícula tipo la del Cajón (propuesta en curso).
 - **Hecho paso 1 (2026-11-04):** `compasesDe` cambia la "/" suelta por "|"; ayuda y ejemplo con "/". Prueba (navegador):
   `A / E/G# / F#m D` → A · E/G# · F#m D; `A | E | F#m` igual que antes; "/E" pegado mal escrito → "No entiendo".
+- **Decisión del PO, ritmo (2026-11-04):** un ritmo **por sección**, armado en una cuadrícula tipo Cajón con dos filas:
+  **Acordes** (en bloque, mano derecha, dedos 1-3-5) y **Bajo** (nota grave del acorde, mano izquierda; se puede
+  apagar = acordes sin bajo). **Octava del bajo** y **octava de los acordes** se configuran en el editor (para todo el
+  arreglo). Cada figura dura lo que valen sus casillas: clic = una casilla, **arrastrar = una figura larga** (dos
+  blancas en corcheas = arrastrar 4 + 4), clic sobre una figura la borra. División (negras, corcheas, semicorcheas,
+  tresillos), 1 o 2 compases que se repiten con el acorde que suena en cada momento. Patrones listos (Redonda, Blancas,
+  Negras, Corcheas, Bajo + acorde, Vals) y Copiar de otra sección; ▶ Escuchar. Sin ritmo, la sección suena como hoy.
+  En las secciones **con melodía manda la melodía**: la fila Acordes no suena ahí, solo el bajo. El ritmo se guarda
+  **dentro del arreglo**. Sin arpegio (modo arpegio, más adelante). El Piano no cambia (lee mano y dedo de cada nota).
+  - Lugares: Editor de Arreglos (vista previa = Piano `?vista=editor`) y Piano del estudiante (`p/?r=`).
+- **Hecho paso 2 (2026-11-04):** `ARREGLO/index.html`: `A.octavas` (acordes 4, bajo 2) en ④ Acordes; `s.ritmo` por
+  sección; botón 🥁 en cada sección (dice Redonda / Corcheas… o "Ritmo propio") que abre la cuadrícula (patrones,
+  Copiar de, División, 1 / 2 compases, Con bajo, ▶ Escuchar con metrónomo, Quitar el ritmo); `desplegar` arma las
+  notas: acordes mano derecha (posición de ④ llevada a su octava, dedos 1-3-5 / 1-2-5) y bajo mano izquierda (dedo 5);
+  con melodía, solo el bajo. Sin ritmo, igual que antes (los arreglos guardados no cambian). Piano sin cambios.
+  Prueba (navegador, canción nueva sin guardar; el borrador se borró): `C / G/B / Am F` + Corcheas → 8 acordes por
+  compás con la mano derecha y bajo Do2 / Si1 / La1 (G/B toma Si de bajo); arrastrar 0→3 y 4→7 en corcheas = dos
+  blancas; clic borra; un arrastre se detiene al chocar; corcheas → negras convierte; 1 → 2 compases copia; sin bajo y
+  con melodía dan 0 notas de esa mano; octava 5 sube los acordes; ▶ Escuchar suena y se detiene (pestaña verde); la
+  vista previa del Piano recibe 72 notas de la derecha y 3 del bajo. No probado a la vista (ventana oculta): el
+  arrastre con el mouse real ni cómo se ve la cuadrícula.
