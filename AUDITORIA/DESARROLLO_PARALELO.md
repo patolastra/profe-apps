@@ -8633,3 +8633,10 @@ grande"; "el dropdown de las secciones muestre siempre la sección activa y sin 
   a la vista (ventana oculta): el recuadro del acorde y la línea dorada.
 - **Ajuste FU (PO 2026-11-04, "borra aquellas claves americanas pequeñas"):** `PIANO/` ya no escribe el nombre de cada
   acorde (E, Bm…) sobre su bloque; el que suena queda solo en el recuadro grande en cifrado latino.
+- **Ajuste FU (PO 2026-11-04, "te dije que quitaras el botón Melodía… también borra do re mi y pantalla completa…; + y −
+  de a 5"):** el botón 🎤 Melodía seguía visible (la regla `body.arreglo .solo-arr { display: flex !important }` le
+  ganaba al estilo de la línea): ahora no lleva esa clase y queda oculto, siempre Melodía. En el arreglo se ocultan
+  "do re mi" (y los nombres de las notas) y ⛶; en el celular del estudiante (no dentro del editor) la pantalla completa
+  y horizontal llega al primer toque, como el Lector. − / + de la velocidad: de a 5 % (50–100 %). El Piano de una
+  melodía (sin arreglo) no cambia. Prueba (navegador, vista previa del arreglo de Coqueta): la barra queda ▶ Tocar ·
+  secciones · − · + · 🎹 · ✂ Omitir; − − − + = 95 → 90 → 85 → 90 %. No probado en un celular real (pantalla completa).

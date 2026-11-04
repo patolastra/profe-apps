@@ -93,15 +93,15 @@
     <div id="nombre">Piano</div>
     <div id="mano"></div>
     <div class="grupo solo-arr"><select id="sec" title="Desde dónde tocar"></select></div>
-    <div class="grupo solo-arr" style="display:none"><button class="btn" id="b-rol" title="Cambiar entre la grabación con voz (Melodía) y sin voz (Karaoke)">🎤 Melodía</button></div>
+    <div class="grupo" style="display:none"><button class="btn" id="b-rol" title="Cambiar entre la grabación con voz (Melodía) y sin voz (Karaoke)">🎤 Melodía</button></div>
     <div class="grupo solo-arr"><button class="btn" id="vel-menos" title="Más lento">−</button><span id="vel">100%</span><button class="btn" id="vel-mas" title="Más rápido">+</button></div>
     <div class="grupo solo-arr"><button class="btn" id="b-piano" title="Escuchar el piano encima de la grabación">🎹</button></div>
     <div class="grupo solo-mel"><button class="btn" id="tempo-menos">−</button><span id="tempo">♩ 90</span><button class="btn" id="tempo-mas">+</button></div>
     <div class="grupo solo-mel"><button class="btn" id="b-repetir" title="Repetir la melodía subiendo 5 en cada vuelta, con precuenta entre vueltas. Al detener vuelve a la velocidad inicial.">🔁 +5</button>
         <span id="tope-box">hasta <input id="tope" type="number" min="40" max="240" value="140"></span></div>
     <div class="grupo" id="g-omitir" style="display:none"><button class="btn" id="b-omitir" title="Omitir tramos: arrastra sobre las notas, en cualquier parte de la canción, detenida o sonando (la rueda la recorre). Clic en un tramo rojo lo quita.">✂ Omitir</button></div>
-    <button class="btn" id="b-nombres" title="Mostrar el nombre de cada nota">do re mi</button>
-    <button class="btn" id="b-pantalla" title="Pantalla completa">⛶</button>
+    <button class="btn solo-mel" id="b-nombres" title="Mostrar el nombre de cada nota">do re mi</button>
+    <button class="btn solo-mel" id="b-pantalla" title="Pantalla completa">⛶</button>
 </div>
 <div id="escena"><canvas id="lienzo"></canvas><div id="aviso">Cargando…</div>
     <button id="b-dedos" title="Números de los dedos">✋</button></div>
@@ -407,8 +407,9 @@ document.getElementById('b-rol').onclick = async e => {
     e.target.blur(); rol = rol === 'karaoke' ? 'melodia' : 'karaoke'; pintarArr();
     if (rep?.g?.sonando) { try { await rep.g.cambiar(audioUrl()); } catch (_) { retomar(); } }
 };
-document.getElementById('vel-menos').onclick = e => { e.target.blur(); velocidad = Math.max(0.5, Math.round((velocidad - 0.1) * 10) / 10); pintarArr(); retomar(); };
-document.getElementById('vel-mas').onclick = e => { e.target.blur(); velocidad = Math.min(1, Math.round((velocidad + 0.1) * 10) / 10); pintarArr(); retomar(); };
+// Velocidad de a 5 puntos (FU, PO 2026-11-04)
+document.getElementById('vel-menos').onclick = e => { e.target.blur(); velocidad = Math.max(0.5, Math.round((velocidad - 0.05) * 20) / 20); pintarArr(); retomar(); };
+document.getElementById('vel-mas').onclick = e => { e.target.blur(); velocidad = Math.min(1, Math.round((velocidad + 0.05) * 20) / 20); pintarArr(); retomar(); };
 document.getElementById('b-piano').onclick = e => {
     e.target.blur(); pianoOn = !pianoOn; anotar('piano_arr_piano', pianoOn ? '1' : '0');
     if (rep) rep.piano.gain.setValueAtTime(pianoOn ? 1 : 0, audio().currentTime);
@@ -493,7 +494,7 @@ function dibujar() {
             g2.font = `800 ${Math.round(r * 1.25)}px system-ui, sans-serif`; g2.textAlign = 'center'; g2.textBaseline = 'middle';
             g2.fillText(String(f), x + w / 2, yb + 1);
         }
-        if (verNombres && h > Math.max(r, 0) * 2 + 18) {
+        if (verNombres && !ARR && h > Math.max(r, 0) * 2 + 18) {   // en el arreglo no hay "do re mi" (FU)
             g2.fillStyle = 'rgba(255,255,255,.9)';
             g2.font = `600 ${Math.round(Math.min(14, w * 0.32))}px system-ui, sans-serif`; g2.textAlign = 'center'; g2.textBaseline = 'middle';
             g2.fillText(n.nombre, x + w / 2, f ? yb - r - 10 : yb);
@@ -662,6 +663,16 @@ document.getElementById('tope').addEventListener('change', e => {
     e.target.value = tope; anotar('piano_tope', tope);
 });
 document.getElementById('b-nombres').onclick = e => { verNombres = !verNombres; anotar('piano_nombres', verNombres ? '1' : '0'); pintarBarra(); e.target.blur(); };
+// Arreglo en el celular del estudiante (FU): pantalla completa y horizontal al primer toque, como el Lector (el
+// navegador solo lo permite al soltar el dedo: 'click'; si falla, se reintenta en el toque siguiente)
+if (window.top === window && matchMedia('(pointer: coarse)').matches) {
+    document.addEventListener('click', () => {
+        if (!ARR) return;
+        const el = document.documentElement, pedir = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (document.fullscreenElement || document.webkitFullscreenElement || !pedir) return;
+        Promise.resolve(pedir.call(el, { navigationUI: 'hide' })).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+    }, true);
+}
 document.getElementById('b-pantalla').onclick = e => {
     e.target.blur();
     const el = document.documentElement;
