@@ -8691,3 +8691,44 @@ digitación pero no los entiendo").*
   Prueba (navegador, arreglo de COQUETA): Bm izquierda 5-3-1 → tocar la tecla grave → 1-3-1; Derecha (verde, octava de
   acordes) 1-2-5 → tocar la aguda → 1-2-1 y esos dedos van en las notas de la mano derecha del archivo del estudiante;
   los botones caben en las 4 tarjetas. Se dejó el arreglo como estaba (sin guardar los cambios de prueba).
+
+### FY. 🎼 Editor musical: Melodía y Arreglo en una sola app (etapa 1) — HECHA
+*Origen: PO 2026-11-05 ("el editor de melodías y el editor de arreglos deberían ser dos partes de una misma app; en
+melodías podría editar también para metalófono; y más adelante, el editor de arreglos con melodías y acordes con
+rasgueos, para el Lector de tabs").*
+- **Necesidad:** para armar el material de una canción hoy se abren dos editores separados (dos pestañas del Workspace),
+  cada uno con su propia carga de la canción, su Ficha y su grabación.
+- **Auditoría:** `MELODIA/index.html` (recurso `melodia`, MIDI para el Metalófono, `melodia/<id>.json` para el Piano) y
+  `ARREGLO/index.html` (recurso `arreglo`, `arreglo/<id>.json`, vista previa = Piano) se abren desde la ficha de la
+  canción en la Biblioteca (`abrirEditorMelodia`, `abrirEditorArreglo`: pestañas `melodia:` / `arreglo:` del
+  Workspace, con guardado al cerrar `ws-guardar`) y la Melodía también desde el menú + del Workspace (`melodias`, con
+  su lista de canciones). Ambas avisan a su ventana de arriba (`ws-abrir` al Entrenador / la Ficha) y usan
+  `comun/un-sonido.js` (una sola pestaña suena).
+- **Plan propuesto (etapa 1):** página nueva `EDITOR/index.html` = **🎼 Editor musical** de una canción:
+  1. Arriba, la canción y sus recursos en dos pestañas propias: **♬ Melodía** y **🎹 Arreglo de piano**; en cada una,
+     los recursos de esa clase que ya tiene la canción (para elegir cuál editar) y ＋ Nueva.
+  2. Cada pestaña es el editor de hoy, tal cual (por dentro), así nada de lo hecho cambia: mismos recursos, mismos
+     archivos, links de estudiantes intactos. Cambiar de pestaña no pierde lo escrito (las dos quedan abiertas).
+  3. Al cerrar la pestaña del Workspace se guarda lo pendiente de las dos.
+  4. La Biblioteca abre el Editor musical (en la pestaña que corresponda) en vez de los dos editores sueltos; una
+     canción = una sola pestaña del Workspace. El menú + "Editor de Melodías" pasa a "🎼 Editor musical" con la lista
+     de canciones (y sus melodías y arreglos).
+  - Sin cambios en Supabase.
+  - Lugares (regla 11): Biblioteca (ficha de la canción: ＋ y ✏️ de Melodía y Arreglo), menú + del Workspace,
+    Editor de Melodías y Editor de Arreglos (dentro del nuevo), Ficha / Entrenador que abren desde ellos.
+- **Etapas siguientes (a decidir después):** (2) compartir de verdad entre pestañas: la Ficha, la grabación y una sola
+  vista previa; que el Arreglo vea la melodía al día. (3) pestaña 🎸 Tablatura: melodía y acordes con rasgueos para
+  el Lector.
+- **Decisión del PO (2026-11-05):** etapa 1 aprobada tal cual.
+- **Hecho (2026-11-05):** `EDITOR/index.html` (pestañas ♬ Melodía / 🎹 Arreglo de piano + selector del recurso de cada
+  una con ＋ Nueva; cada pestaña = `MELODIA/` o `ARREGLO/` adentro, creadas al abrirlas y que quedan abiertas;
+  cambiar de recurso guarda antes lo pendiente; un recurso nuevo recién guardado aparece solo en la lista;
+  `ws-guardar` del Workspace → a los dos editores; los demás avisos `ws-*` de los editores pasan al Workspace;
+  `ws-ir { tab, asset }` elige pestaña y recurso; sin canción, lista de canciones con cuántas melodías y arreglos
+  tienen; con solo `?asset=` busca su canción). Biblioteca: `abrirEditorMusical(cancion, tab, asset)` (una pestaña
+  `editor:<canción>` del Workspace; ＋ y ✏️ de Melodía y Arreglo y "+ Arreglo de piano" la usan). Workspace: la
+  entrada del menú + `melodias` pasa a "🎼 Editor musical".
+  Prueba (navegador, Workspace): desde la Biblioteca, ✏️ de la melodía Mambo de COQUETA → pestaña "COQUETA · Editor
+  musical" en ♬ Melodía con Mambo elegida; ✏️ del arreglo → la misma pestaña (no una segunda) pasa a 🎹 Arreglo con
+  "Acompañamiento piano" y la melodía sigue abierta; cerrar pide guardar a los dos editores y responde al instante;
+  sin errores.

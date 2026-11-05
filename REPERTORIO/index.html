@@ -5661,38 +5661,26 @@ function compartirPiano(assetId, boton) {
     Compartir.abrir(boton, { url, titulo: nombre, cancion: nombre, instrumento: 'Piano', sb });
 }
 
-// Editor de Melodías (deuda DK): pestaña cerrable del Workspace; fuera de él, ventana nueva.
-function abrirEditorMelodia(songId, assetId) {
+// 🎼 Editor musical (deuda FY): Melodía (DK) y Arreglo de piano (ES) de una canción en una sola pestaña cerrable del
+// Workspace, con una pestaña propia para cada uno (fuera del Workspace, ventana nueva). Si la canción ya está abierta,
+// se le pide ir a esa pestaña y ese recurso (assetId null = uno nuevo). El estudiante ve el arreglo en el Piano
+// (p/?r=<id>), que lee arreglo/<id>.json; la fecha límite vive en ese archivo (`hasta`).
+function abrirEditorMusical(songId, tab, assetId) {
     document.getElementById('modal-asset-overlay').classList.remove('visible');
     const c = canciones.find(x => x.id === songId);
-    const q = new URLSearchParams(assetId ? { asset: assetId } : { cancion: songId });
-    const src = `../MELODIA/index.html?${q}`;
+    const q = new URLSearchParams({ cancion: songId, tab, ...(assetId ? { asset: assetId } : {}) });
+    const src = `../EDITOR/index.html?${q}`;
     if (window.parent && window.parent !== window) {
         try {
-            window.parent.postMessage({ tipo: 'ws-abrir', key: `melodia:${assetId || 'nueva:' + songId}`,
-                titulo: `${c?.nombre || 'Melodía'} · Melodía`, ico: '♬', src, guardarAlCerrar: true }, '*');
+            window.parent.postMessage({ tipo: 'ws-abrir', key: `editor:${songId}`, titulo: `${c?.nombre || 'Canción'} · Editor musical`,
+                ico: '🎼', src, guardarAlCerrar: true, ir: { tab, asset: assetId || null } }, '*');
             return;
         } catch (_) {}
     }
     window.open(src, '_blank');
 }
-
-// Arreglo de piano (deuda ES): editor en una pestaña cerrable del Workspace (fuera de él, ventana nueva);
-// el estudiante lo ve en el Piano (p/?r=<id>), que lee arreglo/<id>.json. La fecha límite vive en ese archivo (`hasta`).
-function abrirEditorArreglo(songId, assetId) {
-    document.getElementById('modal-asset-overlay').classList.remove('visible');
-    const c = canciones.find(x => x.id === songId);
-    const q = new URLSearchParams(assetId ? { asset: assetId } : { cancion: songId });
-    const src = `../ARREGLO/index.html?${q}`;
-    if (window.parent && window.parent !== window) {
-        try {
-            window.parent.postMessage({ tipo: 'ws-abrir', key: `arreglo:${assetId || 'nuevo:' + songId}`,
-                titulo: `${c?.nombre || 'Arreglo'} · Arreglo`, ico: '🎹', src, guardarAlCerrar: true }, '*');
-            return;
-        } catch (_) {}
-    }
-    window.open(src, '_blank');
-}
+const abrirEditorMelodia = (songId, assetId) => abrirEditorMusical(songId, 'melodia', assetId);
+const abrirEditorArreglo = (songId, assetId) => abrirEditorMusical(songId, 'arreglo', assetId);
 // Mapa de tempo de la canción (deuda EU): uno por canción, en una pestaña cerrable del Workspace
 function abrirTempo(songId) {
     const c = canciones.find(x => x.id === songId);

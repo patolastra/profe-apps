@@ -49,6 +49,14 @@
 | Entrenador, Plan, celular | aún no abren "Melodía" (el Entrenador la esconde de su desplegable); su MIDI sí se abre en el Metalófono desde la ficha |
 | Editor de Arreglos (`ARREGLO/`, deuda ES) | "Copiar" trae una copia de la melodía (de `melodia/<id>.json`) al arreglo; no queda vinculada |
 
+## 🎼 Editor musical (`EDITOR/index.html`, deuda FY)
+
+| Lugar | Cómo se abre |
+|---|---|
+| Biblioteca, ficha de la canción | ＋ y ✏️ de Melodía y de Arreglo, "+ Arreglo de piano": `abrirEditorMusical(cancion, tab, asset)` → una pestaña `editor:<canción>` del Workspace (si ya está, `ws-ir` cambia de pestaña o recurso) |
+| Workspace, menú + | 🎼 Editor musical (entrada `melodias`): lista de canciones |
+| Adentro | ♬ Melodía = `MELODIA/` · 🎹 Arreglo de piano = `ARREGLO/` (cada uno tal cual; sus avisos pasan al Workspace) |
+
 ## Arreglo de piano (`ARREGLO/index.html` + `PIANO/?r=`, deuda ES)
 
 | Lugar | Cómo se abre |

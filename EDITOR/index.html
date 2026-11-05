@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor musical</title>
+<!--
+  🎼 Editor musical (deuda FY, etapa 1): una sola ventana por canción con sus editores en pestañas:
+    ♬ Melodía (MELODIA/: piano y metalófono) · 🎹 Arreglo de piano (ARREGLO/).
+  Cada pestaña es el editor de siempre, adentro (mismos recursos, mismos archivos, links de estudiantes intactos), y
+  quedan las dos abiertas: cambiar de pestaña no pierde lo escrito. En cada pestaña se elige cuál de los recursos de
+  esa clase editar, o ＋ Nueva.
+  Workspace: al cerrar se guarda lo pendiente de las dos (ws-guardar → a cada editor); los avisos de los editores
+  (ws-abrir…) pasan a la ventana de arriba; { tipo:'ws-ir', tab, asset } elige pestaña y recurso sin recargar.
+  Dirección: ?cancion=<id>[&tab=melodia|arreglo][&asset=<id>] · ?asset=<id> (busca su canción) · sin nada: elegir canción.
+  Etapas siguientes (a decidir): compartir la Ficha, la grabación y la vista previa; pestaña 🎸 Tablatura.
+-->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
+<script src="../comun/nombre-asset.js"></script>
+<script src="../comun/un-sonido.js"></script>
+<style>
+    :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+    body { display: flex; flex-direction: column; }
+    button, select, input { font: inherit; color: inherit; }
+    /* Barra (estable: anchos fijos) */
+    #barra { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #111a2e; border-bottom: 1px solid var(--borde); }
+    #cancion { width: 230px; min-width: 60px; flex-shrink: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pest { flex: 0 0 auto; height: 32px; width: 170px; border-radius: 8px; border: 1px solid #475569; background: #1e293b; cursor: pointer; font-size: 14px; }
+    .pest.on { background: #0e7490; border-color: var(--acento); font-weight: 600; }
+    #recurso { flex: 0 0 auto; width: 300px; height: 32px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 0 8px; }
+    #cuerpo { flex: 1 1 auto; min-height: 0; position: relative; }
+    #cuerpo iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); visibility: hidden; }
+    #cuerpo iframe.on { visibility: visible; }
+    #elegir { position: fixed; inset: 0; background: var(--bg); z-index: 20; display: flex; flex-direction: column; align-items: center; padding: 24px 16px; overflow: auto; }
+    #elegir h2 { margin: 0 0 14px; font-size: 20px; }
+    #elegir input { width: min(620px, 100%); height: 40px; border-radius: 9px; border: 1px solid #475569; background: #0b1222; padding: 0 12px; font-size: 16px; margin-bottom: 12px; }
+    #elegir-lista { width: min(620px, 100%); display: flex; flex-direction: column; gap: 6px; }
+    #elegir-lista button { text-align: left; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--borde); background: var(--panel); cursor: pointer; font-size: 15px; }
+    #elegir-lista button:hover { background: #24304a; }
+    #elegir-lista small { color: var(--tenue); margin-left: 8px; }
+</style>
+</head>
+<body>
+<div id="barra">
+    <div id="cancion">🎼 Editor musical</div>
+    <button class="pest" data-tab="melodia">♬ Melodía</button>
+    <button class="pest" data-tab="arreglo">🎹 Arreglo de piano</button>
+    <select id="recurso" title="Cuál editar"></select>
+</div>
+<div id="cuerpo"></div>
+
+<script>
+'use strict';
+const PARAMS = new URLSearchParams(location.search);
+const sb = (() => { try { return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON); } catch (_) { return null; } })();
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const EDITORES = {
+    melodia: { tipo: 'melodia', src: '../MELODIA/index.html', nueva: '＋ Nueva melodía' },
+    arreglo: { tipo: 'arreglo', src: '../ARREGLO/index.html', nueva: '＋ Nuevo arreglo de piano' },
+};
+let cancionId = PARAMS.get('cancion'), cancionNombre = '';
+let tab = EDITORES[PARAMS.get('tab')] ? PARAMS.get('tab') : 'melodia';
+let recursos = { melodia: [], arreglo: [] };
+const marcos = {};          // tab → iframe
+const pedido = {};          // tab → recurso pedido al abrirlo (mientras el editor carga)
+
+// El recurso que tiene abierto cada editor (el editor cambia su dirección al guardar uno nuevo)
+function assetDe(t) {
+    try {
+        const w = marcos[t]?.contentWindow;
+        if (w && w.location.href !== 'about:blank') return new URLSearchParams(w.location.search).get('asset') || null;
+    } catch (_) {}
+    return pedido[t] || null;
+}
+async function cargarRecursos() {
+    if (!sb || !cancionId) return;
+    const { data } = await sb.from('repertorio_assets').select('id, tipo, etiqueta, instrumento, tonalidad, dificultad, clase, simplificado, created_at, orden')
+        .eq('cancion_id', cancionId).in('tipo', ['melodia', 'arreglo']);
+    const lista = (data || []).sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.created_at).localeCompare(String(b.created_at)));
+    recursos = { melodia: lista.filter(a => a.tipo === 'melodia'), arreglo: lista.filter(a => a.tipo === 'arreglo') };
+}
+function nombreRecurso(a) {
+    const p = partesAsset(a);
+    return [p.detalle || (a.tipo === 'melodia' ? 'Melodía' : 'Arreglo'), a.tonalidad, a.instrumento && a.tipo === 'melodia' ? a.instrumento : ''].filter(Boolean).join(' · ');
+}
+function pintarRecursos() {
+    const sel = $('recurso'), actual = assetDe(tab);
+    sel.innerHTML = recursos[tab].map(a => `<option value="${a.id}">${esc(nombreRecurso(a))}</option>`).join('')
+        + `<option value="">${EDITORES[tab].nueva}</option>`;
+    sel.value = actual && recursos[tab].some(a => a.id === actual) ? actual : '';
+}
+function pintarPestanas() {
+    document.querySelectorAll('.pest').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    Object.entries(marcos).forEach(([t, f]) => f.classList.toggle('on', t === tab));
+}
+function srcDe(t, asset) {
+    return `${EDITORES[t].src}?${new URLSearchParams(asset ? { asset } : { cancion: cancionId })}`;
+}
+// Muestra una pestaña; si se pide un recurso distinto del que tiene abierto, lo guarda antes y lo cambia
+async function ir(t, asset) {
+    tab = t;
+    if (!marcos[t]) {
+        const f = document.createElement('iframe');
+        f.title = t === 'melodia' ? 'Editor de Melodías' : 'Editor de Arreglos';
+        f.allow = 'autoplay; fullscreen';
+        pedido[t] = asset === undefined ? recursos[t][0]?.id || null : asset;
+        f.src = srcDe(t, pedido[t]);
+        f.addEventListener('load', () => { if (t === tab) pintarRecursos(); });
+        $('cuerpo').appendChild(f);
+        marcos[t] = f;
+    } else if (asset !== undefined && asset !== assetDe(t)) {
+        await guardarEditor(t);
+        pedido[t] = asset;
+        marcos[t].src = srcDe(t, asset);
+    }
+    pintarPestanas(); pintarRecursos();
+    try { history.replaceState(null, '', `?${new URLSearchParams({ cancion: cancionId, tab: t })}`); } catch (_) {}
+}
+document.querySelectorAll('.pest').forEach(b => b.onclick = () => { ir(b.dataset.tab); b.blur(); });
+$('recurso').addEventListener('mousedown', async () => { await cargarRecursos(); pintarRecursos(); });
+$('recurso').onchange = e => { ir(tab, e.target.value || null); e.target.blur(); };
+// Un recurso nuevo recién guardado en el editor aparece solo en la lista
+setInterval(async () => {
+    const id = assetDe(tab);
+    if (id && !recursos[tab].some(a => a.id === id)) { await cargarRecursos(); pintarRecursos(); }
+    else if ($('recurso').value !== (id || '') && document.activeElement !== $('recurso')) pintarRecursos();
+}, 2000);
+
+// ── Workspace ───────────────────────────────────────────────────────────────────────────
+// Guardar lo pendiente de un editor: la misma pregunta que hace el Workspace al cerrar una pestaña
+let reqN = 0;
+const esperas = new Map();
+function guardarEditor(t) {
+    const f = marcos[t];
+    if (!f?.contentWindow) return Promise.resolve(true);
+    return new Promise(ok => {
+        const reqId = 'ed' + (++reqN);
+        esperas.set(reqId, ok);
+        try { f.contentWindow.postMessage({ tipo: 'ws-guardar', reqId }, '*'); } catch (_) { esperas.delete(reqId); ok(true); }
+        setTimeout(() => { if (esperas.has(reqId)) { esperas.delete(reqId); ok(false); } }, 8000);
+    });
+}
+window.addEventListener('message', async e => {
+    const m = e.data; if (!m || typeof m !== 'object') return;
+    const deEditor = Object.values(marcos).some(f => f.contentWindow === e.source);
+    if (deEditor) {
+        if (m.tipo === 'ws-guardado' && esperas.has(m.reqId)) { const ok = esperas.get(m.reqId); esperas.delete(m.reqId); ok(m.ok !== false); return; }
+        if (window.parent !== window && typeof m.tipo === 'string' && m.tipo.startsWith('ws-') && m.tipo !== 'ws-sonando') {
+            try { window.parent.postMessage(m, '*'); } catch (_) {}          // ws-abrir (Ficha, Entrenador…) al Workspace
+        }
+        return;
+    }
+    if (e.source !== window.parent) return;
+    if (m.tipo === 'ws-guardar') {           // el Workspace cierra la pestaña: se guarda lo de los dos editores
+        const oks = await Promise.all(Object.keys(marcos).map(guardarEditor));
+        window.parent.postMessage({ tipo: 'ws-guardado', reqId: m.reqId, ok: oks.every(Boolean) }, '*');
+    } else if (m.tipo === 'ws-ir') {          // la Biblioteca pide otra pestaña o recurso de esta misma canción
+        await cargarRecursos();
+        ir(EDITORES[m.tab] ? m.tab : tab, m.asset === undefined ? undefined : (m.asset || null));
+    }
+});
+
+// ── Inicio ──────────────────────────────────────────────────────────────────────────────
+async function elegirCancion() {
+    const box = document.createElement('div');
+    box.id = 'elegir';
+    box.innerHTML = '<h2>🎼 Editor musical — elige la canción</h2><input id="elegir-buscar" placeholder="Buscar canción o artista…" autocomplete="off"><div id="elegir-lista">Cargando…</div>';
+    document.body.appendChild(box);
+    const lista = box.querySelector('#elegir-lista');
+    let canciones = [], assets = [];
+    try {
+        const [c, a] = await Promise.all([
+            sb.from('repertorio_canciones').select('id, nombre, artista, categoria').order('nombre'),
+            sb.from('repertorio_assets').select('cancion_id, tipo').in('tipo', ['melodia', 'arreglo']),
+        ]);
+        if (c.error) throw c.error;
+        canciones = (c.data || []).filter(x => x.categoria !== 'estilo'); assets = a.data || [];
+    } catch (err) { lista.textContent = 'No se pudieron cargar las canciones: ' + (err.message || err); return; }
+    const cuenta = (id, t) => assets.filter(x => x.cancion_id === id && x.tipo === t).length;
+    const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const pintar = () => {
+        const q = norm(box.querySelector('#elegir-buscar').value);
+        const ver = canciones.filter(c => !q || norm(c.nombre + ' ' + c.artista).includes(q))
+            .sort((a, b) => (cuenta(b.id, 'melodia') + cuenta(b.id, 'arreglo') > 0) - (cuenta(a.id, 'melodia') + cuenta(a.id, 'arreglo') > 0));
+        lista.innerHTML = ver.slice(0, 80).map(c => {
+            const m = cuenta(c.id, 'melodia'), r = cuenta(c.id, 'arreglo');
+            const det = [m && `♬ ${m}`, r && `🎹 ${r}`].filter(Boolean).join(' · ');
+            return `<button data-id="${c.id}">${esc(c.nombre)}<small>${esc(c.artista)}${det ? ' · ' + det : ''}</small></button>`;
+        }).join('') || 'Sin resultados';
+    };
+    box.querySelector('#elegir-buscar').addEventListener('input', pintar);
+    lista.addEventListener('click', e => { const b = e.target.closest('button'); if (b) location.replace(`?cancion=${b.dataset.id}`); });
+    pintar();
+    box.querySelector('#elegir-buscar').focus();
+}
+(async () => {
+    let asset = PARAMS.get('asset');
+    if (!cancionId && asset && sb) {             // solo el recurso: su canción y su pestaña
+        const { data } = await sb.from('repertorio_assets').select('cancion_id, tipo').eq('id', asset).single();
+        if (data) { cancionId = data.cancion_id; if (EDITORES[data.tipo]) tab = data.tipo; }
+    }
+    if (!cancionId) { elegirCancion(); return; }
+    if (sb) {
+        const { data } = await sb.from('repertorio_canciones').select('nombre').eq('id', cancionId).single();
+        cancionNombre = data?.nombre || '';
+    }
+    $('cancion').textContent = '🎼 ' + (cancionNombre || 'Editor musical'); $('cancion').title = cancionNombre;
+    document.title = `${cancionNombre || 'Canción'} · Editor musical`;
+    await cargarRecursos();
+    // Pestaña pedida: con el recurso pedido o el primero que tenga; sin recursos, uno nuevo
+    await ir(tab, asset ? asset : recursos[tab][0]?.id || null);
+})();
+</script>
+</body>
+</html>
