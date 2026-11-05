@@ -8748,3 +8748,47 @@ veces necesito buscar un tono o algo; también ahí un botón Crear un arreglo q
   `TECLADO/`. Prueba (navegador, Workspace): 25 teclas do4–do6 con su nombre; la tecla J del computador suena "si4" y
   se ilumina, al soltar se apaga; ▶ → do5–do7, ◀ vuelve; 🎼 Crear un arreglo abre la pestaña del Editor musical con
   su lista de canciones. Sin errores.
+
+### GA. 🎵 2ª voz: un tercer audio de la canción que suena encima de Melodía o Karaoke — HECHA
+*Origen: PO 2026-11-05 ("quiero agregar un tercer tipo de audio, de segunda voz, que calza perfectamente con los
+tiempos de melodía y de karaoke").*
+- **Necesidad:** ensayar a dos voces: el grupo de la 1ª voz canta contra la 2ª (Karaoke + 2ª voz), se oyen las dos
+  juntas (Melodía + 2ª voz) o el grupo de la 2ª ensaya con apoyo; en clase y en la casa.
+- **Auditoría:** los audios de la canción tienen `rol` ('melodia' | 'karaoke', uno de cada uno por canción; regla
+  `repertorio_assets_rol_chk` + índice único `(cancion_id, rol)`). Melodía y Karaoke suenan desde un solo reproductor
+  (`comun/dos-grabaciones.js`, deuda ET), decodificadas y leídas muestra a muestra con el `<audio>` como reloj; el tono
+  y la velocidad (SoundTouch) se aplican dentro de ese reproductor. Lo usan el Entrenador (`REPERTORIO/`, todas sus
+  versiones) y Cantar (`CANTAR/`, archivo público `cancion/<id>.json` con `audios`). La Ficha (`TEMPO/`) y el Arreglo
+  (`ARREGLO/`) eligen la Melodía con "el de rol melodía o, si no hay, el primero que no sea karaoke".
+- **Decisión del PO (2026-11-05):** la 2ª voz es **un audio con solo la voz** (sin pista) y suena **como capa encima**
+  de lo que esté sonando (Melodía o Karaoke), con su botón para prender / apagar y su volumen.
+- **Plan:**
+  1. Supabase: `rol = 'segunda'` permitido (`supabase/repertorio_audio_segunda.sql`), máx. una por canción (el índice
+     único ya lo cuida).
+  2. `comun/dos-grabaciones.js`: el reproductor suma una **capa** (`op.capa`, `r.capa(buffer, ganancia)`) leída en la
+     misma muestra que la grabación principal, antes del tono y la velocidad: calza exacto, prender / apagar sin golpe.
+  3. Biblioteca: "🎵 2ª voz (solo la voz)" al subir y al editar un audio (aviso si dura distinto que la Melodía);
+     se ve como "· 🎵 2ª voz" en la ficha; no cuenta como Melodía ni como "otro audio".
+  4. Entrenador: botón **🎵 2ª voz** (solo si la canción la tiene; se prepara junto con el Karaoke, misma barra) y su
+     volumen al lado (oculto, con su lugar reservado, mientras está apagada). Sigue saltos, loops, velocidad y tono.
+  5. Cantar: el link compartido trae la 2ª voz (`audios.segunda`) con su botón 🎵 2ª voz.
+  6. Ficha y Arreglo: la 2ª voz no se toma nunca como Melodía.
+  - Lugares (regla 11): Entrenador en la Biblioteca, en la sesión del curso, en el Plan, mínimo y en el celular (la
+    copia de la Pizarra no suena: no cambia); Cantar; ficha de la canción (subir / editar); Ficha y Arreglo (solo la
+    elección de la Melodía).
+- **Hecho (2026-11-05):** `supabase/repertorio_audio_segunda.sql` (la regla del rol admite `'segunda'`; **la corre el
+  PO** en Supabase: sin ella, subir o marcar una 2ª voz avisa "Falta actualizar Supabase").
+  `comun/dos-grabaciones.js`: capa (`op.capa` / `op.capaGanancia`, `r.capa(buffer|null, ganancia)`), sumada en la
+  misma muestra antes de SoundTouch, ganancia que se desliza en 25 ms. `REPERTORIO/index.html`: `audioDe(c,
+  'segunda')`, `tieneSegunda`, `NOMBRE_ROL`, la 2ª voz nunca es Melodía ni "otro audio"; subir / editar con la opción
+  "🎵 2ª voz (solo la voz)" y aviso de duración; "· 🎵 2ª voz" en la ficha; `entPrepararKaraoke` carga las grabaciones
+  que haya (Melodía + Karaoke y/o 2ª voz); botón `#ent-btn-segunda` + volumen `#ent-segunda-vol` (oculto con su lugar
+  reservado mientras está apagada; en el celular solo el botón), cada canción parte apagada, volumen recordado en el
+  equipo (`ent_segunda_vol`); el archivo público de Cantar lleva `audios.segunda`. `CANTAR/index.html`: botón 🎵 2ª voz
+  (la cabecera aparece con Karaoke o con 2ª voz). `ARREGLO/` y `TEMPO/`: la 2ª voz no se toma como Melodía.
+  Prueba (navegador): reproductor con señales de prueba (Melodía 0,1 → + 2ª voz 0,2 = 0,3; a la mitad = 0,2; cambiar a
+  Karaoke la mantiene; al apagarla queda solo el Karaoke). Entrenador con Reflections y una 2ª voz simulada (en memoria,
+  sin guardar): el botón espera con la barra mientras se preparan las tres, luego se prende y el volumen aparece en su
+  lugar; la 2ª voz no aparece entre los otros audios. Cantar con un archivo simulado: cabecera con 🎤 Melodía y
+  🎵 2ª voz, las tres grabaciones preparadas, el botón prende la capa. **Falta:** probarlo con una 2ª voz real (tras
+  correr el SQL).

@@ -25,10 +25,11 @@
     #ent-header { flex-shrink: 0; padding: calc(6px + env(safe-area-inset-top, 0px)) 16px 6px; min-height: 52px; display: flex;
         align-items: center; justify-content: flex-end; gap: 12px; background: #1e293b; border-bottom: 1px solid #334155; }
     #ent-header[hidden] { display: none; }
-    #ent-btn-audio { background: #334155; border: 1.5px solid #475569; color: #94a3b8; border-radius: 20px; padding: 7px 14px;
+    #ent-btn-audio[hidden], #ent-btn-segunda[hidden] { display: none; }
+    #ent-btn-audio, #ent-btn-segunda { background: #334155; border: 1.5px solid #475569; color: #94a3b8; border-radius: 20px; padding: 7px 14px;
         font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; line-height: 1; transition: all 0.15s; }
-    #ent-btn-audio:hover { border-color: #64748b; color: #cbd5e1; }
-    #ent-btn-audio.activo { background: #ea580c; border-color: #ea580c; color: #fff; }
+    #ent-btn-audio:hover, #ent-btn-segunda:hover { border-color: #64748b; color: #cbd5e1; }
+    #ent-btn-audio.activo, #ent-btn-segunda.activo { background: #ea580c; border-color: #ea580c; color: #fff; }
 
     #ent-zona { flex: 1; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
         padding: 28px 40px 16px; scrollbar-width: thin; scrollbar-color: #334155 transparent; }
@@ -85,7 +86,7 @@
 </style>
 </head>
 <body>
-<header id="ent-header" hidden><button id="ent-btn-audio" title="Cambiar entre la Melodía (con voz) y el Karaoke (sin voz)">🎤 Melodía</button></header>
+<header id="ent-header" hidden><button id="ent-btn-audio" title="Cambiar entre la Melodía (con voz) y el Karaoke (sin voz)">🎤 Melodía</button><button id="ent-btn-segunda" title="Sumar la 2ª voz encima de lo que suena" hidden>🎵 2ª voz</button></header>
 <main id="ent-zona"><div class="ent-stanzas-wrapper" id="ent-letra"></div></main>
 <footer id="ent-controles">
     <div id="ent-playcontrols">
@@ -169,23 +170,28 @@ if (matchMedia('(pointer: coarse)').matches) window.addEventListener('blur', () 
 // descargan y decodifican las dos grabaciones (barra mínima en el botón); listas, suena el reproductor de
 // comun/dos-grabaciones.js y `audio` queda en silencio. Cambiar = la otra grabación en la misma muestra.
 // Mientras se preparan suena `audio` con la Melodía y el botón espera.
-let ctx = null, motor = null, buffers = null;
+// 🎵 2ª voz (deuda GA): solo la voz, suena ENCIMA de la Melodía o el Karaoke (capa del mismo reproductor), se prende y
+// se apaga con su botón; se prepara junto con las otras.
+let ctx = null, motor = null, buffers = null, segundaOn = false;
 function pintarCarga(x) {
-    const b = $('ent-btn-audio');
-    b.disabled = x !== null;
-    b.style.backgroundImage = x === null ? '' : 'linear-gradient(#ea580c, #ea580c)';
-    b.style.backgroundRepeat = 'no-repeat'; b.style.backgroundPosition = 'left bottom';
-    b.style.backgroundSize = x === null ? '' : `${Math.round(x * 100)}% 3px`;
+    ['ent-btn-audio', 'ent-btn-segunda'].forEach(id => {
+        const b = $(id);
+        b.disabled = x !== null;
+        b.style.backgroundImage = x === null ? '' : 'linear-gradient(#ea580c, #ea580c)';
+        b.style.backgroundRepeat = 'no-repeat'; b.style.backgroundPosition = 'left bottom';
+        b.style.backgroundSize = x === null ? '' : `${Math.round(x * 100)}% 3px`;
+    });
 }
 async function prepararDos() {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const prog = { melodia: 0, karaoke: 0 };
-    const pintar = () => pintarCarga((prog.melodia + prog.karaoke) / 2);
+    const roles = ['melodia', 'karaoke', 'segunda'].filter(r => datos.audios[r]);
+    const prog = {};
+    const pintar = () => pintarCarga(roles.reduce((t, r) => t + (prog[r] || 0), 0) / roles.length);
     pintar();
     try {
-        const [m, k] = await Promise.all(['melodia', 'karaoke'].map(r => DosGrabaciones.cargar(ctx, datos.audios[r], x => { prog[r] = x; pintar(); })));
-        buffers = { melodia: m, karaoke: k };
-    } catch (_) { pintarCarga(null); $('ent-btn-audio').disabled = true; return; }
+        const bs = await Promise.all(roles.map(r => DosGrabaciones.cargar(ctx, datos.audios[r], x => { prog[r] = x; pintar(); })));
+        buffers = {}; roles.forEach((r, i) => { buffers[r] = bs[i]; });
+    } catch (_) { pintarCarga(null); $('ent-btn-audio').disabled = true; $('ent-btn-segunda').disabled = true; return; }
     pintarCarga(null);
     if (!audio.paused) arrancarMotor();
 }
@@ -193,6 +199,7 @@ function arrancarMotor() {
     if (!buffers || motor) return;
     if (ctx.state === 'suspended') ctx.resume();
     motor = DosGrabaciones.motor(ctx, ctx.destination, { buffer: buffers[rol], reloj: () => audio.currentTime,
+        ...(segundaOn && buffers.segunda ? { capa: buffers.segunda } : {}),
         alEmpezar: t => setTimeout(() => { if (motor) audio.muted = true; }, Math.max(0, (t - ctx.currentTime) * 1000)) });
 }
 function pararMotor() { motor?.detener(); motor = null; }
@@ -207,11 +214,18 @@ function ponerAudio(nuevo) {
     b.classList.toggle('activo', rol === 'karaoke');
     if (!audio.getAttribute('src')) {          // primera vez
         audio.src = datos.audios.melodia || datos.audios.karaoke;
-        if (datos.audios.melodia && datos.audios.karaoke) prepararDos();
+        if (datos.audios.melodia && (datos.audios.karaoke || datos.audios.segunda)) prepararDos();
         return;
     }
     motor?.cambiar(buffers?.[rol]);
 }
+function ponerSegunda(on) {
+    if (!buffers?.segunda) return;
+    segundaOn = on;
+    $('ent-btn-segunda').classList.toggle('activo', on);
+    motor?.capa(on ? buffers.segunda : null, 1);
+}
+$('ent-btn-segunda').onclick = () => ponerSegunda(!segundaOn);
 
 // Barra de avance: tocar o arrastrar (como en el Entrenador)
 const barra = $('ent-progress-bar');
@@ -266,7 +280,10 @@ const fechaBonita = (f) => f.split('-').reverse().join('/');
     }
     datos.nombre = datos.nombre || q.get('n') || 'Canción';
     document.title = datos.nombre + ' · Cantar';
-    $('ent-header').hidden = !(datos.audios.melodia && datos.audios.karaoke);
+    const conSegunda = !!(datos.audios.melodia && datos.audios.segunda);
+    $('ent-header').hidden = !(datos.audios.melodia && (datos.audios.karaoke || conSegunda));
+    $('ent-btn-audio').hidden = !(datos.audios.melodia && datos.audios.karaoke);
+    $('ent-btn-segunda').hidden = !conSegunda;
     pintarLetra();
     ponerAudio(datos.audios.melodia ? 'melodia' : 'karaoke');
     aviso('');

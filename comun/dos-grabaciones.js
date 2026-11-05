@@ -9,7 +9,9 @@
 //        el <audio> cuando ese bloque suene) · vel: velocidad · st: { SimpleFilter, pipe } con un SoundTouch ya
 //        configurado (tono / velocidad) o null (se lee directo) · alEmpezar(horaCtx): cuándo empieza a oírse (para
 //        callar el <audio> justo ahí: el traspaso no se nota)
+//        capa / capaGanancia: otra grabación que suena ENCIMA en la misma muestra (la 2ª voz, deuda GA), con su volumen
 //   r.cambiar(otroBuffer) · r.ir(seg) · r.detener() · r.segundo() (posición leída de la grabación)
+//   r.capa(buffer|null, ganancia) (prender / apagar / volumen de la capa, sin golpe: la ganancia se desliza)
 // Usada por el Entrenador (REPERTORIO/) y Cantar (CANTAR/).
 (function () {
     const BLOQUE = 4096;
@@ -42,6 +44,9 @@
         let buf = op.buffer, viejo = null, resta = 0;
         const sr = buf.sampleRate, largoF = Math.round(FUNDIDO * sr);
         let pos = 0;            // sin SoundTouch: la posición la lleva el motor
+        // Capa (2ª voz): se suma antes del tono y la velocidad, así calza exacto; gCapa se desliza hacia gMeta
+        let capa = op.capa || null, gMeta = capa ? (op.capaGanancia ?? 1) : 0, gCapa = gMeta;
+        const paso = 1 / largoF;
         // Lee n cuadros desde p (intercalados L R), mezclando con la grabación anterior durante el fundido
         function leer(t, n, p) {
             const k = Math.min(n, buf.length - p);
@@ -56,6 +61,15 @@
                     t[i * 2] = t[i * 2] * (1 - g) + v0 * g; t[i * 2 + 1] = t[i * 2 + 1] * (1 - g) + v1 * g;
                 }
                 if (resta <= 0) viejo = null;
+            }
+            if (capa && (gCapa > 0 || gMeta > 0)) {
+                const c0 = capa.getChannelData(0), c1 = capa.numberOfChannels > 1 ? capa.getChannelData(1) : c0;
+                for (let i = 0; i < k; i++) {
+                    if (gCapa !== gMeta) gCapa = gCapa < gMeta ? Math.min(gMeta, gCapa + paso) : Math.max(gMeta, gCapa - paso);
+                    const q = p + i;
+                    if (q < capa.length) { t[i * 2] += c0[q] * gCapa; t[i * 2 + 1] += c1[q] * gCapa; }
+                }
+                if (gCapa === 0 && gMeta === 0) capa = null;
             }
             return k;
         }
@@ -86,6 +100,10 @@
                 viejo = buf; resta = largoF; buf = otro;
             },
             ir,
+            capa(b, g = 1) {
+                if (b) { if (capa && capa !== b) gCapa = 0; capa = b; gMeta = Math.max(0, g); }
+                else gMeta = 0;                 // se apaga deslizándose; luego se suelta
+            },
             segundo() { return (filtro ? filtro.sourcePosition : pos) / sr; },
             detener() { nodo.onaudioprocess = null; try { nodo.disconnect(); } catch (_) {} },
             get buffer() { return buf; },
