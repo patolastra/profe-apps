@@ -8809,3 +8809,6 @@ tiempos de melodía y de karaoke").*
   sesión parte apagada. Prueba (navegador, sin guardar en Supabase): La Bicicleta en Séptimo 2026 parte apagada →
   prenderla queda en su ítem; suelta en la Biblioteca parte apagada; al reabrir la sesión, prendida (botón activo y
   barra a la vista).
+- **Ajuste: doble clic al centro (PO 2026-11-05):** doble clic en la barra de equilibrio la deja en la mitad (2ª voz y
+  Melodía / Karaoke al 100 %); su título lo dice. Prueba (navegador): barra en 180 → doble clic → 100, el Entrenador
+  sigue abierto (el doble clic no llega al del Entrenador).
