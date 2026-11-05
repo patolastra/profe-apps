@@ -8812,3 +8812,39 @@ tiempos de melodía y de karaoke").*
 - **Ajuste: doble clic al centro (PO 2026-11-05):** doble clic en la barra de equilibrio la deja en la mitad (2ª voz y
   Melodía / Karaoke al 100 %); su título lo dice. Prueba (navegador): barra en 180 → doble clic → 100, el Entrenador
   sigue abierto (el doble clic no llega al del Entrenador).
+
+### GB. 🎵 Versos con 2ª voz marcados en violeta — HECHA
+*Origen: PO 2026-11-05 ("necesito marcar la letra de la canción que tiene segunda voz, aquellos versos / estrofas que
+tienen segunda voz, con otro color").*
+- **Necesidad:** que el curso vea dónde entra la 2ª voz mientras ensaya, en clase y en la casa.
+- **Auditoría:** la letra del Entrenador son líneas (`entrenadorLines`, una por línea de `contenido`; `origIdx` = su
+  posición). Los colores de clase (coloreados, escondidos) son de la **sesión**; los gestos de clic ya están todos
+  ocupados (clic, Alt, Shift, Ctrl, clic derecho). Al editar la letra, los tiempos se reubican por posición (misma
+  cantidad de líneas) o por texto (`entSalirEdicion`). La copia de la Pizarra recibe el estado por `espejoEstado`;
+  Cantar recibe las líneas en `cancion/<id>.json` (`lineasPublicas`).
+- **Decisión del PO (2026-11-05):** propuesta aprobada tal cual:
+  1. Cada verso con 2ª voz lleva **una línea violeta a su izquierda** (siempre); con la 2ª voz **prendida**, además su
+     **texto en violeta**. Los coloreados de clase mandan sobre el violeta; la línea queda.
+  2. Se marca con un modo propio, **🎵 Marcar 2ª voz** (junto a Editar): clic = verso, Ctrl + clic = estrofa, Esc
+     termina.
+  3. Es un dato de **la canción** (se guarda en la letra), no de la sesión: lo ven todas las sesiones, el Plan, el
+     celular, la copia de la Pizarra y Cantar.
+  - Fuera por ahora: marcar solo algunas palabras de un verso.
+- **Plan:** `supabase/repertorio_letra_segunda_voz.sql` (`repertorio_assets.segunda_voz jsonb`: posiciones de las
+  líneas marcadas; lo corre el PO). `REPERTORIO/`: marcas en `entVoz2` (del asset letra), clase `voz2` en el verso,
+  modo de marcar, guardado del asset, marcas reubicadas al editar la letra (como los tiempos), copia de la Pizarra
+  (`voz2` y `voz2On` en el estado), archivo de Cantar (`v2: 1` en cada línea marcada). `CANTAR/`: la línea violeta y,
+  con la 2ª voz prendida, el texto violeta.
+  - Lugares (regla 11): Entrenador en la Biblioteca, sesión del curso, Plan, mínimo, celular (solo mirar) y copia de
+    la Pizarra; Cantar.
+- **Hecho (2026-11-05):** `REPERTORIO/index.html`: `entVoz2` (desde `segunda_voz` de la letra al cargarla),
+  clase `voz2` en `entLineSpanHTML` (Scroll y Diapositiva), botón `#ent-btn-voz2` "🎵 Marcar 2ª voz" junto a Editar
+  (solo con 2ª voz y la letra abierta; no en el celular), `entMarcarVoz2` / `entToggleVoz2` / `entToggleVoz2Estrofa`
+  (sin mover el audio; Esc termina), guardado `update({ segunda_voz })` + archivo de Cantar al día; sin la columna,
+  el botón avisa "Falta actualizar Supabase"; al editar la letra las marcas se reubican (por posición o por texto);
+  copia de la Pizarra (`voz2`, `voz2On`); `lineasPublicas` pone `v2: 1`; atajo en ⌨. `CANTAR/index.html`: línea
+  violeta y texto violeta con 🎵 2ª voz prendida. Prueba (navegador, La Bicicleta, sin guardar en Supabase: el guardado
+  simulado): sin la columna avisa; clic en un verso y Ctrl + clic en una estrofa → 5 versos con la línea violeta y el
+  audio quieto; Esc termina sin cerrar; con la 2ª voz prendida el texto queda violeta; agregar una línea arriba de la
+  letra corre las marcas a los mismos versos; Cantar con un archivo simulado muestra la línea y el violeta.
+  **Falta:** correr el SQL y marcar una canción real.
