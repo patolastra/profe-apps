@@ -8792,3 +8792,10 @@ tiempos de melodía y de karaoke").*
   lugar; la 2ª voz no aparece entre los otros audios. Cantar con un archivo simulado: cabecera con 🎤 Melodía y
   🎵 2ª voz, las tres grabaciones preparadas, el botón prende la capa. **Falta:** probarlo con una 2ª voz real (tras
   correr el SQL).
+- **Ajuste: equilibrio (PO 2026-11-05, "a veces querré que la segunda suene por sobre la melodía original"):** la
+  barra de la 2ª voz pasa a ser de **equilibrio** (0–200, recordada en el equipo, `ent_segunda_eq`): de 0 a la mitad
+  sube la 2ª voz; de la mitad al final la 2ª voz queda entera y la Melodía / Karaoke baja hasta 20 % (sin distorsión);
+  su título dice cómo quedó ("2ª voz 100 % · Melodía 60 %"). `comun/dos-grabaciones.js`: `op.ganancia` /
+  `r.principal(g)` (volumen de la grabación de abajo, se desliza). Solo en el Entrenador del PC (en el celular y en
+  Cantar, solo el botón). Prueba (navegador): señales de prueba Melodía 0,1 + 2ª voz 0,2 con la de abajo a 50 % → 0,25,
+  a 20 % → 0,22, sin capa → 0,1; La Bicicleta (2ª voz real) en 150 → "2ª voz 100 % · Melodía 60 %".

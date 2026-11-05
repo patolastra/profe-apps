@@ -12,6 +12,7 @@
 //        capa / capaGanancia: otra grabación que suena ENCIMA en la misma muestra (la 2ª voz, deuda GA), con su volumen
 //   r.cambiar(otroBuffer) · r.ir(seg) · r.detener() · r.segundo() (posición leída de la grabación)
 //   r.capa(buffer|null, ganancia) (prender / apagar / volumen de la capa, sin golpe: la ganancia se desliza)
+//   r.principal(ganancia) (volumen de la grabación de abajo, para que la capa quede por encima; también se desliza)
 // Usada por el Entrenador (REPERTORIO/) y Cantar (CANTAR/).
 (function () {
     const BLOQUE = 4096;
@@ -47,6 +48,7 @@
         // Capa (2ª voz): se suma antes del tono y la velocidad, así calza exacto; gCapa se desliza hacia gMeta
         let capa = op.capa || null, gMeta = capa ? (op.capaGanancia ?? 1) : 0, gCapa = gMeta;
         const paso = 1 / largoF;
+        let pMeta = op.ganancia ?? 1, gPrin = pMeta;      // volumen de la grabación de abajo
         // Lee n cuadros desde p (intercalados L R), mezclando con la grabación anterior durante el fundido
         function leer(t, n, p) {
             const k = Math.min(n, buf.length - p);
@@ -61,6 +63,12 @@
                     t[i * 2] = t[i * 2] * (1 - g) + v0 * g; t[i * 2 + 1] = t[i * 2 + 1] * (1 - g) + v1 * g;
                 }
                 if (resta <= 0) viejo = null;
+            }
+            if (gPrin !== 1 || pMeta !== 1) {
+                for (let i = 0; i < k; i++) {
+                    if (gPrin !== pMeta) gPrin = gPrin < pMeta ? Math.min(pMeta, gPrin + paso) : Math.max(pMeta, gPrin - paso);
+                    t[i * 2] *= gPrin; t[i * 2 + 1] *= gPrin;
+                }
             }
             if (capa && (gCapa > 0 || gMeta > 0)) {
                 const c0 = capa.getChannelData(0), c1 = capa.numberOfChannels > 1 ? capa.getChannelData(1) : c0;
@@ -104,6 +112,7 @@
                 if (b) { if (capa && capa !== b) gCapa = 0; capa = b; gMeta = Math.max(0, g); }
                 else gMeta = 0;                 // se apaga deslizándose; luego se suelta
             },
+            principal(g = 1) { pMeta = Math.max(0, g); },
             segundo() { return (filtro ? filtro.sourcePosition : pos) / sr; },
             detener() { nodo.onaudioprocess = null; try { nodo.disconnect(); } catch (_) {} },
             get buffer() { return buf; },
