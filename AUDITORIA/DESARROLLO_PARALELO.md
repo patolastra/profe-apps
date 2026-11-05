@@ -8799,3 +8799,8 @@ tiempos de melodía y de karaoke").*
   `r.principal(g)` (volumen de la grabación de abajo, se desliza). Solo en el Entrenador del PC (en el celular y en
   Cantar, solo el botón). Prueba (navegador): señales de prueba Melodía 0,1 + 2ª voz 0,2 con la de abajo a 50 % → 0,25,
   a 20 % → 0,22, sin capa → 0,1; La Bicicleta (2ª voz real) en 150 → "2ª voz 100 % · Melodía 60 %".
+- **Ajuste: la sesión recuerda el equilibrio (PO 2026-11-05):** en una sesión del Entrenador (curso, Plan, celular) el
+  equilibrio de la 2ª voz se guarda en la canción de la sesión (`canciones[n].segundaEq`, junto al tono y la velocidad;
+  sin cambios en Supabase: va en el mismo JSON); fuera de una sesión sigue siendo el del equipo. La 2ª voz igual parte
+  apagada. Prueba (navegador, sin guardar en Supabase): La Bicicleta en la sesión Séptimo 2026 → 170 queda en su
+  ítem; abierta fuera de la sesión vuelve a 100 (equipo); al reabrir la sesión, 170.
