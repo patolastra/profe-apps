@@ -6397,8 +6397,10 @@ async function entPrepararKaraoke(c) {
     }
     if (carga !== entDosCarga) return;
     entDosListas = true;
+    if (entSegundaAlAbrir && roles.includes('segunda')) entSegundaOn = true;   // como la dejó la sesión (GA)
     entPintarCargaAudio(null);
     if (!entPitchNode) entActivarPitch();          // traspaso al reproductor, sin que se note
+    else entAplicarSegunda();
 }
 // Grabaciones decodificadas por id del audio: { promesa, valor }
 const entPitchBuffers = {};
@@ -6433,6 +6435,7 @@ function entPintarSync() {
 // equilibrio (recordada en el equipo): 0–100 sube la 2ª voz; 100–200 la deja entera y baja la de abajo hasta 20 %
 // (así queda por encima sin distorsionar). Se prepara junto con el Karaoke; cada canción parte apagada.
 let entSegundaOn = false;
+let entSegundaAlAbrir = false;   // la sesión la dejó prendida: se prende sola apenas está lista
 // Dónde queda la barra: en una sesión del Entrenador (curso, Plan, celular), la guarda la canción de la sesión
 // (`segundaEq`, como el tono y la velocidad); fuera de una sesión, el equipo.
 const entSegundaEqEquipo = () => { try { const v = parseFloat(localStorage.getItem('ent_segunda_eq')); return isFinite(v) ? v : 100; } catch (_) { return 100; } };
@@ -6473,6 +6476,7 @@ function entToggleSegunda(on) {
     if (!entrenadorSong || !tieneSegunda(entrenadorSong) || ESPEJO) return;
     if (!entDosListas) return;                     // aún preparándose (el botón muestra la barra)
     entSegundaOn = on ?? !entSegundaOn;
+    if (entModoSesion || entModoEditSesion) entPersistirConfigSesion();   // la sesión recuerda si queda prendida
     if (entSegundaOn && !entPitchNode && !entAudio().paused) entActivarPitch();
     entAplicarSegunda();
     entPintarSegunda();
@@ -6747,6 +6751,7 @@ function abrirEntrenador(songId) {
     const c = canciones.find(x => x.id === songId);
     if (!c) return;
     entSegundaEq = entSegundaEqEquipo();   // fuera de una sesión, el equilibrio de la 2ª voz es el del equipo (GA)
+    entSegundaAlAbrir = false;             // y parte apagada
     // Siempre abre en Melodía. Sin audio también se abre (solo la letra): el Entrenador es
     // el que muestra todo lo del repertorio salvo las tablaturas (el Visor de letras se retiró, deuda AS).
     const audioAsset = audioDe(c, 'melodia');
@@ -9266,6 +9271,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     entPintarBtnLetra();
     entrenadorLineasColoreadas = new Set(sesionItem.coloreadas || []);   // lo pintado en esta sesión (deuda CS)
     entSegundaEq = sesionItem.segundaEq ?? entSegundaEqEquipo();          // equilibrio de la 2ª voz (GA)
+    entSegundaAlAbrir = !!sesionItem.segunda;                             // y si quedó prendida
 
     document.getElementById('ent-song-nombre').textContent  = song.nombre;
     document.getElementById('ent-song-artista').textContent = song.artista || '';
@@ -9567,7 +9573,7 @@ function entPersistirConfigSesion() {
     item.velocidad = entrenadorVelocidad;
     item.coloreadas = [...entrenadorLineasColoreadas];   // versos pintados (deuda CS)
     item.ocultas    = [...entrenadorLineasOcultas];      // versos escondidos (deuda CS)
-    if (tieneSegunda(entrenadorSong)) item.segundaEq = entSegundaEq;   // equilibrio de la 2ª voz (GA)
+    if (tieneSegunda(entrenadorSong)) { item.segundaEq = entSegundaEq; item.segunda = entSegundaOn; }   // 2ª voz (GA)
     // Sincronizar el array sesiones en memoria para que el próximo practicarSesion lo lea
     const sIdx = sesiones.findIndex(s => s.id === entSesionActual.id);
     if (sIdx >= 0) sesiones[sIdx] = JSON.parse(JSON.stringify(entSesionActual));

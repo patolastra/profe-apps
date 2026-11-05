@@ -8804,3 +8804,8 @@ tiempos de melodía y de karaoke").*
   sin cambios en Supabase: va en el mismo JSON); fuera de una sesión sigue siendo el del equipo. La 2ª voz igual parte
   apagada. Prueba (navegador, sin guardar en Supabase): La Bicicleta en la sesión Séptimo 2026 → 170 queda en su
   ítem; abierta fuera de la sesión vuelve a 100 (equipo); al reabrir la sesión, 170.
+- **Ajuste: la sesión recuerda también si queda prendida (PO 2026-11-05):** `canciones[n].segunda` (true / false); al
+  abrir la canción en la sesión, la 2ª voz se prende sola apenas está preparada (`entSegundaAlAbrir`); fuera de una
+  sesión parte apagada. Prueba (navegador, sin guardar en Supabase): La Bicicleta en Séptimo 2026 parte apagada →
+  prenderla queda en su ítem; suelta en la Biblioteca parte apagada; al reabrir la sesión, prendida (botón activo y
+  barra a la vista).
