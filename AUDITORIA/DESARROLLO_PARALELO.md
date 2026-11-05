@@ -8671,3 +8671,23 @@ publicados"; aprobó también compartir sin sincronizar).*
   Reflections queda compartible (67 líneas, ninguna con tiempo) y su ficha muestra el ✈ en la Letra; Cantar con una
   letra sin tiempos la muestra completa en claro, en sus estrofas. No se generó el link (escribe el archivo público:
   lo hace el PO al compartir).
+
+### FX. 🖐 Arreglo de piano: digitación de los acordes por mano, tocando cada tecla — HECHA
+*Origen: PO 2026-11-05 ("quiero, desde el editor de arreglos, poder modificar la digitación: estos números parecen
+digitación pero no los entiendo").*
+- **Necesidad:** el profe decide con qué dedos toca la estudiante cada acorde; hoy se escriben en un cuadro de texto
+  ("5 3 1", de grave a agudo) que no se entiende, y solo valen para la mano izquierda: en las secciones con 🥁 ritmo los
+  acordes van con la mano derecha y sus dedos (1-3-5) se ponen solos, sin poder cambiarlos (`acordeDer`).
+- **Plan aprobado (PO 2026-11-05):** en ④ Acordes, cada acorde con **✋ Izquierda / ✋ Derecha**; el teclado muestra
+  las notas y los dedos de esa mano (la derecha en su octava de acordes); tocar una tecla del acorde cambia su dedo
+  1 → 2 → 3 → 4 → 5; sin cuadro de texto; leyenda fija "1 pulgar · 2 índice · 3 medio · 4 anular · 5 meñique". Los
+  dedos de la derecha se guardan en el acorde (`voicings[n].dedosDer`; si no hay, los sugeridos) y llegan al Piano.
+  Mover la posición (▼ ▲) o ↺ Recalcular vuelve a los dedos sugeridos de las dos manos.
+  - Lugares (regla 11): Editor de Arreglos y Piano del estudiante (lee los dedos de cada nota; no cambia).
+- **Hecho (2026-11-05):** `ARREGLO/index.html`: `svgAcorde(ms, dedos, mano)` (izquierda azul, derecha verde; cada tecla
+  del acorde con su dedo, `?` si falta, y tocable), `manoAcorde` (qué mano se ve en cada tarjeta, solo en pantalla),
+  botones Izquierda / Derecha, clic en una tecla = su dedo +1 (5 → 1), `dedosDerAuto` + `voicings[n].dedosDer` (usado
+  por `acordeDer` si calza con las notas); ♪ suena la mano que se ve; leyenda de dedos; sin el cuadro de texto.
+  Prueba (navegador, arreglo de COQUETA): Bm izquierda 5-3-1 → tocar la tecla grave → 1-3-1; Derecha (verde, octava de
+  acordes) 1-2-5 → tocar la aguda → 1-2-1 y esos dedos van en las notas de la mano derecha del archivo del estudiante;
+  los botones caben en las 4 tarjetas. Se dejó el arreglo como estaba (sin guardar los cambios de prueba).

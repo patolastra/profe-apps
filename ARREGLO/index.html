@@ -100,7 +100,10 @@
     .aco svg { width: 100%; height: 54px; display: block; margin: 4px 0; }
     .aco .ctr { display: flex; justify-content: center; gap: 4px; }
     .aco .ctr .btn { height: 26px; padding: 0 7px; }
-    .aco input { width: 70px; height: 26px; text-align: center; margin-top: 4px; }
+    .aco .manos { display: flex; justify-content: center; gap: 2px; margin-top: 4px; }
+    .aco .manos .btn { height: 24px; padding: 0 6px; font-size: 11px; }
+    .aco svg [data-k] { cursor: pointer; }
+    .aco svg [data-k]:hover { filter: brightness(1.25); }
 
     #tempo-si, #tempo-no { display: none; }
     #tempo-si.on, #tempo-no.on { display: block; }
@@ -180,6 +183,7 @@
             <h3>④ Acordes <small>mismas notas en toda la canción</small></h3>
             <div class="ayuda">Sin ritmo, cada acorde se toca con la mano izquierda. En las secciones con 🥁 ritmo, los acordes van con la mano derecha y el bajo con la izquierda, en estas octavas:</div>
             <div class="fila"><span>Acordes (mano derecha)</span><select id="oct-acordes"></select><span>Bajo (mano izquierda)</span><select id="oct-bajo"></select></div>
+            <div class="ayuda">Dedos: <b>1</b> pulgar · <b>2</b> índice · <b>3</b> medio · <b>4</b> anular · <b>5</b> meñique. Toca una tecla del acorde para cambiar su dedo (izquierda en azul, derecha en verde).</div>
             <div id="acordes"></div>
             <div class="fila"><button class="btn" id="b-recalcular" title="Vuelve a elegir las notas de todos los acordes, cercanas entre sí">↺ Recalcular todos</button></div>
         </div>
@@ -389,13 +393,17 @@ const DIVS = { negra: { n: 1, nombre: 'Negras' }, corchea: { n: 2, nombre: 'Corc
 const celdasCompas = r => Math.round(A.compas * DIVS[r.div].n);     // casillas por compás
 const celdaT = r => 4 / DIVS[r.div].n;                  // largo de una casilla, en semicorcheas
 // El acorde para la mano derecha: la posición elegida (④) llevada a la octava de los acordes, con dedos 1-3-5
+function dedosDerAuto(m) {
+    const n = m.length;
+    return n === 1 ? [1] : n === 2 ? (m[1] - m[0] >= 7 ? [1, 5] : [1, 3]) : n === 3 ? (m[2] - m[1] >= 5 ? [1, 2, 5] : [1, 3, 5])
+        : n === 4 ? [1, 2, 3, 5] : [1, 2, 3, 4, 5].slice(0, n);
+}
 function acordeDer(nombre) {
     const v = A.voicings[nombre]; if (!v) return null;
     const base = 12 * (A.octavas.acordes + 1), lo = v.m[0];
     const sube = base + (((lo - base) % 12) + 12) % 12 - lo;
     const m = v.m.map(x => x + sube), n = m.length;
-    const dedos = n === 1 ? [1] : n === 2 ? (m[1] - m[0] >= 7 ? [1, 5] : [1, 3]) : n === 3 ? (m[2] - m[1] >= 5 ? [1, 2, 5] : [1, 3, 5])
-        : n === 4 ? [1, 2, 3, 5] : [1, 2, 3, 4, 5].slice(0, n);
+    const dedos = v.dedosDer?.length === n ? v.dedosDer : dedosDerAuto(m);
     return { m, dedos };
 }
 // El bajo (mano izquierda): la nota del bajo del acorde (E/G# → Sol#) o su fundamental, en la octava del bajo
@@ -747,7 +755,9 @@ function pintarOrden() {
     const seg = Math.round(d.pulsos * 60 / A.tempo);
     $('orden-info').textContent = d.pulsos ? `${Math.round(d.pulsos / A.compas)} compases · ${Math.floor(seg / 60)}:${String(seg % 60).padStart(2, '0')} al tempo ${infoA().figura} ${Math.round(A.tempo / A.pulso)}` : '';
 }
-function svgAcorde(ms, dedos) {
+// Colores por mano, como en el Piano del estudiante: izquierda azul, derecha verde
+function svgAcorde(ms, dedos, mano = 'izq') {
+    const color = mano === 'der' ? ['#22c55e', '#15803d'] : ['#3b82f6', '#1d4ed8'];
     const NEG = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
     const blanca = m => Math.floor(m / 12) * 7 + [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6][m % 12];
     const lo = blanca(Math.min(...ms)) - 1, hi = Math.max(lo + 9, blanca(Math.max(...ms)) + 1);
@@ -756,26 +766,29 @@ function svgAcorde(ms, dedos) {
     const aMidi = b => Math.floor(b / 7) * 12 + [0, 2, 4, 5, 7, 9, 11][b % 7];
     for (let b = lo; b <= hi; b++) {
         const m = aMidi(b), on = ms.indexOf(m);
-        s += `<rect x="${(b - lo) * w}" y="0" width="${w - 1}" height="52" rx="2" fill="${on >= 0 ? '#3b82f6' : '#f8fafc'}"/>`;
-        if (on >= 0 && dedos[on]) s += `<text x="${(b - lo) * w + w / 2}" y="44" text-anchor="middle" font-size="10" font-weight="800" fill="#fff">${dedos[on]}</text>`;
+        s += `<rect x="${(b - lo) * w}" y="0" width="${w - 1}" height="52" rx="2" fill="${on >= 0 ? color[0] : '#f8fafc'}"${on >= 0 ? ` data-k="${on}"` : ''}/>`;
+        if (on >= 0) s += `<text x="${(b - lo) * w + w / 2}" y="45" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" pointer-events="none">${dedos[on] || '?'}</text>`;
     }
     for (let b = lo; b < hi; b++) {
         const m = aMidi(b) + 1;
         if (!NEG[m % 12]) continue;
         const on = ms.indexOf(m);
-        s += `<rect x="${(b - lo + 1) * w - w * 0.3}" y="0" width="${w * 0.6}" height="32" rx="2" fill="${on >= 0 ? '#1d4ed8' : '#111827'}"/>`;
-        if (on >= 0 && dedos[on]) s += `<text x="${(b - lo + 1) * w}" y="26" text-anchor="middle" font-size="9" font-weight="800" fill="#fff">${dedos[on]}</text>`;
+        s += `<rect x="${(b - lo + 1) * w - w * 0.3}" y="0" width="${w * 0.6}" height="32" rx="2" fill="${on >= 0 ? color[1] : '#111827'}"${on >= 0 ? ` data-k="${on}"` : ''}/>`;
+        if (on >= 0) s += `<text x="${(b - lo + 1) * w}" y="27" text-anchor="middle" font-size="10" font-weight="800" fill="#fff" pointer-events="none">${dedos[on] || '?'}</text>`;
     }
     return s + '</svg>';
 }
+const manoAcorde = {};          // acorde → mano cuyos dedos se ven ('izq' | 'der'); solo en esta pantalla
 function pintarAcordes() {
     const usados = [...new Set(secuencia())];
     $('acordes').innerHTML = usados.map(n => {
         const v = A.voicings[n];
         if (!v) return `<div class="aco"><b>${esc(n)}</b><div class="ayuda">sin posición</div></div>`;
-        return `<div class="aco" data-n="${esc(n)}"><b>${esc(n)}</b>${svgAcorde(v.m, v.dedos)}
-            <div class="ctr"><button class="btn" data-mov="-1" title="Más grave">▼</button><button class="btn" data-oir title="Escuchar">♪</button><button class="btn" data-mov="1" title="Más agudo">▲</button></div>
-            <input type="text" data-dedos value="${v.dedos.join(' ')}" title="Dedos, de la nota más grave a la más aguda (5 = meñique, 1 = pulgar)"></div>`;
+        const mano = manoAcorde[n] || 'izq', der = mano === 'der' ? acordeDer(n) : null;
+        return `<div class="aco" data-n="${esc(n)}"><b>${esc(n)}</b>
+            <div class="manos"><button class="btn${mano === 'izq' ? ' on' : ''}" data-mano="izq" title="Dedos de la mano izquierda (secciones sin ritmo)">Izquierda</button><button class="btn${mano === 'der' ? ' on' : ''}" data-mano="der" title="Dedos de la mano derecha (secciones con 🥁 ritmo)">Derecha</button></div>
+            ${der ? svgAcorde(der.m, der.dedos, 'der') : svgAcorde(v.m, v.dedos)}
+            <div class="ctr"><button class="btn" data-mov="-1" title="Más grave">▼</button><button class="btn" data-oir title="Escuchar">♪</button><button class="btn" data-mov="1" title="Más agudo">▲</button></div></div>`;
     }).join('') || '<div class="ayuda">Los acordes aparecen aquí al escribir las secciones.</div>';
 }
 function pintarAudio() {
@@ -932,20 +945,24 @@ $('orden').addEventListener('dragend', () => { arrastre = null; document.querySe
 $('acordes').addEventListener('click', e => {
     const card = e.target.closest('.aco'); if (!card) return;
     const n = card.dataset.n, v = A.voicings[n]; if (!v) return;
-    if (e.target.closest('[data-oir]')) { sonarAcorde(v.m); return; }
+    const bm = e.target.closest('[data-mano]');
+    if (bm) { manoAcorde[n] = bm.dataset.mano; pintarAcordes(); return; }
+    const tk = e.target.closest('[data-k]');
+    if (tk) {          // tocar una tecla del acorde: su dedo pasa al siguiente (1 → 5 → 1)
+        const k = +tk.dataset.k, der = (manoAcorde[n] || 'izq') === 'der';
+        const lista = der ? [...acordeDer(n).dedos] : v.m.map((_, i) => v.dedos[i] || 0);
+        lista[k] = (lista[k] || 0) % 5 + 1;
+        if (der) v.dedosDer = lista; else v.dedos = lista;
+        pintarAcordes(); cambio();
+        return;
+    }
+    if (e.target.closest('[data-oir]')) { sonarAcorde((manoAcorde[n] || 'izq') === 'der' ? acordeDer(n).m : v.m); return; }
     const mov = e.target.closest('[data-mov]'); if (!mov) return;
     const cs = candidatos(n), prom = x => x.reduce((s, y) => s + y, 0) / x.length, p = prom(v.m);
     const sig = +mov.dataset.mov > 0 ? cs.find(c => prom(c) > p + 0.01) : [...cs].reverse().find(c => prom(c) < p - 0.01);
     if (!sig) return;
     A.voicings[n] = { m: sig, dedos: dedosAuto(sig) };
     sonarAcorde(sig);
-    pintarAcordes(); cambio();
-});
-$('acordes').addEventListener('change', e => {
-    const inp = e.target.closest('[data-dedos]'), card = e.target.closest('.aco'); if (!inp || !card) return;
-    const v = A.voicings[card.dataset.n]; if (!v) return;
-    const ds = inp.value.split(/[\s,]+/).map(Number).filter(x => x >= 1 && x <= 5);
-    v.dedos = v.m.map((_, i) => ds[i] || 0);
     pintarAcordes(); cambio();
 });
 $('b-recalcular').onclick = () => { completarVoicings(true); pintarAcordes(); cambio(); };
