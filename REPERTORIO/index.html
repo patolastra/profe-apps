@@ -3495,6 +3495,41 @@ function sesionDelCurso(ctxNombre) {
 function storageUrl(storagePath) {
     return sb.storage.from(BUCKET).getPublicUrl(storagePath).data.publicUrl;
 }
+// ⬇ Descargar un recurso (deuda GC): con archivo, el de Storage con `?download=` (el servidor lo entrega como descarga
+// con su nombre; un <a download> a otro dominio el navegador lo ignora y abre o reproduce el archivo); sin archivo,
+// su contenido (letra y cifrado .txt —la letra sincronizada, además, .lrc—; Ficha, Arreglo y Cajón .json; ritmo .txt).
+// Nombre = nombre de cortesía (comun/nombre-asset.js) + la extensión del archivo original.
+function descargarAsset(assetId) {
+    let a = null, c = null;
+    for (const x of canciones) { const y = (x.assets || []).find(z => z.id === assetId); if (y) { a = y; c = x; break; } }
+    if (!a) return;
+    const limpio = t => String(t || '').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120) || 'recurso';
+    const rolAudio = a.tipo === 'audio' && NOMBRE_ROL[a.rol] ? ' · ' + NOMBRE_ROL[a.rol] : '';
+    const base = limpio(((window.nombreAsset ? nombreAsset(a, c.nombre) : '') || a.etiqueta || c.nombre) + rolAudio);
+    const bajar = (href, nombre) => {
+        const el = document.createElement('a'); el.href = href; el.download = nombre; el.rel = 'noopener';
+        document.body.appendChild(el); el.click(); el.remove();
+    };
+    if (a.storage_path) {
+        const ext = ((a.nombre_archivo || a.storage_path).match(/\.[a-z0-9]{2,5}$/i) || [''])[0];
+        const nombre = base + ext;
+        bajar(storageUrl(a.storage_path) + '?download=' + encodeURIComponent(nombre), nombre);
+        return;
+    }
+    const json = ['tempo', 'arreglo', 'cajon'].includes(a.tipo);
+    const deTexto = (texto, ext, tipo) => {
+        const url = URL.createObjectURL(new Blob([texto], { type: tipo + ';charset=utf-8' }));
+        bajar(url, base + ext); setTimeout(() => URL.revokeObjectURL(url), 4000);
+    };
+    if (json) {
+        let t = a.contenido || '';
+        try { t = JSON.stringify(JSON.parse(t), null, 2); } catch (_) {}
+        deTexto(t, '.json', 'application/json');
+        return;
+    }
+    deTexto(a.contenido || (a.synced ? parseLRC(a.synced).map(l => l.text).join('\n') : ''), '.txt', 'text/plain');
+    if (a.tipo === 'letra' && (a.synced || '').trim()) setTimeout(() => deTexto(a.synced, '.lrc', 'text/plain'), 400);
+}
 
 // Guardar canción (upsert metadata)
 async function sbUpsertCancion(c) {
@@ -3884,7 +3919,7 @@ function tabEntryHTML(a, songId) {
             <div class="tab-item-actions">
                 ${estadoBadgeHTML(a)}
                 ${publicada ? `<button class="btn-icon" onclick="event.stopPropagation();compartirTab('${a.id}',null,this)" title="Compartir la tablatura con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
-                ${url ? `<a class="btn-icon" href="${url}" download title="Descargar">⬇</a>` : ''}
+                ${url ? `<button class="btn-icon" onclick="event.stopPropagation();descargarAsset('${a.id}')" title="Descargar">⬇</button>` : ''}
                 <button class="btn-icon" onclick="abrirEditarAsset('${songId}','${a.id}')" title="Editar">✏️</button>
                 <button class="btn-icon danger" onclick="eliminarAsset('${songId}','${a.id}')" title="Eliminar">🗑</button>
             </div>
@@ -4359,7 +4394,6 @@ function assetItemHTML(a, i) {
         let url         = storageUrl(a.storage_path);
         // Melodía (DK): el MIDI se reescribe al guardar; la marca evita que se abra una copia vieja
         if (a.tipo === 'melodia') url += '?v=' + [...(a.contenido || '')].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7).toString(36);
-        const descFile  = a.nombre_archivo || a.etiqueta || 'archivo';
         const isAudio   = a.tipo === 'audio';
         const isMetal   = a.tipo === 'metalofono';
         const isMelodia = a.tipo === 'melodia';
@@ -4384,7 +4418,7 @@ function assetItemHTML(a, i) {
                 ${conPiano && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirPiano('${a.id}', this)" title="Compartir el piano con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
                 ${isMetal || (isMelodia && conMetal) ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${nombreAsset(a, songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">${isMelodia ? '🎼' : '🎹'}</button>` : ''}
                 ${isMetal && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirMetalofono('${a.id}', this)" title="Compartir con los estudiantes (celular): link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
-                ${isAudio ? '' : `<a class="btn-icon" href="${url}" download="${descFile}" title="Descargar">⬇</a>`}
+                <button class="btn-icon" onclick="event.stopPropagation();descargarAsset('${a.id}')" title="Descargar">⬇</button>
                 ${isMelodia
                     ? `<button class="btn-icon" onclick="abrirEditorMelodia('${songActiva.id}','${a.id}')" title="Editar melodía">✏️</button>`
                     : `<button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>`}
@@ -4419,6 +4453,7 @@ function assetItemHTML(a, i) {
                 : `${a.tipo === 'letra' ? `<button class="btn-icon" onclick="compartirCancion('${songActiva.id}', this)" title="${cancionCompartible(songActiva) ? 'Compartir la canción (audio y letra) con los estudiantes: link, QR o guía QR' : escapar(faltaParaCompartir(songActiva)) + ' para compartir la canción'}">${Compartir.ICONO}</button>` : ''}
                    <button class="btn-icon" onclick="verAsset('${songActiva.id}','${a.id}')" title="Ver">👁</button>
                    <button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Editar metadata">✏️</button>`}
+            ${(a.contenido || a.synced || '').trim() ? `<button class="btn-icon" onclick="event.stopPropagation();descargarAsset('${a.id}')" title="Descargar">⬇</button>` : ''}
             <button class="btn-icon danger" onclick="eliminarAsset('${songActiva.id}','${a.id}')" title="Eliminar">🗑</button>
         </div>
     </div>`;
@@ -5598,7 +5633,7 @@ function verAsset(songId, assetId) {
         audioEl.classList.remove('visible');
         audioTag.src = '';
         const url = storageUrl(a.storage_path);
-        contenidoEl.innerHTML = `<a href="${url}" download="${a.nombre_archivo || 'archivo'}"
+        contenidoEl.innerHTML = `<a href="#" onclick="event.preventDefault();descargarAsset('${a.id}')"
             style="display:inline-flex;align-items:center;gap:8px;padding:12px 18px;background:#eff6ff;
             color:#2563eb;border-radius:10px;font-weight:700;text-decoration:none;font-size:0.9rem;">
             ⬇ Descargar ${a.nombre_archivo || info.label}</a>`;

@@ -8848,3 +8848,18 @@ tienen segunda voz, con otro color").*
   audio quieto; Esc termina sin cerrar; con la 2ª voz prendida el texto queda violeta; agregar una línea arriba de la
   letra corre las marcas a los mismos versos; Cantar con un archivo simulado muestra la línea y el violeta.
   **Falta:** correr el SQL y marcar una canción real.
+
+### GC. ⬇ Descargar cualquier recurso de la Biblioteca — HECHA
+*Origen: PO 2026-11-05 ("los assets necesito poder descargarlos, hay assets que no puedo descargar").*
+- **Auditoría:** en la ficha de la canción el audio no tenía ⬇ (se excluía a propósito) y los recursos sin archivo
+  (letra, cifrado, ritmo, Ficha, Arreglo, Cajón) tampoco; los que sí lo tenían usaban `<a download>` hacia Supabase,
+  que el navegador ignora por ser otro dominio: abría o reproducía el archivo en vez de bajarlo.
+- **Decisión del PO (2026-11-05):** poder descargar todos los recursos.
+- **Hecho (2026-11-05):** `REPERTORIO/index.html`: `descargarAsset(id)` — con archivo, el de Storage con `?download=`
+  (Supabase lo entrega como descarga, con nombre UTF-8); sin archivo, su contenido (letra y cifrado `.txt`, la letra
+  sincronizada además `.lrc`; Ficha, Arreglo y Cajón `.json`; ritmo `.txt`). Nombre = nombre de cortesía
+  (`nombreAsset`) + la extensión del archivo (el audio suma su papel: Melodía / Karaoke / 2ª voz). ⬇ en todos los
+  recursos de la ficha (también tablaturas y audio) y en la ventana 👁 Ver. Lugares: ficha de la canción (grupos por
+  instrumento, tablaturas) y ventana Ver. Prueba (navegador): un recurso de cada tipo (letra, audio, tablatura MXL,
+  Ficha, Cajón, Melodía MIDI, Arreglo, Ritmo, Metalófono) arma su descarga con nombre y extensión; el servidor
+  responde `Content-Disposition: attachment` con el nombre; La Bicicleta muestra ⬇ en sus 4 recursos.
