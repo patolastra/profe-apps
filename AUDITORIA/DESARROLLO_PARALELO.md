@@ -8863,3 +8863,32 @@ tienen segunda voz, con otro color").*
   instrumento, tablaturas) y ventana Ver. Prueba (navegador): un recurso de cada tipo (letra, audio, tablatura MXL,
   Ficha, Cajón, Melodía MIDI, Arreglo, Ritmo, Metalófono) arma su descarga con nombre y extensión; el servidor
   responde `Content-Disposition: attachment` con el nombre; La Bicicleta muestra ⬇ en sus 4 recursos.
+
+### GD. ✂ Separar voz y pista en el navegador — PRUEBA
+*Origen: PO 2026-11-05 ("Ultimate Vocal Remover… quería agregarlo dentro de profe-apps"; aprobó partir con una prueba).*
+- **Necesidad:** sacar de una canción el Karaoke (sin voz) y la voz sola (para la 🎵 2ª voz, deuda GA) sin salir de
+  Profe Apps.
+- **Auditoría:** UVR (licencia MIT) es una aplicación de escritorio en Python: no se puede meter en la web sin un
+  servidor (con costo; descartado). Sus modelos MDX-Net vienen en ONNX y corren en el navegador con
+  `onnxruntime-web` (WebGPU si el equipo lo tiene; si no, WASM). Modelo elegido: **Kim_Vocal_2** (66,8 MB, saca la
+  voz; la pista = canción − voz), publicado en Hugging Face con permiso para bajarlo desde otra página. Ajustes
+  comprobados en Python contra Reflections (Melodía − Karaoke = voz real, 30 s): `n_fft` 7680, `hop` 1024, 3072 bandas
+  × 256 cuadros, solapamiento 25 % con ventana de Hann → voz con SDR 16,7 dB y pista 20,7 dB (con `n_fft` 6144, 16,2).
+- **Decisión del PO (2026-11-05):** primero una **prueba aparte**, sin tocar la Biblioteca: medir cuánto demora en su
+  computador y cómo suena; con eso se decide si entra.
+- **Plan de la prueba:** página `SEPARAR/index.html` (sin base de datos propia; lee la lista de canciones con Melodía
+  de la Biblioteca o un archivo del computador): baja el modelo una vez (queda guardado en el equipo), separa la
+  canción (o solo 30 s, para medir rápido), muestra el avance y el tiempo, y deja escuchar y descargar **Voz** y
+  **Pista** (WAV). No sube nada a la Biblioteca.
+- **Resultado de la prueba (2026-11-05, computador del PO, 12 núcleos, con WebGPU; panel del navegador oculto):**
+  la página funciona hasta el modelo (FFT propia comprobada contra la fórmula directa; 1,8 ms cada una), pero el modelo
+  es demasiado pesado para el navegador en este equipo:
+  - **Tarjeta gráfica (WebGPU):** ~10 s por segmento (un segmento ≈ 4,4 s de canción) y al segundo segmento Windows
+    reinició la tarjeta (`DXGI_ERROR_DEVICE_HUNG`): no termina. La página ahora pasa sola al procesador si pasa eso.
+  - **Procesador (WASM, 1 hilo, lo único posible en GitHub Pages sin encabezados especiales):** más de 3 minutos sin
+    terminar un segmento (en Python, el mismo modelo con 1 hilo: 12,8 s; con 4 hilos: 4,5 s). Una canción de 3:30
+    (~48 segmentos) tardaría más de una hora.
+  - Con varios hilos (requiere un truco de service worker para "aislar" la página) se estima ~10 min por canción, y
+    el navegador quedaría ocupado todo ese rato.
+- **Recomendación al PO:** no seguir dentro de Profe Apps por ahora; usar Ultimate Vocal Remover en el computador y
+  subir el resultado como Karaoke / 🎵 2ª voz. La página `SEPARAR/` queda guardada (sin enlaces) como referencia.

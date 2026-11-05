@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Separar voz</title>
+<!--
+  ✂ Separar voz (deuda GD, PRUEBA): saca de una canción la voz sola y la pista sin voz, dentro del navegador.
+  Modelo MDX-Net "Kim_Vocal_2" (el mismo de Ultimate Vocal Remover, licencia MIT), en ONNX, con onnxruntime-web
+  (WebGPU si el equipo lo tiene; si no, WASM). Se baja una vez (66,8 MB) y queda guardado en el equipo (Cache API).
+  Ajustes (comprobados en Python contra Reflections): n_fft 7680, hop 1024, 3072 bandas × 256 cuadros, segmentos de
+  261 120 muestras a 44,1 kHz con 25 % de solapamiento (ventana de Hann); pista = canción − voz.
+  Prueba: no sube nada a la Biblioteca. Lee la lista de canciones con Melodía (solo lectura) o un archivo del equipo.
+-->
+<script src="../supabase/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.webgpu.min.js"></script>
+<style>
+    :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #ea580c; --voz: #8b5cf6; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--texto); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .sub { color: var(--tenue); font-size: .9rem; margin: 0 0 20px; }
+    .caja { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+    .caja h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--tenue); margin: 0 0 10px; }
+    select, input[type=file] { width: 100%; font: inherit; color: var(--texto); background: #0b1120; border: 1px solid #475569; border-radius: 8px; padding: 8px; }
+    .o { color: var(--tenue); text-align: center; margin: 8px 0; font-size: .85rem; }
+    label.chk { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: .95rem; cursor: pointer; }
+    button.grande { width: 100%; margin-top: 14px; padding: 12px; font: inherit; font-weight: 700; font-size: 1rem; color: #fff; background: var(--acento);
+        border: 0; border-radius: 10px; cursor: pointer; }
+    button.grande:disabled { opacity: .45; cursor: default; }
+    .barra { height: 8px; background: #0b1120; border-radius: 4px; overflow: hidden; margin: 10px 0 6px; }
+    .barra > div { height: 100%; width: 0; background: var(--acento); transition: width .2s; }
+    #estado { min-height: 1.4em; font-size: .95rem; }
+    #datos { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: .9rem; margin-top: 10px; }
+    #datos dt { color: var(--tenue); }
+    #datos dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .pista { display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: 10px; margin: 8px 0; }
+    .pista b { font-size: .95rem; }
+    .pista audio { width: 100%; }
+    .pista a { color: var(--texto); background: #334155; border: 1px solid #475569; border-radius: 8px; padding: 6px 10px; text-decoration: none; font-size: .85rem; white-space: nowrap; }
+    #error { color: #fca5a5; font-size: .9rem; margin-top: 8px; white-space: pre-wrap; }
+    @media (max-width: 520px) { .pista { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+    <h1>✂ Separar voz <small style="color:var(--tenue);font-weight:500">· prueba</small></h1>
+    <p class="sub">Saca de una canción la <b>voz sola</b> y la <b>pista sin voz</b>, en este computador. La primera vez baja el modelo (67 MB) y queda guardado.</p>
+
+    <div class="caja">
+        <h2>Canción</h2>
+        <select id="cancion"><option value="">Cargando la Biblioteca…</option></select>
+        <div class="o">o un archivo del computador</div>
+        <input id="archivo" type="file" accept="audio/*">
+        <label class="chk"><input id="corto" type="checkbox" checked> Solo 30 segundos (para medir rápido)</label>
+        <button id="separar" class="grande" disabled>✂ Separar</button>
+    </div>
+
+    <div class="caja">
+        <h2>Avance</h2>
+        <div id="estado">—</div>
+        <div class="barra"><div id="avance"></div></div>
+        <dl id="datos"></dl>
+        <div id="error"></div>
+    </div>
+
+    <div class="caja" id="resultado" hidden>
+        <h2>Resultado</h2>
+        <div class="pista"><b>🎵 Voz</b><audio id="a-voz" controls></audio><a id="d-voz" download>⬇ WAV</a></div>
+        <div class="pista"><b>🎶 Pista</b><audio id="a-pista" controls></audio><a id="d-pista" download>⬇ WAV</a></div>
+        <div class="pista"><b>🎤 Original</b><audio id="a-orig" controls></audio><span></span></div>
+    </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const MODELO_URL = 'https://huggingface.co/seanghay/uvr_models/resolve/main/Kim_Vocal_2.onnx';
+const SR = 44100, NFFT = 7680, HOP = 1024, DIM_F = 3072, DIM_T = 256, CHUNK = HOP * (DIM_T - 1), SOLAPE = 0.25;
+const STORAGE = SUPABASE_URL + '/storage/v1/object/public/repertorio-assets/';
+ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/';
+ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
+
+const datos = {};
+function dato(k, v) {
+    datos[k] = v;
+    $('datos').innerHTML = Object.entries(datos).map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
+}
+const estado = (t, x) => { $('estado').textContent = t; if (x != null) $('avance').style.width = Math.round(x * 100) + '%'; };
+const seg = ms => (ms / 1000).toFixed(1) + ' s';
+const reloj = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+// Ceder un momento a la pantalla (avance) sin setTimeout: en una pestaña en segundo plano el navegador lo frena hasta 1 min
+const canalPausa = new MessageChannel(), colaPausa = [];
+canalPausa.port1.onmessage = () => colaPausa.shift()?.();
+const pausa = () => new Promise(r => { colaPausa.push(r); canalPausa.port2.postMessage(0); });
+
+// ── Lista de canciones con Melodía (solo lectura) ──
+(async () => {
+    try {
+        const h = { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + SUPABASE_ANON };
+        const [as, cs] = await Promise.all([
+            fetch(`${SUPABASE_URL}/rest/v1/repertorio_assets?select=cancion_id,storage_path,rol&tipo=eq.audio&storage_path=not.is.null`, { headers: h }).then(r => r.json()),
+            fetch(`${SUPABASE_URL}/rest/v1/repertorio_canciones?select=id,nombre,artista`, { headers: h }).then(r => r.json()),
+        ]);
+        const nombre = new Map(cs.map(c => [c.id, c]));
+        const mel = new Map();
+        as.filter(a => a.rol !== 'karaoke' && a.rol !== 'segunda').forEach(a => { if (!mel.has(a.cancion_id) || a.rol === 'melodia') mel.set(a.cancion_id, a.storage_path); });
+        const lista = [...mel].map(([id, p]) => ({ p, c: nombre.get(id) })).filter(x => x.c).sort((a, b) => a.c.nombre.localeCompare(b.c.nombre, 'es'));
+        $('cancion').innerHTML = '<option value="">Elige una canción de la Biblioteca…</option>' +
+            lista.map(x => `<option value="${x.p}">${x.c.nombre.replace(/</g, '&lt;')}${x.c.artista ? ' · ' + x.c.artista.replace(/</g, '&lt;') : ''}</option>`).join('');
+    } catch (_) { $('cancion').innerHTML = '<option value="">No se pudo leer la Biblioteca</option>'; }
+})();
+const listo = () => { $('separar').disabled = !($('cancion').value || $('archivo').files[0]); };
+$('cancion').onchange = () => { if ($('cancion').value) $('archivo').value = ''; listo(); };
+$('archivo').onchange = () => { if ($('archivo').files[0]) $('cancion').value = ''; listo(); };
+
+// ── FFT de largo cualquiera (factores 4, 2, 3, 5…; como kissfft) ──
+function crearFFT(N) {
+    const fac = [];
+    let n = N, p = 4;
+    while (n > 1) {
+        while (n % p) { p = p === 4 ? 2 : p === 2 ? 3 : p + 2; if (p * p > n) p = n; }
+        n /= p; fac.push(p, n);
+    }
+    const twR = new Float64Array(N), twI = new Float64Array(N);
+    for (let i = 0; i < N; i++) { const a = -2 * Math.PI * i / N; twR[i] = Math.cos(a); twI[i] = Math.sin(a); }
+    const sR = new Float64Array(16), sI = new Float64Array(16);
+    function work(oR, oI, oo, iR, iI, io, fstride, fi) {
+        const p = fac[fi], m = fac[fi + 1];
+        if (m === 1) for (let k = 0; k < p; k++) { oR[oo + k] = iR[io + k * fstride]; oI[oo + k] = iI[io + k * fstride]; }
+        else for (let k = 0; k < p; k++) work(oR, oI, oo + k * m, iR, iI, io + k * fstride, fstride * p, fi + 2);
+        for (let u = 0; u < m; u++) {
+            let k = u;
+            for (let q = 0; q < p; q++) { sR[q] = oR[oo + k]; sI[q] = oI[oo + k]; k += m; }
+            k = u;
+            for (let q1 = 0; q1 < p; q1++) {
+                let tw = 0, aR = sR[0], aI = sI[0];
+                for (let q = 1; q < p; q++) {
+                    tw += fstride * k; if (tw >= N) tw -= N;
+                    const c = twR[tw], s = twI[tw];
+                    aR += sR[q] * c - sI[q] * s; aI += sR[q] * s + sI[q] * c;
+                }
+                oR[oo + k] = aR; oI[oo + k] = aI; k += m;
+            }
+        }
+    }
+    return (iR, iI, oR, oI) => work(oR, oI, 0, iR, iI, 0, 1, 0);
+}
+
+// ── Separar: STFT → modelo → STFT inversa, por segmentos solapados (como UVR) ──
+const fft = crearFFT(NFFT);
+const VENT = new Float64Array(NFFT).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / NFFT));   // Hann periódica
+const zR = new Float64Array(NFFT), zI = new Float64Array(NFFT), xR = new Float64Array(NFFT), xI = new Float64Array(NFFT);
+const PAD = NFFT / 2, LARGO = CHUNK + NFFT;
+const plano = (c, f, t) => (c * DIM_F + f) * DIM_T + t;
+
+function espectro(L, R, entrada) {           // L, R: Float64Array(CHUNK) → entrada [1, 4, DIM_F, DIM_T]
+    const refl = (x, i) => { i -= PAD; if (i < 0) i = -i; if (i >= CHUNK) i = 2 * CHUNK - 2 - i; return x[i]; };
+    const pL = new Float64Array(LARGO), pR = new Float64Array(LARGO);
+    for (let i = 0; i < LARGO; i++) { pL[i] = refl(L, i); pR[i] = refl(R, i); }
+    for (let t = 0; t < DIM_T; t++) {
+        const o = t * HOP;
+        for (let i = 0; i < NFFT; i++) { zR[i] = pL[o + i] * VENT[i]; zI[i] = pR[o + i] * VENT[i]; }
+        fft(zR, zI, xR, xI);
+        for (let k = 0; k < DIM_F; k++) {
+            const j = k === 0 ? 0 : NFFT - k;
+            const v = k < 3 ? 0 : 1;   // como UVR: las 3 primeras bandas en cero
+            entrada[plano(0, k, t)] = v * (xR[k] + xR[j]) / 2;
+            entrada[plano(1, k, t)] = v * (xI[k] - xI[j]) / 2;
+            entrada[plano(2, k, t)] = v * (xI[k] + xI[j]) / 2;
+            entrada[plano(3, k, t)] = v * -(xR[k] - xR[j]) / 2;
+        }
+    }
+}
+const WSUM = (() => { const w = new Float64Array(LARGO); for (let t = 0; t < DIM_T; t++) for (let i = 0; i < NFFT; i++) w[t * HOP + i] += VENT[i] * VENT[i]; return w; })();
+function inversa(s, oL, oR) {               // s [1, 4, DIM_F, DIM_T] → oL, oR: Float64Array(CHUNK)
+    const yL = new Float64Array(LARGO), yR = new Float64Array(LARGO);
+    for (let t = 0; t < DIM_T; t++) {
+        zR.fill(0); zI.fill(0);
+        for (let k = 0; k < DIM_F; k++) {
+            const Lr = s[plano(0, k, t)], Li = s[plano(1, k, t)], Rr = s[plano(2, k, t)], Ri = s[plano(3, k, t)];
+            zR[k] = Lr - Ri; zI[k] = Li + Rr;
+            if (k) { zR[NFFT - k] = Lr + Ri; zI[NFFT - k] = Rr - Li; }
+        }
+        fft(zI, zR, xI, xR);                 // inversa = FFT con real e imaginario cambiados
+        const o = t * HOP;
+        for (let i = 0; i < NFFT; i++) { yL[o + i] += xR[i] / NFFT * VENT[i]; yR[o + i] += xI[i] / NFFT * VENT[i]; }
+    }
+    for (let i = 0; i < CHUNK; i++) { const w = WSUM[i + PAD] || 1e-8; oL[i] = yL[i + PAD] / w; oR[i] = yR[i + PAD] / w; }
+}
+
+async function separarVoz(sesion, L, R, alAvance) {
+    const n = L.length, trim = NFFT / 2, gen = CHUNK - 2 * trim;
+    const total = trim + n + (gen + trim - (n % gen));
+    const mL = new Float64Array(total), mR = new Float64Array(total);
+    mL.set(L, trim); mR.set(R, trim);
+    const resL = new Float64Array(total), resR = new Float64Array(total), div = new Float64Array(total);
+    const paso = Math.floor((1 - SOLAPE) * CHUNK);
+    const entrada = new Float32Array(4 * DIM_F * DIM_T);
+    const cL = new Float64Array(CHUNK), cR = new Float64Array(CHUNK), oL = new Float64Array(CHUNK), oR = new Float64Array(CHUNK);
+    const nSeg = Math.ceil(total / paso);
+    const tiempos = { fft: 0, modelo: 0 };
+    for (let s = 0, i = 0; i < total; i += paso, s++) {
+        const fin = Math.min(i + CHUNK, total), act = fin - i;
+        cL.fill(0); cR.fill(0); cL.set(mL.subarray(i, fin)); cR.set(mR.subarray(i, fin));
+        let t0 = performance.now();
+        espectro(cL, cR, entrada);
+        tiempos.fft += performance.now() - t0;
+        t0 = performance.now();
+        const pred = await correrModelo(entrada);
+        tiempos.modelo += performance.now() - t0;
+        t0 = performance.now();
+        inversa(pred, oL, oR);
+        for (let j = 0; j < act; j++) {
+            const w = act > 1 ? 0.5 - 0.5 * Math.cos(2 * Math.PI * j / (act - 1)) : 1;   // np.hanning(act)
+            resL[i + j] += oL[j] * w; resR[i + j] += oR[j] * w; div[i + j] += w;
+        }
+        tiempos.fft += performance.now() - t0;
+        alAvance(s + 1, nSeg, tiempos);
+        await pausa();
+    }
+    const vL = new Float32Array(n), vR = new Float32Array(n);
+    for (let j = 0; j < n; j++) { const d = div[trim + j] || 1e-8; vL[j] = resL[trim + j] / d; vR[j] = resR[trim + j] / d; }
+    return { vL, vR, tiempos, nSeg };
+}
+
+// ── Modelo: una vez por equipo (Cache API) ──
+async function bajarModelo() {
+    let cache = null;
+    try { cache = await caches.open('profe-modelos'); const r = await cache.match(MODELO_URL); if (r) { dato('Modelo', 'guardado en el equipo'); return await r.arrayBuffer(); } } catch (_) {}
+    const t0 = performance.now();
+    const r = await fetch(MODELO_URL);
+    if (!r.ok) throw new Error('No se pudo bajar el modelo (' + r.status + ')');
+    const total = +r.headers.get('content-length') || 66759214;
+    const lector = r.body.getReader(), partes = []; let n = 0;
+    for (;;) {
+        const { done, value } = await lector.read(); if (done) break;
+        partes.push(value); n += value.length;
+        estado(`Bajando el modelo… ${Math.round(n / 1048576)} de ${Math.round(total / 1048576)} MB`, n / total * 0.15);
+    }
+    const datosM = new Uint8Array(n); let o = 0; for (const p of partes) { datosM.set(p, o); o += p.length; }
+    dato('Modelo', `bajado en ${seg(performance.now() - t0)}`);
+    try { await cache?.put(MODELO_URL, new Response(datosM, { headers: { 'content-type': 'application/octet-stream' } })); } catch (_) {}
+    return datosM.buffer;
+}
+// Motor: WebGPU (tarjeta gráfica) si el equipo lo tiene; si falla o se cuelga (Windows reinicia una tarjeta que tarda
+// más de ~2 s en una tarea), pasa solo a WASM (el procesador) y sigue. `?motor=wasm` fuerza el procesador.
+let sesionModelo = null, bufModelo = null, motorActual = '';
+const MOTOR_WASM = () => 'Procesador (WASM, ' + (ort.env.wasm.numThreads > 1 ? `${ort.env.wasm.numThreads} hilos` : '1 hilo') + ')';
+async function prepararModelo(forzarWasm) {
+    if (sesionModelo && !forzarWasm) return sesionModelo;
+    bufModelo = bufModelo || await bajarModelo();
+    estado('Preparando el modelo…', 0.15);
+    const t0 = performance.now();
+    const pideWasm = forzarWasm || new URLSearchParams(location.search).get('motor') === 'wasm';
+    sesionModelo = null;
+    if (!pideWasm && navigator.gpu) {
+        try { sesionModelo = await ort.InferenceSession.create(bufModelo, { executionProviders: ['webgpu'] }); motorActual = 'Tarjeta gráfica (WebGPU)'; }
+        catch (_) {}
+    }
+    if (!sesionModelo) { sesionModelo = await ort.InferenceSession.create(bufModelo, { executionProviders: ['wasm'] }); motorActual = MOTOR_WASM(); }
+    dato('Motor', motorActual + (forzarWasm ? ' — la tarjeta gráfica falló' : ''));
+    dato('Preparar el modelo', seg(performance.now() - t0));
+    return sesionModelo;
+}
+// Un segmento en el modelo; si la tarjeta gráfica falla o no responde en 30 s, se rehace con el procesador
+async function correrModelo(entrada) {
+    const correr = s => s.run({ [s.inputNames[0]]: new ort.Tensor('float32', entrada, [1, 4, DIM_F, DIM_T]) }).then(o => o[s.outputNames[0]].data);
+    if (motorActual.startsWith('Procesador')) return correr(sesionModelo);
+    try {
+        return await Promise.race([correr(sesionModelo), new Promise((_, no) => setTimeout(() => no(new Error('sin respuesta')), 30000))]);
+    } catch (_) {
+        await prepararModelo(true);
+        return correr(sesionModelo);
+    }
+}
+
+// ── WAV 16 bits ──
+function wav(L, R) {
+    const n = L.length, b = new DataView(new ArrayBuffer(44 + n * 4));
+    const txt = (o, s) => [...s].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
+    txt(0, 'RIFF'); b.setUint32(4, 36 + n * 4, true); txt(8, 'WAVE'); txt(12, 'fmt ');
+    b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 2, true); b.setUint32(24, SR, true);
+    b.setUint32(28, SR * 4, true); b.setUint16(32, 4, true); b.setUint16(34, 16, true); txt(36, 'data'); b.setUint32(40, n * 4, true);
+    for (let i = 0, o = 44; i < n; i++, o += 4) {
+        b.setInt16(o, Math.max(-1, Math.min(1, L[i])) * 32767, true);
+        b.setInt16(o + 2, Math.max(-1, Math.min(1, R[i])) * 32767, true);
+    }
+    return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+}
+
+$('separar').onclick = async () => {
+    $('separar').disabled = true; $('error').textContent = ''; $('resultado').hidden = true;
+    for (const k in datos) delete datos[k]; dato('Equipo', `${navigator.hardwareConcurrency || '?'} núcleos · ${navigator.gpu ? 'con WebGPU' : 'sin WebGPU'}`);
+    const tTotal = performance.now();
+    try {
+        estado('Leyendo la canción…', 0);
+        const archivo = $('archivo').files[0];
+        const nombre = archivo ? archivo.name.replace(/\.[^.]+$/, '') : $('cancion').selectedOptions[0].textContent.split(' · ')[0];
+        const bytes = archivo ? await archivo.arrayBuffer() : await fetch(STORAGE + $('cancion').value).then(r => { if (!r.ok) throw new Error('No se pudo bajar el audio'); return r.arrayBuffer(); });
+        const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SR });
+        const audio = await ctx.decodeAudioData(bytes);
+        ctx.close();
+        let L = audio.getChannelData(0), R = audio.numberOfChannels > 1 ? audio.getChannelData(1) : L;
+        if ($('corto').checked) {
+            const desde = audio.duration > 90 ? 60 * SR : 0, hasta = Math.min(L.length, desde + 30 * SR);
+            L = L.slice(desde, hasta); R = R.slice(desde, hasta);
+        }
+        const dur = L.length / SR;
+        dato('Canción', `${nombre} · ${reloj(dur)}${$('corto').checked ? ' (un trozo)' : ''}`);
+        const sesion = await prepararModelo();
+        const t0 = performance.now();
+        const { vL, vR, tiempos, nSeg } = await separarVoz(sesion, L, R, (s, n, t) => {
+            const pasado = performance.now() - t0, falta = pasado / s * (n - s);
+            estado(`Separando… segmento ${s} de ${n} · faltan ~${reloj(falta / 1000)}`, 0.2 + 0.8 * s / n);
+            dato('Por segmento', `${seg((t.modelo + t.fft) / s)} (modelo ${seg(t.modelo / s)} · cálculos ${seg(t.fft / s)})`);
+        });
+        const tSep = performance.now() - t0;
+        window.ultimo = { vL, vR, L, R };   // para revisar la prueba desde la consola
+        const pL = new Float32Array(L.length), pR = new Float32Array(L.length);
+        for (let i = 0; i < L.length; i++) { pL[i] = L[i] - vL[i]; pR[i] = R[i] - vR[i]; }
+        dato('Separar', `${seg(tSep)} para ${reloj(dur)} de canción (${(tSep / 1000 / dur).toFixed(1)} × su largo; ${nSeg} segmentos)`);
+        dato('Una canción de 3:30', `~${reloj(tSep / 1000 / dur * 210)}`);
+        dato('Total', seg(performance.now() - tTotal));
+        const uVoz = wav(vL, vR), uPista = wav(pL, pR);
+        $('a-voz').src = uVoz; $('d-voz').href = uVoz; $('d-voz').download = `${nombre} · Voz.wav`;
+        $('a-pista').src = uPista; $('d-pista').href = uPista; $('d-pista').download = `${nombre} · Pista.wav`;
+        $('a-orig').src = wav(L, R);
+        $('resultado').hidden = false;
+        estado('Listo ✓', 1);
+    } catch (e) {
+        console.error(e);
+        estado('No se pudo separar', null);
+        $('error').textContent = String(e?.message || e);
+    }
+    listo();
+};
+</script>
+</body>
+</html>
