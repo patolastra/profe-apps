@@ -8732,3 +8732,19 @@ rasgueos, para el Lector de tabs").*
   musical" en ♬ Melodía con Mambo elegida; ✏️ del arreglo → la misma pestaña (no una segunda) pasa a 🎹 Arreglo con
   "Acompañamiento piano" y la melodía sigue abierta; cerrar pide guardar a los dos editores y responde al instante;
   sin errores.
+
+### FZ. 🎹 Piano de dos octavas para buscar un tono (menú + del Workspace) — HECHA
+*Origen: PO 2026-11-05 ("quita [el Piano de estudiantes del menú] y agrega un nuevo Piano: un piano de dos octavas, a
+veces necesito buscar un tono o algo; también ahí un botón Crear un arreglo que te lleve al editor musical").*
+- **Necesidad:** tener a mano un teclado para encontrar una nota o un tono mientras se prepara material.
+- **Decisión del PO (2026-11-05):** la entrada "Piano" del menú + deja de abrir el Piano de estudiantes (que sigue
+  abriéndose con 🎹 desde la ficha de la canción y en la vista previa del Arreglo) y abre un piano nuevo de dos
+  octavas, con el botón 🎼 Crear un arreglo que abre el Editor musical (lista de canciones).
+- **Plan:** `TECLADO/index.html`: dos octavas (parte en Do4), ◀ ▶ para bajar o subir una octava, teclas con su nombre
+  (do re mi, ♯), sonido de piano sintetizado (sin base de datos ni internet), se toca con el mouse, el dedo o el
+  teclado del computador (A W S E D F T G Y H U J K…), la nota que suena en grande arriba; `comun/un-sonido.js`.
+  - Lugares: Workspace (menú +, entrada `piano`). El Piano de estudiantes (`PIANO/`) no cambia.
+- **Hecho (2026-11-05):** `TECLADO/index.html` como en el plan; `PC/workspace.html`: la entrada `piano` del menú + abre
+  `TECLADO/`. Prueba (navegador, Workspace): 25 teclas do4–do6 con su nombre; la tecla J del computador suena "si4" y
+  se ilumina, al soltar se apaga; ▶ → do5–do7, ◀ vuelve; 🎼 Crear un arreglo abre la pestaña del Editor musical con
+  su lista de canciones. Sin errores.

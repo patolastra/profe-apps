@@ -54,7 +54,7 @@
 | Lugar | Cómo se abre |
 |---|---|
 | Biblioteca, ficha de la canción | ＋ y ✏️ de Melodía y de Arreglo, "+ Arreglo de piano": `abrirEditorMusical(cancion, tab, asset)` → una pestaña `editor:<canción>` del Workspace (si ya está, `ws-ir` cambia de pestaña o recurso) |
-| Workspace, menú + | 🎼 Editor musical (entrada `melodias`): lista de canciones |
+| Workspace, menú + | 🎼 Editor musical (entrada `melodias`): lista de canciones · también 🎼 Crear un arreglo del 🎹 Piano (`TECLADO/`, FZ) |
 | Adentro | ♬ Melodía = `MELODIA/` · 🎹 Arreglo de piano = `ARREGLO/` (cada uno tal cual; sus avisos pasan al Workspace) |
 
 ## Arreglo de piano (`ARREGLO/index.html` + `PIANO/?r=`, deuda ES)

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Piano</title>
+<!--
+  🎹 Piano (deuda FZ): un teclado de dos octavas para buscar una nota o un tono mientras se prepara material.
+  Parte en Do4; ◀ ▶ baja o sube una octava. Se toca con el mouse (arrastrando pasa de tecla en tecla), el dedo o el
+  teclado del computador (fila A S D F G H J K L Ñ = teclas blancas, W E T Y U O P = negras). Sonido de piano
+  sintetizado: sin base de datos ni internet. La nota que suena se ve en grande arriba.
+  🎼 Crear un arreglo abre el Editor musical (menú + del Workspace: entrada "Piano").
+  No es el Piano de estudiantes (PIANO/), que muestra melodías y arreglos cayendo sobre el teclado.
+-->
+<script src="../comun/un-sonido.js"></script>
+<style>
+    :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto); overflow: hidden;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif; touch-action: none; user-select: none; }
+    body { display: flex; flex-direction: column; }
+    button { font: inherit; color: inherit; }
+    /* Barra (estable: anchos fijos) */
+    #barra { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--borde); }
+    #titulo { flex: 0 0 auto; font-weight: 700; }
+    .btn { height: 34px; min-width: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid #475569; background: #334155; cursor: pointer; font-size: 15px; }
+    .btn:hover { background: #475569; }
+    .btn:disabled { opacity: .4; cursor: default; }
+    #octava { width: 118px; text-align: center; color: var(--tenue); font-size: 14px; }
+    #nota { width: 130px; text-align: center; font-size: 26px; font-weight: 800; color: #f97316; }
+    .sep { flex: 1; }
+    #b-arreglo { border-color: #22c55e; background: #15803d; color: #fff; font-weight: 600; }
+    #b-arreglo:hover { background: #16a34a; }
+    /* Teclado */
+    #teclado { flex: 1 1 auto; position: relative; margin: 14px; min-height: 0; }
+    .tecla { position: absolute; top: 0; border-radius: 0 0 8px 8px; display: flex; align-items: flex-end; justify-content: center;
+        padding-bottom: 12px; font-weight: 600; cursor: pointer; }
+    .blanca { height: 100%; background: #f8fafc; color: #64748b; border: 1px solid #94a3b8; font-size: 15px; z-index: 1; }
+    .negra { height: 60%; background: #111827; color: #94a3b8; font-size: 12px; z-index: 2; border: 1px solid #000; }
+    .tecla.on { background: #f97316; color: #fff; }
+    .tecla .do { position: absolute; top: 8px; font-size: 11px; color: #94a3b8; }
+    .tecla.on .do { color: #fff; }
+</style>
+</head>
+<body>
+<div id="barra">
+    <div id="titulo">🎹 Piano</div>
+    <button class="btn" id="b-bajar" title="Una octava más abajo">◀</button>
+    <div id="octava"></div>
+    <button class="btn" id="b-subir" title="Una octava más arriba">▶</button>
+    <div id="nota"></div>
+    <div class="sep"></div>
+    <button class="btn" id="b-arreglo" title="Abrir el Editor musical para crear un arreglo de una canción">🎼 Crear un arreglo</button>
+</div>
+<div id="teclado"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const NOMBRE = ['do', 'do♯', 're', 're♯', 'mi', 'fa', 'fa♯', 'sol', 'sol♯', 'la', 'la♯', 'si'];
+const NEGRA = [false, true, false, true, false, false, true, false, true, false, true, false];
+let base = 60;                     // Do4: la primera tecla
+const OCT_MIN = 36, OCT_MAX = 84;  // Do2 … Do6
+const nombreCompleto = m => NOMBRE[m % 12] + (Math.floor(m / 12) - 1);
+
+// ══ Sonido: piano sintetizado, la nota suena mientras se mantiene ═══════════════════════════
+let ac = null;
+function audio() {
+    if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+    return ac;
+}
+const voces = new Map();           // midi → { g, osc }
+function sonar(m) {
+    callar(m, 0.03);
+    const c = audio(), t = c.currentTime, f = 440 * Math.pow(2, (m - 69) / 12);
+    const g = c.createGain(); g.connect(c.destination);
+    const filtro = c.createBiquadFilter(); filtro.type = 'lowpass'; filtro.frequency.value = Math.min(9000, f * 8); filtro.connect(g);
+    const osc = [['triangle', 1, 0.6], ['sine', 2, 0.25], ['sine', 3, 0.08]].map(([tipo, k, v]) => {
+        const o = c.createOscillator(), gv = c.createGain();
+        o.type = tipo; o.frequency.value = f * k; gv.gain.value = v;
+        o.connect(gv); gv.connect(filtro); o.start(t);
+        return o;
+    });
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.5, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.18, t + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.02, t + 5);          // se apaga solo de a poco si se mantiene
+    voces.set(m, { g, osc });
+    pintar(m, true);
+}
+function callar(m, suelta = 0.35) {
+    const v = voces.get(m); if (!v) return;
+    voces.delete(m);
+    const t = audio().currentTime;
+    v.g.gain.cancelScheduledValues(t);
+    v.g.gain.setValueAtTime(Math.max(0.0001, v.g.gain.value), t);
+    v.g.gain.exponentialRampToValueAtTime(0.0001, t + suelta);
+    v.osc.forEach(o => o.stop(t + suelta + 0.05));
+    pintar(m, false);
+}
+UnSonido.alDetener(() => [...voces.keys()].forEach(m => callar(m)), () => voces.size > 0);
+
+// ══ Teclado en pantalla ═══════════════════════════════════════════════════════════════════
+function armar() {
+    const cont = $('teclado');
+    const ms = []; for (let m = base; m <= base + 24; m++) ms.push(m);      // dos octavas + el Do de arriba
+    const blancas = ms.filter(m => !NEGRA[m % 12]);
+    const wb = 100 / blancas.length;
+    cont.innerHTML = ms.map(m => {
+        if (!NEGRA[m % 12]) {
+            const i = blancas.indexOf(m);
+            return `<div class="tecla blanca" data-m="${m}" style="left:${i * wb}%;width:${wb}%">${m % 12 === 0 ? `<span class="do">${nombreCompleto(m)}</span>` : ''}${NOMBRE[m % 12]}</div>`;
+        }
+        const i = blancas.indexOf(m - 1);
+        return `<div class="tecla negra" data-m="${m}" style="left:${(i + 1) * wb - wb * 0.3}%;width:${wb * 0.6}%">${NOMBRE[m % 12]}</div>`;
+    }).join('');
+    $('octava').textContent = `${nombreCompleto(base)} – ${nombreCompleto(base + 24)}`;
+    $('b-bajar').disabled = base <= OCT_MIN;
+    $('b-subir').disabled = base + 24 >= OCT_MAX + 12;
+    voces.forEach((_, m) => pintar(m, true));
+}
+function pintar(m, on) {
+    document.querySelector(`.tecla[data-m="${m}"]`)?.classList.toggle('on', on);
+    if (on) $('nota').textContent = nombreCompleto(m);
+}
+// Mouse y dedo: tocar, y arrastrando pasar de tecla en tecla
+const porPuntero = new Map();      // pointerId → midi
+const teclaEn = (x, y) => { const el = document.elementFromPoint(x, y)?.closest('.tecla'); return el ? +el.dataset.m : null; };
+$('teclado').addEventListener('pointerdown', e => {
+    const m = teclaEn(e.clientX, e.clientY); if (m === null) return;
+    e.preventDefault();
+    porPuntero.set(e.pointerId, m); sonar(m);
+});
+window.addEventListener('pointermove', e => {
+    if (!porPuntero.has(e.pointerId)) return;
+    const m = teclaEn(e.clientX, e.clientY), antes = porPuntero.get(e.pointerId);
+    if (m === antes) return;
+    if (antes !== null) callar(antes);
+    porPuntero.set(e.pointerId, m);
+    if (m !== null) sonar(m);
+});
+const soltar = e => { const m = porPuntero.get(e.pointerId); porPuntero.delete(e.pointerId); if (m != null) callar(m); };
+window.addEventListener('pointerup', soltar);
+window.addEventListener('pointercancel', soltar);
+// Teclado del computador (por posición de la tecla, sirve en cualquier distribución)
+const TECLAS = { KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6, KeyG: 7, KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11,
+    KeyK: 12, KeyO: 13, KeyL: 14, KeyP: 15, Semicolon: 16, Quote: 17 };
+const porTecla = new Map();
+document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') { e.preventDefault(); octava(e.code === 'ArrowLeft' ? -1 : 1); return; }
+    const k = TECLAS[e.code]; if (k === undefined || e.repeat) return;
+    e.preventDefault();
+    const m = base + k; porTecla.set(e.code, m); sonar(m);
+});
+document.addEventListener('keyup', e => { const m = porTecla.get(e.code); porTecla.delete(e.code); if (m != null) callar(m); });
+window.addEventListener('blur', () => { [...voces.keys()].forEach(m => callar(m)); porTecla.clear(); porPuntero.clear(); });
+
+function octava(d) {
+    const nb = base + 12 * d;
+    if (nb < OCT_MIN || nb + 24 > OCT_MAX + 12) return;
+    [...voces.keys()].forEach(m => callar(m));
+    base = nb; armar();
+}
+$('b-bajar').onclick = e => { octava(-1); e.target.blur(); };
+$('b-subir').onclick = e => { octava(1); e.target.blur(); };
+
+// 🎼 Crear un arreglo: el Editor musical, en su lista de canciones (en el Workspace, su misma pestaña del menú +)
+$('b-arreglo').onclick = e => {
+    e.target.blur();
+    const src = '../EDITOR/index.html';
+    if (window.parent && window.parent !== window) {
+        try { window.parent.postMessage({ tipo: 'ws-abrir', key: 'melodias', titulo: 'Editor musical', ico: '🎼', src, guardarAlCerrar: true }, '*'); return; } catch (_) {}
+    }
+    window.open(src, '_blank');
+};
+armar();
+</script>
+</body>
+</html>
