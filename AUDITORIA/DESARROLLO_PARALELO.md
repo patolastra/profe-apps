@@ -8932,3 +8932,6 @@ sonidos, mediante compartir… seleccionar el extracto dentro del audio recibido
   `ent_oa_loop`). Recomendado uno general en vez de uno por audio: las tarjetas no se recargan y solo suena uno a la vez.
   Prueba (navegador): el trozo de 1 s sigue sonando a los 2,6 s con 🔁 y se detiene al apagarlo; en Otros audios, con
   🔁 el audio vuelve al comienzo al terminar y sigue sonando.
+- **Hallazgo (2026-11-07):** "Profe" no aparecía en Compartir de WhatsApp: la app estaba instalada con **Brave**, que en
+  Android la deja como acceso directo (sin WebAPK), y Compartir solo funciona con la app instalada desde **Chrome**.
+  Solución: desinstalar e instalar desde Chrome (se puede seguir navegando con Brave).
