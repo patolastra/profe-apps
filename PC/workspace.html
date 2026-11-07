@@ -447,6 +447,7 @@ function renombrarTab(key, titulo) {
 // lo que funciona igual en file:// y en GitHub Pages). Mensajes:
 //   { tipo:'ws-abrir',  key, titulo, ico, src, guardarAlCerrar? } → abre/enfoca
 //   { tipo:'ws-titulo', key, titulo }             → renombra una pestaña existente
+//   { tipo:'ws-salir', a:'sesiones'|'biblioteca' } → cierra esta pestaña y deja la Biblioteca fija ahí
 //   { tipo:'ws-guardado', reqId, ok }             → respuesta al handshake de cierre
 //   { tipo:'ws-titulo-ventana', reqId, titulo }   → título temporal de ESTA ventana
 //                                                   (responde 'ws-titulo-ventana-ok')
@@ -537,6 +538,16 @@ window.addEventListener('message', (e) => {
             cursoOrigen: (tabs.find(t => t.iframeEl.contentWindow === e.source) || {}).curso || null,
             // `fijo` NO se acepta por postMessage: solo las iniciales locales son fijas.
         });
+    } else if (m.tipo === 'ws-salir') {
+        // Pestaña de paso (sesión del Entrenador abierta desde el Plan): al salir de ella se va a la
+        // Biblioteca fija, en Sesiones o en la Biblioteca, y la pestaña de paso se cierra.
+        const origen = tabs.find(t => t.iframeEl.contentWindow === e.source);
+        if (!origen || origen.fijo) return;
+        abrirApp('repertorio', true);
+        const bib = tabs.find(t => t.key === 'repertorio');
+        try { bib.iframeEl.contentWindow.postMessage({ tipo: 'ws-ir', vista: m.a === 'biblioteca' ? 'biblioteca' : 'sesiones' }, '*'); } catch (_) {}
+        activar('repertorio');
+        cerrarTab(origen.key);
     } else if (m.tipo === 'ws-titulo') {
         if (typeof m.key !== 'string') return;
         renombrarTab(m.key, String(m.titulo || ''));

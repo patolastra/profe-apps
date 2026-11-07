@@ -6948,6 +6948,7 @@ function cerrarEntrenador() {
     // Entrenador mínimo: la copia de la Pizarra se congela en la letra (no recibe "cerrado"); el Planificador
     // decide después si la suelta o la deja a la vista (deuda BU).
     if (MINI) espejoCongelado = true;
+    const salirDePaso = pestanaDePaso && entModoSesion;   // pestaña de paso del Plan: salir = ir a la Biblioteca fija
     if (entModoEdicion) entSalirEdicion();   // guardar la letra en edición antes de cerrar
     if (entPrueba) entPruebaFin();
     entBusqCerrar();
@@ -6992,7 +6993,14 @@ function cerrarEntrenador() {
     document.getElementById('ent-header').style.display = '';
     entrenadorSong = null;
     if (MINI) try { window.parent.postMessage({ tipo: 'ent-mini-cerrar' }, '*'); } catch (_) {}   // ← / Esc: el Planificador lo quita
+    // Pestaña de paso (sesión abierta desde el Plan): ← / Esc llevan a Sesiones y 📚 a la Biblioteca, en la
+    // pestaña Biblioteca del Workspace; esta pestaña se cierra (nunca dos Bibliotecas abiertas).
+    if (salirDePaso) {
+        const a = entSalirA; entSalirA = 'sesiones';
+        try { window.parent.postMessage({ tipo: 'ws-salir', a }, '*'); } catch (_) {}
+    }
 }
+let entSalirA = 'sesiones';
 
 // Recursos de la canción como UN desplegable (reemplaza los chips sueltos). Conserva
 // el sistema genérico de assets: solo cambia la presentación en el header.
@@ -9497,7 +9505,9 @@ function cerrarEntrenadorModoEdicion() {
 
 // 📚 desde una sesión: cierra el Entrenador y deja la Biblioteca (no la lista de sesiones).
 function entIrBiblioteca() {
+    entSalirA = 'biblioteca';
     cerrarEntrenador();
+    entSalirA = 'sesiones';
     if (vistaActual === 'sesiones') toggleVistaSesiones();
 }
 
@@ -9634,6 +9644,14 @@ function sorteoAnimar(s, sel, vigente) {
     paso();
 }
 
+let pestanaDePaso = false;
+// Workspace: 'ws-ir' { vista: 'sesiones' | 'biblioteca' } = una pestaña de paso se cerró y deja aquí al profe.
+window.addEventListener('message', e => {
+    const m = e.data;
+    if (m?.tipo !== 'ws-ir' || e.source !== window.parent || !m.vista) return;
+    if (document.getElementById('entrenador-overlay').classList.contains('visible')) cerrarEntrenador();
+    if ((m.vista === 'sesiones') !== (vistaActual === 'sesiones')) toggleVistaSesiones();
+});
 // Workspace: 'ws-ir' { practicar, cancion } = una actividad del Plan pide la sesión del curso en esa canción
 // (deuda BT), con esta pestaña ya abierta. La lista se lee al día: la canción pudo sumarse recién desde el Plan.
 window.addEventListener('message', async e => {
@@ -11130,6 +11148,8 @@ if (MOVIL) {
     const proyeccion  = params.get('proyeccion') === '1';
     const practicarId = params.get('practicar');
     const cancionId   = params.get('cancion');
+    // Sesión abierta desde el Plan en una pestaña del Workspace = pestaña de paso (salir lleva a la Biblioteca fija).
+    pestanaDePaso = !!practicarId && !MINI && !MOVIL && !proyeccion && window.parent !== window;
     if (practicarId || cancionId) {
         // Asegura la vista de sesiones detrás del overlay (identidad "Entrenador").
         if (vistaActual !== 'sesiones') toggleVistaSesiones();
