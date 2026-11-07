@@ -2753,7 +2753,7 @@
         <button class="chip activo" data-filtro="todos" onclick="setFiltro(this)" title="Todos los cursos">Todos</button>
         <div id="chips-cursos"></div>
     </div>
-    <button id="btn-practicar" onclick="practicarCurso()" title="Practicar la sesión de este curso en el Entrenador" style="visibility:hidden">🎵 Practicar</button>
+    <button id="btn-practicar" onclick="practicarCurso()" title="Ver las sesiones del Entrenador">🎵 Sesiones</button>
     <div id="filtros-sel">
         <select id="sel-estilo" class="filtro-sel" onchange="setEstilo(this.value)" title="Género"></select>
         <select id="sel-orden" class="filtro-sel" onchange="setSort(this.value)" title="Orden">
@@ -3712,9 +3712,11 @@ function setEstilo(valor) {
 }
 
 // 🎵 Practicar: abre en el Entrenador la sesión del curso elegido.
+// Sin curso (o curso sin canciones): 🎵 Sesiones abre la lista de sesiones del Entrenador.
 function practicarCurso() {
-    const s = filtroCurso && sesionDelCurso(filtroCurso);
-    if (s) practicarSesion(s.id);
+    const s = filtroCurso && filtroCurso !== 'PERSONAL' ? sesionDelCurso(filtroCurso) : null;
+    if (s?.canciones?.length) practicarSesion(s.id);
+    else if (vistaActual !== 'sesiones') toggleVistaSesiones();
 }
 
 function render() {
@@ -3813,8 +3815,11 @@ function renderChips() {
 
     // 🎵 Practicar: solo con un curso elegido que tenga canciones en su sesión
     const sc = filtroCurso && filtroCurso !== 'PERSONAL' ? sesionDelCurso(filtroCurso) : null;
-    // Visible u oculto, pero su espacio queda siempre reservado: nada de la barra se mueve (deuda BH).
-    document.getElementById('btn-practicar').style.visibility = sc?.canciones?.length ? '' : 'hidden';
+    // Sin curso: 🎵 Sesiones (lista de sesiones). Mismo ancho fijo: nada de la barra se mueve (deuda BH).
+    const bp = document.getElementById('btn-practicar');
+    const conCurso = !!sc?.canciones?.length;
+    bp.textContent = conCurso ? '🎵 Practicar' : '🎵 Sesiones';
+    bp.title = conCurso ? 'Practicar la sesión de este curso en el Entrenador' : 'Ver las sesiones del Entrenador';
 
     const selE = document.getElementById('sel-estilo');
     if (filtroEstilo && !estilosUsados.some(e => e.toLowerCase() === filtroEstilo.toLowerCase())) filtroEstilo = '';
@@ -4175,7 +4180,7 @@ async function abrirFormMedio(archivo, uso) {
     }
     mediosSoltado = archivo || null;
     cont.innerHTML = `<div class="med-form">
-        <select id="med-curso"><option value="">Curso…</option><option value="sin">Sin curso</option>${mediosCursos.map(x =>
+        <select id="med-curso" title="Curso (si no eliges, se guarda sin curso)"><option value="">Sin curso</option>${mediosCursos.map(x =>
             `<option value="${x.id}">${escapar(ctxLabel(x.nombre))}</option>`).join('')}</select>
         <select id="med-uso" onchange="document.getElementById('med-parte').hidden = this.value !== 'extracto'"><option value="extracto">Extracto (grabado en clase)</option><option value="version">Versión (íntegra / trabajo final)</option></select>
         <input id="med-parte" class="ancho" list="med-partes" placeholder="Parte de la canción (elige o escribe: Coro, Estrofa 2…)">
@@ -4192,7 +4197,6 @@ async function abrirFormMedio(archivo, uso) {
 async function guardarMedio() {
     const est = t => { const e = document.getElementById('med-estado'); if (e) e.textContent = t; };
     const ctxId = document.getElementById('med-curso').value, uso = document.getElementById('med-uso').value;
-    if (!ctxId) { est('Elige el curso (o Sin curso).'); return; }
     const archivo = mediosSoltado || document.getElementById('med-archivo')?.files[0] || null;
     const enlace = (document.getElementById('med-enlace')?.value || '').trim();
     if (!archivo && !enlace) { est('Elige un archivo o pega un enlace.'); return; }
@@ -4201,7 +4205,7 @@ async function guardarMedio() {
     const hoy = new Date();
     const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
     const parte = uso === 'extracto' ? (document.getElementById('med-parte')?.value || '').trim() : '';
-    const base = { contextoId: ctxId === 'sin' ? null : ctxId, cancionId: songActiva.id, uso, fecha, origen: 'biblioteca', parte: parte || null };
+    const base = { contextoId: ctxId || null, cancionId: songActiva.id, uso, fecha, origen: 'biblioteca', parte: parte || null };
     try {
         if (archivo) {
             const f = await ArchivosCurso.prepararImagen(archivo);
