@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1120">
+    <link rel="manifest" href="manifest.webmanifest">
+    <title>✂ Extracto o versión</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase/config.js"></script>
+    <script src="../supabase/contextos.js"></script>
+    <script src="../comun/clase-vivo.js"></script>
+    <script src="../comun/archivos-curso.js"></script>
+    <script src="../comun/lame.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        :root { --bg: #0b1120; --surface: #131c2e; --card: #1a2540; --border: #253455; --text: #f1f5f9; --muted: #7a8ba8;
+                --accent: #3b82f6; --orange: #ea580c; --sel: rgba(234, 88, 12, .22); --green: #22c55e; --red: #ef4444; }
+        html { background: var(--bg); }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh;
+               padding: calc(14px + env(safe-area-inset-top, 0px)) 16px calc(30px + env(safe-area-inset-bottom, 0px)); }
+        #cab { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        #volver { text-decoration: none; font-size: 1.6rem; line-height: 1; padding: 4px 8px; border-radius: 10px; color: var(--muted); }
+        #cab h1 { font-size: 1.25rem; }
+        .caja { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 12px 14px; margin-bottom: 12px; }
+        .caja > small { display: block; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+        button, input, select { font: inherit; }
+        .btn { padding: 11px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); color: var(--text);
+               font-weight: 700; font-size: 1rem; cursor: pointer; }
+        .btn:active { background: #253455; }
+        .btn.prim { background: var(--orange); border-color: var(--orange); }
+        .btn:disabled { opacity: .45; }
+        #elegir { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 26px 10px; text-align: center; cursor: pointer; }
+        #elegir span { font-size: 2.2rem; }
+        #elegir input { display: none; }
+        #elegir p { color: var(--muted); font-size: .85rem; line-height: 1.45; }
+        #audio-nom { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #audio-dur { color: var(--muted); font-size: .85rem; margin-top: 2px; }
+        #onda-wrap { position: relative; margin: 12px 0 8px; touch-action: none; user-select: none; }
+        #onda { display: block; width: 100%; height: 120px; border-radius: 10px; background: #0f172a; }
+        .ajustes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .ajuste { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+        .ajuste small { color: var(--muted); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+        .ajuste .fila { display: flex; align-items: center; gap: 6px; }
+        .ajuste b { font-variant-numeric: tabular-nums; width: 64px; text-align: center; }
+        .mini { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 1.1rem; }
+        .acciones { display: flex; gap: 8px; margin-top: 12px; }
+        .acciones .btn { flex: 1; }
+        #largo { text-align: center; color: var(--muted); font-size: .85rem; margin-top: 8px; font-variant-numeric: tabular-nums; }
+        label.campo { display: block; margin-top: 10px; }
+        label.campo > span { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 5px; }
+        .txt, select { width: 100%; font-size: 1.02rem; padding: 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); color: var(--text); }
+        #res { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+        #res button { text-align: left; padding: 10px; border-radius: 10px; border: 0; background: var(--card); color: var(--text); cursor: pointer; }
+        #res button small { color: var(--muted); margin-left: 6px; }
+        #cancion-sel { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: 12px; background: #2a1708; border: 1px solid var(--orange); }
+        #cancion-sel b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #cancion-sel button { border: 0; background: none; color: var(--muted); font-size: 1.1rem; padding: 2px 6px; }
+        .uso { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .uso button { padding: 11px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; }
+        .uso button.on { background: var(--orange); border-color: var(--orange); }
+        #guardar { width: 100%; margin-top: 14px; font-size: 1.1rem; padding: 14px; }
+        #estado { margin-top: 10px; text-align: center; font-size: .9rem; color: var(--muted); min-height: 1.3em; }
+        #estado.ok { color: #86efac; }
+        #estado.err { color: #fca5a5; }
+        #listo { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+<div id="cab"><a id="volver" href="index.html" aria-label="Volver al inicio">‹</a><h1>✂ Extracto o versión</h1></div>
+
+<!-- Sin audio: elegir uno del teléfono (lo normal es llegar con Compartir desde WhatsApp o la grabadora) -->
+<label class="caja" id="elegir">
+    <span>🎧</span><b>Elegir un audio</b>
+    <p>También puedes, desde WhatsApp o la grabadora, mantener el audio y tocar <b>Compartir → Profe</b>.</p>
+    <input type="file" id="archivo" accept="audio/*,.opus,.ogg,.m4a,.aac,.mp3,.amr,.wav,.3gp,.webm">
+</label>
+
+<div id="editor" hidden>
+    <div class="caja">
+        <small>Audio recibido</small>
+        <div id="audio-nom"></div>
+        <div id="audio-dur"></div>
+        <div id="onda-wrap"><canvas id="onda"></canvas></div>
+        <div class="ajustes">
+            <div class="ajuste"><small>Inicio</small><div class="fila"><button class="mini" data-h="ini" data-d="-0.25" aria-label="Inicio antes">‹</button><b id="t-ini">0:00</b><button class="mini" data-h="ini" data-d="0.25" aria-label="Inicio después">›</button></div></div>
+            <div class="ajuste"><small>Fin</small><div class="fila"><button class="mini" data-h="fin" data-d="-0.25" aria-label="Fin antes">‹</button><b id="t-fin">0:00</b><button class="mini" data-h="fin" data-d="0.25" aria-label="Fin después">›</button></div></div>
+        </div>
+        <div id="largo"></div>
+        <div class="acciones">
+            <button class="btn" id="escuchar">▶ Escuchar el trozo</button>
+            <button class="btn" id="zoom">🔍 Acercar</button>
+        </div>
+    </div>
+
+    <div class="caja">
+        <small>Canción</small>
+        <div id="cancion-buscar">
+            <input class="txt" id="buscar" placeholder="Buscar canción o artista…" autocomplete="off">
+            <div id="res"></div>
+        </div>
+        <div id="cancion-sel" hidden><b id="cancion-nom"></b><button id="cancion-quitar" aria-label="Cambiar canción">✕</button></div>
+        <div class="uso"><button id="uso-extracto" class="on">Extracto</button><button id="uso-version">Versión</button></div>
+        <label class="campo" id="parte-campo"><span>Parte de la canción</span>
+            <input class="txt" id="parte" list="partes" placeholder="Coro, Estrofa 2… (opcional)"><datalist id="partes"></datalist></label>
+        <label class="campo"><span>Curso (opcional)</span><select id="curso"><option value="">Sin curso</option></select></label>
+        <button class="btn prim" id="guardar" disabled>Guardar</button>
+        <div id="estado"></div>
+        <div id="listo" hidden>
+            <button class="btn" id="otro">✂ Cortar otro del mismo audio</button>
+            <a class="btn" href="index.html" id="terminar" style="text-align:center;text-decoration:none">Listo</a>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// ✂ EXTRACTO O VERSIÓN DESDE EL CELULAR (deuda GE, 2026-11-07)
+// Un audio llega por Compartir (WhatsApp, grabadora: manifest `share_target` → sw-movil.js lo deja en la caché
+// 'profe-compartido') o se elige del teléfono. Se marca el trozo sobre la forma de onda (inicio y fin arrastrables,
+// ‹ › finos, 🔍 Acercar), se escucha, y se guarda SOLO ese trozo como MP3 (comun/lame.min.js, lamejs) ligado a una
+// canción (obligatoria) como Extracto (con su parte) o Versión, con curso opcional → 📁 Archivos del curso
+// (comun/archivos-curso.js); la canción lo muestra en 🎧 Otros audios. Desde aquí no se crean canciones ni recursos.
+// ═══════════════════════════════════════════════════════════════════════
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+ClaseVivo.conectar(sb);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(1).padStart(4, '0').replace('.', ',')}`; };
+const ORDEN = ['PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO', 'SEXTO', 'SEPTIMO', 'OCTAVO', 'CUERDAS', 'CASTIGADAS', 'KIDS CASTIGADAS', 'RECREO', 'ORIENTACIÓN', 'ENLACE', 'GENERAL'];
+const CLAVE_COMPARTIDO = new URL('../compartido-audio', location.href).href;   // la misma que usa sw-movil.js
+
+// ── Audio: cargar y decodificar ──
+let actx = null, buffer = null, nombreAudio = '';
+let ini = 0, fin = 0, vista = [0, 0];   // trozo elegido y lo que muestra la onda (segundos)
+async function cargarAudio(blob, nombre) {
+    $('elegir').hidden = true; $('editor').hidden = false;
+    nombreAudio = nombre || 'Audio';
+    $('audio-nom').textContent = nombreAudio;
+    $('audio-dur').textContent = 'Abriendo el audio…';
+    try {
+        actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+        buffer = await actx.decodeAudioData(await blob.arrayBuffer());
+    } catch (_) {
+        $('audio-dur').textContent = 'No se pudo abrir este audio.';
+        $('elegir').hidden = false;
+        return;
+    }
+    ini = 0; fin = buffer.duration; vista = [0, buffer.duration];
+    $('audio-dur').textContent = `Dura ${fmt(buffer.duration)} · arrastra el inicio y el fin para dejar solo el trozo`;
+    picos = null; dibujar(); pintarTiempos(); revisarGuardar();
+}
+$('archivo').addEventListener('change', e => { const f = e.target.files[0]; if (f) cargarAudio(f, f.name); });
+async function cargarCompartido() {
+    try {
+        const c = await caches.open('profe-compartido');
+        const r = await c.match(CLAVE_COMPARTIDO);
+        if (!r) return false;
+        const nombre = decodeURIComponent(r.headers.get('X-Nombre') || 'Audio compartido');
+        await cargarAudio(await r.blob(), nombre);
+        return true;
+    } catch (_) { return false; }
+}
+async function olvidarCompartido() { try { (await caches.open('profe-compartido')).delete(CLAVE_COMPARTIDO); } catch (_) {} }
+
+// ── Forma de onda ──
+const canvas = $('onda');
+let picos = null;   // { desde, hasta, ancho, max[] } calculados para la vista actual
+function calcularPicos(W) {
+    const d0 = buffer.getChannelData(0), d1 = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
+    const sr = buffer.sampleRate, a = Math.floor(vista[0] * sr), b = Math.floor(vista[1] * sr);
+    const paso = Math.max(1, (b - a) / W), max = new Float32Array(W);
+    for (let x = 0; x < W; x++) {
+        const i0 = Math.floor(a + x * paso), i1 = Math.min(b, Math.floor(a + (x + 1) * paso));
+        let m = 0; const salto = Math.max(1, Math.floor((i1 - i0) / 400));
+        for (let i = i0; i < i1; i += salto) { const v = Math.abs(d1 ? (d0[i] + d1[i]) / 2 : d0[i]); if (v > m) m = v; }
+        max[x] = m;
+    }
+    let tope = 0; max.forEach(v => { if (v > tope) tope = v; });
+    return { desde: vista[0], hasta: vista[1], ancho: W, max, tope: tope || 1 };
+}
+// Margen a los lados (en px de pantalla) para que las manillas de los extremos se vean enteras
+const MARGEN = 12;
+const xDe = (t, W) => { const m = MARGEN * (window.devicePixelRatio || 1); return m + (t - vista[0]) / (vista[1] - vista[0]) * (W - 2 * m); };
+const tDe = (x, W) => vista[0] + Math.max(0, Math.min(1, (x - MARGEN) / (W - 2 * MARGEN))) * (vista[1] - vista[0]);
+let cabezal = null;   // segundo que suena (línea blanca)
+function dibujar() {
+    if (!buffer) return;
+    const dpr = window.devicePixelRatio || 1, W = Math.round(canvas.clientWidth * dpr), H = Math.round(canvas.clientHeight * dpr);
+    if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; picos = null; }
+    const m = Math.round(MARGEN * dpr), An = W - 2 * m;   // ancho útil de la onda
+    if (!picos || picos.desde !== vista[0] || picos.hasta !== vista[1] || picos.ancho !== An) picos = calcularPicos(An);
+    const g = canvas.getContext('2d');
+    g.clearRect(0, 0, W, H);
+    const xa = xDe(ini, W), xb = xDe(fin, W);
+    g.fillStyle = 'rgba(234, 88, 12, .22)'; g.fillRect(xa, 0, xb - xa, H);
+    for (let i = 0; i < An; i++) {
+        const x = m + i, h = Math.max(1, picos.max[i] / picos.tope * (H / 2 - 6));
+        g.fillStyle = x >= xa && x <= xb ? '#fb923c' : '#475569';
+        g.fillRect(x, H / 2 - h, 1, h * 2);
+    }
+    // Manillas de inicio y fin
+    [xa, xb].forEach(x => {
+        g.fillStyle = '#ea580c'; g.fillRect(x - 1.5 * dpr, 0, 3 * dpr, H);
+        g.beginPath(); g.arc(x, H / 2, 9 * dpr, 0, Math.PI * 2); g.fill();
+    });
+    if (cabezal !== null) { const x = xDe(cabezal, W); g.fillStyle = '#fff'; g.fillRect(x - dpr, 0, 2 * dpr, H); }
+}
+window.addEventListener('resize', dibujar);
+
+// Tocar o arrastrar sobre la onda mueve la manilla más cercana (inicio o fin)
+let arrastrando = null;
+canvas.addEventListener('pointerdown', e => {
+    if (!buffer) return;
+    e.preventDefault();
+    const r = canvas.getBoundingClientRect(), t = tDe(e.clientX - r.left, r.width);
+    arrastrando = Math.abs(t - ini) <= Math.abs(t - fin) ? 'ini' : 'fin';
+    if (t < ini) arrastrando = 'ini'; else if (t > fin) arrastrando = 'fin';
+    mover(t);
+    canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+    if (!arrastrando) return;
+    const r = canvas.getBoundingClientRect();
+    mover(tDe(e.clientX - r.left, r.width));
+});
+const soltar = () => { arrastrando = null; };
+canvas.addEventListener('pointerup', soltar);
+canvas.addEventListener('pointercancel', soltar);
+const MIN = 0.3;   // un trozo de al menos 0,3 s
+function mover(t, cual = arrastrando) {
+    if (cual === 'ini') ini = Math.max(0, Math.min(t, fin - MIN));
+    else fin = Math.min(buffer.duration, Math.max(t, ini + MIN));
+    detener(); dibujar(); pintarTiempos();
+}
+document.querySelectorAll('.mini').forEach(b => b.addEventListener('click', () => {
+    if (!buffer) return;
+    const cual = b.dataset.h, d = +b.dataset.d;
+    mover((cual === 'ini' ? ini : fin) + d, cual);
+}));
+function pintarTiempos() {
+    $('t-ini').textContent = fmt(ini); $('t-fin').textContent = fmt(fin);
+    $('largo').textContent = `Trozo de ${fmt(fin - ini)}`;
+}
+// 🔍 Acercar: la onda muestra solo el trozo (con un margen) para afinar; "Ver todo" vuelve
+$('zoom').addEventListener('click', () => {
+    if (!buffer) return;
+    const todo = vista[0] === 0 && vista[1] === buffer.duration;
+    if (todo) { const m = Math.max(1, (fin - ini) * 0.15); vista = [Math.max(0, ini - m), Math.min(buffer.duration, fin + m)]; }
+    else vista = [0, buffer.duration];
+    $('zoom').textContent = todo ? '↔ Ver todo' : '🔍 Acercar';
+    dibujar();
+});
+
+// ── Escuchar el trozo ──
+let fuente = null, empezo = 0, raf = 0;
+function detener() {
+    if (fuente) { try { fuente.onended = null; fuente.stop(); } catch (_) {} fuente = null; }
+    cancelAnimationFrame(raf); cabezal = null;
+    $('escuchar').textContent = '▶ Escuchar el trozo';
+    dibujar();
+}
+$('escuchar').addEventListener('click', async () => {
+    if (!buffer) return;
+    if (fuente) { detener(); return; }
+    if (actx.state === 'suspended') await actx.resume();
+    fuente = actx.createBufferSource(); fuente.buffer = buffer; fuente.connect(actx.destination);
+    fuente.onended = detener;
+    empezo = actx.currentTime;
+    fuente.start(0, ini, fin - ini);
+    $('escuchar').textContent = '⏸ Detener';
+    const paso = () => { if (!fuente) return; cabezal = ini + (actx.currentTime - empezo); dibujar(); raf = requestAnimationFrame(paso); };
+    paso();
+});
+
+// ── Canción (obligatoria), Extracto / Versión, parte y curso ──
+let canciones = [], cancion = null, uso = 'extracto';
+async function cargarCanciones() {
+    const { data } = await sb.from('repertorio_canciones').select('id, nombre, artista, categoria').order('nombre');
+    canciones = (data || []).filter(c => (c.categoria || 'cancion') === 'cancion');
+}
+const sinTildes = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+$('buscar').addEventListener('input', () => {
+    const q = sinTildes($('buscar').value.trim());
+    const lista = q ? canciones.filter(c => sinTildes(c.nombre).includes(q) || sinTildes(c.artista).includes(q)).slice(0, 8) : [];
+    $('res').innerHTML = lista.map(c => `<button data-id="${c.id}">${esc(c.nombre)}${c.artista ? `<small>${esc(c.artista)}</small>` : ''}</button>`).join('')
+        || (q ? '<div style="color:var(--muted);font-size:.85rem;padding:6px 2px">No está en la Biblioteca (las canciones nuevas se agregan desde el computador).</div>' : '');
+});
+$('res').addEventListener('click', e => { const b = e.target.closest('button[data-id]'); if (b) elegirCancion(b.dataset.id); });
+async function elegirCancion(id) {
+    cancion = canciones.find(c => c.id === id) || null;
+    $('cancion-buscar').hidden = !!cancion; $('cancion-sel').hidden = !cancion;
+    $('cancion-nom').textContent = cancion ? cancion.nombre : '';
+    $('res').innerHTML = ''; $('buscar').value = '';
+    $('partes').innerHTML = '';
+    if (cancion) {
+        const partes = await ArchivosCurso.partesDeCancion(sb, cancion.id);
+        if (cancion?.id === id) $('partes').innerHTML = partes.map(p => `<option value="${esc(p)}">`).join('');
+    }
+    revisarGuardar();
+}
+$('cancion-quitar').addEventListener('click', () => { cancion = null; $('cancion-buscar').hidden = false; $('cancion-sel').hidden = true; $('buscar').focus(); revisarGuardar(); });
+function ponerUso(u) {
+    uso = u;
+    $('uso-extracto').classList.toggle('on', u === 'extracto'); $('uso-version').classList.toggle('on', u === 'version');
+    $('parte-campo').hidden = u !== 'extracto';
+}
+$('uso-extracto').addEventListener('click', () => ponerUso('extracto'));
+$('uso-version').addEventListener('click', () => ponerUso('version'));
+async function cargarCursos() {
+    const { data } = await sb.from('contextos').select('id, nombre, activo');
+    const pos = n => { const i = ORDEN.indexOf(n); return i < 0 ? 99 : i; };
+    const lista = (data || []).filter(c => c.activo !== false).sort((a, b) => pos(a.nombre) - pos(b.nombre));
+    $('curso').innerHTML = '<option value="">Sin curso</option>' + lista.map(c =>
+        `<option value="${c.id}">${esc(typeof ctxDisplay === 'function' ? ctxDisplay(c.nombre) : c.nombre)}</option>`).join('');
+    // Con la clase en curso parte en ese curso (se puede cambiar o dejar sin curso)
+    const enc = ClaseVivo.enCurso && ClaseVivo.enCurso();
+    const ctx = enc && lista.find(c => c.nombre === enc.ctx);
+    if (ctx) { $('curso').value = ctx.id; clase = { ctxId: ctx.id, sesionId: enc.sesionId || null }; }
+}
+let clase = null;   // { ctxId, sesionId } de la clase en curso, si hay
+function revisarGuardar() { $('guardar').disabled = !(buffer && cancion); }
+
+// ── Guardar: el trozo como MP3 (lamejs) → 📁 Archivos del curso, ligado a la canción ──
+async function aMp3(estado) {
+    const sr = buffer.sampleRate, canales = Math.min(2, buffer.numberOfChannels);
+    const a = Math.floor(ini * sr), b = Math.floor(fin * sr), n = b - a;
+    const enc = new lamejs.Mp3Encoder(canales, sr, canales === 2 ? 160 : 128);
+    const aInt16 = ch => { const f = buffer.getChannelData(ch).subarray(a, b), o = new Int16Array(n);
+        for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, f[i])); o[i] = v < 0 ? v * 0x8000 : v * 0x7FFF; } return o; };
+    const L = aInt16(0), R = canales === 2 ? aInt16(1) : null;
+    const partes = [], BLOQUE = 1152 * 40;
+    for (let i = 0; i < n; i += BLOQUE) {
+        const l = L.subarray(i, i + BLOQUE);
+        const mp3 = R ? enc.encodeBuffer(l, R.subarray(i, i + BLOQUE)) : enc.encodeBuffer(l);
+        if (mp3.length) partes.push(new Uint8Array(mp3));
+        estado(`Preparando el MP3… ${Math.round(i / n * 100)} %`);
+        await new Promise(r => setTimeout(r, 0));   // deja respirar la pantalla
+    }
+    const ultimo = enc.flush(); if (ultimo.length) partes.push(new Uint8Array(ultimo));
+    return new Blob(partes, { type: 'audio/mpeg' });
+}
+$('guardar').addEventListener('click', async () => {
+    if (!buffer || !cancion) return;
+    const est = (t, cls = '') => { $('estado').textContent = t; $('estado').className = cls; };
+    const b = $('guardar'); b.disabled = true; detener();
+    try {
+        const blob = await aMp3(est);
+        const parte = uso === 'extracto' ? $('parte').value.trim() : '';
+        const nombre = [uso === 'version' ? 'Versión' : 'Extracto', cancion.nombre, parte].filter(Boolean).join(' · ') + '.mp3';
+        const archivo = new File([blob], nombre, { type: 'audio/mpeg' });
+        if (archivo.size > ArchivosCurso.MAX_BYTES) { est('El trozo pesa más de 50 MB: córtalo más corto.', 'err'); b.disabled = false; return; }
+        est(`Subiendo ${(archivo.size / 1048576).toFixed(1).replace('.', ',')} MB…`);
+        const contextoId = $('curso').value || null;
+        const ctxNombre = contextoId && $('curso').selectedOptions[0]?.textContent;
+        // Del curso que está en clase: queda ligado también a esa clase
+        const sesionId = contextoId && clase && clase.ctxId === contextoId ? clase.sesionId : null;
+        await ArchivosCurso.guardar(sb, { contextoId, nombre, archivo, mime: 'audio/mpeg', origen: 'celular',
+            cancionId: cancion.id, uso, parte: parte || null, fecha: hoyISO(), sesionId });
+        est(`✓ Guardado en ${cancion.nombre}${ctxNombre ? ' · ' + ctxNombre : ''}`, 'ok');
+        $('listo').hidden = false;
+    } catch (e) {
+        est(navigator.onLine === false ? 'Sin señal: vuelve a tocar Guardar cuando haya.' : 'No se pudo guardar — revisa la conexión.', 'err');
+        b.disabled = false;
+    }
+});
+$('otro').addEventListener('click', () => {
+    $('listo').hidden = true; $('estado').textContent = ''; $('parte').value = '';
+    ini = 0; fin = buffer.duration; vista = [0, buffer.duration]; $('zoom').textContent = '🔍 Acercar';
+    dibujar(); pintarTiempos(); revisarGuardar();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+$('terminar').addEventListener('click', olvidarCompartido);
+
+(async () => {
+    await Promise.all([cargarCanciones(), cargarCursos().catch(() => {})]);
+    // Llegó por Compartir (si se recarga la página, el audio sigue ahí hasta tocar Listo)
+    if (new URLSearchParams(location.search).has('compartido')) await cargarCompartido();
+})();
+</script>
+</body>
+</html>

@@ -8892,3 +8892,37 @@ tienen segunda voz, con otro color").*
     el navegador quedaría ocupado todo ese rato.
 - **Recomendación al PO:** no seguir dentro de Profe Apps por ahora; usar Ultimate Vocal Remover en el computador y
   subir el resultado como Karaoke / 🎵 2ª voz. La página `SEPARAR/` queda guardada (sin enlaces) como referencia.
+
+### GE. ✂ Extractos y versiones desde Compartir del celular (WhatsApp, grabadora) — HECHA (falta probar en el teléfono)
+*Origen: PO 2026-11-07 ("desde la pwa… audios tipo extracto o versiones, desde audios de wasap o de la grabadora de
+sonidos, mediante compartir… seleccionar el extracto dentro del audio recibido (cortar)").*
+- **Necesidad:** los audios de la clase llegan por WhatsApp o quedan en la grabadora del teléfono; hoy hay que pasarlos
+  al computador para ligarlos a una canción. Desde el celular solo se suben audios (nada de canciones, letras ni
+  tablaturas).
+- **Auditoría:** la app del celular (`MOVIL/manifest.webmanifest`) no aparece en Compartir (no tiene `share_target`).
+  Guardar ya existe: `ArchivosCurso.guardar` con `cancionId`, `uso` (extracto / version), `parte` y curso opcional
+  (`contextoId` null), y la canción lo muestra en 🎧 Otros audios. Web Share Target funciona solo en Android (el PO usa
+  Android); el iPhone no lo permite.
+- **Decisión del PO (2026-11-07):** Compartir → Profe → **✂ Recortar** (forma de onda, inicio y fin arrastrables,
+  escuchar el trozo) → canción (obligatoria), Extracto / Versión, parte (extractos), curso opcional ("Sin curso") →
+  Guardar; "Cortar otro del mismo audio". Se corta de verdad (archivo nuevo) y en **MP3**, con una copia de `lamejs`
+  (libre, LGPL) dentro del proyecto para que funcione sin señal.
+- **Plan:** `comun/lame.min.js` (lamejs 1.2.1); `manifest` con `share_target` (POST, archivo `audio`); `sw-movil.js`
+  recibe lo compartido, lo deja en el equipo y abre `MOVIL/recortar.html`; esa página también permite elegir un audio
+  del teléfono (y sirve para probar en el PC).
+- **Hecho (2026-11-07):** `comun/lame.min.js` (lamejs 1.2.1, copia de cdnjs); `MOVIL/manifest.webmanifest` con
+  `share_target` (POST multipart a `MOVIL/compartir-audio`, archivo `audio`); `sw-movil.js` (caché `profe-movil-v18`)
+  atiende ese POST: guarda el audio en la caché `profe-compartido` (clave `compartido-audio`, nombre en `X-Nombre`) y
+  redirige a `MOVIL/recortar.html?compartido=1`. **`MOVIL/recortar.html`**: forma de onda con inicio y fin (tocar o
+  arrastrar mueve la manilla más cercana; ‹ › de 0,25 s; 🔍 Acercar al trozo), ▶ Escuchar el trozo, buscador de canción
+  (solo canciones de la Biblioteca, obligatoria), Extracto / Versión, parte (sugerencias de `partesDeCancion`), curso
+  (Sin curso por defecto; con la clase en curso parte en ese curso y liga la clase); Guardar = MP3 (mono 128 kbps,
+  estéreo 160) → `ArchivosCurso.guardar` (`origen: 'celular'`); después ✂ Cortar otro del mismo audio o Listo (borra
+  lo compartido). Sin audio compartido, "Elegir un audio" del teléfono. Entrada en el ☰ del inicio del celular
+  ("✂ Extracto o versión de una canción"); `recortar.html`, el manifest y `lame.min.js` en la lista de "Cargar versión
+  nueva". Lugares: solo el celular (el PC sigue con el formulario de la ficha de la canción).
+- **Prueba (navegador, tamaño celular):** el service worker recibe un audio por POST y la página lo abre; arrastrar
+  las manillas deja el trozo (3,6 s → 9,2 s), ‹ › y 🔍 funcionan; el MP3 de 5,6 s pesa 89 KB, se vuelve a abrir y
+  dura lo mismo (0,4 s en armarlo); el buscador encuentra la canción y trae 23 partes; Versión oculta la parte. No se
+  guardó nada en la Biblioteca (la subida es la misma pieza de 📁 Archivos). **Falta:** probar Compartir desde
+  WhatsApp y la grabadora en el teléfono (puede requerir reinstalar la app una vez).

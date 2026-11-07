@@ -3,11 +3,11 @@
 // todo lo demás (Workspace, Planificador…) pasa directo, como si no existiera.
 // Siempre pide primero a internet (así llegan las versiones nuevas) y, sin señal,
 // usa la última copia guardada.
-const CACHE = 'profe-movil-v17';
+const CACHE = 'profe-movil-v18';
 const PROPIAS = [
     'MOVIL/', 'MOVIL/index.html', 'MOVIL/evaluar.html', 'MOVIL/manifest.webmanifest',
     'MOVIL/icono-192.png', 'MOVIL/icono-512.png',
-    'MOVIL/cursos.html', 'MOVIL/subir.html', 'MEMORIA/index.html',
+    'MOVIL/cursos.html', 'MOVIL/subir.html', 'MOVIL/recortar.html', 'comun/lame.min.js', 'MEMORIA/index.html',
     'comun/clase-vivo.js', 'comun/asistencia.js', 'comun/pendientes.js', 'comun/pendientes.css',
     'comun/editor-bloques.js', 'comun/editor-bloques.css', 'comun/tiempo-real.js', 'comun/volumen.js', 'comun/mensajes.js', 'comun/mensajes.css', 'comun/ensayos.js', 'comun/ensayos.css', 'comun/apoderados.js', 'comun/apoderados.css', 'comun/archivos-curso.js', 'comun/archivos-curso.css', 'comun/fotos-clase.js', 'comun/citar.js', 'comun/citar.css',
     'supabase/config.js', 'supabase/contextos.js',
@@ -24,7 +24,26 @@ self.addEventListener('activate', e => {
     e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('profe-movil-') && k !== CACHE).map(k => caches.delete(k))))
         .then(() => self.clients.claim()));
 });
+// Compartir → Profe (deuda GE): Android manda el audio aquí (POST, manifest `share_target`). Se deja en el equipo
+// (caché aparte, una sola entrada) y se abre ✂ Recortar, que lo lee de ahí.
+const COMPARTIDO = 'profe-compartido';
 self.addEventListener('fetch', e => {
+    if (e.request.method === 'POST' && new URL(e.request.url).pathname.endsWith('/MOVIL/compartir-audio')) {
+        e.respondWith((async () => {
+            try {
+                const datos = await e.request.formData();
+                const f = datos.getAll('audio').find(x => x && typeof x === 'object' && x.size);
+                if (f) {
+                    const c = await caches.open(COMPARTIDO);
+                    await c.put(new URL('compartido-audio', base).href, new Response(f, { headers: {
+                        'Content-Type': f.type || 'application/octet-stream',
+                        'X-Nombre': encodeURIComponent(f.name || 'Audio') } }));
+                }
+            } catch (_) {}
+            return Response.redirect(new URL('MOVIL/recortar.html?compartido=1', base).href, 303);
+        })());
+        return;
+    }
     if (e.request.method !== 'GET') return;
     const u = new URL(e.request.url);
     const limpia = u.origin + u.pathname;
