@@ -587,6 +587,13 @@
         .med-ver { margin: 0 0 8px; }
         .med-ver audio, .med-ver video { width: 100%; max-height: 260px; border-radius: 8px; }
         .med-vacio { font-size: 0.8rem; color: var(--muted); padding: 4px 0; }
+        /* ✎ texto de cada audio: aparece al pasar el mouse por la fila (su lugar queda reservado) */
+        .med-renombrar { margin-left: 6px; border: 0; background: none; color: var(--muted); font-size: 0.85rem; cursor: pointer;
+            padding: 0 4px; border-radius: 4px; visibility: hidden; vertical-align: middle; }
+        .med-fila:hover .med-renombrar { visibility: visible; }
+        .med-renombrar:hover { color: var(--accent); background: #e2e8f0; }
+        .med-texto-input { width: 100%; font: inherit; font-size: 0.82rem; padding: 3px 6px; margin-top: 2px;
+            border: 1px solid var(--accent); border-radius: 6px; outline: none; }
         .med-form { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0; padding: 10px; border: 1.5px dashed var(--border); border-radius: 8px; }
         .med-form select, .med-form input { font: inherit; font-size: 0.82rem; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: #fff; min-width: 0; }
         .med-form .ancho { grid-column: 1 / -1; }
@@ -4149,13 +4156,15 @@ function pintarMediosCancion() {
             ? `<a class="btn-icon" href="${escapar(f.url)}" target="_blank" rel="noopener" title="Abrir en ${f.url.includes('drive.google') ? 'Google Drive' : 'YouTube'}">🔗</a>`
             : `<button class="btn-icon" onclick="verMedio('${f.id}')" title="Escuchar / ver aquí">▶</button>`;
         const titulo = USO[f.uso] || 'Archivo';
-        const sub = f.uso === 'extracto' ? (f.parte || '') : f.uso === 'version' ? (f.estudiantes?.length ? `👥 ${f.estudiantes.length} · no se comparte` : 'no se comparte') : f.nombre;
+        const sub = f.uso === 'extracto' ? (f.parte || '')
+            : f.uso === 'version' ? [f.parte, f.estudiantes?.length ? `👥 ${f.estudiantes.length} · no se comparte` : 'no se comparte'].filter(Boolean).join(' · ')
+            : (f.parte || f.nombre);
         return `<div class="asset-item med-fila" data-medio="${f.id}" title="${escapar(f.nombre)}">
             <span class="asset-grip">⋮⋮</span>
             <div class="asset-item-ico">${MED_ICO[f.tipo] || '📎'}</div>
             <div class="asset-item-info">
-                <div class="asset-item-tipo">${titulo}</div>
-                ${sub ? `<div class="asset-item-etiqueta">${escapar(sub)}</div>` : ''}
+                <div class="asset-item-tipo">${titulo}<button class="med-renombrar" onclick="renombrarMedio('${f.id}')" title="Cambiar el texto de este audio">✎</button></div>
+                <div class="asset-item-etiqueta med-texto"${sub ? '' : ' hidden'}>${escapar(sub)}</div>
             </div>
             <div class="asset-item-actions">
                 <span class="med-meta" title="${escapar(ctxLabel(ctx))}">${ctxMinimo(ctx)} ${fecha}</span>
@@ -4173,6 +4182,37 @@ function pintarMediosCancion() {
     // El número de 🎵 Canción cuenta también los extractos y versiones
     const n = document.querySelector('.grupo-ficha[data-grupo="cancion"] .asset-group-count');
     if (n) { const v = +n.dataset.ver + orden.length, t = +n.dataset.todos + orden.length; n.textContent = v === t ? v : `${v} / ${t}`; }
+}
+// ✎ El texto que distingue a cada audio (la parte de un extracto: "De solo piano a pregón final"): se escribe ahí
+// mismo; Enter o salir guarda, Esc deja como estaba. Es el mismo texto que muestra 🎧 Otros audios del Entrenador.
+function renombrarMedio(id) {
+    const f = mediosCancion.find(x => x.id === id);
+    const fila = document.querySelector(`.med-fila[data-medio="${id}"]`);
+    const txt = fila?.querySelector('.med-texto');
+    if (!f || !txt || fila.querySelector('.med-texto-input')) return;
+    const inp = document.createElement('input');
+    inp.className = 'med-texto-input'; inp.value = f.parte || ''; inp.setAttribute('list', 'med-partes-sug');
+    inp.placeholder = f.uso === 'extracto' ? 'Parte (Coro, De solo piano a…)' : 'Texto (opcional)';
+    let dl = document.getElementById('med-partes-sug');
+    if (!dl) { dl = document.createElement('datalist'); dl.id = 'med-partes-sug'; document.body.appendChild(dl); }
+    dl.innerHTML = mediosPartes.map(p => `<option value="${escapar(p)}">`).join('');
+    txt.hidden = true; txt.after(inp); inp.focus(); inp.select();
+    let listo = false;
+    const terminar = async guardar => {
+        if (listo) return; listo = true;
+        const nuevo = inp.value.trim();
+        if (!guardar || nuevo === (f.parte || '')) { pintarMediosCancion(); return; }
+        const { error } = await sb.from('curso_archivos').update({ parte: nuevo || null }).eq('id', id);
+        if (error) { toast('No se pudo guardar — revisa la conexión'); pintarMediosCancion(); return; }
+        f.parte = nuevo || null;
+        entMediosCache = { id: null, lista: [] };   // el Entrenador lo vuelve a leer
+        pintarMediosCancion();
+    };
+    inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); terminar(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); terminar(false); }
+    });
+    inp.addEventListener('blur', () => terminar(true));
 }
 function verMedio(id) {
     const f = mediosCancion.find(x => x.id === id), cont = document.getElementById('med-ver-' + id);
@@ -10391,7 +10431,7 @@ UnSonido.alDetener(() => {
     entOaDetener();
     if (entRitmoPlayer?.playing) entRitmoPlayer.stop();
     if (ritmoEdPlayer?.playing) ritmoEdPlayer.stop();
-}, () => !!(entRitmoPlayer?.playing || ritmoEdPlayer?.playing));   // la canción y otros audios se ven solos
+}, () => !!(entRitmoPlayer?.playing || ritmoEdPlayer?.playing || !entOa.paused));   // la canción y los videos se ven solos; los otros audios (Web Audio, fuera de la página) se avisan aquí
 if (MOVIL) {
     document.body.classList.add('movil');
     // Celular (deuda ED): franjas del sistema del color de la página (oscuras), como el inicio del celular.

@@ -8942,3 +8942,10 @@ sonidos, mediante compartir… seleccionar el extracto dentro del audio recibido
   sin silencio. El botón dice **🔁 Loop** (también en ✂ Recortar). Los videos siguen con su `<video>`. Prueba
   (navegador): un extracto MP3 de 12,1 s salta 29 ms de silencio inicial, con 🔁 vuelve sin detenerse y sin 🔁 termina
   y queda en 0.
+- **Ajuste (PO 2026-11-07):** (1) con un otro audio sonando, la pestaña del Workspace no se pintaba de verde (el
+  reproductor no está en la página, ni antes ni ahora con Web Audio): `UnSonido.alDetener` de la Biblioteca cuenta
+  también `!entOa.paused`. (2) **✎ en cada extracto o versión** de la ficha de la canción (al pasar el mouse): edita
+  ahí mismo su texto (`curso_archivos.parte`, el mismo que muestra 🎧 Otros audios), con las partes de la canción como
+  sugerencias; Enter / salir guarda, Esc cancela. La versión muestra su texto antes de "no se comparte". Prueba
+  (Workspace): pestaña verde al sonar y se apaga al pausar; ✎ guardó "Texto de prueba ✎" en Supabase y se devolvió a
+  "Prueba".
