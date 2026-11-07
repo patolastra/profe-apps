@@ -2207,6 +2207,12 @@
         .oa-item.activo .oa-fill::after, .oa-barra:hover .oa-fill::after { opacity: 1; }
         .oa-t { font-size: .72rem; color: #94a3b8; font-variant-numeric: tabular-nums; width: 38px; flex-shrink: 0; text-align: right; line-height: 20px; }
         .oa-play { line-height: 1; font-family: system-ui, sans-serif; }
+        /* 🔁 Repetir (loop) de los otros audios: uno general, vale para el que suene */
+        .oa-loop { margin-left: auto; width: 98px; padding: 5px 0; border-radius: 20px; border: 1.5px solid #475569; background: transparent;
+            color: #94a3b8; font: inherit; font-size: .75rem; font-weight: 700; letter-spacing: 0; text-transform: none; cursor: pointer; }
+        .oa-loop.on { background: #ea580c; border-color: #ea580c; color: #fff; }
+        .eep-cab .oa-loop { padding: 8px 0; font-size: .85rem; }
+        #entrenador-overlay.ent-light .oa-loop:not(.on), #entrenador-overlay.ent-light .eep-cab .oa-loop:not(.on) { background: #fff; border-color: #cbd5e1; color: #475569; }
         .oa-video { grid-column: 1 / -1; width: 100%; border-radius: 10px; margin-top: 6px; }
         #ent-oa-panel .oa-item { padding: 7px 8px; }
         #ent-oa-panel .oa-play { width: 34px; height: 34px; font-size: .85rem; }
@@ -3346,7 +3352,7 @@
         <div id="ent-left">
             <div id="ent-prueba-bar" hidden></div>
             <div id="ent-zona"></div>
-            <div id="ent-oa-pantalla"><div class="eep-cab"><button onclick="entOaPantalla(false)">← Letra</button><span>Otros audios</span></div><div id="ent-oa-filas"></div></div>
+            <div id="ent-oa-pantalla"><div class="eep-cab"><button onclick="entOaPantalla(false)">← Letra</button><span>Otros audios</span><button class="oa-loop" onclick="entOaLoopToggle()" title="Repetir el audio que suena (loop)">🔁 Repetir</button></div><div id="ent-oa-filas"></div></div>
             <div id="ent-estr-pantalla"><div class="eep-cab"><button onclick="entEstrPantalla(false)">← Letra</button><span>Estructura</span></div><div id="ent-estr-filas"></div></div>
             <button id="ent-volver-verso" onclick="entVolverAlVerso()" title="La letra vuelve a seguir lo que suena">⌖ Volver a lo que suena</button>
             <!-- Reproductor en una sola franja (deuda DC): ⏮ comienzo · ▶ · ⏭ estrofa siguiente · tiempo · avance · duración · volumen -->
@@ -3376,7 +3382,7 @@
             <div id="ent-loops-list"></div>
         </div>
         <div id="ent-oa-panel" style="display:none">
-            <div id="ent-oa-header"><span>OTROS AUDIOS</span></div>
+            <div id="ent-oa-header"><span>OTROS AUDIOS</span><button class="oa-loop" onclick="entOaLoopToggle()" title="Repetir el audio que suena (loop)">🔁 Repetir</button></div>
             <div id="ent-oa-list"></div>
         </div>
         <div id="ent-estr-panel" style="display:none">
@@ -6352,10 +6358,24 @@ entOa.addEventListener('play', entOaAvance);
 entOa.addEventListener('pause', entOaAvance);
 entOa.addEventListener('loadedmetadata', entOaAvance);
 entOa.addEventListener('ended', () => { entOa.currentTime = 0; entOaAvance(); });
+// 🔁 Repetir: uno general para los otros audios (el que suene, también un video); se recuerda en el equipo.
+let entOaLoop = (() => { try { return localStorage.getItem('ent_oa_loop') === '1'; } catch (_) { return false; } })();
+function entOaLoopAplicar() {
+    entOa.loop = entOaLoop;
+    const v = document.getElementById('oa-video'); if (v) v.loop = entOaLoop;
+    document.querySelectorAll('.oa-loop').forEach(b => b.classList.toggle('on', entOaLoop));
+}
+function entOaLoopToggle() {
+    entOaLoop = !entOaLoop;
+    try { localStorage.setItem('ent_oa_loop', entOaLoop ? '1' : '0'); } catch (_) {}
+    entOaLoopAplicar();
+}
+entOaLoopAplicar();
 function entOaElemento(f) {   // un video suena en su propio <video>, dentro de su fila
     if (f.tipo !== 'video') return entOa;
     let v = document.getElementById('oa-video');
     if (!v) { v = document.createElement('video'); v.id = 'oa-video'; v.className = 'oa-video'; v.controls = true; v.playsInline = true; }
+    v.loop = entOaLoop;
     return v;
 }
 function entOaTocar(i) {

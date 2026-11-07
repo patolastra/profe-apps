@@ -8926,3 +8926,9 @@ sonidos, mediante compartir… seleccionar el extracto dentro del audio recibido
   dura lo mismo (0,4 s en armarlo); el buscador encuentra la canción y trae 23 partes; Versión oculta la parte. No se
   guardó nada en la Biblioteca (la subida es la misma pieza de 📁 Archivos). **Falta:** probar Compartir desde
   WhatsApp y la grabadora en el teléfono (puede requerir reinstalar la app una vez).
+- **Ampliación (PO 2026-11-07, "poder hacer loops de esos audios"):** **🔁** en ✂ Recortar (repite el trozo elegido;
+  al apagarlo sonando, termina la vuelta y se detiene) y **🔁 Repetir** general en 🎧 Otros audios del Entrenador
+  (panel del PC y pantalla del celular; uno solo para el audio o video que suene, recordado en el equipo,
+  `ent_oa_loop`). Recomendado uno general en vez de uno por audio: las tarjetas no se recargan y solo suena uno a la vez.
+  Prueba (navegador): el trozo de 1 s sigue sonando a los 2,6 s con 🔁 y se detiene al apagarlo; en Otros audios, con
+  🔁 el audio vuelve al comienzo al terminar y sigue sonando.

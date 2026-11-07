@@ -46,6 +46,8 @@
         .mini { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 1.1rem; }
         .acciones { display: flex; gap: 8px; margin-top: 12px; }
         .acciones .btn { flex: 1; }
+        .acciones #loop { flex: 0 0 54px; padding: 11px 0; }
+        .btn.on { background: var(--orange); border-color: var(--orange); }
         #largo { text-align: center; color: var(--muted); font-size: .85rem; margin-top: 8px; font-variant-numeric: tabular-nums; }
         label.campo { display: block; margin-top: 10px; }
         label.campo > span { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 5px; }
@@ -90,6 +92,7 @@
         <div id="largo"></div>
         <div class="acciones">
             <button class="btn" id="escuchar">▶ Escuchar el trozo</button>
+            <button class="btn" id="loop" title="Repetir el trozo (loop)">🔁</button>
             <button class="btn" id="zoom">🔍 Acercar</button>
         </div>
     </div>
@@ -269,10 +272,24 @@ $('escuchar').addEventListener('click', async () => {
     fuente = actx.createBufferSource(); fuente.buffer = buffer; fuente.connect(actx.destination);
     fuente.onended = detener;
     empezo = actx.currentTime;
-    fuente.start(0, ini, fin - ini);
+    if (repetir) { fuente.loop = true; fuente.loopStart = ini; fuente.loopEnd = fin; fuente.start(0, ini); }
+    else fuente.start(0, ini, fin - ini);
     $('escuchar').textContent = '⏸ Detener';
-    const paso = () => { if (!fuente) return; cabezal = ini + (actx.currentTime - empezo); dibujar(); raf = requestAnimationFrame(paso); };
+    const paso = () => { if (!fuente) return; cabezal = ini + (actx.currentTime - empezo) % (fin - ini); dibujar(); raf = requestAnimationFrame(paso); };
     paso();
+});
+// 🔁 Repetir el trozo: al prenderlo o apagarlo sonando, sigue desde donde va
+let repetir = false;
+$('loop').addEventListener('click', () => {
+    repetir = !repetir;
+    $('loop').classList.toggle('on', repetir);
+    if (!fuente) return;
+    if (repetir) { fuente.loop = true; fuente.loopStart = ini; fuente.loopEnd = fin; }
+    else {   // apagado: termina esta vuelta y se detiene
+        const quedan = fin - (ini + (actx.currentTime - empezo) % (fin - ini));
+        fuente.loop = false;
+        try { fuente.stop(actx.currentTime + Math.max(0, quedan)); } catch (_) {}
+    }
 });
 
 // ── Canción (obligatoria), Extracto / Versión, parte y curso ──
