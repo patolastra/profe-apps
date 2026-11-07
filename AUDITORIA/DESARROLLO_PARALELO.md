@@ -8935,3 +8935,10 @@ sonidos, mediante compartir… seleccionar el extracto dentro del audio recibido
 - **Hallazgo (2026-11-07):** "Profe" no aparecía en Compartir de WhatsApp: la app estaba instalada con **Brave**, que en
   Android la deja como acceso directo (sin WebAPK), y Compartir solo funciona con la app instalada desde **Chrome**.
   Solución: desinstalar e instalar desde Chrome (se puede seguir navegando con Brave).
+- **Ajuste (PO 2026-11-07, "con el loop hay un silencio… cambia Repetir por Loop"):** el `<audio>` del navegador deja
+  un hueco al repetir y el MP3 trae silencio en las puntas. Otros audios suenan ahora con **Web Audio**
+  (`EntOaReproductor` en `REPERTORIO/index.html`, mismo uso que un `<audio>`: src, play, pause, currentTime, duration,
+  loop y eventos): el audio se baja y decodifica al tocarlo, y el loop va del primer al último sonido (umbral −60 dB),
+  sin silencio. El botón dice **🔁 Loop** (también en ✂ Recortar). Los videos siguen con su `<video>`. Prueba
+  (navegador): un extracto MP3 de 12,1 s salta 29 ms de silencio inicial, con 🔁 vuelve sin detenerse y sin 🔁 termina
+  y queda en 0.

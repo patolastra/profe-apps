@@ -2207,7 +2207,7 @@
         .oa-item.activo .oa-fill::after, .oa-barra:hover .oa-fill::after { opacity: 1; }
         .oa-t { font-size: .72rem; color: #94a3b8; font-variant-numeric: tabular-nums; width: 38px; flex-shrink: 0; text-align: right; line-height: 20px; }
         .oa-play { line-height: 1; font-family: system-ui, sans-serif; }
-        /* 🔁 Repetir (loop) de los otros audios: uno general, vale para el que suene */
+        /* 🔁 Loop de los otros audios: uno general, vale para el que suene */
         .oa-loop { margin-left: auto; width: 98px; padding: 5px 0; border-radius: 20px; border: 1.5px solid #475569; background: transparent;
             color: #94a3b8; font: inherit; font-size: .75rem; font-weight: 700; letter-spacing: 0; text-transform: none; cursor: pointer; }
         .oa-loop.on { background: #ea580c; border-color: #ea580c; color: #fff; }
@@ -3352,7 +3352,7 @@
         <div id="ent-left">
             <div id="ent-prueba-bar" hidden></div>
             <div id="ent-zona"></div>
-            <div id="ent-oa-pantalla"><div class="eep-cab"><button onclick="entOaPantalla(false)">← Letra</button><span>Otros audios</span><button class="oa-loop" onclick="entOaLoopToggle()" title="Repetir el audio que suena (loop)">🔁 Repetir</button></div><div id="ent-oa-filas"></div></div>
+            <div id="ent-oa-pantalla"><div class="eep-cab"><button onclick="entOaPantalla(false)">← Letra</button><span>Otros audios</span><button class="oa-loop" onclick="entOaLoopToggle()" title="Loop: repetir el audio que suena sin parar">🔁 Loop</button></div><div id="ent-oa-filas"></div></div>
             <div id="ent-estr-pantalla"><div class="eep-cab"><button onclick="entEstrPantalla(false)">← Letra</button><span>Estructura</span></div><div id="ent-estr-filas"></div></div>
             <button id="ent-volver-verso" onclick="entVolverAlVerso()" title="La letra vuelve a seguir lo que suena">⌖ Volver a lo que suena</button>
             <!-- Reproductor en una sola franja (deuda DC): ⏮ comienzo · ▶ · ⏭ estrofa siguiente · tiempo · avance · duración · volumen -->
@@ -3382,7 +3382,7 @@
             <div id="ent-loops-list"></div>
         </div>
         <div id="ent-oa-panel" style="display:none">
-            <div id="ent-oa-header"><span>OTROS AUDIOS</span><button class="oa-loop" onclick="entOaLoopToggle()" title="Repetir el audio que suena (loop)">🔁 Repetir</button></div>
+            <div id="ent-oa-header"><span>OTROS AUDIOS</span><button class="oa-loop" onclick="entOaLoopToggle()" title="Loop: repetir el audio que suena sin parar">🔁 Loop</button></div>
             <div id="ent-oa-list"></div>
         </div>
         <div id="ent-estr-panel" style="display:none">
@@ -6287,7 +6287,81 @@ function entPintarSelectorAudio() {
 // uno con su reproductor (como los audios de WhatsApp). Pantalla propia en el celular, panel lateral en el PC.
 // Melodía ↔ Karaoke sigue en su propio botón. ──
 let entMediosCache = { id: null, lista: [] };
-const entOa = new Audio();            // un solo reproductor: tocar otro audio detiene el anterior
+// Reproductor de los otros audios con Web Audio (deuda GE): el 🔁 Loop vuelve al comienzo sin silencio (el <audio>
+// del navegador deja un hueco al repetir, y el MP3 trae unos milisegundos de silencio en las puntas, que el loop
+// salta). Imita lo que se usa de un <audio>: src, play(), pause(), paused, currentTime, duration, loop y sus eventos.
+class EntOaReproductor extends EventTarget {
+    constructor() { super(); this._buf = null; this._src = ''; this._fuente = null; this._t0 = 0; this._pos = 0;
+        this.paused = true; this._loop = false; this._a = 0; this._b = 0; this._carga = null; this._reloj = 0; this._ctx = null; }
+    _avisar(t) { this.dispatchEvent(new Event(t)); }
+    get ctx() { return this._ctx || (this._ctx = new (window.AudioContext || window.webkitAudioContext)()); }
+    get duration() { return this._buf ? this._buf.duration : NaN; }
+    get src() { return this._src; }
+    set src(url) {
+        this.pause(); this._src = url; this._buf = null; this._pos = 0;
+        const carga = this._carga = (async () => {
+            const r = await fetch(url); if (!r.ok) throw new Error('audio');
+            const buf = await this.ctx.decodeAudioData(await r.arrayBuffer());
+            if (carga !== this._carga) return;
+            this._buf = buf;
+            // Puntas del loop: desde el primer sonido hasta el último (se salta el silencio del MP3)
+            const UMBRAL = 1e-3, n = buf.length, ch = [...Array(buf.numberOfChannels)].map((_, i) => buf.getChannelData(i));
+            const suena = i => ch.some(d => Math.abs(d[i]) > UMBRAL);
+            let a = 0, b = n - 1;
+            while (a < b && !suena(a)) a++;
+            while (b > a && !suena(b)) b--;
+            this._a = a / buf.sampleRate; this._b = b < a + buf.sampleRate * 0.05 ? buf.duration : (b + 1) / buf.sampleRate;
+            this._avisar('loadedmetadata');
+        })();
+        carga.catch(() => {});
+    }
+    get loop() { return this._loop; }
+    set loop(v) {
+        v = !!v; if (v === this._loop) return;
+        const t = this.currentTime; this._loop = v;
+        if (this._fuente) { this._fuente.loop = v; this._t0 = this.ctx.currentTime - t; }
+    }
+    get currentTime() {
+        if (this.paused || !this._buf) return this._pos;
+        let p = this.ctx.currentTime - this._t0;
+        if (this._loop && p > this._b) p = this._a + (p - this._a) % (this._b - this._a);
+        return Math.min(p, this._buf.duration);
+    }
+    set currentTime(t) {
+        this._pos = Math.max(0, t || 0);
+        if (!this.paused) this._arrancar();
+        else this._avisar('timeupdate');
+    }
+    _arrancar() {
+        if (this._fuente) { this._fuente.onended = null; try { this._fuente.stop(); } catch (_) {} }
+        const f = this._fuente = this.ctx.createBufferSource();
+        f.buffer = this._buf; f.connect(this.ctx.destination);
+        f.loop = this._loop; f.loopStart = this._a; f.loopEnd = this._b;
+        const desde = Math.min(this._pos, this._buf.duration);
+        this._t0 = this.ctx.currentTime - desde;
+        f.onended = () => {
+            if (f !== this._fuente) return;
+            this._fuente = null; this.paused = true; this._pos = 0; clearInterval(this._reloj);
+            this._avisar('ended'); this._avisar('pause');
+        };
+        f.start(0, desde);
+    }
+    async play() {
+        if (this.ctx.state === 'suspended') await this.ctx.resume();
+        if (!this._buf) { if (!this._carga) return; await this._carga; if (!this._buf) return; }
+        if (!this.paused) return;
+        this.paused = false; this._arrancar();
+        clearInterval(this._reloj); this._reloj = setInterval(() => this._avisar('timeupdate'), 200);
+        this._avisar('play');
+    }
+    pause() {
+        if (this.paused) return;
+        this._pos = this.currentTime; this.paused = true; clearInterval(this._reloj);
+        if (this._fuente) { this._fuente.onended = null; try { this._fuente.stop(); } catch (_) {} this._fuente = null; }
+        this._avisar('pause');
+    }
+}
+const entOa = new EntOaReproductor();   // un solo reproductor: tocar otro audio detiene el anterior
 let entOaI = -1;                      // índice del audio puesto en entOa (-1 = ninguno)
 // El botón (celular) y el del panel (PC) se ven solo si la canción tiene otros audios (su lugar queda reservado)
 function entPintarAudios() {
@@ -6358,7 +6432,7 @@ entOa.addEventListener('play', entOaAvance);
 entOa.addEventListener('pause', entOaAvance);
 entOa.addEventListener('loadedmetadata', entOaAvance);
 entOa.addEventListener('ended', () => { entOa.currentTime = 0; entOaAvance(); });
-// 🔁 Repetir: uno general para los otros audios (el que suene, también un video); se recuerda en el equipo.
+// 🔁 Loop: uno general para los otros audios (el que suene, también un video); se recuerda en el equipo.
 let entOaLoop = (() => { try { return localStorage.getItem('ent_oa_loop') === '1'; } catch (_) { return false; } })();
 function entOaLoopAplicar() {
     entOa.loop = entOaLoop;
