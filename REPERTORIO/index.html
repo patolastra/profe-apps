@@ -1681,6 +1681,15 @@
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         #ent-song-artista { font-size: 0.7rem; color: #64748b; }
+        /* En una sesión: solo el nombre de la sesión, grande; la canción va en la portada de la letra */
+        #ent-song-text.en-sesion #ent-song-nombre { font-size: 1.2rem; font-weight: 800; }
+        #ent-song-text.en-sesion #ent-song-artista { display: none; }
+        /* Al pasar el mouse por la sesión, con la portada fuera de la vista: canción y artista */
+        #ent-song-pop { position: fixed; z-index: 3000; display: none; pointer-events: none;
+            background: #0f172a; color: #f1f5f9; border-radius: 8px; padding: 7px 12px;
+            box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: 420px; }
+        #ent-song-pop b { display: block; font-size: 0.95rem; }
+        #ent-song-pop span { font-size: 0.78rem; color: #94a3b8; }
         #ent-asset-chips {
             display: flex; gap: 6px; flex-wrap: nowrap;
             /* overflow VISIBLE: ahora es un único desplegable de Recursos y su menú
@@ -3275,10 +3284,11 @@
         <button id="ent-btn-biblio" onclick="entIrBiblioteca()" title="Ir a la Biblioteca" style="display:none">📚</button>
         <div id="ent-song-info">
             <button id="ent-btn-toggle-lista" class="ent-panel-btn" onclick="entToggleLista()" title="Lista de canciones" style="display:none">☰</button>
-            <div id="ent-song-text">
+            <div id="ent-song-text" onmouseenter="entSongPop(true)" onmouseleave="entSongPop(false)">
                 <div id="ent-song-nombre"></div>
                 <div id="ent-song-artista"></div>
             </div>
+            <div id="ent-song-pop"></div>
             <a id="ent-link" target="_blank" rel="noopener" style="display:none"></a>
             <button id="ent-btn-toggle-oa" class="ent-panel-btn sin-oa" onclick="entToggleOaPanel()" title="Otros audios: extractos y versiones">🎧</button>
             <button id="ent-btn-toggle-estr" class="ent-panel-btn sin-estr" onclick="entToggleEstrPanel()" title="Estructura de la canción (de su Ficha)">🧩</button>
@@ -6903,7 +6913,7 @@ function abrirEntrenador(songId) {
 
     document.getElementById('ent-song-nombre').textContent  = c.nombre;
     document.getElementById('ent-song-artista').textContent = c.artista || '';
-    document.getElementById('ent-song-text').title = '';
+    document.getElementById('ent-song-text').classList.remove('en-sesion');
     entPintarEnlace(c);
     entPintarSelectorAudio(); entPintarSync();
 
@@ -9421,10 +9431,9 @@ function abrirEntrenadorConConfig(song, sesionItem) {
 
     // En una sesión la canción ya va en grande en la letra (portada) y en la lista: la barra dice en qué
     // sesión se está y en qué canción de ella; el nombre de la canción queda al pasar el mouse.
-    const nSes = entSesionActual?.canciones?.length || 0;
     document.getElementById('ent-song-nombre').textContent  = entSesionActual?.nombre || song.nombre;
-    document.getElementById('ent-song-artista').textContent = entSesionActual ? `Canción ${entSesionCIdx + 1} de ${nSes}` : (song.artista || '');
-    document.getElementById('ent-song-text').title = [song.nombre, song.artista].filter(Boolean).join(' · ');
+    document.getElementById('ent-song-artista').textContent = song.artista || '';
+    document.getElementById('ent-song-text').classList.toggle('en-sesion', !!entSesionActual);
     entPintarEnlace(song);
     entPintarSelectorAudio(); entPintarSync();
 
@@ -9846,6 +9855,25 @@ function entAjustarFontSize() {
             if (sub) sub.style.fontSize = (entFontSizeGlobal * 0.65) + 'px';
         }
     }
+}
+
+// En una sesión, pasar el mouse por su nombre muestra la canción y su artista, solo si la portada de la
+// letra ya no se ve (se bajó en la letra, o el recurso no tiene portada).
+function entSongPop(on) {
+    const pop = document.getElementById('ent-song-pop');
+    const txt = document.getElementById('ent-song-text');
+    const s = entrenadorSong;
+    if (!on || !s || !txt.classList.contains('en-sesion')) { pop.style.display = 'none'; return; }
+    const port = document.querySelector('#entrenador-overlay .ent-portada');
+    if (port && port.offsetParent) {
+        const r = port.getBoundingClientRect(), arriba = document.getElementById('ent-header').getBoundingClientRect().bottom;
+        if (r.bottom > arriba + 10 && r.top < window.innerHeight) { pop.style.display = 'none'; return; }   // la portada se ve
+    }
+    pop.innerHTML = `<b>${entEsc(s.nombre)}</b>${s.artista ? `<span>${entEsc(s.artista)}</span>` : ''}`;
+    const r = txt.getBoundingClientRect();
+    pop.style.left = r.left + 'px';
+    pop.style.top = (r.bottom + 6) + 'px';
+    pop.style.display = 'block';
 }
 
 // Portada de la canción (PO, 2026-10-08): título grande y abajo artista · año (si hay),
