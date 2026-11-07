@@ -2196,10 +2196,17 @@
             display: flex; align-items: center; justify-content: center; cursor: pointer; text-decoration: none; }
         .oa-nombre { font-weight: 700; font-size: .95rem; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .oa-nombre small { font-weight: 500; color: #94a3b8; font-size: .78rem; margin-left: 6px; }
-        .oa-linea { display: flex; align-items: center; gap: 8px; }
-        .oa-barra { flex: 1; height: 4px; border-radius: 2px; background: #334155; cursor: pointer; position: relative; }
-        .oa-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 2px; background: #fb923c; }
-        .oa-t { font-size: .72rem; color: #94a3b8; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+        /* Alto fijo: tocar / pausar no cambia el tamaño de la tarjeta (el tiempo tiene su lugar aunque no se vea) */
+        .oa-linea { display: flex; align-items: center; gap: 8px; height: 20px; }
+        /* Barra: se ve delgada, pero se toma en una franja alta (también con el dedo) y se arrastra */
+        .oa-barra { flex: 1; height: 4px; border-radius: 2px; background: #334155; cursor: pointer; position: relative; touch-action: none; }
+        .oa-barra::before { content: ''; position: absolute; left: -6px; right: -6px; top: -10px; bottom: -10px; }
+        .oa-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 2px; background: #fb923c; pointer-events: none; }
+        .oa-fill::after { content: ''; position: absolute; right: -6px; top: 50%; width: 12px; height: 12px; margin-top: -6px;
+            border-radius: 50%; background: #ea580c; opacity: 0; transition: opacity .15s; }
+        .oa-item.activo .oa-fill::after, .oa-barra:hover .oa-fill::after { opacity: 1; }
+        .oa-t { font-size: .72rem; color: #94a3b8; font-variant-numeric: tabular-nums; width: 38px; flex-shrink: 0; text-align: right; line-height: 20px; }
+        .oa-play { line-height: 1; font-family: system-ui, sans-serif; }
         .oa-video { grid-column: 1 / -1; width: 100%; border-radius: 10px; margin-top: 6px; }
         #ent-oa-panel .oa-item { padding: 7px 8px; }
         #ent-oa-panel .oa-play { width: 34px; height: 34px; font-size: .85rem; }
@@ -6317,7 +6324,7 @@ function entOaHTML(lista) {
         const play = f.url ? `<a class="oa-play" href="${entEsc(f.src)}" target="_blank" rel="noopener" title="Abrir (YouTube / Drive)">↗</a>`
             : `<button class="oa-play" onclick="entOaTocar(${i})" title="Tocar / detener">${i === entOaI && !entOa.paused ? '⏸' : '▶'}</button>`;
         h += `<div class="oa-item" data-oa="${i}">${play}<div class="oa-nombre">${entEsc(f.titulo)}${f.curso ? `<small>${entEsc(f.curso)}</small>` : ''}</div>
-            ${f.url ? '' : `<div class="oa-linea"><div class="oa-barra" onclick="entOaSaltar(event, ${i})"><div class="oa-fill"></div></div><span class="oa-t">${i === entOaI ? entOaFmt(entOa.currentTime) : ''}</span></div>`}
+            ${f.url ? '' : `<div class="oa-linea"><div class="oa-barra" onpointerdown="entOaArrastrar(event, ${i})"><div class="oa-fill"></div></div><span class="oa-t">${i === entOaI ? entOaFmt(entOa.currentTime) : ''}</span></div>`}
             ${f.tipo === 'video' && !f.url && i === entOaI ? '<div class="oa-video-lugar"></div>' : ''}</div>`;
     });
     return h || '<div class="oa-tit">Esta canción no tiene otros audios</div>';
@@ -6333,6 +6340,7 @@ function entPintarOa() {
 function entOaAvance() {
     document.querySelectorAll('.oa-item').forEach(el => {
         const i = +el.dataset.oa, on = i === entOaI;
+        el.classList.toggle('activo', on);
         const fill = el.querySelector('.oa-fill'), t = el.querySelector('.oa-t'), b = el.querySelector('button.oa-play');
         if (fill) fill.style.width = on && entOa.duration ? (entOa.currentTime / entOa.duration * 100) + '%' : '0';
         if (t && on) t.textContent = entOaFmt(entOa.paused && !entOa.currentTime ? entOa.duration : entOa.currentTime);
@@ -6364,10 +6372,30 @@ function entOaTocar(i) {
     entOaI = i; entOa.src = f.src; entCancionPausa(); entOa.play().catch(() => {});
     entPintarOa();
 }
-function entOaSaltar(e, i) {
-    if (i !== entOaI) { entOaTocar(i); return; }
-    const r = e.currentTarget.getBoundingClientRect();
-    if (entOa.duration) entOa.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * entOa.duration;
+// Tomar la barra (mouse o dedo) y arrastrar: el audio va siguiendo; en otro audio, primero lo pone a sonar.
+function entOaArrastrar(e, i) {
+    let barra = e.currentTarget;
+    e.preventDefault();
+    if (i !== entOaI) {   // ponerlo a sonar redibuja la lista: se sigue con la barra nueva del mismo audio
+        const cont = barra.closest('#ent-oa-list, #ent-oa-filas');
+        entOaTocar(i);
+        barra = cont?.querySelector(`.oa-item[data-oa="${i}"] .oa-barra`) || barra;
+    }
+    const ir = x => {
+        const r = barra.getBoundingClientRect(), p = Math.max(0, Math.min(1, (x - r.left) / r.width));
+        const fill = barra.querySelector('.oa-fill'); if (fill) fill.style.width = (p * 100) + '%';
+        const fijar = () => { if (entOa.duration) entOa.currentTime = p * entOa.duration; };
+        if (entOa.duration) fijar(); else entOa.addEventListener('loadedmetadata', fijar, { once: true });
+    };
+    ir(e.clientX);
+    const mover = ev => { if (ev.pointerId === e.pointerId) { ev.preventDefault(); ir(ev.clientX); } };
+    const soltar = ev => {
+        if (ev.pointerId !== e.pointerId) return;
+        window.removeEventListener('pointermove', mover); window.removeEventListener('pointerup', soltar); window.removeEventListener('pointercancel', soltar);
+    };
+    window.addEventListener('pointermove', mover, { passive: false });
+    window.addEventListener('pointerup', soltar);
+    window.addEventListener('pointercancel', soltar);
 }
 function entCancionPausa() { const a = entAudio(); if (!a.paused) { a.pause(); entPintarPlay('play'); } }
 function entOaDetener() { entOa.pause(); document.getElementById('oa-video')?.pause(); }
