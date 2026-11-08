@@ -9029,3 +9029,19 @@ afinar el instrumento con cejillo o más grave que la afinación estándar, para
   final del archivo); 🖨 `.est-impr` en cada fila de Estudiantes, visible al pasar el mouse. Prueba (navegador, Sexto,
   "Cantó el gallo con el diablo"): el 🖨 de Aaron abre su informe solo y propone "27-10-26 - 6TO - MÚSICA - RESULTADOS -
   HERNANDEZ, AARON"; el informe de todos sigue con "Estudiantes (36)" y su nombre de siempre.
+
+### GJ. Libro — fila del estudiante: menú ⋯ y comentario que se guarda solo — HECHA (falta probar en uso)
+*Origen: PO 2026-11-08 (Thomas Lagos, Metalófono "Melodía andina", Quinto o Sexto: "había puesto un comentario y ahora
+no está"; "resumir todos los botones hover en un menú al final de la fila").*
+- **Causa del comentario perdido:** el comentario de la pestaña Estudiantes quedaba solo en la pantalla hasta apretar
+  "Guardar notas"; si la página se recargaba (otra pestaña, volver al Libro, otro equipo, reevaluar) se perdía. En
+  Supabase no hay rastro de él: no se puede recuperar.
+- **Alcance:** (1) el comentario se guarda solo al salir del cuadro (solo esa columna); (2) los botones que aparecían
+  al pasar el mouse (Evaluar, No aplica / Aplicar, Reevaluar / Deshacer reevaluación) y el 🖨 del informe individual
+  (GI) pasan a un menú **⋯** al final de la fila, visible al pasar el mouse. Solo `LIBRO/index.html`.
+- **Lugares (regla 11):** Libro (pestaña del Plan y 📒 Libros).
+- **Hecho:** `filaMenu` / `filaMenuItems` (✏️ Evaluar si hay instrumento · 🔁 Reevaluar o ↩ Deshacer reevaluación ·
+  🚫 No aplica o ✅ Aplicar · 🖨 Informe de resultados; con la evaluación cerrada, solo el informe); el comentario hace
+  `update({ comentario })` al salir del cuadro. Prueba (navegador, Sexto, guardado simulado): el ⋯ de un evaluado
+  muestra las 4 opciones; ya no quedan botones sueltos en la celda de nota; escribir un comentario y salir lo manda a
+  Supabase solo.

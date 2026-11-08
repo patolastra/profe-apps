@@ -66,10 +66,17 @@
   th,td{padding:6px 8px;border-top:1px solid var(--line);text-align:left;vertical-align:middle;
     overflow:hidden;text-overflow:ellipsis}
   td.est-nombre{white-space:normal;word-break:break-word}
-  /* GI: informe de un estudiante, solo al pasar el mouse por su fila */
-  .est-impr{visibility:hidden;background:none;border:0;padding:0 4px;margin-left:4px;cursor:pointer;font-size:13px;opacity:.75}
-  .est-impr:hover{opacity:1}
-  tr:hover .est-impr{visibility:visible}
+  /* GJ: menú ⋯ al final de la fila de cada estudiante (visible al pasar el mouse) */
+  table.est-limpia td.acc{text-align:right;padding-right:4px}
+  .fila-mas{visibility:hidden;background:none;border:1px solid transparent;border-radius:6px;color:var(--mut);
+    font-size:18px;line-height:1;padding:2px 8px;cursor:pointer}
+  .fila-mas:hover{border-color:var(--line);color:inherit}
+  table.est-limpia tr:hover .fila-mas{visibility:visible}
+  #fila-menu{position:fixed;z-index:90;display:none;flex-direction:column;min-width:200px;padding:4px;
+    background:#161b22;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  #fila-menu.show{display:flex}
+  #fila-menu button{background:none;border:0;color:inherit;text-align:left;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:13px}
+  #fila-menu button:hover{background:rgba(255,255,255,.07)}
   th{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
   td.pos{color:var(--mut)}
   .eval-item{display:flex;justify-content:space-between;align-items:center;gap:12px;
@@ -1241,17 +1248,18 @@ function renderDetalle(){
       <div style="overflow-x:auto">
       <table class="est-limpia">
         <colgroup>
-          <col style="width:44px"><col style="width:22%">${verObj ? '<col style="width:180px">' : ''}<col style="width:215px"><col>
+          <col style="width:44px"><col style="width:22%">${verObj ? '<col style="width:180px">' : ''}<col style="width:215px"><col><col style="width:40px">
         </colgroup>
-        <thead><tr><th class="pos">#</th><th>Estudiante</th>${verObj ? '<th class="obj">Objetivo aplicado</th>' : ''}<th class="nota">Nota</th><th>Comentario</th></tr></thead>
+        <thead><tr><th class="pos">#</th><th>Estudiante</th>${verObj ? '<th class="obj">Objetivo aplicado</th>' : ''}<th class="nota">Nota</th><th>Comentario</th><th></th></tr></thead>
         <tbody id="tbody-est">${notas.map((n, idx) => `
           <tr data-idx="${idx}" data-nota-id="${n.id}" data-buscar="${esc(nombreBuscar(n.estudiante))}" class="${filaEstClase(n)}">
             <td class="pos">${posMap[n.estudiante_id] ?? ''}</td>
-            <td class="est-nombre">${esc(nombreEstudiante(n))}${grupoChipHTML(n)}${ausenteHoyHTML(n.estudiante_id)}<button type="button" class="est-impr" title="Informe de resultados de este estudiante (UTP)" onclick="abrirInformeResultados('${n.id}')">🖨</button></td>
+            <td class="est-nombre">${esc(nombreEstudiante(n))}${grupoChipHTML(n)}${ausenteHoyHTML(n.estudiante_id)}</td>
             ${verObj ? `<td class="obj"><select class="${n.adecuacion_id ? 'adec' : ''}" data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select><div class="cel-marca">${marcaObjHTML(n, cerrada)}</div></td>` : ''}
             ${notaCellHTML(n, idx, cerrada)}
             <td class="com"><textarea class="est-com" rows="1" data-i="${idx}" data-k="comentario" placeholder="(comentario)" ${dis}
                  onfocus="this.classList.add('abierto'); estComAlto(this)" oninput="estComAlto(this)" onblur="this.classList.remove('abierto'); this.style.height=''; this.scrollTop=0">${esc(n.comentario||'')}</textarea></td>
+            <td class="acc"><button type="button" class="fila-mas" title="Más acciones" onclick="filaMenu(event,'${n.id}')">⋯</button></td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -1298,7 +1306,14 @@ function renderDetalle(){
           // define qué instrumento aplica → persistir de inmediato y recalcular su nota.
           else if (instrEfectivoId(n)) { try { await evalPersistNotasRows([n]); await persistNotaCalculada(n); } catch(e){ toast('No se pudo guardar: '+e.message,'err'); } refrescarDetalle(); }
         }
-        else if (k === 'comentario') n.comentario = el.value.trim() === '' ? null : el.value;
+        else if (k === 'comentario') {
+          // GJ: el comentario se guarda solo al salir del cuadro (antes esperaba "Guardar notas" y se perdía)
+          n.comentario = el.value.trim() === '' ? null : el.value;
+          try {
+            const { error } = await sb.from('libro_evaluacion_notas').update({ comentario: n.comentario }).eq('id', n.id);
+            if (error) throw error;
+          } catch (e) { toast('No se pudo guardar el comentario: ' + e.message, 'err'); }
+        }
         else if (k === 'nota') {
           const r = normalizarNota(el.value);
           if (!r.ok) { toast('Nota inválida (usa 1,0–7,0): "' + el.value + '"', 'err'); el.focus(); return; }
@@ -3758,11 +3773,9 @@ function esActivo(n){ return matriculaActiva.has(n.estudiante_id); }
 function notaCellHTML(n, idx, cerrada){
   const est = estadoEfectivo(n);
   const badge = `<span class="est-badge ${est}">${estLabel(est)}</span>`;
-  const naBtn = cerrada ? '' : (est === 'no_aplica'
-    ? `<button class="btn mini" onclick="setNoAplica('${n.id}',false)" title="Quitar No aplica">Aplicar</button>`
-    : `<button class="btn mini" onclick="setNoAplica('${n.id}',true)" title="Marcar No aplica">No aplica</button>`);
+  // GJ: Evaluar, No aplica / Aplicar, Reevaluar e Informe van en el menú ⋯ al final de la fila (filaMenu)
   if (est === 'no_aplica') {
-    return `<td class="nota"><div class="nota-instr"><span class="nota-val incompleto">N/A</span>${badge}<span class="nota-acc">${naBtn}</span></div></td>`;
+    return `<td class="nota"><div class="nota-instr"><span class="nota-val incompleto">N/A</span>${badge}</div></td>`;
   }
   const c = calcNota(n);
   if (!c.instrumento) {
@@ -3771,15 +3784,51 @@ function notaCellHTML(n, idx, cerrada){
     const congelada = cerrada || (!!n.grupo_id && !intentosDe(n).length && grupoTerminado(grupos.find(g => g.id === n.grupo_id)));
     return `<td class="nota"><div class="nota-instr">
         <input data-i="${idx}" data-k="nota" value="${fmtNota(n.nota)}" placeholder="—" ${congelada ? 'disabled' : ''} style="max-width:64px"${congelada && !cerrada ? ' title="Grupo terminado: reábrelo para editar la nota"' : ''}>
-        ${badge}${notaAntHTML(n)}<div class="cel-marca">${marcaNotaHTML(n, congelada)}</div>
-        <span class="nota-acc">${naBtn}${reevalBtnHTML(n, est, cerrada)}</span></div></td>`;
+        ${badge}${notaAntHTML(n)}<div class="cel-marca">${marcaNotaHTML(n, congelada)}</div></div></td>`;
   }
   // "2/3": solo con la rúbrica a medias (deuda EA)
   return `<td class="nota"><div class="nota-instr">
       <span class="nota-val${c.completo ? '' : ' incompleto'}">${c.completo ? fmtNota(c.nota) : '—'}</span>
       ${c.answered > 0 && !c.completo ? `<span class="nota-sub">${c.answered}/${c.nItems}</span>` : ''}${badge}${notaAntHTML(n)}
-      <span class="nota-acc">${cerrada ? '' : `<button class="btn mini" onclick="abrirInstrEstudiante('${n.id}')">Evaluar</button>`}${naBtn}${reevalBtnHTML(n, est, cerrada)}</span>
     </div></td>`;
+}
+// GJ: menú ⋯ de la fila de un estudiante (Estudiantes): todas sus acciones en un solo lugar.
+function filaMenuItems(n){
+  const cerrada = evalActual.estado === 'cerrado';
+  const est = estadoEfectivo(n);
+  const it = [];
+  if (!cerrada && est !== 'no_aplica' && calcNota(n).instrumento) it.push(['✏️ Evaluar', () => abrirInstrEstudiante(n.id)]);
+  if (!cerrada && intentosOk) {
+    if (est === 'evaluado') it.push(['🔁 Reevaluar', () => reevaluar(n.id, null)]);
+    else if (est === 'pendiente' && intentosDe(n).length) it.push(['↩ Deshacer reevaluación', () => deshacerReevaluacion(n.id, null)]);
+  }
+  if (!cerrada) it.push(est === 'no_aplica' ? ['✅ Aplicar', () => setNoAplica(n.id, false)] : ['🚫 No aplica', () => setNoAplica(n.id, true)]);
+  it.push(['🖨 Informe de resultados', () => abrirInformeResultados(n.id)]);
+  return it;
+}
+function filaMenu(ev, notaId){
+  ev.stopPropagation();
+  const n = notas.find(x => x.id === notaId); if (!n) return;
+  let m = document.getElementById('fila-menu');
+  if (!m) {
+    m = document.createElement('div'); m.id = 'fila-menu'; document.body.appendChild(m);
+    document.addEventListener('click', () => m.classList.remove('show'));
+    window.addEventListener('scroll', () => m.classList.remove('show'), true);
+  }
+  if (m.classList.contains('show') && m.dataset.id === notaId) { m.classList.remove('show'); return; }
+  const items = filaMenuItems(n);
+  m.innerHTML = '';
+  items.forEach(([txt, fn]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = txt;
+    b.onclick = e => { e.stopPropagation(); m.classList.remove('show'); fn(); };
+    m.appendChild(b);
+  });
+  m.dataset.id = notaId;
+  m.classList.add('show');
+  const r = ev.currentTarget.getBoundingClientRect();
+  const ancho = m.offsetWidth, alto = m.offsetHeight;
+  m.style.left = Math.max(8, r.right - ancho) + 'px';
+  m.style.top = (r.bottom + 4 + alto > innerHeight ? r.top - alto - 4 : r.bottom + 4) + 'px';
 }
 // Fila de la pestaña Estudiantes (deuda EA): verde evaluado · amarillo pendiente · gris no aplica.
 let verObj = false;   // columna "Objetivo aplicado" visible (solo si la evaluación tiene adecuaciones)
