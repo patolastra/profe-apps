@@ -66,6 +66,10 @@
   th,td{padding:6px 8px;border-top:1px solid var(--line);text-align:left;vertical-align:middle;
     overflow:hidden;text-overflow:ellipsis}
   td.est-nombre{white-space:normal;word-break:break-word}
+  /* GI: informe de un estudiante, solo al pasar el mouse por su fila */
+  .est-impr{visibility:hidden;background:none;border:0;padding:0 4px;margin-left:4px;cursor:pointer;font-size:13px;opacity:.75}
+  .est-impr:hover{opacity:1}
+  tr:hover .est-impr{visibility:visible}
   th{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
   td.pos{color:var(--mut)}
   .eval-item{display:flex;justify-content:space-between;align-items:center;gap:12px;
@@ -1243,7 +1247,7 @@ function renderDetalle(){
         <tbody id="tbody-est">${notas.map((n, idx) => `
           <tr data-idx="${idx}" data-nota-id="${n.id}" data-buscar="${esc(nombreBuscar(n.estudiante))}" class="${filaEstClase(n)}">
             <td class="pos">${posMap[n.estudiante_id] ?? ''}</td>
-            <td class="est-nombre">${esc(nombreEstudiante(n))}${grupoChipHTML(n)}${ausenteHoyHTML(n.estudiante_id)}</td>
+            <td class="est-nombre">${esc(nombreEstudiante(n))}${grupoChipHTML(n)}${ausenteHoyHTML(n.estudiante_id)}<button type="button" class="est-impr" title="Informe de resultados de este estudiante (UTP)" onclick="abrirInformeResultados('${n.id}')">🖨</button></td>
             ${verObj ? `<td class="obj"><select class="${n.adecuacion_id ? 'adec' : ''}" data-i="${idx}" data-k="adecuacion_id" ${dis}>${optsObjetivo(n.adecuacion_id)}</select><div class="cel-marca">${marcaObjHTML(n, cerrada)}</div></td>` : ''}
             ${notaCellHTML(n, idx, cerrada)}
             <td class="com"><textarea class="est-com" rows="1" data-i="${idx}" data-k="comentario" placeholder="(comentario)" ${dis}
@@ -4077,6 +4081,9 @@ function informeTipoInstrumento(){
 function informeNombreArchivo(){
   const partes = [informeFechaCorta(evalActual.fecha), informeCursoCorto(), informeAsignatura().toUpperCase(),
     informeTipo === 'resultados' ? 'RESULTADOS' : informeTipoInstrumento()];
+  // GI: el informe de un solo estudiante lleva su nombre legal al final
+  const nUno = informeTipo === 'resultados' && informeNotaId ? notas.find(n => n.id === informeNotaId) : null;
+  if (nUno) partes.push(nombreFmt(nUno.estudiante, true));
   return partes.join(' - ')
     .replace(/[\\/:*?"<>|]/g, '-')   // caracteres no válidos en nombres de archivo de Windows
     .replace(/\s+/g, ' ').trim().toUpperCase();
@@ -4187,10 +4194,14 @@ function abrirInformePrevio(){
 }
 
 // ── (B) Informe de resultados por estudiante ──
-function abrirInformeResultados(){
+// notaId (deuda GI): informe de un solo estudiante; sin él, todos.
+let informeNotaId = null;
+function abrirInformeResultados(notaId){
   if (!evalActual) return;
   informeTipo = 'resultados';
-  const filas = notas.map(n => {
+  informeNotaId = (typeof notaId === 'string' && notas.some(n => n.id === notaId)) ? notaId : null;
+  const lista = informeNotaId ? notas.filter(n => n.id === informeNotaId) : notas;
+  const filas = lista.map(n => {
     const est = estadoEfectivo(n);
     const c = calcNota(n);
     const iid = instrEfectivoId(n);
@@ -4231,7 +4242,7 @@ function abrirInformeResultados(){
   const body = `
     <div class="rep-title">Informe de Resultados</div>
     ${informeMetaHTML()}
-    <div class="rep-h2">Estudiantes (${notas.length})</div>
+    <div class="rep-h2">${informeNotaId ? 'Estudiante' : `Estudiantes (${notas.length})`}</div>
     ${filas || '<div class="rep-obj">Sin estudiantes.</div>'}`;
   informeMostrar(body);
 }

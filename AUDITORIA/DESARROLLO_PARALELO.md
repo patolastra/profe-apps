@@ -9016,3 +9016,16 @@ afinar el instrumento con cejillo o más grave que la afinación estándar, para
   el cejillo nuevo. Prueba (navegador, `?afinador=1`): guitarra 0 = Mi Si Sol Re La Mi; +2 = Fa♯ Do♯ La Mi Si Fa♯
   ("Con cejillo en el traste 2"); −2 = Re La Fa Do Sol Re ("2 semitonos más grave"); el ukelele parte en su propio
   valor y al volver a la guitarra se recuerda −2.
+
+### GI. Libro — informe de resultados de un solo estudiante — HECHA (falta probar en uso)
+*Origen: PO 2026-11-08 ("generar informes de resultados de evaluaciones, pero individual, por estudiante").*
+- **Decisiones del PO:** una evaluación, un estudiante; solo uno a uno (sin "imprimir todos por separado"); para UTP
+  (nombre legal APELLIDO, NOMBRE, igual que el informe de resultados de hoy).
+- **Alcance:** en la pestaña Estudiantes de una evaluación, un 🖨 al pasar el mouse por el nombre abre el mismo Informe
+  de Resultados (encabezado, datos de la evaluación, nota, objetivo, instrumento y resultado por criterio) solo con ese
+  estudiante; el PDF se propone con su nombre al final. Solo `LIBRO/index.html`; sin cambios en Supabase.
+- **Lugares (regla 11):** Libro (pestaña del Plan y 📒 Libros, mismo archivo).
+- **Hecho:** `abrirInformeResultados(notaId)` (sin notaId, todos como antes; título "Estudiante" y nombre legal al
+  final del archivo); 🖨 `.est-impr` en cada fila de Estudiantes, visible al pasar el mouse. Prueba (navegador, Sexto,
+  "Cantó el gallo con el diablo"): el 🖨 de Aaron abre su informe solo y propone "27-10-26 - 6TO - MÚSICA - RESULTADOS -
+  HERNANDEZ, AARON"; el informe de todos sigue con "Estudiantes (36)" y su nombre de siempre.
