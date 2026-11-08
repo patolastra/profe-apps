@@ -9167,3 +9167,10 @@ sin letra pero con audio no se muestra").*
 - **Lugares (regla 11):** Entrenador en todas sus versiones (mismo código).
 - **Prueba (navegador):** "Llorarás" (letra sin audio) → reproductor oculto; luego "A media luz" (audio sin letra) →
   reproductor visible; igual desde la sesión y desde la Biblioteca.
+
+### GO. Biblioteca — un extracto seguía sonando al entrar al Entrenador — HECHA
+*Origen: PO 2026-11-08 ("en la pantalla principal de la Biblioteca reproduzco un extracto, le doy a ▶ Ver letra y en
+el Entrenador sigue sonando").*
+- **Arreglo:** `callarBiblioteca()` detiene todo audio o video de la Biblioteca (extractos y versiones de la ficha, la
+  vista de un audio) al abrir el Entrenador (`abrirEntrenador` y `abrirEntrenadorConConfig`). Solo `REPERTORIO/index.html`.
+- **Prueba (navegador):** ficha de "Sin Sentimiento", extracto sonando (1,6 s) → ▶ Ver letra → el extracto queda en pausa.
