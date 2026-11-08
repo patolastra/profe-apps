@@ -341,11 +341,13 @@ async function cargarGrabacion() {
     sucio = true;
 }
 function calcularPicos() {
-    const sr = buf.sampleRate, paso = Math.round(sr / 1000), n = Math.ceil(buf.length / paso);
+    // Un pico por milisegundo exacto: a 44100 Hz un ms son 44,1 muestras (redondear a 44 corría la onda
+    // ~0,8 s a los 5 minutos respecto de lo que suena)
+    const sr = buf.sampleRate, n = Math.ceil(buf.length * 1000 / sr);
     const c0 = buf.getChannelData(0), c1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : c0;
     picos = new Float32Array(n);
     for (let k = 0; k < n; k++) {
-        let mx = 0; const o = k * paso, f = Math.min(buf.length, o + paso);
+        let mx = 0; const o = Math.floor(k * sr / 1000), f = Math.min(buf.length, Math.floor((k + 1) * sr / 1000));
         for (let i = o; i < f; i++) { const v = Math.abs(c0[i]) + Math.abs(c1[i]); if (v > mx) mx = v; }
         picos[k] = mx / 2;
     }
