@@ -9053,7 +9053,7 @@ no está"; "resumir todos los botones hover en un menú al final de la fila").*
   ni resultados; la rúbrica y sus 3 criterios y las filas de estudiantes siguen intactas desde el 22/10 (no hubo
   borrado). Las bitácoras de Cuarto no mencionan esa evaluación. Nada que recuperar.
 
-### GK. ✂ Adaptaciones de la canción (versión recortada) en la Ficha — PROPUESTA (falta decisión del PO)
+### GK. ✂ Adaptaciones de la canción (versión recortada) en la Ficha — ETAPA 1 HECHA (falta probar en uso)
 *Origen: PO 2026-11-08 ("una especie de versión recortada de la canción, omitiendo partes, aquí mismo en el
 tempomapper"). Necesidad: tocar y cantar una canción más corta (clase, acto) sin editar el audio.*
 - **Concepto (PO):** una **Adaptación** es una versión de la canción que se salta partes. **No es lo mismo que ✂ Omitir
@@ -9070,3 +9070,21 @@ tempomapper"). Necesidad: tocar y cantar una canción más corta (clase, acto) s
   3) Arreglo y Piano (un arreglo elige su adaptación; su ✂ Omitir sigue aparte).
 - **Por decidir:** el nombre visible (Adaptación / Versión recortada / Corte); si una canción sin tempo marcado puede
   tener adaptaciones (por segundos); si la adaptación se elige por curso (sesión del Entrenador) o en cada uso.
+- **Decisión del PO (2026-11-08):** "Sí, etapa 1" (nombre visible, sin tempo y "dónde se elige" quedan con la
+  recomendación: **Adaptación**; sin tempo se recorta por segundos; se elige en cada uso).
+- **Etapa 1 HECHA (2026-11-08, falta probar en uso):** tercer modo **✂ Adaptaciones** en la Ficha (`TEMPO/index.html`):
+  elegir / ＋ Nueva / nombre / 🗑 Borrar adaptación y su duración ("Dura 5:58 (completa: 6:30)"); **Omitir secciones**
+  (cada sección como botón: omitirla o volver a incluirla); **Tramos omitidos** (c. 119–130 ✕; clic = ir ahí);
+  arrastrar sobre la onda crea un tramo (con tempo se ajusta al 1 de los compases; Alt = libre; el primero crea la
+  adaptación), arrastrar un borde lo cambia, Supr quita el elegido; tapados en la onda y en la canción entera. ▶ Tocar en
+  este modo **salta lo omitido** sin chasquido (`comun/grabacion-tono.js`: `tocar(…, saltos)`, línea "virtual" con
+  ~3 ms de fundido en cada junta; `oido`/`aCtx` siguen en segundos de la grabación; `omitido(seg)`); el metrónomo no
+  suena en este modo. Datos: `adaptaciones` en la Ficha (`comun/tempo-mapa.js`: `m.adaptaciones`, `m.adaptacion(id)`,
+  `TempoMapa.juntarTramos`), en segundos para que valgan sin tempo y no se muevan si se corrigen compases; la Biblioteca
+  las conserva al cambiar tonalidad o cifra (pasa por `crear().datos()`). Sin cambios en Supabase.
+- **Lugares (regla 11):** `grabacion-tono.js` también lo usan el Piano del estudiante y el Arreglo: sin `saltos` suenan
+  igual que antes. Las otras apps aún no ofrecen elegir la adaptación (etapas 2 y 3).
+- **Prueba (navegador, "Estrechez de Corazón", sin guardar):** omitir la sección Interludio → tramo c. 119–130, "Dura
+  6:07"; tocando desde 3:41, lo que suena pasa de 3:44,2 a 4:07,0 (el Interludio va de 3:44,5 a 4:06,6); arrastrar de
+  5:05,3 a 5:12,6 → se ajusta a los compases 163–167 (5:05,5 a 5:12,9); arrastrar su borde → hasta el 1 del compás
+  169; Supr lo quita y ↶ Deshacer lo devuelve; al volver a ⏱ Tempo no hay saltos ni se ve la fila ✂.

@@ -88,7 +88,20 @@
     body.estr .solo-tempo { visibility: hidden !important; }
     body.estr .fila-tempo { display: none !important; }
     body:not(.estr) .fila-estr { display: none !important; }
-    #seg-modo .btn { width: 118px; }
+    /* ✂ Adaptaciones (GK): sin metrónomo ni edición de compases */
+    body.adapt .solo-tempo { visibility: hidden !important; }
+    body.adapt .fila-tempo, body.adapt .no-adapt { display: none !important; }
+    body:not(.adapt) .fila-adapt { display: none !important; }
+    #ad-lista { width: 200px; }
+    #ad-nombre { width: 200px; height: 32px; background: #0f172a; border: 1px solid #475569; border-radius: 7px; padding: 0 8px; }
+    #ad-dur { color: var(--tenue); font-size: 13px; }
+    #ad-secs, #ad-tramos { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+    .ad-sec { padding: 3px 10px; border-radius: 14px; font-size: 13px; color: #0f172a; font-weight: 600; cursor: pointer; border: 0; }
+    .ad-sec.omit { opacity: .45; text-decoration: line-through; }
+    .ad-tramo { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; background: #7f1d1d; font-size: 13px; cursor: pointer; }
+    .ad-tramo.sel { outline: 2px solid #22d3ee; }
+    .ad-tramo button { border: 0; background: rgba(0,0,0,.25); color: #fff; width: 20px; height: 20px; border-radius: 10px; cursor: pointer; font-size: 11px; }
+    #seg-modo .btn { width: 130px; }
     #es-info { width: 200px; color: var(--tenue); font-size: 13px; }
     #es-letra { width: 280px; }
     #es-nombre { width: 190px; height: 32px; background: #0f172a; border: 1px solid #475569; border-radius: 7px; padding: 0 8px; }
@@ -129,7 +142,7 @@
 <div id="barra">
     <div id="cancion">📋 Ficha de la canción</div>
     <div class="seg" id="seg-modo" title="⏱ Tempo: el 1 de cada compás · 🧩 Estructura: dónde empieza cada parte, sin compases">
-        <button class="btn" data-m="tempo">⏱ Tempo</button><button class="btn" data-m="estr">🧩 Estructura</button></div>
+        <button class="btn" data-m="tempo">⏱ Tempo</button><button class="btn" data-m="estr">🧩 Estructura</button><button class="btn" data-m="adapt" title="Versiones recortadas de la canción: se saltan partes de la grabación">✂ Adaptaciones</button></div>
     <div class="seg" id="seg-grab" title="Grabación que suena (Melodía y Karaoke van juntas: el mapa sirve para las dos)">
         <button class="btn" data-v="melodia">🎤 Melodía</button><button class="btn" data-v="karaoke">🎶 Karaoke</button></div>
     <span id="ton" title="Tonalidad oficial de la canción (la leen las otras apps)">Tonalidad
@@ -173,7 +186,18 @@
         <select id="es-letra" title="El verso de la letra donde empieza esta sección (por cercanía de tiempo; se puede cambiar o quitar)" disabled></select>
         <button class="btn" id="b-es-quitar" title="Quitar la sección elegida (Supr)" disabled>🗑 Quitar sección</button>
     </div>
-    <div class="caja fila">
+    <div class="caja fila fila-adapt">
+        <select id="ad-lista" title="La adaptación que se edita y se escucha"></select>
+        <button class="btn" id="b-ad-nueva" title="Una adaptación nueva (empieza con la canción completa)">＋ Nueva</button>
+        <input id="ad-nombre" placeholder="Nombre de la adaptación" title="Nombre de la adaptación (Enter)" spellcheck="false" autocomplete="off">
+        <button class="btn" id="b-ad-borrar" title="Borrar esta adaptación">🗑 Borrar adaptación</button>
+        <span id="ad-dur"></span>
+    </div>
+    <div class="caja fila fila-adapt">
+        <span class="rot">Omitir secciones:</span><span id="ad-secs"></span>
+        <span class="rot">Tramos omitidos:</span><span id="ad-tramos"></span>
+    </div>
+    <div class="caja fila no-adapt">
         <span class="rot">Secciones:</span><button class="btn" id="b-nombres" title="Nombrar todas las secciones seguidas, escuchándolas">✏️ Editar nombres</button><span id="secciones"></span>
         <span class="rot fila-tempo">Cifras:</span><span id="cifras" class="fila-tempo"></span>
         <div class="sep"></div>
@@ -188,6 +212,12 @@
         clic en la onda: mover el cursor · arrastrar el comienzo de una parte: moverlo · doble clic: nueva parte · <kbd>Supr</kbd>: quitar la elegida ·
         <kbd>←</kbd> <kbd>→</kbd>: pasar de parte · <kbd>J</kbd> / <kbd>L</kbd>: 5 s atrás / adelante · <kbd>{</kbd> <kbd>}</kbd> velocidad −/+ 5 %, <kbd>+</kbd> normal.
         Sin compases: cada parte va por su segundo. Al marcar el tempo, las que caen en lo marcado se pegan al 1 del compás más cercano.
+    </div>
+    <div class="ayuda fila-adapt">
+        Arrastrar sobre la onda: omitir ese tramo (con tempo marcado se ajusta al 1 de los compases; <kbd>Alt</kbd>: sin ajustar) · arrastrar el borde de un tramo: cambiarlo ·
+        clic en un tramo: elegirlo · <kbd>Supr</kbd>: quitar el elegido · clic en una sección de arriba: omitirla o volver a incluirla ·
+        <kbd>Espacio</kbd> o <kbd>K</kbd>: escuchar la adaptación (salta lo omitido) · <kbd>J</kbd> / <kbd>L</kbd>: 5 s atrás / adelante.
+        La grabación no se toca: cada app la toca saltándose esos tramos.
     </div>
     <div class="ayuda fila-tempo">
         Se marca y se mueve solo el 1 de cada compás (líneas blancas); sus pulsos (líneas tenues) se reparten solos, parejos.
@@ -250,7 +280,7 @@ let tabs = [];                   // tablaturas de la canción con mapa de Reaper
 
 // ══ El mapa: el 1 de cada compás en segundos (lo único que se marca y se mueve); compás 1 como segundo ══
 // Los pulsos (lo que se guarda y leen las otras apps) se reparten parejos entre un 1 y el siguiente, según la cifra.
-const S = { compases: [], c1: null, cifras: [{ compas: 1, n: 4, d: 4 }], secciones: [], tonalidad: null };   // secciones: [{ t (su comienzo, en segundos), nombre }]
+const S = { compases: [], c1: null, cifras: [{ compas: 1, n: 4, d: 4 }], secciones: [], tonalidad: null, adaptaciones: [] };   // secciones: [{ t (su comienzo, en segundos), nombre }]
 let mapa = TempoMapa.crear({ pulsos: [] });
 let sel = null;                  // índice del compás elegido
 let modo = 'tempo';              // 'tempo' | 'estr' (🧩 Estructura, EW)
@@ -288,7 +318,7 @@ function datos() {
         for (let k = 1; k < n; k++) pulsos.push(C[i] + k * d);
     }
     const secciones = S.secciones.map(x => enRango(x.t) ? { compas: idxCercano(x.t) - i0 + 1, seg: x.t, nombre: x.nombre, ...extraLetra(x) } : { seg: x.t, nombre: x.nombre, ...extraLetra(x) });
-    return { v: 1, pulsos, compas1, cifras: S.cifras, secciones, ...(S.tonalidad ? { tonalidad: S.tonalidad } : {}) };
+    return { v: 1, pulsos, compas1, cifras: S.cifras, secciones, ...(S.tonalidad ? { tonalidad: S.tonalidad } : {}), ...(S.adaptaciones.length ? { adaptaciones: S.adaptaciones } : {}) };
 }
 // Un mapa de pulsos (guardado o importado) → el 1 de cada compás
 function aCompases(d) {
@@ -296,7 +326,8 @@ function aCompases(d) {
     const C = m.pulsos.filter((_, i) => m.compasDePulso(i - m.compas1).tiempo === 1);
     const i0 = C.indexOf(m.pulsos[m.compas1]);
     const secciones = m.secciones.map(x => ({ t: (x.compas !== null ? C[i0 + x.compas - 1] : undefined) ?? x.seg, nombre: x.nombre, ...extraLetra(x) })).filter(x => x.t != null);
-    return { compases: C, c1: m.pulsos.length ? m.pulsos[m.compas1] : null, cifras: m.cifras.map(x => ({ ...x })), secciones, tonalidad: m.tonalidad };
+    return { compases: C, c1: m.pulsos.length ? m.pulsos[m.compas1] : null, cifras: m.cifras.map(x => ({ ...x })), secciones, tonalidad: m.tonalidad,
+        adaptaciones: m.adaptaciones.map(a => ({ ...a, omitir: a.omitir.map(x => ({ ...x })) })) };
 }
 const guardable = () => JSON.stringify(TempoMapa.crear(datos()).datos());
 function rehacer() {
@@ -362,7 +393,7 @@ async function tocar(desde = cursor) {
     if (!buf) return;
     seguir = true;
     clicsHasta = desde - 0.001;
-    await grab.tocar(Math.max(0, Math.min(desde, duracion() - 0.05)), 0, vel);
+    await grab.tocar(Math.max(0, Math.min(desde, duracion() - 0.05)), 0, vel, saltosActuales());
     grab.alTerminar = () => { if (taps) terminarMarcar(); else { cursor = 0; pintarTransporte(); } };
     pintarTransporte();
 }
@@ -381,7 +412,7 @@ let clicsHasta = 0;
 // Su propio reloj (no el del dibujo, que se frena cuando la pantalla no se redibuja)
 setInterval(() => { programarClics(); pintarVolver(); marcarNombreSonando(); }, 25);
 function programarClics() {
-    if (!grab?.sonando || mapa.vacio || modo === 'estr') return;
+    if (!grab?.sonando || mapa.vacio || modo !== 'tempo') return;
     const s = oido(); if (s === null) return;
     const lim = s + 0.35 * vel;
     for (let i = 0; i < mapa.pulsos.length; i++) {
@@ -501,6 +532,7 @@ function dibujarTodo() {
         const fin = finSeccion(i);
         g.fillStyle = colorSeccion(x.nombre); g.fillRect(x.t / D * W, 0, Math.max(2, (fin - x.t) / D * W - 1), 5);
     });
+    if (modo === 'adapt') dibujarTramos(g, W, 6, H - 6, s => s / D * W);
     // Lo que se ve abajo
     g.fillStyle = 'rgba(34,211,238,.15)'; g.strokeStyle = '#22d3ee'; g.lineWidth = 1;
     const x0 = vista.ini / D * W, w = vista.dur / D * W;
@@ -565,6 +597,7 @@ function dibujarZoom() {
     }
     // Toques mientras se marca
     if (taps) { g.fillStyle = '#f97316'; for (const t of taps) { const x = xDeSeg(t, W); if (x > -2 && x < W + 2) g.fillRect(x - 1, top, 3, alto); } }
+    if (modo === 'adapt') dibujarTramos(g, W, top, alto, s => xDeSeg(s, W));
     // Cursor y lo que suena
     g.fillStyle = '#94a3b8'; g.fillRect(xDeSeg(cursor, W), top - 4, 1, alto + 4);
     const s = oido();
@@ -670,6 +703,7 @@ zoom.addEventListener('mousedown', e => {
         sucio = true;
         return;
     }
+    if (modo === 'adapt') { adMouseDown(e, x, W); return; }
     const k = pulsoBajo(x, W);
     if (k !== null && fijos) { sel = k; pintarControles(); sucio = true; return; }   // fijos: solo se elige
     if (k !== null) {
@@ -685,7 +719,8 @@ zoom.addEventListener('mousedown', e => {
 });
 window.addEventListener('mousemove', e => {
     const r = zoom.getBoundingClientRect(), x = e.clientX - r.left;
-    if (!arrastre) { zoom.classList.toggle('mover', e.target === zoom && (modo === 'estr' ? seccionBajo(x, r.width) : pulsoBajo(x, r.width)) !== null); return; }
+    if (adArr) { adMover(e); return; }
+    if (!arrastre) { zoom.classList.toggle('mover', e.target === zoom && (modo === 'estr' ? seccionBajo(x, r.width) : modo === 'adapt' ? tramoBajo(x, r.width)?.lado : pulsoBajo(x, r.width)) != null); return; }
     if (!arrastre.movio && Math.abs(e.clientX - arrastre.x0) < 4) return;   // un clic con pulso tembloroso no mueve el compás
     if (arrastre.secK !== undefined) {   // Estructura: el comienzo de la parte, entre sus vecinas
         const L = S.secciones, k = arrastre.secK;
@@ -703,6 +738,7 @@ window.addEventListener('mousemove', e => {
     mapa = TempoMapa.crear(datos()); sucio = true;
 });
 window.addEventListener('mouseup', () => {
+    if (adArr) { adSoltar(); return; }
     if (!arrastre) return;
     if (!arrastre.movio) pila.pop();
     arrastre = null; rehacer();
@@ -711,7 +747,7 @@ zoom.addEventListener('dblclick', e => {
     if (!buf || taps) return;
     const r = zoom.getBoundingClientRect(), x = e.clientX - r.left;
     if (modo === 'estr') { if (seccionBajo(x, r.width) === null) agregarSeccion(segDeX(x, r.width)); return; }
-    if (fijos) return;
+    if (fijos || modo === 'adapt') return;
     if (pulsoBajo(x, r.width) !== null) return;
     antes();
     const s = segDeX(x, r.width);
@@ -781,6 +817,7 @@ window.addEventListener('keydown', e => {
             return;
         }
     }
+    if (modo === 'adapt' && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); if (adTramo !== null) quitarTramo(adTramo); return; }
     if (e.code === 'Space' || e.key === 'k' || e.key === 'K') { e.preventDefault(); if (!e.repeat) tocarODetener(); }
     else if (e.key === 'j' || e.key === 'J') { e.preventDefault(); saltar(-5); }
     else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); saltar(5); }
@@ -848,6 +885,7 @@ function pintarControles() {
     $('b-fijar').classList.toggle('on', fijos);
     $('b-fijar').textContent = fijos ? '🔒 Compases fijos' : '🔓 Compases editables';
     document.querySelectorAll('#seg-grab .btn').forEach(b => { b.classList.toggle('on', b.dataset.v === rol); b.disabled = !audios[b.dataset.v]; });
+    pintarAdapt();
 }
 function borrarSel() {
     if (sel === null || fijos) return;
@@ -1021,13 +1059,201 @@ $('es-nombre').addEventListener('change', renombrarSeccion);
 $('b-es-quitar').onclick = () => quitarSeccion(selSec);
 function ponerModo(m, recordar = true) {
     if (taps) terminarMarcar();
-    modo = m === 'estr' ? 'estr' : 'tempo';
+    const antesModo = modo;
+    modo = m === 'estr' || m === 'adapt' ? m : 'tempo';
     document.body.classList.toggle('estr', modo === 'estr');
+    document.body.classList.toggle('adapt', modo === 'adapt');
+    adTramo = null;
+    if ((antesModo === 'adapt') !== (modo === 'adapt')) adRetocar();   // entrar o salir de ✂ cambia lo que suena
     if (recordar) try { localStorage.setItem('tempo_modo', modo); } catch (_) {}
     sel = null; selSec = null;
     pintarControles(); sucio = true;
 }
 $('seg-modo').onclick = e => { const b = e.target.closest('[data-m]'); if (b) ponerModo(b.dataset.m); };
+
+// ══ ✂ Adaptaciones (GK): versiones recortadas de la canción ═══════════════════════════════════
+// Cada una salta tramos de la grabación (en segundos). Con tempo marcado los bordes se ajustan al 1 de los compases.
+let adSel = null;        // id de la adaptación elegida
+let adTramo = null;      // índice del tramo elegido
+let adArr = null;        // arrastre: { nuevo, t0, t1, x0, movio } · { k, lado, t, x0, movio } · { elegir, t, x0, movio }
+const adaptacionActual = () => S.adaptaciones.find(a => a.id === adSel) || null;
+const saltosActuales = () => modo === 'adapt' ? adaptacionActual()?.omitir || null : null;
+function ajustarT(t, libre) {
+    t = Math.max(0, Math.min(duracion(), t));
+    if (libre || S.compases.length < 2 || !enRango(t)) return t;
+    return S.compases[idxCercano(t)];
+}
+function restarTramo(L, a, b) {
+    const out = [];
+    for (const x of L) {
+        if (x.hasta <= a || x.desde >= b) { out.push(x); continue; }
+        if (x.desde < a) out.push({ desde: x.desde, hasta: a });
+        if (x.hasta > b) out.push({ desde: b, hasta: x.hasta });
+    }
+    return out;
+}
+const cubierto = (L, a, b) => L.some(x => x.desde <= a + 0.02 && x.hasta >= b - 0.02);
+// Sonando, lo cambiado se escucha de inmediato
+function adRetocar() { if (grab?.sonando && !taps) { const s = oido(); tocar(s ?? cursor); } }
+function adCambio(fn) {
+    let a = adaptacionActual();
+    antes();
+    if (!a) {   // el primer tramo crea la adaptación
+        a = { id: genId(), nombre: `Adaptación ${S.adaptaciones.length + 1}`, omitir: [] };
+        S.adaptaciones.push(a); adSel = a.id;
+    }
+    fn(a);
+    a.omitir = TempoMapa.juntarTramos(a.omitir);
+    if (adTramo !== null && adTramo >= a.omitir.length) adTramo = null;
+    rehacer(); adRetocar();
+}
+function tramoBajo(x, W) {   // { k, lado: 'desde' | 'hasta' | null (adentro) } o null
+    const a = adaptacionActual(); if (!a) return null;
+    for (let k = 0; k < a.omitir.length; k++) {
+        const t = a.omitir[k], xa = xDeSeg(t.desde, W), xb = xDeSeg(t.hasta, W);
+        if (Math.abs(x - xa) < 6) return { k, lado: 'desde' };
+        if (Math.abs(x - xb) < 6) return { k, lado: 'hasta' };
+        if (x > xa && x < xb) return { k, lado: null };
+    }
+    return null;
+}
+function adMouseDown(e, x, W) {
+    const b = tramoBajo(x, W);
+    if (b && b.lado) { adTramo = b.k; adArr = { k: b.k, lado: b.lado, x0: e.clientX, movio: false }; pintarControles(); sucio = true; return; }
+    if (b) { adTramo = b.k; adArr = { elegir: true, x0: e.clientX, t: segDeX(x, W), movio: false }; pintarControles(); sucio = true; return; }
+    adTramo = null;
+    adArr = { nuevo: true, t0: segDeX(x, W), t1: segDeX(x, W), x0: e.clientX, movio: false };
+    pintarControles(); sucio = true;
+}
+function adMover(e) {
+    const r = zoom.getBoundingClientRect(), x = e.clientX - r.left;
+    if (adArr.elegir) return;
+    if (!adArr.movio && Math.abs(e.clientX - adArr.x0) < 4) return;
+    adArr.movio = true;
+    const t = segDeX(x, r.width);
+    if (adArr.nuevo) adArr.t1 = t;
+    else adArr.t = ajustarT(t, e.altKey);
+    adArr.alt = e.altKey;
+    sucio = true;
+}
+function adSoltar() {
+    const z = adArr; adArr = null;
+    if (!z.movio) {
+        if (z.nuevo) {   // un clic fuera de los tramos: mover el cursor (como en los otros modos)
+            cursor = Math.max(0, Math.min(duracion(), z.t0));
+            if (grab?.sonando) tocar(cursor);
+        }
+        sucio = true; return;
+    }
+    if (z.nuevo) {
+        const a = ajustarT(Math.min(z.t0, z.t1), z.alt), b = ajustarT(Math.max(z.t0, z.t1), z.alt);
+        if (b - a < 0.05) { sucio = true; return; }
+        adCambio(ad => { ad.omitir.push({ desde: a, hasta: b }); });
+        const k = adaptacionActual().omitir.findIndex(x => x.desde <= a + 0.01 && x.hasta >= b - 0.01);
+        adTramo = k < 0 ? null : k;
+    } else if (z.t !== undefined) {
+        adCambio(ad => {
+            const x = ad.omitir[z.k]; if (!x) return;
+            x[z.lado] = z.t;
+            if (x.hasta < x.desde) [x.desde, x.hasta] = [x.hasta, x.desde];
+        });
+    }
+    pintarControles(); sucio = true;
+}
+function quitarTramo(k) {
+    const a = adaptacionActual(); if (!a || !a.omitir[k]) return;
+    antes(); a.omitir.splice(k, 1); adTramo = null; rehacer(); adRetocar();
+}
+// Una sección entera: omitida si estaba incluida (o en parte), incluida de nuevo si estaba omitida entera
+function alternarSeccion(i) {
+    const x = S.secciones[i]; if (!x) return;
+    const a0 = x.t, b0 = finSeccion(i);
+    adCambio(ad => {
+        if (cubierto(ad.omitir, a0, b0)) ad.omitir = restarTramo(ad.omitir, a0, b0);
+        else ad.omitir.push({ desde: a0, hasta: b0 });
+    });
+}
+// Lo que se ve: los tramos omitidos tapados (y el que se está arrastrando)
+function tramosVisibles() {
+    const a = adaptacionActual(), L = (a?.omitir || []).map((x, k) => ({ ...x, k }));
+    if (adArr?.movio && adArr.t !== undefined && adArr.k !== undefined && L[adArr.k]) L[adArr.k] = { ...L[adArr.k], [adArr.lado]: adArr.t };
+    if (adArr?.movio && adArr.nuevo) L.push({ desde: ajustarT(Math.min(adArr.t0, adArr.t1), adArr.alt), hasta: ajustarT(Math.max(adArr.t0, adArr.t1), adArr.alt), k: -1 });
+    return L.map(x => x.hasta < x.desde ? { ...x, desde: x.hasta, hasta: x.desde } : x);
+}
+function dibujarTramos(g, W, y0, h, aX) {
+    for (const x of tramosVisibles()) {
+        const a = aX(x.desde), b = aX(x.hasta);
+        if (b < 0 || a > W) continue;
+        g.fillStyle = 'rgba(2,6,23,.72)'; g.fillRect(a, y0, b - a, h);
+        g.fillStyle = x.k === adTramo || x.k === -1 ? '#22d3ee' : '#ef4444';
+        g.fillRect(a - 1, y0, 2, h); g.fillRect(b - 1, y0, 2, h);
+        if (b - a > 80 && h > 40) { g.fillStyle = '#fca5a5'; g.font = '600 12px system-ui'; g.fillText('✂ omitido', Math.max(a, 0) + 6, y0 + h / 2 + 4); }
+    }
+}
+function pintarAdapt() {
+    if (adSel && !adaptacionActual()) adSel = null;
+    if (!adSel && S.adaptaciones.length) adSel = S.adaptaciones[0].id;
+    const a = adaptacionActual(), sl = $('ad-lista');
+    const ops = S.adaptaciones.length ? S.adaptaciones.map(x => `<option value="${esc(x.id)}"${x.id === adSel ? ' selected' : ''}>${esc(x.nombre)}</option>`).join('')
+        : '<option value="">Sin adaptaciones</option>';
+    if (sl.innerHTML !== ops) sl.innerHTML = ops;
+    sl.disabled = !S.adaptaciones.length;
+    const n = $('ad-nombre');
+    n.disabled = $('b-ad-borrar').disabled = !a;
+    if (document.activeElement !== n) n.value = a ? a.nombre : '';
+    const L = a?.omitir || [], D = duracion();
+    const quitado = L.reduce((s, x) => s + x.hasta - x.desde, 0);
+    $('ad-dur').textContent = !a ? 'Arrastra sobre la onda para omitir un tramo (así se crea la adaptación).' : D ? `Dura ${reloj(D - quitado)} (completa: ${reloj(D)})` : '';
+    const secs = S.secciones.map((x, i) => `<button class="ad-sec${a && cubierto(L, x.t, finSeccion(i)) ? ' omit' : ''}" data-ad-sec="${i}" style="background:${colorSeccion(x.nombre)}" title="Omitir o volver a incluir esta sección">${esc(x.nombre)}</button>`).join('')
+        || '<span class="ayuda">La canción no tiene secciones (🧩 Estructura).</span>';
+    if ($('ad-secs').innerHTML !== secs) $('ad-secs').innerHTML = secs;   // redibujar en medio de un clic lo perdería
+    const i0 = idxCercano(S.c1);
+    // Con tempo: los compases omitidos (el tramo termina donde empieza el compás siguiente)
+    const enC = t => S.compases.length > 1 && enRango(t) && Math.abs(S.compases[idxCercano(t)] - t) < 0.02;
+    const nom = x => enC(x.desde) && enC(x.hasta) ? (() => { const a = idxCercano(x.desde) - i0 + 1, b = idxCercano(x.hasta) - i0; return b > a ? `c. ${a}–${b}` : `c. ${a}`; })()
+        : `${reloj(x.desde, true)} – ${reloj(x.hasta, true)}`;
+    const tr = L.map((x, k) => `<span class="ad-tramo${k === adTramo ? ' sel' : ''}" data-ad-ir="${k}" title="Ir a este tramo">${nom(x)}<button data-ad-quitar="${k}" title="Volver a incluir este tramo">✕</button></span>`).join('')
+        || '<span class="ayuda">ninguno</span>';
+    if ($('ad-tramos').innerHTML !== tr) $('ad-tramos').innerHTML = tr;
+    if (modo === 'adapt') $('info').textContent = S.adaptaciones.length ? `${S.adaptaciones.length} ${S.adaptaciones.length === 1 ? 'adaptación' : 'adaptaciones'}` : '';
+}
+$('ad-lista').onchange = e => { e.target.blur(); adSel = e.target.value || null; adTramo = null; pintarControles(); sucio = true; adRetocar(); };
+$('b-ad-nueva').onclick = () => {
+    antes();
+    const a = { id: genId(), nombre: `Adaptación ${S.adaptaciones.length + 1}`, omitir: [] };
+    S.adaptaciones.push(a); adSel = a.id; adTramo = null;
+    rehacer(); adRetocar();
+    $('ad-nombre').focus(); $('ad-nombre').select();
+};
+function renombrarAdapt() {
+    const a = adaptacionActual(), v = $('ad-nombre').value.trim();
+    if (!a || !v || v === a.nombre) { pintarControles(); return; }
+    antes(); a.nombre = v; rehacer();
+}
+$('ad-nombre').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); renombrarAdapt(); e.target.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.target.blur(); pintarControles(); }
+});
+$('ad-nombre').addEventListener('change', renombrarAdapt);
+$('b-ad-borrar').onclick = () => {
+    const a = adaptacionActual(); if (!a) return;
+    if (!confirm(`¿Borrar la adaptación «${a.nombre}»? (se puede deshacer)`)) return;
+    antes(); S.adaptaciones = S.adaptaciones.filter(x => x !== a); adSel = null; adTramo = null;
+    rehacer(); adRetocar();
+};
+$('ad-secs').onclick = e => { const b = e.target.closest('[data-ad-sec]'); if (b) alternarSeccion(+b.dataset.adSec); };
+$('ad-tramos').onclick = e => {
+    const q = e.target.closest('[data-ad-quitar]');
+    if (q) { quitarTramo(+q.dataset.adQuitar); return; }
+    const b = e.target.closest('[data-ad-ir]'); if (!b) return;
+    const x = adaptacionActual()?.omitir[+b.dataset.adIr]; if (!x) return;
+    adTramo = +b.dataset.adIr;
+    const D = duracion(), largo = x.hasta - x.desde;
+    if (largo + 4 > vista.dur) vista.dur = Math.min(D, largo + 4);
+    vista.ini = Math.max(0, Math.min(D - vista.dur, x.desde - (vista.dur - largo) / 2));
+    cursor = Math.max(0, x.desde - 2); navegar();
+    pintarControles(); sucio = true;
+};
 
 // ══ ✏️ Editar nombres (EY): todas las secciones seguidas, escuchando cada una ══════════════════════
 let nomFoco = null, nomSonando = -1, nomTocarT = null;

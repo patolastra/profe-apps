@@ -8,7 +8,10 @@
 //                                        // la primera vale también hacia atrás
 //       secciones: [{ compas, seg, nombre }], // Intro, Estrofa, Coro…: cada una desde su comienzo hasta la siguiente (opcional);
 //                                        // seg = segundo de la grabación; compas solo si cae en lo marcado (EW: puede no haber tempo)
-//       tonalidad: { tonica: 'A', modo: 'mayor' } } // la de la canción (opcional; letras C D E F G A B con # o b)
+//       tonalidad: { tonica: 'A', modo: 'mayor' }, // la de la canción (opcional; letras C D E F G A B con # o b)
+//       adaptaciones: [{ id, nombre, omitir: [{ desde, hasta }] }] } // ✂ versiones recortadas (GK, opcional): tramos de
+//                                        // la grabación que se saltan, en segundos (m.adaptaciones, m.adaptacion(id);
+//                                        // GrabacionTono.tocar(…, saltos) los salta; TempoMapa.juntarTramos(tramos))
 //   Es la ficha oficial de la canción (deuda EV): tonalidad, cifra, tempo y secciones se leen de aquí.
 //
 //   const m = TempoMapa.crear(datos);
@@ -65,7 +68,11 @@
             ...(x.letra === false ? { letra: false } : typeof x.letraSeg === 'number' && isFinite(x.letraSeg) ? { letraSeg: x.letraSeg } : {}) }));
         const tonalidad = d?.tonalidad && /^[A-G][#b]?$/.test(d.tonalidad.tonica) && (d.tonalidad.modo === 'mayor' || d.tonalidad.modo === 'menor')
             ? { tonica: d.tonalidad.tonica, modo: d.tonalidad.modo } : null;
-        const m = { pulsos: P, compas1: i0, cifras, secciones, tonalidad, vacio: P.length < 2 };
+        // ✂ Adaptaciones (GK): versiones de la canción que se saltan tramos de la grabación (en segundos, ya ordenados y juntos)
+        const adaptaciones = (Array.isArray(d?.adaptaciones) ? d.adaptaciones : []).filter(a => a && a.id).map(a => ({
+            id: String(a.id), nombre: String(a.nombre || 'Adaptación'), omitir: juntarTramos(a.omitir) }));
+        const m = { pulsos: P, compas1: i0, cifras, secciones, tonalidad, adaptaciones, vacio: P.length < 2 };
+        m.adaptacion = id => adaptaciones.find(a => a.id === id) || null;
         // Tempo de referencia: la mediana de los intervalos (los extremos y un pulso mal puesto no lo mueven)
         m.bpm = (() => {
             const b = []; for (let k = 0; k + 1 < P.length; k++) if (P[k + 1] > P[k]) b.push(60 / (P[k + 1] - P[k]));
@@ -142,8 +149,17 @@
             });
         };
         m.datos = () => ({ v: 1, pulsos: P.map(x => Math.round(x * 1000) / 1000), compas1: i0, cifras, ...(secciones.length ? { secciones: secDatos() } : {}),
-            ...(tonalidad ? { tonalidad } : {}), ...(m.bpm ? { bpm: m.bpm } : {}) });
+            ...(tonalidad ? { tonalidad } : {}), ...(m.bpm ? { bpm: m.bpm } : {}),
+            ...(adaptaciones.length ? { adaptaciones: adaptaciones.map(a => ({ ...a, omitir: a.omitir.map(x => ({ desde: Math.round(x.desde * 1000) / 1000, hasta: Math.round(x.hasta * 1000) / 1000 })) })) } : {}) });
         return m;
+    }
+    // Tramos [{ desde, hasta }] en segundos: válidos, en orden y los que se tocan, juntos
+    function juntarTramos(L) {
+        const v = (Array.isArray(L) ? L : []).map(x => ({ desde: +x?.desde, hasta: +x?.hasta }))
+            .filter(x => isFinite(x.desde) && isFinite(x.hasta) && x.hasta - x.desde > 0.01).sort((a, b) => a.desde - b.desde);
+        const out = [];
+        for (const x of v) { const u = out[out.length - 1]; if (u && x.desde <= u.hasta + 0.01) u.hasta = Math.max(u.hasta, x.hasta); else out.push({ ...x }); }
+        return out;
     }
 
     // El índice cuyo segundo está entre a y b, el más cercano a t; null si no hay
@@ -342,5 +358,5 @@
         menor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'],
     };
 
-    window.TempoMapa = { crear, cargar, cargarFicha, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS, versosDeLetra, CIFRAS, cifraInfo, cambiarCifra, preguntarCambioCifra };
+    window.TempoMapa = { crear, cargar, cargarFicha, desdeReaper, nombreTonalidad, mismaTonalidad, TONICAS, versosDeLetra, CIFRAS, cifraInfo, cambiarCifra, preguntarCambioCifra, juntarTramos };
 })();
