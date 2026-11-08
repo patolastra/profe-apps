@@ -9152,5 +9152,8 @@ las secciones, pero no se notaba. Decisión del PO: "ok" a las dos mejoras propu
   18, 19 y 24 los enciende (estaban apagados) → "c. 20–21", "c. 25–34"; otro clic en el 19 lo apaga → "c. 19–21"; clic en
   la fila de números mueve el cursor al compás 30 sin tocar los tramos; "Recorte ½" y "recrote ½" se ven a medias; el
   número de secciones no cambia.
+- **Ajuste (PO 2026-11-08: "tiene que ser Ctrl+clic, clic solo es para navegar con el cursor de audio"):** apagar /
+  encender un compás = **Ctrl + clic**; un clic en la onda (también dentro de un tramo) mueve el cursor. Prueba: clic en
+  el c. 30 mueve el cursor sin tocar los tramos; Ctrl + clic en el 37 lo apaga ("c. 37") y otro Ctrl + clic lo enciende.
 - **Pendiente del PO:** su Ficha guardada aún tiene las secciones ficticias; quitarlas con ✕ (Intro marcha vuelve a
   cubrirlo todo) y apagar los compases con clic.
