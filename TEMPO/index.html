@@ -221,7 +221,7 @@
     </div>
     <div class="ayuda fila-tempo">
         Se marca y se mueve solo el 1 de cada compás (líneas blancas); sus pulsos (líneas tenues) se reparten solos, parejos.
-        Clic en la onda: mover el cursor · arrastrar un 1: moverlo · doble clic: agregar un compás · <kbd>Supr</kbd>: borrar el elegido ·
+        Clic en la onda: mover el cursor · arrastrar un 1: moverlo · arrastrar el comienzo de una sección (franja de colores): llevarla a otro compás · doble clic: agregar un compás · <kbd>Supr</kbd>: borrar el elegido ·
         rueda: acercar o alejar · <kbd>Mayús</kbd>+rueda: desplazar · <kbd>Espacio</kbd> o <kbd>K</kbd>: tocar / detener (marcando, <kbd>Enter</kbd> = el 1 de un compás, <kbd>Retroceso</kbd> quita el último y Espacio termina) ·
         <kbd>J</kbd> / <kbd>L</kbd>: 5 s atrás / adelante (marcando, J borra lo marcado desde ahí y sigues) · <kbd>{</kbd> <kbd>}</kbd> velocidad −/+ 5 %, <kbd>+</kbd> normal.
         Marcar sobre compases que ya existen los reemplaza en ese tramo. En rojo, los compases que se ven disparejos.
@@ -686,6 +686,8 @@ function pulsoBajo(x, W) {   // el 1 de compás bajo el ratón
     return k;
 }
 let arrastre = null;
+// ¿El ratón está en la franja de colores de las secciones (arriba de la onda)?
+const enFranjaSec = e => { const y = e.clientY - zoom.getBoundingClientRect().top; return y >= 17 && y <= 40; };
 function seccionBajo(x, W) {   // el comienzo de sección bajo el ratón
     let k = null, dmin = 7;
     S.secciones.forEach((s, i) => { const d = Math.abs(xDeSeg(s.t, W) - x); if (d < dmin) { dmin = d; k = i; } });
@@ -704,6 +706,9 @@ zoom.addEventListener('mousedown', e => {
         return;
     }
     if (modo === 'adapt') { adMouseDown(e, x, W); return; }
+    // En la franja de las secciones (arriba): arrastrar el comienzo de una sección a otro compás (también con compases fijos)
+    const kSec = enFranjaSec(e) ? seccionBajo(x, W) : null;
+    if (kSec !== null) { antes(); sel = null; arrastre = { x0: e.clientX, secTempo: kSec, movio: false }; pintarControles(); sucio = true; return; }
     const k = pulsoBajo(x, W);
     if (k !== null && fijos) { sel = k; pintarControles(); sucio = true; return; }   // fijos: solo se elige
     if (k !== null) {
@@ -720,7 +725,14 @@ zoom.addEventListener('mousedown', e => {
 window.addEventListener('mousemove', e => {
     const r = zoom.getBoundingClientRect(), x = e.clientX - r.left;
     if (adArr) { adMover(e); return; }
-    if (!arrastre) { zoom.classList.toggle('mover', e.target === zoom && (modo === 'estr' ? seccionBajo(x, r.width) : modo === 'adapt' ? tramoBajo(x, r.width)?.lado : pulsoBajo(x, r.width)) != null); return; }
+    if (!arrastre) { zoom.classList.toggle('mover', e.target === zoom && (modo === 'estr' ? seccionBajo(x, r.width) : modo === 'adapt' ? tramoBajo(x, r.width)?.lado : enFranjaSec(e) && seccionBajo(x, r.width) !== null ? 1 : pulsoBajo(x, r.width)) != null); return; }
+    if (arrastre.secTempo !== undefined) {   // ⏱ Tempo: el comienzo de la sección va siempre al 1 de un compás, entre sus vecinas
+        const L = S.secciones, k = arrastre.secTempo, t = segDeX(x, r.width);
+        const lo = k > 0 ? L[k - 1].t : -Infinity, hi = k + 1 < L.length ? L[k + 1].t : Infinity;
+        const C = S.compases.filter(c => c > lo + 1e-6 && c < hi - 1e-6);
+        if (C.length) { L[k].t = C.reduce((m, c) => Math.abs(c - t) < Math.abs(m - t) ? c : m, C[0]); arrastre.movio = true; sucio = true; }
+        return;
+    }
     if (!arrastre.movio && Math.abs(e.clientX - arrastre.x0) < 4) return;   // un clic con pulso tembloroso no mueve el compás
     if (arrastre.secK !== undefined) {   // Estructura: el comienzo de la parte, entre sus vecinas
         const L = S.secciones, k = arrastre.secK;

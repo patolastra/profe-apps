@@ -9127,3 +9127,13 @@ tempomapper"). Necesidad: tocar y cantar una canción más corta (clase, acto) s
   de 608 a 544 negras y de 391 a 295 notas, "Dame" 1 queda en el pulso 96 (antes 160); en la vista previa la grabación
   salta de 0:46,5 a 1:11,3 (el corte es 0:46,7 → 1:11,0) mientras el pulso del piano sigue parejo (95,4 → 96,7); un
   ✂ Omitir hecho en la vista previa se guarda en su pulso real (160–168) y se dibuja en el comprimido (96–104).
+
+### GL. Ficha — arrastrar el comienzo de una sección a otro compás (⏱ Tempo) — HECHA (falta probar en uso)
+*Origen: PO 2026-11-08 ("poder dragdropear para redefinir dónde empieza una sección; siempre comienza al comienzo de
+un compás").*
+- **Alcance:** en ⏱ Tempo, arrastrar sobre la **franja de colores de las secciones** (arriba de la onda) mueve el comienzo
+  de esa sección; va siempre al 1 de un compás (el más cercano al ratón), entre la sección anterior y la siguiente.
+  Funciona también con 🔒 Compases fijos; las líneas de compás no se mueven (arrastrarlas sigue moviendo el compás).
+  ↶ Deshacer la devuelve. Solo `TEMPO/index.html`; sin cambios en Supabase.
+- **Prueba (navegador, "Estrechez de Corazón", sin guardar):** "Fin intro marcha" del compás 36 al 34 (justo en el 1);
+  arrastrada más allá de "Intro marcha" (c. 14) se queda en el 15; compases intactos; ↶ dos veces vuelve al 36.
