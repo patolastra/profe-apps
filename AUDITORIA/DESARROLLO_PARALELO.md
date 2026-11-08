@@ -9220,3 +9220,6 @@ pendiente, prueba, apoderado, ensayo, bug, mejora; sin curso queda en General").
   Tercero, el curso abierto); "5° traer guitarras" → Quinto, clase del jue 12/11, el aviso abre ese Plan; /pdte kids /
   castigadas, /ensayo 7mo, /msj, /prueba, /bug; "1 hora de ensayo" queda General; /apod en General busca en todos los
   cursos (la cita queda en el curso del estudiante), Tab elige; avisos → Dashboard ✉️ y 👪, 🐞 Mejoras en Cursos.
+- **Ajuste (PO 2026-11-08):** en el computador del PO, Ctrl + Shift + 7 no llega a la página (ni en Brave ni en
+  Chrome; con teclas reales en el panel de pruebas sí funcionaba): el atajo pasa a **Ctrl + Shift + Ñ** (el 7 sigue
+  aceptado).

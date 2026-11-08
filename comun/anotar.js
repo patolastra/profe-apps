@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// ⌨ Anotar rápido (deuda GQ, 2026-11-08) — Ctrl + Shift + 7 en cualquier parte del Workspace PC
+// ⌨ Anotar rápido (deuda GQ, 2026-11-08) — Ctrl + Shift + Ñ (o 7) en cualquier parte del Workspace PC
 // Un cuadro abajo a la derecha para anotar sin moverse de donde se está:
 //   texto suelto           → ☑ pendiente (con curso: a su próxima clase; en General, sin fecha)
 //   /pdte texto            → ☑ pendiente (igual)
@@ -316,10 +316,12 @@
         try { op.alCerrar?.(volverA); } catch (_) {}
     }
 
-    // ── Atajo: Ctrl + Shift + 7, también dentro de las pestañas (y de las que van dentro de otra) ──
+    // ── Atajo: Ctrl + Shift + Ñ, también dentro de las pestañas (y de las que van dentro de otra) ──
     function alTeclear(e) {
         if (!(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey)) return;
-        if (e.code !== 'Digit7' && e.key !== '7' && e.key !== '/') return;
+        // Ctrl + Shift + Ñ (en el computador del PO el 7 no llega a la página); el 7 queda por si en otro equipo sí
+        const k = String(e.key || '').toLowerCase();
+        if (k !== 'ñ' && e.code !== 'Semicolon' && e.code !== 'Digit7' && k !== '7' && k !== '/') return;
         e.preventDefault(); e.stopPropagation();
         if (e.repeat) return;
         abrir();
