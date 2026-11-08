@@ -700,6 +700,10 @@
         .afi-inst { display: flex; gap: 6px; justify-content: center; margin: 4px 0 8px; }
         .afi-inst button { background: #2a2f3a; color: #cbd5e1; border: 1px solid #3b4252; padding: 6px 12px; font-size: .85rem; }
         .afi-inst button.on { background: #1a6b4a; color: #fff; border-color: #22c55e; }
+        /* Cejillo del afinador (deuda GH): − N + con ancho fijo */
+        .afi-cejillo { display: flex; gap: 6px; justify-content: center; align-items: center; font-size: .85rem; color: #cbd5e1; margin: 0 0 6px; }
+        .afi-cejillo button { background: #2a2f3a; color: #cbd5e1; border: 1px solid #3b4252; width: 30px; padding: 3px 0; font-size: 1rem; line-height: 1; }
+        .afi-cejillo span { display: inline-block; width: 2.4em; text-align: center; font-weight: 600; color: #fff; }
 </style>
 </head>
 <body>
@@ -1159,9 +1163,12 @@
             <button data-inst="ukelele" onclick="afiCambiarInst('ukelele')">🪕 Ukelele</button>
             <button data-inst="bajo" onclick="afiCambiarInst('bajo')">🎸 Bajo</button>
         </div>
+        <div class="afi-cejillo" title="Cejillo: sube (+) o baja (−) todas las cuerdas por semitonos">
+            Cejillo <button onclick="afiCambiarCejillo(-1)" aria-label="Más grave">−</button><span id="afiCej">0</span><button onclick="afiCambiarCejillo(1)" aria-label="Más agudo">+</button>
+        </div>
         <div class="afi-sub" id="afiSub"></div>
         <div class="afi-cuerdas" id="afiCuerdas"></div>
-        <div class="afi-ayuda">Toca una cuerda para que suene sin parar · otra vez para callarla · teclas 1–<span id="afiMax">6</span> · Esc cierra</div>
+        <div class="afi-ayuda">Toca una cuerda para que suene sin parar · otra vez para callarla · teclas 1–<span id="afiMax">6</span> · + / − cejillo · Esc cierra</div>
     </div>
 </div>
 
@@ -7232,30 +7239,51 @@ let afiInst = 'guitarra';   // instrumento que se está afinando (parte en el de
 let afiTimer  = null;
 let afiNodos  = [];      // notas sonando (para callarlas al cambiar/cerrar)
 
-// El capo de la tablatura solo cuenta si se afina ese mismo instrumento
+// Cejillo (deuda GH): semitonos que se suben (+) o bajan (−) todas las cuerdas; se recuerda por instrumento en el
+// equipo. Al abrir con una tablatura con capo del mismo instrumento, parte en ese capo.
+const AFI_CEJ_MIN = -6, AFI_CEJ_MAX = 9;
+let afiCejillo = 0;
+function afiCejGuardado(inst) {
+    try { const v = parseInt(localStorage.getItem('afi_cejillo_' + inst), 10); return isNaN(v) ? 0 : v; } catch (_) { return 0; }
+}
+function afiCejInicial(inst) {
+    const capoTab = inst === currentInstrument && (inst === 'guitarra' || inst === 'ukelele') ? capoFret : 0;
+    return capoTab > 0 ? capoTab : afiCejGuardado(inst);
+}
+function afiCambiarCejillo(d) {
+    const v = Math.max(AFI_CEJ_MIN, Math.min(AFI_CEJ_MAX, afiCejillo + d));
+    if (v === afiCejillo) return;
+    afiCejillo = v;
+    try { localStorage.setItem('afi_cejillo_' + afiInst, String(v)); } catch (_) {}
+    const sonaba = afiCuerda;
+    pintarAfinador();
+    if (sonaba >= 0) afiTocar(sonaba);   // la cuerda que sonaba sigue, ya con el cejillo nuevo
+}
 function afiMidi(i) {
-    const capo = afiInst === currentInstrument && (afiInst === 'guitarra' || afiInst === 'ukelele') ? capoFret : 0;
-    return TUNING[afiInst][i] + capo;
+    return TUNING[afiInst][i] + afiCejillo;
 }
 
 function abrirAfinador() {
     if (isPlaying) document.getElementById('btnPause').click();
     ensureAudio();
     afiInst = TUNING[currentInstrument] ? currentInstrument : 'guitarra';
+    afiCejillo = afiCejInicial(afiInst);
     pintarAfinador();
     document.getElementById('modalAfinador').classList.add('open');
 }
 function afiCambiarInst(inst) {
     if (afiCuerda >= 0) afiTocar(afiCuerda);   // calla la cuerda que sonaba
     afiInst = inst;
+    afiCejillo = afiCejInicial(inst);
     pintarAfinador();
 }
 function pintarAfinador() {
     const cuerdas = TUNING[afiInst];
     document.getElementById('afiTitulo').textContent = '🎚️ Afinador';
     document.querySelectorAll('#afiInst button').forEach(b => b.classList.toggle('on', b.dataset.inst === afiInst));
-    const usaCapo = afiInst === currentInstrument && (afiInst === 'guitarra' || afiInst === 'ukelele') && capoFret > 0;
-    document.getElementById('afiSub').textContent = usaCapo ? `Con capo en el traste ${capoFret}` : 'Cuerdas al aire';
+    document.getElementById('afiCej').textContent = afiCejillo > 0 ? '+' + afiCejillo : (afiCejillo < 0 ? '−' + (-afiCejillo) : '0');
+    document.getElementById('afiSub').textContent = afiCejillo > 0 ? `Con cejillo en el traste ${afiCejillo}`
+        : afiCejillo < 0 ? `${-afiCejillo} semitono${afiCejillo === -1 ? '' : 's'} más grave` : 'Cuerdas al aire';
     document.getElementById('afiMax').textContent = cuerdas.length;
     const cont = document.getElementById('afiCuerdas');
     cont.innerHTML = '';
@@ -7322,6 +7350,7 @@ window.addEventListener('keydown', e => {
     if (!document.getElementById('modalAfinador')?.classList.contains('open')) return;
     e.stopImmediatePropagation();
     if (e.key === 'Escape') { e.preventDefault(); cerrarAfinador(); return; }
+    if (e.key === '+' || e.key === '-') { e.preventDefault(); afiCambiarCejillo(e.key === '+' ? 1 : -1); return; }   // GH
     const n = parseInt(e.key, 10);
     if (n >= 1 && n <= TUNING[afiInst].length) { e.preventDefault(); afiTocar(n - 1); }
 }, true);

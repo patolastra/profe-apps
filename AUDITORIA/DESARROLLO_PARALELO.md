@@ -9002,3 +9002,17 @@ canción ni texto en el Libro; armar grupos solo con casillas es lento.*
   Evaluar y 🗑 (al pasar el mouse); botón **📋 Copiar** (uno para toda la pestaña, junto a "Grupos creados") que copia
   como texto el nombre de la evaluación, cada grupo con sus integrantes y sus canciones o textos, y quienes siguen sin
   grupo (`evalCopiarGrupos`). Prueba (navegador, Sexto): el texto copiado trae los 18 grupos con lo agregado.
+
+### GH. 🎚️ Afinador — cejillo (también negativo) — HECHA
+*Origen: PO 2026-11-08 ("agregar un cejillo, también negativo, por si quisiera afinar más grave"). Necesidad:
+afinar el instrumento con cejillo o más grave que la afinación estándar, para tocar en otro tono.*
+- **Alcance:** en el afinador (`tabs/index.html`), un control **Cejillo − N +** bajo los instrumentos: de −6 a +9
+  semitonos; las cuerdas cambian su nota y suenan así. Positivo = "Cejillo en el traste N"; negativo = "N semitonos
+  más grave". Se recuerda por instrumento en el equipo; si se abre con una tablatura con capo del mismo instrumento,
+  parte en ese capo. Sin cambios en Supabase.
+- **Lugares (regla 11):** el afinador del Lector (PC y versión estudiante en el celular) y el afinador solo del menú +
+  del Workspace (`?afinador=1`), el mismo código.
+- **Hecho:** `afiCejillo` + `afiCambiarCejillo` (botones − / + y teclas + / −); la cuerda que suena sigue sonando con
+  el cejillo nuevo. Prueba (navegador, `?afinador=1`): guitarra 0 = Mi Si Sol Re La Mi; +2 = Fa♯ Do♯ La Mi Si Fa♯
+  ("Con cejillo en el traste 2"); −2 = Re La Fa Do Sol Re ("2 semitonos más grave"); el ukelele parte en su propio
+  valor y al volver a la guitarra se recuerda −2.
