@@ -8998,3 +8998,7 @@ canción ni texto en el Libro; armar grupos solo con casillas es lento.*
   grupo terminado no pasa nada. Prueba (navegador, Sexto, guardado simulado): sale del grupo soltándolo en el fondo,
   cambia de grupo soltándolo en otra tarjeta, el grupo nuevo se llama "Grupo 15", los botones ocultos y visibles al
   pasar el mouse.
+- **Ajuste 3 (PO 2026-11-08):** sin título ni explicación arriba; **＋ Agregar** (canción o texto) va abajo, junto a
+  Evaluar y 🗑 (al pasar el mouse); botón **📋 Copiar** (uno para toda la pestaña, junto a "Grupos creados") que copia
+  como texto el nombre de la evaluación, cada grupo con sus integrantes y sus canciones o textos, y quienes siguen sin
+  grupo (`evalCopiarGrupos`). Prueba (navegador, Sexto): el texto copiado trae los 18 grupos con lo agregado.

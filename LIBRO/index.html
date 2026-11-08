@@ -1882,14 +1882,15 @@ function gruposCardBody(){
   const zonaDisp = cerrada ? '' : `ondragover="if(arrastreMiembro)this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')"`;
 
   return `
-    <p class="sec-title" style="margin:0 0 6px">Grupos de trabajo</p>
-    <p class="hint" style="margin:0 0 8px">Arrastra a cada estudiante a un grupo o a ＋ Nuevo grupo (un grupo de 1 sirve para quien trabaja aparte). Para sacarlo de un grupo, suéltalo fuera de las tarjetas.</p>
     <div class="gm-disp" ${zonaDisp}>
     <p class="gm-sub">Disponibles (${disponibles.length})</p>
     ${listaDisp}
     </div>
     ${acciones}
-    <p class="gm-sub" style="margin-top:14px">Grupos creados (${grupos.length})</p>
+    <div class="row" style="margin-top:14px;justify-content:space-between;align-items:center">
+      <p class="gm-sub" style="margin:0">Grupos creados (${grupos.length})</p>
+      ${grupos.length ? `<button class="btn mini" title="Copiar los grupos como texto" onclick="evalCopiarGrupos()">📋 Copiar</button>` : ''}
+    </div>
     ${cols}`;
 }
 
@@ -1911,6 +1912,7 @@ function grupoColHTML(g, cerrada){
       <ul class="grupo-miembros">${lis}</ul>
       <div class="row gc-hover" style="gap:6px">
         <button class="btn primary mini" onclick="evalAbrirEvalGrupo('${g.id}')">${terminado ? 'Ver grupo' : (cerrada ? 'Ver grupo' : 'Evaluar')}</button>
+        ${reorg ? `<button class="btn mini" title="Agregar una canción o un texto" onclick="tipAbrir('${g.id}')">＋ Agregar</button>` : ''}
         ${(terminado && !cerrada) ? `<button class="btn warn mini" onclick="evalReabrirGrupo('${g.id}')">Reabrir evaluación</button>` : ''}
         ${reorg ? `<button class="btn danger mini" title="Eliminar grupo" onclick="evalEliminarGrupo('${g.id}')">🗑</button>` : ''}
       </div>
@@ -2006,6 +2008,21 @@ async function evalDrop(ev, gidDestino){
     refrescarDetalle();
   } catch (e) { toast('No se pudo mover: ' + e.message, 'err'); }
 }
+// GG: 📋 Copiar — todos los grupos como texto (integrantes + canciones y textos), y quienes siguen sin grupo
+async function evalCopiarGrupos(){
+  try { await tipCargarBib(); } catch (_) {}   // nombres de las canciones
+  const orden = cmpEstudiantes(n => n.estudiante, n => posMap[n.estudiante_id]);
+  const bloques = grupos.map(g => {
+    const miembros = notas.filter(n => n.grupo_id === g.id).sort(orden).map(n => nombreDe(n.estudiante));
+    const items = tipItems(g).map(it => '  ' + it.ico + ' ' + it.txt + (it.sub ? ' — ' + it.sub : ''));
+    return [`${g.nombre}: ${miembros.join(', ') || '(sin integrantes)'}`, ...items].join('\n');
+  });
+  const sinGrupo = notas.filter(estDisponible).sort(orden).map(n => nombreDe(n.estudiante));
+  if (sinGrupo.length) bloques.push('Sin grupo: ' + sinGrupo.join(', '));
+  const texto = `${evalActual.nombre || 'Evaluación'} — Grupos de trabajo\n\n${bloques.join('\n\n')}`;
+  try { await navigator.clipboard.writeText(texto); toast('Grupos copiados.', 'ok'); }
+  catch (e) { toast('No se pudo copiar: ' + e.message, 'err'); }
+}
 // GG: soltar un disponible en ＋ Nuevo grupo crea un grupo con él
 async function evalDropNuevo(ev){
   ev.preventDefault(); ev.stopPropagation();
@@ -2082,10 +2099,9 @@ function tipicosTxt(g){ return tipItems(g).map(tipItemTxt); }        // una lín
 function tipicoTxt(g){ return tipicosTxt(g).join(' · '); }           // todo en una línea (Resultados)
 function tipicoHTML(g, editable){
   const its = tipItems(g);
-  if (!its.length && !editable) return '';
+  if (!its.length) return '';   // GG: "＋ Agregar" va abajo, con Evaluar y 🗑
   return `<div class="grupo-tips">
       ${its.map(it => `<div class="grupo-tip"><span class="gt-txt" title="${esc(it.txt + (it.sub ? ' · ' + it.sub : ''))}">${it.ico} ${esc(it.txt)}</span>${editable ? `<button class="gt-x" title="Quitar" onclick="tipQuitar('${g.id}',${it.k})">✕</button>` : ''}</div>`).join('')}
-      ${editable ? `<button class="btn mini gc-hover" onclick="tipAbrir('${g.id}')">${its.length ? '＋ Agregar' : '🎵 Agregar canción o texto…'}</button>` : ''}
     </div>`;
 }
 async function tipAbrir(gid){
