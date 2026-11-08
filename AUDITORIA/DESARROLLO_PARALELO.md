@@ -8966,3 +8966,24 @@ sonidos, mediante compartir… seleccionar el extracto dentro del audio recibido
 - **🎧 Otros audios:** tarjetas de alto fijo y barra fácil de tomar y arrastrar, también con el dedo (5858c41). Loop,
   pestaña verde y ✎ del texto: ver GE.
 - Lugares: Biblioteca, sesiones del Entrenador (Biblioteca, pestaña del Plan, mínimo y celular para la barra), Workspace.
+
+### GG. Libro — Grupos de trabajo: arrastrar estudiantes y "grupo de 1" — HECHA (falta probar en clase)
+*Origen: PO (🐞 Mejoras: Tercero 28/10, Sexto 05/11; Notion "Mejora en libro de clases (pantallazo)" 29/10).
+Necesidad: en clase hay estudiantes que trabajan aparte (otra actividad, computadores) y hoy no se les puede ligar
+canción ni texto en el Libro; armar grupos solo con casillas es lento.*
+- **Decisiones del PO (2026-11-08):** (1) arrastrar un estudiante de **Disponibles** a un grupo lo suma; a la tarjeta
+  **＋ Nuevo grupo** crea un grupo con él; (2) **arrastrarlo de vuelta a Disponibles** lo saca del grupo (solo grupos sin
+  terminar); (3) "Evaluar individualmente" pasa a **👤 Grupo de 1**: crea un grupo con solo ese estudiante, con su
+  nombre de título, al que se le liga canción o texto (lo típico, deuda ER) y se evalúa como cualquier grupo.
+- **Alcance:** solo `LIBRO/index.html` (tarjeta Grupos de trabajo de una evaluación). Sin cambios en Supabase.
+  Sacar del grupo hace lo mismo que eliminar un grupo con sus integrantes: queda sin grupo y conserva sus valores.
+- **Lugares (regla 11):** Libro (pestaña del Plan y 📒 Libros, mismo archivo). La proyección de grupos
+  (`comun/libro-proyeccion.js`) muestra el grupo de 1 como un grupo más.
+- La evaluación diferenciada (Notion, Media) queda cubierta en buena parte: un grupo de 1 lleva su propio objetivo
+  (adecuación) e instrumento.
+- **Hecho:** los chips de Disponibles se arrastran (`evalDragStart`); `evalDrop` acepta disponibles; tarjeta
+  **＋ Nuevo grupo** al final (`evalDropNuevo`, también desde otro grupo sin terminar); zona Disponibles
+  (`evalDropDisponibles`); `crearGrupoCon(ids, nombre)` sale de crear grupo; **👤 Grupo de 1** (`evalGrupoDeUnoSel`).
+  Prueba (navegador, Sexto, "Creación de historia de terror", con el guardado simulado para no tocar datos): sumar a
+  un grupo, soltar en ＋ Nuevo grupo (crea "Grupo 14"), sacar de vuelta a Disponibles y 👤 Grupo de 1 ("Cristóbal",
+  con 🎵 Agregar canción o texto…); en Supabase no quedó nada.

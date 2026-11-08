@@ -221,6 +221,13 @@
     padding:10px 12px;background:var(--panel2);box-shadow:inset 3px 0 0 var(--acc)}
   .grupo-col.evaluado{box-shadow:inset 3px 0 0 var(--mut)}
   .grupo-col.dragover{border-color:var(--acc);background:rgba(76,175,80,.12)}
+  /* GG: tarjeta para soltar y crear un grupo; zona Disponibles para sacar de un grupo */
+  .grupo-nuevo{border-style:dashed;color:var(--mut);display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;font-size:13px;min-height:90px;gap:4px}
+  .grupo-nuevo small{font-size:11px;opacity:.8}
+  .gm-disp{border:1px dashed transparent;border-radius:10px;padding:2px 4px;margin:0 -4px}
+  .gm-disp.dragover{border-color:var(--acc);background:rgba(76,175,80,.08)}
+  .gm-chk[draggable="true"]{cursor:grab}
   .grupo-col h4{margin:0 0 6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:6px}
   .grupo-col h4 input{font:inherit;font-size:13px;padding:3px 6px}
   .grupo-miembros{list-style:none;margin:6px 0 8px;padding:0;min-height:22px}
@@ -1856,7 +1863,7 @@ function gruposCardBody(){
 
   const listaDisp = disponibles.length
     ? `<div class="gm-grid">${disponibles.map(n => `
-        <label class="gm-chk ${grupoSelIds.has(n.id) ? 'on' : ''}">
+        <label class="gm-chk ${grupoSelIds.has(n.id) ? 'on' : ''}" ${cerrada ? '' : `draggable="true" ondragstart="evalDragStart(event,'${n.id}')" title="Arrástralo a un grupo o a ＋ Nuevo grupo"`}>
           <input type="checkbox" ${grupoSelIds.has(n.id) ? 'checked' : ''} ${cerrada ? 'disabled' : ''} onchange="evalToggleSel('${n.id}',this.checked)">
           <span>${esc(nombreDe(n.estudiante))}</span>${ausenteHoyHTML(n.estudiante_id)}
         </label>`).join('')}</div>`
@@ -1865,18 +1872,26 @@ function gruposCardBody(){
   const acciones = (cerrada || disponibles.length === 0) ? '' : `
     <div class="row" style="margin-top:8px;gap:8px">
       ${selCount >= 1 ? `<button class="btn" onclick="evalCrearGrupoDesdeSeleccion(this)">＋ Crear grupo (${selCount})</button>` : '<span class="hint">Selecciona estudiantes para crear un grupo.</span>'}
-      ${selCount === 1 ? `<button class="btn primary" onclick="evalEvaluarIndividualSel()">Evaluar individualmente</button>` : ''}
+      ${selCount === 1 ? `<button class="btn primary" title="Un grupo con solo este estudiante: se le liga canción o texto y se evalúa como un grupo" onclick="evalGrupoDeUnoSel(this)">👤 Grupo de 1</button>` : ''}
     </div>`;
 
-  const cols = grupos.length
-    ? `<div class="grupos-row">${grupos.map(g => grupoColHTML(g, cerrada)).join('')}</div>`
+  // GG: tarjeta vacía para soltar a un disponible y crear un grupo con él
+  const nuevo = cerrada ? '' : `
+    <div class="grupo-col grupo-nuevo" ondragover="event.preventDefault();this.classList.add('dragover')"
+         ondragleave="this.classList.remove('dragover')" ondrop="evalDropNuevo(event)">＋ Nuevo grupo<small>suelta aquí a un estudiante</small></div>`;
+  const cols = (grupos.length || nuevo)
+    ? `<div class="grupos-row">${grupos.map(g => grupoColHTML(g, cerrada)).join('')}${nuevo}</div>`
     : '<p class="grupo-col-vacio">Aún no hay grupos creados.</p>';
+  // GG: soltar sobre Disponibles saca al estudiante de su grupo
+  const zonaDisp = cerrada ? '' : `ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="evalDropDisponibles(event)"`;
 
   return `
     <p class="sec-title" style="margin:0 0 6px">Grupos de trabajo</p>
-    <p class="hint" style="margin:0 0 8px">Selecciona estudiantes disponibles y crea un grupo, o evalúa a uno individualmente. Puedes evaluar cada grupo cuando quieras; los evaluados dejan de estar disponibles.</p>
+    <p class="hint" style="margin:0 0 8px">Arrastra estudiantes a un grupo o a ＋ Nuevo grupo (o selecciónalos y crea el grupo). 👤 Grupo de 1 es para quien trabaja aparte. Para sacar a alguien de un grupo, arrástralo de vuelta a Disponibles.</p>
+    <div class="gm-disp" ${zonaDisp}>
     <p class="gm-sub">Disponibles (${disponibles.length})</p>
     ${listaDisp}
+    </div>
     ${acciones}
     <p class="gm-sub" style="margin-top:14px">Grupos creados (${grupos.length})</p>
     ${cols}`;
@@ -1918,9 +1933,13 @@ async function evalCrearGrupoDesdeSeleccion(btn){ return seguro('crearGrupo', bt
 async function _evalCrearGrupoDesdeSeleccion(){
   const ids = [...grupoSelIds].filter(id => { const n = notas.find(x => x.id === id); return n && estDisponible(n); });
   if (!ids.length) { toast('Selecciona al menos un estudiante disponible.', 'err'); return; }
+  await crearGrupoCon(ids);
+}
+// Crea un grupo con estos disponibles (nombre: "Grupo N", o el que se pase).
+async function crearGrupoCon(ids, nombre){
   try {
     const gid = idCreacion('grupo', { ev: evalActual.id, ids: [...ids].sort() });
-    const { data: g } = await insertarUnaVez('libro_evaluacion_grupos', { id: gid, evaluacion_id: evalActual.id, nombre: 'Grupo ' + (grupos.length + 1) });
+    const { data: g } = await insertarUnaVez('libro_evaluacion_grupos', { id: gid, evaluacion_id: evalActual.id, nombre: nombre || ('Grupo ' + (grupos.length + 1)) });
     if (!grupos.some(x => x.id === g.id)) grupos.push(g);
     const miembros = ids.map(id => notas.find(n => n.id === id));
     miembros.forEach(n => { n.grupo_id = g.id; n.nota_excepcion = false; n.objetivo_excepcion = false;
@@ -1933,7 +1952,14 @@ async function _evalCrearGrupoDesdeSeleccion(){
     toast(`Grupo creado con ${ids.length} integrante(s).`, 'ok');
   } catch (e) { toast(avisoFallo(e), 'err'); }
 }
-// Evaluar individualmente al único seleccionado (no crea grupo).
+// GG: 👤 Grupo de 1 — un grupo con solo el seleccionado, con su nombre de título.
+async function evalGrupoDeUnoSel(btn){
+  const ids = [...grupoSelIds].filter(id => { const n = notas.find(x => x.id === id); return n && estDisponible(n); });
+  if (ids.length !== 1) { toast('Selecciona exactamente un estudiante disponible.', 'err'); return; }
+  const n = notas.find(x => x.id === ids[0]);
+  return seguro('crearGrupo', btn, 'Creando…', () => crearGrupoCon(ids, nombreDe(n.estudiante)));
+}
+// Evaluar individualmente al único seleccionado (no crea grupo). Ya no tiene botón (GG); queda por si se vuelve a usar.
 function evalEvaluarIndividualSel(){
   const ids = [...grupoSelIds].filter(id => { const n = notas.find(x => x.id === id); return n && estDisponible(n); });
   if (ids.length !== 1) { toast('Selecciona exactamente un estudiante disponible.', 'err'); return; }
@@ -1951,8 +1977,9 @@ async function evalDrop(ev, gidDestino){
   ev.preventDefault();
   const col = ev.currentTarget; if (col) col.classList.remove('dragover');
   const notaId = ev.dataTransfer.getData('text/plain');
-  const n = notas.find(x => x.id === notaId); if (!n || !n.grupo_id || n.grupo_id === gidDestino) return;
-  const gOrigen = grupos.find(x => x.id === n.grupo_id);
+  const n = notas.find(x => x.id === notaId); if (!n || n.grupo_id === gidDestino) return;
+  if (!n.grupo_id && !estDisponible(n)) return;   // GG: desde Disponibles solo entran los disponibles
+  const gOrigen = n.grupo_id ? grupos.find(x => x.id === n.grupo_id) : null;
   const gDest = grupos.find(x => x.id === gidDestino);
   if (!gDest || grupoTerminado(gDest) || (gOrigen && grupoTerminado(gOrigen))) return;   // no mover desde/hacia terminados
   try {
@@ -1966,6 +1993,33 @@ async function evalDrop(ev, gidDestino){
     if (grupoInstrId(gDest)) { await copiarResultadosGrupoA(n, gDest); await persistNotaCalculada(n); }
     refrescarDetalle();
   } catch (e) { toast('No se pudo mover: ' + e.message, 'err'); }
+}
+// GG: soltar un disponible en ＋ Nuevo grupo crea un grupo con él
+async function evalDropNuevo(ev){
+  ev.preventDefault();
+  ev.currentTarget?.classList.remove('dragover');
+  const n = notas.find(x => x.id === ev.dataTransfer.getData('text/plain'));
+  if (!n) return;
+  if (n.grupo_id) {   // desde otro grupo: se cambia a uno nuevo (si su grupo no está terminado)
+    if (grupoTerminado(grupos.find(x => x.id === n.grupo_id))) return;
+  } else if (!estDisponible(n)) return;
+  grupoSelIds.delete(n.id);
+  await crearGrupoCon([n.id]);
+}
+// GG: soltar un integrante sobre Disponibles lo saca de su grupo (como al eliminar un grupo: conserva sus valores)
+async function evalDropDisponibles(ev){
+  ev.preventDefault();
+  ev.currentTarget?.classList.remove('dragover');
+  const n = notas.find(x => x.id === ev.dataTransfer.getData('text/plain'));
+  if (!n || !n.grupo_id) return;
+  const g = grupos.find(x => x.id === n.grupo_id);
+  if (grupoTerminado(g)) { toast('Ese grupo tiene la evaluación terminada. Reábrelo primero.', 'err'); return; }
+  try {
+    n.grupo_id = null; n.nota_excepcion = false; n.objetivo_excepcion = false;
+    await evalPersistNotasRows([n]);
+    refrescarDetalle();
+    if (n.nota != null) toast('Salió del grupo con su nota; no vuelve a Disponibles porque ya está evaluado.', 'ok');
+  } catch (e) { toast('No se pudo sacar del grupo: ' + e.message, 'err'); }
 }
 
 async function evalRenombrarGrupo(gid, nombre){
