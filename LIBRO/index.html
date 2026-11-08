@@ -228,6 +228,7 @@
   .gm-disp{border:1px dashed transparent;border-radius:10px;padding:2px 4px;margin:0 -4px}
   .gm-disp.dragover{border-color:var(--acc);background:rgba(76,175,80,.08)}
   .gm-chk[draggable="true"]{cursor:grab}
+  .gm-chk[draggable="true"]:hover{border-color:var(--acc)}
   .grupo-col h4{margin:0 0 6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:6px}
   .grupo-col h4 input{font:inherit;font-size:13px;padding:3px 6px}
   .grupo-miembros{list-style:none;margin:6px 0 8px;padding:0;min-height:22px}
@@ -1857,37 +1858,28 @@ function renderGruposCard(){ const c = document.getElementById('grupos-card'); i
 function gruposCardBody(){
   const cerrada = evalActual.estado === 'cerrado';
   const disponibles = notas.filter(estDisponible).sort(cmpEstudiantes(n => n.estudiante, n => posMap[n.estudiante_id]));
-  // solo cuentan como seleccionados los que siguen disponibles
-  grupoSelIds = new Set([...grupoSelIds].filter(id => disponibles.some(n => n.id === id)));
-  const selCount = grupoSelIds.size;
-
+  // GG: los grupos se arman solo arrastrando (sin casillas ni botones, PO 2026-11-08)
   const listaDisp = disponibles.length
     ? `<div class="gm-grid">${disponibles.map(n => `
-        <label class="gm-chk ${grupoSelIds.has(n.id) ? 'on' : ''}" ${cerrada ? '' : `draggable="true" ondragstart="evalDragStart(event,'${n.id}')" title="Arrástralo a un grupo o a ＋ Nuevo grupo"`}>
-          <input type="checkbox" ${grupoSelIds.has(n.id) ? 'checked' : ''} ${cerrada ? 'disabled' : ''} onchange="evalToggleSel('${n.id}',this.checked)">
+        <div class="gm-chk" ${cerrada ? '' : `draggable="true" ondragstart="evalDragStart(event,'${n.id}')" title="Arrástralo a un grupo o a ＋ Nuevo grupo"`}>
           <span>${esc(nombreDe(n.estudiante))}</span>${ausenteHoyHTML(n.estudiante_id)}
-        </label>`).join('')}</div>`
+        </div>`).join('')}</div>`
     : '<p class="grupo-col-vacio">No hay estudiantes disponibles (todos están agrupados o evaluados).</p>';
+  const acciones = '';
 
-  const acciones = (cerrada || disponibles.length === 0) ? '' : `
-    <div class="row" style="margin-top:8px;gap:8px">
-      ${selCount >= 1 ? `<button class="btn" onclick="evalCrearGrupoDesdeSeleccion(this)">＋ Crear grupo (${selCount})</button>` : '<span class="hint">Selecciona estudiantes para crear un grupo.</span>'}
-      ${selCount === 1 ? `<button class="btn primary" title="Un grupo con solo este estudiante: se le liga canción o texto y se evalúa como un grupo" onclick="evalGrupoDeUnoSel(this)">👤 Grupo de 1</button>` : ''}
-    </div>`;
-
-  // GG: tarjeta vacía para soltar a un disponible y crear un grupo con él
+  // GG: tarjeta vacía, al comienzo, para soltar a un estudiante y crear un grupo con él
   const nuevo = cerrada ? '' : `
     <div class="grupo-col grupo-nuevo" ondragover="event.preventDefault();this.classList.add('dragover')"
          ondragleave="this.classList.remove('dragover')" ondrop="evalDropNuevo(event)">＋ Nuevo grupo<small>suelta aquí a un estudiante</small></div>`;
   const cols = (grupos.length || nuevo)
-    ? `<div class="grupos-row">${grupos.map(g => grupoColHTML(g, cerrada)).join('')}${nuevo}</div>`
+    ? `<div class="grupos-row">${nuevo}${grupos.map(g => grupoColHTML(g, cerrada)).join('')}</div>`
     : '<p class="grupo-col-vacio">Aún no hay grupos creados.</p>';
   // GG: soltar sobre Disponibles saca al estudiante de su grupo
   const zonaDisp = cerrada ? '' : `ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="evalDropDisponibles(event)"`;
 
   return `
     <p class="sec-title" style="margin:0 0 6px">Grupos de trabajo</p>
-    <p class="hint" style="margin:0 0 8px">Arrastra estudiantes a un grupo o a ＋ Nuevo grupo (o selecciónalos y crea el grupo). 👤 Grupo de 1 es para quien trabaja aparte. Para sacar a alguien de un grupo, arrástralo de vuelta a Disponibles.</p>
+    <p class="hint" style="margin:0 0 8px">Arrastra a cada estudiante a un grupo o a ＋ Nuevo grupo (un grupo de 1 sirve para quien trabaja aparte). Para sacarlo de un grupo, arrástralo de vuelta a Disponibles.</p>
     <div class="gm-disp" ${zonaDisp}>
     <p class="gm-sub">Disponibles (${disponibles.length})</p>
     ${listaDisp}

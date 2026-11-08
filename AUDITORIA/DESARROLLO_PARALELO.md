@@ -8987,3 +8987,7 @@ canción ni texto en el Libro; armar grupos solo con casillas es lento.*
   Prueba (navegador, Sexto, "Creación de historia de terror", con el guardado simulado para no tocar datos): sumar a
   un grupo, soltar en ＋ Nuevo grupo (crea "Grupo 14"), sacar de vuelta a Disponibles y 👤 Grupo de 1 ("Cristóbal",
   con 🎵 Agregar canción o texto…); en Supabase no quedó nada.
+- **Ajuste (PO 2026-11-08):** sobran las casillas y los botones "＋ Crear grupo" y "👤 Grupo de 1": los grupos se arman
+  **solo arrastrando** (un grupo de 1 = soltar a un estudiante en ＋ Nuevo grupo). La tarjeta **＋ Nuevo grupo va
+  primera**, antes de los grupos, para no tener que bajar. Prueba (navegador, Sexto): sin casillas ni botones y
+  ＋ Nuevo grupo primera.
