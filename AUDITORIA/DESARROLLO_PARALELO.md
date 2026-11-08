@@ -9053,7 +9053,7 @@ no está"; "resumir todos los botones hover en un menú al final de la fila").*
   ni resultados; la rúbrica y sus 3 criterios y las filas de estudiantes siguen intactas desde el 22/10 (no hubo
   borrado). Las bitácoras de Cuarto no mencionan esa evaluación. Nada que recuperar.
 
-### GK. ✂ Adaptaciones de la canción (versión recortada) en la Ficha — ETAPAS 1 Y 2 HECHAS (falta probar en uso)
+### GK. ✂ Adaptaciones de la canción (versión recortada) en la Ficha — ETAPAS 1, 2 Y 3 HECHAS (falta probar en uso)
 *Origen: PO 2026-11-08 ("una especie de versión recortada de la canción, omitiendo partes, aquí mismo en el
 tempomapper"). Necesidad: tocar y cantar una canción más corta (clase, acto) sin editar el audio.*
 - **Concepto (PO):** una **Adaptación** es una versión de la canción que se salta partes. **No es lo mismo que ✂ Omitir
@@ -9109,3 +9109,21 @@ tempomapper"). Necesidad: tocar y cantar una canción más corta (clase, acto) s
   sonando desde 3:41 el reloj pasa de 3:44 a 4:06,6 justo al cortar, y a 0,8× de 5:05,3 a 5:14,9. Cantar (canción de
   prueba): 3 versos tenues, tocar dentro de lo omitido va a donde sigue, sonando salta de 0:17,1 a 0:31,9. Menú ✈:
   "✂ Versión" con las dos opciones; al elegir la adaptación el link suma `&v=`.
+- **Etapa 3 HECHA (2026-11-08, PO: "sigamos con e3"; falta probar en uso):** en el **Editor de Arreglos**, ⑤ Grabación
+  suma **✂ Adaptación** (Canción completa / cada adaptación de la Ficha con algo omitido; `A.audio.adaptacion`). El
+  arreglo se arma igual sobre la canción completa y, al desplegarlo para el Piano, se **comprime** (`comprimir`): las
+  notas y acordes de lo omitido se quitan, todo lo que sigue se corre hacia adelante, las secciones que quedan enteras
+  fuera desaparecen y el largo baja; el archivo público lleva `audio.saltos` (segundos) y `audio.adaptacion` (nombre). En
+  la Estructura, una sección que la adaptación deja fuera dice "✂ no va en la adaptación"; la duración del arreglo es la
+  comprimida. La vista previa trabaja en la línea comprimida y el editor traduce lo que manda (pulso que suena, ✂ Omitir
+  y restaurar, tocar desde una sección) a la canción completa (`aReal` / `aComprimido`): el ✂ Omitir del arreglo sigue
+  guardándose en su lugar real. **Piano del estudiante** (`PIANO/`): con `audio.saltos` la grabación salta esos tramos
+  (`GrabacionTono.tocar(…, saltos)`) y el reloj del piano (pulso ↔ segundo) pasa por los mismos cortes (`pReal` /
+  `pComp`): las notas caen seguidas, sin hueco. `PIANO/` y `TEMPO/` piden `grabacion-tono.js` y `tempo-mapa.js` con `?v=gk`.
+- **Lugares (regla 11):** Editor de Arreglos (y su vista previa) · Piano del estudiante con arreglo (`p/?r=`). El Piano
+  con melodía (`p/?a=`) no cambia (no lleva grabación con mapa).
+- **Prueba (navegador, "COQUETA", arreglo "Acompañamiento piano", adaptación de prueba solo en memoria, sin guardar):**
+  omitir el Coro 1 (c. 25–40) → la lista ✂ aparece; la Estructura marca "✂ no va en la adaptación"; el despliegue pasa
+  de 608 a 544 negras y de 391 a 295 notas, "Dame" 1 queda en el pulso 96 (antes 160); en la vista previa la grabación
+  salta de 0:46,5 a 1:11,3 (el corte es 0:46,7 → 1:11,0) mientras el pulso del piano sigue parejo (95,4 → 96,7); un
+  ✂ Omitir hecho en la vista previa se guarda en su pulso real (160–168) y se dibuja en el comprimido (96–104).

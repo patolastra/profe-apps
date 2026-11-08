@@ -17,8 +17,8 @@
   ?vista=editor: la vista previa del Editor de Arreglos (ARREGLO/), que le manda los datos por mensaje.
 -->
 <script src="../comun/un-sonido.js"></script>
-<script src="../comun/grabacion-tono.js"></script>
-<script src="../comun/tempo-mapa.js"></script>
+<script src="../comun/grabacion-tono.js?v=gk"></script>
+<script src="../comun/tempo-mapa.js?v=gk"></script>
 <style>
     :root { --bg: #0b1020; --panel: #151c2f; --borde: #2a3550; --texto: #e2e8f0; --tenue: #94a3b8; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -289,8 +289,23 @@ async function prepararMapa() {
     if (mapaClave === clave) MAPA = m;
 }
 const offMapa = () => MAPA.pulsoDeCompas(MEL.audio.desde || 1);
-const srcDePulso = p => MAPA ? MAPA.segDePulso(p / MAPAF() + offMapa()) : (MEL.audio.inicio || 0) + p * spb();
-const pulsoDeSrc = s => MAPA ? (MAPA.pulsoDeSeg(s) - offMapa()) * MAPAF() : (s - (MEL.audio.inicio || 0)) / spb();
+// ✂ Adaptación (GK): el arreglo llega ya comprimido (sin lo omitido); la grabación salta esos tramos (MEL.audio.saltos, en
+// segundos). cortes = [{ a, b, v }] en negras del arreglo sin comprimir (v = dónde cae a en la línea comprimida).
+let cortesC = [], cortesClave = '';
+function cortesPiano() {
+    const L = MAPA && MEL?.audio?.saltos || [], k = MAPA ? mapaClave + JSON.stringify(L) + (MEL.audio.desde || 1) : '';
+    if (k === cortesClave) return cortesC;
+    cortesClave = k;
+    const real = s => (MAPA.pulsoDeSeg(s) - offMapa()) * MAPAF();
+    cortesC = L.map(x => ({ a: real(x.desde), b: real(x.hasta) })).filter(x => x.b > x.a).sort((x, y) => x.a - y.a);
+    let q = 0; for (const x of cortesC) { x.v = x.a - q; q += x.b - x.a; }
+    return cortesC;
+}
+const pReal = v => { let r = v; for (const x of cortesPiano()) { if (x.v <= v + 1e-9) r += x.b - x.a; else break; } return r; };
+const pComp = p => { let q = 0; for (const x of cortesPiano()) { if (p >= x.b) q += x.b - x.a; else if (p >= x.a) return x.v; else break; } return p - q; };
+const saltosArr = () => cortesPiano().length ? MEL.audio.saltos : null;
+const srcDePulso = p => MAPA ? MAPA.segDePulso(pReal(p) / MAPAF() + offMapa()) : (MEL.audio.inicio || 0) + p * spb();
+const pulsoDeSrc = s => MAPA ? pComp((MAPA.pulsoDeSeg(s) - offMapa()) * MAPAF()) : (s - (MEL.audio.inicio || 0)) / spb();
 const inicioSeccion = () => (MEL.secciones?.[secSel]?.t || 0) / 4;
 const audioUrl = () => MEL.audio && (MEL.audio[rol] || MEL.audio.melodia || MEL.audio.karaoke);
 function pulsoArr() {
@@ -328,7 +343,7 @@ async function tocarArr(desde = null, precuenta = true) {
         if (rep !== r) { aviso.textContent = ''; return; }
         r.g = grab;
         r.g.alTerminar = () => { if (rep === r) detenerArr(); };
-        await r.g.tocar(Math.max(0, srcDePulso(p0)), MEL.audio.semitonos || 0, velocidad);
+        await r.g.tocar(Math.max(0, srcDePulso(p0)), MEL.audio.semitonos || 0, velocidad, saltosArr());
         r.cargando = false; aviso.textContent = '';
         if (rep !== r) { r.g.detener(); return; }
         r.hasta = Math.max(p0, pulsoDeSrc(Math.max(0, srcDePulso(p0))));
