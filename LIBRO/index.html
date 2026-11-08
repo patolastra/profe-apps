@@ -229,6 +229,10 @@
   .gm-disp.dragover{border-color:var(--acc);background:rgba(76,175,80,.08)}
   .gm-chk[draggable="true"]{cursor:grab}
   .gm-chk[draggable="true"]:hover{border-color:var(--acc)}
+  /* GG: botones del grupo solo al pasar el mouse (guardan su espacio) */
+  .grupo-col .gc-hover, .grupo-col .gt-x{visibility:hidden}
+  .grupo-col:hover .gc-hover, .grupo-col:hover .gt-x{visibility:visible}
+  .grupo-miembros li.arrastrable{cursor:grab}
   .grupo-col h4{margin:0 0 6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:6px}
   .grupo-col h4 input{font:inherit;font-size:13px;padding:3px 6px}
   .grupo-miembros{list-style:none;margin:6px 0 8px;padding:0;min-height:22px}
@@ -1874,12 +1878,12 @@ function gruposCardBody(){
   const cols = (grupos.length || nuevo)
     ? `<div class="grupos-row">${nuevo}${grupos.map(g => grupoColHTML(g, cerrada)).join('')}</div>`
     : '<p class="grupo-col-vacio">Aún no hay grupos creados.</p>';
-  // GG: soltar sobre Disponibles saca al estudiante de su grupo
-  const zonaDisp = cerrada ? '' : `ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="evalDropDisponibles(event)"`;
+  // GG: soltar fuera de las tarjetas (también sobre Disponibles) saca al estudiante de su grupo (ver evalDragStart)
+  const zonaDisp = cerrada ? '' : `ondragover="if(arrastreMiembro)this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')"`;
 
   return `
     <p class="sec-title" style="margin:0 0 6px">Grupos de trabajo</p>
-    <p class="hint" style="margin:0 0 8px">Arrastra a cada estudiante a un grupo o a ＋ Nuevo grupo (un grupo de 1 sirve para quien trabaja aparte). Para sacarlo de un grupo, arrástralo de vuelta a Disponibles.</p>
+    <p class="hint" style="margin:0 0 8px">Arrastra a cada estudiante a un grupo o a ＋ Nuevo grupo (un grupo de 1 sirve para quien trabaja aparte). Para sacarlo de un grupo, suéltalo fuera de las tarjetas.</p>
     <div class="gm-disp" ${zonaDisp}>
     <p class="gm-sub">Disponibles (${disponibles.length})</p>
     ${listaDisp}
@@ -1900,13 +1904,13 @@ function grupoColHTML(g, cerrada){
     <div class="grupo-col ${terminado ? 'evaluado' : ''}" data-gid="${g.id}"
          ${reorg ? `ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="evalDrop(event,'${g.id}')"` : ''}>
       <h4>
-        ${reorg ? `<input value="${esc(g.nombre)}" onchange="evalRenombrarGrupo('${g.id}',this.value)">` : `<span>${esc(g.nombre)}</span>`}
+        <span>${esc(g.nombre)}</span>
         <span class="grupo-badge ${terminado ? 'eval' : ''}">${terminado ? '🔒 Terminada' : miembros.length}</span>
       </h4>
       ${tipicoHTML(g, reorg)}
       <ul class="grupo-miembros">${lis}</ul>
-      <div class="row" style="gap:6px">
-        <button class="btn primary mini" onclick="evalAbrirEvalGrupo('${g.id}')">${terminado ? 'Ver grupo' : (cerrada ? 'Ver grupo' : 'Evaluar grupo')}</button>
+      <div class="row gc-hover" style="gap:6px">
+        <button class="btn primary mini" onclick="evalAbrirEvalGrupo('${g.id}')">${terminado ? 'Ver grupo' : (cerrada ? 'Ver grupo' : 'Evaluar')}</button>
         ${(terminado && !cerrada) ? `<button class="btn warn mini" onclick="evalReabrirGrupo('${g.id}')">Reabrir evaluación</button>` : ''}
         ${reorg ? `<button class="btn danger mini" title="Eliminar grupo" onclick="evalEliminarGrupo('${g.id}')">🗑</button>` : ''}
       </div>
@@ -1931,7 +1935,9 @@ async function _evalCrearGrupoDesdeSeleccion(){
 async function crearGrupoCon(ids, nombre){
   try {
     const gid = idCreacion('grupo', { ev: evalActual.id, ids: [...ids].sort() });
-    const { data: g } = await insertarUnaVez('libro_evaluacion_grupos', { id: gid, evaluacion_id: evalActual.id, nombre: nombre || ('Grupo ' + (grupos.length + 1)) });
+    // Nombre automático: el primer "Grupo N" libre (GG: los grupos no se nombran a mano)
+    let num = 1; while (grupos.some(x => x.nombre === 'Grupo ' + num)) num++;
+    const { data: g } = await insertarUnaVez('libro_evaluacion_grupos', { id: gid, evaluacion_id: evalActual.id, nombre: nombre || ('Grupo ' + num) });
     if (!grupos.some(x => x.id === g.id)) grupos.push(g);
     const miembros = ids.map(id => notas.find(n => n.id === id));
     miembros.forEach(n => { n.grupo_id = g.id; n.nota_excepcion = false; n.objetivo_excepcion = false;
@@ -1964,9 +1970,23 @@ function evalEvaluarIndividualSel(){
 }
 
 // ── Etapa A: drag & drop entre grupos NO evaluados ──
-function evalDragStart(ev, notaId){ ev.dataTransfer.setData('text/plain', notaId); ev.dataTransfer.effectAllowed = 'move'; }
+// GG: un integrante que se suelta fuera de toda tarjeta (en cualquier parte de la página) sale de su grupo
+let arrastreMiembro = null;   // id de la nota del integrante que se está arrastrando
+function evalDragStart(ev, notaId){
+  ev.dataTransfer.setData('text/plain', notaId); ev.dataTransfer.effectAllowed = 'move';
+  const n = notas.find(x => x.id === notaId);
+  arrastreMiembro = n && n.grupo_id ? notaId : null;
+}
+document.addEventListener('dragover', ev => { if (arrastreMiembro) ev.preventDefault(); });
+document.addEventListener('drop', ev => {
+  if (!arrastreMiembro) return;
+  document.querySelectorAll('.dragover').forEach(e => e.classList.remove('dragover'));
+  if (ev.target.closest?.('.grupo-col')) { ev.preventDefault(); return; }   // sobre una tarjeta que no recibe (terminada): nada
+  evalDropDisponibles(ev);
+});
+document.addEventListener('dragend', () => { arrastreMiembro = null; });
 async function evalDrop(ev, gidDestino){
-  ev.preventDefault();
+  ev.preventDefault(); ev.stopPropagation();
   const col = ev.currentTarget; if (col) col.classList.remove('dragover');
   const notaId = ev.dataTransfer.getData('text/plain');
   const n = notas.find(x => x.id === notaId); if (!n || n.grupo_id === gidDestino) return;
@@ -1988,7 +2008,7 @@ async function evalDrop(ev, gidDestino){
 }
 // GG: soltar un disponible en ＋ Nuevo grupo crea un grupo con él
 async function evalDropNuevo(ev){
-  ev.preventDefault();
+  ev.preventDefault(); ev.stopPropagation();
   ev.currentTarget?.classList.remove('dragover');
   const n = notas.find(x => x.id === ev.dataTransfer.getData('text/plain'));
   if (!n) return;
@@ -2001,7 +2021,7 @@ async function evalDropNuevo(ev){
 // GG: soltar un integrante sobre Disponibles lo saca de su grupo (como al eliminar un grupo: conserva sus valores)
 async function evalDropDisponibles(ev){
   ev.preventDefault();
-  ev.currentTarget?.classList.remove('dragover');
+  ev.currentTarget?.classList?.remove('dragover');
   const n = notas.find(x => x.id === ev.dataTransfer.getData('text/plain'));
   if (!n || !n.grupo_id) return;
   const g = grupos.find(x => x.id === n.grupo_id);
@@ -2065,7 +2085,7 @@ function tipicoHTML(g, editable){
   if (!its.length && !editable) return '';
   return `<div class="grupo-tips">
       ${its.map(it => `<div class="grupo-tip"><span class="gt-txt" title="${esc(it.txt + (it.sub ? ' · ' + it.sub : ''))}">${it.ico} ${esc(it.txt)}</span>${editable ? `<button class="gt-x" title="Quitar" onclick="tipQuitar('${g.id}',${it.k})">✕</button>` : ''}</div>`).join('')}
-      ${editable ? `<button class="btn mini" onclick="tipAbrir('${g.id}')">${its.length ? '＋ Agregar' : '🎵 Agregar canción o texto…'}</button>` : ''}
+      ${editable ? `<button class="btn mini gc-hover" onclick="tipAbrir('${g.id}')">${its.length ? '＋ Agregar' : '🎵 Agregar canción o texto…'}</button>` : ''}
     </div>`;
 }
 async function tipAbrir(gid){

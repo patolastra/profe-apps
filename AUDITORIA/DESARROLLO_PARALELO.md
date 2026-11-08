@@ -8991,3 +8991,10 @@ canción ni texto en el Libro; armar grupos solo con casillas es lento.*
   **solo arrastrando** (un grupo de 1 = soltar a un estudiante en ＋ Nuevo grupo). La tarjeta **＋ Nuevo grupo va
   primera**, antes de los grupos, para no tener que bajar. Prueba (navegador, Sexto): sin casillas ni botones y
   ＋ Nuevo grupo primera.
+- **Ajuste 2 (PO 2026-11-08, interfaz más limpia):** el nombre del grupo ya no se escribe: se pone solo, el primer
+  "Grupo N" libre. "Evaluar grupo" dice **Evaluar**; Evaluar, 🗑, 🎵 Agregar canción o texto / ＋ Agregar y el ✕ de cada
+  ítem aparecen **solo al pasar el mouse** por el grupo (guardan su espacio). Para sacar a un integrante basta
+  **soltarlo fuera de las tarjetas**, en cualquier parte de la página; sobre otra tarjeta cambia de grupo; sobre un
+  grupo terminado no pasa nada. Prueba (navegador, Sexto, guardado simulado): sale del grupo soltándolo en el fondo,
+  cambia de grupo soltándolo en otra tarjeta, el grupo nuevo se llama "Grupo 15", los botones ocultos y visibles al
+  pasar el mouse.
