@@ -9053,6 +9053,17 @@ no está"; "resumir todos los botones hover en un menú al final de la fila").*
   ni resultados; la rúbrica y sus 3 criterios y las filas de estudiantes siguen intactas desde el 22/10 (no hubo
   borrado). Las bitácoras de Cuarto no mencionan esa evaluación. Nada que recuperar.
 
+### GJ2. Ficha — onda atrasada y cifra de un solo compás — HECHA (falta probar en uso)
+*Origen: PO 2026-11-08 ("no calza lo que veo con lo que escucho", "Estrechez de Corazón"; "modificar cifras de compases
+pero puntualmente").*
+- **Onda atrasada (40c3e95):** la onda se armaba con un pico cada 44 muestras en vez de 44,1 por milésima (a 44,1 kHz):
+  se corría ~0,8 s a los 5:40 respecto de lo que suena. Ahora cada pico es una milésima exacta. Solo el dibujo cambió
+  (pulsos, clic y 🎯 Ajustar a los golpes estaban bien). Comprobado con ffmpeg: el silencio real va de 5:37,8 a 5:38,6.
+- **Cifra de un solo compás (bd3aefe):** el cuadro del cambio de cifra suma **Solo este compás** (parte elegido) / **Hasta
+  el final**; "solo" agrega la vuelta a la cifra anterior en el compás siguiente (`TempoMapa.cambiarCifra` con `hasta`);
+  en "Cifras:" se ve "(solo)" y la ✕ lo quita entero. La Biblioteca sigue cambiando la cifra de toda la canción.
+  Prueba con datos (node): mantener compases / pulsos, hasta el final y con otro cambio justo después.
+
 ### GK. ✂ Adaptaciones de la canción (versión recortada) en la Ficha — ETAPAS 1, 2 Y 3 HECHAS (falta probar en uso)
 *Origen: PO 2026-11-08 ("una especie de versión recortada de la canción, omitiendo partes, aquí mismo en el
 tempomapper"). Necesidad: tocar y cantar una canción más corta (clase, acto) sin editar el audio.*
@@ -9138,7 +9149,7 @@ un compás").*
 - **Prueba (navegador, "Estrechez de Corazón", sin guardar):** "Fin intro marcha" del compás 36 al 34 (justo en el 1);
   arrastrada más allá de "Intro marcha" (c. 14) se queda en el 15; compases intactos; ↶ dos veces vuelve al 36.
 
-### GM. ✂ Adaptaciones — apagar compases con un clic, sin tocar la estructura — HECHA (falta probar en uso)
+### GM. ✂ Adaptaciones — apagar compases con Ctrl + clic, sin tocar la estructura — HECHA (falta probar en uso)
 *Origen: PO 2026-11-08 ("para hacer una adaptación tengo que destruir la estructura de la canción… quiero omitir secciones
 o compases aislados sin destruir la sección original"). El PO había creado secciones ficticias ("Recorte", "marcha tb",
 "recrote") para omitir partes de "Intro marcha" en "Estrechez de Corazón". Arrastrar sobre la onda ya omitía sin tocar
