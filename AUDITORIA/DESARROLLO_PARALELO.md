@@ -9052,3 +9052,21 @@ no está"; "resumir todos los botones hover en un menú al final de la fila").*
   Lagos tiene datos, todos del 2026-11-08 (rúbrica 6,7 → reevaluado 6,3, comentario). Los otros 24 nunca tuvieron nota
   ni resultados; la rúbrica y sus 3 criterios y las filas de estudiantes siguen intactas desde el 22/10 (no hubo
   borrado). Las bitácoras de Cuarto no mencionan esa evaluación. Nada que recuperar.
+
+### GK. ✂ Adaptaciones de la canción (versión recortada) en la Ficha — PROPUESTA (falta decisión del PO)
+*Origen: PO 2026-11-08 ("una especie de versión recortada de la canción, omitiendo partes, aquí mismo en el
+tempomapper"). Necesidad: tocar y cantar una canción más corta (clase, acto) sin editar el audio.*
+- **Concepto (PO):** una **Adaptación** es una versión de la canción que se salta partes. **No es lo mismo que ✂ Omitir
+  del Arreglo** (FR): ese recorta módulos de un arreglo de un instrumento; un arreglo puede partir de una adaptación y
+  además omitir lo suyo (dos niveles). Tampoco es la "Versión" de 📁 Archivos (otra grabación, DU/GE).
+- **Decisiones del PO (2026-11-08):** la usan **todas** las apps de la canción (Entrenador, Cantar, Arreglo / Piano…);
+  se omite **por secciones y por compases**; **sin exportar MP3**.
+- **Propuesta técnica (Claude):** se guarda en la 📋 Ficha de la canción (`contenido` del asset `tempo`, sin tablas
+  nuevas): `adaptaciones: [{ id, nombre, omitir: [{ desde, hasta }] }]` en compases (una sección = sus compases). Al
+  tocar una adaptación, la grabación original salta esos tramos; `TempoMapa` sabe qué compás suena. En la Ficha: crear,
+  nombrar, marcar tramos (secciones con ✕ o arrastrando sobre la onda) y escucharla. Cada app ofrece "Original /
+  <adaptación>"; el link de Cantar la lleva.
+- **Etapas propuestas:** 1) Ficha (crear y escuchar) · 2) Entrenador y Cantar (la letra salta los versos omitidos) ·
+  3) Arreglo y Piano (un arreglo elige su adaptación; su ✂ Omitir sigue aparte).
+- **Por decidir:** el nombre visible (Adaptación / Versión recortada / Corte); si una canción sin tempo marcado puede
+  tener adaptaciones (por segundos); si la adaptación se elige por curso (sesión del Entrenador) o en cada uso.
