@@ -8893,7 +8893,7 @@ tienen segunda voz, con otro color").*
 - **Recomendación al PO:** no seguir dentro de Profe Apps por ahora; usar Ultimate Vocal Remover en el computador y
   subir el resultado como Karaoke / 🎵 2ª voz. La página `SEPARAR/` queda guardada (sin enlaces) como referencia.
 
-### GE. ✂ Extractos y versiones desde Compartir del celular (WhatsApp, grabadora) — HECHA (falta probar en el teléfono)
+### GE. ✂ Extractos y versiones desde Compartir del celular (WhatsApp, grabadora) — HECHA (probada por el PO en el teléfono, 2026-11-07)
 *Origen: PO 2026-11-07 ("desde la pwa… audios tipo extracto o versiones, desde audios de wasap o de la grabadora de
 sonidos, mediante compartir… seleccionar el extracto dentro del audio recibido (cortar)").*
 - **Necesidad:** los audios de la clase llegan por WhatsApp o quedan en la grabadora del teléfono; hoy hay que pasarlos
@@ -8949,3 +8949,20 @@ sonidos, mediante compartir… seleccionar el extracto dentro del audio recibido
   sugerencias; Enter / salir guarda, Esc cancela. La versión muestra su texto antes de "no se comparte". Prueba
   (Workspace): pestaña verde al sonar y se apaga al pausar; ✎ guardó "Texto de prueba ✎" en Supabase y se devolvió a
   "Prueba".
+
+### GF. Navegación Biblioteca ↔ Sesiones, barra de la sesión, teclado del Workspace y Otros audios — HECHA
+*Origen: PO 2026-11-07 (pedidos sueltos durante el uso; implementados y subidos uno a uno).*
+- **Biblioteca:** sin curso elegido, el botón Practicar dice **🎵 Sesiones** y abre la lista de sesiones (9c999cc); un
+  extracto o versión sin curso se guarda directo (antes obligaba a elegir "Sin curso"). **← Biblioteca** en la vista
+  Sesiones y **📚** dentro de una sesión (f26a885).
+- **Pestaña de paso (opción 1 del PO):** la sesión que abre el Plan (`?practicar=` en una pestaña del Workspace) al
+  salir (← / Esc = Sesiones, 📚 = Biblioteca) va a la pestaña Biblioteca fija y se cierra (`ws-salir` →
+  `ws-ir {vista}`; 8c35387).
+- **Barra de la sesión:** solo el nombre de la sesión, más grande; al pasar el mouse, con la portada de la letra fuera
+  de la vista, un cuadro con canción y artista (1548dbe, 803a633).
+- **Workspace — teclado:** la pestaña que se ve recibe el teclado (Espacio = play/pausa en el Entrenador) al abrirla y
+  al cambiar de pestaña (1933906). **Rompió la clave** (los números iban a la pestaña de atrás): ahora el teclado pasa
+  a la pestaña recién al desbloquear (8600b2b).
+- **🎧 Otros audios:** tarjetas de alto fijo y barra fácil de tomar y arrastrar, también con el dedo (5858c41). Loop,
+  pestaña verde y ✎ del texto: ver GE.
+- Lugares: Biblioteca, sesiones del Entrenador (Biblioteca, pestaña del Plan, mínimo y celular para la barra), Workspace.
