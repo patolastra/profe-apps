@@ -11,6 +11,8 @@
 //   sinGuia (opcional, deuda FI): true = sin "Generar guía QR" (el QR del Lector).
 //   plazo (opcional, deuda EQ): { valor: 'AAAA-MM-DD' | null, guardar: async (fecha | null) => bool } → el menú suma
 //   "📅 Disponible hasta" (último día en que el link funciona; vacío = sin fecha límite).
+//   variante (opcional, deuda GK): { etiqueta, opciones: [{ valor, texto }], valor, url: valor => link } → una lista arriba
+//   del menú (p. ej. ✂ la canción completa o una adaptación); el link, el QR y la guía usan el elegido.
 //   Compartir.ICONO  → el avioncito de papel (SVG) para el botón
 // Librerías (cdnjs, se cargan solo al usarlas): qrcode-generator (QR) y jsPDF (PDF).
 // ═══════════════════════════════════════════════════════════════════════
@@ -85,7 +87,12 @@ const Compartir = (() => {
         menu = document.createElement('div');
         menu.className = 'cmp-menu';
         menu._boton = boton;
+        if (op.variante) op.url = op.variante.url(op.variante.valor ?? '');
         menu.innerHTML = `
+            ${op.variante ? `<div class="cmp-plazo cmp-variante">
+                <label>${esc(op.variante.etiqueta)}</label>
+                <select>${op.variante.opciones.map(o => `<option value="${esc(o.valor)}"${o.valor === (op.variante.valor ?? '') ? ' selected' : ''}>${esc(o.texto)}</option>`).join('')}</select>
+            </div>` : ''}
             <button data-a="link">🔗 Copiar link</button>
             <button data-a="qr">▦ Generar QR</button>
             ${op.sinGuia ? '' : '<button data-a="guia">🖨️ Generar guía QR</button>'}
@@ -95,6 +102,9 @@ const Compartir = (() => {
                 <div class="cmp-plazo-est">${op.plazo.valor ? 'El link deja de funcionar después de ese día' : 'Sin fecha límite'}</div>
             </div>` : ''}`;
         document.body.appendChild(menu);
+        if (op.variante) menu.querySelector('.cmp-variante select').addEventListener('change', e => {
+            op.variante.valor = e.target.value; op.url = op.variante.url(e.target.value);
+        });
         if (op.plazo) {
             const inp = menu.querySelector('.cmp-plazo input'), est = menu.querySelector('.cmp-plazo-est');
             const guardar = async (f) => {

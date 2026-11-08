@@ -9053,7 +9053,7 @@ no está"; "resumir todos los botones hover en un menú al final de la fila").*
   ni resultados; la rúbrica y sus 3 criterios y las filas de estudiantes siguen intactas desde el 22/10 (no hubo
   borrado). Las bitácoras de Cuarto no mencionan esa evaluación. Nada que recuperar.
 
-### GK. ✂ Adaptaciones de la canción (versión recortada) en la Ficha — ETAPA 1 HECHA (falta probar en uso)
+### GK. ✂ Adaptaciones de la canción (versión recortada) en la Ficha — ETAPAS 1 Y 2 HECHAS (falta probar en uso)
 *Origen: PO 2026-11-08 ("una especie de versión recortada de la canción, omitiendo partes, aquí mismo en el
 tempomapper"). Necesidad: tocar y cantar una canción más corta (clase, acto) sin editar el audio.*
 - **Concepto (PO):** una **Adaptación** es una versión de la canción que se salta partes. **No es lo mismo que ✂ Omitir
@@ -9088,3 +9088,24 @@ tempomapper"). Necesidad: tocar y cantar una canción más corta (clase, acto) s
   6:07"; tocando desde 3:41, lo que suena pasa de 3:44,2 a 4:07,0 (el Interludio va de 3:44,5 a 4:06,6); arrastrar de
   5:05,3 a 5:12,6 → se ajusta a los compases 163–167 (5:05,5 a 5:12,9); arrastrar su borde → hasta el 1 del compás
   169; Supr lo quita y ↶ Deshacer lo devuelve; al volver a ⏱ Tempo no hay saltos ni se ve la fila ✂.
+- **Etapa 2 HECHA (2026-11-08, PO: "sigamos"; falta probar en uso):** el **Entrenador** (Biblioteca, sesión del curso,
+  Plan, mínimo, celular: el mismo código) muestra en su barra una lista **✂ Completa / ✂ <adaptación>** si la Ficha de
+  la canción tiene adaptaciones; se recuerda por canción en el equipo (`ent_adapt:<id>`). Con una elegida el reproductor
+  queda siempre activo y **salta lo omitido en la muestra exacta** (`comun/dos-grabaciones.js`: `saltos` + `alSaltar`,
+  la misma línea "virtual" con fundido de ~3 ms que `grabacion-tono.js`; también con tono y velocidad); el `<audio>`
+  —reloj de la letra— salta justo cuando se oye (`entSaltarReloj`, sin rehacer el motor) y, si queda dentro de lo
+  omitido (clic en un verso, loop, adelantar), pasa al final del tramo. Los versos omitidos van tenues (no los que entran
+  menos de 0,5 s antes del final de lo omitido: anacrusa o sincronía adelantada). La copia de la Pizarra recibe la
+  adaptación (`adapt`) y atenúa los mismos versos. **Cantar**: `l/?a=&n=&v=<id>` → lee los tramos de la Ficha pública
+  (`tempo/<id>.json`), los salta igual, atenúa sus versos y el título dice "Canción · <adaptación>"; si la adaptación ya
+  no existe, suena completa. **Compartir**: el ✈ de la Letra suma arriba **✂ Versión** (Canción completa / cada
+  adaptación) y el link, el QR y la guía llevan la elegida (`Compartir.abrir(…, { variante })`). Las páginas piden
+  `tempo-mapa.js`, `compartir.js(.css)` y `dos-grabaciones.js` con `?v=gk` (una copia vieja de `tempo-mapa.js` en la
+  Biblioteca borraría las adaptaciones al cambiar la tonalidad o la cifra). Sin cambios en Supabase.
+- **Lugares (regla 11):** Entrenador en todas sus versiones (mismo código; el celular no se probó en un teléfono) ·
+  copia de la Pizarra (sin sonido, solo los versos tenues) · Cantar. Sin adaptación elegida todo suena como antes.
+- **Prueba (navegador, sin guardar; adaptación de prueba solo en memoria):** "Estrechez de Corazón" con Interludio y
+  c. 163–167 omitidos → la lista ✂ aparece con "Completa / Versión corta"; tenue solo "Oh-oh, oh-oh, tu corazón" (5:12,5);
+  sonando desde 3:41 el reloj pasa de 3:44 a 4:06,6 justo al cortar, y a 0,8× de 5:05,3 a 5:14,9. Cantar (canción de
+  prueba): 3 versos tenues, tocar dentro de lo omitido va a donde sigue, sonando salta de 0:17,1 a 0:31,9. Menú ✈:
+  "✂ Versión" con las dos opciones; al elegir la adaptación el link suma `&v=`.

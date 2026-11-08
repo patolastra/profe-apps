@@ -13,11 +13,11 @@
     <script src="../comun/nombre-asset.js?v=ep3"></script>
     <link rel="stylesheet" href="../comun/archivos-curso.css?v=ej1">
     <script src="../comun/archivos-curso.js?v=fc1"></script>
-    <link rel="stylesheet" href="../comun/compartir.css?v=eq">
-    <script src="../comun/compartir.js?v=eq"></script>
-    <script src="../comun/dos-grabaciones.js"></script>
+    <link rel="stylesheet" href="../comun/compartir.css?v=gk">
+    <script src="../comun/compartir.js?v=gk"></script>
+    <script src="../comun/dos-grabaciones.js?v=gk"></script>
     <script src="../comun/un-sonido.js"></script>
-    <script src="../comun/tempo-mapa.js?v=ex2"></script>
+    <script src="../comun/tempo-mapa.js?v=gk"></script>
     <script src="../comun/tiempo-real.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
@@ -2024,6 +2024,8 @@
         /* Verso escondido: el texto real, muy borroso (ilegible; solo se intuye su largo). Mismo ancho
            que visible → la vista no salta al esconder/mostrar. */
         .ent-lyric-line.oculta { filter: blur(0.3em); }
+        .ent-lyric-line.omitida { opacity: .28; }   /* ✂ fuera de la adaptación elegida (GK) */
+        #ent-sel-adapt { max-width: 170px; }
         /* Verso coloreado (marcador de clase): SOLO el glow de PIZARRA — banda tenue que
            recorre el texto (background-clip:text). SIN salto/pop (eso era el "popup", que
            NO queremos). Todos los versos coloreados comparten fase global vía entResyncGlow().
@@ -3325,6 +3327,7 @@
             <input id="ent-segunda-vol" type="range" min="0" max="200" step="5" value="100" style="display:none"
                    title="Equilibrio 2ª voz / Melodía" oninput="entSegundaEquilibrio(this.value)"
                    ondblclick="event.stopPropagation(); this.value = 100; entSegundaEquilibrio(100)">
+            <select id="ent-sel-adapt" style="display:none" onchange="entElegirAdapt(this.value); this.blur()" title="✂ Adaptación: la canción completa o una versión recortada (de su Ficha)"></select>
             <button id="ent-btn-estr-movil" class="oculto" onclick="entEstrPantalla()" title="Estructura de la canción">🧩</button>
             <button id="ent-btn-oa-movil" class="oculto" onclick="entOaPantalla()" title="Otros audios: extractos y versiones">🎧</button>
             <button id="ent-btn-pitch" onclick="entTogglePitchInput()" title="Cambiar tono (−6 a +6 semitonos)">Pitch</button>
@@ -5973,7 +5976,11 @@ async function compartirCancion(cancionId, boton) {
     try { await escribirCancionPublica(c, hasta); }
     catch (e) { toast('No se pudo preparar la canción para los estudiantes: ' + (e.message || e)); return; }
     const url = `${CANTAR_LINK_ALUMNO}?a=${encodeURIComponent(c.id)}&n=${encodeURIComponent(c.nombre)}`;
-    Compartir.abrir(boton, { url, titulo: c.nombre, cancion: c.nombre, instrumento: 'Canción', sb,
+    // ✂ Adaptaciones (GK): el link puede llevar una versión recortada (Cantar la lee de la Ficha pública)
+    const adapt = entAdaptaciones(c).filter(a => a.omitir.length);
+    const variante = adapt.length ? { etiqueta: '✂ Versión', valor: '', opciones: [{ valor: '', texto: 'Canción completa' }, ...adapt.map(a => ({ valor: a.id, texto: a.nombre }))],
+        url: v => v ? `${url}&v=${encodeURIComponent(v)}` : url } : null;
+    Compartir.abrir(boton, { url, variante, titulo: c.nombre, cancion: c.nombre, instrumento: 'Canción', sb,
         plazo: { valor: hasta, guardar: async (f) => { await escribirCancionPublica(c, f); return true; } } });
 }
 
@@ -6587,7 +6594,7 @@ function entCambiarAudio(rol, silencioso = false) {
 // Mientras se preparan, suena el <audio> con la Melodía y el botón espera.
 let entDosListas = false;       // las dos grabaciones de la canción abierta, decodificadas
 let entDosCarga = 0;            // número de la carga en curso (abrir otra canción la anula)
-const entMotorActivo = () => !ESPEJO && (entPitchSemitones !== 0 || entDosListas);
+const entMotorActivo = () => !ESPEJO && (entPitchSemitones !== 0 || entDosListas || !!entSaltos());
 function entAplicarSalidaAudio() {
     const m = entAudio();
     m.muted = ESPEJO || !!entPitchNode;           // la copia de la Pizarra no suena; con el reproductor, suena él
@@ -6638,6 +6645,63 @@ async function entPrepararKaraoke(c) {
     entPintarCargaAudio(null);
     if (!entPitchNode) entActivarPitch();          // traspaso al reproductor, sin que se note
     else entAplicarSegunda();
+}
+// ── ✂ Adaptaciones (deuda GK): versiones recortadas de la canción, de su Ficha. Con una elegida, el reproductor salta
+// lo omitido en la muestra exacta (comun/dos-grabaciones.js) y el <audio> —el reloj de la letra— salta cuando se oye.
+// Los versos omitidos se ven tenues. Se recuerda por canción en el equipo. ──
+let entAdaptId = null, entSaltoPropio = false;
+function entAdaptaciones(c = entrenadorSong) {
+    const f = (c?.assets || []).find(a => a.tipo === 'tempo');
+    try { return (f && window.TempoMapa ? TempoMapa.crear(JSON.parse(f.contenido || '{}')).adaptaciones : null) || []; } catch (_) { return []; }
+}
+const entAdaptActual = () => entAdaptId ? entAdaptaciones().find(a => a.id === entAdaptId) || null : null;
+const entSaltos = () => { const a = entAdaptActual(); return a?.omitir.length ? a.omitir : null; };
+const entTramoOmitido = s => (entSaltos() || []).find(x => s >= x.desde - 1e-3 && s < x.hasta - 1e-3) || null;
+// Un verso que entra un poco antes del final de lo omitido (anacrusa, sincronía adelantada) se canta igual: no va tenue
+const entVersoOmitido = s => (entSaltos() || []).some(x => s >= x.desde - 1e-3 && s < x.hasta - 0.5);
+function entAdaptAlAbrir(c) {
+    let id = null;
+    try { id = localStorage.getItem('ent_adapt:' + c?.id) || null; } catch (_) {}
+    entAdaptId = id && entAdaptaciones(c).some(a => a.id === id) ? id : null;
+    entPintarAdapt();
+    if (entSaltos() && !entPitchNode && !ESPEJO) entActivarPitch();
+}
+function entPintarAdapt() {
+    const sel = document.getElementById('ent-sel-adapt'); if (!sel) return;
+    const L = entAdaptaciones();
+    sel.style.display = L.length && !ESPEJO ? '' : 'none';
+    const h = '<option value="">✂ Completa</option>' + L.map(a => `<option value="${entEsc(a.id)}">✂ ${entEsc(a.nombre)}</option>`).join('');
+    if (sel.innerHTML !== h) sel.innerHTML = h;
+    sel.value = entAdaptId || '';
+    sel.classList.toggle('activo', !!entAdaptId);
+}
+function entElegirAdapt(id) {
+    entAdaptId = id || null;
+    try { if (entrenadorSong) { if (entAdaptId) localStorage.setItem('ent_adapt:' + entrenadorSong.id, entAdaptId); else localStorage.removeItem('ent_adapt:' + entrenadorSong.id); } } catch (_) {}
+    entPintarAdapt(); entPintarOmitidas();
+    if (entMotorActivo()) { if (!entPitchNode) entActivarPitch(); else entCrearMotor(); }
+    else entDesactivarPitch();
+    if (typeof espejoEmitir === 'function') espejoEmitir();
+}
+function entPintarOmitidas() {
+    const L = (entrenadorStanzas || []).flat();   // los versos con su origIdx (como los dibuja entLineSpanHTML)
+    document.querySelectorAll('#ent-zona .ent-lyric-line[data-orig]').forEach(el => {
+        const l = L.find(x => x.origIdx === +el.dataset.orig);
+        el.classList.toggle('omitida', !!l && !l.sinTiempo && entVersoOmitido(l.time / 1000));
+    });
+}
+// El motor avisa que una junta se oye a la hora t (del contexto): el reloj salta ahí en ese momento, sin rehacer el motor
+function entSaltarReloj(t, seg) {
+    const nodo = entPitchNode;
+    setTimeout(() => {
+        if (entPitchNode !== nodo || entAudio().paused) return;
+        entSaltoPropio = true; entAudio().currentTime = seg;
+    }, Math.max(0, (t - entPitchCtx.currentTime) * 1000));
+}
+// Si el reloj quedó dentro de un tramo omitido (clic en un verso, loop, adelantar), pasa al final del tramo
+function entRelojFueraDeOmitido() {
+    const a = entAudio(), x = entTramoOmitido(a.currentTime || 0);
+    if (x) { entSaltoPropio = true; a.currentTime = x.hasta; }
 }
 // Grabaciones decodificadas por id del audio: { promesa, valor }
 const entPitchBuffers = {};
@@ -6839,6 +6903,7 @@ async function entActivarPitch() {
 function entCrearMotor(usarST = !!entPitchST) {
     if (!entPitchBuffer || !entPitchCtx) return;
     const audioEl = entAudio(), vel = audioEl.playbackRate || 1, ctx = entPitchCtx;
+    entRelojFueraDeOmitido();
     const anterior = entPitchNode;
     if (usarST && entPitchLib) {
         entPitchST = new entPitchLib.SoundTouch();
@@ -6847,6 +6912,7 @@ function entCrearMotor(usarST = !!entPitchST) {
     } else entPitchST = null;
     entPitchNode = DosGrabaciones.motor(ctx, entPitchSalida(), {   // pasa por el volumen (deuda DA)
         buffer: entPitchBuffer, reloj: () => entAudio().currentTime, vel, ...entCapaSegunda(),
+        saltos: entSaltos(), alSaltar: entSaltarReloj,
         st: entPitchST ? { SimpleFilter: entPitchLib.SimpleFilter, pipe: entPitchST } : null,
         alEmpezar: t => setTimeout(() => { anterior?.detener(); entAplicarSalidaAudio(); }, Math.max(0, (t - ctx.currentTime) * 1000)),
     });
@@ -6865,6 +6931,7 @@ function entDesactivarPitch() {
 }
 
 function entPitchSyncPos() {
+    if (entSaltoPropio) { entSaltoPropio = false; return; }   // el reloj siguió un salto de la adaptación: el motor ya va ahí
     if (!entPitchNode || entAudio().paused) return;   // detenido: el play rehace el reproductor desde ahí
     entCrearMotor();
 }
@@ -6874,7 +6941,7 @@ function entMotorVelocidad() {
     const v = entAudio().playbackRate || 1;
     const usarST = entPitchSemitones !== 0 || Math.abs(v - 1) > 0.001;
     if (usarST !== !!entPitchST) { if (usarST && !entPitchLib) entActivarPitch(); else entCrearMotor(usarST); }
-    else if (entPitchST) entPitchST.tempo = v;
+    else if (entPitchST) { if (entSaltos()) entCrearMotor(); else entPitchST.tempo = v; }   // ✂ con saltos, el motor sabe su velocidad
 }
 entAudio().addEventListener('ratechange', entMotorVelocidad);   // también los loops con su velocidad
 // ─────────────────────────────────────────────────────────────────────────────
@@ -7084,6 +7151,7 @@ function abrirEntrenador(songId) {
     audioEl.playbackRate = entrenadorVelocidad;
     audioEl.muted        = false;
     entPrepararKaraoke(c);      // ET: el karaoke cargado y siguiendo a la Melodía
+    entAdaptAlAbrir(c);         // ✂ GK
     audioEl.ontimeupdate     = entOnTimeUpdate;
     audioEl.onloadedmetadata = entActualizarMarcadores;
     audioEl.onseeked     = entPitchSyncPos;
@@ -7819,7 +7887,8 @@ function entLineSpanHTML(l) {
     const texto  = l.text;
     const coloreada = entrenadorLineasColoreadas.has(l.origIdx);
     const revisar   = entrenadorLineasRevisar.has(l.origIdx);
-    const cls = `ent-lyric-line${l.origIdx === entrenadorLineIdx ? ' activa' : ''}${oculta ? ' oculta' : ''}${coloreada ? ' coloreado' : ''}${revisar ? ' revisar' : ''}${entVoz2.has(l.origIdx) ? ' voz2' : ''}`;
+    const omitida = !l.sinTiempo && entVersoOmitido(l.time / 1000);
+    const cls = `ent-lyric-line${l.origIdx === entrenadorLineIdx ? ' activa' : ''}${oculta ? ' oculta' : ''}${coloreada ? ' coloreado' : ''}${revisar ? ' revisar' : ''}${entVoz2.has(l.origIdx) ? ' voz2' : ''}${omitida ? ' omitida' : ''}`;
     return `<span class="${cls}" data-orig="${l.origIdx}"
         onclick="entClickLinea(event,${l.origIdx})"
         oncontextmenu="entEditLineaContextMenu(event,${l.origIdx})"
@@ -8530,6 +8599,10 @@ function entOnTimeUpdate() {
     const audioEl = entAudio();
     const ms = audioEl.currentTime * 1000;
 
+    if (!entPitchNode && !ESPEJO && !audioEl.paused) {
+        const x = entTramoOmitido(audioEl.currentTime);
+        if (x) { audioEl.currentTime = x.hasta; return; }
+    }
     if (entrenadorLoopOn && entrenadorLoopActivo && ms >= entrenadorLoopActivo.fin) {
         audioEl.currentTime = entrenadorLoopActivo.inicio / 1000;
         entrenadorLoopCount++;
@@ -9604,6 +9677,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     audioEl.playbackRate = entrenadorVelocidad;
     audioEl.muted        = false;
     entPrepararKaraoke(song);   // ET: el karaoke cargado y siguiendo a la Melodía
+    entAdaptAlAbrir(song);      // ✂ GK
     audioEl.ontimeupdate     = entOnTimeUpdate;
     audioEl.onloadedmetadata = entActualizarMarcadores;
     audioEl.onended          = entOnAudioEnded;
@@ -10501,6 +10575,7 @@ function espejoEstado() {
         sorteo: entSorteo,
         rol: entAudioRol,
         voz2: [...entVoz2], voz2On: entSegundaOn,
+        adapt: entAdaptId,
         enviado: Date.now(),
     };
 }
@@ -10667,6 +10742,7 @@ function espejoAplicar(e) {
     }
     if (e.rol && e.rol !== entAudioRol) entCambiarAudio(e.rol, true);   // Melodía / Karaoke como el profe
     if (e.voz2) { entVoz2 = new Set(e.voz2); entSegundaOn = !!e.voz2On; entPintarVoz2(); }   // versos con 2ª voz (GB)
+    if ((e.adapt || null) !== entAdaptId) { entAdaptId = e.adapt || null; entPintarOmitidas(); }   // ✂ la adaptación del profe (GK)
     const a = entAudio();
     a.muted = true; a.volume = 0;   // suena solo el computador del profe
     const ritmoCambio = entRitmoModo !== e.ritmoModo || entRitmoTresillo !== e.ritmoTresillo;

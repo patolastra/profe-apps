@@ -13,8 +13,10 @@
   al compartir (✈ de la Letra) y que se pone al día solo. Si trae `hasta` (fecha límite que puso el profe), después
   de ese día la canción ya no se muestra.
   Dirección: ?a=<id de la canción>&n=<nombre> (enlace corto l/?a=&n=).
+  ✂ Con &v=<id> (deuda GK) suena una adaptación de la canción: lee sus tramos omitidos de la Ficha pública
+  (repertorio-assets/tempo/<id>.json), los salta (mismo reproductor) y deja tenues los versos que no suenan.
 -->
-<script src="../comun/dos-grabaciones.js"></script>
+<script src="../comun/dos-grabaciones.js?v=gk"></script>
 <style>
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; overflow: hidden; background: #0f172a; color: #f1f5f9;
@@ -43,6 +45,7 @@
         padding: 2px 0; cursor: pointer; user-select: none; white-space: normal; overflow-wrap: break-word; transition: color 0.18s; border-radius: 6px; }
     .ent-lyric-line:hover { color: #94a3b8; }
     .ent-lyric-line.activa { color: #ea580c; }
+    .ent-lyric-line.omitida { opacity: .28; }   /* ✂ no suena en esta adaptación (GK) */
     /* 🎵 Versos con 2ª voz (GB, igual que el Entrenador): línea violeta; con la 2ª voz prendida, texto violeta */
     .ent-lyric-line { position: relative; }
     .ent-lyric-line.voz2::before { content: ''; position: absolute; left: -12px; top: .22em; bottom: .22em; width: 4px;
@@ -118,6 +121,8 @@ const ICONO = { play: '<path d="M8 5.5v13l10.5-6.5z"/>', pausa: '<path d="M7 5h3
 const pintarPlay = () => { $('ent-btn-play').innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONO[audio.paused ? 'play' : 'pausa']}</svg>`; };
 pintarPlay();
 let datos = null, versos = [], nodos = [], estrofas = [], actual = -2, rol = 'melodia', manualHasta = 0, arrastrando = false;
+let saltos = null;   // ✂ tramos que no suenan (adaptación, GK): [{ desde, hasta }]
+const tramoEn = t => (saltos || []).find(x => t >= x.desde - 1e-3 && t < x.hasta - 1e-3) || null;
 
 function aviso(txt, error) { const a = $('aviso'); a.textContent = txt || ''; a.hidden = !txt; a.classList.toggle('error', !!error); }
 
@@ -128,7 +133,7 @@ function pintarLetra() {
     estrofas = estrofas.filter(e => e.length);
     const portada = `<div class="ent-portada"><div class="ent-portada-tit">${esc(datos.nombre)}</div>${datos.artista ? `<div class="ent-portada-sub">${esc(datos.artista)}</div>` : ''}</div>`;
     $('ent-letra').innerHTML = portada + estrofas.map(e =>
-        `<div class="ent-stanza">${e.map(i => `<span class="ent-lyric-line${datos.lineas[i].v2 ? ' voz2' : ''}" data-i="${i}">${esc(datos.lineas[i].x)}</span>`).join('')}</div>`)
+        `<div class="ent-stanza">${e.map(i => `<span class="ent-lyric-line${datos.lineas[i].v2 ? ' voz2' : ''}${datos.lineas[i].t != null && (saltos || []).some(x => datos.lineas[i].t >= x.desde - 1e-3 && datos.lineas[i].t < x.hasta - 0.5) ? ' omitida' : ''}" data-i="${i}">${esc(datos.lineas[i].x)}</span>`).join('')}</div>`)
         .join('<div class="ent-stanza-sep"></div>');
     versos = datos.lineas.map((l, i) => ({ ...l, i })).filter(l => l.x && l.t != null);
     document.body.classList.toggle('sin-sync', !versos.length);
@@ -163,6 +168,7 @@ function cuadro() {
 }
 function ir(t) {
     if (nodos[actual]) nodos[actual].classList.remove('activa');   // el verso que estaba marcado se apaga al saltar
+    t = tramoEn(t)?.hasta ?? t;                                   // ✂ dentro de lo omitido: donde sigue
     audio.currentTime = Math.max(0, Math.min(t, audio.duration || t)); actual = -2; manualHasta = 0;
 }
 // Al salir de la página (otra app, minimizar, apagar la pantalla) la canción se detiene siempre
@@ -203,14 +209,21 @@ async function prepararDos() {
 function arrancarMotor() {
     if (!buffers || motor) return;
     if (ctx.state === 'suspended') ctx.resume();
+    const x = tramoEn(audio.currentTime);
+    if (x) { saltoPropio = true; audio.currentTime = x.hasta; }
     motor = DosGrabaciones.motor(ctx, ctx.destination, { buffer: buffers[rol], reloj: () => audio.currentTime,
         ...(segundaOn && buffers.segunda ? { capa: buffers.segunda } : {}),
+        saltos, alSaltar: (t, seg) => { const m = motor; setTimeout(() => { if (motor === m && !audio.paused) { saltoPropio = true; audio.currentTime = seg; } }, Math.max(0, (t - ctx.currentTime) * 1000)); },
         alEmpezar: t => setTimeout(() => { if (motor) audio.muted = true; }, Math.max(0, (t - ctx.currentTime) * 1000)) });
 }
 function pararMotor() { motor?.detener(); motor = null; }
 audio.addEventListener('play', arrancarMotor);
 audio.addEventListener('pause', pararMotor);
-audio.addEventListener('seeked', () => { if (motor) motor.ir(audio.currentTime + DosGrabaciones.BLOQUE / ctx.sampleRate); });
+// ✂ El reloj siguió un salto del reproductor (saltoPropio): el reproductor ya va ahí
+let saltoPropio = false;
+audio.addEventListener('seeked', () => { if (saltoPropio) { saltoPropio = false; return; } if (motor) motor.ir(audio.currentTime + DosGrabaciones.BLOQUE / ctx.sampleRate); });
+// Sin el reproductor (aún preparándose, o solo con la Melodía): el audio salta solo, un poco menos exacto
+audio.addEventListener('timeupdate', () => { if (!motor && !audio.paused) { const x = tramoEn(audio.currentTime); if (x) audio.currentTime = x.hasta; } });
 function ponerAudio(nuevo) {
     if (!datos.audios[nuevo]) return;
     rol = nuevo;
@@ -219,7 +232,7 @@ function ponerAudio(nuevo) {
     b.classList.toggle('activo', rol === 'karaoke');
     if (!audio.getAttribute('src')) {          // primera vez
         audio.src = datos.audios.melodia || datos.audios.karaoke;
-        if (datos.audios.melodia && (datos.audios.karaoke || datos.audios.segunda)) prepararDos();
+        if (datos.audios.melodia && (datos.audios.karaoke || datos.audios.segunda || saltos)) prepararDos();
         return;
     }
     motor?.cambiar(buffers?.[rol]);
@@ -285,6 +298,12 @@ const fechaBonita = (f) => f.split('-').reverse().join('/');
         datos = null; aviso('Esta canción no está disponible. Pídele al profe el enlace de nuevo.', true); return;
     }
     datos.nombre = datos.nombre || q.get('n') || 'Canción';
+    // ✂ Adaptación (GK): sus tramos, de la Ficha pública (si ya no existe, suena la canción completa)
+    if (q.get('v')) try {
+        const r = await fetch(`${STORAGE}tempo/${encodeURIComponent(q.get('a') || '')}.json?t=${Date.now()}`, { cache: 'no-store' });
+        const a = r.ok ? ((await r.json()).adaptaciones || []).find(x => x.id === q.get('v')) : null;
+        if (a?.omitir?.length) { saltos = a.omitir; datos.nombre += ' · ' + (a.nombre || 'Adaptación'); }
+    } catch (_) {}
     document.title = datos.nombre + ' · Cantar';
     const conSegunda = !!(datos.audios.melodia && datos.audios.segunda);
     $('ent-header').hidden = !(datos.audios.melodia && (datos.audios.karaoke || conSegunda));
