@@ -9157,3 +9157,13 @@ las secciones, pero no se notaba. Decisión del PO: "ok" a las dos mejoras propu
   el c. 30 mueve el cursor sin tocar los tramos; Ctrl + clic en el 37 lo apaga ("c. 37") y otro Ctrl + clic lo enciende.
 - **Pendiente del PO:** su Ficha guardada aún tiene las secciones ficticias; quitarlas con ✕ (Intro marcha vuelve a
   cubrirlo todo) y apagar los compases con clic.
+
+### GN. Entrenador — el reproductor no volvía en una canción sin letra (con audio) — HECHA
+*Origen: PO 2026-11-08 ("en una misma sesión, tras una canción sin audio el reproductor se esconde y al ir a una canción
+sin letra pero con audio no se muestra").*
+- **Causa:** "sin audio" (deuda DB) se recalculaba solo al cargar un recurso (letra, tablatura…); una canción sin
+  ningún recurso se saltaba ese paso y heredaba el "sin audio" de la anterior.
+- **Arreglo:** `entRenderChips` lo recalcula también cuando la canción no tiene recursos. Solo `REPERTORIO/index.html`.
+- **Lugares (regla 11):** Entrenador en todas sus versiones (mismo código).
+- **Prueba (navegador):** "Llorarás" (letra sin audio) → reproductor oculto; luego "A media luz" (audio sin letra) →
+  reproductor visible; igual desde la sesión y desde la Biblioteca.
