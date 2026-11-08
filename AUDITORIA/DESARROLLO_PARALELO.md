@@ -9003,7 +9003,7 @@ canción ni texto en el Libro; armar grupos solo con casillas es lento.*
   como texto el nombre de la evaluación, cada grupo con sus integrantes y sus canciones o textos, y quienes siguen sin
   grupo (`evalCopiarGrupos`). Prueba (navegador, Sexto): el texto copiado trae los 18 grupos con lo agregado.
 
-### GH. 🎚️ Afinador — cejillo (también negativo) — HECHA
+### GH. 🎚️ Afinador — cejillo (también negativo) — HECHA (probada por el PO, 2026-11-08: "funciona")
 *Origen: PO 2026-11-08 ("agregar un cejillo, también negativo, por si quisiera afinar más grave"). Necesidad:
 afinar el instrumento con cejillo o más grave que la afinación estándar, para tocar en otro tono.*
 - **Alcance:** en el afinador (`tabs/index.html`), un control **Cejillo − N +** bajo los instrumentos: de −6 a +9
@@ -9028,10 +9028,13 @@ afinar el instrumento con cejillo o más grave que la afinación estándar, para
 - **Hecho:** `abrirInformeResultados(notaId)` (sin notaId, todos como antes; título "Estudiante" y nombre legal al
   final del archivo); 🖨 `.est-impr` en cada fila de Estudiantes, visible al pasar el mouse. Prueba (navegador, Sexto,
   "Cantó el gallo con el diablo"): el 🖨 de Aaron abre su informe solo y propone "27-10-26 - 6TO - MÚSICA - RESULTADOS -
-  HERNANDEZ, AARON"; el informe de todos sigue con "Estudiantes (36)" y su nombre de siempre.
+  HERNANDEZ, AARON"; el informe de todos sigue con "Estudiantes (36)" y su nombre de siempre. Después el 🖨 pasó al menú ⋯ de la fila (GJ).
+- **Hallazgo (2026-11-08):** en una evaluación **por toques** que además tiene rúbrica (p. ej. "Cantó el gallo con el
+  diablo", Sexto) el informe muestra la nota y la rúbrica vacía "incompleta". El PO lo deja **para más adelante** ("por
+  ahora no es problema"); anotado en Notion: "Libro: toques del celular como criterio de la rúbrica".
 
 ### GJ. Libro — fila del estudiante: menú ⋯ y comentario que se guarda solo — HECHA (falta probar en uso)
-*Origen: PO 2026-11-08 (Thomas Lagos, Metalófono "Melodía andina", Quinto o Sexto: "había puesto un comentario y ahora
+*Origen: PO 2026-11-08 (Thomas Lagos, Metalófono "Melodía andina", Cuarto: "había puesto un comentario y ahora
 no está"; "resumir todos los botones hover en un menú al final de la fila").*
 - **Causa del comentario perdido:** el comentario de la pestaña Estudiantes quedaba solo en la pantalla hasta apretar
   "Guardar notas"; si la página se recargaba (otra pestaña, volver al Libro, otro equipo, reevaluar) se perdía. En
@@ -9045,3 +9048,7 @@ no está"; "resumir todos los botones hover en un menú al final de la fila").*
   `update({ comentario })` al salir del cuadro. Prueba (navegador, Sexto, guardado simulado): el ⋯ de un evaluado
   muestra las 4 opciones; ya no quedan botones sueltos en la celda de nota; escribir un comentario y salir lo manda a
   Supabase solo.
+- **Revisión "Melodía andina" (Cuarto, PO 2026-11-08: "creí haberla hecho y no hay datos"):** en Supabase solo Thomas
+  Lagos tiene datos, todos del 2026-11-08 (rúbrica 6,7 → reevaluado 6,3, comentario). Los otros 24 nunca tuvieron nota
+  ni resultados; la rúbrica y sus 3 criterios y las filas de estudiantes siguen intactas desde el 22/10 (no hubo
+  borrado). Las bitácoras de Cuarto no mencionan esa evaluación. Nada que recuperar.
