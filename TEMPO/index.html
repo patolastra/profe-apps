@@ -98,6 +98,7 @@
     #ad-secs, #ad-tramos { display: inline-flex; gap: 6px; flex-wrap: wrap; }
     .ad-sec { padding: 3px 10px; border-radius: 14px; font-size: 13px; color: #0f172a; font-weight: 600; cursor: pointer; border: 0; }
     .ad-sec.omit { opacity: .45; text-decoration: line-through; }
+    .ad-sec.parcial { box-shadow: inset 0 0 0 2px #0f172a; background-image: repeating-linear-gradient(135deg, rgba(15,23,42,.28) 0 4px, transparent 4px 8px) !important; }
     .ad-tramo { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 14px; background: #7f1d1d; font-size: 13px; cursor: pointer; }
     .ad-tramo.sel { outline: 2px solid #22d3ee; }
     .ad-tramo button { border: 0; background: rgba(0,0,0,.25); color: #fff; width: 20px; height: 20px; border-radius: 10px; cursor: pointer; font-size: 11px; }
@@ -214,8 +215,9 @@
         Sin compases: cada parte va por su segundo. Al marcar el tempo, las que caen en lo marcado se pegan al 1 del compás más cercano.
     </div>
     <div class="ayuda fila-adapt">
-        Arrastrar sobre la onda: omitir ese tramo (con tempo marcado se ajusta al 1 de los compases; <kbd>Alt</kbd>: sin ajustar) · arrastrar el borde de un tramo: cambiarlo ·
-        clic en un tramo: elegirlo · <kbd>Supr</kbd>: quitar el elegido · clic en una sección de arriba: omitirla o volver a incluirla ·
+        Clic en un compás: apagarlo o volver a encenderlo · arrastrar sobre la onda: omitir ese tramo (con tempo marcado se ajusta al 1 de los compases; <kbd>Alt</kbd>: sin ajustar) ·
+        arrastrar el borde de un tramo: cambiarlo · clic en los números de compás: mover el cursor · <kbd>Supr</kbd>: quitar el tramo elegido (abajo) ·
+        clic en una sección de arriba: omitirla entera o volver a incluirla (½ = algunos compases omitidos) · las secciones no cambian ·
         <kbd>Espacio</kbd> o <kbd>K</kbd>: escuchar la adaptación (salta lo omitido) · <kbd>J</kbd> / <kbd>L</kbd>: 5 s atrás / adelante.
         La grabación no se toca: cada app la toca saltándose esos tramos.
     </div>
@@ -1130,10 +1132,15 @@ function tramoBajo(x, W) {   // { k, lado: 'desde' | 'hasta' | null (adentro) } 
     return null;
 }
 function adMouseDown(e, x, W) {
+    // La fila de los números de compás: mover el cursor (un clic en la onda apaga o enciende un compás)
+    if (e.clientY - zoom.getBoundingClientRect().top < 17) {
+        cursor = Math.max(0, Math.min(duracion(), segDeX(x, W)));
+        if (grab?.sonando) tocar(cursor);
+        sucio = true; return;
+    }
     const b = tramoBajo(x, W);
     if (b && b.lado) { adTramo = b.k; adArr = { k: b.k, lado: b.lado, x0: e.clientX, movio: false }; pintarControles(); sucio = true; return; }
-    if (b) { adTramo = b.k; adArr = { elegir: true, x0: e.clientX, t: segDeX(x, W), movio: false }; pintarControles(); sucio = true; return; }
-    adTramo = null;
+    adTramo = b ? b.k : null;
     adArr = { nuevo: true, t0: segDeX(x, W), t1: segDeX(x, W), x0: e.clientX, movio: false };
     pintarControles(); sucio = true;
 }
@@ -1151,8 +1158,12 @@ function adMover(e) {
 function adSoltar() {
     const z = adArr; adArr = null;
     if (!z.movio) {
-        if (z.nuevo) {   // un clic fuera de los tramos: mover el cursor (como en los otros modos)
-            cursor = Math.max(0, Math.min(duracion(), z.t0));
+        if (z.nuevo) {
+            // Un clic en un compás (con tempo): se apaga o se vuelve a encender; sin tempo, mueve el cursor
+            const C = S.compases, t = z.t0;
+            const i = C.length > 1 && t >= C[0] && t < C[C.length - 1] ? C.findIndex((c, j) => t >= c && t < C[j + 1]) : -1;
+            if (i >= 0) { alternarTramo(C[i], C[i + 1]); return; }
+            cursor = Math.max(0, Math.min(duracion(), t));
             if (grab?.sonando) tocar(cursor);
         }
         sucio = true; return;
@@ -1176,14 +1187,19 @@ function quitarTramo(k) {
     const a = adaptacionActual(); if (!a || !a.omitir[k]) return;
     antes(); a.omitir.splice(k, 1); adTramo = null; rehacer(); adRetocar();
 }
-// Una sección entera: omitida si estaba incluida (o en parte), incluida de nuevo si estaba omitida entera
-function alternarSeccion(i) {
-    const x = S.secciones[i]; if (!x) return;
-    const a0 = x.t, b0 = finSeccion(i);
+// Un tramo (una sección entera o un compás): omitido si estaba incluido (o en parte), incluido de nuevo si estaba omitido entero
+function alternarTramo(a0, b0) {
     adCambio(ad => {
         if (cubierto(ad.omitir, a0, b0)) ad.omitir = restarTramo(ad.omitir, a0, b0);
         else ad.omitir.push({ desde: a0, hasta: b0 });
     });
+    adTramo = null; pintarControles();
+}
+function alternarSeccion(i) { const x = S.secciones[i]; if (x) alternarTramo(x.t, finSeccion(i)); }
+// Cuánto de [a, b) está omitido: 'toda' · 'parte' · ''
+function omitidaParte(L, a, b) {
+    if (cubierto(L, a, b)) return 'toda';
+    return L.some(x => x.hasta > a + 0.02 && x.desde < b - 0.02) ? 'parte' : '';
 }
 // Lo que se ve: los tramos omitidos tapados (y el que se está arrastrando)
 function tramosVisibles() {
@@ -1216,7 +1232,10 @@ function pintarAdapt() {
     const L = a?.omitir || [], D = duracion();
     const quitado = L.reduce((s, x) => s + x.hasta - x.desde, 0);
     $('ad-dur').textContent = !a ? 'Arrastra sobre la onda para omitir un tramo (así se crea la adaptación).' : D ? `Dura ${reloj(D - quitado)} (completa: ${reloj(D)})` : '';
-    const secs = S.secciones.map((x, i) => `<button class="ad-sec${a && cubierto(L, x.t, finSeccion(i)) ? ' omit' : ''}" data-ad-sec="${i}" style="background:${colorSeccion(x.nombre)}" title="Omitir o volver a incluir esta sección">${esc(x.nombre)}</button>`).join('')
+    const secs = S.secciones.map((x, i) => {
+        const o = a ? omitidaParte(L, x.t, finSeccion(i)) : '';
+        return `<button class="ad-sec${o === 'toda' ? ' omit' : o === 'parte' ? ' parcial' : ''}" data-ad-sec="${i}" style="background:${colorSeccion(x.nombre)}" title="${o === 'parte' ? 'Algunos compases omitidos. Clic: omitirla entera' : 'Omitir o volver a incluir esta sección'}">${esc(x.nombre)}${o === 'parte' ? ' ½' : ''}</button>`;
+    }).join('')
         || '<span class="ayuda">La canción no tiene secciones (🧩 Estructura).</span>';
     if ($('ad-secs').innerHTML !== secs) $('ad-secs').innerHTML = secs;   // redibujar en medio de un clic lo perdería
     const i0 = idxCercano(S.c1);

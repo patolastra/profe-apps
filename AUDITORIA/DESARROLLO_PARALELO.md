@@ -9137,3 +9137,20 @@ un compás").*
   ↶ Deshacer la devuelve. Solo `TEMPO/index.html`; sin cambios en Supabase.
 - **Prueba (navegador, "Estrechez de Corazón", sin guardar):** "Fin intro marcha" del compás 36 al 34 (justo en el 1);
   arrastrada más allá de "Intro marcha" (c. 14) se queda en el 15; compases intactos; ↶ dos veces vuelve al 36.
+
+### GM. ✂ Adaptaciones — apagar compases con un clic, sin tocar la estructura — HECHA (falta probar en uso)
+*Origen: PO 2026-11-08 ("para hacer una adaptación tengo que destruir la estructura de la canción… quiero omitir secciones
+o compases aislados sin destruir la sección original"). El PO había creado secciones ficticias ("Recorte", "marcha tb",
+"recrote") para omitir partes de "Intro marcha" en "Estrechez de Corazón". Arrastrar sobre la onda ya omitía sin tocar
+las secciones, pero no se notaba. Decisión del PO: "ok" a las dos mejoras propuestas.*
+- **Alcance (`TEMPO/index.html`, modo ✂ Adaptaciones):** (1) **un clic en un compás lo apaga o lo vuelve a encender**
+  (`alternarTramo`); el cursor se mueve con un clic en la fila de los números de compás (sin tempo marcado, el clic en
+  la onda sigue moviendo el cursor); arrastrar sigue omitiendo un tramo y arrastrar el borde lo cambia. (2) En "Omitir
+  secciones", una sección con algunos compases apagados se ve **a medias** ("Intro marcha ½", rayada); clic = omitirla
+  entera. Las secciones nunca cambian. Sin cambios en Supabase.
+- **Prueba (navegador, "Estrechez de Corazón" con la adaptación que guardó el PO, sin guardar):** clic en los compases
+  18, 19 y 24 los enciende (estaban apagados) → "c. 20–21", "c. 25–34"; otro clic en el 19 lo apaga → "c. 19–21"; clic en
+  la fila de números mueve el cursor al compás 30 sin tocar los tramos; "Recorte ½" y "recrote ½" se ven a medias; el
+  número de secciones no cambia.
+- **Pendiente del PO:** su Ficha guardada aún tiene las secciones ficticias; quitarlas con ✕ (Intro marcha vuelve a
+  cubrirlo todo) y apagar los compases con clic.
