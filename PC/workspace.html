@@ -140,6 +140,12 @@
 </style>
 <script src="../comun/clase-vivo.js"></script>
 <script src="../supabase/contextos.js"></script>
+<!-- ⌨ Anotar rápido (deuda GQ): Ctrl + Shift + 7 en cualquier pestaña -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
+<script src="../comun/pendientes.js"></script>
+<script src="../comun/apoderados.js"></script>
+<script src="../comun/anotar.js"></script>
 </head>
 <body>
 
@@ -613,7 +619,7 @@ async function leerSinCache(url, tipo) {
 }
 // Piezas compartidas por varias apps: al detectar una versión nueva se piden al día de inmediato,
 // para que una app que se abra después (o la Pizarra) no use una copia anterior (deuda AL).
-const COMUNES = ['../comun/clase-vivo.js', '../comun/asistencia.js', '../comun/nombre-asset.js',
+const COMUNES = ['../comun/clase-vivo.js', '../comun/asistencia.js', '../comun/nombre-asset.js', '../comun/anotar.js',
                  '../comun/libro-proyeccion.js', '../comun/participacion-tablero.css',
                  '../supabase/config.js', '../supabase/contextos.js'];
 let comunesRenovados = null;
@@ -681,6 +687,50 @@ if (location.protocol !== 'file:') {
     setInterval(revisarVersion, 3 * 60 * 1000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) revisarVersion(); });
 }
+
+// ── ⌨ ANOTAR RÁPIDO (deuda GQ) ────────────────────────────────────────────
+// Ctrl + Shift + 7 en cualquier pestaña: cuadro abajo a la derecha (comun/anotar.js). El curso parte con el de la
+// pestaña abierta (o el curso abierto en Cursos), si no el de la clase en curso; el aviso lleva a donde quedó.
+function cursoDePestana() {
+    const t = tabs.find(t => t.key === activeKey);
+    if (!t) return null;
+    if (t.curso) return t.curso;
+    if (t.key === 'cursos') {
+        try { return t.iframeEl.contentWindow.eval('(contextos.find(c => c.id === ctxActual) || {}).nombre') || null; } catch (_) {}
+    }
+    return null;
+}
+function irAnotado(d) {
+    if (!d) return;
+    const llamar = (key, fn) => {
+        const t = tabs.find(t => t.key === key);
+        if (!t) return;
+        activar(key);
+        try { fn(t.iframeEl.contentWindow); } catch (_) {}
+    };
+    if (d.tipo === 'plan') {
+        abrirInstancia({
+            key: `plan:ctx:${String(d.ctx).toUpperCase()}|${d.fecha}`,
+            titulo: `Plan: ${typeof ctxDisplay === 'function' ? ctxDisplay(d.ctx) : d.ctx}`,
+            ico: '📋',
+            src: `../PORTAL/index.html?ctx=${encodeURIComponent(d.ctx)}&fecha=${encodeURIComponent(d.fecha)}`,
+            guardarAlCerrar: true,
+        });
+    } else if (d.tipo === 'dashboard') llamar('dashboard', w => w.mostrarVistaPend(d.vista));
+    else if (d.tipo === 'mejoras') llamar('cursos', w => w.eval('abrirMejoras()'));
+}
+try {
+    const sbWs = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    Pendientes.conectar(sbWs);
+    Apoderados.conectar(sbWs);
+    Anotar.iniciar({
+        sb: sbWs,
+        cursoSugerido: () => cursoDePestana() || claseEnCurso()?.ctx || null,
+        ir: irAnotado,
+        puede: () => document.getElementById('auth-gate').classList.contains('desbloqueado'),   // nunca con la clave puesta
+        alCerrar: () => enfocarActiva(),
+    });
+} catch (_) {}
 
 // ── INIT ──────────────────────────────────────────────────────────────────
 renderLauncher();

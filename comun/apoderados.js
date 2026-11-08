@@ -13,6 +13,8 @@
 //   Apoderados.conectar(sb)
 //   const l = Apoderados.lista(caja, { contextoId, soloHoy, alCambiar })
 //   l.nueva() · l.destruir()
+//   await Apoderados.cargar() · Apoderados.contextosConAlumnos() · await Apoderados.alumnos(cid) → [{ id, nombre }]
+//   await Apoderados.crear({ contexto_id, estudiante_id, motivo }) → cita o null
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
     'use strict';
@@ -372,5 +374,6 @@
 
     function crecer(t) { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
 
-    window.Apoderados = { conectar, cargar, lista };
+    // crear / alumnos / contextosConAlumnos: también los usa ⌨ Anotar rápido (comun/anotar.js, deuda GQ)
+    window.Apoderados = { conectar, cargar, lista, crear, alumnos, contextosConAlumnos };
 })();

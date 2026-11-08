@@ -71,8 +71,9 @@
 | Pieza | Dónde se usa |
 |---|---|
 | `editor-bloques.js` | Cursos (curso, ☀ Hoy y 📚 Estudios; tipo Cita y `insertar`, deuda EB) · Plan: Actividades, ✍🏼 Bitácora, bitácora por actividad, Historial · celular Cursos (`tactil`) · Cuaderno · Pizarra (solo lectura) |
-| `pendientes.js` | Dashboard (☀ Hoy y Todos) · Plan (pestaña Pendientes) · ✍🏼 Bitácora (Pendientes → fecha) · Cursos (columna ☑ Pendientes, curso y Hoy) · celular inicio |
-| `apoderados.js` | Dashboard (👪 y citas de hoy) · Plan (👪) · celular sin clase (👪 y citas de hoy) (en Cursos se quitó, DR) |
+| `pendientes.js` | Dashboard (☀ Hoy y Todos) · Plan (pestaña Pendientes) · ✍🏼 Bitácora (Pendientes → fecha) · Cursos (columna ☑ Pendientes, curso y Hoy) · celular inicio · ⌨ Anotar rápido del Workspace (GQ) |
+| `anotar.js` (GQ) | Workspace PC: Ctrl + Shift + 7 en cualquier pestaña (también las que van dentro de otra). Usa `pendientes.js` y `apoderados.js` |
+| `apoderados.js` | Dashboard (👪 y citas de hoy) · Plan (👪) · celular sin clase (👪 y citas de hoy) (en Cursos se quitó, DR) · ⌨ Anotar rápido del Workspace (`/apod`, GQ) |
 | `asistencia.js` | Plan (Pasar lista) · Libro · Pizarra (espejo) · celular Evaluar · Workspace |
 | `libro-proyeccion.js` | Libro (📽️ Proyectar) · Pizarra · Workspace |
 | `cuaderno.js` | Plan (📔) · Cursos (📔 Cuaderno) · Pizarra (espejo) |

@@ -9194,3 +9194,29 @@ el Entrenador sigue sonando").*
   Solo `REPERTORIO/index.html`.
 - **Lugares (regla 11):** Entrenador en todas sus versiones (mismo código; en el celular, el 🧩 de su barra).
 - **Prueba (navegador):** "Ven a bailar" → 🧩 visible, 9 secciones; tocar "Inter a marcha" salta el audio a 0:41.
+
+### GQ. ⌨ Anotar rápido — Ctrl + Shift + 7 en cualquier parte (PC) — HECHA
+*Origen: PO 2026-11-08 ("en cualquier parte, con un atajo aparece un cuadro abajo a la derecha donde agregar cualquier
+pendiente, prueba, apoderado, ensayo, bug, mejora; sin curso queda en General").*
+- **Decisiones del PO (2026-11-08):** atajo único **Ctrl + Shift + 7** en todos lados, también dentro de campos de
+  texto · sin comando = **pendiente** · curso: parte **adivinado** (pestaña abierta o clase en curso; si no, General) con
+  un selector para cambiarlo, y también se puede **escribir** al comienzo ("5° traer guitarras") · apoderado:
+  **`/apod estudiante: motivo`**, eligiendo al estudiante de la lista del curso; en General se busca en todos los
+  cursos y la cita queda en el curso del estudiante · tras Enter el cuadro **se cierra solo** y queda un **aviso** de qué
+  se creó y dónde; **clic en el aviso lleva allí** (la clase en el Plan, el Dashboard en su pestaña, 🐞 Mejoras…).
+- **Plan técnico:** pieza nueva `comun/anotar.js` (cuadro abajo a la derecha, Enter anota, Esc cierra, aviso de dónde
+  quedó). Vive en el **Workspace**, que escucha el atajo también dentro de sus pestañas (y de las pestañas dentro de
+  otras, p. ej. Ritmos → Cajón) sin tocar cada app. Usa `Pendientes.desdeTexto` (pendiente, /msj, /ensayo, /prueba,
+  /bug, /mejora: lo mismo que ya hace el editor por bloques) y `Apoderados` (se le agrega crear + lista de estudiantes).
+  Sin cambios en Supabase.
+- **Lugares (regla 11):** todo el Workspace PC (cualquier pestaña). El celular queda fuera.
+- **Hecho:** `comun/anotar.js` (nuevo) + `PC/workspace.html` (carga Supabase, Pendientes y Apoderados; curso sugerido =
+  el de la pestaña, el abierto en Cursos o el de la clase en curso; el aviso abre el Plan de esa clase, el Dashboard en
+  su pestaña Todos / ✉️ / 🎭 / 👪, o 🐞 Mejoras en Cursos) + `comun/apoderados.js` (expone `crear`, `alumnos`,
+  `contextosConAlumnos`). El curso escrito se reconoce por su nombre ("quinto", "kids", "cuerdas") o "5°" / "5to"
+  (un número solo no, para que "1 hora…" no sea Primero). Un pendiente con curso va a su próxima clase sin contar la de
+  hoy si ya se dio o está en curso. Estudiantes: cada palabra escrita es el comienzo de una del nombre.
+- **Prueba (navegador, sin guardar: escrituras anuladas):** atajo desde dentro del Dashboard y de Cursos (parte con
+  Tercero, el curso abierto); "5° traer guitarras" → Quinto, clase del jue 12/11, el aviso abre ese Plan; /pdte kids /
+  castigadas, /ensayo 7mo, /msj, /prueba, /bug; "1 hora de ensayo" queda General; /apod en General busca en todos los
+  cursos (la cita queda en el curso del estudiante), Tab elige; avisos → Dashboard ✉️ y 👪, 🐞 Mejoras en Cursos.
