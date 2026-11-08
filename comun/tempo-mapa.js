@@ -236,9 +236,16 @@
     //   'compases' → cada compás sigue empezando donde estaba y dura lo mismo; se reparten de nuevo sus pulsos
     //   'pulsos'   → los pulsos marcados se quedan y se agrupan en compases del nuevo tamaño
     // En los dos, las secciones quedan en su segundo de la grabación (se recalcula su compás: el 1 más cercano).
-    function nuevasCifras(cifras, { compas: c = 1, n, d }) {
+    // hasta (opcional): el cambio vale solo hasta ese compás; el siguiente vuelve a la cifra que tenía
+    function nuevasCifras(cifras, { compas: c = 1, n, d, hasta = null }) {
         let cs = (cifras?.length ? cifras : [{ compas: 1, n: 4, d: 4 }]).map(x => ({ compas: x.compas | 0, n: x.n, d: x.d || 4 }))
             .sort((a, b) => a.compas - b.compas);
+        if (hasta !== null && hasta >= c) {
+            const sig = hasta + 1, previa = cs.filter(y => y.compas <= sig).pop() || cs[0];
+            const vuelta = { compas: sig, n: previa.n, d: previa.d };
+            cs = cs.filter(y => y.compas <= c || y.compas > sig);       // lo que había dentro del tramo se reemplaza
+            cs.push(vuelta); cs.sort((a, b) => a.compas - b.compas);
+        }
         if (c <= cs[0].compas) Object.assign(cs[0], { n, d });
         else {
             const x = cs.find(y => y.compas === c);
@@ -288,29 +295,40 @@
         return crear(nuevo).datos();
     }
     // Pregunta cómo cambiar la cifra (solo si hay tempo marcado) → Promise<{ datos, modo } | null (cancelado)>
-    function preguntarCambioCifra(datos, cambio) {
+    // opciones.alcance: true = se elige "Solo este compás" (parte elegido) o "Hasta el final" (Ficha, compás > 1)
+    function preguntarCambioCifra(datos, cambio, opciones = {}) {
         const m = crear(datos);
         if (m.pulsos.length < 2) return Promise.resolve({ datos: cambiarCifra(datos, cambio, 'pulsos'), modo: 'pulsos' });
-        const texto = `${cambio.n}/${cambio.d}`, antes = m.cifraTexto(Math.max(1, cambio.compas || 1));
-        const op = ['compases', 'pulsos'].map(modo => {
-            const dd = cambiarCifra(datos, cambio, modo), mm = crear(dd), inf = cifraInfo(texto);
+        const c = Math.max(1, cambio.compas || 1);
+        const texto = `${cambio.n}/${cambio.d}`, antes = m.cifraTexto(c);
+        let solo = !!opciones.alcance;
+        const calcular = () => ['compases', 'pulsos'].map(modo => {
+            const dd = cambiarCifra(datos, { ...cambio, hasta: solo ? c : null }, modo), mm = crear(dd), inf = cifraInfo(texto);
             const tempo = inf ? `${inf.figura} ${Math.round(mm.bpm * inf.mapa / inf.pulso)}` : `${mm.bpm}`;
-            const c = Math.max(1, cambio.compas || 1), dur = mm.segDePulso(mm.pulsoDeCompas(c + 1)) - mm.segDePulso(mm.pulsoDeCompas(c));
+            const dur = mm.segDePulso(mm.pulsoDeCompas(c + 1)) - mm.segDePulso(mm.pulsoDeCompas(c));
             return { modo, datos: dd, tempo, dur: dur.toFixed(1).replace('.', ',') };
         });
+        let op = calcular();
         return new Promise(res => {
             const fondo = document.createElement('div');
             fondo.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,23,.7);display:flex;align-items:center;justify-content:center;z-index:9999;font-family:system-ui,sans-serif';
             const b = 'display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px;border-radius:9px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;cursor:pointer;font:inherit';
-            fondo.innerHTML = `<div style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:12px;padding:16px 18px;width:min(460px,92vw)">
-                <div style="font-weight:700;font-size:16px;margin-bottom:6px">Cambiar el compás de ${antes} a ${texto}</div>
+            const t = sel => `flex:1;padding:7px 10px;border-radius:8px;border:1px solid ${sel ? '#22d3ee' : '#475569'};background:${sel ? '#155e75' : 'transparent'};color:#e2e8f0;cursor:pointer;font:inherit;font-size:14px`;
+            const pintar = () => {
+                fondo.innerHTML = `<div style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:12px;padding:16px 18px;width:min(460px,92vw)">
+                <div style="font-weight:700;font-size:16px;margin-bottom:6px">Cambiar el compás${opciones.alcance ? ' ' + c : ''} de ${antes} a ${texto}</div>
+                ${opciones.alcance ? `<div style="display:flex;gap:6px;margin:8px 0 10px"><button data-a="1" style="${t(solo)}">Solo este compás</button><button data-a="0" style="${t(!solo)}">Hasta el final</button></div>` : ''}
                 <div style="font-size:13px;color:#94a3b8;margin-bottom:8px">La canción ya tiene el tempo marcado. Las secciones se quedan en su lugar de la grabación.</div>
-                <button data-m="compases" style="${b}"><b>Mantener los compases</b><br><span style="font-size:13px;color:#94a3b8">Cada compás sigue durando ${op[0].dur} s · tempo ${op[0].tempo}</span></button>
-                <button data-m="pulsos" style="${b}"><b>Mantener los pulsos</b><br><span style="font-size:13px;color:#94a3b8">Tus marcas se agrupan de nuevo: cada compás dura ${op[1].dur} s · tempo ${op[1].tempo}</span></button>
+                <button data-m="compases" style="${b}"><b>Mantener ${solo ? 'el compás' : 'los compases'}</b><br><span style="font-size:13px;color:#94a3b8">${solo ? 'Dura' : 'Cada compás sigue durando'} ${op[0].dur} s · tempo ${op[0].tempo}</span></button>
+                <button data-m="pulsos" style="${b}"><b>Mantener los pulsos</b><br><span style="font-size:13px;color:#94a3b8">Tus marcas se agrupan de nuevo: ${solo ? 'el compás' : 'cada compás'} dura ${op[1].dur} s · tempo ${op[1].tempo}</span></button>
                 <button data-m="" style="${b};text-align:center;background:transparent">Cancelar</button></div>`;
+            };
+            pintar();
             const fin = r => { fondo.remove(); document.removeEventListener('keydown', esc, true); res(r); };
             const esc = e => { if (e.key === 'Escape') { e.preventDefault(); fin(null); } };
             fondo.addEventListener('click', e => {
+                const a = e.target.closest('[data-a]');
+                if (a) { solo = a.dataset.a === '1'; op = calcular(); pintar(); return; }
                 const x = e.target.closest('[data-m]');
                 if (x) fin(x.dataset.m ? op.find(o => o.modo === x.dataset.m) : null);
                 else if (e.target === fondo) fin(null);

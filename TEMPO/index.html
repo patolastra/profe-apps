@@ -162,7 +162,7 @@
         <button class="btn" id="b-c1" title="El compás elegido pasa a ser el compás 1">Aquí empieza el compás 1</button>
         <input id="sec-nombre" list="sec-lista" placeholder="🏷 Sección desde aquí" title="Nombre de la sección que empieza en este compás (Enter). Vacío: la quita" disabled>
         <datalist id="sec-lista"><option>Intro</option><option>Estrofa</option><option>Pre-coro</option><option>Coro</option><option>Puente</option><option>Interludio</option><option>Solo</option><option>Mambo</option><option>Final</option></datalist>
-        <span class="rot">Cifra desde este compás</span>
+        <span class="rot">Cifra de este compás</span>
         <select id="sel-cifra"></select>
         <button class="btn" id="b-borrar" title="Borrar el compás elegido: se junta con el anterior (Supr)">🗑 Borrar compás</button>
     </div>
@@ -824,7 +824,11 @@ function pintarControles() {
     const ct = mapa.cifraTexto(hay ? c : 1);
     $('sel-cifra').innerHTML = (CIFRAS.includes(ct) ? CIFRAS : [...CIFRAS, ct]).map(k => `<option${k === ct ? ' selected' : ''}>${k}</option>`).join('');
     $('sel-cifra').disabled = !hay;
-    $('cifras').innerHTML = S.cifras.map((x, i) => `<span class="cifra">${i === 0 ? 'Desde el inicio' : 'Compás ' + x.compas}: ${x.n}/${x.d || 4}${i ? `<button data-quitar="${i}" title="Quitar este cambio">✕</button>` : '<span style="width:6px"></span>'}</span>`).join('');
+    $('cifras').innerHTML = S.cifras.map((x, i) => {
+        if (soloUnCompas(i - 1)) return '';   // la vuelta de un cambio de un solo compás va con él
+        const solo = soloUnCompas(i);
+        return `<span class="cifra">${i === 0 ? 'Desde el inicio' : 'Compás ' + x.compas}: ${x.n}/${x.d || 4}${solo ? ' (solo)' : ''}${i ? `<button data-quitar="${i}" title="Quitar este cambio">✕</button>` : '<span style="width:6px"></span>'}</span>`;
+    }).join('');
     const tt = $('ton-tonica'), tm = $('ton-modo');
     tm.value = S.tonalidad?.modo || 'mayor';
     tt.innerHTML = '<option value="">—</option>' + TempoMapa.TONICAS[tm.value].map(t => `<option value="${t}"${t === S.tonalidad?.tonica ? ' selected' : ''}>${TempoMapa.nombreTonalidad({ tonica: t, modo: tm.value }).split(' ')[0]}</option>`).join('');
@@ -886,7 +890,7 @@ $('sel-cifra').onchange = async e => {
     e.target.blur();
     if (sel === null) return;
     const [n, d] = e.target.value.split('/').map(Number), c = sel - idxCercano(S.c1) + 1;
-    const r = await TempoMapa.preguntarCambioCifra(datos(), { compas: c, n, d });
+    const r = await TempoMapa.preguntarCambioCifra(datos(), { compas: c, n, d }, { alcance: c >= 1 });
     if (!r) { pintarControles(); return; }       // cancelado: el selector vuelve a la cifra de antes
     antes();
     Object.assign(S, aCompases(r.datos));
@@ -1125,7 +1129,16 @@ $('nom-lista').addEventListener('click', e => {
     if (i === nomFoco) { tocar(S.secciones[i].t); inputNombre(i).focus(); pintarNombreTocar(); } else enfocarNombre(i);
 });
 $('nombres').addEventListener('mousedown', e => { if (e.target.id === 'nombres') cerrarNombres(); });
-$('cifras').onclick = e => { const b = e.target.closest('[data-quitar]'); if (!b) return; antes(); S.cifras.splice(+b.dataset.quitar, 1); rehacer(); };
+// Un cambio de un solo compás: el siguiente vuelve justo a la cifra de antes
+function mismaCifra(a, b) { return !!(a && b && a.n === b.n && (a.d || 4) === (b.d || 4)); }
+function soloUnCompas(i) { return i > 0 && i + 1 < S.cifras.length && S.cifras[i + 1].compas === S.cifras[i].compas + 1 && mismaCifra(S.cifras[i + 1], S.cifras[i - 1]); }
+$('cifras').onclick = e => {
+    const b = e.target.closest('[data-quitar]'); if (!b) return;
+    const i = +b.dataset.quitar;
+    antes(); S.cifras.splice(i, soloUnCompas(i) ? 2 : 1);
+    S.cifras = S.cifras.filter((x, k) => k === 0 || !mismaCifra(x, S.cifras[k - 1]));   // un cambio que repite la anterior sobra
+    rehacer();
+};
 $('seg-grab').onclick = async e => {
     const b = e.target.closest('[data-v]'); if (!b || !audios[b.dataset.v]) return;
     rol = b.dataset.v; pintarControles(); await cargarGrabacion();
