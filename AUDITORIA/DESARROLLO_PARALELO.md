@@ -9185,3 +9185,12 @@ el Entrenador sigue sonando").*
 - **Arreglo:** `callarBiblioteca()` detiene todo audio o video de la Biblioteca (extractos y versiones de la ficha, la
   vista de un audio) al abrir el Entrenador (`abrirEntrenador` y `abrirEntrenadorConConfig`). Solo `REPERTORIO/index.html`.
 - **Prueba (navegador):** ficha de "Sin Sentimiento", extracto sonando (1,6 s) → ▶ Ver letra → el extracto queda en pausa.
+
+### GP. Entrenador — 🧩 Estructura también en una canción sin letra — HECHA
+*Origen: PO 2026-11-08 ("hay canciones con estructura en su ficha que no muestran el 🧩 en el Entrenador").*
+- **Causa:** el menú 🧩 se armaba solo con una letra abierta; "Ven a bailar" (Ficha con 9 secciones, sin letra) no lo mostraba.
+- **Arreglo:** `entCalcularSecciones` arma la lista 🧩 siempre que la Ficha tenga secciones (las etiquetas sobre los
+  versos siguen pidiendo letra sincronizada) y se calcula también en la pantalla "Esta canción no tiene letra".
+  Solo `REPERTORIO/index.html`.
+- **Lugares (regla 11):** Entrenador en todas sus versiones (mismo código; en el celular, el 🧩 de su barra).
+- **Prueba (navegador):** "Ven a bailar" → 🧩 visible, 9 secciones; tocar "Inter a marcha" salta el audio a 0:41.
