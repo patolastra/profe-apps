@@ -9052,6 +9052,10 @@ no está"; "resumir todos los botones hover en un menú al final de la fila").*
   Lagos tiene datos, todos del 2026-11-08 (rúbrica 6,7 → reevaluado 6,3, comentario). Los otros 24 nunca tuvieron nota
   ni resultados; la rúbrica y sus 3 criterios y las filas de estudiantes siguen intactas desde el 22/10 (no hubo
   borrado). Las bitácoras de Cuarto no mencionan esa evaluación. Nada que recuperar.
+- **Cuadro del comentario (PO 2026-11-09: "no son visualmente consistentes, se cortan; Enter hace salto"):** al editar
+  ya no flota encima de la fila (se salía y se cortaba): crece en su mismo lugar, la fila se alarga, tope de 180 px con
+  desplazamiento. **Enter** (o Ctrl+Enter, o Esc) termina y guarda; **Mayús+Enter** = nueva línea. Prueba (navegador,
+  Sexto, sin guardar): mismo lugar cerrado y abierto, texto largo queda dentro de la celda, Enter sale del cuadro.
 
 ### GJ2. Ficha — onda atrasada y cifra de un solo compás — HECHA (falta probar en uso)
 *Origen: PO 2026-11-08 ("no calza lo que veo con lo que escucho", "Estrechez de Corazón"; "modificar cifras de compases
