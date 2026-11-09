@@ -101,6 +101,14 @@
   .res-nom{font-size:20px;font-weight:600}
   .res-nota{font-size:36px;font-weight:800;min-width:90px;text-align:right}
   .res-nota.azul{color:#60a5fa}.res-nota.roja{color:#f87171}.res-nota.pend{font-size:18px;color:var(--mut)}
+  /* Resultados de a uno (2026-11-09): un estudiante en grande, flechas para avanzar/retroceder */
+  .res-uno{display:flex;align-items:center;gap:14px;margin-top:14px;padding:22px 18px;border:1px solid var(--line);border-radius:12px;min-height:150px}
+  .res-uno .res-flecha{flex:0 0 auto;width:44px;height:44px;font-size:20px;padding:0}
+  .res-uno .res-cuerpo{flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .res-uno .res-nom{font-size:38px;font-weight:700;line-height:1.15;overflow-wrap:anywhere}
+  .res-uno .res-nota{font-size:72px;min-width:150px}
+  .res-uno .res-nota.pend{font-size:28px}
+  .res-pos{margin:8px 0 0;color:var(--mut);font-variant-numeric:tabular-nums}
   #btn-proy.on{background:#7c2d12;border-color:#ea580c;color:#fff}
   .adec-list li .badge-hoy{display:inline-block;background:var(--acc);color:#fff;font-size:10px;font-weight:700;letter-spacing:.04em;border-radius:4px;padding:1px 6px;margin-right:8px;vertical-align:1px}
   .adec-list li .ix{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.03em;margin-right:8px}
@@ -1275,7 +1283,7 @@ function renderDetalle(){
 
   evMostrarTab();
   proyPintarBoton();
-  const rb = document.getElementById('res-buscar'); if (rb && resQ) { rb.value = resQ; resBuscar(); }
+  const rb = document.getElementById('res-buscar'); if (rb) { rb.value = resQ; resBuscar(true); }
   filtrarEstudiantes();   // contador de "Pendientes (N)"
   bindInstrCard();   // Etapa 3: piso + carga de plantilla + asociaciones
   bindObsGen();      // Observación general: borrador + guardado automático al salir
@@ -1457,29 +1465,64 @@ function resPaneHTML(){
     </div>`;
   return `<div class="card">
       <p class="sec-title">Resultados · solo en tu pantalla</p>
-      <p class="hint" style="margin:0 0 10px">Busca a un estudiante para ver su nota. Si proyectas esta pestaña, el curso ve solo quiénes faltan por evaluar (nunca notas).</p>
+      <p class="hint" style="margin:0 0 10px">Recorre la lista con las flechas (← ↓ atrás · → ↑ adelante) o escribe un nombre o apellido. Si proyectas esta pestaña, el curso ve solo quiénes faltan por evaluar (nunca notas).</p>
       <p class="res-cont">Evaluados: <b>${nEval}</b> de ${aplican.length} · Pendientes: <b>${aplican.length - nEval}</b></p>
-      <input id="res-buscar" class="res-buscar" placeholder="Escribe un nombre…" oninput="resBuscar()" autocomplete="off">
+      <input id="res-buscar" class="res-buscar" placeholder="Escribe un nombre…" oninput="resBuscar()" onkeydown="resTecla(event)" autocomplete="off">
       <div id="res-lista"></div>
     </div>`;
 }
-function resBuscar(){
-  const inp = document.getElementById('res-buscar'), out = document.getElementById('res-lista');
-  if (!inp || !out) return;
-  resQ = inp.value;
+// Resultados de a uno (PO 2026-11-09): se ve un solo estudiante en grande con su nota. Desde el
+// buscador, ← / ↓ retroceden y → / ↑ avanzan por la lista (en el orden del Libro); escribir un
+// nombre o apellido deja solo los que coinciden (las flechas recorren esos). Al borrar la búsqueda
+// se sigue desde el estudiante que estaba a la vista.
+let resPosId = null;
+function resListaActual(){
   const q = normBuscar(resQ);
-  if (!q) { out.innerHTML = ''; return; }
-  const hits = notas.filter(n => nombreBuscar(n.estudiante).includes(q)).slice(0, 8);
-  out.innerHTML = hits.length ? hits.map(n => {
-    const est = estadoEfectivo(n);
-    const g = n.grupo_id ? grupos.find(x => x.id === n.grupo_id) : null;
-    const ant = intentosDe(n).map(x => fmtNota(x.nota)).filter(Boolean);
-    const meta = [g ? esc(g.nombre) + (tipicoTxt(g) ? ' (' + esc(tipicoTxt(g)) + ')' : '') : '', ausentesHoy.has(n.estudiante_id) ? 'ausente hoy' : '',
-                  ant.length ? 'notas anteriores: ' + ant.join(' · ') : ''].filter(Boolean).join(' · ');
-    const nota = est === 'evaluado' ? `<span class="res-nota ${n.nota < 4 ? 'roja' : 'azul'}">${fmtNota(n.nota)}</span>`
-               : `<span class="res-nota pend">${est === 'no_aplica' ? 'No aplica' : 'Pendiente'}</span>`;
-    return `<div class="res-card"><div><div class="res-nom">${esc(nombreEstudiante(n))}</div>${meta ? `<div class="hint">${meta}</div>` : ''}</div>${nota}</div>`;
-  }).join('') : '<p class="hint">Nadie con ese nombre en esta evaluación.</p>';
+  return q ? notas.filter(n => nombreBuscar(n.estudiante).includes(q)) : notas;
+}
+function resBuscar(mantener){
+  const inp = document.getElementById('res-buscar');
+  if (!inp) return;
+  const cambio = inp.value !== resQ;
+  resQ = inp.value;
+  const lista = resListaActual();
+  if (cambio && !mantener && normBuscar(resQ)) resPosId = lista[0]?.estudiante_id ?? null;
+  resPintar();
+}
+function resMover(d){
+  const lista = resListaActual();
+  if (!lista.length) return;
+  let i = lista.findIndex(n => n.estudiante_id === resPosId);
+  i = i < 0 ? 0 : Math.min(lista.length - 1, Math.max(0, i + d));
+  resPosId = lista[i].estudiante_id;
+  resPintar();
+}
+function resTecla(ev){
+  if (ev.key === 'ArrowLeft' || ev.key === 'ArrowDown') { ev.preventDefault(); resMover(-1); }
+  else if (ev.key === 'ArrowRight' || ev.key === 'ArrowUp') { ev.preventDefault(); resMover(1); }
+  else if (ev.key === 'Escape' && ev.target.value) { ev.preventDefault(); ev.target.value = ''; resBuscar(); }
+}
+function resPintar(){
+  const out = document.getElementById('res-lista');
+  if (!out) return;
+  const lista = resListaActual();
+  if (!lista.length) { out.innerHTML = '<p class="hint">Nadie con ese nombre en esta evaluación.</p>'; return; }
+  let i = lista.findIndex(n => n.estudiante_id === resPosId);
+  if (i < 0) { i = 0; resPosId = lista[0].estudiante_id; }
+  const n = lista[i];
+  const est = estadoEfectivo(n);
+  const g = n.grupo_id ? grupos.find(x => x.id === n.grupo_id) : null;
+  const ant = intentosDe(n).map(x => fmtNota(x.nota)).filter(Boolean);
+  const meta = [g ? esc(g.nombre) + (tipicoTxt(g) ? ' (' + esc(tipicoTxt(g)) + ')' : '') : '', ausentesHoy.has(n.estudiante_id) ? 'ausente hoy' : '',
+                ant.length ? 'notas anteriores: ' + ant.join(' · ') : ''].filter(Boolean).join(' · ');
+  const nota = est === 'evaluado' ? `<span class="res-nota ${n.nota < 4 ? 'roja' : 'azul'}">${fmtNota(n.nota)}</span>`
+             : `<span class="res-nota pend">${est === 'no_aplica' ? 'No aplica' : 'Pendiente'}</span>`;
+  out.innerHTML = `<div class="res-uno">
+      <button type="button" class="btn res-flecha" onclick="resMover(-1)" ${i === 0 ? 'disabled' : ''} title="Anterior (← o ↓)">◀</button>
+      <div class="res-cuerpo"><div><div class="res-nom">${esc(nombreEstudiante(n))}</div>${meta ? `<div class="hint">${meta}</div>` : ''}</div>${nota}</div>
+      <button type="button" class="btn res-flecha" onclick="resMover(1)" ${i === lista.length - 1 ? 'disabled' : ''} title="Siguiente (→ o ↑)">▶</button>
+    </div>
+    <p class="res-pos">${i + 1} de ${lista.length}${normBuscar(resQ) ? ' con ese nombre' : ''}</p>`;
 }
 // Participación (deuda AK): la Pizarra muestra EXACTAMENTE el tablero del profe. Se envía su
 // contenido (contador, cuadros con sus clases: inhabilitado, barajando, entra…, y el nombre

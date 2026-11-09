@@ -9227,3 +9227,15 @@ pendiente, prueba, apoderado, ensayo, bug, mejora; sin curso queda en General").
 - **Ajuste (PO 2026-11-08):** en el computador del PO, Ctrl + Shift + 7 no llega a la página (ni en Brave ni en
   Chrome; con teclas reales en el panel de pruebas sí funcionaba): el atajo pasa a **Ctrl + Shift + Ñ** (el 7 sigue
   aceptado).
+
+### GR. Libro — Resultados de a uno, con flechas — HECHA (falta probar en uso)
+*Origen: PO 2026-11-09 ("moverme flecha abajo/izquierda y arriba/derecha para retroceder/avanzar en el listado, que se
+muestre solo un estudiante, en grande, con su nota … buscar por nombre/apellido que siga funcionando").*
+- **Alcance:** pestaña Resultados de una evaluación (no la de "por toques"). Solo `LIBRO/index.html`.
+- **Hecho:** se ve un solo estudiante en grande (nombre, grupo, ausente hoy, notas anteriores y su nota o
+  Pendiente / No aplica) con ◀ ▶ y "N de M". En el buscador, ← / ↓ retroceden y → / ↑ avanzan en el orden del Libro
+  (A–Z o 1–N); escribir nombre o apellido deja solo los que coinciden y las flechas recorren esos; Esc borra la
+  búsqueda y se sigue desde el estudiante a la vista. La proyección no cambia (sigue mostrando solo pendientes).
+- **Lugares (regla 11):** Libro (pestaña del Plan y 📒 Libros).
+- **Prueba (navegador, Sexto, "Lectura rítmica en 6/8"):** parte en el 1 de 36; → ↑ avanzan, ↓ ← retroceden y se
+  detienen en el primero; "agus" → 2 coincidencias recorribles; un apellido → 1; al borrar sigue en 6 de 36.
