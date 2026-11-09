@@ -108,6 +108,9 @@
   .res-uno .res-nom{font-size:38px;font-weight:700;line-height:1.15;overflow-wrap:anywhere}
   .res-uno .res-nota{font-size:72px;min-width:150px}
   .res-uno .res-nota.pend{font-size:28px}
+  textarea.res-com{display:block;width:100%;margin-top:10px;font-size:17px;line-height:24px;resize:none;overflow:auto;max-height:200px;
+    min-height:0;height:auto;background:transparent;border-color:transparent}
+  textarea.res-com:hover,textarea.res-com:focus{border-color:var(--line);background:rgba(0,0,0,.25)}
   .res-pos{margin:8px 0 0;color:var(--mut);font-variant-numeric:tabular-nums}
   .res-vistas:not([hidden]){display:flex;gap:6px;margin:0 0 12px}
   #btn-proy.on{background:#7c2d12;border-color:#ea580c;color:#fff}
@@ -1498,6 +1501,21 @@ function resMover(d){
   resPosId = lista[i].estudiante_id;
   resPintar();
 }
+// Comentario del estudiante a la vista (PO 2026-11-09): mismo dato que la columna Comentario de
+// 📋 Lista; se guarda al salir del cuadro (Enter termina, Mayús+Enter = nueva línea) y la Lista se pone al día.
+async function resComGuardar(notaId, el){
+  const n = notas.find(x => x.id === notaId); if (!n) return;
+  const val = el.value.trim() === '' ? null : el.value;
+  try {
+    const { error } = await sb.from('libro_evaluacion_notas').update({ comentario: val }).eq('id', n.id);
+    if (error) throw error;
+    n.comentario = val;
+    const idx = notas.indexOf(n);
+    const enLista = document.querySelector(`#tbody-est textarea[data-i="${idx}"][data-k="comentario"]`);
+    if (enLista) enLista.value = val || '';
+    filtrarEstudiantes();   // filtro 💬 con / sin comentario al día
+  } catch (e) { toast('No se pudo guardar el comentario: ' + e.message, 'err'); }
+}
 function resTecla(ev){
   if (ev.key === 'ArrowLeft' || ev.key === 'ArrowDown') { ev.preventDefault(); resMover(-1); }
   else if (ev.key === 'ArrowRight' || ev.key === 'ArrowUp') { ev.preventDefault(); resMover(1); }
@@ -1524,7 +1542,10 @@ function resPintar(){
       <div class="res-cuerpo"><div><div class="res-nom">${esc(nombreEstudiante(n))}</div>${meta ? `<div class="hint">${meta}</div>` : ''}</div>${nota}</div>
       <button type="button" class="btn res-flecha" onclick="resMover(1)" ${i === lista.length - 1 ? 'disabled' : ''} title="Siguiente (→ o ↑)">▶</button>
     </div>
-    <p class="res-pos">${i + 1} de ${lista.length}${normBuscar(resQ) ? ' con ese nombre' : ''}</p>`;
+    <p class="res-pos">${i + 1} de ${lista.length}${normBuscar(resQ) ? ' con ese nombre' : ''}</p>
+    <textarea class="res-com" rows="1" placeholder="(comentario)" ${evalActual.estado === 'cerrado' ? 'disabled' : ''}
+      oninput="estComAlto(this)" onkeydown="estComTecla(event, this)" onchange="resComGuardar('${n.id}', this)">${esc(n.comentario || '')}</textarea>`;
+  const ta = out.querySelector('.res-com'); if (ta && ta.value) estComAlto(ta);
 }
 // Participación (deuda AK): la Pizarra muestra EXACTAMENTE el tablero del profe. Se envía su
 // contenido (contador, cuadros con sus clases: inhabilitado, barajando, entra…, y el nombre

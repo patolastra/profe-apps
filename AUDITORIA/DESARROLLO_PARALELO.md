@@ -9247,3 +9247,7 @@ muestre solo un estudiante, en grande, con su nota … buscar por nombre/apellid
   cualquier vista. Prueba (navegador, Sexto): normal → Lista / De a uno; "Cantó el gallo" (por toques) → De a uno con
   "0 toques 7,0", Toques con su tabla, Lista con la tabla del curso. La otra mejora anotada (evaluar a un estudiante
   con otra rúbrica, caso Tomás Lagos) quedó en el Backlog de Notion.
+- **Ajuste (PO 2026-11-09):** en 🔍 De a uno, bajo el estudiante, su **comentario** (el mismo de la columna Comentario
+  de 📋 Lista), editable ahí: se guarda al salir del cuadro, Enter termina y Mayús+Enter = nueva línea; la Lista y su
+  filtro 💬 quedan al día. Sin comentario se ve solo "(comentario)" tenue. Prueba (navegador, guardado simulado): lo
+  enviado es `{ comentario }`, la Lista muestra el texto nuevo, un comentario largo crece sin cortarse.
