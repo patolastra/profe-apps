@@ -9239,3 +9239,11 @@ muestre solo un estudiante, en grande, con su nota … buscar por nombre/apellid
 - **Lugares (regla 11):** Libro (pestaña del Plan y 📒 Libros).
 - **Prueba (navegador, Sexto, "Lectura rítmica en 6/8"):** parte en el 1 de 36; → ↑ avanzan, ↓ ← retroceden y se
   detienen en el primero; "agus" → 2 coincidencias recorribles; un apellido → 1; al borrar sigue en 6 de 36.
+- **Ajuste (🐞 Mejoras, PO 2026-11-09):** "Resultados" y "Estudiantes" pasan a ser **una sola pestaña Resultados** con
+  vistas **📋 Lista** (la tabla del curso de siempre) · **🔍 De a uno** (la vista grande con flechas) y, en las
+  evaluaciones **por toques**, **👆 Toques** (la tabla de toques con la nota editable a mano). La vista grande también
+  sirve en las por toques (muestra los toques del estudiante). Se recuerda la vista en el equipo; quien tenía guardada
+  la pestaña Estudiantes entra a Resultados · Lista. La proyección de Resultados sigue mostrando solo pendientes en
+  cualquier vista. Prueba (navegador, Sexto): normal → Lista / De a uno; "Cantó el gallo" (por toques) → De a uno con
+  "0 toques 7,0", Toques con su tabla, Lista con la tabla del curso. La otra mejora anotada (evaluar a un estudiante
+  con otra rúbrica, caso Tomás Lagos) quedó en el Backlog de Notion.

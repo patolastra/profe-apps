@@ -109,6 +109,7 @@
   .res-uno .res-nota{font-size:72px;min-width:150px}
   .res-uno .res-nota.pend{font-size:28px}
   .res-pos{margin:8px 0 0;color:var(--mut);font-variant-numeric:tabular-nums}
+  .res-vistas:not([hidden]){display:flex;gap:6px;margin:0 0 12px}
   #btn-proy.on{background:#7c2d12;border-color:#ea580c;color:#fff}
   .adec-list li .badge-hoy{display:inline-block;background:var(--acc);color:#fff;font-size:10px;font-weight:700;letter-spacing:.04em;border-radius:4px;padding:1px 6px;margin-right:8px;vertical-align:1px}
   .adec-list li .ix{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.03em;margin-right:8px}
@@ -1241,6 +1242,8 @@ function renderDetalle(){
 
     <div class="ev-pane" data-pane="grupos">${notas.length ? gruposCardHTML() : ''}</div>
 
+    <div class="ev-pane res-vistas" data-pane="resv">${resVistasHTML()}</div>
+
     <div class="ev-pane" data-pane="res">${resPaneHTML()}</div>
 
     <div class="ev-pane" data-pane="est">${(() => { verObj = adecs.length > 0; return ''; })()}
@@ -1384,7 +1387,7 @@ function proyFoto(){
       pendientes: pend.filter(n => !ausentesHoy.has(n.estudiante_id)).map(nom),
       ausentes: pend.filter(n => ausentesHoy.has(n.estudiante_id)).map(nom) };
   }
-  return { ...b, tipo: 'pausa' };   // Estudiantes / Observación general: no se proyectan
+  return { ...b, tipo: 'pausa' };   // Observación general: no se proyecta (Resultados, en cualquier vista, proyecta solo pendientes)
 }
 // Resultados (deuda AI, Etapa 2): SOLO en la pantalla del profe. Buscar un nombre muestra
 // su nota; proyectada, esta pestaña muestra solo quiénes faltan (proyFoto, tipo 'pend').
@@ -1456,19 +1459,17 @@ async function guardarDescuento(raw){
 function resPaneHTML(){
   const aplican = notas.filter(n => estadoEfectivo(n) !== 'no_aplica');
   const nEval = aplican.filter(n => estadoEfectivo(n) === 'evaluado').length;
-  if (esPorToques()) return `<div class="card">
-      <p class="sec-title">Resultados · solo en tu pantalla</p>
-      <p class="hint" style="margin:0 0 10px">Por toques: ${fmtNota(evalActual.descuento_toque)} menos por cada toque (desde 7,0, nunca bajo ${fmtNota(evalActual.nota_min ?? 2)}).
-        La nota se escribe al apretar "Terminar" en el celular; aquí puedes cambiarla a mano. Si proyectas esta pestaña, el curso ve solo quiénes faltan por evaluar.</p>
-      <p class="res-cont">Evaluados: <b>${nEval}</b> de ${aplican.length} · Pendientes: <b>${aplican.length - nEval}</b></p>
-      ${resToquesHTML()}
-    </div>`;
   return `<div class="card">
       <p class="sec-title">Resultados · solo en tu pantalla</p>
-      <p class="hint" style="margin:0 0 10px">Recorre la lista con las flechas (← ↓ atrás · → ↑ adelante) o escribe un nombre o apellido. Si proyectas esta pestaña, el curso ve solo quiénes faltan por evaluar (nunca notas).</p>
+      ${esPorToques() ? `<p class="hint" style="margin:0 0 10px">Por toques: ${fmtNota(evalActual.descuento_toque)} menos por cada toque (desde 7,0, nunca bajo ${fmtNota(evalActual.nota_min ?? 2)}).
+        La nota se escribe al apretar "Terminar" en el celular; en 👆 Toques puedes cambiarla a mano.</p>` : ''}
       <p class="res-cont">Evaluados: <b>${nEval}</b> de ${aplican.length} · Pendientes: <b>${aplican.length - nEval}</b></p>
-      <input id="res-buscar" class="res-buscar" placeholder="Escribe un nombre…" oninput="resBuscar()" onkeydown="resTecla(event)" autocomplete="off">
-      <div id="res-lista"></div>
+      <div data-resv="uno">
+        <p class="hint" style="margin:0 0 10px">Recorre la lista con las flechas (← ↓ atrás · → ↑ adelante) o escribe un nombre o apellido. Si proyectas, el curso ve solo quiénes faltan por evaluar (nunca notas).</p>
+        <input id="res-buscar" class="res-buscar" placeholder="Escribe un nombre…" oninput="resBuscar()" onkeydown="resTecla(event)" autocomplete="off">
+        <div id="res-lista"></div>
+      </div>
+      ${esPorToques() ? `<div data-resv="toques">${resToquesHTML()}</div>` : ''}
     </div>`;
 }
 // Resultados de a uno (PO 2026-11-09): se ve un solo estudiante en grande con su nota. Desde el
@@ -1513,7 +1514,8 @@ function resPintar(){
   const est = estadoEfectivo(n);
   const g = n.grupo_id ? grupos.find(x => x.id === n.grupo_id) : null;
   const ant = intentosDe(n).map(x => fmtNota(x.nota)).filter(Boolean);
-  const meta = [g ? esc(g.nombre) + (tipicoTxt(g) ? ' (' + esc(tipicoTxt(g)) + ')' : '') : '', ausentesHoy.has(n.estudiante_id) ? 'ausente hoy' : '',
+  const tq = esPorToques() && est !== 'no_aplica' ? `${n.toques || 0} ${(n.toques || 0) === 1 ? 'toque' : 'toques'}` : '';
+  const meta = [g ? esc(g.nombre) + (tipicoTxt(g) ? ' (' + esc(tipicoTxt(g)) + ')' : '') : '', tq, ausentesHoy.has(n.estudiante_id) ? 'ausente hoy' : '',
                 ant.length ? 'notas anteriores: ' + ant.join(' · ') : ''].filter(Boolean).join(' · ');
   const nota = est === 'evaluado' ? `<span class="res-nota ${n.nota < 4 ? 'roja' : 'azul'}">${fmtNota(n.nota)}</span>`
              : `<span class="res-nota pend">${est === 'no_aplica' ? 'No aplica' : 'Pendiente'}</span>`;
@@ -1607,12 +1609,32 @@ window.addEventListener('pagehide', () => { if (proyModo === 'pizarra') LibroPro
 // Pestañas de la evaluación (deuda AC-1): se ve solo la elegida; las demás quedan armadas
 // pero ocultas (mismos guardados). Se recuerda la última; por defecto Estudiantes.
 const EV_TABS = [['cab', 'General'], ['instr', 'Instrumentos'], ['grupos', 'Grupos de trabajo'],
-                 ['res', 'Resultados'], ['est', 'Estudiantes'], ['obs', 'Observación general']];
-let evTab = (() => { try { return localStorage.getItem('libro_eval_tab') || 'est'; } catch (_) { return 'est'; } })();
+                 ['res', 'Resultados'], ['obs', 'Observación general']];
+// Resultados y Estudiantes son una sola pestaña "Resultados" (PO 2026-11-09) con vistas:
+// 📋 Lista (la tabla del curso, antes "Estudiantes") · 🔍 De a uno (un estudiante en grande,
+// con flechas) · 👆 Toques (solo en evaluaciones por toques). Se recuerda la vista en el equipo.
+let evTab = (() => { try { const t = localStorage.getItem('libro_eval_tab') || 'res'; return t === 'est' ? 'res' : t; } catch (_) { return 'res'; } })();
+let resVista = (() => { try { return localStorage.getItem('libro_res_vista') || 'lista'; } catch (_) { return 'lista'; } })();
+function resVistasDisp(){ return [['lista', '📋 Lista'], ['uno', '🔍 De a uno']].concat(esPorToques() ? [['toques', '👆 Toques']] : []); }
+function resVistasHTML(){
+  return resVistasDisp().map(([k, lab]) =>
+    `<button type="button" class="btn seg" data-resv-btn="${k}" onclick="resIrVista('${k}')">${lab}</button>`).join('');
+}
+function resIrVista(k){
+  resVista = k;
+  try { localStorage.setItem('libro_res_vista', k); } catch (_) {}
+  evMostrarTab();
+  if (k === 'uno') document.getElementById('res-buscar')?.focus();
+}
 function evMostrarTab(){
   const panes = document.querySelectorAll('#vista .ev-pane');
-  if (![...panes].some(p => p.dataset.pane === evTab && (p.dataset.pane !== 'grupos' || p.innerHTML.trim()))) evTab = 'est';
-  panes.forEach(p => { p.hidden = p.dataset.pane !== evTab; });
+  if (![...panes].some(p => p.dataset.pane === evTab && (p.dataset.pane !== 'grupos' || p.innerHTML.trim()))) evTab = 'res';
+  if (!resVistasDisp().some(([k]) => k === resVista)) resVista = 'lista';
+  const visible = p => evTab !== 'res' ? p === evTab
+    : p === 'resv' || (resVista === 'lista' ? p === 'est' : p === 'res');
+  panes.forEach(p => { p.hidden = !visible(p.dataset.pane); });
+  document.querySelectorAll('#vista [data-resv]').forEach(d => { d.hidden = d.dataset.resv !== resVista; });
+  document.querySelectorAll('#vista [data-resv-btn]').forEach(b => b.classList.toggle('on', b.dataset.resvBtn === resVista));
   document.querySelectorAll('#vista .ev-tabs [data-evtab]').forEach(b => {
     const on = b.dataset.evtab === evTab;
     b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false');
