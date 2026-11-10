@@ -9326,3 +9326,20 @@ semitonos, para escuchar la línea limpiamente"). DECISIÓN del PO 2026-11-10: a
 - **Prueba (navegador, canción real):** prendido, el reproductor sube una octava (SoundTouch a ×2), el corte queda
   en 400 Hz y lo de 2–5 kHz desaparece (−214 dB contra −72 dB en 100–400 Hz); +24 → corte 800 Hz; con Pitch +2 →
   tono 26; apagado vuelve a tono 0; al cambiar de canción se apaga solo; sin errores.
+
+### GW. Entrenador — 📋 Ficha de la canción desde el Entrenador — HECHA (falta probar en uso)
+*Origen: PO 2026-11-10 ("un botón para ir a la ficha de la canción desde el entrenador, aunque no la tenga, para desde
+allí acceder a crearla"). DECISIÓN del PO 2026-11-10: aprobado el plan propuesto.*
+- **Auditoría:** la Ficha (`TEMPO/index.html?cancion=<id>`) ya abre una canción sin Ficha y la crea al guardar; la
+  Biblioteca la abre como pestaña `tempo:<id>` del Workspace. El Entrenador mínimo del Plan vive dentro del Plan, que
+  no pasaba al Workspace lo que el mínimo pedía abrir.
+- **Alcance:** botón **📋** al lado de 🧩 en la barra del Entrenador, siempre visible: abre la Ficha (o la deja lista
+  para crearla) en su pestaña del Workspace; el título dice "Ficha de la canción" o "Crear la ficha de la canción".
+  En el mínimo del Plan, el Plan pasa el pedido al Workspace. No aparece en el celular ni en la copia de la Pizarra.
+- **Hecho:** `REPERTORIO/index.html` (botón 📋, `entAbrirFicha`, título según tenga Ficha; oculto en celular y en la
+  copia de la Pizarra) y `PORTAL/index.html` (el Plan pasa al Workspace el `ws-abrir` del Entrenador mínimo).
+- **Lugares (regla 11):** Entrenador de la Biblioteca y de la sesión del curso (pestaña Biblioteca del Workspace) y
+  Entrenador mínimo del Plan (vía el Plan); suelto, abre una pestaña del navegador.
+- **Prueba (navegador):** canción con Ficha → título "Ficha de la canción"; sin Ficha → "Crear la ficha de la
+  canción"; en el Workspace, 📋 abre la pestaña "Llorarás · Ficha" (canción sin Ficha) lista para elegir tonalidad,
+  cifra y secciones. El paso por el Plan (Entrenador mínimo) no se probó en el navegador.

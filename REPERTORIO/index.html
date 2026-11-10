@@ -1990,7 +1990,7 @@
             background: #ea580c; border: 0; color: #fff; border-radius: 20px; padding: 7px 16px; font-size: .8rem; font-weight: 700;
             cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
         #ent-volver-verso.visible { display: block; }
-        body.espejo #ent-volver-verso, body.espejo #ent-btn-toggle-estr { display: none !important; }
+        body.espejo #ent-volver-verso, body.espejo #ent-btn-toggle-estr, body.espejo #ent-btn-ficha { display: none !important; }
         .ent-sec-tag span { position: absolute; left: 0; bottom: .25em; font-size: .9rem; font-weight: 700; font-style: normal; line-height: 1;
             letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; white-space: nowrap; cursor: pointer; line-height: 1; }
         .ent-stanza-dim {
@@ -2185,7 +2185,7 @@
         body.movil #ent-sesion-lista, body.movil #ent-btn-toggle-lista, body.movil #ent-sesion-nav, body.movil #ent-btn-pedir,
         body.movil #ent-btn-espejo, body.movil #ent-btn-atajos, body.movil #ent-btn-pitch, body.movil #ent-pitch-input, body.movil #ent-bajo-grupo,
         body.movil #ent-vel-label, body.movil #ent-btn-sync, body.movil #ent-btn-sync-save, body.movil #ent-btn-editar, body.movil #ent-btn-voz2,
-        body.movil #ent-btn-buscar-letra, body.movil #ent-btn-vista, body.movil #ent-btn-toggle-loops, body.movil #ent-loops-panel, body.movil #ent-btn-toggle-estr, body.movil #ent-estr-panel, body.movil #ent-btn-toggle-oa, body.movil #ent-oa-panel,
+        body.movil #ent-btn-buscar-letra, body.movil #ent-btn-vista, body.movil #ent-btn-toggle-loops, body.movil #ent-loops-panel, body.movil #ent-btn-toggle-estr, body.movil #ent-btn-ficha, body.movil #ent-estr-panel, body.movil #ent-btn-toggle-oa, body.movil #ent-oa-panel,
         body.movil #ent-asset-chips, body.movil #ent-btn-mini-x, body.movil #ent-link, body.movil #ent-vol,
         body.movil #ent-song-text, body.movil #ent-btn-lectura, body.movil #ent-segunda-vol { display: none !important; }   /* el nombre ya está en la portada; Lectura no hace falta (PO 2026-10-25) */
         body.movil .ent-lyric-line { white-space: normal; overflow-wrap: break-word; }
@@ -3335,6 +3335,7 @@
             <a id="ent-link" target="_blank" rel="noopener" style="display:none"></a>
             <button id="ent-btn-toggle-oa" class="ent-panel-btn sin-oa" onclick="entToggleOaPanel()" title="Otros audios: extractos y versiones">🎧</button>
             <button id="ent-btn-toggle-estr" class="ent-panel-btn sin-estr" onclick="entToggleEstrPanel()" title="Estructura de la canción (de su Ficha)">🧩</button>
+            <button id="ent-btn-ficha" class="ent-panel-btn" onclick="entAbrirFicha()" title="Ficha de la canción">📋</button>
             <button id="ent-btn-toggle-loops" class="ent-panel-btn" onclick="entToggleLoopsPanel()" title="Panel de loops">⟳</button>
         </div>
         <div id="ent-asset-chips"></div>
@@ -8053,9 +8054,28 @@ function entCalcularSecciones() {
     // En cada verso, primero las sin letra (suenan antes) y después la que empieza con él
     entSecDeEstrofa.forEach(L => L.sort((a, b) => b.sola - a.sola));
 }
+// ── 📋 Ficha de la canción (deuda GW): la abre en su pestaña del Workspace (la misma de la Biblioteca); sin Ficha,
+// queda lista para crearla (se crea al guardar). En el mínimo del Plan, el Plan pasa el pedido al Workspace. ──
+function entAbrirFicha() {
+    const c = entrenadorSong;
+    if (!c || ESPEJO) return;
+    const src = `../TEMPO/index.html?cancion=${encodeURIComponent(c.id)}`;
+    if (window.parent && window.parent !== window) {
+        try {
+            window.parent.postMessage({ tipo: 'ws-abrir', key: `tempo:${c.id}`, titulo: `${c.nombre || 'Canción'} · Ficha`, ico: '📋', src, guardarAlCerrar: true }, '*');
+            return;
+        } catch (_) {}
+    }
+    window.open(src, '_blank');
+}
+function entPintarBtnFicha() {
+    const b = document.getElementById('ent-btn-ficha');
+    if (b) b.title = (entrenadorSong?.assets || []).some(a => a.tipo === 'tempo') ? 'Ficha de la canción' : 'Crear la ficha de la canción';
+}
 // ── 🧩 Panel de estructura (EZ): como el de Loops ──
 function entPintarEstrPanel() {
     const hay = entEstrLista.length > 0, panel = document.getElementById('ent-estr-panel');
+    entPintarBtnFicha();
     document.getElementById('ent-btn-toggle-estr')?.classList.toggle('sin-estr', !hay);
     document.getElementById('ent-btn-estr-movil')?.classList.toggle('oculto', !hay);
     if (!hay) entEstrPantalla(false);
