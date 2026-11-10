@@ -1134,7 +1134,8 @@ async function abrirDetalle(evId){
         .eq('evaluacion_id', evId);
       grupos = [];
     } else {
-      const cg = await sb.from('libro_evaluacion_grupos').select('*').eq('evaluacion_id', evId).order('created_at');
+      // El grupo más nuevo, primero (junto a ＋ Nuevo grupo; PO 2026-11-10)
+      const cg = await sb.from('libro_evaluacion_grupos').select('*').eq('evaluacion_id', evId).order('created_at', { ascending: false });
       grupos = (cg.error && tablaFalta(cg)) ? [] : (cg.data || []);
       if (grupos.some(g => tipLista(g).some(x => x.cancion_id))) { try { await tipCargarBib(); } catch (_) {} }   // deuda ER: nombres de las canciones
     }
@@ -1375,10 +1376,11 @@ function proyFoto(){
   if (evTab === 'grupos') {
     const ord = cmpEstudiantes(n => n.estudiante, n => posMap[n.estudiante_id]);
     const nom = n => nombreDe(n.estudiante);
-    const disp = notas.filter(estDisponible).sort(ord);
+    const presente = n => !ausentesHoy.has(n.estudiante_id);   // los ausentes del día no se proyectan (PO 2026-11-10)
+    const disp = notas.filter(n => estDisponible(n) && presente(n)).sort(ord);
     return { ...b, tipo: 'grupos',
       grupos: grupos.map(g => ({ nombre: g.nombre, terminado: grupoTerminado(g), tipicos: tipicosTxt(g),
-        miembros: notas.filter(n => n.grupo_id === g.id).sort(ord).map(nom) })),
+        miembros: notas.filter(n => n.grupo_id === g.id && presente(n)).sort(ord).map(nom) })),
       armando: disp.filter(n => grupoSelIds.has(n.id)).map(nom),     // el grupo que el profe está armando
       sinGrupo: disp.filter(n => !grupoSelIds.has(n.id)).map(nom) };
   }
@@ -2044,7 +2046,7 @@ async function crearGrupoCon(ids, nombre){
     // Nombre automático: el primer "Grupo N" libre (GG: los grupos no se nombran a mano)
     let num = 1; while (grupos.some(x => x.nombre === 'Grupo ' + num)) num++;
     const { data: g } = await insertarUnaVez('libro_evaluacion_grupos', { id: gid, evaluacion_id: evalActual.id, nombre: nombre || ('Grupo ' + num) });
-    if (!grupos.some(x => x.id === g.id)) grupos.push(g);
+    if (!grupos.some(x => x.id === g.id)) grupos.unshift(g);   // el nuevo queda primero
     const miembros = ids.map(id => notas.find(n => n.id === id));
     miembros.forEach(n => { n.grupo_id = g.id; n.nota_excepcion = false; n.objetivo_excepcion = false;
       n.instrumento_id = null;   // Etapa 6: sin override → hereda el instrumento del grupo
@@ -2116,7 +2118,7 @@ async function evalDrop(ev, gidDestino){
 async function evalCopiarGrupos(){
   try { await tipCargarBib(); } catch (_) {}   // nombres de las canciones
   const orden = cmpEstudiantes(n => n.estudiante, n => posMap[n.estudiante_id]);
-  const bloques = grupos.map(g => {
+  const bloques = [...grupos].reverse().map(g => {   // el texto copiado va del primero creado al último
     const miembros = notas.filter(n => n.grupo_id === g.id).sort(orden).map(n => nombreDe(n.estudiante));
     const items = tipItems(g).map(it => '  ' + it.ico + ' ' + it.txt + (it.sub ? ' — ' + it.sub : ''));
     return [`${g.nombre}: ${miembros.join(', ') || '(sin integrantes)'}`, ...items].join('\n');

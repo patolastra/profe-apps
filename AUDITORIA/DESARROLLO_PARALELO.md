@@ -9251,3 +9251,17 @@ muestre solo un estudiante, en grande, con su nota … buscar por nombre/apellid
   de 📋 Lista), editable ahí: se guarda al salir del cuadro, Enter termina y Mayús+Enter = nueva línea; la Lista y su
   filtro 💬 quedan al día. Sin comentario se ve solo "(comentario)" tenue. Prueba (navegador, guardado simulado): lo
   enviado es `{ comentario }`, la Lista muestra el texto nuevo, un comentario largo crece sin cortarse.
+
+### GS. Libro — grupos de trabajo: sin ausentes al proyectar y el grupo nuevo primero — HECHA (falta probar en uso)
+*Origen: 🐞 Mejoras, PO 2026-11-10 (Sexto: "al proyectar grupos de trabajo en la pizarra, no se muestran las personas
+ausentes del día, no deberían mostrarse"; "cuando hago un nuevo grupo por dragdrop … debería quedar ese grupo como
+primer grupo").*
+- **Hecho:** (1) la proyección de Grupos de trabajo deja fuera a los ausentes del día (Pasar lista) en los grupos, en
+  el grupo que se arma y en los sin grupo; en la pantalla del profe se siguen viendo con su marca. (2) Los grupos se
+  muestran del más nuevo al más antiguo, junto a ＋ Nuevo grupo (también en la Pizarra); "📋 Copiar" sigue del Grupo 1
+  en adelante. Solo `LIBRO/index.html`.
+- **Lugares (regla 11):** Libro (pestaña del Plan y 📒 Libros) y su proyección en la Pizarra. El celular (Evaluar)
+  sigue con los grupos en orden de creación (no tiene ＋ Nuevo grupo).
+- **Prueba (navegador, Sexto, "Lectura rítmica en 6/8"):** orden ＋ Nuevo grupo, Grupo 9 … Grupo 1; con un integrante
+  del Grupo 1 marcado ausente, la proyección muestra 4 de sus 5 integrantes y no lo nombra.
+- Las otras dos notas del día (analizador de registros vocales; "/rep" para pedir canciones) quedaron en Notion.
