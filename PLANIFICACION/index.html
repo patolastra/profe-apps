@@ -377,6 +377,12 @@
     .guardadas-fila { display: flex; align-items: center; gap: 10px; margin-top: 12px; min-height: 32px; }
     #selGuardadas { width: 190px; flex-shrink: 0; padding: 5px 8px; font-size: 0.8rem; background: #fff; }
     .ver-borrar { color: #b42318 !important; margin-right: auto; }
+    /* 📑 Usar en otro curso (deuda GU) */
+    .usar-caja { width: min(520px, 100%); }
+    .usar-cuerpo { padding: 14px 20px; display: flex; flex-direction: column; gap: 12px; font-size: 0.88rem; }
+    .usar-cuerpo label.etq { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .07em; color: #999; display: block; margin-bottom: 5px; }
+    .usar-cuerpo select { padding: 6px 8px; font: inherit; border: 1.5px solid #ddd; border-radius: 8px; background: #fff; min-width: 200px; }
+    .usar-aviso { min-height: 1.3em; font-size: 0.8rem; color: #b42318; }
     .guardada-estado { flex: 1; font-size: 0.78rem; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .guardada-estado.ok { color: #27ae60; }
     .aviso-choque { display: flex; align-items: center; gap: 10px; margin: 6px 0 2px; padding: 7px 12px; border-radius: 9px;
@@ -705,8 +711,26 @@
       <button type="button" class="vp-cancelar" id="verCerrar">Cerrar</button>
       <button type="button" class="vp-cancelar ver-borrar" id="verBorrar">🗑 Eliminar</button>
       <button type="button" class="vp-cancelar" id="verEditar">✏️ Editar</button>
+      <button type="button" class="vp-cancelar" id="verUsar">📑 Usar en otro curso</button>
       <button type="button" class="vp-cancelar" id="verRubrica" style="visibility:hidden" title="La rúbrica de su evaluación de cierre, en un Word aparte">⬇ Rúbrica</button>
       <button type="button" class="btn-generar" id="verDescargar">⬇ Descargar</button>
+    </div>
+  </div>
+</div>
+
+<!-- 📑 Usar en otro curso (deuda GU): copia relato y campos a otro curso -->
+<div class="vp-fondo" id="usarModal" hidden>
+  <div class="vp-caja usar-caja" role="dialog" aria-labelledby="usarTitulo">
+    <div class="vp-cab"><div class="vp-titulo" id="usarTitulo">📑 Usar en otro curso</div><div class="vp-sub" id="usarSub"></div></div>
+    <div class="usar-cuerpo">
+      <div><label class="etq" for="usarCurso">Curso</label><select id="usarCurso"></select></div>
+      <div><label class="etq">Meses</label><div class="mes-grid" id="usarMeses"></div></div>
+      <div class="usar-aviso" id="usarAviso"></div>
+    </div>
+    <div class="vp-pie">
+      <span class="vp-cuenta"></span>
+      <button type="button" class="vp-cancelar" id="usarCancelar">Cancelar</button>
+      <button type="button" class="btn-generar" id="usarCrear">📑 Crear copia</button>
     </div>
   </div>
 </div>
@@ -2868,7 +2892,8 @@ document.getElementById('planisTabla').addEventListener('click', e => {
   const f = planisFilas.find(x => x.id === (b.dataset.plan || b.dataset.rub));
   if (!f) return;
   if (b.dataset.plan) {
-    menuCelda(b, [['👁', 'Ver', () => verPlani(f)], ['⬇', 'Descargar', () => generarDoc(null, datosWord(f))]]);
+    menuCelda(b, [['👁', 'Ver', () => verPlani(f)], ['⬇', 'Descargar', () => generarDoc(null, datosWord(f))],
+      ['📑', 'Usar en otro curso', () => usarEnOtro(f)]]);
   } else if (cierres[f.id]?.rubrica) {
     menuCelda(b, [['👁', 'Ver', () => verRubrica(f)], ['⬇', 'Descargar', () => descargarRubrica({ ctx: f.ctx, meses: f.meses, anio: f.anio, id: f.id }, null)]]);
   } else crearRubricaDe(f);
@@ -2933,6 +2958,57 @@ document.getElementById('verEditar').onclick = () => {
   if (verActual) abrirEnEditor(verActual.ctx, verActual.meses, verActual.anio);
 };
 document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('verModal').hidden = true; });
+document.getElementById('verUsar').onclick = () => { if (verActual) { document.getElementById('verModal').hidden = true; usarEnOtro(verActual); } };
+
+// ══════════════════════════════════════════════
+// 📑 USAR EN OTRO CURSO (deuda GU, PO 2026-11-10): una planificación nueva en otro curso con el relato y los
+// campos de la original; los meses parten iguales. Si el curso ya tiene una en alguno de esos meses, se avisa y
+// no se pisa. La rúbrica de cierre no se copia (es del Libro de cada curso).
+// ══════════════════════════════════════════════
+let usarDe = null;
+function usarEnOtro(f) {
+  usarDe = f;
+  document.getElementById('usarSub').textContent = `Copia de ${CURSO_DE_CTX[f.ctx]} · ${textoMeses(f.meses)} ${f.anio}. La rúbrica de cierre no se copia; revisa los OA del nuevo nivel.`;
+  document.getElementById('usarCurso').innerHTML = Object.entries(CURSO_CTX).filter(([, k]) => k !== f.ctx)
+    .map(([c, k]) => `<option value="${k}">${esc(c)}</option>`).join('');
+  document.getElementById('usarMeses').innerHTML = Object.keys(ABREV_MES).map(Number).map(m =>
+    `<label><input type="checkbox" value="${m}"${f.meses.includes(m) ? ' checked' : ''}>${ABREV_MES[m]}</label>`).join('');
+  document.getElementById('usarAviso').textContent = '';
+  document.getElementById('usarCrear').disabled = false;
+  document.getElementById('usarModal').hidden = false;
+}
+function cerrarUsar() { document.getElementById('usarModal').hidden = true; usarDe = null; }
+document.getElementById('usarCancelar').onclick = cerrarUsar;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.getElementById('usarModal').hidden) cerrarUsar(); });
+document.getElementById('usarModal').addEventListener('change', () => { document.getElementById('usarAviso').textContent = ''; });
+document.getElementById('usarCrear').onclick = async () => {
+  const f = usarDe, aviso = document.getElementById('usarAviso'), btn = document.getElementById('usarCrear');
+  if (!f) return;
+  const ctx = document.getElementById('usarCurso').value;
+  const meses = [...document.querySelectorAll('#usarMeses input:checked')].map(el => +el.value).sort((a, b) => a - b);
+  if (!meses.length) { aviso.textContent = 'Marca al menos un mes.'; return; }
+  btn.disabled = true;
+  try {
+    const otras = await planisDelCurso(ctx, f.anio);
+    const choque = otras.find(o => o.meses.some(m => meses.includes(m)));
+    if (choque) {
+      aviso.textContent = `${CURSO_DE_CTX[ctx]} ya tiene una planificación en ${rangoTxt(choque.meses)}. Elige otros meses u otro curso.`;
+      return;
+    }
+    const { data: orig, error: e1 } = await sbPl.from('planificaciones').select('relato, campos').eq('id', f.id).maybeSingle();
+    if (e1 || !orig) throw e1 || new Error('no está');
+    const ahora = new Date().toISOString();
+    const { error: e2 } = await sbPl.from('planificaciones').insert({ contexto_id: await ctxId(ctx), anio: f.anio, meses,
+      relato: orig.relato || '', campos: orig.campos || {}, updated_at: ahora });
+    if (e2) throw e2;
+    cerrarUsar();
+    recienGuardada = { ctx, anio: f.anio, meses: meses.slice() };
+    await abrirEnEditor(ctx, meses, f.anio);
+    estadoGuardada(`✓ Copiada de ${CURSO_DE_CTX[f.ctx]} · revisa los OA`, 'ok');
+  } catch (err) {
+    aviso.textContent = 'No se pudo crear la copia — revisa la conexión.';
+  } finally { btn.disabled = false; }
+};
 
 // Primera pantalla: la tabla; desde Cursos (?ctx=) directo al editor de ese curso.
 mostrarVista(new URLSearchParams(location.search).get('ctx') ? 'editar' : 'planis');

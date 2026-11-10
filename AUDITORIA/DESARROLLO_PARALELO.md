@@ -9290,3 +9290,19 @@ DECISIÓN del PO 2026-11-10: "quedan en una lista general, sin curso".*
   "1999 - Prince" y el aviso lleva a la Biblioteca; Libro → ＋ Agregar con algo que no existe → 🙋 Pedir "…", pide y
   lo deja como ítem del grupo (con una canción existente no aparece); Biblioteca → 🌐 Sin curso arriba, Cargar abre la
   canción nueva con nombre y artista separados y al guardar el pedido queda cargado.
+
+### GU. Planificaciones — 📑 Usar en otro curso — HECHA (falta probar en uso)
+*Origen: PO 2026-11-10 ("que en Planificaciones pueda reutilizar una planificación de un curso, en otro").
+DECISIÓN del PO 2026-11-10: opción desde la planificación de origen (no desde la celda vacía).*
+- **Auditoría:** cada planificación es una fila de `planificaciones` (curso + año + meses, `relato` + `campos`), única
+  por curso + año + meses. La rúbrica de cierre vive en el Libro (`libro_evaluaciones.planificacion_id`).
+- **Alcance:** en 🗓️ Planificaciones, el menú del 📄 (👁 Ver · ⬇ Descargar) y la ventana Ver suman **📑 Usar en otro
+  curso**: se elige el curso (1°–8°) y los meses (parten iguales); se crea una planificación nueva en ese curso con el
+  relato y los campos de la original y se abre en el editor. Si ese curso ya tiene una en alguno de esos meses, se
+  avisa y no se pisa. No se copia la rúbrica de cierre. Los OA quedan los de la original (se revisan a mano o con
+  ✨ Generar). Sin cambios en Supabase.
+- **Lugares (regla 11):** solo 🗓️ Planificaciones (menú del 📄 y ventana Ver).
+- **Prueba (navegador, guardado simulado):** menú del 📄 con 👁 Ver · ⬇ Descargar · 📑 Usar en otro curso; 6° Sep → 5°
+  Sep avisa "Quinto básico ya tiene una planificación en Sep–Oct" y no crea nada; 6° Sep → 5° Dic crea la fila con
+  relato y campos de la original y abre el editor en 5° · Diciembre con "✓ Copiada de Sexto básico · revisa los OA";
+  desde la ventana Ver abre la misma ventana.
