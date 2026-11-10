@@ -9306,3 +9306,23 @@ DECISIÓN del PO 2026-11-10: opción desde la planificación de origen (no desde
   Sep avisa "Quinto básico ya tiene una planificación en Sep–Oct" y no crea nada; 6° Sep → 5° Dic crea la fila con
   relato y campos de la original y abre el editor en 5° · Diciembre con "✓ Copiada de Sexto básico · revisa los OA";
   desde la ventana Ver abre la misma ventana.
+
+### GV. Entrenador — 🎸 Bajo: escuchar la línea de bajo — HECHA (falta probar en uso)
+*Origen: PO 2026-11-10 ("un botón que me permita cambiar, en el audio que esté sonando (excepto extractos),
+ecualización y pitch … recorte agresivo de frecuencias altas y medias, dejar solo graves, y un pitch de 12 o 24
+semitonos, para escuchar la línea limpiamente"). DECISIÓN del PO 2026-11-10: aprobado el plan propuesto.*
+- **Auditoría:** Melodía, Karaoke y 2ª voz suenan por el reproductor de `comun/dos-grabaciones.js` (con SoundTouch para
+  tono y velocidad) → ganancia de volumen → salida; el Pitch del Entrenador hoy va de −6 a +6 y no se ve en el celular.
+  Los extractos y versiones (🎧) suenan por otro reproductor.
+- **Alcance:** botón **🎸 Bajo** al lado de Pitch: un clic corta todo sobre los graves (~200 Hz, filtro empinado) y
+  sube el tono **+12**; un **▾** al lado elige **+12 / +24** y el corte (más o menos graves). Se suma al Pitch elegido,
+  sigue la velocidad, los loops y las adaptaciones ✂. No toca extractos ni versiones. Se apaga al cambiar de canción
+  y no se guarda. Solo en el computador (en el celular no, igual que el Pitch). Sin cambios en Supabase.
+- **Hecho:** `REPERTORIO/index.html`: el reproductor sale a una entrada fija; con 🎸 Bajo prendido pasa por 4 pasabajos
+  seguidos + un pasaaltos a 30 Hz y un refuerzo de volumen (×1,6), con el corte corrido según el tono (200 Hz +12 →
+  400 Hz). El tono que recibe SoundTouch = Pitch + Bajo. ▾ abre +12 / +24 y el corte (80–500 Hz).
+- **Lugares (regla 11):** Entrenador del PC en todas sus versiones (Biblioteca, sesión del curso, Plan, mínimo); la
+  copia de la Pizarra no suena; en el celular queda oculto (como el Pitch).
+- **Prueba (navegador, canción real):** prendido, el reproductor sube una octava (SoundTouch a ×2), el corte queda
+  en 400 Hz y lo de 2–5 kHz desaparece (−214 dB contra −72 dB en 100–400 Hz); +24 → corte 800 Hz; con Pitch +2 →
+  tono 26; apagado vuelve a tono 0; al cambiar de canción se apaga solo; sin errores.
