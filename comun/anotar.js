@@ -5,22 +5,23 @@
 //   /pdte texto            → ☑ pendiente (igual)
 //   /msj quién: mensaje    → ✉️ Mensajes          /ensayo quién: qué · /prueba quién: qué → 🎭 Ensayos
 //   /bug texto · /mejora   → 🐞 Mejoras de la app  /apod estudiante: motivo → 👪 cita "Por citar"
+//   /rep canción - artista → 🙋 canción pedida, en la lista general SIN curso (deuda GT, comun/pedidos-cancion.js)
 // El curso parte adivinado (lo da quien lo usa: la pestaña abierta o la clase en curso; si no, General), se cambia
 // con el selector o se escribe al comienzo ("5° traer guitarras", "/apod 3° Ana: …"). Un /apod en General busca al
 // estudiante en todos los cursos y talleres y la cita queda en el suyo. Enter anota, el cuadro se cierra solo y
 // queda un aviso de qué se creó y dónde; clic en el aviso lleva allí. Esc cierra.
-// Necesita supabase/contextos.js, comun/pendientes.js y comun/apoderados.js (conectados con el mismo sb).
+// Necesita supabase/contextos.js, comun/pendientes.js, comun/apoderados.js (conectados con el mismo sb) y comun/pedidos-cancion.js.
 //
 // Uso (Workspace):
 //   Anotar.iniciar({ sb, cursoSugerido: () => 'NOMBRE' | null, ir: destino => {…} })
-//     destino = { tipo: 'plan', ctx, fecha } | { tipo: 'dashboard', vista: 'todos'|'msj'|'ens'|'apo' } | { tipo: 'mejoras' }
+//     destino = { tipo: 'plan', ctx, fecha } | { tipo: 'dashboard', vista: 'todos'|'msj'|'ens'|'apo' } | { tipo: 'mejoras' } | { tipo: 'pedidos' }
 //   Anotar.escuchar(win)   → el atajo también dentro de esa ventana y de las que tiene adentro (se revisa sola)
 //   Anotar.abrir()
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
     'use strict';
     const ORDEN = ['PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO', 'SEXTO', 'SEPTIMO', 'OCTAVO'];
-    const RE_CMD = /^\s*\/(pdte|pendiente|msj|mensaje|ensayo|prueba|bug|mejora|apod|apoderado)(?![a-záéíóúñ])\s*/i;
+    const RE_CMD = /^\s*\/(pdte|pendiente|msj|mensaje|ensayo|prueba|bug|mejora|apod|apoderado|rep)(?![a-záéíóúñ])\s*/i;
     const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
     const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const disp = n => typeof ctxDisplay === 'function' ? ctxDisplay(n) : n;
@@ -79,7 +80,7 @@
         t = t.replace(/^\s+/, '');
         let cursoEscrito = null;
         const tn = norm(t);   // mismo largo que t (las tildes se quitan de letras ya compuestas)
-        for (const a of alias) {
+        for (const a of (cmd === 'rep' ? [] : alias)) {   // /rep no lleva curso: "1999 - Prince" es la canción
             const mm = tn.match(a.re);
             if (mm) { cursoEscrito = a.nombre; t = t.slice(mm[0].length); break; }
         }
@@ -135,7 +136,7 @@
         caja = document.createElement('div');
         caja.id = 'anotar'; caja.hidden = true;
         caja.innerHTML = `<div class="an-fila"><select title="Curso"></select>
-            <input type="text" autocomplete="off" spellcheck="true" placeholder="Pendiente, /msj, /ensayo, /prueba, /apod, /bug, /mejora…">
+            <input type="text" autocomplete="off" spellcheck="true" placeholder="Pendiente, /msj, /ensayo, /prueba, /apod, /rep, /bug, /mejora…">
             <button type="button" class="an-x" title="Cerrar (Esc)">✕</button></div>
             <div class="an-sug" hidden></div><div class="an-pista"></div>`;
         document.body.appendChild(caja);
@@ -167,7 +168,7 @@
     }
 
     const NOMBRE_TIPO = { pdte: '☑ Pendiente', msj: '✉️ Mensaje', ensayo: '🎭 Ensayo', prueba: '📝 Prueba',
-        bug: '🐞 Bug de la app', mejora: '✨ Mejora de la app', apod: '👪 Cita con apoderado' };
+        bug: '🐞 Bug de la app', mejora: '✨ Mejora de la app', apod: '👪 Cita con apoderado', rep: '🙋 Canción pedida' };
     let pedidoAlumnos = 0;
     async function refrescar() {
         const r = leer();
@@ -175,7 +176,8 @@
         if (r.cmd !== 'apod') elegido = null;
         else if (elegido && norm(r.quien) !== norm(elegido.nombre)) elegido = null;
         let t = NOMBRE_TIPO[r.cmd];
-        if (r.cmd === 'pdte') t += r.curso === 'GENERAL' ? ' · General' : ` · ${disp(r.curso)}, próxima clase`;
+        if (r.cmd === 'rep') t += ' · lista general, sin curso' + (r.resto ? '' : ' — escribe canción - artista');
+        else if (r.cmd === 'pdte') t += r.curso === 'GENERAL' ? ' · General' : ` · ${disp(r.curso)}, próxima clase`;
         else if (r.cmd === 'msj') t += r.quien ? ` para ${r.quien}${r.conDosPuntos ? '' : ' — sigue con ":" y el mensaje'}` : ' — escribe quién: mensaje';
         else if (r.cmd === 'ensayo' || r.cmd === 'prueba') t += r.quien ? ` · ${r.quien}${r.conDosPuntos ? '' : ' — sigue con ":" y qué'}` : ' — escribe quién: qué';
         else if (r.cmd === 'apod') t += elegido ? ` · ${elegido.nombre} (${disp(nombreDeId(elegido.cid))})${r.conDosPuntos ? '' : ' — sigue con ":" y el motivo'}`
@@ -263,6 +265,10 @@
             const c = await Apoderados.crear({ contexto_id: elegido.cid, estudiante_id: elegido.id, motivo: r.que });
             if (!c) return null;
             return { texto: `👪 Por citar: ${elegido.nombre} (${disp(nombreDeId(elegido.cid))})`, destino: { tipo: 'dashboard', vista: 'apo' } };
+        }
+        if (r.cmd === 'rep') {
+            await PedidosCancion.crear(sb, r.resto);
+            return { texto: `🙋 Canción pedida: ${r.resto} · sin curso`, destino: { tipo: 'pedidos' } };
         }
         if (r.cmd === 'pdte') {
             const destino = esGeneral ? { contexto_id: cid, sesion_id: null } : await Pendientes.proximaClase(cid, { desde: Pendientes.hoyISO() });

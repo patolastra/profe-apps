@@ -21,6 +21,7 @@
 <script src="../comun/libro-proyeccion.js"></script>
 <script src="../comun/puntero.js"></script>
 <script src="../comun/tiempo-real.js"></script>
+<script src="../comun/pedidos-cancion.js"></script>
 <script src="../comun/redactar-oa.js?v=dt1"></script>
 <script src="../comun/rubrica-ia.js?v=dt2"></script>
 <link rel="stylesheet" href="../comun/participacion-tablero.css">
@@ -282,6 +283,7 @@
   .tip-it.on{background:rgba(76,175,80,.18)}
   .tip-it small{color:var(--mut)}
   .tip-vacio{color:var(--mut);font-size:12px;padding:4px 10px 8px}
+  .tip-pedir{margin:6px 10px 10px}
   .tip-elegidos{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
   .tip-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 4px 3px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:12px;color:#fde68a}
   .tip-chip button{background:none;border:0;color:var(--mut);cursor:pointer;padding:0 4px;font-size:11px}
@@ -2253,7 +2255,8 @@ function tipPintarLista(){
   out.innerHTML = `<div class="tip-sec">Repertorio del curso</div>
     ${curso.length ? curso.map(it).join('') : `<div class="tip-vacio">${tipCurso.length ? 'Ninguna coincide.' : 'El curso no tiene canciones en su sesión del Entrenador.'}</div>`}
     <div class="tip-sec">Biblioteca</div>
-    ${resto.length ? resto.map(it).join('') : '<div class="tip-vacio">Ninguna coincide.</div>'}`;
+    ${resto.length ? resto.map(it).join('') : '<div class="tip-vacio">Ninguna coincide.</div>'}
+    ${q && !curso.length && !resto.length ? `<button class="btn tip-pedir" onclick="tipPedir()" title="Se anota en la lista general de canciones pedidas (sin curso) y queda en el grupo">🙋 Pedir "${esc((document.getElementById('tip-buscar')?.value || '').trim())}"</button>` : ''}`;
   out.scrollTop = y;
 }
 function tipCerrar(){ document.getElementById('tip-modal').classList.remove('show'); tipGid = null; }
@@ -2264,6 +2267,19 @@ function tipAlternarCancion(cid){
   const i = l.findIndex(x => x.cancion_id === cid);
   if (i >= 0) l.splice(i, 1); else l.push({ cancion_id: cid });
   tipGuardar(tipGid, l);
+}
+// GT: lo buscado no está en la Biblioteca → se pide (lista general sin curso, comun/pedidos-cancion.js) y queda
+// en el grupo como ítem de texto.
+async function tipPedir(){
+  const inp = document.getElementById('tip-buscar');
+  const t = (inp?.value || '').replace(/\s+/g, ' ').trim();
+  const g = grupos.find(x => x.id === tipGid);
+  if (!t || !g) return;
+  try { await PedidosCancion.crear(sb, t); }
+  catch (e) { toast('No se pudo pedir la canción: ' + (e?.message || e), 'err'); return; }
+  inp.value = '';
+  tipGuardar(tipGid, [...tipLista(g), { texto: t }]);
+  toast(`🙋 "${t}" quedó pedida (lista general, sin curso).`, 'ok');
 }
 function tipAgregarTexto(){
   const inp = document.getElementById('tip-texto');

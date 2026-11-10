@@ -9265,3 +9265,28 @@ primer grupo").*
 - **Prueba (navegador, Sexto, "Lectura rítmica en 6/8"):** orden ＋ Nuevo grupo, Grupo 9 … Grupo 1; con un integrante
   del Grupo 1 marcado ausente, la proyección muestra 4 de sus 5 integrantes y no lo nombra.
 - Las otras dos notas del día (analizador de registros vocales; "/rep" para pedir canciones) quedaron en Notion.
+
+### GT. 🙋 Canciones pedidas sin curso: "/rep" en Anotar rápido y Pedir canción desde los grupos del Libro — HECHA (falta probar en uso)
+*Origen: 🐞 Mejoras, PO 2026-11-10 ("un comando /rep para pedir canción … que quede sin curso asignado"; "en agregar
+canciones a grupos de trabajo … si la canción no existe, un botón que llame a la misma función pedir canción").
+DECISIÓN del PO 2026-11-10: "quedan en una lista general, sin curso".*
+- **Auditoría:** los pedidos de hoy viven dentro de la sesión del Entrenador de un curso
+  (`repertorio_sesiones_entrenamiento.pedidos`); "Cargar" crea la canción y la deja en esa sesión. Un pedido sin
+  curso no tiene sesión donde ir.
+- **Hecho (sin tocar la estructura de Supabase):** la lista general son filas de `pendientes` con categoría
+  **`pedido_cancion`**, del contexto General (como ✉️ Mensajes y 🎭 Ensayos): activo = pedida, completado = cargada,
+  descartado = descartada. Pieza nueva **`comun/pedidos-cancion.js`** (`PedidosCancion`: crear, listar, cargada,
+  descartar, partes "Canción - Artista"). Lugares:
+  1. ⌨ Anotar rápido (Ctrl + Shift + Ñ): **`/rep canción - artista`** → la lista general (sin curso, aunque se
+     escriba un curso); el aviso lleva a la página de pedidos de la Biblioteca.
+  2. Libro → Grupos de trabajo → ＋ Agregar: si lo buscado no está en la Biblioteca, **🙋 Pedir "…"** lo anota en la
+     lista general y lo deja como ítem de texto del grupo.
+  3. Biblioteca → "+ Canción" (página de pedidos): arriba, **🌐 Sin curso**, con Cargar (abre la canción nueva con
+     nombre y artista ya escritos; al guardar, el pedido queda cargado) y Descartar.
+- **Lugares (regla 11):** Workspace (Anotar rápido), Libro (pestaña del Plan y 📒 Libros), Biblioteca. Los pedidos
+  por curso del Entrenador (🙋 Pedir canción) siguen igual.
+- **Prueba (navegador, datos simulados; la lectura real de la lista funciona y hoy está vacía):** Anotar rápido con
+  "/rep 1999 - Prince" → pista "🙋 Canción pedida · lista general, sin curso" (el 1999 no se toma como curso), pide
+  "1999 - Prince" y el aviso lleva a la Biblioteca; Libro → ＋ Agregar con algo que no existe → 🙋 Pedir "…", pide y
+  lo deja como ítem del grupo (con una canción existente no aparece); Biblioteca → 🌐 Sin curso arriba, Cargar abre la
+  canción nueva con nombre y artista separados y al guardar el pedido queda cargado.

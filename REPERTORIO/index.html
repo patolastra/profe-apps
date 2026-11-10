@@ -19,6 +19,7 @@
     <script src="../comun/un-sonido.js"></script>
     <script src="../comun/tempo-mapa.js?v=gk"></script>
     <script src="../comun/tiempo-real.js"></script>
+    <script src="../comun/pedidos-cancion.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
     <script src="../vendor/vexflow.js"></script>
     <script src="../ritmo.js?v=by1"></script>
@@ -11071,7 +11072,8 @@ if (ESPEJO) {
 // Estados: 'pendiente' → 'cargada' (con cancion_id) | 'descartada'. Nada se borra.
 // ══════════════════════════════════════════════════════════════════════════════
 const PED_TABLA = 'repertorio_sesiones_entrenamiento';
-let pedidoEnCarga = null;   // { sesionId, pedidoId } mientras la ficha de canción nueva carga un pedido
+let pedidoEnCarga = null;   // { sesionId, pedidoId } | { general: id } mientras la ficha de canción nueva carga un pedido
+let pedGenerales = [];       // 🙋 pedidas sin curso (deuda GT, comun/pedidos-cancion.js)
 const pedidosCanal = ('BroadcastChannel' in window) ? new BroadcastChannel('profe-repertorio-pedidos') : null;
 const pedClon = x => JSON.parse(JSON.stringify(x));
 const pedidosPendientes = s => (Array.isArray(s?.pedidos) ? s.pedidos : []).filter(p => p.estado === 'pendiente');
@@ -11186,7 +11188,11 @@ async function abrirPedidos() {
     document.getElementById('ped-lista').innerHTML = '<div class="ped-vacio">Cargando…</div>';
     document.getElementById('pedidos-overlay').classList.add('visible');
     try { await cargarSesiones(); } catch (e) { /* se muestra lo que hay en memoria */ }
+    await pedGeneralesCargar();
     pedidosRender();
+}
+async function pedGeneralesCargar() {
+    try { pedGenerales = await PedidosCancion.listar(sb); } catch (e) { /* sin la lista general: se ve lo demás */ }
 }
 function cerrarPedidos() { document.getElementById('pedidos-overlay').classList.remove('visible'); }
 
@@ -11197,11 +11203,26 @@ function pedidosRender() {
         return { s, ctx, titulo: ctx ? ctxLabel(ctx.nombre) : (s.nombre || 'Sesión'), pend: pedidosPendientes(s) };
     }).filter(g => g.pend.length)
       .sort((a, b) => (a.ctx ? 0 : 1) - (b.ctx ? 0 : 1) || a.titulo.localeCompare(b.titulo, 'es'));
-    if (!grupos.length) {
-        wrap.innerHTML = '<div class="ped-vacio">No hay canciones pedidas.<br>Se piden desde una sesión del Entrenador (🙋 Pedir canción).</div>';
+    if (!grupos.length && !pedGenerales.length) {
+        wrap.innerHTML = '<div class="ped-vacio">No hay canciones pedidas.<br>Se piden desde una sesión del Entrenador (🙋 Pedir canción) o, sin curso, con /rep (Ctrl + Shift + Ñ).</div>';
         return;
     }
-    wrap.innerHTML = `<p class="ped-grupo-sub" style="margin:0 0 14px">Canciones pedidas por curso. "Cargar" la agrega a la biblioteca y a la sesión que la pidió.</p>` +
+    // GT: la lista general sin curso, arriba
+    const generales = pedGenerales.length ? `
+        <div class="ped-grupo">
+            <div class="ped-grupo-titulo">🌐 Sin curso</div>
+            <div class="ped-grupo-sub">Pedidas con /rep o desde los grupos del Libro. "Cargar" la agrega a la biblioteca.</div>
+            ${pedGenerales.map(p => { const x = PedidosCancion.partes(p.texto); return `
+            <div class="ped-item">
+                <div class="ped-item-txt">
+                    <div class="ped-item-nombre">${pedEsc(x.nombre || p.texto)}</div>
+                    <div class="ped-item-meta">${[pedEsc(x.artista), pedFecha(p.created_at)].filter(Boolean).join(' · ')}</div>
+                </div>
+                <button class="primario" onclick="pedidoGeneralCargar('${p.id}')">Cargar</button>
+                <button class="danger" onclick="pedidoGeneralDescartar('${p.id}',event)">Descartar</button>
+            </div>`; }).join('')}
+        </div>` : '';
+    wrap.innerHTML = `<p class="ped-grupo-sub" style="margin:0 0 14px">Canciones pedidas. "Cargar" la agrega a la biblioteca (y a la sesión del curso que la pidió).</p>` + generales +
         grupos.map(g => `
         <div class="ped-grupo">
             <div class="ped-grupo-titulo">${pedEsc(g.titulo)}</div>
@@ -11235,8 +11256,40 @@ function pedidoCargar(sesionId, pedidoId) {
     if (q) buscarImport();   // sin nombre ni artista no hay qué buscar (se completa en la ficha)
 }
 
+// GT: pedidas sin curso — Cargar abre la canción nueva con nombre y artista; Descartar la saca de la lista.
+function pedidoGeneralCargar(id) {
+    const p = pedGenerales.find(q => q.id === id);
+    if (!p) { toast('El pedido ya no está pendiente'); pedidosRender(); return; }
+    const x = PedidosCancion.partes(p.texto);
+    cerrarPedidos();
+    abrirModalNueva();
+    pedidoEnCarga = { general: id };
+    document.getElementById('modal-titulo-h').textContent = 'Cargar canción pedida';
+    document.getElementById('f-nombre').value  = x.nombre || p.texto;
+    document.getElementById('f-artista').value = x.artista || '';
+    const q = `${x.nombre || p.texto} ${x.artista || ''}`.trim();
+    document.getElementById('import-q').value = q;
+    if (q) buscarImport();
+}
+async function pedidoGeneralDescartar(id, ev) {
+    ev?.stopPropagation();
+    const p = pedGenerales.find(q => q.id === id);
+    if (!confirm(`¿Descartar el pedido "${p?.texto || ''}"?`)) return;
+    try {
+        await PedidosCancion.descartar(sb, id);
+        pedGenerales = pedGenerales.filter(q => q.id !== id);
+        pedidosRender();
+        toast('Pedido descartado');
+    } catch (e) { toast('No se pudo descartar: ' + (e?.message || e)); }
+}
+
 // Tras guardar la canción nueva: queda en la sesión que la pidió y el pedido pasa a 'cargada'.
 async function pedidoVincular(pc, nueva) {
+    if (pc.general) {   // GT: pedida sin curso → solo se marca cargada
+        try { await PedidosCancion.cargada(sb, pc.general); pedGenerales = pedGenerales.filter(q => q.id !== pc.general); toast(`"${nueva.nombre}" cargada ✓`); }
+        catch (e) { toast('La canción se guardó, pero el pedido sigue en la lista: ' + (e?.message || e)); }
+        return;
+    }
     try {
         const { data, error } = await sb.from(PED_TABLA).select('canciones,pedidos').eq('id', pc.sesionId).single();
         if (error) throw error;
@@ -11263,6 +11316,8 @@ pedidosCanal?.addEventListener('message', ev => {
     }
     if (m.tipo === 'pedidos' || m.tipo === 'cargada') pedidosAplicar(m.sesionId, m.pedidos || [], m.canciones);
     if (m.tipo === 'curso') cursoAplicar(m.sesionId, m.canciones || [], m.sesion);
+    if (m.tipo === 'generales' && document.getElementById('pedidos-overlay').classList.contains('visible'))
+        pedGeneralesCargar().then(pedidosRender);   // GT: /rep o el Libro pidieron una canción
 });
 
 // ── Al instante entre equipos (deuda BE, Fase 3) ──────────────────────────────
