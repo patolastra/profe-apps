@@ -9330,6 +9330,14 @@ semitonos, para escuchar la línea limpiamente"). DECISIÓN del PO 2026-11-10: a
   suena de fondo la canción original (el `<audio>` que hace de reloj, sin filtro ni tono, con la Melodía) al **25 %**
   del volumen; el ▾ suma una barra 🎵 de 0 a 60 %. Prueba: prendido → `<audio>` sin silenciar a 0,25 (40 % → 0,4) y
   el reproductor del bajo a ×2; apagado → vuelve a 1.
+- **Ajuste 2 (PO 2026-11-10, "no están sincronizados, la línea de bajo va primero"):** el fondo ya no es el `<audio>`
+  (que sale con más demora) sino un segundo reproductor de `comun/dos-grabaciones.js` con la misma grabación, el mismo
+  reloj y los mismos saltos (y la velocidad), unido al del bajo (`entUnirMotores`: Melodía/Karaoke, 2ª voz, detener).
+  SoundTouch adelanta su salida (golpe de prueba: 34–72 ms en +12); `entStAdelanto(tono, vel)` lo mide una vez por
+  tono y velocidad y el motor lee desde un poco antes (`op.adelanto`, nuevo en `dos-grabaciones.js`, `?v=gv`; sin él,
+  todo igual que antes: Cantar no cambia). Prueba con golpes graves cada 1 s grabando las dos salidas: sin compensar
+  −34 a −72 ms; compensado, +1 a +4 ms (+12). +24 queda compensado con su medición (52 ms) pero sin la prueba de punta
+  a punta (el panel del navegador quedó oculto).
 
 ### GW. Entrenador — 📋 Ficha de la canción desde el Entrenador — HECHA (falta probar en uso)
 *Origen: PO 2026-11-10 ("un botón para ir a la ficha de la canción desde el entrenador, aunque no la tenga, para desde

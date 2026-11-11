@@ -15,7 +15,7 @@
     <script src="../comun/archivos-curso.js?v=fc1"></script>
     <link rel="stylesheet" href="../comun/compartir.css?v=gk">
     <script src="../comun/compartir.js?v=gk"></script>
-    <script src="../comun/dos-grabaciones.js?v=gk"></script>
+    <script src="../comun/dos-grabaciones.js?v=gv"></script>
     <script src="../comun/un-sonido.js"></script>
     <script src="../comun/tempo-mapa.js?v=gk"></script>
     <script src="../comun/tiempo-real.js"></script>
@@ -6456,7 +6456,6 @@ async function entToggleBajo(on) {
     if (entMotorActivo()) await entActivarPitch();   // el tono cambió: el reproductor se rehace con SoundTouch
     else entDesactivarPitch();
     entBajoConectar();
-    entAplicarSalidaAudio();
     toast(entBajoOn ? `🎸 Bajo: solo graves, +${entBajoST}` : '🎸 Bajo apagado');
 }
 async function entBajoOctavas(st) {
@@ -6465,10 +6464,53 @@ async function entBajoOctavas(st) {
     entPintarBajo(); entPintarMenuBajo();
     if (entBajoOn) { await entActivarPitch(); entBajoConectar(); }
 }
+// La canción de fondo (GV) suena por un segundo reproductor de comun/dos-grabaciones.js, con la misma grabación, el
+// mismo reloj y los mismos saltos, sin filtro ni tono (con la velocidad, si la hay): así va exacta con el bajo. Los dos
+// se manejan como uno (cambiar Melodía/Karaoke, 2ª voz, detener). SoundTouch adelanta un poco su salida (más con más
+// tono: ~20 ms en +12, ~40 ms en +24); se mide una vez por tono y velocidad, con un golpe de prueba, y se compensa.
+let entBajoFondoVol = null;
+const entStAdelantoMemo = {};
+function entStAdelanto(st, vel) {
+    const clave = st + '|' + vel.toFixed(3);
+    if (clave in entStAdelantoMemo) return entStAdelantoMemo[clave];
+    let r = 0;
+    try {
+        const sr = 44100, n = sr * 3, d = new Float32Array(n), golpe = sr * 1.5;
+        for (let i = 0; i < 300; i++) d[golpe + i] = Math.sin(i / 2) * Math.exp(-i / 60);
+        const S = new entPitchLib.SoundTouch(); S.pitchSemitones = st; S.tempo = vel;
+        const F = new entPitchLib.SimpleFilter({ extract: (t, k, p) => { let c = 0; for (; c < k && p + c < n; c++) { t[c * 2] = t[c * 2 + 1] = d[p + c]; } return c; } }, S);
+        const b = new Float32Array(4096 * 2);
+        let i0 = 0, e = 0, ei = 0;
+        for (let k; (k = F.extract(b, 4096)); i0 += k) for (let i = 0; i < k; i++) { const v = b[i * 2] * b[i * 2]; e += v; ei += v * (i0 + i); }
+        const adelantoSalida = ((golpe + 60) / vel - ei / e) / sr;   // segundos que la salida llega antes
+        r = Math.max(0, Math.min(0.3, (adelantoSalida + 0.012) * vel));   // en segundos de la grabación (+12 ms: medido con golpes, los filtros)
+    } catch (_) {}
+    return (entStAdelantoMemo[clave] = r);
+}
+function entUnirMotores(a, b) {
+    return {
+        cambiar: x => { a.cambiar(x); b.cambiar(x); }, ir: x => { a.ir(x); b.ir(x); },
+        capa: (x, g) => { a.capa(x, g); b.capa(x, g); }, principal: g => { a.principal(g); b.principal(g); },
+        segundo: () => a.segundo(), detener: () => { a.detener(); b.detener(); }, get buffer() { return a.buffer; },
+    };
+}
+function entMotorFondo(ctx, vel) {
+    if (!entBajoFondoVol || entBajoFondoVol.context !== ctx) { entBajoFondoVol = ctx.createGain(); entBajoFondoVol.connect(entPitchSalida()); }
+    entBajoFondoVol.gain.value = entBajoFondo / 100;
+    let st = null;
+    if (Math.abs(vel - 1) > 0.001 && entPitchLib) {
+        const S = new entPitchLib.SoundTouch(); S.tempo = vel;
+        st = { SimpleFilter: entPitchLib.SimpleFilter, pipe: S };
+    }
+    return DosGrabaciones.motor(ctx, entBajoFondoVol, {
+        buffer: entPitchBuffer, reloj: () => entAudio().currentTime, vel, ...entCapaSegunda(), saltos: entSaltos(),
+        st, adelanto: st ? entStAdelanto(0, vel) : 0,
+    });
+}
 function entBajoFondoPct(v) {
     entBajoFondo = Math.max(0, Math.min(60, +v || 0));
     const el = document.querySelector('#ent-bajo-pop .pct'); if (el) el.textContent = entBajoFondo + ' %';
-    entAplicarSalidaAudio();
+    if (entBajoFondoVol) entBajoFondoVol.gain.value = entBajoFondo / 100;
 }
 function entBajoCorteHz(hz) {
     entBajoCorte = Math.max(80, Math.min(500, +hz || 200));
@@ -6479,7 +6521,6 @@ function entBajoApagar() {
     if (!entBajoOn) return;
     entBajoOn = false;
     entBajoConectar();
-    entAplicarSalidaAudio();
     entPintarBajo();
 }
 function entPintarBajo() {
@@ -6923,11 +6964,8 @@ let entDosCarga = 0;            // número de la carga en curso (abrir otra canc
 const entMotorActivo = () => !ESPEJO && (entTonoTotal() !== 0 || entDosListas || !!entSaltos());
 function entAplicarSalidaAudio() {
     const m = entAudio();
-    // 🎸 Bajo (GV): de fondo suena también la canción original (el <audio>, sin filtro ni tono) a un volumen bajo, para
-    // saber en qué parte de la canción se está
-    const fondo = !ESPEJO && entBajoOn && !!entPitchNode;
-    m.muted = ESPEJO || (!!entPitchNode && !fondo);   // la copia de la Pizarra no suena; con el reproductor, suena él
-    try { m.volume = entNivelVolumen() * (fondo ? entBajoFondo / 100 : 1); } catch (_) {}
+    m.muted = ESPEJO || !!entPitchNode;           // la copia de la Pizarra no suena; con el reproductor, suena él
+    try { m.volume = entNivelVolumen(); } catch (_) {}
 }
 // Barra mínima: una línea en el borde de abajo del botón Melodía / Karaoke (x = 0..1; null = lista)
 function entPintarCargaAudio(x) {
@@ -7243,8 +7281,10 @@ function entCrearMotor(usarST = !!entPitchST) {
         buffer: entPitchBuffer, reloj: () => entAudio().currentTime, vel, ...entCapaSegunda(),
         saltos: entSaltos(), alSaltar: entSaltarReloj,
         st: entPitchST ? { SimpleFilter: entPitchLib.SimpleFilter, pipe: entPitchST } : null,
+        adelanto: entBajoOn && entPitchST ? entStAdelanto(entTonoTotal(), vel) : 0,   // GV: va exacto con el fondo
         alEmpezar: t => setTimeout(() => { anterior?.detener(); entAplicarSalidaAudio(); }, Math.max(0, (t - ctx.currentTime) * 1000)),
     });
+    if (entBajoOn) entPitchNode = entUnirMotores(entPitchNode, entMotorFondo(ctx, vel));   // 🎸 con la canción de fondo (GV)
     if (audioEl.paused) { anterior?.detener(); entAplicarSalidaAudio(); entPitchNode.detener(); }   // espera al play
     else ctx.resume();
 }
@@ -7270,7 +7310,7 @@ function entMotorVelocidad() {
     const v = entAudio().playbackRate || 1;
     const usarST = entTonoTotal() !== 0 || Math.abs(v - 1) > 0.001;
     if (usarST !== !!entPitchST) { if (usarST && !entPitchLib) entActivarPitch(); else entCrearMotor(usarST); }
-    else if (entPitchST) { if (entSaltos()) entCrearMotor(); else entPitchST.tempo = v; }   // ✂ con saltos, el motor sabe su velocidad
+    else if (entPitchST) { if (entSaltos() || entBajoOn) entCrearMotor(); else entPitchST.tempo = v; }   // ✂ con saltos, el motor sabe su velocidad
 }
 entAudio().addEventListener('ratechange', entMotorVelocidad);   // también los loops con su velocidad
 // ─────────────────────────────────────────────────────────────────────────────

@@ -10,6 +10,7 @@
 //        configurado (tono / velocidad) o null (se lee directo) · alEmpezar(horaCtx): cuándo empieza a oírse (para
 //        callar el <audio> justo ahí: el traspaso no se nota)
 //        capa / capaGanancia: otra grabación que suena ENCIMA en la misma muestra (la 2ª voz, deuda GA), con su volumen
+//        adelanto (GV): segundos de la grabación que SoundTouch adelanta su salida (se lee desde un poco antes)
 //        saltos (GK): [{ desde, hasta }] tramos que no suenan (una ✂ adaptación); alSaltar(horaCtx, seg): una junta se oye
 //        a esa hora del contexto y lo que sigue es ese segundo de la grabación (para que el <audio> salte ahí)
 //   r.cambiar(otroBuffer) · r.ir(seg) · r.detener() · r.segundo() (posición leída de la grabación)
@@ -148,7 +149,7 @@
         nodo.connect(destino);
         function ir(seg) {
             pos = Math.max(0, Math.floor(aVirtual(Math.max(0, seg)) * sr)); viejo = null; resta = 0;
-            if (filtro) { filtro.sourcePosition = pos; salidaBase = filtro.position; }
+            if (filtro) { filtro.sourcePosition = Math.max(0, pos - Math.round((op.adelanto || 0) * sr)); salidaBase = filtro.position; }
             base = pos; avisadas.clear();
         }
         return {
