@@ -9393,3 +9393,32 @@ extractos (no versiones); la nota va más chica, debajo y en cursiva; autoriza e
 - **Ajuste 3 (PO 2026-11-10):** en la ficha de la canción (Biblioteca) se quitan los botones 🧩 y 📝 de los extractos
   (se editan desde 🎧 del Entrenador; la sección y la nota se siguen viendo) y la fecha; ✎ "Cambiar el texto de este
   audio" pasa a ✏️ fijo junto a ▶ y 🗑 (como el lápiz de la Letra). El ✏️ que abría 📁 Archivos del curso pasa a 📁.
+
+### GY. Entrenador — versiones de la canción en la barra grande (▾ junto a Melodía) — HECHA (falta probar en uso)
+*Origen: PO 2026-11-10 ("en el caso de versiones (de Otros audios) quiero poder tener como opción también reproducirlas
+por la barra de audio grande del Entrenador, como si se promovieran a opción principal"). DECISIÓN del PO 2026-11-10
+(preguntas previas): el botón Melodía sigue alternando Melodía ↔ Karaoke y suma una flecha ▾ (como 🎸 Bajo) con un
+menú para elegir una versión; aparecen todas las versiones de audio (o video, su sonido; no los enlaces de YouTube /
+Drive); con una versión sonando la letra queda quieta (sin resaltar ni avanzar sola; se recorre a mano); siguen la
+velocidad, el Pitch y 🎸 Bajo; también en el celular.*
+- **Auditoría:** el `<audio>` del Entrenador es el reloj (letra, loops, saltos) y suena la Melodía; con Karaoke o tono,
+  suena el reproductor de `comun/dos-grabaciones.js` con la grabación elegida. Las versiones son `curso_archivos`
+  (uso `version`, bucket `curso-archivos`) y hoy solo se oyen en 🎧 Otros audios.
+- **Alcance:** elegir una versión cambia el `<audio>` y el reproductor a esa grabación (desde el comienzo, sigue
+  tocando si tocaba); la letra no sigue el tiempo ni mueve el audio al tocar un verso o con ↑ ↓; loops, ✂
+  adaptaciones, 2ª voz y saltos a secciones no aplican (los saltos a una sección vuelven a la grabación original). Volver
+  = elegir Melodía o Karaoke en el menú o clic en el botón. Al cambiar de canción, vuelve a la Melodía. Sin cambios en
+  Supabase.
+- **Hecho:** `REPERTORIO/index.html`: grupo `#ent-audio-grupo` (botón Melodía/Karaoke + ▾, visible con Karaoke o con
+  versiones; el ▾ solo si hay versiones); `entMenuAudio` (Canción: Melodía, Karaoke · Versiones: cada una con su curso);
+  `entElegirVersion` (cambia el `<audio>` y la fuente del reproductor: `entFuenteAudio`, que `entActivarPitch` y
+  `entPitchCambiarBuffer` usan; `entPitchCargarBuffer` acepta `url`); con versión: `entSaltos` null, sin 2ª voz, ✂
+  oculto (lugar reservado), loops avisan "son de la grabación original", la letra no sigue el tiempo y tocar un verso o
+  ↑ ↓ no mueven el audio; 🧩 Estructura y la sección de un extracto vuelven solos a la grabación original. Corregido en
+  la prueba: el botón y la lista de otros audios se pedían uno al otro sin fin (`entPintarBotonAudio` aparte).
+- **Lugares (regla 11):** Entrenador en todas sus versiones (Biblioteca, sesión, Plan, mínimo) y el del celular (el
+  grupo no se oculta ahí). La copia de la Pizarra no suena.
+- **Prueba (navegador):** "Cuéntales mi amor" (sin Karaoke, una versión de audio real): aparece ▾ con "🎙 cuentales";
+  elegirla cambia la grabación (5:45) y suena; 🎸 Bajo la toma (reproductor a ×2 con la versión); volver deja la
+  Melodía. "Sin Sentimiento" (letra sincronizada, versión simulada): la letra no se marca sola, clic en un verso y ↓ no
+  mueven el audio, el loop no se prende, ✂ queda oculto.
