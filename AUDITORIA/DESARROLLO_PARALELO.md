@@ -9378,3 +9378,6 @@ extractos (no versiones); la nota va más chica, debajo y en cursiva; autoriza e
 - **Ajuste 2 (PO 2026-11-10):** en 🎧 la sección del extracto es un enlace: toca la grabación de la canción desde
   5 s antes de esa sección (para entrar a tiempo; detiene el extracto y la letra salta ahí; en el celular vuelve a la
   letra). Prueba: "🧩 Mambo 1" (197,9 s) parte en 192,9 s y suena.
+- **Ajuste 3 (PO 2026-11-10):** en la ficha de la canción (Biblioteca) se quitan los botones 🧩 y 📝 de los extractos
+  (se editan desde 🎧 del Entrenador; la sección y la nota se siguen viendo) y la fecha; ✎ "Cambiar el texto de este
+  audio" pasa a ✏️ fijo junto a ▶ y 🗑 (como el lápiz de la Letra). El ✏️ que abría 📁 Archivos del curso pasa a 📁.
