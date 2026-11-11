@@ -9343,3 +9343,31 @@ allí acceder a crearla"). DECISIÓN del PO 2026-11-10: aprobado el plan propues
 - **Prueba (navegador):** canción con Ficha → título "Ficha de la canción"; sin Ficha → "Crear la ficha de la
   canción"; en el Workspace, 📋 abre la pestaña "Llorarás · Ficha" (canción sin Ficha) lista para elegir tonalidad,
   cifra y secciones. El paso por el Plan (Entrenador mínimo) no se probó en el navegador.
+
+### GX. Extractos — 🧩 sección de la Estructura, 📝 nota breve y orden de la canción — HECHA (falta correr el SQL y probar en uso)
+*Origen: PO 2026-11-10 ("para los extractos de audio … poder linkear a una sección determinada de la estructura de la
+canción, poder agregar … una nota breve de texto; … se ordenarían por el orden de la estructura de la canción (excepto
+aquellos extractos que no estén ligados a alguna sección, no es obligatorio)"). DECISIÓN del PO 2026-11-10: solo
+extractos (no versiones); la nota va más chica, debajo y en cursiva; autoriza el cambio en Supabase.*
+- **Auditoría:** los extractos son filas de `curso_archivos` (uso `extracto`, `cancion_id`) con un texto `parte`
+  (sugerido de las secciones) y se ordenaban cuando ese texto coincidía con el nombre de una sección de la Ficha. Se
+  ven en la ficha de la canción (Biblioteca) y en 🎧 Otros audios del Entrenador (PC y celular).
+- **Alcance:** dos columnas nuevas (`supabase/medios_seccion_nota.sql`): `seccion_seg` (segundo donde empieza la
+  sección de la Ficha; las repetidas se distinguen por su minuto) y `nota`. En la ficha de la canción, cada extracto
+  suma 🧩 (elegir la sección) y 📝 (nota), y muestra su sección y su nota (más chica, en cursiva). Orden: los ligados,
+  en el orden de la Estructura; los demás, después. Un extracto antiguo cuyo texto coincide con una sección cuenta como
+  ligado a ella. 🎧 Otros audios muestra sección y nota en el mismo orden. Queda para después: elegir la sección al
+  recortar desde el celular.
+- **Hecho:** `REPERTORIO/index.html`: `seccionesFicha(c)` (secciones de la Ficha en orden, las repetidas con su
+  minuto) y `seccionDeMedio(f, secs)` (por `seccion_seg`, con 1,5 s de tolerancia si la sección se movió; si no, por
+  el texto: nombre igual o el más largo con que empieza). Ficha de la canción: 🧩 y 📝 al pasar el mouse en cada
+  extracto (selector y campo en la misma fila; Esc deja igual), sección en naranjo y nota en cursiva debajo; orden por
+  la Estructura y los no ligados después. 🎧 Otros audios (PC y celular): sección y nota en una línea bajo la barra,
+  mismo orden. Sin las columnas, guardar avisa "Falta actualizar Supabase (medios_seccion_nota.sql)".
+- **Lugares (regla 11):** ficha de la canción (Biblioteca) y 🎧 Otros audios del Entrenador (todas sus versiones, PC y
+  celular). 📁 Archivos del curso sigue mostrando solo la parte (no se pidió). Al recortar desde el celular: después.
+- **Prueba (navegador, "Sin Sentimiento", extractos simulados):** orden Intro → Coro → Mambo 1 → sin sección; "Coro:
+  segunda voz" (antiguo, sin sección) cuenta como Coro; el selector ofrece las 20 secciones; elegir Coro guarda
+  `seccion_seg = 153.458` y la nota guarda `nota`; la versión no muestra sección ni nota; 🎧 igual. Sin errores.
+- **Supabase:** `supabase/medios_seccion_nota.sql` — lo corre el PO en el SQL Editor (Claude no puede crear columnas
+  con la llave pública).

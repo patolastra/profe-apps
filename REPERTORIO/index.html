@@ -593,6 +593,10 @@
             padding: 0 4px; border-radius: 4px; visibility: hidden; vertical-align: middle; }
         .med-fila:hover .med-renombrar { visibility: visible; }
         .med-renombrar:hover { color: var(--accent); background: #e2e8f0; }
+        /* 🧩 sección y 📝 nota de un extracto (GX): la nota más chica, en cursiva */
+        .med-sec { font-size: 0.74rem; color: var(--accent); font-weight: 600; margin-top: 1px; }
+        .med-nota { font-size: 0.74rem; color: var(--muted); font-style: italic; margin-top: 1px; white-space: pre-wrap; }
+        .med-sec-sel { font: inherit; font-size: 0.8rem; padding: 3px 6px; margin-top: 2px; border: 1px solid var(--accent); border-radius: 6px; max-width: 100%; }
         .med-texto-input { width: 100%; font: inherit; font-size: 0.82rem; padding: 3px 6px; margin-top: 2px;
             border: 1px solid var(--accent); border-radius: 6px; outline: none; }
         .med-form { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0; padding: 10px; border: 1.5px dashed var(--border); border-radius: 8px; }
@@ -2206,6 +2210,11 @@
             display: flex; align-items: center; justify-content: center; cursor: pointer; text-decoration: none; }
         .oa-nombre { font-weight: 700; font-size: .95rem; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .oa-nombre small { font-weight: 500; color: #94a3b8; font-size: .78rem; margin-left: 6px; }
+        .oa-nota { grid-column: 2; font-size: .76rem; color: #94a3b8; white-space: normal; display: flex; flex-wrap: wrap; gap: 2px 8px; }
+        .oa-nota .oa-sec { color: #fb923c; font-weight: 600; }
+        .oa-nota em { font-style: italic; }
+        #entrenador-overlay.ent-light .oa-nota { color: #64748b; }
+        #entrenador-overlay.ent-light .oa-nota .oa-sec { color: #c2410c; }
         /* Alto fijo: tocar / pausar no cambia el tamaño de la tarjeta (el tiempo tiene su lugar aunque no se vea) */
         .oa-linea { display: flex; align-items: center; gap: 8px; height: 20px; }
         /* Barra: se ve delgada, pero se toma en una franja alta (también con el dedo) y se arrastra */
@@ -4147,6 +4156,37 @@ function renderPanel() {
 // comparten). Se escuchan o ven aquí mismo (un enlace de YouTube/Drive se abre aparte); ✏️ abre los Archivos del curso
 // para cambiar canción, tipo o estudiantes. "+ Agregar" (o soltar un archivo en la sección) sube al curso elegido.
 let mediosCancion = [], mediosCursos = null, mediosSoltado = null, mediosPartes = [];
+// 🧩 Sección y 📝 nota de los extractos (deuda GX): un extracto se liga a una sección de la Estructura de la Ficha por
+// el segundo donde empieza (seccion_seg; una canción puede tener varios "Coro") y lleva una nota breve (nota). Los
+// ligados van en el orden de la Estructura; los demás, después. Un extracto antiguo sin sección cuyo texto (parte)
+// coincide con el nombre de una sección cuenta como ligado a ella. Solo extractos (no versiones).
+function seccionesFicha(c) {
+    const f = (c?.assets || []).find(a => a.tipo === 'tempo');
+    let L = [];
+    try { L = window.TempoMapa && f ? TempoMapa.crear(JSON.parse(f.contenido || '{}')).secciones || [] : []; } catch (_) {}
+    L = L.filter(x => x.seg !== null && x.seg !== undefined && x.nombre).map(x => ({ nombre: String(x.nombre), seg: +x.seg }))
+        .sort((a, b) => a.seg - b.seg);
+    const veces = {};
+    L.forEach(x => { const k = x.nombre.toLowerCase(); veces[k] = (veces[k] || 0) + 1; });
+    const mmss = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+    return L.map(x => ({ ...x, etiqueta: veces[x.nombre.toLowerCase()] > 1 ? `${x.nombre} · ${mmss(x.seg)}` : x.nombre }));
+}
+function seccionDeMedio(f, secs) {
+    if (f.uso !== 'extracto' || !secs.length) return -1;
+    if (f.seccion_seg !== null && f.seccion_seg !== undefined) {
+        let mejor = -1, d = 1.5;   // la sección pudo moverse un poco en la Ficha
+        secs.forEach((x, i) => { const e = Math.abs(x.seg - f.seccion_seg); if (e <= d) { d = e; mejor = i; } });
+        return mejor;
+    }
+    // Por el texto: el nombre igual o, si no, el nombre más largo con que empieza ("Coro: segunda voz" → Coro)
+    const t = String(f.parte || '').toLowerCase().trim();
+    if (!t) return -1;
+    const igual = secs.findIndex(x => x.nombre.toLowerCase() === t);
+    if (igual >= 0) return igual;
+    let mejor = -1;
+    secs.forEach((x, i) => { const n = x.nombre.toLowerCase(); if (t.startsWith(n) && (mejor < 0 || n.length > secs[mejor].nombre.length)) mejor = i; });
+    return mejor;
+}
 const MED_ICO = { audio: '🎧', video: '🎬', imagen: '🖼️', documento: '📄', otro: '📎' };
 async function cargarMediosCancion(cid) {
     const lista = document.getElementById('medios-lista');
@@ -4175,6 +4215,7 @@ function pintarMediosCancion() {
     // Cada medio como una fila más de 🎵 Canción (PO 2026-10-29): EXTRACTO / VERSIÓN y, más chico, su parte;
     // el nombre del archivo no se muestra (queda en el title).
     const USO = { extracto: 'Extracto', version: 'Versión' };
+    const secs = seccionesFicha(songActiva);
     const fila = f => {
         const ctx = f.contextos?.nombre || '';
         const fecha = f.fecha ? f.fecha.split('-').reverse().slice(0, 2).join('/') : '';
@@ -4189,8 +4230,11 @@ function pintarMediosCancion() {
             <span class="asset-grip">⋮⋮</span>
             <div class="asset-item-ico">${MED_ICO[f.tipo] || '📎'}</div>
             <div class="asset-item-info">
-                <div class="asset-item-tipo">${titulo}<button class="med-renombrar" onclick="renombrarMedio('${f.id}')" title="Cambiar el texto de este audio">✎</button></div>
+                <div class="asset-item-tipo">${titulo}<button class="med-renombrar" onclick="renombrarMedio('${f.id}')" title="Cambiar el texto de este audio">✎</button>${f.uso === 'extracto'
+                    ? `<button class="med-renombrar" onclick="medioSeccion('${f.id}')" title="Ligar a una sección de la Estructura (Ficha)">🧩</button><button class="med-renombrar" onclick="medioNota('${f.id}')" title="Nota breve">📝</button>` : ''}</div>
                 <div class="asset-item-etiqueta med-texto"${sub ? '' : ' hidden'}>${escapar(sub)}</div>
+                ${(() => { const i = seccionDeMedio(f, secs); return i < 0 ? '' : `<div class="med-sec">🧩 ${escapar(secs[i].etiqueta)}</div>`; })()}
+                ${f.uso === 'extracto' && f.nota ? `<div class="med-nota">${escapar(f.nota)}</div>` : ''}
             </div>
             <div class="asset-item-actions">
                 <span class="med-meta" title="${escapar(ctxLabel(ctx))}">${ctxMinimo(ctx)} ${fecha}</span>
@@ -4200,9 +4244,11 @@ function pintarMediosCancion() {
             </div>
         </div><div class="med-ver" id="med-ver-${f.id}" hidden></div>`;
     };
-    // Extractos en el orden de la canción (según su parte; los sin parte o con otra, al final); luego versiones y otros
+    // Extractos: primero los ligados a una sección, en el orden de la Estructura (GX); después los demás (según su parte;
+    // los sin parte o con otra, al final); luego versiones y otros
     const posParte = f => { const i = mediosPartes.findIndex(p => p.toLowerCase() === String(f.parte || '').toLowerCase()); return f.parte ? (i < 0 ? 900 : i) : 999; };
-    const orden = [...mediosCancion.filter(f => f.uso === 'extracto').sort((a, b) => posParte(a) - posParte(b)),
+    const posExt = f => { const i = seccionDeMedio(f, secs); return i < 0 ? 10000 + posParte(f) : i; };
+    const orden = [...mediosCancion.filter(f => f.uso === 'extracto').sort((a, b) => posExt(a) - posExt(b)),
         ...mediosCancion.filter(f => f.uso === 'version'), ...mediosCancion.filter(f => f.uso !== 'extracto' && f.uso !== 'version')];
     lista.innerHTML = `<div class="ficha-lote">${orden.map(fila).join('')}</div>`;
     // El número de 🎵 Canción cuenta también los extractos y versiones
@@ -4239,6 +4285,68 @@ function renombrarMedio(id) {
         else if (e.key === 'Escape') { e.preventDefault(); terminar(false); }
     });
     inp.addEventListener('blur', () => terminar(true));
+}
+// 🧩 Ligar un extracto a una sección de la Estructura (GX): un selector en la misma fila; elegir guarda, Esc deja igual
+function medioSeccion(id) {
+    const f = mediosCancion.find(x => x.id === id);
+    const fila = document.querySelector(`.med-fila[data-medio="${id}"]`);
+    if (!f || !fila || fila.querySelector('.med-sec-sel')) return;
+    const secs = seccionesFicha(songActiva);
+    if (!secs.length) { toast('La canción no tiene secciones en su Ficha (🧩 Estructura)'); return; }
+    const actual = seccionDeMedio(f, secs);
+    const sel = document.createElement('select');
+    sel.className = 'med-sec-sel';
+    sel.innerHTML = '<option value="">— Sin sección —</option>' + secs.map((x, i) => `<option value="${i}"${i === actual ? ' selected' : ''}>🧩 ${escapar(x.etiqueta)}</option>`).join('');
+    (fila.querySelector('.med-sec') || fila.querySelector('.med-texto')).after(sel);
+    fila.querySelector('.med-sec')?.setAttribute('hidden', '');
+    sel.focus();
+    let listo = false;
+    const terminar = async guardar => {
+        if (listo) return; listo = true;
+        const v = sel.value === '' ? null : secs[+sel.value].seg;
+        if (!guardar || (v === null ? actual < 0 && f.seccion_seg == null : actual === +sel.value && f.seccion_seg != null)) { pintarMediosCancion(); return; }
+        if (!await guardarMedioGX(f, { seccion_seg: v })) return;
+        pintarMediosCancion();
+    };
+    sel.addEventListener('change', () => terminar(true));
+    sel.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); terminar(false); } });
+    sel.addEventListener('blur', () => terminar(false));
+}
+// 📝 Nota breve de un extracto (GX): se escribe ahí mismo; Enter o salir guarda, Esc deja como estaba
+function medioNota(id) {
+    const f = mediosCancion.find(x => x.id === id);
+    const fila = document.querySelector(`.med-fila[data-medio="${id}"]`);
+    if (!f || !fila || fila.querySelector('.med-texto-input')) return;
+    const inp = document.createElement('input');
+    inp.className = 'med-texto-input'; inp.value = f.nota || ''; inp.placeholder = 'Nota breve (aquí se aceleraron…)'; inp.maxLength = 200;
+    const nota = fila.querySelector('.med-nota');
+    if (nota) nota.hidden = true;
+    (nota || fila.querySelector('.med-sec') || fila.querySelector('.med-texto')).after(inp);
+    inp.focus(); inp.select();
+    let listo = false;
+    const terminar = async guardar => {
+        if (listo) return; listo = true;
+        const nuevo = inp.value.trim();
+        if (!guardar || nuevo === (f.nota || '')) { pintarMediosCancion(); return; }
+        await guardarMedioGX(f, { nota: nuevo || null });
+        pintarMediosCancion();
+    };
+    inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); terminar(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); terminar(false); }
+    });
+    inp.addEventListener('blur', () => terminar(true));
+}
+async function guardarMedioGX(f, cambios) {
+    const { error } = await sb.from('curso_archivos').update(cambios).eq('id', f.id);
+    if (error) {
+        toast(/seccion_seg|nota|column/i.test(error.message || '') ? 'Falta actualizar Supabase (medios_seccion_nota.sql)' : 'No se pudo guardar — revisa la conexión');
+        pintarMediosCancion();
+        return false;
+    }
+    Object.assign(f, cambios);
+    entMediosCache = { id: null, lista: [] };   // el Entrenador lo vuelve a leer
+    return true;
 }
 function verMedio(id) {
     const f = mediosCancion.find(x => x.id === id), cont = document.getElementById('med-ver-' + id);
@@ -6541,9 +6649,10 @@ async function entMediosDe(c) {
     const m = audioDe(c, 'melodia'), k = audioDe(c, 'karaoke'), s2 = audioDe(c, 'segunda');
     audiosDe(c).filter(a => a !== m && a !== k && a !== s2 && a.storage_path).forEach(a => lista.push({
         otro: true, id: a.id, tipo: 'audio', titulo: (window.nombreAsset ? nombreAsset(a) : '') || a.etiqueta || 'Audio', curso: '', src: storageUrl(a.storage_path) }));
-    // Orden: extractos (en el orden de las secciones de la Ficha), versiones, otros
-    const secs = (() => { try { return (JSON.parse((c.assets || []).find(a => a.tipo === 'tempo')?.contenido || '{}').secciones || []).map(x => String(x.nombre).toLowerCase()); } catch (_) { return []; } })();
-    const posSec = f => { const t = String(f.parte || '').toLowerCase(); const i = secs.findIndex(n => t && (t === n || t.startsWith(n))); return i < 0 ? 999 : i; };
+    // Orden: extractos (los ligados a una sección, en el orden de la Estructura; los demás después — GX), versiones, otros
+    const secs = seccionesFicha(c);
+    lista.forEach(f => { if (!f.otro && f.uso === 'extracto') { const i = seccionDeMedio(f, secs); f.seccion = i < 0 ? null : secs[i].etiqueta; f.posSec = i < 0 ? 999 : i; } });
+    const posSec = f => f.posSec ?? 999;
     const grupo = f => f.otro ? 2 : f.uso === 'version' ? 1 : 0;
     lista = lista.map((f, i) => ({ f, i })).sort((a, b) => grupo(a.f) - grupo(b.f) || posSec(a.f) - posSec(b.f) || a.i - b.i).map(x => x.f);
     entMediosCache = { id: c.id, lista };
@@ -6560,7 +6669,7 @@ function entOaHTML(lista) {
             : `<button class="oa-play" onclick="entOaTocar(${i})" title="Tocar / detener">${i === entOaI && !entOa.paused ? '⏸' : '▶'}</button>`;
         h += `<div class="oa-item" data-oa="${i}">${play}<div class="oa-nombre">${entEsc(f.titulo)}${f.curso ? `<small>${entEsc(f.curso)}</small>` : ''}</div>
             ${f.url ? '' : `<div class="oa-linea"><div class="oa-barra" onpointerdown="entOaArrastrar(event, ${i})"><div class="oa-fill"></div></div><span class="oa-t">${i === entOaI ? entOaFmt(entOa.currentTime) : ''}</span></div>`}
-            ${f.tipo === 'video' && !f.url && i === entOaI ? '<div class="oa-video-lugar"></div>' : ''}</div>`;
+            ${f.tipo === 'video' && !f.url && i === entOaI ? '<div class="oa-video-lugar"></div>' : ''}${!f.otro && f.uso === 'extracto' && (f.seccion || f.nota) ? `<div class="oa-nota">${f.seccion ? `<span class="oa-sec">🧩 ${entEsc(f.seccion)}</span>` : ''}${f.nota ? `<em>${entEsc(f.nota)}</em>` : ''}</div>` : ''}</div>`;
     });
     return h || '<div class="oa-tit">Esta canción no tiene otros audios</div>';
 }
