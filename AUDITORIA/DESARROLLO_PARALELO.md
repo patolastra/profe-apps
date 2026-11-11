@@ -9307,7 +9307,7 @@ DECISIÓN del PO 2026-11-10: opción desde la planificación de origen (no desde
   relato y campos de la original y abre el editor en 5° · Diciembre con "✓ Copiada de Sexto básico · revisa los OA";
   desde la ventana Ver abre la misma ventana.
 
-### GV. Entrenador — 🎸 Bajo: escuchar la línea de bajo — HECHA (falta probar en uso)
+### GV. Entrenador — 🎸 Bajo: escuchar la línea de bajo — HECHA (probada por el PO; ajuste de fondo en uso)
 *Origen: PO 2026-11-10 ("un botón que me permita cambiar, en el audio que esté sonando (excepto extractos),
 ecualización y pitch … recorte agresivo de frecuencias altas y medias, dejar solo graves, y un pitch de 12 o 24
 semitonos, para escuchar la línea limpiamente"). DECISIÓN del PO 2026-11-10: aprobado el plan propuesto.*
@@ -9326,6 +9326,10 @@ semitonos, para escuchar la línea limpiamente"). DECISIÓN del PO 2026-11-10: a
 - **Prueba (navegador, canción real):** prendido, el reproductor sube una octava (SoundTouch a ×2), el corte queda
   en 400 Hz y lo de 2–5 kHz desaparece (−214 dB contra −72 dB en 100–400 Hz); +24 → corte 800 Hz; con Pitch +2 →
   tono 26; apagado vuelve a tono 0; al cambiar de canción se apaga solo; sin errores.
+- **Ajuste (PO 2026-11-10, "se entiende la línea pero no sé en qué parte de la canción estoy"):** con 🎸 Bajo prendido
+  suena de fondo la canción original (el `<audio>` que hace de reloj, sin filtro ni tono, con la Melodía) al **25 %**
+  del volumen; el ▾ suma una barra 🎵 de 0 a 60 %. Prueba: prendido → `<audio>` sin silenciar a 0,25 (40 % → 0,4) y
+  el reproductor del bajo a ×2; apagado → vuelve a 1.
 
 ### GW. Entrenador — 📋 Ficha de la canción desde el Entrenador — HECHA (falta probar en uso)
 *Origen: PO 2026-11-10 ("un botón para ir a la ficha de la canción desde el entrenador, aunque no la tenga, para desde

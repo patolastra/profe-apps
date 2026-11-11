@@ -6424,7 +6424,7 @@ function entCerrarPitchInput() {
 // apagado, va directo al volumen; prendido, pasa por los filtros. El corte se pide en la canción original y se
 // corre con el tono (lo que estaba bajo 200 Hz, subido una octava, queda bajo 400 Hz). No toca extractos ni
 // versiones (🎧, otro reproductor). Se apaga al cambiar de canción y no se guarda. ──
-let entBajoOn = false, entBajoST = 12, entBajoCorte = 200, entBajoNodos = null;
+let entBajoOn = false, entBajoST = 12, entBajoCorte = 200, entBajoNodos = null, entBajoFondo = 25;   // fondo: % de la canción original
 const entTonoTotal = () => entPitchSemitones + (entBajoOn ? entBajoST : 0);
 function entBajoEntrada() {
     const ctx = entPitchCtx;
@@ -6456,6 +6456,7 @@ async function entToggleBajo(on) {
     if (entMotorActivo()) await entActivarPitch();   // el tono cambió: el reproductor se rehace con SoundTouch
     else entDesactivarPitch();
     entBajoConectar();
+    entAplicarSalidaAudio();
     toast(entBajoOn ? `🎸 Bajo: solo graves, +${entBajoST}` : '🎸 Bajo apagado');
 }
 async function entBajoOctavas(st) {
@@ -6463,6 +6464,11 @@ async function entBajoOctavas(st) {
     entBajoST = st;
     entPintarBajo(); entPintarMenuBajo();
     if (entBajoOn) { await entActivarPitch(); entBajoConectar(); }
+}
+function entBajoFondoPct(v) {
+    entBajoFondo = Math.max(0, Math.min(60, +v || 0));
+    const el = document.querySelector('#ent-bajo-pop .pct'); if (el) el.textContent = entBajoFondo + ' %';
+    entAplicarSalidaAudio();
 }
 function entBajoCorteHz(hz) {
     entBajoCorte = Math.max(80, Math.min(500, +hz || 200));
@@ -6473,6 +6479,7 @@ function entBajoApagar() {
     if (!entBajoOn) return;
     entBajoOn = false;
     entBajoConectar();
+    entAplicarSalidaAudio();
     entPintarBajo();
 }
 function entPintarBajo() {
@@ -6489,7 +6496,9 @@ function entMenuBajo(e) {
     pop.id = 'ent-bajo-pop';
     pop.innerHTML = `<div class="fila"><button data-st="12">+12</button><button data-st="24">+24</button></div>
         <div class="fila" title="Corte: hasta dónde llegan los graves que se escuchan"><input type="range" min="80" max="500" step="10" value="${entBajoCorte}"
-            oninput="entBajoCorteHz(this.value)"><span class="hz">${entBajoCorte} Hz</span></div>`;
+            oninput="entBajoCorteHz(this.value)"><span class="hz">${entBajoCorte} Hz</span></div>
+        <div class="fila" title="Volumen de la canción original de fondo, para saber en qué parte se está"><span>🎵</span><input type="range" min="0" max="60" step="5" value="${entBajoFondo}"
+            oninput="entBajoFondoPct(this.value)"><span class="hz pct">${entBajoFondo} %</span></div>`;
     pop.addEventListener('click', ev => { ev.stopPropagation(); const st = +ev.target.dataset?.st; if (st) entBajoOctavas(st); });
     document.body.appendChild(pop);
     const r = document.getElementById('ent-btn-bajo').getBoundingClientRect();
@@ -6914,8 +6923,11 @@ let entDosCarga = 0;            // número de la carga en curso (abrir otra canc
 const entMotorActivo = () => !ESPEJO && (entTonoTotal() !== 0 || entDosListas || !!entSaltos());
 function entAplicarSalidaAudio() {
     const m = entAudio();
-    m.muted = ESPEJO || !!entPitchNode;           // la copia de la Pizarra no suena; con el reproductor, suena él
-    try { m.volume = entNivelVolumen(); } catch (_) {}
+    // 🎸 Bajo (GV): de fondo suena también la canción original (el <audio>, sin filtro ni tono) a un volumen bajo, para
+    // saber en qué parte de la canción se está
+    const fondo = !ESPEJO && entBajoOn && !!entPitchNode;
+    m.muted = ESPEJO || (!!entPitchNode && !fondo);   // la copia de la Pizarra no suena; con el reproductor, suena él
+    try { m.volume = entNivelVolumen() * (fondo ? entBajoFondo / 100 : 1); } catch (_) {}
 }
 // Barra mínima: una línea en el borde de abajo del botón Melodía / Karaoke (x = 0..1; null = lista)
 function entPintarCargaAudio(x) {
