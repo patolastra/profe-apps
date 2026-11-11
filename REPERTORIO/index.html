@@ -2222,7 +2222,8 @@
             background: #0f172a; color: #e2e8f0; outline: none; min-width: 0; width: 100%; }
         #entrenador-overlay.ent-light .oa-edit { background: #fff; color: #0f172a; }
         .oa-nota { grid-column: 2; font-size: .76rem; color: #94a3b8; white-space: normal; display: flex; flex-wrap: wrap; gap: 2px 8px; }
-        .oa-nota .oa-sec { color: #fb923c; font-weight: 600; }
+        .oa-nota .oa-sec { color: #fb923c; font-weight: 600; border: 0; background: none; padding: 0; font: inherit; font-weight: 600; cursor: pointer; }
+        .oa-nota .oa-sec:hover { text-decoration: underline; }
         .oa-nota em { font-style: italic; }
         #entrenador-overlay.ent-light .oa-nota { color: #64748b; }
         #entrenador-overlay.ent-light .oa-nota .oa-sec { color: #c2410c; }
@@ -6662,7 +6663,7 @@ async function entMediosDe(c) {
         otro: true, id: a.id, tipo: 'audio', titulo: (window.nombreAsset ? nombreAsset(a) : '') || a.etiqueta || 'Audio', curso: '', src: storageUrl(a.storage_path) }));
     // Orden: extractos (los ligados a una sección, en el orden de la Estructura; los demás después — GX), versiones, otros
     const secs = seccionesFicha(c);
-    lista.forEach(f => { if (!f.otro && f.uso === 'extracto') { const i = seccionDeMedio(f, secs); f.seccion = i < 0 ? null : secs[i].etiqueta; f.posSec = i < 0 ? 999 : i; } });
+    lista.forEach(f => { if (!f.otro && f.uso === 'extracto') { const i = seccionDeMedio(f, secs); f.seccion = i < 0 ? null : secs[i].etiqueta; f.seccionSeg = i < 0 ? null : secs[i].seg; f.posSec = i < 0 ? 999 : i; } });
     const posSec = f => f.posSec ?? 999;
     const grupo = f => f.otro ? 2 : f.uso === 'version' ? 1 : 0;
     lista = lista.map((f, i) => ({ f, i })).sort((a, b) => grupo(a.f) - grupo(b.f) || posSec(a.f) - posSec(b.f) || a.i - b.i).map(x => x.f);
@@ -6682,7 +6683,7 @@ function entOaHTML(lista) {
             ? `<span class="oa-acc"><button onclick="entOaSeccion(${i})" title="Ligar a una sección de la Estructura (Ficha)">🧩</button><button onclick="entOaNota(${i})" title="Nota breve">📝</button></span>` : '';
         h += `<div class="oa-item" data-oa="${i}">${acc}${play}<div class="oa-nombre">${entEsc(f.titulo)}${f.curso ? `<small>${entEsc(f.curso)}</small>` : ''}</div>
             ${f.url ? '' : `<div class="oa-linea"><div class="oa-barra" onpointerdown="entOaArrastrar(event, ${i})"><div class="oa-fill"></div></div><span class="oa-t">${i === entOaI ? entOaFmt(entOa.currentTime) : ''}</span></div>`}
-            ${f.tipo === 'video' && !f.url && i === entOaI ? '<div class="oa-video-lugar"></div>' : ''}${!f.otro && f.uso === 'extracto' && (f.seccion || f.nota) ? `<div class="oa-nota">${f.seccion ? `<span class="oa-sec">🧩 ${entEsc(f.seccion)}</span>` : ''}${f.nota ? `<em>${entEsc(f.nota)}</em>` : ''}</div>` : ''}</div>`;
+            ${f.tipo === 'video' && !f.url && i === entOaI ? '<div class="oa-video-lugar"></div>' : ''}${!f.otro && f.uso === 'extracto' && (f.seccion || f.nota) ? `<div class="oa-nota">${f.seccion ? `<button class="oa-sec" onclick="entOaIrSeccion(${i})" title="Escuchar la canción desde 5 s antes de esta sección">🧩 ${entEsc(f.seccion)}</button>` : ''}${f.nota ? `<em>${entEsc(f.nota)}</em>` : ''}</div>` : ''}</div>`;
     });
     return h || '<div class="oa-tit">Esta canción no tiene otros audios</div>';
 }
@@ -6838,6 +6839,21 @@ function entOaArrastrar(e, i) {
     window.addEventListener('pointermove', mover, { passive: false });
     window.addEventListener('pointerup', soltar);
     window.addEventListener('pointercancel', soltar);
+}
+// 🧩 Sección de un extracto (GX): toca la grabación de la canción desde 5 s antes de esa sección, para entrar a tiempo
+function entOaIrSeccion(i) {
+    const f = entMediosCache.lista[i];
+    if (!f || f.seccionSeg == null) return;
+    const audioEl = entAudio();
+    if (!audioEl.duration) { toast('La canción no tiene grabación'); return; }
+    entOaDetener();
+    const t = Math.max(0, f.seccionSeg - 5);
+    entLineaManualHasta = Date.now() + 600;
+    audioEl.currentTime = t; entPitchSyncPos();
+    const L = entrenadorLines, k = L.findIndex(l => !l.sinTiempo && (l.text || '').trim() && l.time / 1000 >= t - 0.3);
+    if (k >= 0) entActualizarLinea(k);
+    if (audioEl.paused) entrenadorTogglePlay();
+    if (MOVIL) entOaPantalla(false);   // en el celular, vuelve a la letra
 }
 function entCancionPausa() { const a = entAudio(); if (!a.paused) { a.pause(); entPintarPlay('play'); } }
 function entOaDetener() { entOa.pause(); document.getElementById('oa-video')?.pause(); }

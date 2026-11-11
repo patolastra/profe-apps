@@ -9375,3 +9375,6 @@ extractos (no versiones); la nota va más chica, debajo y en cursiva; autoriza e
   al guardar la lista se vuelve a leer y ordenar (el que suena sigue marcado) y la ficha de la canción abierta se pone
   al día. Las teclas del Entrenador no actúan mientras se escribe. En el celular sigue solo para mirar. Prueba
   (simulada): elegir Coro y escribir la nota guardan y el extracto pasa entre Intro y Mambo 1.
+- **Ajuste 2 (PO 2026-11-10):** en 🎧 la sección del extracto es un enlace: toca la grabación de la canción desde
+  5 s antes de esa sección (para entrar a tiempo; detiene el extracto y la letra salta ahí; en el celular vuelve a la
+  letra). Prueba: "🧩 Mambo 1" (197,9 s) parte en 192,9 s y suena.
