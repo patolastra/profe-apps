@@ -9370,3 +9370,8 @@ extractos (no versiones); la nota va más chica, debajo y en cursiva; autoriza e
   segunda voz" (antiguo, sin sección) cuenta como Coro; el selector ofrece las 20 secciones; elegir Coro guarda
   `seccion_seg = 153.458` y la nota guarda `nota`; la versión no muestra sección ni nota; 🎧 igual. Sin errores.
 - **Supabase:** el PO corrió `supabase/medios_seccion_nota.sql` (2026-11-10); las columnas responden. Commit `62b6e11` (subido).
+- **Ajuste (PO 2026-11-10, "no era en la biblioteca, era en el entrenador"):** 🧩 y 📝 también en 🎧 Otros audios del
+  Entrenador del PC (al pasar el mouse por la tarjeta de un extracto): selector de sección y nota en la misma tarjeta;
+  al guardar la lista se vuelve a leer y ordenar (el que suena sigue marcado) y la ficha de la canción abierta se pone
+  al día. Las teclas del Entrenador no actúan mientras se escribe. En el celular sigue solo para mirar. Prueba
+  (simulada): elegir Coro y escribir la nota guardan y el extracto pasa entre Intro y Mambo 1.

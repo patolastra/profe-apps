@@ -2210,6 +2210,17 @@
             display: flex; align-items: center; justify-content: center; cursor: pointer; text-decoration: none; }
         .oa-nombre { font-weight: 700; font-size: .95rem; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .oa-nombre small { font-weight: 500; color: #94a3b8; font-size: .78rem; margin-left: 6px; }
+        /* 🧩 📝 de un extracto en 🎧 (GX, PC): aparecen al pasar el mouse por la tarjeta */
+        .oa-item { position: relative; }
+        .oa-acc { position: absolute; right: 6px; top: 5px; display: flex; gap: 2px; visibility: hidden; }
+        .oa-item:hover .oa-acc { visibility: visible; }
+        .oa-acc button { border: 0; background: #334155; color: #e2e8f0; border-radius: 6px; font-size: .78rem; padding: 2px 5px; cursor: pointer; }
+        .oa-acc button:hover { background: #ea580c; color: #fff; }
+        #entrenador-overlay.ent-light .oa-acc button { background: #e2e8f0; color: #334155; }
+        #entrenador-overlay.ent-light .oa-acc button:hover { background: #ea580c; color: #fff; }
+        .oa-edit { grid-column: 2; font: inherit; font-size: .78rem; padding: 3px 6px; border: 1px solid #ea580c; border-radius: 6px;
+            background: #0f172a; color: #e2e8f0; outline: none; min-width: 0; width: 100%; }
+        #entrenador-overlay.ent-light .oa-edit { background: #fff; color: #0f172a; }
         .oa-nota { grid-column: 2; font-size: .76rem; color: #94a3b8; white-space: normal; display: flex; flex-wrap: wrap; gap: 2px 8px; }
         .oa-nota .oa-sec { color: #fb923c; font-weight: 600; }
         .oa-nota em { font-style: italic; }
@@ -6667,11 +6678,84 @@ function entOaHTML(lista) {
         if (gi !== g) { g = gi; h += `<div class="oa-tit">${titulos[gi]}</div>`; }
         const play = f.url ? `<a class="oa-play" href="${entEsc(f.src)}" target="_blank" rel="noopener" title="Abrir (YouTube / Drive)">↗</a>`
             : `<button class="oa-play" onclick="entOaTocar(${i})" title="Tocar / detener">${i === entOaI && !entOa.paused ? '⏸' : '▶'}</button>`;
-        h += `<div class="oa-item" data-oa="${i}">${play}<div class="oa-nombre">${entEsc(f.titulo)}${f.curso ? `<small>${entEsc(f.curso)}</small>` : ''}</div>
+        const acc = !MOVIL && !f.otro && f.uso === 'extracto'
+            ? `<span class="oa-acc"><button onclick="entOaSeccion(${i})" title="Ligar a una sección de la Estructura (Ficha)">🧩</button><button onclick="entOaNota(${i})" title="Nota breve">📝</button></span>` : '';
+        h += `<div class="oa-item" data-oa="${i}">${acc}${play}<div class="oa-nombre">${entEsc(f.titulo)}${f.curso ? `<small>${entEsc(f.curso)}</small>` : ''}</div>
             ${f.url ? '' : `<div class="oa-linea"><div class="oa-barra" onpointerdown="entOaArrastrar(event, ${i})"><div class="oa-fill"></div></div><span class="oa-t">${i === entOaI ? entOaFmt(entOa.currentTime) : ''}</span></div>`}
             ${f.tipo === 'video' && !f.url && i === entOaI ? '<div class="oa-video-lugar"></div>' : ''}${!f.otro && f.uso === 'extracto' && (f.seccion || f.nota) ? `<div class="oa-nota">${f.seccion ? `<span class="oa-sec">🧩 ${entEsc(f.seccion)}</span>` : ''}${f.nota ? `<em>${entEsc(f.nota)}</em>` : ''}</div>` : ''}</div>`;
     });
     return h || '<div class="oa-tit">Esta canción no tiene otros audios</div>';
+}
+// 🧩 📝 desde 🎧 Otros audios (GX, PC): el mismo selector y la misma nota de la ficha de la canción, en la tarjeta.
+// Al guardar se vuelve a leer y ordenar la lista; si la ficha de esa canción está abierta en la Biblioteca, se pone al día.
+function entOaEditor(i, crear) {
+    const f = (entMediosCache.lista || [])[i];
+    const el = document.querySelector(`#ent-oa-list .oa-item[data-oa="${i}"], #ent-oa-filas .oa-item[data-oa="${i}"]`);
+    if (!f || !el || el.querySelector('.oa-edit')) return null;
+    const ed = crear(f);
+    ed.classList.add('oa-edit');
+    const nota = el.querySelector('.oa-nota'); if (nota) nota.hidden = true;
+    el.appendChild(ed); ed.focus();
+    return { f, ed };
+}
+async function entOaGuardar(f, cambios) {
+    const { error } = await sb.from('curso_archivos').update(cambios).eq('id', f.id);
+    if (error) { toast(/seccion_seg|nota|column/i.test(error.message || '') ? 'Falta actualizar Supabase (medios_seccion_nota.sql)' : 'No se pudo guardar — revisa la conexión'); return false; }
+    const m = (typeof mediosCancion !== 'undefined' ? mediosCancion : []).find(x => x.id === f.id);
+    if (m) { Object.assign(m, cambios); if (songActiva?.id === entrenadorSong?.id) pintarMediosCancion(); }
+    return true;
+}
+async function entOaRefrescar() {
+    const c = entrenadorSong; if (!c) return;
+    const sonando = entOaI >= 0 ? entMediosCache.lista[entOaI]?.id : null;
+    entMediosCache = { id: null, lista: [] };
+    await entMediosDe(c);
+    if (sonando) entOaI = entMediosCache.lista.findIndex(x => x.id === sonando);   // el que suena sigue marcado
+    entPintarOa();
+}
+function entOaSeccion(i) {
+    const secs = seccionesFicha(entrenadorSong);
+    if (!secs.length) { toast('La canción no tiene secciones en su Ficha (🧩 Estructura) — 📋 para crearla'); return; }
+    let actual = -1;
+    const r = entOaEditor(i, f => {
+        actual = seccionDeMedio(f, secs);
+        const sel = document.createElement('select');
+        sel.innerHTML = '<option value="">— Sin sección —</option>' + secs.map((x, k) => `<option value="${k}"${k === actual ? ' selected' : ''}>🧩 ${entEsc(x.etiqueta)}</option>`).join('');
+        return sel;
+    });
+    if (!r) return;
+    let listo = false;
+    const terminar = async guardar => {
+        if (listo) return; listo = true;
+        const v = r.ed.value === '' ? null : secs[+r.ed.value].seg;
+        if (guardar) await entOaGuardar(r.f, { seccion_seg: v });
+        entOaRefrescar();
+    };
+    r.ed.addEventListener('change', () => terminar(true));
+    r.ed.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); terminar(false); } });
+    r.ed.addEventListener('blur', () => terminar(false));
+}
+function entOaNota(i) {
+    const r = entOaEditor(i, f => {
+        const inp = document.createElement('input');
+        inp.value = f.nota || ''; inp.placeholder = 'Nota breve (aquí se aceleraron…)'; inp.maxLength = 200;
+        return inp;
+    });
+    if (!r) return;
+    r.ed.select();
+    let listo = false;
+    const terminar = async guardar => {
+        if (listo) return; listo = true;
+        const nuevo = r.ed.value.trim();
+        if (guardar && nuevo !== (r.f.nota || '')) await entOaGuardar(r.f, { nota: nuevo || null });
+        entOaRefrescar();
+    };
+    r.ed.addEventListener('keydown', e => {
+        e.stopPropagation();   // las teclas del Entrenador (espacio, flechas) no actúan mientras se escribe
+        if (e.key === 'Enter') { e.preventDefault(); terminar(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); terminar(false); }
+    });
+    r.ed.addEventListener('blur', () => terminar(true));
 }
 function entPintarOa() {
     const lista = entMediosCache.id === entrenadorSong?.id ? entMediosCache.lista : [];
