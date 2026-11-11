@@ -9422,3 +9422,6 @@ velocidad, el Pitch y 🎸 Bajo; también en el celular.*
   elegirla cambia la grabación (5:45) y suena; 🎸 Bajo la toma (reproductor a ×2 con la versión); volver deja la
   Melodía. "Sin Sentimiento" (letra sincronizada, versión simulada): la letra no se marca sola, clic en un verso y ↓ no
   mueven el audio, el loop no se prende, ✂ queda oculto.
+- **Corrección (PO 2026-11-11, celular: "la flechita no muestra nada"):** en el celular todo lo que cuelga del `body`
+  fuera del Entrenador queda oculto; el menú ▾ se colgaba ahí. Se exceptúa `#ent-audio-pop`. Prueba (`?movil=1`,
+  "Cuéntales mi amor"): el menú se ve con "🎤 Melodía" y "🎙 cuentales".
