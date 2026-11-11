@@ -9344,7 +9344,7 @@ allí acceder a crearla"). DECISIÓN del PO 2026-11-10: aprobado el plan propues
   canción"; en el Workspace, 📋 abre la pestaña "Llorarás · Ficha" (canción sin Ficha) lista para elegir tonalidad,
   cifra y secciones. El paso por el Plan (Entrenador mínimo) no se probó en el navegador.
 
-### GX. Extractos — 🧩 sección de la Estructura, 📝 nota breve y orden de la canción — HECHA (falta correr el SQL y probar en uso)
+### GX. Extractos — 🧩 sección de la Estructura, 📝 nota breve y orden de la canción — HECHA (falta probar en uso)
 *Origen: PO 2026-11-10 ("para los extractos de audio … poder linkear a una sección determinada de la estructura de la
 canción, poder agregar … una nota breve de texto; … se ordenarían por el orden de la estructura de la canción (excepto
 aquellos extractos que no estén ligados a alguna sección, no es obligatorio)"). DECISIÓN del PO 2026-11-10: solo
@@ -9369,5 +9369,4 @@ extractos (no versiones); la nota va más chica, debajo y en cursiva; autoriza e
 - **Prueba (navegador, "Sin Sentimiento", extractos simulados):** orden Intro → Coro → Mambo 1 → sin sección; "Coro:
   segunda voz" (antiguo, sin sección) cuenta como Coro; el selector ofrece las 20 secciones; elegir Coro guarda
   `seccion_seg = 153.458` y la nota guarda `nota`; la versión no muestra sección ni nota; 🎧 igual. Sin errores.
-- **Supabase:** `supabase/medios_seccion_nota.sql` — lo corre el PO en el SQL Editor (Claude no puede crear columnas
-  con la llave pública).
+- **Supabase:** el PO corrió `supabase/medios_seccion_nota.sql` (2026-11-10); las columnas responden. Commit `62b6e11` (subido).
