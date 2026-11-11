@@ -9339,7 +9339,7 @@ semitonos, para escuchar la línea limpiamente"). DECISIÓN del PO 2026-11-10: a
   −34 a −72 ms; compensado, +1 a +4 ms (+12). +24 queda compensado con su medición (52 ms) pero sin la prueba de punta
   a punta (el panel del navegador quedó oculto).
 
-### GW. Entrenador — 📋 Ficha de la canción desde el Entrenador — HECHA (falta probar en uso)
+### GW. Entrenador — 📋 Ficha de la canción desde el Entrenador — HECHA (probada por el PO; falta el mínimo del Plan)
 *Origen: PO 2026-11-10 ("un botón para ir a la ficha de la canción desde el entrenador, aunque no la tenga, para desde
 allí acceder a crearla"). DECISIÓN del PO 2026-11-10: aprobado el plan propuesto.*
 - **Auditoría:** la Ficha (`TEMPO/index.html?cancion=<id>`) ya abre una canción sin Ficha y la crea al guardar; la
@@ -9356,7 +9356,7 @@ allí acceder a crearla"). DECISIÓN del PO 2026-11-10: aprobado el plan propues
   canción"; en el Workspace, 📋 abre la pestaña "Llorarás · Ficha" (canción sin Ficha) lista para elegir tonalidad,
   cifra y secciones. El paso por el Plan (Entrenador mínimo) no se probó en el navegador.
 
-### GX. Extractos — 🧩 sección de la Estructura, 📝 nota breve y orden de la canción — HECHA (falta probar en uso)
+### GX. Extractos — 🧩 sección de la Estructura, 📝 nota breve y orden de la canción — HECHA (probada por el PO)
 *Origen: PO 2026-11-10 ("para los extractos de audio … poder linkear a una sección determinada de la estructura de la
 canción, poder agregar … una nota breve de texto; … se ordenarían por el orden de la estructura de la canción (excepto
 aquellos extractos que no estén ligados a alguna sección, no es obligatorio)"). DECISIÓN del PO 2026-11-10: solo
@@ -9394,7 +9394,7 @@ extractos (no versiones); la nota va más chica, debajo y en cursiva; autoriza e
   (se editan desde 🎧 del Entrenador; la sección y la nota se siguen viendo) y la fecha; ✎ "Cambiar el texto de este
   audio" pasa a ✏️ fijo junto a ▶ y 🗑 (como el lápiz de la Letra). El ✏️ que abría 📁 Archivos del curso pasa a 📁.
 
-### GY. Entrenador — versiones de la canción en la barra grande (▾ junto a Melodía) — HECHA (falta probar en uso)
+### GY. Entrenador — versiones de la canción en la barra grande (▾ junto a Melodía) — HECHA (falta probar en uso; celular corregido)
 *Origen: PO 2026-11-10 ("en el caso de versiones (de Otros audios) quiero poder tener como opción también reproducirlas
 por la barra de audio grande del Entrenador, como si se promovieran a opción principal"). DECISIÓN del PO 2026-11-10
 (preguntas previas): el botón Melodía sigue alternando Melodía ↔ Karaoke y suma una flecha ▾ (como 🎸 Bajo) con un
