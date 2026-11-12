@@ -885,12 +885,14 @@ function canon(txt) {
         ? Object.fromEntries(Object.keys(x).sort().map(k => [k, orden(x[k])])) : x;
     return JSON.stringify(orden(o));
 }
+// Hay algo que guardar: secuencias o un orden (con Ficha la Estructura reemplaza al orden manual, que queda vacío)
+const hayAlgo = () => !!(A.secciones.length || A.orden.length);
 const hayCambios = () => canon(contenidoActual()) !== canon(contenidoBase) || $('etiqueta').value.trim() !== etiquetaBase;
 const claveBorrador = () => 'arreglo_borrador:' + (assetId || 'nuevo:' + cancionId);
 let previaT = null;
 function cambio() {
     $('estado').textContent = guardando ? 'Guardando…' : hayCambios() ? 'Sin guardar' : (assetId ? 'Guardado' : '');
-    $('b-guardar').disabled = guardando || !hayCambios() || !A.orden.length;
+    $('b-guardar').disabled = guardando || !hayCambios() || !hayAlgo();
     try {
         if (hayCambios()) localStorage.setItem(claveBorrador(), JSON.stringify({ base: contenidoBase, contenido: contenidoActual(), etiqueta: $('etiqueta').value }));
         else localStorage.removeItem(claveBorrador());
@@ -1234,7 +1236,7 @@ async function subirJson(id) {
     if (!r.ok) throw new Error('Archivo del arreglo: HTTP ' + r.status);
 }
 async function guardar() {
-    if (guardando || !hayCambios() || !A.orden.length) return true;
+    if (guardando || !hayCambios() || !hayAlgo()) return true;
     if (!sb) { toast('Sin conexión con la base de datos'); return false; }
     guardando = true; cambio();
     try {
@@ -1267,7 +1269,7 @@ document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.ke
 // Workspace: al cerrar la pestaña se guarda lo pendiente
 window.addEventListener('message', e => {
     if (e.data?.tipo !== 'ws-guardar' || e.source !== window.parent) return;
-    Promise.resolve(hayCambios() && A.orden.length ? guardar() : true).then(ok =>
+    Promise.resolve(hayCambios() && hayAlgo() ? guardar() : true).then(ok =>
         window.parent.postMessage({ tipo: 'ws-guardado', reqId: e.data.reqId, ok: ok !== false }, '*'));
 });
 window.addEventListener('beforeunload', e => { if (hayCambios() && window.parent === window) { e.preventDefault(); e.returnValue = ''; } });
