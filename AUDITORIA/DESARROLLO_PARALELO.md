@@ -9463,6 +9463,11 @@ karaokes ya subidos.*
   karaoke de prueba (sería un recurso real a medias): el primer guardado lo hace el PO.
 - **Lugares (regla 11):** pieza nueva usada solo en la ficha de la canción de la Biblioteca (PC); anotada en
   `LUGARES_DE_USO.md`.
+- **Ajuste (PO 2026-11-12, "incluye este botón también en el header del entrenador, para las canciones que no tienen
+  karaoke"):** botón 🎶 en la barra del Entrenador, junto a Melodía, solo en el PC y si la canción tiene Melodía y no
+  Karaoke (todas las versiones del PC: Biblioteca, sesión, Plan, mínimo). Abre el mismo cuadro, que con el Entrenador
+  abierto queda sobre su reproductor; al guardar, el Entrenador abierto prepara el Karaoke y el botón desaparece.
+  Prueba: visible en "Cuéntales mi amor", oculto en "Milagro de Amor" (tiene Karaoke); el clic abre el cuadro.
 
 ### HA. Entrenador y Cantar — 🎤 Voz: mezcla entre Melodía y Karaoke — HECHA (falta probar en uso)
 *Origen: PO 2026-11-12 ("quiero la posibilidad de mezclar el karaoke y la melodía original de manera de no hacer una

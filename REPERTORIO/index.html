@@ -1874,6 +1874,7 @@
         #kar-panel { position: fixed; right: 16px; bottom: 16px; z-index: 9000; width: 320px; max-width: calc(100vw - 32px);
             background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 12px; padding: 12px 14px;
             box-shadow: 0 10px 30px rgba(0,0,0,.4); font-size: .85rem; }
+        body:has(#entrenador-overlay.visible) #kar-panel { bottom: 84px; }   /* sobre el reproductor del Entrenador */
         #kar-panel .kar-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
         #kar-panel .kar-cab span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .75; }
         #kar-panel .kar-x { background: none; border: 0; color: inherit; cursor: pointer; font-size: 1rem; opacity: .6; padding: 0 2px; }
@@ -2361,7 +2362,7 @@
         body.espejo #ent-loops-panel, body.espejo #ent-estr-panel, body.espejo #ent-oa-panel, body.espejo #ent-btn-toggle-oa, body.espejo #ent-btn-oa-movil, body.espejo #ent-sesion-lista,
         body.espejo .ent-ritmo-controls { display: none !important; }
         /* Controles header — mismo estilo que .ent-chip */
-        #ent-btn-espejo, #ent-btn-atajos, #ent-btn-pitch, #ent-btn-audio, #ent-btn-segunda, #ent-btn-tema, #ent-vel-label,
+        #ent-btn-espejo, #ent-btn-atajos, #ent-btn-pitch, #ent-btn-audio, #ent-btn-segunda, #ent-btn-kar, #ent-btn-tema, #ent-vel-label,
         #ent-btn-ocultar, #ent-btn-lectura, #ent-btn-sync, #ent-btn-sync-save, #ent-btn-editar, #ent-btn-voz2 {
             background: #334155; border: 1.5px solid #475569;
             color: #94a3b8; border-radius: 20px; padding: 4px 12px;
@@ -2395,7 +2396,7 @@
         #entrenador-overlay.sin-audio #ent-btn-toggle-loops {
             opacity: .35; pointer-events: none; cursor: default; }
         #entrenador-overlay.sin-audio #ent-loops-panel, #entrenador-overlay.sin-audio #ent-estr-panel { display: none !important; }
-        #ent-btn-espejo:hover, #ent-btn-atajos:hover, #ent-btn-pitch:hover, #ent-btn-audio:hover, #ent-btn-segunda:hover, #ent-btn-tema:hover, #ent-btn-ocultar:hover, #ent-btn-lectura:hover,
+        #ent-btn-espejo:hover, #ent-btn-atajos:hover, #ent-btn-pitch:hover, #ent-btn-audio:hover, #ent-btn-segunda:hover, #ent-btn-kar:hover, #ent-btn-tema:hover, #ent-btn-ocultar:hover, #ent-btn-lectura:hover,
         #ent-btn-sync:hover, #ent-btn-editar:hover, #ent-btn-voz2:hover { border-color: #64748b; color: #cbd5e1; }
         #ent-btn-pitch.activo, #ent-btn-audio.activo, #ent-btn-segunda.activo, #ent-btn-ocultar.oculto,
         #ent-btn-sync.on, #ent-btn-editar.activo, #ent-btn-espejo.on, #ent-btn-lectura.activo {
@@ -2638,6 +2639,7 @@
         #entrenador-overlay.ent-light #ent-btn-espejo:not(.on),
         #entrenador-overlay.ent-light #ent-btn-atajos,
         #entrenador-overlay.ent-light #ent-btn-pitch, #entrenador-overlay.ent-light #ent-btn-audio, #entrenador-overlay.ent-light #ent-btn-segunda,
+        #entrenador-overlay.ent-light #ent-btn-kar,
         #entrenador-overlay.ent-light #ent-btn-tema,
         #entrenador-overlay.ent-light #ent-vel-label,
         #entrenador-overlay.ent-light #ent-btn-ocultar,
@@ -3414,6 +3416,7 @@
             <button id="ent-btn-tema" onclick="entToggleTema()" title="Modo claro">☀️</button>
             <button id="ent-btn-atajos" onclick="entAbrirAtajos()" title="Atajos de teclado">⌨</button>
             <span id="ent-audio-grupo" style="display:none"><button id="ent-btn-audio" onclick="entClicAudio()">🎤 Melodía</button><button id="ent-btn-audio-menu" onclick="entMenuAudio(event)" title="Elegir otra grabación: Melodía, Karaoke o una versión">▾</button></span>
+            <button id="ent-btn-kar" onclick="entCrearKaraoke()" title="Crear el Karaoke: sacarle la voz a la Melodía (en este computador)" style="display:none">🎶</button>
             <button id="ent-btn-segunda" onclick="entToggleSegunda()" style="display:none">🎵 2ª voz</button>
             <input id="ent-segunda-vol" type="range" min="0" max="200" step="5" value="100" style="display:none"
                    title="Equilibrio 2ª voz / Melodía" oninput="entSegundaEquilibrio(this.value)"
@@ -5846,6 +5849,10 @@ async function guardarEditarAsset() {
     toast('Asset actualizado ✓');
 }
 
+function entCrearKaraoke() {
+    const m = entrenadorSong && audioDe(entrenadorSong, 'melodia');
+    if (m) karCrear(entrenadorSong.id, m.id);
+}
 // ── 🎶 Crear karaoke (deuda GZ): la voz se saca en este computador (comun/separador-voz.js) ──
 // Un trabajo a la vez, en un cuadro abajo a la derecha (sigue aunque se cambie de canción);
 // al terminar se escucha y se guarda como el Karaoke de la canción (MP3 128 kbps).
@@ -5931,6 +5938,10 @@ async function karGuardar() {
     URL.revokeObjectURL(t.url);
     karTrabajo = null; karPintar();
     if (songActiva?.id === c.id) renderPanel();
+    if (entrenadorSong?.id === c.id && typeof entPrepararKaraoke === 'function') {   // el Entrenador abierto lo toma al tiro
+        if (entrenadorSong !== c) entrenadorSong.assets = c.assets;
+        entPrepararKaraoke(entrenadorSong);
+    }
     toast('Karaoke guardado ✓');
 }
 
@@ -6745,6 +6756,10 @@ function entPintarSelectorAudio() {
 }
 // Solo el botón (y su ▾): lo llama también la lista de otros audios al llegar (sin volver a pedirla)
 function entPintarBotonAudio() {
+    // 🎶 Crear karaoke (GZ) también aquí: canción con Melodía y sin Karaoke, solo en el PC
+    const kb = document.getElementById('ent-btn-kar');
+    if (kb) kb.style.display = !ESPEJO && !document.body.classList.contains('movil') && entrenadorSong
+        && !audioDe(entrenadorSong, 'karaoke') && audioDe(entrenadorSong, 'melodia')?.storage_path ? '' : 'none';
     const b = document.getElementById('ent-btn-audio');
     if (!b) return;
     const doble = tieneKaraoke(entrenadorSong), versiones = entVersiones();
