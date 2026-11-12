@@ -11,6 +11,7 @@
 //   g.omitido(seg)  → ese segundo cae en un salto
 //   g.oido()        → segundo de la grabación que suena ahora (null si no suena)
 //   g.aCtx(seg)     → hora del AudioContext en que sonará ese segundo de la grabación
+//   g.velocidad(v)  → sonando, cambia la velocidad sin cortar ni volver atrás (la Ficha: { } +)
 //   g.detener() · g.duracion · g.sonando · g.alTerminar = fn
 // Usada por el Piano del estudiante (PIANO/) y el Mapa de tempo (TEMPO/).
 (function () {
@@ -24,6 +25,7 @@
     function crear(ctx, destino) {
         const g = { buffer: null, url: null, sonando: false, duracion: 0, alTerminar: null };
         let nodo = null, ancla = null, vel = 1;   // ancla: { ctx, seg } = a esa hora del contexto suena ese segundo
+        let stActual = null, filtroActual = null, base = { seg: 0, pos: 0 };   // base: desde esa salida, a la velocidad de ahora
         const cache = {};       // url → AudioBuffer (promesa)
         // Descarga (con avance 0..1 si se pide; FV) y decodifica, una vez por url
         const progreso = {};    // url → [fn]: quienes esperan el avance de esa descarga
@@ -109,13 +111,14 @@
             const ini = Math.max(0, Math.floor(aVirtual(Math.max(0, desde)) * sr));
             filtro.sourcePosition = ini;
             vel = velocidad;
-            const s0 = ini / sr;
+            stActual = st; filtroActual = filtro;
+            base = { seg: ini / sr, pos: 0 };
             const muestras = new Float32Array(BLOQUE * 2);
             const n = ctx.createScriptProcessor(BLOQUE, 2, 2);
-            ancla = { ctx: ctx.currentTime + BLOQUE / ctx.sampleRate, seg: s0 };
+            ancla = { ctx: ctx.currentTime + BLOQUE / ctx.sampleRate, seg: base.seg };
             n.onaudioprocess = ev => {
                 // lo que sale en este bloque empieza en este segundo (virtual) de la grabación
-                ancla = { ctx: ev.playbackTime, seg: s0 + filtro.position * vel / sr };
+                ancla = { ctx: ev.playbackTime, seg: base.seg + (filtro.position - base.pos) * vel / sr };
                 const izq = ev.outputBuffer.getChannelData(0), der = ev.outputBuffer.getChannelData(1);
                 const k = filtro.extract(muestras, BLOQUE);
                 for (let i = 0; i < BLOQUE; i++) { izq[i] = i < k ? muestras[i * 2] : 0; der[i] = i < k ? muestras[i * 2 + 1] : 0; }
@@ -124,6 +127,12 @@
             n.connect(destino);
             nodo = n; g.sonando = true;
             window.UnSonido?.suena(g, true);     // Workspace: una sola pestaña suena (FK)
+        };
+        g.velocidad = v => {
+            if (!g.sonando || !stActual || !(v > 0) || v === vel) return;
+            const sr = g.buffer.sampleRate;
+            base = { seg: base.seg + (filtroActual.position - base.pos) * vel / sr, pos: filtroActual.position };
+            vel = v; stActual.tempo = v;
         };
         g.detener = () => {
             if (nodo) { nodo.onaudioprocess = null; try { nodo.disconnect(); } catch (_) {} }
