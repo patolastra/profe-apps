@@ -9495,3 +9495,27 @@ sus versiones, también el celular) y en Cantar; sigue con velocidad, Pitch, 2ª
   → "🎤 30 %", el botón alterna con la barra al día. Sin probar: mezcla junto a 🎸 Bajo y a la 2ª voz (mismo cálculo).
 - **Lugares (regla 11):** Entrenador en todas sus versiones (Biblioteca, sesión, Plan, mínimo, celular; la copia de la
   Pizarra no suena) y Cantar.
+
+### HB. Libro — las canciones de los grupos de trabajo abren el Entrenador — HECHA (falta probar en uso)
+*Origen y DECISIÓN del PO 2026-11-12: "esas canciones deberían ser links al entrenador para mostrar las canciones; si hay
+una clase del curso que coincide con el curso que se ve en el libro en el plan abierta (no necesariamente 'clase en
+curso') se abre en esa clase, en el entrenador embebido; y si no, en un entrenador dentro de la biblioteca".*
+- **Auditoría:** el Libro (también dentro de 📒 Libros, que reenvía los mensajes `ws-*` al Workspace) muestra las
+  canciones del grupo como texto (`tipicoHTML`). El Workspace sabe qué Plan está abierto: cada pestaña de Plan guarda su
+  clase (`CURSO|fecha`). El Plan ya abre una canción en el **Entrenador mínimo** (así se llama el embebido:
+  `abrirMini`, sobre Presentación + Vista previa). La Biblioteca (pestaña fija) ya atiende `ws-ir { practicar, cancion }`.
+- **Alcance:** clic en una canción del grupo → mensaje `ws-entrenador { ctx, cancion }` al Workspace. Si hay un Plan
+  abierto de ese curso (si hay varios, el de la clase en curso o el último abierto), se va a esa pestaña y abre la canción
+  en su Entrenador mínimo (`ws-ir { cancion }`). Si no, va a la Biblioteca: la sesión del curso en esa canción si la
+  tiene; si no, el Entrenador de la Biblioteca. El Libro suelto (fuera del Workspace) abre la Biblioteca en otra
+  pestaña. Sin Supabase.
+- **Hecho:** `LIBRO/index.html` (`tipAbrirCancion`, canción del grupo subrayada al pasar el mouse); `PC/workspace.html`
+  (mensaje `ws-entrenador`); `PORTAL/index.html` (`ws-ir { cancion }` → `abrirMini`); `REPERTORIO/index.html`
+  (`ws-ir { cancion, ctx }`: la sesión del curso si tiene la canción; si no, cierra lo abierto y abre el Entrenador).
+  Si la Biblioteca no estuviera abierta, se abre con `?cancion=`.
+- **Prueba (Workspace local, 📒 Libros en 8°):** sin Plan abierto, "Para No Verte Más" (del repertorio de 8°) abre la
+  sesión "Octavo 2026" en esa canción y "La Verdad" (fuera del curso) el Entrenador de la Biblioteca, fuera de la sesión
+  (corregido en la prueba: antes quedaba colgada de la sesión). Con el Plan de 8° del 12-11 abierto, la canción se abre
+  en su Entrenador mínimo y el Workspace pasa a esa pestaña. Sin probar: dos Planes del mismo curso abiertos (elige el
+  de la clase en curso o el último).
+- **Lugares (regla 11):** Libro dentro de 📒 Libros y en su propia pestaña (los dos hablan con el Workspace).

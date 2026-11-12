@@ -569,6 +569,28 @@ window.addEventListener('message', (e) => {
         try { bib.iframeEl.contentWindow.postMessage({ tipo: 'ws-ir', vista: m.a === 'biblioteca' ? 'biblioteca' : 'sesiones' }, '*'); } catch (_) {}
         activar('repertorio');
         cerrarTab(origen.key);
+    } else if (m.tipo === 'ws-entrenador') {
+        // HB: una canción pedida desde un curso (Libro): al Plan abierto de ese curso (su Entrenador mínimo; con varios,
+        // el de la clase en curso o el último abierto); si no hay, a la Biblioteca (sesión del curso o su Entrenador).
+        const ctx = String(m.ctx || '').toUpperCase(), cancion = String(m.cancion || '');
+        if (!cancion) return;
+        const planes = tabs.filter(t => t.clase && t.clase.split('|')[0] === ctx);
+        const st = claseEnCurso();
+        const plan = planes.find(t => st && t.clase === `${String(st.ctx).toUpperCase()}|${st.fecha}`) || planes[planes.length - 1];
+        if (plan) {
+            try { plan.iframeEl.contentWindow.postMessage({ tipo: 'ws-ir', cancion }, '*'); } catch (_) {}
+            activar(plan.key);
+            return;
+        }
+        const bib = tabs.find(t => t.key === 'repertorio');
+        if (bib) {
+            try { bib.iframeEl.contentWindow.postMessage({ tipo: 'ws-ir', cancion, ctx }, '*'); } catch (_) {}
+            activar('repertorio');
+        } else {
+            const app = APPS.repertorio;
+            abrirInstancia({ key: 'repertorio', titulo: app.titulo, ico: app.ico, fijo: true,
+                src: app.src + (app.src.includes('?') ? '&' : '?') + 'cancion=' + encodeURIComponent(cancion) });
+        }
     } else if (m.tipo === 'ws-titulo') {
         if (typeof m.key !== 'string') return;
         renombrarTab(m.key, String(m.titulo || ''));

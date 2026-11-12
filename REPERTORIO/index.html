@@ -10586,6 +10586,24 @@ window.addEventListener('message', e => {
     if (document.getElementById('entrenador-overlay').classList.contains('visible')) cerrarEntrenador();
     if ((m.vista === 'sesiones') !== (vistaActual === 'sesiones')) toggleVistaSesiones();
 });
+// Workspace: 'ws-ir' { cancion, ctx } (HB) = el Libro de un curso pide una canción y no hay un Plan de ese curso
+// abierto: la sesión del curso en esa canción si la tiene; si no, el Entrenador de la Biblioteca.
+window.addEventListener('message', e => {
+    const m = e.data;
+    if (m?.tipo !== 'ws-ir' || e.source !== window.parent || m.practicar || m.vista || !m.cancion) return;
+    const s = m.ctx ? sesionDelCurso(String(m.ctx).toUpperCase()) : null;
+    if (s && (s.canciones || []).some(i => i.cancion_id === m.cancion)) {
+        if (vistaActual !== 'sesiones') toggleVistaSesiones();
+        if (entModoSesion && entSesionActual?.id === s.id) {
+            const idx = entSesionActual.canciones.findIndex(i => i.cancion_id === m.cancion);
+            if (idx >= 0) entIrACancionSesion(idx);
+        } else practicarSesion(s.id, m.cancion);
+        return;
+    }
+    if (!canciones.some(c => c.id === m.cancion)) return;
+    if (document.getElementById('entrenador-overlay').classList.contains('visible')) cerrarEntrenador();   // sale de una sesión
+    abrirEntrenador(m.cancion);
+});
 // Workspace: 'ws-ir' { practicar, cancion } = una actividad del Plan pide la sesión del curso en esa canción
 // (deuda BT), con esta pestaña ya abierta. La lista se lee al día: la canción pudo sumarse recién desde el Plan.
 window.addEventListener('message', async e => {

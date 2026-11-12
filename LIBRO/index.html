@@ -269,6 +269,8 @@
   .grupo-tips{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin:0 0 6px}
   .grupo-tip{display:flex;align-items:center;gap:6px;width:100%;font-size:12px;color:#fde68a;min-height:20px}
   .grupo-tip .gt-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .grupo-tip .gt-link{cursor:pointer}
+  .grupo-tip .gt-link:hover{text-decoration:underline}
   .grupo-tip .gt-x{background:none;border:0;color:var(--mut);cursor:pointer;padding:0 4px;font-size:12px}
   .grupo-tip .gt-x:hover{color:var(--danger)}
   .em-tip{margin:0 0 10px}
@@ -2198,7 +2200,7 @@ function tipLista(g){
 // Ítems para mostrar: { ico, txt, sub, k } (k = posición en la lista; una canción que ya no existe no se muestra).
 function tipItems(g){
   return tipLista(g).map((x, k) => {
-    if (x.cancion_id) { const c = tipBib && tipBib.get(x.cancion_id); return c ? { ico: '🎵', txt: c.nombre, sub: c.artista || '', k } : null; }
+    if (x.cancion_id) { const c = tipBib && tipBib.get(x.cancion_id); return c ? { ico: '🎵', txt: c.nombre, sub: c.artista || '', k, cid: x.cancion_id } : null; }
     return { ico: '✏️', txt: x.texto.trim(), sub: '', k };
   }).filter(Boolean);
 }
@@ -2209,8 +2211,14 @@ function tipicoHTML(g, editable){
   const its = tipItems(g);
   if (!its.length) return '';   // GG: "＋ Agregar" va abajo, con Evaluar y 🗑
   return `<div class="grupo-tips">
-      ${its.map(it => `<div class="grupo-tip"><span class="gt-txt" title="${esc(it.txt + (it.sub ? ' · ' + it.sub : ''))}">${it.ico} ${esc(it.txt)}</span>${editable ? `<button class="gt-x" title="Quitar" onclick="tipQuitar('${g.id}',${it.k})">✕</button>` : ''}</div>`).join('')}
+      ${its.map(it => `<div class="grupo-tip"><span class="gt-txt${it.cid ? ' gt-link' : ''}"${it.cid ? ` onclick="tipAbrirCancion('${it.cid}')"` : ''} title="${esc(it.txt + (it.sub ? ' · ' + it.sub : '') + (it.cid ? ' · abrir en el Entrenador' : ''))}">${it.ico} ${esc(it.txt)}</span>${editable ? `<button class="gt-x" title="Quitar" onclick="tipQuitar('${g.id}',${it.k})">✕</button>` : ''}</div>`).join('')}
     </div>`;
+}
+// HB: una canción del grupo se abre en el Entrenador: el Workspace la lleva al Plan abierto de este curso (Entrenador
+// mínimo) o, si no hay, a la Biblioteca. Suelto (sin Workspace), la Biblioteca en otra pestaña.
+function tipAbrirCancion(cid){
+  if (window.parent !== window) window.parent.postMessage({ tipo: 'ws-entrenador', ctx: ctxNombre, cancion: cid }, '*');
+  else window.open(`../REPERTORIO/index.html?cancion=${encodeURIComponent(cid)}`, '_blank');
 }
 async function tipAbrir(gid){
   const g = grupos.find(x => x.id === gid); if (!g) return;
