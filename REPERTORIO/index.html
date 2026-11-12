@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="../comun/compartir.css?v=gk">
     <script src="../comun/compartir.js?v=gk"></script>
     <script src="../comun/dos-grabaciones.js?v=gv"></script>
+    <script src="../comun/separador-voz.js?v=gz1"></script>
     <script src="../comun/un-sonido.js"></script>
     <script src="../comun/tempo-mapa.js?v=gk"></script>
     <script src="../comun/tiempo-real.js"></script>
@@ -1869,6 +1870,24 @@
             min-width: 0;
             overflow: hidden;
         }
+        /* 🎶 Crear karaoke (GZ) */
+        #kar-panel { position: fixed; right: 16px; bottom: 16px; z-index: 9000; width: 320px; max-width: calc(100vw - 32px);
+            background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 12px; padding: 12px 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.4); font-size: .85rem; }
+        #kar-panel .kar-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        #kar-panel .kar-cab span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .75; }
+        #kar-panel .kar-x { background: none; border: 0; color: inherit; cursor: pointer; font-size: 1rem; opacity: .6; padding: 0 2px; }
+        #kar-panel .kar-x:hover { opacity: 1; }
+        #kar-panel .kar-msg { margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+        #kar-panel .kar-nota { opacity: .55; font-size: .75rem; margin-top: 6px; }
+        #kar-panel .kar-barra { height: 6px; border-radius: 3px; background: #334155; overflow: hidden; }
+        #kar-panel .kar-barra div { height: 100%; background: #ea580c; transition: width .3s; }
+        #kar-panel audio { width: 100%; height: 36px; margin-bottom: 6px; }
+        #kar-panel .kar-acc { display: flex; justify-content: flex-end; gap: 8px; }
+        #kar-panel .kar-acc button { font: inherit; font-weight: 700; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+            border: 1px solid #ea580c; background: #ea580c; color: #fff; }
+        #kar-panel .kar-acc button.sec { background: transparent; border-color: #475569; color: inherit; }
+        #kar-panel .kar-acc button:disabled { opacity: .6; cursor: default; }
         /* Canción sin letra (deuda AQ): agregarla desde el Entrenador */
         .ent-sl { width: 100%; max-width: 620px; margin: 24px auto; padding: 22px; border-radius: 16px;
             border: 1px dashed rgba(148,163,184,.6); background: rgba(148,163,184,.08); color: inherit; }
@@ -4663,6 +4682,8 @@ function assetItemHTML(a, i) {
             <div class="asset-item-actions">
                 ${estadoBadgeHTML(a)}
                 ${btnClase}
+                ${isAudio && (a.rol || 'melodia') === 'melodia' && !audioDe(songActiva, 'karaoke') && !document.body.classList.contains('movil')
+                    ? `<button class="btn-icon" onclick="karCrear('${songActiva.id}','${a.id}')" title="Crear el Karaoke: sacarle la voz a esta grabación (en este computador)">🎶</button>` : ''}
                 ${conPiano ? `<button class="btn-icon" onclick="abrirPiano('${a.id}')" title="Abrir en el piano (como lo ve el estudiante)">🎹</button>` : ''}
                 ${conPiano && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirPiano('${a.id}', this)" title="Compartir el piano con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
                 ${isMetal || (isMelodia && conMetal) ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${nombreAsset(a, songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">${isMelodia ? '🎼' : '🎹'}</button>` : ''}
@@ -5819,6 +5840,94 @@ async function guardarEditarAsset() {
     renderPanel();
     if (a.tipo === 'letra' || a.tipo === 'audio') cancionPublicaAlDia(c.id);   // EQ
     toast('Asset actualizado ✓');
+}
+
+// ── 🎶 Crear karaoke (deuda GZ): la voz se saca en este computador (comun/separador-voz.js) ──
+// Un trabajo a la vez, en un cuadro abajo a la derecha (sigue aunque se cambie de canción);
+// al terminar se escucha y se guarda como el Karaoke de la canción (MP3 128 kbps).
+let karTrabajo = null;
+const KAR_FASES = { leer: 'Leyendo la grabación…', modelo: 'Abriendo el separador…', descarga: 'Descargando el separador (solo la primera vez)…',
+    preparar: 'Preparando el separador…', separar: 'Sacando la voz…', mp3: 'Guardando el MP3…' };
+function karPanel() {
+    let el = document.getElementById('kar-panel');
+    if (!el) { el = document.createElement('div'); el.id = 'kar-panel'; document.body.appendChild(el); }
+    return el;
+}
+const karMin = s => { s = Math.max(0, Math.round(s)); return s >= 60 ? `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s` : `${s} s`; };
+function karPintar() {
+    const t = karTrabajo;
+    if (!t) { document.getElementById('kar-panel')?.remove(); return; }
+    const el = karPanel();
+    const cab = `<div class="kar-cab"><b>🎶 Karaoke</b><span title="${entEsc(t.nombre)}">${entEsc(t.nombre)}</span>
+        <button class="kar-x" onclick="karCerrar()" title="${t.blob ? 'Descartar' : 'Cancelar'}">✕</button></div>`;
+    if (t.error) { el.innerHTML = cab + `<div class="kar-msg">No se pudo: ${entEsc(t.error)}</div>`; return; }
+    if (t.blob) {
+        if (el.querySelector('audio')) return;   // ya está pintado: no cortar lo que se escucha
+        el.innerHTML = cab + `<audio controls src="${t.url}"></audio>
+            <div class="kar-msg">${(t.blob.size / 1048576).toFixed(1)} MB · listo en ${karMin((t.fin - t.t0) / 1000)}</div>
+            <div class="kar-acc"><button class="sec" onclick="karCerrar()">Descartar</button>
+            <button id="kar-guardar" onclick="karGuardar()">Guardar como Karaoke</button></div>`;
+        return;
+    }
+    let msg = KAR_FASES[t.fase] || '…', pct = 0;
+    if (t.fase === 'descarga' || t.fase === 'separar' || t.fase === 'mp3') pct = Math.round((t.p || 0) * 100);
+    if (t.fase === 'separar' && t.p > 0.02) {
+        const pasado = (Date.now() - t.tSep) / 1000;
+        msg += ` faltan ~${karMin(pasado / t.p - pasado)}`;
+    }
+    el.innerHTML = cab + `<div class="kar-msg">${msg}</div><div class="kar-barra"><div style="width:${pct}%"></div></div>
+        <div class="kar-nota">Puedes seguir trabajando; no cierres la Biblioteca.</div>`;
+}
+async function karCrear(songId, assetId) {
+    if (karTrabajo && !karTrabajo.blob && !karTrabajo.error) { toast('Ya se está creando un karaoke'); return; }
+    if (karTrabajo) karCerrar();
+    const c = canciones.find(x => x.id === songId), a = c?.assets?.find(x => x.id === assetId);
+    if (!a?.storage_path) return;
+    const t = karTrabajo = { songId, nombre: c.nombre, t0: Date.now(), fase: 'leer', p: 0 };
+    karPintar();
+    try {
+        const r = await SeparadorVoz.crearKaraoke(storageUrl(a.storage_path), { kbps: 128, alAvance: (f, p) => {
+            if (karTrabajo !== t) return;
+            if (f === 'separar' && t.fase !== 'separar') t.tSep = Date.now();
+            t.fase = f; t.p = p; karPintar();
+        } });
+        if (karTrabajo !== t) return;
+        t.blob = r.blob; t.url = URL.createObjectURL(r.blob); t.fin = Date.now();
+    } catch (e) {
+        if (karTrabajo !== t) return;
+        t.error = e.message || String(e);
+    }
+    karPintar();
+}
+function karCerrar() {
+    if (karTrabajo && !karTrabajo.blob && !karTrabajo.error && !confirm('¿Cancelar el karaoke que se está creando?')) return;
+    SeparadorVoz.cancelar();
+    if (karTrabajo?.url) URL.revokeObjectURL(karTrabajo.url);
+    karTrabajo = null; karPintar();
+}
+async function karGuardar() {
+    const t = karTrabajo; if (!t?.blob) return;
+    const c = canciones.find(x => x.id === t.songId);
+    if (!c) return;
+    if (audioDe(c, 'karaoke')) { toast('Esta canción ya tiene Karaoke: elimínalo primero'); return; }
+    const btn = document.getElementById('kar-guardar');
+    btn.disabled = true; btn.textContent = 'Subiendo…';
+    const id = genId();
+    const archivo = new File([t.blob], `${c.nombre} - karaoke.mp3`.replace(/[\\/:*?"<>|]/g, ''), { type: 'audio/mpeg' });
+    try {
+        const ruta = await sbSubirArchivo('audio', id, archivo, p => { btn.textContent = `Subiendo… ${p}%`; });
+        const asset = { id, cancion_id: c.id, tipo: 'audio', etiqueta: '', mensaje: null, contenido: '', synced: '',
+            nombre_archivo: archivo.name, storage_path: ruta, orden: 0, instrumento: '', dificultad: '', tonalidad: '', rol: 'karaoke' };
+        await sbUpsertAsset(asset);
+        (c.assets = c.assets || []).push(asset);
+    } catch (e) {
+        btn.disabled = false; btn.textContent = 'Guardar como Karaoke';
+        toast('No se pudo guardar: ' + e.message); return;
+    }
+    URL.revokeObjectURL(t.url);
+    karTrabajo = null; karPintar();
+    if (songActiva?.id === c.id) renderPanel();
+    toast('Karaoke guardado ✓');
 }
 
 async function eliminarAsset(songId, assetId) {

@@ -9425,3 +9425,41 @@ velocidad, el Pitch y 🎸 Bajo; también en el celular.*
 - **Corrección (PO 2026-11-11, celular: "la flechita no muestra nada"):** en el celular todo lo que cuelga del `body`
   fuera del Entrenador queda oculto; el menú ▾ se colgaba ahí. Se exceptúa `#ent-audio-pop`. Prueba (`?movil=1`,
   "Cuéntales mi amor"): el menú se ve con "🎤 Melodía" y "🎙 cuentales".
+
+### GZ. Biblioteca — 🎶 Crear karaoke: separar la voz en el mismo computador — HECHA (falta que el PO guarde y escuche uno real)
+*Origen: PO 2026-11-11 ("incluir un motor de ultimate vocal remover para tener en la misma app la posibilidad de crear
+karaokes, que los mp3 generados sean livianos"). DECISIÓN del PO 2026-11-11 (plan aprobado): botón 🎶 Crear karaoke en
+la ficha de la canción (solo PC, solo si no tiene Karaoke), parte de la Melodía, se escucha antes de guardar y se guarda
+como el Karaoke de la canción en MP3 de 128 kbps. Fuera de esta etapa: 2ª voz desde la voz separada y recomprimir los
+karaokes ya subidos.*
+- **Auditoría:** los audios de la canción son `repertorio_assets` (`tipo = 'audio'`, `rol` melodia | karaoke | segunda,
+  uno de cada uno); `comun/lame.min.js` ya codifica MP3 (lo usa ✂ Recortar del celular). Sin servidor ni pago: la
+  separación corre en el navegador con **onnxruntime-web** (CDN jsDelivr, versión fija) y el modelo
+  **UVR-MDX-NET-Inst_HQ_3** (equipo UVR; 67 MB, ONNX; parámetros de UVR: n_fft 6144, hop 1024, dim_f 3072, dim_t 256;
+  salida = la parte instrumental). El modelo se descarga de Hugging Face (permite pedirlo desde la página) la primera vez y
+  queda guardado en el equipo (Cache del navegador). GitHub Pages no permite hilos de WASM: se usa WebGPU si existe.
+- **PENDIENTE (V1):** el repositorio de modelos de UVR no declara licencia (la app UVR es MIT); para uso personal no hay
+  problema, para la V1 comercial hay que confirmarlo o cambiar de modelo.
+- **Supabase:** sin cambios (se crea un recurso de audio con `rol = 'karaoke'` como al subirlo a mano).
+- **Estado al pausar (2026-11-12, sin commit):** `comun/separador-voz.js` + `comun/separador-voz-worker.js` (separa
+  trozos de ~6 s en varios Workers en paralelo, WASM de 1 hilo cada uno; une con fundido; adelanta 1105 muestras por el
+  retraso del MP3 de lamejs) y en `REPERTORIO/index.html` el botón 🎶 en la Melodía + cuadro `#kar-panel` (`karCrear`,
+  `karGuardar`). Probado: la separación funciona (en 30 s de "Cuéntales mi amor" la voz se quita donde se canta y en las
+  pausas queda casi igual). **WebGPU descartado:** en la gráfica Intel del PC del PO Windows la reinicia a mitad
+  (DXGI_ERROR_DEVICE_HUNG). WASM de 1 hilo: ~40 s por trozo; con 4 hilos ~12 s. **Falta:** medir la versión con varios
+  Workers (tiempo y memoria), probar el botón y el guardado de punta a punta, y que el PO escuche un karaoke.
+  Estimado: ~2 min de trabajo por minuto de canción en el PC del PO.
+- **Próximo paso (DECISIÓN del PO 2026-11-12):** auditar lo implementado para ver si funciona y, si no, arreglarlo. Ojo:
+  durante la prueba el PO cerró el computador y pudo quedar sin internet; parte de los cuelgues (incluido el de la
+  gráfica) pueden venir de ahí y no del motor: volver a probar con el equipo despierto y con señal antes de concluir.
+- **Auditoría y cierre (2026-11-12):** con el equipo despierto y con señal, todo funcionó. Motor final: el primer Worker
+  descarga el modelo (una vez, Cache del navegador) y abre la sesión; luego se abren más Workers (núcleos − 2, máx. 6)
+  que se reparten los trozos; WASM de 1 hilo cada uno (GitHub Pages no da hilos compartidos; WebGPU descartado por el
+  cuelgue de la gráfica Intel). Corregido: el MP3 de lamejs sonaba 25 ms tarde (1105 muestras sin dato de retraso):
+  ahora se adelanta y calza exacto con la Melodía (desfase medido 0). **Pruebas:** 30 s de "Cuéntales mi amor" con 6
+  procesos: ~1,5 min de separación (~2 min de trabajo por minuto de canción en el PC del PO), 469 KB (128 kbps), la voz
+  baja donde se canta y en las pausas queda casi igual; en la Biblioteca, 🎶 aparece solo en la Melodía sin Karaoke, el
+  cuadro muestra las fases, la barra y el resultado para escuchar con Descartar / Guardar como Karaoke. No se guardó un
+  karaoke de prueba (sería un recurso real a medias): el primer guardado lo hace el PO.
+- **Lugares (regla 11):** pieza nueva usada solo en la ficha de la canción de la Biblioteca (PC); anotada en
+  `LUGARES_DE_USO.md`.
