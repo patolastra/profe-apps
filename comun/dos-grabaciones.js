@@ -10,12 +10,14 @@
 //        configurado (tono / velocidad) o null (se lee directo) · alEmpezar(horaCtx): cuándo empieza a oírse (para
 //        callar el <audio> justo ahí: el traspaso no se nota)
 //        capa / capaGanancia: otra grabación que suena ENCIMA en la misma muestra (la 2ª voz, deuda GA), con su volumen
+//        mezcla / mezclaGanancia: una segunda capa encima (HA: la Melodía sobre el Karaoke, para dejar la voz a medias)
 //        adelanto (GV): segundos de la grabación que SoundTouch adelanta su salida (se lee desde un poco antes)
 //        saltos (GK): [{ desde, hasta }] tramos que no suenan (una ✂ adaptación); alSaltar(horaCtx, seg): una junta se oye
 //        a esa hora del contexto y lo que sigue es ese segundo de la grabación (para que el <audio> salte ahí)
 //   r.cambiar(otroBuffer) · r.ir(seg) · r.detener() · r.segundo() (posición leída de la grabación)
 //   r.capa(buffer|null, ganancia) (prender / apagar / volumen de la capa, sin golpe: la ganancia se desliza)
-//   r.principal(ganancia) (volumen de la grabación de abajo, para que la capa quede por encima; también se desliza)
+//   r.principal(ganancia, seg) (volumen de la grabación de abajo, para que la capa quede por encima; también se desliza)
+//   r.mezcla(buffer|null, ganancia, seg) (la segunda capa, HA). `seg`: cuánto dura el deslizamiento (por defecto 25 ms)
 // Usada por el Entrenador (REPERTORIO/) y Cantar (CANTAR/).
 (function () {
     const BLOQUE = 4096;
@@ -63,10 +65,12 @@
         const aVirtual = s => { let q = 0; for (const x of cortes) { if (s >= x.b) q += x.b - x.a; else if (s >= x.a) return x.v; else break; } return s - q; };
         const realF = v => juntas.length ? Math.round(aReal(v / sr) * sr) : v;   // cuadro virtual → cuadro de la grabación
         let pos = 0;            // sin SoundTouch: la posición la lleva el motor (en la línea virtual)
-        // Capa (2ª voz): se suma antes del tono y la velocidad, así calza exacto; gCapa se desliza hacia gMeta
-        let capa = op.capa || null, gMeta = capa ? (op.capaGanancia ?? 1) : 0, gCapa = gMeta;
+        // Capas (2ª voz y mezcla): se suman antes del tono y la velocidad, así calzan exacto; su volumen se desliza
         const paso = 1 / largoF;
-        let pMeta = op.ganancia ?? 1, gPrin = pMeta;      // volumen de la grabación de abajo
+        const pasoDe = seg => seg > 0 ? 1 / Math.max(1, Math.round(seg * sr)) : paso;
+        const nuevaCapa = (b, g) => ({ b: b || null, g: b ? (g ?? 1) : 0, meta: b ? (g ?? 1) : 0, paso });
+        const capas = [nuevaCapa(op.capa, op.capaGanancia), nuevaCapa(op.mezcla, op.mezclaGanancia)];
+        let pMeta = op.ganancia ?? 1, gPrin = pMeta, pPaso = paso;      // volumen de la grabación de abajo
         // Lee n cuadros desde p (de la grabación) y los deja desde el cuadro o de t (intercalados L R), mezclando con la
         // grabación anterior durante el fundido
         function leerReal(t, n, p, o) {
@@ -85,18 +89,19 @@
             }
             if (gPrin !== 1 || pMeta !== 1) {
                 for (let i = 0; i < k; i++) {
-                    if (gPrin !== pMeta) gPrin = gPrin < pMeta ? Math.min(pMeta, gPrin + paso) : Math.max(pMeta, gPrin - paso);
+                    if (gPrin !== pMeta) gPrin = gPrin < pMeta ? Math.min(pMeta, gPrin + pPaso) : Math.max(pMeta, gPrin - pPaso);
                     t[(o + i) * 2] *= gPrin; t[(o + i) * 2 + 1] *= gPrin;
                 }
             }
-            if (capa && (gCapa > 0 || gMeta > 0)) {
-                const c0 = capa.getChannelData(0), c1 = capa.numberOfChannels > 1 ? capa.getChannelData(1) : c0;
+            for (const C of capas) {
+                if (!C.b || (C.g === 0 && C.meta === 0)) continue;
+                const c0 = C.b.getChannelData(0), c1 = C.b.numberOfChannels > 1 ? C.b.getChannelData(1) : c0;
                 for (let i = 0; i < k; i++) {
-                    if (gCapa !== gMeta) gCapa = gCapa < gMeta ? Math.min(gMeta, gCapa + paso) : Math.max(gMeta, gCapa - paso);
+                    if (C.g !== C.meta) C.g = C.g < C.meta ? Math.min(C.meta, C.g + C.paso) : Math.max(C.meta, C.g - C.paso);
                     const q = p + i;
-                    if (q < capa.length) { t[(o + i) * 2] += c0[q] * gCapa; t[(o + i) * 2 + 1] += c1[q] * gCapa; }
+                    if (q < C.b.length) { t[(o + i) * 2] += c0[q] * C.g; t[(o + i) * 2 + 1] += c1[q] * C.g; }
                 }
-                if (gCapa === 0 && gMeta === 0) capa = null;
+                if (C.g === 0 && C.meta === 0) C.b = null;
             }
             return k;
         }
@@ -152,17 +157,20 @@
             if (filtro) { filtro.sourcePosition = Math.max(0, pos - Math.round((op.adelanto || 0) * sr)); salidaBase = filtro.position; }
             base = pos; avisadas.clear();
         }
+        function ponerCapa(C, b, g, seg) {
+            C.paso = pasoDe(seg);
+            if (b) { if (C.b && C.b !== b) C.g = 0; C.b = b; C.meta = Math.max(0, g); }
+            else C.meta = 0;                    // se apaga deslizándose; luego se suelta
+        }
         return {
             cambiar(otro) {
                 if (!otro || otro === buf) return;
                 viejo = buf; resta = largoF; buf = otro;
             },
             ir,
-            capa(b, g = 1) {
-                if (b) { if (capa && capa !== b) gCapa = 0; capa = b; gMeta = Math.max(0, g); }
-                else gMeta = 0;                 // se apaga deslizándose; luego se suelta
-            },
-            principal(g = 1) { pMeta = Math.max(0, g); },
+            capa(b, g = 1, seg) { ponerCapa(capas[0], b, g, seg); },
+            mezcla(b, g = 1, seg) { ponerCapa(capas[1], b, g, seg); },
+            principal(g = 1, seg) { pMeta = Math.max(0, g); pPaso = pasoDe(seg); },
             segundo() { return aReal((filtro ? filtro.sourcePosition : pos) / sr); },
             detener() { nodo.onaudioprocess = null; try { nodo.disconnect(); } catch (_) {} },
             get buffer() { return buf; },

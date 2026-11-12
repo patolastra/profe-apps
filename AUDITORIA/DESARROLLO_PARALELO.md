@@ -9463,3 +9463,30 @@ karaokes ya subidos.*
   karaoke de prueba (sería un recurso real a medias): el primer guardado lo hace el PO.
 - **Lugares (regla 11):** pieza nueva usada solo en la ficha de la canción de la Biblioteca (PC); anotada en
   `LUGARES_DE_USO.md`.
+
+### HA. Entrenador y Cantar — 🎤 Voz: mezcla entre Melodía y Karaoke — HECHA (falta probar en uso)
+*Origen: PO 2026-11-12 ("quiero la posibilidad de mezclar el karaoke y la melodía original de manera de no hacer una
+transición tan drástica… suena la melodía original o no, y quiero mezcla"). DECISIÓN del PO 2026-11-12 (plan aprobado):
+barra 🎤 Voz 0–100 % en el menú ▾ del botón Melodía (100 = Melodía, 0 = Karaoke, entre medio suenan las dos en la misma
+muestra); el botón sigue alternando pero con un fundido de 1 s y muestra la mezcla ("🎤 40 %"); en el Entrenador (todas
+sus versiones, también el celular) y en Cantar; sigue con velocidad, Pitch, 2ª voz y Bajo. Sin Supabase.*
+- **Auditoría:** `comun/dos-grabaciones.js` lee la grabación de abajo y suma una capa encima (2ª voz) con volumen que se
+  desliza; cambiar Melodía ↔ Karaoke es cambiar la de abajo con fundido de 25 ms. Falta una segunda capa (la voz original
+  y la 2ª voz pueden sonar juntas) y fundidos más largos.
+- **Alcance:** el reproductor gana `mezcla(buffer, ganancia, segundos)` (otra capa) y `principal(ganancia, segundos)`
+  con la duración del deslizamiento. Con Karaoke listo, abajo suena el Karaoke (1 − voz) y encima la Melodía (voz).
+  Cada canción sigue abriendo en Melodía (100 %).
+- **Hecho:** `comun/dos-grabaciones.js` (?v=ha): capas en una lista (2ª voz y mezcla), `mezcla()` y `seg` en `capa`,
+  `principal` y `mezcla` (deslizamiento de 1 unidad por `seg`). `REPERTORIO/index.html`: `entVoz`, `entMezclaActiva`,
+  `entOpcMotor` (capas + volumen de abajo para los dos motores, también el fondo de 🎸 Bajo), `entPonerVoz`, `entAplicarSegunda(seg)`;
+  con Karaoke listo la grabación de abajo es el Karaoke (`entAudioAsset`); el ▾ aparece también solo con Karaoke y su menú
+  lleva la barra 🎤 Voz (paso 5 %); el botón dice Melodía / Karaoke / "🎤 40 %" y su clic va al otro extremo en 1 s; cada
+  canción abre en Melodía. `CANTAR/index.html`: barra 🎤 Voz a la vista junto al botón (para el estudiante) y el mismo
+  fundido de 1 s.
+- **Pruebas (navegador):** reproductor con dos tonos: 60/40 exacto y fundido parejo. Entrenador, "La Verdad" en un tramo
+  cantado (peso medido de cada grabación en lo que suena): voz 100 → Melodía 0,92 / Karaoke 0,05; 50 → 0,43 / 0,54;
+  0 → 0 / 0,97; clic a Karaoke y de vuelta a Melodía con fundido, sin cortes. Menú a la vista en PC y celular (`?movil=1`,
+  "Milagro de Amor"). Cantar (`?a=` de "Milagro de Amor", celular): la barra aparece al quedar listas las grabaciones, 30 %
+  → "🎤 30 %", el botón alterna con la barra al día. Sin probar: mezcla junto a 🎸 Bajo y a la 2ª voz (mismo cálculo).
+- **Lugares (regla 11):** Entrenador en todas sus versiones (Biblioteca, sesión, Plan, mínimo, celular; la copia de la
+  Pizarra no suena) y Cantar.

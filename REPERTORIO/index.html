@@ -15,7 +15,7 @@
     <script src="../comun/archivos-curso.js?v=fc1"></script>
     <link rel="stylesheet" href="../comun/compartir.css?v=gk">
     <script src="../comun/compartir.js?v=gk"></script>
-    <script src="../comun/dos-grabaciones.js?v=gv"></script>
+    <script src="../comun/dos-grabaciones.js?v=ha"></script>
     <script src="../comun/separador-voz.js?v=gz1"></script>
     <script src="../comun/un-sonido.js"></script>
     <script src="../comun/tempo-mapa.js?v=gk"></script>
@@ -2418,6 +2418,10 @@
         #ent-audio-pop button.on { background: #ea580c; color: #fff; }
         #ent-audio-pop .tit { font-size: .66rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #64748b; padding: 8px 10px 4px; }
         #ent-audio-pop small { color: #94a3b8; margin-left: 6px; }
+        #ent-audio-pop .voz { display: flex; align-items: center; gap: 8px; padding: 6px 10px 8px; white-space: nowrap; }
+        #ent-audio-pop .voz input { flex: 1; min-width: 110px; accent-color: #ea580c; }
+        #ent-audio-pop .voz input:disabled { opacity: .4; }
+        #ent-audio-pop .voz b { width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; }
         #ent-audio-pop button.on small { color: #fed7aa; }
         /* 🎸 Bajo (deuda GV): botón + ▾ pegados; ancho fijo (barras estables) */
         #ent-bajo-grupo { display: inline-flex; flex-shrink: 0; }
@@ -6624,7 +6628,8 @@ function entStAdelanto(st, vel) {
 function entUnirMotores(a, b) {
     return {
         cambiar: x => { a.cambiar(x); b.cambiar(x); }, ir: x => { a.ir(x); b.ir(x); },
-        capa: (x, g) => { a.capa(x, g); b.capa(x, g); }, principal: g => { a.principal(g); b.principal(g); },
+        capa: (x, g, s) => { a.capa(x, g, s); b.capa(x, g, s); }, principal: (g, s) => { a.principal(g, s); b.principal(g, s); },
+        mezcla: (x, g, s) => { a.mezcla(x, g, s); b.mezcla(x, g, s); },
         segundo: () => a.segundo(), detener: () => { a.detener(); b.detener(); }, get buffer() { return a.buffer; },
     };
 }
@@ -6637,7 +6642,7 @@ function entMotorFondo(ctx, vel) {
         st = { SimpleFilter: entPitchLib.SimpleFilter, pipe: S };
     }
     return DosGrabaciones.motor(ctx, entBajoFondoVol, {
-        buffer: entPitchBuffer, reloj: () => entAudio().currentTime, vel, ...entCapaSegunda(), saltos: entSaltos(),
+        buffer: entPitchBuffer, reloj: () => entAudio().currentTime, vel, ...entOpcMotor(), saltos: entSaltos(),
         st, adelanto: st ? entStAdelanto(0, vel) : 0,
     });
 }
@@ -6707,7 +6712,11 @@ const tieneKaraoke = c => { const m = audioDe(c, 'melodia'), k = audioDe(c, 'kar
 const tieneSegunda = c => { const m = audioDe(c, 'melodia'), s = audioDe(c, 'segunda'); return !!(m && s && m !== s && s.storage_path); };
 const NOMBRE_ROL = { melodia: 'Melodía', karaoke: 'Karaoke', segunda: '2ª voz' };
 let entAudioRol = 'melodia';    // audio elegido en el Entrenador para la canción abierta
-function entAudioAsset() { return (entAudioRol === 'karaoke' && audioDe(entrenadorSong, 'karaoke')) || audioDe(entrenadorSong, 'melodia'); }
+// 🎤 Voz (deuda HA): 100 = Melodía, 0 = Karaoke, entre medio las dos en la misma muestra. Con el Karaoke listo, abajo
+// suena el Karaoke (1 − voz) y encima la Melodía (voz); entAudioRol queda 'melodia' solo con la voz entera.
+let entVoz = 100;
+const entMezclaActiva = () => !ESPEJO && !entVersion && entDosListas && tieneKaraoke(entrenadorSong);
+function entAudioAsset() { return ((entAudioRol === 'karaoke' || entMezclaActiva()) && audioDe(entrenadorSong, 'karaoke')) || audioDe(entrenadorSong, 'melodia'); }
 
 // Diferencia de duración (s) entre un audio y la Melodía de la canción; null si no se puede medir.
 function duracionAudio(url) {
@@ -6741,8 +6750,8 @@ function entPintarBotonAudio() {
     const doble = tieneKaraoke(entrenadorSong), versiones = entVersiones();
     const grupo = document.getElementById('ent-audio-grupo');
     if (grupo) grupo.style.display = doble || versiones.length ? '' : 'none';
-    document.getElementById('ent-btn-audio-menu').style.display = versiones.length ? '' : 'none';
-    b.style.borderRadius = versiones.length ? '' : '20px';
+    document.getElementById('ent-btn-audio-menu').style.display = doble || versiones.length ? '' : 'none';
+    b.style.borderRadius = doble || versiones.length ? '' : '20px';
     if (entVersion) {
         b.textContent = '🎙 ' + entVersionNombre(entVersion);
         b.classList.add('activo'); document.getElementById('ent-btn-audio-menu').classList.add('activo');
@@ -6751,10 +6760,12 @@ function entPintarBotonAudio() {
         return;
     }
     document.getElementById('ent-btn-audio-menu').classList.remove('activo');
-    b.textContent = entAudioRol === 'karaoke' ? '🎶 Karaoke' : '🎤 Melodía';
-    b.classList.toggle('activo', entAudioRol === 'karaoke');
-    b.title = !doble ? 'Sonando la Melodía' : entAudioRol === 'karaoke' ? 'Sonando el karaoke (sin voz). Clic: volver a la Melodía'
-                                        : 'Sonando la Melodía (con voz). Clic: cambiar al Karaoke';
+    const v = doble ? entVoz : 100;
+    b.textContent = v >= 100 ? '🎤 Melodía' : v <= 0 ? '🎶 Karaoke' : `🎤 ${v} %`;
+    b.classList.toggle('activo', v < 100);
+    b.title = !doble ? 'Sonando la Melodía' : v >= 100 ? 'Sonando la Melodía (con voz). Clic: cambiar al Karaoke · ▾: mezclar'
+        : v <= 0 ? 'Sonando el karaoke (sin voz). Clic: volver a la Melodía · ▾: mezclar'
+        : `Voz al ${v} % sobre el Karaoke. Clic: volver a la Melodía · ▾: cambiar la mezcla`;
     entPintarSegunda();
 }
 // ── Versiones en la barra grande (deuda GY): las versiones de audio de la canción (📁 Archivos del curso, uso
@@ -6779,8 +6790,10 @@ function entMenuAudio(e) {
     pop = document.createElement('div');
     pop.id = 'ent-audio-pop';
     pop.innerHTML = `<div class="tit">Canción</div>
-        <button data-a="melodia"${on(!entVersion && entAudioRol !== 'karaoke')}>🎤 Melodía</button>
-        ${tieneKaraoke(c) ? `<button data-a="karaoke"${on(!entVersion && entAudioRol === 'karaoke')}>🎶 Karaoke</button>` : ''}
+        <button data-a="melodia"${on(!entVersion && entVoz >= 100)}>🎤 Melodía</button>
+        ${tieneKaraoke(c) ? `<button data-a="karaoke"${on(!entVersion && entVoz <= 0)}>🎶 Karaoke</button>
+        <div class="voz" title="Cuánta voz original suena sobre el Karaoke"><span>🎤 Voz</span>
+            <input type="range" min="0" max="100" step="5" value="${entVoz}"${entVersion || !entDosListas ? ' disabled' : ''}><b>${entVoz} %</b></div>` : ''}
         ${V.length ? `<div class="tit">Versiones</div>` + V.map(f => `<button data-v="${entEsc(f.id)}"${on(entVersion?.id === f.id)} title="${entEsc(entVersionNombre(f))}">🎙 ${entEsc(entVersionNombre(f))}${f.curso ? `<small>${entEsc(f.curso)}</small>` : ''}</button>`).join('') : ''}`;
     pop.addEventListener('click', async ev => {
         ev.stopPropagation();
@@ -6788,7 +6801,12 @@ function entMenuAudio(e) {
         pop.remove();
         if (b.dataset.v) { entElegirVersion(b.dataset.v); return; }
         if (entVersion) await entElegirVersion(null);
-        if (b.dataset.a !== entAudioRol) entCambiarAudio(b.dataset.a);
+        entCambiarAudio(b.dataset.a);
+    });
+    pop.querySelector('.voz input')?.addEventListener('input', ev => {
+        entPonerVoz(ev.target.value);
+        pop.querySelector('.voz b').textContent = entVoz + ' %';
+        pop.querySelectorAll('button[data-a]').forEach(x => x.classList.toggle('on', x.dataset.a === 'melodia' ? entVoz >= 100 : entVoz <= 0));
     });
     document.body.appendChild(pop);
     const r = document.getElementById('ent-audio-grupo').getBoundingClientRect();
@@ -6829,7 +6847,7 @@ async function entElegirVersion(id) {
     entActualizarMarcadores?.();
     if (tocaba) { if (a.paused) entrenadorTogglePlay(); }
     else entPintarPlay('play');
-    toast(f ? `🎙 Sonando: ${entVersionNombre(f)} — la letra queda quieta` : `${entAudioRol === 'karaoke' ? '🎶 Karaoke' : '🎤 Melodía'}`);
+    toast(f ? `🎙 Sonando: ${entVersionNombre(f)} — la letra queda quieta` : document.getElementById('ent-btn-audio')?.textContent || '🎤 Melodía');
 }
 
 // ── 🎧 Otros audios de la canción (FA, FC; celular y PC): extractos, versiones y otros audios, todos a la vista y cada
@@ -7161,16 +7179,17 @@ function entToggleOaPanel() {
 function entCambiarAudio(rol, silencioso = false) {
     if (!entrenadorSong) return;
     rol = rol || (entAudioRol === 'karaoke' ? 'melodia' : 'karaoke');
-    if (rol === entAudioRol) return;
+    const objetivo = rol === 'karaoke' ? 0 : 100;
+    if (rol === entAudioRol && entVoz === objetivo) return;
     if (rol === 'karaoke' && !tieneKaraoke(entrenadorSong)) return;
     if (rol === 'karaoke' && entSyncMode && !silencioso) { toast('La sincronización se edita con la Melodía'); return; }
     const asset = rol === 'karaoke' ? audioDe(entrenadorSong, 'karaoke') : audioDe(entrenadorSong, 'melodia');
     if (!asset?.storage_path) return;
     if (!ESPEJO && !entDosListas) return;          // aún preparándose (el botón muestra la barra)
-    entAudioRol = rol;
+    entAudioRol = rol; entVoz = objetivo;
     if (!ESPEJO && !entVersion) {
-        // Cambio exacto (ET): el mismo reproductor pasa a la otra grabación en la misma muestra
-        entPitchCambiarBuffer();
+        // Exacto (ET) y sin corte (HA): las dos suenan en la misma muestra y la voz sube o baja en 1 s
+        entAplicarSegunda(1);
         const m = entPitchBuffers[audioDe(entrenadorSong, 'melodia')?.id]?.valor, k = entPitchBuffers[audioDe(entrenadorSong, 'karaoke')?.id]?.valor;
         if (!silencioso && rol === 'karaoke' && m && k && Math.abs(k.duration - m.duration) > 0.5)
             toast(`⚠ El karaoke dura distinto que la Melodía (${Math.abs(k.duration - m.duration).toFixed(1)} s): la letra puede ir desfasada`);
@@ -7236,7 +7255,7 @@ async function entPrepararKaraoke(c) {
     if (entSegundaAlAbrir && roles.includes('segunda')) entSegundaOn = true;   // como la dejó la sesión (GA)
     entPintarCargaAudio(null);
     if (!entPitchNode) entActivarPitch();          // traspaso al reproductor, sin que se note
-    else entAplicarSegunda();
+    else { entPitchBuffer = entPitchBuffers[entFuenteAudio()?.id]?.valor || entPitchBuffer; entCrearMotor(); }   // con Karaoke, abajo va él (HA)
 }
 // ── ✂ Adaptaciones (deuda GK): versiones recortadas de la canción, de su Ficha. Con una elegida, el reproductor salta
 // lo omitido en la muestra exacta (comun/dos-grabaciones.js) y el <audio> —el reloj de la letra— salta cuando se oye.
@@ -7338,17 +7357,33 @@ function entSegundaGanancias() {
     const e = Math.max(0, Math.min(200, entSegundaEq));
     return e <= 100 ? { capa: e / 100, prin: 1 } : { capa: 1, prin: 1 - (e - 100) / 100 * 0.8 };
 }
+// Lo que el reproductor necesita de la 2ª voz y de la mezcla (HA): capas y volumen de la de abajo
+function entOpcMotor() {
+    const s = entCapaSegunda(), p2 = s.capa ? s.ganancia : 1;
+    if (!entMezclaActiva()) return { ...s, ganancia: p2 };
+    const v = entVoz / 100, m = entPitchBuffers[audioDe(entrenadorSong, 'melodia')?.id]?.valor || null;
+    return { ...s, ganancia: (m ? 1 - v : 1) * p2, mezcla: m, mezclaGanancia: v * p2 };
+}
+function entPonerVoz(x) {
+    if (!entMezclaActiva()) return;
+    entVoz = Math.max(0, Math.min(100, Math.round(+x || 0)));
+    entAudioRol = entVoz >= 100 ? 'melodia' : 'karaoke';
+    entAplicarSegunda(0.08);
+    entPintarBotonAudio(); entPintarSync();
+    if (typeof espejoEmitir === 'function') espejoEmitir();
+}
 function entCapaSegunda() {
     if (entVersion) return {};   // la 2ª voz calza con la grabación original, no con una versión (GY)
     const b = entSegundaOn && entPitchBuffers[audioDe(entrenadorSong, 'segunda')?.id]?.valor;
     const g = entSegundaGanancias();
     return b ? { capa: b, capaGanancia: g.capa, ganancia: g.prin } : {};
 }
-function entAplicarSegunda() {
+function entAplicarSegunda(seg) {   // también la mezcla de la voz (HA); seg = cuánto tarda en llegar
     if (!entPitchNode) return;
-    const c = entCapaSegunda(), g = entSegundaGanancias();
-    entPitchNode.capa(c.capa || null, g.capa);
-    entPitchNode.principal(c.capa ? g.prin : 1);
+    const o = entOpcMotor(), g = entSegundaGanancias();
+    entPitchNode.capa(o.capa || null, g.capa);
+    entPitchNode.principal(o.ganancia ?? 1, seg);
+    entPitchNode.mezcla(o.mezcla || null, o.mezclaGanancia || 0, seg);
 }
 // ── 🎵 Versos con 2ª voz (deuda GB): dato de la canción, guardado en su letra (`segunda_voz`: posiciones de las líneas
 // de `contenido`). Línea violeta a la izquierda; con la 2ª voz prendida, texto violeta. Se marcan con el modo
@@ -7505,7 +7540,7 @@ function entCrearMotor(usarST = !!entPitchST) {
         entPitchST.tempo = vel;
     } else entPitchST = null;
     entPitchNode = DosGrabaciones.motor(ctx, entBajoEntrada(), {   // pasa por el Bajo (GV) y el volumen (deuda DA)
-        buffer: entPitchBuffer, reloj: () => entAudio().currentTime, vel, ...entCapaSegunda(),
+        buffer: entPitchBuffer, reloj: () => entAudio().currentTime, vel, ...entOpcMotor(),
         saltos: entSaltos(), alSaltar: entSaltarReloj,
         st: entPitchST ? { SimpleFilter: entPitchLib.SimpleFilter, pipe: entPitchST } : null,
         adelanto: entBajoOn && entPitchST ? entStAdelanto(entTonoTotal(), vel) : 0,   // GV: va exacto con el fondo
@@ -7723,7 +7758,7 @@ function abrirEntrenador(songId) {
     const audioAsset = audioDe(c, 'melodia');
 
     entrenadorSong       = c;
-    entAudioRol          = 'melodia';
+    entAudioRol          = 'melodia'; entVoz = 100;
     entrenadorLineIdx    = -1;
     entrenadorLoopActivo = null;
     entrenadorLoopCount  = 0;
@@ -10279,7 +10314,7 @@ function abrirEntrenadorConConfig(song, sesionItem) {
     if (!audioAsset && !entModoSesion && !ESPEJO) { toast('Sin audio'); return; }
 
     entrenadorSong       = song;
-    entAudioRol          = 'melodia';
+    entAudioRol          = 'melodia'; entVoz = 100;
     entrenadorLineIdx    = -1;
     entrenadorLoopActivo = null;
     entrenadorLoopCount  = 0;
