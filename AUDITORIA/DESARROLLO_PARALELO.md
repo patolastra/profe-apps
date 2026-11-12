@@ -9519,3 +9519,21 @@ curso') se abre en esa clase, en el entrenador embebido; y si no, en un entrenad
   en su Entrenador mínimo y el Workspace pasa a esa pestaña. Sin probar: dos Planes del mismo curso abiertos (elige el
   de la clase en curso o el último).
 - **Lugares (regla 11):** Libro dentro de 📒 Libros y en su propia pestaña (los dos hablan con el Workspace).
+
+### HC. Arreglo de piano — arreglos sobre una ✂ adaptación (Estructura recortada) — APROBADA, EN ESPERA
+*Origen: PO 2026-11-12 ("necesito poder hacer arreglos de piano pero en base a adaptaciones (el caso de estrechez de
+corazón y la adaptación para las castigadas)"). Auditoría: el Arreglo ya sigue una adaptación (⑤ Grabación → ✂
+Adaptación, GK etapa 3: lo omitido no suena ni se ve), pero la ③ Estructura muestra las secciones con su largo completo:
+en "Estrechez de Corazón" / "Castigadas 2026" (5 tramos omitidos) cuatro cortes caen en mitad de una sección (p. ej.
+Intro marcha, 25 compases, quedan ~10) y una secuencia de los compases que suenan sale "≠ compases".*
+- **Plan aprobado por el PO (2026-11-12):** elegir la adaptación en ① Base; la ③ Estructura muestra la canción recortada
+  (omitidas completas no aparecen; recortadas con ✂ y sus compases reales); la secuencia se reparte solo en los compases
+  que suenan; vista previa y Piano igual que hoy; sin Supabase.
+- **En espera:** el PO armó su arreglo de Estrechez para las Castigadas con el modelo actual (secuencias de la sección
+  completa). Se le preguntó si el cambio aplica solo a arreglos nuevos (o activado a mano) para no correr los acordes del
+  suyo (recomendación de Claude); sin respuesta aún.
+- **Arreglo previo (2026-11-12, ee36014, subido):** Guardar quedaba deshabilitado en arreglos con Ficha (el orden manual
+  queda vacío cuando manda la Estructura). Ahora basta con tener secuencias (`hayAlgo`). El PO iba a recargar para
+  recuperar su borrador (localStorage `arreglo_borrador:nuevo:<cancion>`) y guardarlo; sin confirmar.
+- **Otro arreglo del día (d2c8d5f, subido):** en la Ficha de la canción, { } y + cambian la velocidad en vivo
+  (`GrabacionTono.velocidad`, `comun/grabacion-tono.js?v=hc`), sin el retroceso que hacía al reiniciar.
