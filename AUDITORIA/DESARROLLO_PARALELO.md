@@ -9520,7 +9520,7 @@ curso') se abre en esa clase, en el entrenador embebido; y si no, en un entrenad
   de la clase en curso o el último).
 - **Lugares (regla 11):** Libro dentro de 📒 Libros y en su propia pestaña (los dos hablan con el Workspace).
 
-### HC. Arreglo de piano — arreglos sobre una ✂ adaptación (Estructura recortada) — APROBADA, EN ESPERA
+### HC. Arreglo de piano — arreglos sobre una ✂ adaptación (Estructura recortada) — HECHA (2026-11-13)
 *Origen: PO 2026-11-12 ("necesito poder hacer arreglos de piano pero en base a adaptaciones (el caso de estrechez de
 corazón y la adaptación para las castigadas)"). Auditoría: el Arreglo ya sigue una adaptación (⑤ Grabación → ✂
 Adaptación, GK etapa 3: lo omitido no suena ni se ve), pero la ③ Estructura muestra las secciones con su largo completo:
@@ -9532,6 +9532,12 @@ Intro marcha, 25 compases, quedan ~10) y una secuencia de los compases que suena
 - **En espera:** el PO armó su arreglo de Estrechez para las Castigadas con el modelo actual (secuencias de la sección
   completa). Se le preguntó si el cambio aplica solo a arreglos nuevos (o activado a mano) para no correr los acordes del
   suyo (recomendación de Claude); sin respuesta aún.
+- **Hecho (2026-11-13):** el PO escribe las secuencias leyendo la adaptación de corrido, así que aplica a todo arreglo con
+  adaptación (también al suyo). Con ✂ Adaptación elegida (sigue en ⑤ Grabación), cada sección de la ③ Estructura cuenta
+  solo los compases que suenan (`compasesQueSuenan`: un compás suena si su mitad no cae en un tramo omitido) y
+  `desplegar()` reparte la secuencia, el ritmo y la melodía copiada de corrido en esos compases. La Estructura muestra
+  "✂ 18 de 35" y compara la secuencia con los que suenan. Probado con Estrechez / Castigadas 2026: Coro 2 = 18 compases
+  (163–179 + el 197), su secuencia tiene 14. Lugares: solo el editor del Arreglo (el Piano recibe el archivo ya armado).
 - **Arreglo previo (2026-11-12, ee36014, subido):** Guardar quedaba deshabilitado en arreglos con Ficha (el orden manual
   queda vacío cuando manda la Estructura). Ahora basta con tener secuencias (`hayAlgo`). El PO iba a recargar para
   recuperar su borrador (localStorage `arreglo_borrador:nuevo:<cancion>`) y guardarlo; sin confirmar.

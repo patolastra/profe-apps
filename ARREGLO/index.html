@@ -478,25 +478,31 @@ function desplegar() {
     let p = 0, fin = 0;                             // pulso (negras desde el origen del arreglo)
     // Qué suena y dónde (FP): con Ficha, cada sección incluida con su secuencia en su compás real (repetida hasta llenar
     // la sección); sin Ficha, el orden manual, una tras otra
+    // Con una ✂ adaptación (HC), la secuencia se reparte solo en los compases que suenan: se lee de corrido
+    const C = cortesArreglo();
     const lugares = modoFicha()
         ? itemsEstructura().filter(x => x.incluida && x.sec).map(x => ({ s: A.secciones.find(y => y.id === x.sec), nombre: x.etiqueta,
-            ini: (x.compas - origenArreglo()) * A.compas, largo: x.largo })).filter(x => x.s && x.ini >= 0)
+            ini: (x.compas - origenArreglo()) * A.compas, largo: x.largo, suenan: compasesQueSuenan(x, C) })).filter(x => x.s && x.ini >= 0)
         : A.orden.map(id => ({ s: A.secciones.find(x => x.id === id) })).filter(x => x.s).map(x => ({ ...x, nombre: x.s.nombre || 'Sección' }));
     for (const lugar of lugares) {
         const s = lugar.s;
         const base = compasesDe(s).compases;
         if (!base.length && lugar.largo === undefined) continue;
-        const nC = lugar.largo ?? base.length;
-        const compases = base.length ? Array.from({ length: nC }, (_, k) => base[k % base.length]) : [];
         if (lugar.ini !== undefined) p = lugar.ini;
         const ini = p;
+        // Dónde empieza cada compás (en negras, en la canción completa) y hasta dónde llega el tramo seguido que suena
+        const pos = lugar.suenan || Array.from({ length: lugar.largo ?? base.length }, (_, k) => ini + k * A.compas);
+        const finTramo = k => { let j = k; while (j + 1 < pos.length && pos[j + 1] - pos[j] < A.compas + 1e-6) j++; return pos[j] + A.compas; };
+        const nC = pos.length;
+        const compases = base.length ? Array.from({ length: nC }, (_, k) => base[k % base.length]) : [];
         const r = s.ritmo, conMel = !!(s.melodia && A.melodia);
         compases.forEach((c, ci) => {
+            p = pos[ci];
             const dur = A.compas / c.length;
             if (r) {
                 // Con ritmo (FM): cada figura toma el acorde que suena en su momento; en secciones con melodía solo el bajo
                 c.forEach((nombre, i) => { const der = acordeDer(nombre); if (der) acordes.push({ t: (p + i * dur) * 4, d: dur * 4, nombre, ms: der.m }); });
-                const N = celdasCompas(r), cT = celdaT(r), k0 = (ci % r.compases) * N, finSec = (ini + nC * A.compas) * 4;
+                const N = celdasCompas(r), cT = celdaT(r), k0 = (ci % r.compases) * N, finSec = finTramo(ci) * 4;
                 const poner = (lista, fn) => lista.forEach(([a, l]) => {
                     if (a < k0 || a >= k0 + N) return;
                     const off = (a - k0) * cT, t = p * 4 + off, d = Math.min(l * cT, finSec - t);
@@ -517,14 +523,16 @@ function desplegar() {
                 acordes.push({ t, d, nombre, ms: v.m });
                 v.m.forEach((m, k) => notas.push({ t, d, m, nombre: nombreNota(m), mano: 'izq', dig: v.dedos[k] ? { piano: v.dedos[k] } : {} }));
             });
-            p += A.compas;
         });
-        p = ini + nC * A.compas;
-        if (s.melodia && A.melodia) {
-            const off = (ini + (Math.max(1, s.melDesde || 1) - 1) * A.compas) * 4;
+        p = lugar.suenan ? ini + lugar.largo * A.compas : ini + nC * A.compas;
+        if (s.melodia && A.melodia && nC) {
+            // La melodía también va de corrido por los compases que suenan
+            const Q = A.compas * 4, off = (Math.max(1, s.melDesde || 1) - 1) * Q;
             for (const n of A.melodia.notas) {
-                if (off + n.t >= p * 4) continue;    // lo que no cabe en la sección no suena
-                notas.push({ t: off + n.t, d: Math.min(n.d, p * 4 - off - n.t), m: n.m, nombre: n.nombre, mano: 'der', dig: n.dedo ? { piano: n.dedo } : {} });
+                const L = off + n.t, k = Math.floor(L / Q + 1e-9);
+                if (k >= nC) continue;               // lo que no cabe en la sección no suena
+                const t = pos[k] * 4 + (L - k * Q);
+                notas.push({ t, d: Math.min(n.d, finTramo(k) * 4 - t), m: n.m, nombre: n.nombre, mano: 'der', dig: n.dedo ? { piano: n.dedo } : {} });
             }
         }
         secciones.push({ nombre: lugar.nombre, t: ini * 4, compases: nC });
@@ -574,6 +582,17 @@ function cortesArreglo() {
     let q = 0;
     for (const x of L) { x.v = x.a - q; q += x.b - x.a; }
     return L;
+}
+// Los compases de una sección de la Estructura que suenan en la adaptación (HC): dónde empieza cada uno, en negras desde
+// el origen; sin adaptación, null (todos). Un compás suena si su mitad no cae en un tramo omitido (los tramos van al 1).
+function compasesQueSuenan(x, C = cortesArreglo()) {
+    if (!C.length) return null;
+    const a0 = (x.compas - origenArreglo()) * A.compas, out = [];
+    for (let k = 0; k < x.largo; k++) {
+        const q = a0 + k * A.compas, m = q + A.compas / 2;
+        if (!C.some(t => m >= t.a && m < t.b)) out.push(q);
+    }
+    return out;
 }
 // real → comprimido (dentro de lo omitido: donde sigue) y al revés
 const aComprimido = (p, C = cortesArreglo()) => { let q = 0; for (const x of C) { if (p >= x.b) q += x.b - x.a; else if (p >= x.a) return x.v; else break; } return p - q; };
@@ -757,21 +776,27 @@ function pintarEstructura() {
     const opciones = sel => '<option value="">— sin secuencia —</option>' + A.secciones.map(sq =>
         `<option value="${sq.id}"${sq.id === sel ? ' selected' : ''}>${esc(sq.nombre || 'Secuencia')}</option>`).join('');
     const C = cortesArreglo();
+    // Con adaptación (HC), el largo que cuenta es el de los compases que suenan
+    const largoDe = x => { const s = compasesQueSuenan(x, C); return s ? s.length : x.largo; };
     const info = x => {
-        const a = (x.compas - origenArreglo()) * A.compas, b = a + x.largo * A.compas;
-        if (C.some(t => t.a <= a + 1e-6 && t.b >= b - 1e-6)) return ['✂ no va en la adaptación', ''];
+        const L = largoDe(x);
+        if (!L) return ['✂ no va en la adaptación', ''];
         const sq = A.secciones.find(y => y.id === x.sec); if (!sq || !x.incluida) return ['', ''];
         const n = compasesDe(sq).compases.length; if (!n) return ['sin acordes', 'mal'];
-        if (n === x.largo) return [`${n} compases ✓`, ''];
-        if (x.largo % n === 0) return [`${n} compases ×${x.largo / n}`, ''];
-        return [`${n} ≠ ${x.largo} compases`, 'mal'];
+        if (n === L) return [`${n} compases ✓`, ''];
+        if (L % n === 0) return [`${n} compases ×${L / n}`, ''];
+        return [`${n} ≠ ${L} compases`, 'mal'];
+    };
+    const largoTxt = x => {
+        const L = largoDe(x), u = n => n === 1 ? 'compás' : 'compases';
+        return L === x.largo || !L ? `${x.largo} ${u(x.largo)}` : `✂ ${L} de ${x.largo}`;
     };
     $('estructura').innerHTML = `<div class="est-cab"><button class="btn" data-todas="1">Todas</button><button class="btn" data-todas="0">Ninguna</button>
         <span class="ayuda">Clic en una sección: la vista previa toca desde ahí.</span></div>` + its.map((x, i) => {
         const [txt, cls] = info(x);
         return `<div class="est-fila${x.incluida ? '' : ' fuera'}" data-i="${i}">
             <input type="checkbox" data-inc ${x.incluida ? 'checked' : ''} title="Va en el arreglo">
-            <button class="est-tit" data-ir title="Tocar desde aquí">▶ ${esc(x.etiqueta)} <small>c. ${x.compas} · ${x.largo} ${x.largo === 1 ? 'compás' : 'compases'}</small></button>
+            <button class="est-tit" data-ir title="Tocar desde aquí${largoDe(x) !== x.largo && largoDe(x) ? ` · en la adaptación suenan ${largoDe(x)} de sus ${x.largo} compases` : ''}">▶ ${esc(x.etiqueta)} <small>c. ${x.compas} · ${largoTxt(x)}</small></button>
             <select data-sec ${x.incluida ? '' : 'disabled'}>${opciones(x.sec)}</select>
             <span class="est-info ${cls}">${txt}</span></div>`;
     }).join('');
