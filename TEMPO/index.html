@@ -21,6 +21,7 @@
 <script src="../comun/un-sonido.js"></script>
 <script src="../comun/grabacion-tono.js?v=hc"></script>
 <script src="../comun/tempo-mapa.js?v=hd"></script>
+<script src="../comun/al-dia.js?v=hg"></script>
 <style>
     :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; }
     * { box-sizing: border-box; }
@@ -1569,6 +1570,8 @@ async function guardar() {
         try { localStorage.removeItem(claveBorrador()); } catch (_) {}
         try { canal?.postMessage({ tipo: 'tempo-guardado', cancion: cancionId }); } catch (_) {}
         toast('Ficha de la canción guardada');
+        // Todo al día solo (regla 12, HG): avisa a las demás pestañas y equipos, y rehace los arreglos de los estudiantes
+        if (window.AlDia) { AlDia.avisar({ cancion: cancionId, tipo: 'tempo', id: assetId }); AlDia.rehacerArreglos({ cancion: cancionId, tipo: 'tempo', id: assetId }); }
         return true;
     } catch (err) {
         toast('No se pudo guardar: ' + (err.message || err));
@@ -1576,6 +1579,22 @@ async function guardar() {
     } finally { guardando = false; cambio(); }
 }
 $('b-guardar').onclick = guardar;
+// La letra cambió en el Entrenador (u otro equipo): se vuelve a leer, sin tocar lo que se está marcando (HG)
+if (window.AlDia) {
+    AlDia.conectar(sb);
+    let letraT = null;
+    AlDia.escuchar(msg => {
+        if (msg.tipo !== 'letra' || msg.cancion !== cancionId || !sb) return;
+        clearTimeout(letraT);
+        letraT = setTimeout(async () => {
+            const { data } = await sb.from('repertorio_assets').select('id, contenido, synced, orden, created_at').eq('cancion_id', cancionId).eq('tipo', 'letra');
+            const letra = (data || []).sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.created_at || '').localeCompare(String(b.created_at || '')))[0];
+            versos = letra?.synced?.trim() ? TempoMapa.versosDeLetra(letra.contenido, letra.synced) : [];
+            pintarControles(); sucio = true;
+            toast('La letra cambió: la Ficha ya la sigue');
+        }, 600);
+    });
+}
 // Workspace: al cerrar la pestaña se guarda lo pendiente
 window.addEventListener('message', e => {
     if (e.data?.tipo !== 'ws-guardar' || e.source !== window.parent) return;

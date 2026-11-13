@@ -9602,7 +9602,7 @@ entrar a la pestaña se edita").*
   en la Biblioteca (protocolo `ws-guardar`); si se cierra sin guardar, la sección vuelve a su ritmo de antes.
   Probado sin guardar (variación de Cumbia en el Coro 2); el guardado en la Biblioteca queda para que lo pruebe el PO.
 
-### HG. Todo se pone al día solo (Biblioteca, Entrenador, Ficha, Editor musical, Cajón, estudiantes) — PRINCIPIO APROBADO, PASO 1 POR APROBAR
+### HG. Todo se pone al día solo (Biblioteca, Entrenador, Ficha, Editor musical, Cajón, estudiantes) — PRINCIPIO APROBADO, PASO 1 HECHO (2026-11-13)
 *Origen: PO 2026-11-13 ("esto debería ser un principio de actualización entre todos los elementos de la biblioteca y el
 entrenador y la ficha y el editor de arreglos"; "en general creo que se deberían actualizar solos"; sobre las copias:
 "empiezo a escribir un arreglo, no alcanzo a terminarlo, pero lo entrego y luego termino, por lo que creo que debería
@@ -9612,3 +9612,16 @@ actualizarse solo").*
   `TiempoReal`, pero espera a que se cierre el Entrenador y su "foto" no mira el contenido de la Ficha); el arreglo copia
   melodía y ritmos; su archivo del estudiante se rehace solo al guardar el arreglo.
 - **Principio (DECISIÓN del PO):** regla 12 de CLAUDE.md §4.
+- **Paso 1 aprobado por el PO (2026-11-13)**, con aviso cada vez que se rehace lo de los estudiantes y 📌 Fijar por arreglo.
+- **Hecho (2026-11-13):** pieza `comun/al-dia.js` (`AlDia`, `?v=hg`): BroadcastChannel `profe-al-dia` (mismo equipo) +
+  Realtime de `repertorio_assets` (otros equipos). Avisan al guardar: Ficha (TEMPO y la línea de la Biblioteca), letra del
+  Entrenador, Cajón, Editor de Melodías, Arreglo. Escuchan: la Ficha (vuelve a leer la letra), el Entrenador (repinta las
+  secciones sin cortar el audio; editando o sincronizando, al terminar), el Editor de arreglos (Ficha; copias de melodía y
+  ritmos siguen solas a su original, también al abrir; el mismo arreglo guardado en otro lado se recarga si no hay cambios
+  sin guardar). `AlDia.rehacerArreglos`: al guardar la Ficha, un ritmo o una melodía, cada arreglo que los usa (de la
+  canción o con su copia, no 📌 fijado) se abre escondido (`ARREGLO/?rehacer=1`, sin borrador), sigue a sus originales,
+  guarda si cambió y rehace `arreglo/<id>.json`; toast "Se pusieron al día N arreglos". 📌 en la barra del arreglo
+  (`A.fijo`). Probado: copia de ritmo traída sola y no traída con 📌; Ficha relee la letra; Entrenador repinta las
+  secciones; rehacer de un arreglo inexistente no escribe nada (un archivo de prueba que sí se alcanzó a escribir se borró).
+  Sin probar: el rehacer real sobre un arreglo del PO (escribe su archivo de estudiantes).
+- **Siguen (paso 2):** Cantar y la letra; avisar antes de borrar algo que otro usa; el resto de la Biblioteca.

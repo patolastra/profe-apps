@@ -19,6 +19,7 @@
     <script src="../comun/separador-voz.js?v=gz1"></script>
     <script src="../comun/un-sonido.js"></script>
     <script src="../comun/tempo-mapa.js?v=hd"></script>
+    <script src="../comun/al-dia.js?v=hg"></script>
     <script src="../comun/tiempo-real.js"></script>
     <script src="../comun/pedidos-cancion.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
@@ -4649,6 +4650,7 @@ async function cambiarFicha(cid, que) {
             bc.postMessage({ tipo: 'tempo-guardado', cancion: cid });                                                         // a las demás
             bc.close();
         } catch (_) {}
+        if (window.AlDia) { AlDia.avisar({ cancion: cid, tipo: 'tempo' }); AlDia.rehacerArreglos({ cancion: cid, tipo: 'tempo' }); }   // HG
         toast('Ficha guardada');
     } catch (e) { toast('No se pudo guardar la Ficha: ' + (e.message || e)); }
     renderPanel();
@@ -11103,6 +11105,7 @@ function entGuardarAssetActivo(asset) {
         try {
             await sbUpsertAsset(asset);
             if (asset.tipo === 'letra') cancionPublicaAlDia(asset.cancion_id, asset);   // EQ: la versión estudiante al día
+            if (asset.tipo === 'letra' && window.AlDia) AlDia.avisar({ cancion: asset.cancion_id, tipo: 'letra', id: asset.id });   // HG: la Ficha abierta la sigue
         } catch (e) {
             console.error('Error guardando asset del Entrenador:', e);
             toast('⚠ No se pudo guardar — revisá la conexión');
@@ -12043,6 +12046,27 @@ async function bibRefrescar() {
     .forEach(t => TiempoReal.escuchar(t, bibAvisar));
 TiempoReal.alVolver(bibAvisar);
 TiempoReal.conectar(sb);
+// Todo al día solo (regla 12, HG): la Ficha cambió con la canción abierta en el Entrenador → sus secciones (etiquetas
+// sobre los versos y 🧩) se repintan sin cortar el audio; editando o sincronizando la letra, se ven al terminar.
+if (window.AlDia) {
+    AlDia.conectar(sb);
+    let fichaT = null;
+    AlDia.escuchar(msg => {
+        if (msg.tipo !== 'tempo' || !entrenadorSong || msg.cancion !== entrenadorSong.id) return;
+        clearTimeout(fichaT);
+        fichaT = setTimeout(async () => {
+            let txt = msg.fila?.contenido, id = msg.fila?.id;
+            if (!txt) {
+                const { data } = await sb.from('repertorio_assets').select('*').eq('cancion_id', entrenadorSong.id).eq('tipo', 'tempo').limit(1);
+                txt = data?.[0]?.contenido; id = data?.[0]?.id;
+                if (data?.[0] && !(entrenadorSong.assets || []).some(a => a.tipo === 'tempo')) (entrenadorSong.assets = entrenadorSong.assets || []).push(data[0]);
+            }
+            if (!txt) return;
+            (entrenadorSong.assets || []).forEach(a => { if (a.tipo === 'tempo' && (!id || a.id === id)) a.contenido = txt; });
+            if (!entSyncMode && !entModoEdicion) entRenderZona(); else entCalcularSecciones();
+        }, 600);
+    });
+}
 
 // ══ Biblioteca en el celular (Entrenador para estudiar las canciones; deuda DG, etapa 1) ══════════════════════
 // ?movil=1: pantalla de cursos → canciones del curso (su sesión) → el Entrenador en grande, sin edición.

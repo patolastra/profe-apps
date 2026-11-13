@@ -25,6 +25,7 @@
 <script src="../supabase/config.js"></script>
 <script src="../comun/tempo-mapa.js?v=hd"></script>
 <script src="../comun/un-sonido.js"></script>
+<script src="../comun/al-dia.js?v=hg"></script>
 <style>
     :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; }
     * { box-sizing: border-box; }
@@ -168,6 +169,7 @@
 <div id="barra">
     <div id="cancion">🎹 Arreglo</div>
     <input id="etiqueta" placeholder="Detalle (opcional)" title="Detalle del arreglo, p. ej. 'para el taller'">
+    <button class="btn" id="b-fijo" style="height:34px;width:40px">📌</button>
     <div class="seg" id="inst"><button class="btn on" data-inst="piano" title="La parte del piano">🎹 Piano</button><button class="btn" data-inst="cajon" title="La parte del cajón">🪘 Cajón</button></div>
     <div class="sep"></div>
     <div id="estado"></div>
@@ -1101,7 +1103,8 @@ function cambio() {
     $('estado').textContent = guardando ? 'Guardando…' : hayCambios() ? 'Sin guardar' : (assetId ? 'Guardado' : '');
     $('b-guardar').disabled = guardando || !hayCambios() || !hayAlgo();
     try {
-        if (hayCambios()) localStorage.setItem(claveBorrador(), JSON.stringify({ base: contenidoBase, contenido: contenidoActual(), etiqueta: $('etiqueta').value }));
+        if (PARAMS.get('rehacer') === '1') {}
+        else if (hayCambios()) localStorage.setItem(claveBorrador(), JSON.stringify({ base: contenidoBase, contenido: contenidoActual(), etiqueta: $('etiqueta').value }));
         else localStorage.removeItem(claveBorrador());
     } catch (_) {}
     clearTimeout(previaT);
@@ -1475,6 +1478,7 @@ async function guardar() {
         assetId = id; contenidoBase = fila.contenido; etiquetaBase = etiqueta;
         if (nuevo) history.replaceState(null, '', `?asset=${id}`);
         toast('Arreglo guardado en la Biblioteca');
+        if (window.AlDia) AlDia.avisar({ cancion: cancionId, tipo: 'arreglo', id });
         return true;
     } catch (err) {
         toast('No se pudo guardar: ' + (err.message || err));
@@ -1495,6 +1499,103 @@ let toastT = null;
 function toast(t) {
     const el = $('toast'); el.textContent = t; el.classList.add('on');
     clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2800);
+}
+
+// ══ Todo al día solo (regla 12, deuda HG) ═══════════════════════════════════════════════
+// Las copias (la melodía y los ritmos del cajón) siguen a su original; la Ficha se vuelve a leer cuando cambia; con
+// 📌 Fijar el arreglo no se toca (ni para los estudiantes). ?rehacer=1: escondido, pone al día y rehace el archivo público.
+const REHACER = PARAMS.get('rehacer') === '1';
+async function sincronizarCopias() {
+    if (!sb || A.fijo) return [];
+    const cambios = [];
+    if (A.melodia?.origen) {
+        try {
+            const r = await fetch(publica(`melodia/${A.melodia.origen}.json`) + '?t=' + Date.now(), { cache: 'no-store' });
+            if (r.ok) {
+                const j = await r.json();
+                const notas = (j.notas || []).map(n => ({ t: n.t, d: n.d, m: n.m, nombre: n.nombre, ...(n.dig?.piano || n.dig?.melodica ? { dedo: n.dig.piano || n.dig.melodica } : {}) }));
+                if (JSON.stringify(notas) !== JSON.stringify(A.melodia.notas) || (j.tonalidad || '') !== (A.melodia.tonalidad || '')) {
+                    A.melodia = { ...A.melodia, tonalidad: j.tonalidad || '', mano: j.mano || A.melodia.mano || 'der', notas };
+                    cambios.push('de la melodía');
+                }
+            }
+        } catch (_) {}
+    }
+    const ids = Object.keys(A.cajon?.ritmos || {}).filter(x => !x.startsWith('__'));
+    if (ids.length) {
+        const { data } = await sb.from('repertorio_assets').select('id, contenido').in('id', ids);
+        (data || []).forEach(o => {
+            const r = leerRitmo(o.contenido), c = A.cajon.ritmos[o.id];
+            if (r && c && JSON.stringify(r) !== JSON.stringify(c.r)) { c.r = r; cambios.push('del ritmo ' + c.nombre); }
+        });
+    }
+    return cambios;
+}
+function pintarFijo() {
+    const b = $('b-fijo');
+    b.classList.toggle('on', !!A.fijo);
+    b.title = A.fijo ? 'Fijado: no se pone al día solo (ni para los estudiantes) cuando cambian la Ficha, la melodía o los ritmos. Clic para soltarlo.'
+        : 'Al día: sigue solo a la Ficha, la melodía y los ritmos, también para los estudiantes. Clic para fijarlo (p. ej. para una evaluación).';
+}
+$('b-fijo').onclick = async e => {
+    e.target.blur();
+    if (A.fijo) delete A.fijo; else A.fijo = true;
+    pintarFijo();
+    if (!A.fijo) { const c = await sincronizarCopias(); if (c.length) { toast('Se trajeron los cambios ' + c.join(' y ')); pintarTodo(); return; } }
+    cambio();
+};
+// Lo que cambia en otras pestañas o equipos
+let alDiaT = null;
+if (window.AlDia && !REHACER) {
+    AlDia.conectar(sb);
+    AlDia.escuchar(async msg => {
+        if (!cancionId) return;
+        if (msg.tipo === 'tempo' && msg.cancion === cancionId) {
+            if (msg.aqui || Date.now() - tempoV < 8000) return;     // en este equipo ya lo trae el canal profe-tempo
+            clearTimeout(alDiaT);
+            alDiaT = setTimeout(async () => { await cargarTempo(); pintarTodo(); toast('La Ficha de la canción cambió: el arreglo ya la sigue'); }, 600);
+            return;
+        }
+        if ((msg.tipo === 'melodia' && A.melodia?.origen === msg.id) || (msg.tipo === 'cajon' && A.cajon?.ritmos?.[msg.id])) {
+            if (A.fijo) return;
+            const c = await sincronizarCopias();
+            if (c.length) { toast('Se trajeron los cambios ' + c.join(' y ')); pintarTodo(); }
+            if (msg.tipo === 'cajon') cargarRitmosCajon();
+            return;
+        }
+        if (msg.tipo === 'cajon' && msg.cancion === cancionId) { cargarRitmosCajon(); return; }
+        // Este mismo arreglo, guardado en otro lado (p. ej. puesto al día para los estudiantes)
+        if (msg.tipo === 'arreglo' && msg.id && msg.id === assetId && !guardando) {
+            let txt = msg.fila?.contenido;
+            if (!txt) { const { data } = await sb.from('repertorio_assets').select('contenido').eq('id', assetId).single(); txt = data?.contenido; }
+            if (!txt) return;
+            if (canon(txt) === canon(contenidoActual())) { contenidoBase = txt; cambio(); return; }
+            if (!hayCambios()) { cargarContenido(txt); contenidoBase = txt; completarVoicings(); pintarTodo(); }
+            // Con cambios sin guardar no se pisa nada: al guardar queda lo de aquí (con las copias ya al día)
+        }
+    });
+}
+async function alAbrir() {
+    pintarFijo();
+    if (REHACER) {               // escondido: poner al día y rehacer lo de los estudiantes
+        let ok = true;
+        try {
+            if (!assetId || A.fijo || !contenidoBase || !cancionId) throw new Error('nada');   // solo un arreglo que de verdad se cargó
+            const c = await sincronizarCopias();
+            if (c.length) {
+                const contenido = contenidoActual();
+                const { error } = await sb.from('repertorio_assets').update({ contenido }).eq('id', assetId);
+                if (error) throw error;
+                contenidoBase = contenido;
+            }
+            await subirJson(assetId);
+            if (window.AlDia) AlDia.avisar({ cancion: cancionId, tipo: 'arreglo', id: assetId });
+        } catch (e) { ok = false; }
+        try { window.parent.postMessage({ tipo: 'arreglo-rehecho', id: assetId, ok }, '*'); } catch (_) {}
+        return;
+    }
+    const c = await sincronizarCopias();
+    if (c.length) { toast('Se trajeron los cambios ' + c.join(' y ')); pintarTodo(); }
 }
 
 // ══ 🪘 Cajón (deuda HF) ═════════════════════════════════════════════════════════════════
@@ -1762,7 +1863,7 @@ async function iniciar() {
     } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }
     if (!assetId) contenidoBase = contenidoActual();
     try {
-        const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null');
+        const b = PARAMS.get('rehacer') === '1' ? null : JSON.parse(localStorage.getItem(claveBorrador()) || 'null');
         if (b && b.base === contenidoBase) { cargarContenido(b.contenido); $('etiqueta').value = b.etiqueta || ''; toast('Se recuperó lo que no alcanzaste a guardar'); }
     } catch (_) {}
     $('cancion').textContent = '🎹 ' + (cancionNombre || 'Arreglo'); $('cancion').title = cancionNombre;
@@ -1773,7 +1874,7 @@ async function iniciar() {
     // Arreglo que solo tiene cajón (o pedido así): abre en esa pestaña
     if (new URLSearchParams(location.search).get('inst') === 'cajon' || (A.cajon && !A.secciones.length)) ponerInst('cajon');
 }
-iniciar();
+iniciar().then(alAbrir);
 </script>
 </body>
 </html>
