@@ -23,7 +23,7 @@
 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../supabase/config.js"></script>
-<script src="../comun/tempo-mapa.js?v=gk"></script>
+<script src="../comun/tempo-mapa.js?v=hd"></script>
 <script src="../comun/un-sonido.js"></script>
 <style>
     :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; }
@@ -736,7 +736,7 @@ function seccionesMapa() {
     const m = mapaTempo; if (!m?.secciones?.length) return [];
     const fin = m.compasDePulso(m.pulsos.length - 1 - m.compas1).compas;
     const S = m.secciones.filter(x => x.compas !== null);   // las de la estructura sin tempo no tienen compás (EW)
-    return S.map((x, i) => ({ nombre: x.nombre, compas: x.compas, largo: (S[i + 1]?.compas ?? fin) - x.compas }));
+    return S.map((x, i) => ({ nombre: x.nombre, compas: x.compas, largo: (S[i + 1]?.compas ?? fin) - x.compas, id: x.id || null }));
 }
 function infoSeccion(s, compases, malos) {
     let t = `${compases.length} ${compases.length === 1 ? 'compás' : 'compases'}`;
@@ -765,7 +765,10 @@ function itemsEstructura() {
         const k = normSec(x.nombre); cuenta[k] = (cuenta[k] || 0) + 1;
         const clave = `${k}#${cuenta[k]}`, veces = ms.filter(y => normSec(y.nombre) === k).length;
         const etiqueta = veces > 1 ? `${x.nombre} ${cuenta[k]}` : x.nombre;
-        const g = (A.estructura || []).find(e => e.clave === clave);
+        // Se reconoce por la identidad fija de la sección de la Ficha (HD); las de antes, por nombre + n° de vez
+        const ids = new Set(ms.map(y => y.id).filter(Boolean));
+        const g = (A.estructura || []).find(e => x.id && e.fid === x.id)
+            || (A.estructura || []).find(e => e.clave === clave && !(e.fid && ids.has(e.fid)));
         const porNombre = A.secciones.find(sq => normSec(sq.nombre) === k);
         let incluida, sec;
         if (g) { incluida = g.incluida; sec = A.secciones.some(sq => sq.id === g.sec) ? g.sec : null; }
@@ -775,7 +778,7 @@ function itemsEstructura() {
     });
 }
 // Al primer cambio en la Estructura se guarda lo que se ve
-function fijarEstructura() { A.estructura = itemsEstructura().map(({ clave, incluida, sec }) => ({ clave, incluida, sec })); }
+function fijarEstructura() { A.estructura = itemsEstructura().map(({ clave, incluida, sec, id }) => ({ clave, incluida, sec, ...(id ? { fid: id } : {}) })); }
 // Compás de la canción donde está el pulso 0 del arreglo
 const origenArreglo = () => modoFicha() ? seccionesMapa()[0].compas : (A.audio.desde || 1);
 let pulsoSonando = null, resaltado = null, ultimoPulso = null;
@@ -906,8 +909,13 @@ function pintarEstructura() {
             <button class="est-tit" data-ir title="Tocar desde aquí${largoDe(x) !== x.largo && largoDe(x) ? ` · en la adaptación suenan ${largoDe(x)} de sus ${x.largo} compases` : ''}">▶ ${esc(x.etiqueta)} <small>c. ${x.compas} · ${largoTxt(x)}</small></button>
             <select data-sec ${x.incluida ? '' : 'disabled'}>${opciones(x.sec)}</select>
             <span class="est-info ${cls}">${txt}</span></div>`;
-    }).join('');
+    }).join('') + sinTempoTxt();
     marcarSonando(pulsoSonando);
+}
+// Secciones de la Ficha que quedan después de lo marcado con el tempo: no tienen compás y el arreglo no las puede usar
+function sinTempoTxt() {
+    const L = (mapaTempo?.secciones || []).filter(x => x.compas === null);
+    return L.length ? `<div class="ayuda mal" style="margin-top:6px">${L.map(x => esc(x.nombre)).join(', ')}: ${L.length === 1 ? 'está' : 'están'} donde la Ficha aún no tiene el tempo marcado. Marca el pulso hasta ahí en la Ficha para que ${L.length === 1 ? 'aparezca' : 'aparezcan'} aquí.</div>` : '';
 }
 $('estructura').addEventListener('change', e => {
     const f = e.target.closest('.est-fila'); if (!f) return;
@@ -1383,6 +1391,8 @@ async function subirJson(id) {
 async function guardar() {
     if (guardando || !hayCambios() || !hayAlgo()) return true;
     if (!sb) { toast('Sin conexión con la base de datos'); return false; }
+    // La Estructura se guarda con la identidad fija de cada sección de la Ficha (HD), si ya la tiene
+    if (A.estructura && seccionesMapa().some(x => x.id)) fijarEstructura();
     guardando = true; cambio();
     try {
         const nuevo = !assetId, id = assetId || genId();

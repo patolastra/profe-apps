@@ -6,7 +6,7 @@
 //       compas1: i,                      // índice del pulso donde empieza el compás 1 (los anteriores: compás 0, −1…)
 //       cifras: [{ compas: 1, n: 4, d: 4 }], // cifra desde ese compás: n pulsos de valor 1/d (4/4, 3/4, 6/8…; sin d = /4);
 //                                        // la primera vale también hacia atrás
-//       secciones: [{ compas, seg, nombre }], // Intro, Estrofa, Coro…: cada una desde su comienzo hasta la siguiente (opcional);
+//       secciones: [{ compas, seg, nombre, id }], // Intro, Estrofa, Coro…: cada una desde su comienzo hasta la siguiente (opcional);
 //                                        // seg = segundo de la grabación; compas solo si cae en lo marcado (EW: puede no haber tempo)
 //       tonalidad: { tonica: 'A', modo: 'mayor' }, // la de la canción (opcional; letras C D E F G A B con # o b)
 //       adaptaciones: [{ id, nombre, omitir: [{ desde, hasta }] }] } // ✂ versiones recortadas (GK, opcional): tramos de
@@ -65,6 +65,7 @@
         const secciones = (d?.secciones || []).filter(x => x && x.nombre).map(x => ({
             compas: typeof x.compas === 'number' && isFinite(x.compas) ? x.compas | 0 : null,
             seg: typeof x.seg === 'number' && isFinite(x.seg) ? x.seg : null, nombre: String(x.nombre),
+            ...(x.id ? { id: String(x.id) } : {}),   // identidad fija de la sección (HD): no cambia al renombrarla ni al agregar otras
             ...(x.letra === false ? { letra: false } : typeof x.letraSeg === 'number' && isFinite(x.letraSeg) ? { letraSeg: x.letraSeg } : {}) }));
         const tonalidad = d?.tonalidad && /^[A-G][#b]?$/.test(d.tonalidad.tonica) && (d.tonalidad.modo === 'mayor' || d.tonalidad.modo === 'menor')
             ? { tonica: d.tonalidad.tonica, modo: d.tonalidad.modo } : null;
@@ -125,7 +126,7 @@
             .sort((a, b) => (a.seg ?? 0) - (b.seg ?? 0) || (a.compas ?? 0) - (b.compas ?? 0)));
         m.seccionEn = c => { let s = null; for (const x of secciones) if (x.compas !== null && x.compas <= c) s = x; return s; };
         m.seccionEnSeg = t => { let s = null; for (const x of secciones) if (x.seg !== null && x.seg <= t + 1e-6) s = x; return s; };
-        const secDatos = () => secciones.map(x => ({ ...(x.compas !== null ? { compas: x.compas } : {}), ...(x.seg !== null ? { seg: Math.round(x.seg * 1000) / 1000 } : {}), nombre: x.nombre,
+        const secDatos = () => secciones.map(x => ({ ...(x.compas !== null ? { compas: x.compas } : {}), ...(x.seg !== null ? { seg: Math.round(x.seg * 1000) / 1000 } : {}), nombre: x.nombre, ...(x.id ? { id: x.id } : {}),
             ...(x.letra === false ? { letra: false } : x.letraSeg !== undefined ? { letraSeg: Math.round(x.letraSeg * 1000) / 1000 } : {}) }));
         // El verso de cada sección (EX). versos = [{ seg (null sin tiempo), primero (comienzo de estrofa) }].
         // → por sección (en el orden de m.secciones): { verso (índice o null), auto (si es el de por cercanía) }

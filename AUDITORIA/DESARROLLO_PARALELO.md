@@ -9553,3 +9553,14 @@ Intro marcha, 25 compases, quedan ~10) y una secuencia de los compases que suena
   recuperar su borrador (localStorage `arreglo_borrador:nuevo:<cancion>`) y guardarlo; sin confirmar.
 - **Otro arreglo del día (d2c8d5f, subido):** en la Ficha de la canción, { } y + cambian la velocidad en vivo
   (`GrabacionTono.velocidad`, `comun/grabacion-tono.js?v=hc`), sin el retroceso que hacía al reiniciar.
+
+### HD. Ficha de la canción — identidad fija de cada sección (el Arreglo no pierde sus secuencias) — HECHA
+*Origen: PO 2026-11-13 (tras explicarle que el Arreglo reconoce las secciones por nombre + n° de vez: renombrar o agregar
+una sección que se repite corría o perdía las secuencias). Además: la Coda agregada a Estrechez no aparecía en el Arreglo.*
+- **Hecho (2026-11-13):** cada sección de la Ficha lleva `id` (en `repertorio_assets.contenido` y `tempo/<id>.json`; sin
+  Supabase). `comun/tempo-mapa.js` lo conserva (`?v=hd` en todas las páginas); la Ficha (TEMPO) lo crea al guardar y lo
+  mantiene al renombrar. El Arreglo reconoce la sección por `fid` y, en las de antes, por nombre + n° de vez; al guardar
+  fija las `fid`. Probado: renombrar el Coro 2 y agregar un Coro antes deja cada secuencia en su lugar.
+- **Coda:** quedaba después del último pulso marcado (369,96 s; la Coda empieza en 371,25 s), sin compás. Ahora la
+  ③ Estructura avisa qué secciones no tienen tempo marcado. Falta que el PO marque el pulso de la Coda en la Ficha.
+- **Ojo:** las secciones reciben su `id` la próxima vez que se guarda la Ficha de cada canción.

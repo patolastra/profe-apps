@@ -20,7 +20,7 @@
 <script src="../supabase/config.js"></script>
 <script src="../comun/un-sonido.js"></script>
 <script src="../comun/grabacion-tono.js?v=hc"></script>
-<script src="../comun/tempo-mapa.js?v=gk"></script>
+<script src="../comun/tempo-mapa.js?v=hd"></script>
 <style>
     :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; }
     * { box-sizing: border-box; }
@@ -289,7 +289,8 @@ let modo = 'tempo';              // 'tempo' | 'estr' (🧩 Estructura, EW)
 let selSec = null;               // índice de la sección elegida (Estructura)
 let versos = [];                 // versos de la letra sincronizada: [{ seg, texto, estrofa, primero }] (EX)
 // Unión con la letra (EX): letra: false = desligada a mano; letraSeg = ligada a mano al verso que se canta ahí
-const extraLetra = x => x.letra === false ? { letra: false } : x.letraSeg !== undefined ? { letraSeg: x.letraSeg } : {};
+// Lo que acompaña a una sección: su identidad fija (HD) y su unión con la letra (EX)
+const extraLetra = x => ({ ...(x.id ? { id: x.id } : {}), ...(x.letra === false ? { letra: false } : x.letraSeg !== undefined ? { letraSeg: x.letraSeg } : {}) });
 let base = '';
 function idxCercano(s) {
     const P = S.compases;
@@ -319,6 +320,8 @@ function datos() {
         const n = cifraDe(i - i0 + 1), d = (C[i + 1] - C[i]) / n;
         for (let k = 1; k < n; k++) pulsos.push(C[i] + k * d);
     }
+    // Cada sección con su identidad fija (HD): el Arreglo la reconoce aunque se renombre o se agreguen otras
+    S.secciones.forEach(x => { if (!x.id) x.id = genId(); });
     const secciones = S.secciones.map(x => enRango(x.t) ? { compas: idxCercano(x.t) - i0 + 1, seg: x.t, nombre: x.nombre, ...extraLetra(x) } : { seg: x.t, nombre: x.nombre, ...extraLetra(x) });
     return { v: 1, pulsos, compas1, cifras: S.cifras, secciones, ...(S.tonalidad ? { tonalidad: S.tonalidad } : {}), ...(S.adaptaciones.length ? { adaptaciones: S.adaptaciones } : {}) };
 }
@@ -979,7 +982,7 @@ function ponerSeccion() {
     if ((hab?.nombre || '') === nombre) return;
     antes();
     S.secciones = S.secciones.filter(x => x.t !== t);
-    if (nombre) S.secciones.push({ t, nombre });
+    if (nombre) S.secciones.push({ t, nombre, ...(hab?.id ? { id: hab.id } : {}) });
     rehacer();
 }
 $('sec-nombre').addEventListener('keydown', e => {
