@@ -131,6 +131,8 @@
     body.alumno #b-abrir, body.alumno #b-nuevo, body.alumno #b-editar, body.alumno .prog-hermanos,
     body.alumno .prog-recurso, body.alumno .prog-config > :not(#p-metro):not(#p-precuenta) { display: none; }
     body.alumno .celda { cursor: default; }
+    body.dentro #b-abrir, body.dentro #b-nuevo, body.dentro #b-pantalla, body.dentro .prog-hermanos { display: none !important; }
+    body.dentro #escenario { display: none; }   /* la figura ya está en la vista previa del arreglo */
     /* Arreglo de cajón (HF): solo la figura, tocar y la grabación */
     body.arreglo #b-abrir, body.arreglo #b-nuevo, body.arreglo #b-editar, body.arreglo #b-repetir,
     body.arreglo #b-menos, body.arreglo #b-mas, body.arreglo #bpm, body.arreglo #prog { display: none !important; }
@@ -296,6 +298,10 @@
 const ALUMNO = new URLSearchParams(location.search).get('modo') === 'alumno';
 if (ALUMNO) document.body.classList.add('alumno');
 const VISTA_ARR = new URLSearchParams(location.search).get('vista') === 'arreglo';
+// Dentro del Editor de arreglos (deuda HF): el programador en una ventana sobre el arreglo, que sigue cada cambio
+const DENTRO = new URLSearchParams(location.search).get('dentro') === '1';
+if (DENTRO) document.body.classList.add('dentro');
+const alArreglo = (msg) => { if (DENTRO) { try { window.parent.postMessage(msg, '*'); } catch (_) {} } };
 const ARR = VISTA_ARR || (ALUMNO && !!new URLSearchParams(location.search).get('r'));
 // ═══════════════════════════════════════════════════════════════════════════
 // LECTOR DE MIDI (propio, sin librerías): notas, tempo y compás
@@ -894,6 +900,7 @@ function leerBorrador() {
 }
 function guardarProg() {
     if (ALUMNO) return;
+    alArreglo({ tipo: 'cajon-prog', id: recurso?.id || null, contenido: contenidoProg(), etiqueta: $('p-etiqueta').value.trim() });
     try { localStorage.setItem(CLAVE_PROG, JSON.stringify({ prog, etiqueta: $('p-etiqueta').value.trim(), recurso, base, estado: estadoActual() })); } catch (e) {}
     pintarGuardar();
 }
@@ -1153,6 +1160,7 @@ async function guardarRitmo() {
         }
         base = estadoActual();
         guardarProg();
+        alArreglo({ tipo: 'cajon-guardado', id: recurso.id, contenido: contenidoProg(), etiqueta: $('p-etiqueta').value.trim() });
         cargarHermanos();
         try { await subirPublico(recurso.id); }
         catch (err) { avisoBreve('Guardado, pero no se pudo actualizar la versión para estudiantes', true); return true; }
@@ -1330,6 +1338,12 @@ $('b-editar').onclick = () => ponerEdicion(true);
 $('p-etiqueta').addEventListener('input', () => { guardarProg(); pintarGuardar(); pintarHermanos(); });
 $('p-etiqueta').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); guardarRitmo(); } });
 
+// Dentro del arreglo (HF): partir de un ritmo dado (p. ej. una variación de un estilo, que se guarda en la canción)
+window.addEventListener('message', (e) => {
+    if (!DENTRO || e.source !== window.parent || e.data?.tipo !== 'cajon-poner') return;
+    let r = null; try { r = JSON.parse(e.data.contenido || 'null'); } catch (_) {}
+    if (r) { ponerRitmo(r, e.data.etiqueta || ''); ponerEdicion(true); pintarGuardar(); }
+});
 // Workspace: al cerrar la pestaña se guarda lo pendiente
 window.addEventListener('message', (e) => {
     if (e.data?.tipo !== 'ws-guardar' || e.source !== window.parent) return;
@@ -1366,10 +1380,10 @@ window.addEventListener('beforeunload', (e) => { if (recurso && hayCambios() && 
         } catch (e) { aviso('Este ritmo no está disponible. Pídele al profe el enlace de nuevo.', true); }
         return;
     }
-    if (q.get('asset')) { await abrirRecurso(q.get('asset'), true); return; }
+    if (q.get('asset')) { await abrirRecurso(q.get('asset'), true); alArreglo({ tipo: 'cajon-dentro-listo' }); return; }
     if (q.get('cancion') && sb) {
         const { data } = await sb.from('repertorio_canciones').select('id, nombre').eq('id', q.get('cancion')).single();
-        if (data) { nuevoRitmo(data); return; }
+        if (data) { await nuevoRitmo(data); alArreglo({ tipo: 'cajon-dentro-listo' }); return; }
     }
     pintarGuardar();
 })();

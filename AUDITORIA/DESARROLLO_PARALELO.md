@@ -9595,3 +9595,9 @@ entrar a la pestaña se edita").*
   salta la adaptación). El archivo público `arreglo/<id>.json` lleva `cajon`. Biblioteca: 🪘 en el arreglo publicado
   comparte la parte del cajón (mismo plazo que el piano). Probado con Estrechez / Castigadas (Cumbia y Cueca en los coros).
   Sin probar: un estudiante real con el link (requiere guardar el arreglo).
+- **Crear y editar ahí mismo (2026-11-13, pedido del PO):** cada sección del 🪘 Cajón tiene ＋ / ✏️, que abre el
+  programador del Cajón en una ventana sobre el arreglo (`CAJON-PERUANO/?dentro=1`; avisa cada cambio con
+  `cajon-prog` y el guardado con `cajon-guardado`). La vista previa toca cada cambio con la grabación. Un ritmo de la
+  canción se edita; uno de un estilo se edita como variación nueva de la canción (el estilo no se toca). "Listo" guarda
+  en la Biblioteca (protocolo `ws-guardar`); si se cierra sin guardar, la sección vuelve a su ritmo de antes.
+  Probado sin guardar (variación de Cumbia en el Coro 2); el guardado en la Biblioteca queda para que lo pruebe el PO.

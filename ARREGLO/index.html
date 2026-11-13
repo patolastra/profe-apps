@@ -51,7 +51,7 @@
     #inst { flex: 0 0 auto; }
     #inst .btn { height: 34px; width: 104px; }
     body[data-inst="cajon"] .p-piano, body:not([data-inst="cajon"]) .p-cajon { display: none !important; }
-    .cj-fila { display: grid; grid-template-columns: 1fr 190px 120px; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 7px; font-size: 13px; }
+    .cj-fila { display: grid; grid-template-columns: 1fr 190px 30px 110px; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 7px; font-size: 13px; }
     .cj-fila.sonando { background: rgba(34,197,94,.18); }
     .cj-fila select { height: 28px; width: 100%; }
     .cj-tit { background: none; border: 0; text-align: left; cursor: pointer; padding: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -59,6 +59,13 @@
     .cj-info { font-size: 12px; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .cj-info .mal { color: #f87171; }
     .cj-info button { height: 22px; padding: 0 6px; font-size: 11px; }
+    .cj-fila [data-cj-editar] { height: 28px; width: 30px; padding: 0; }
+    #cuerpo { position: relative; }
+    #cj-modal { position: absolute; left: 0; top: 0; bottom: 0; width: max(540px, 58%); display: none; flex-direction: column; background: var(--bg);
+        border-right: 1px solid var(--borde); z-index: 20; box-shadow: 8px 0 24px rgba(0,0,0,.4); }
+    #cj-modal.on { display: flex; }
+    .cj-modal-cab { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--borde); }
+    #cj-marco { flex: 1 1 auto; border: 0; width: 100%; }
 
     .card { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
     .card h3 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
@@ -233,6 +240,9 @@
             </div>
         </div>
     </div>
+    <div id="cj-modal"><div class="cj-modal-cab"><b id="cj-modal-tit"></b><span class="sep"></span>
+        <span class="ayuda">Cada cambio suena en la vista previa, con la grabación</span><button class="btn" id="cj-modal-cerrar" title="Guarda el ritmo y vuelve al arreglo">Listo</button></div>
+        <iframe id="cj-marco" title="Programador del Cajón"></iframe></div>
     <div id="vista">
         <div id="vista-tit">Vista previa — así lo ve el estudiante</div>
         <iframe id="previa" class="p-piano" src="../PIANO/index.html?vista=editor" title="Vista previa"></iframe>
@@ -1569,6 +1579,7 @@ function pintarCajon() {
         return `<div class="cj-fila" data-i="${i}">
             <button class="cj-tit" data-cj-ir title="Tocar desde aquí">▶ ${esc(x.etiqueta)} <small>c. ${x.compas} · ${L === x.largo ? x.largo : `✂ ${L} de ${x.largo}`}</small></button>
             <select data-cj-sel ${L ? '' : 'disabled'}><option value="">— silencio —</option>${huerfano}${grupo('cancion', 'Esta canción', rid)}${grupo('estilo', 'Estilos', rid)}</select>
+            <button class="btn" data-cj-editar title="${copia ? (orig && orig.grupo === 'cancion' ? 'Editar este ritmo' : 'Hacer una variación de este ritmo para la canción') : 'Crear un ritmo para esta sección'}" ${L ? '' : 'disabled'}>${copia ? '✏️' : '＋'}</button>
             <span class="cj-info">${info}</span></div>`;
     }).join('');
     marcarSonando(pulsoSonando);
@@ -1597,6 +1608,7 @@ $('cj-lista').addEventListener('click', e => {
     const f = e.target.closest('.cj-fila'); if (!f) return;
     const x = itemsEstructura()[+f.dataset.i]; if (!x) return;
     if (e.target.closest('[data-cj-traer]')) { ponerRitmoCajon(x, A.cajon?.sec?.[claveItem(x)]); return; }
+    if (e.target.closest('[data-cj-editar]')) { e.target.blur(); abrirEditorCajon(x); return; }
     if (e.target.closest('[data-cj-ir]') && mapaTempo) {
         enviarCajon();
         try { $('previa-cajon').contentWindow.postMessage({ tipo: 'arreglo-tocar', seg: mapaTempo.segDePulso(mapaTempo.pulsoDeCompas(x.compas)) }, '*'); } catch (_) {}
@@ -1611,6 +1623,71 @@ $('cj-nuevo').onclick = e => {
     }
     window.open(src, '_blank');
 };
+// ✏️ Crear o editar el ritmo de una sección ahí mismo (HF): el programador del Cajón en una ventana sobre el arreglo.
+// Cada cambio llega por mensaje y la vista previa lo toca con la grabación; al guardar queda como 🪘 de la canción.
+// Un ritmo de un estilo (o una copia sin original) se edita como variación nueva de la canción: el estilo no se toca.
+let cjEdit = null;               // { k (clave de la sección), it (la sección), id (ritmo que se edita; null = nuevo) }
+const NUEVO_CJ = '__nuevo';
+function abrirEditorCajon(x) {
+    const k = claveItem(x), rid = A.cajon?.sec?.[k] || null, orig = rid && ritmosCajon.find(r => r.id === rid), copia = rid && A.cajon?.ritmos?.[rid];
+    const propio = orig && orig.grupo === 'cancion';
+    cjEdit = { k, it: x, id: propio ? rid : null, antes: copia ? { rid, copia: JSON.parse(JSON.stringify(copia)) } : null, partir: !propio && copia ? { contenido: JSON.stringify(copia.r), etiqueta: copia.nombre.replace(' · ', ' ') + ' (variación)' } : null };
+    $('cj-modal-tit').textContent = `🪘 ${x.etiqueta} — ${propio ? 'editar ritmo' : copia ? 'variación de ' + copia.nombre : 'ritmo nuevo'}`;
+    $('cj-marco').src = propio ? `../CAJON-PERUANO/index.html?asset=${encodeURIComponent(rid)}&dentro=1` : `../CAJON-PERUANO/index.html?cancion=${encodeURIComponent(cancionId)}&dentro=1`;
+    $('cj-modal').classList.add('on');
+}
+async function cerrarEditorCajon() {
+    const f = $('cj-marco');
+    // Lo que falta guardar se guarda (el Cajón responde como a una pestaña del Workspace)
+    const ok = await new Promise(res => {
+        const reqId = 'cj' + Date.now();
+        const t = setTimeout(() => { window.removeEventListener('message', h); res(true); }, 15000);
+        const h = e => { if (e.source === f.contentWindow && e.data?.tipo === 'ws-guardado' && e.data.reqId === reqId) { clearTimeout(t); window.removeEventListener('message', h); res(e.data.ok !== false); } };
+        window.addEventListener('message', h);
+        try { f.contentWindow.postMessage({ tipo: 'ws-guardar', reqId }, '*'); } catch (_) { clearTimeout(t); res(true); }
+    });
+    if (!ok && !confirm('El ritmo no se pudo guardar. ¿Cerrar igual?')) return;
+    $('cj-modal').classList.remove('on');
+    f.src = 'about:blank';
+    // Lo que se oyó mientras no estaba guardado se va
+    if (cjEdit && A.cajon?.sec?.[cjEdit.k] === NUEVO_CJ) {
+        if (cjEdit.antes) { A.cajon.ritmos[cjEdit.antes.rid] = cjEdit.antes.copia; A.cajon.sec[cjEdit.k] = cjEdit.antes.rid; delete A.cajon.ritmos[NUEVO_CJ]; pintarCajon(); cambio(); }
+        else ponerRitmoCajon(cjEdit.it, null);
+    }
+    cjEdit = null;
+    await cargarRitmosCajon();
+}
+window.addEventListener('message', e => {
+    const f = $('cj-marco'); if (!cjEdit || e.source !== f.contentWindow) return;
+    const d = e.data || {};
+    if (d.tipo === 'cajon-dentro-listo' && cjEdit.partir) {
+        try { f.contentWindow.postMessage({ tipo: 'cajon-poner', ...cjEdit.partir }, '*'); } catch (_) {}
+        cjEdit.partir = null;
+    }
+    if (d.tipo === 'cajon-prog') {          // cada cambio: la copia del arreglo lo sigue y la vista previa lo toca
+        const r = leerRitmo(d.contenido); if (!r || !(r.agudo?.length || r.grave?.length)) return;
+        const id = d.id || NUEVO_CJ;
+        A.cajon = A.cajon || { ritmos: {}, sec: {} };
+        A.cajon.ritmos = A.cajon.ritmos || {}; A.cajon.sec = A.cajon.sec || {};
+        if (A.cajon.sec[cjEdit.k] !== id && (id === NUEVO_CJ || !cjEdit.id)) {
+            A.cajon.sec[cjEdit.k] = id;
+            const usados = new Set(Object.values(A.cajon.sec));
+            Object.keys(A.cajon.ritmos).forEach(x => { if (!usados.has(x) && x !== id) delete A.cajon.ritmos[x]; });
+        }
+        if (A.cajon.sec[cjEdit.k] === id) { A.cajon.ritmos[id] = { nombre: d.etiqueta || 'Ritmo', r }; pintarCajon(); cambio(); }
+    }
+    if (d.tipo === 'cajon-guardado' && d.id) {   // guardado: queda como 🪘 de la canción, puesto en la sección
+        cjEdit.id = d.id;
+        const r = leerRitmo(d.contenido);
+        A.cajon = A.cajon || { ritmos: {}, sec: {} };
+        A.cajon.ritmos[d.id] = { nombre: d.etiqueta || 'Ritmo', r };
+        A.cajon.sec[cjEdit.k] = d.id;
+        delete A.cajon.ritmos[NUEVO_CJ];
+        cargarRitmosCajon(); cambio();
+    }
+});
+$('cj-modal-cerrar').onclick = e => { e.target.blur(); cerrarEditorCajon(); };
+
 // Al volver a esta pestaña (p. ej. después de programar un ritmo en el Cajón), los ritmos se leen de nuevo
 document.addEventListener('visibilitychange', () => { if (!document.hidden && document.body.dataset.inst === 'cajon') cargarRitmosCajon(); });
 // Pestañas por instrumento: cada una con su vista previa; la otra se calla
