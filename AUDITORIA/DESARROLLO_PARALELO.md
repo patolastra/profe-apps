@@ -9564,3 +9564,10 @@ una sección que se repite corría o perdía las secuencias). Además: la Coda a
 - **Coda:** quedaba después del último pulso marcado (369,96 s; la Coda empieza en 371,25 s), sin compás. Ahora la
   ③ Estructura avisa qué secciones no tienen tempo marcado. Falta que el PO marque el pulso de la Coda en la Ficha.
 - **Ojo:** las secciones reciben su `id` la próxima vez que se guarda la Ficha de cada canción.
+
+### HE. Arreglo de piano — acorde que dura varios compases ("_") — HECHA
+*Origen: PO 2026-11-13 ("quiero poder dejar un acorde más largo que un compás… por ahora compases enteros").*
+- **Hecho (2026-11-13):** un compás que es solo `_` deja sonando el acorde anterior un compás más, sin volver a tocarlo
+  (`A / _ / _ / E`: La dura tres compases). Sin ritmo se alarga la nota; con 🥁 ritmo el ritmo sigue con ese acorde.
+  Si un corte de la adaptación queda entremedio, se vuelve a tocar. El resaltado marca el `_` mientras suena. Dentro de
+  un compás con otros acordes, `_` = repetir (como `%`). Sigue: duraciones menores a un compás.

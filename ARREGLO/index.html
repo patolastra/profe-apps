@@ -174,7 +174,7 @@
             <button class="btn" id="b-nueva-sec">＋ Secuencia</button>
             <button class="btn" id="b-traer-sec" title="Crea una secuencia con el nombre de cada sección de la Ficha que aún no tiene una, y las une en la Estructura">📋 Crear las que faltan</button>
             <span class="ayuda" id="sec-sin-tempo" style="visibility:hidden">La Ficha tiene secciones, pero falta marcar su tempo.</span>
-            <div class="ayuda">Ejemplo: <code>A / E / F#m / D</code> (la <code>/</code> con espacios separa compases; pegada es el bajo: <code>E/G#</code>) · dos acordes en un compás: <code>A E</code> · <code>%</code> repite el anterior · también do re mi: <code>La / Mi / Fa#m</code>.</div>
+            <div class="ayuda">Ejemplo: <code>A / E / F#m / D</code> (la <code>/</code> con espacios separa compases; pegada es el bajo: <code>E/G#</code>) · dos acordes en un compás: <code>A E</code> · <code>%</code> repite el anterior · <code>_</code> lo deja sonando un compás más (<code>A / _ / _ / E</code>: La dura tres compases) · también do re mi: <code>La / Mi / Fa#m</code>.</div>
         </div>
 
         <div class="card">
@@ -320,6 +320,7 @@ function leerAcorde(tok) {
     return { nombre, pcs, bajo };
 }
 // Compases de una sección: [[nombre…], …] y los que no se entendieron
+const LIGA = '_';
 function compasesDe(sec) {
     const malos = [], compases = [];
     let previo = null;
@@ -328,8 +329,10 @@ function compasesDe(sec) {
     for (const c of texto.split(/[|\n]/)) {
         const toks = c.trim().split(/\s+/).filter(Boolean);
         if (!toks.length) continue;
+        // "_" solo en el compás: el acorde anterior sigue sonando un compás más (sin volver a tocarlo)
+        if (toks.length === 1 && toks[0] === '_') { compases.push([LIGA]); continue; }
         const nombres = toks.map(t => {
-            if (t === '%' || t === '-') return previo;
+            if (t === '%' || t === '-' || t === '_') return previo;
             const a = leerAcorde(t);
             if (!a) { malos.push(t); return null; }
             return (previo = a.nombre);
@@ -385,7 +388,7 @@ function secuencia() {
     const ids = modoFicha() ? itemsEstructura().filter(x => x.incluida && x.sec).map(x => x.sec) : A.orden;
     for (const id of ids) { const s = A.secciones.find(x => x.id === id); if (s) compasesDe(s).compases.forEach(c => out.push(...c)); }
     for (const s of A.secciones) compasesDe(s).compases.forEach(c => out.push(...c));   // también las que aún no están en el orden
-    return out;
+    return out.filter(n => n !== LIGA);
 }
 function completarVoicings(todos = false) {
     if (todos) A.voicings = {};
@@ -502,11 +505,21 @@ function desplegar() {
         const pos = lugar.suenan || Array.from({ length: lugar.largo ?? base.length }, (_, k) => ini + k * A.compas);
         const finTramo = k => { let j = k; while (j + 1 < pos.length && pos[j + 1] - pos[j] < A.compas + 1e-6) j++; return pos[j] + A.compas; };
         const nC = pos.length;
+        // El acorde que sigue en un compás "_": el último de antes en la secuencia (dando la vuelta si empieza con "_")
+        const antesDe = k => { for (let j = 1; j <= base.length; j++) { const c = base[((k - j) % base.length + base.length) % base.length]; if (c[0] !== LIGA) return c[c.length - 1]; } return null; };
         const compases = base.length ? Array.from({ length: nC }, (_, k) => base[k % base.length]) : [];
         const r = s.ritmo, conMel = !!(s.melodia && A.melodia);
-        compases.forEach((c, ci) => {
+        let sonando = null;          // sin ritmo: { nombre, notas, acordes, fin } del último acorde, para alargarlo
+        compases.forEach((c0, ci) => {
             p = pos[ci];
-            const dur = A.compas / c.length;
+            const liga = c0[0] === LIGA, sigue = liga ? antesDe(ci) : null;
+            if (liga && !r && sonando && sonando.nombre === sigue && Math.abs(sonando.fin - p * 4) < 1e-6) {
+                const D = A.compas * 4;
+                sonando.notas.forEach(n => { n.d += D; }); sonando.acordes.forEach(a => { a.d += D; }); sonando.fin += D;
+                return;
+            }
+            const c = liga ? (sigue ? [sigue] : []) : c0;
+            const dur = A.compas / (c.length || 1);
             if (r) {
                 // Con ritmo (FM): cada figura toma el acorde que suena en su momento; en secciones con melodía solo el bajo
                 c.forEach((nombre, i) => { const der = acordeDer(nombre); if (der) acordes.push({ t: (p + i * dur) * 4, d: dur * 4, nombre, ms: der.m }); });
@@ -528,14 +541,17 @@ function desplegar() {
             } else c.forEach((nombre, i) => {
                 const v = A.voicings[nombre]; if (!v) return;
                 const t = (p + i * dur) * 4, d = dur * 4;
+                const ns = [], as = [];
                 if (A.manoAcordes === 'der') {      // sin ritmo, con la mano derecha: en la octava de los acordes
                     const der = acordeDer(nombre);
-                    acordes.push({ t, d, nombre, ms: der.m });
-                    der.m.forEach((m, k) => notas.push({ t, d, m, nombre: nombreNota(m), mano: 'der', dig: { piano: der.dedos[k] } }));
-                    return;
+                    as.push({ t, d, nombre, ms: der.m });
+                    der.m.forEach((m, k) => ns.push({ t, d, m, nombre: nombreNota(m), mano: 'der', dig: { piano: der.dedos[k] } }));
+                } else {
+                    as.push({ t, d, nombre, ms: v.m });
+                    v.m.forEach((m, k) => ns.push({ t, d, m, nombre: nombreNota(m), mano: 'izq', dig: v.dedos[k] ? { piano: v.dedos[k] } : {} }));
                 }
-                acordes.push({ t, d, nombre, ms: v.m });
-                v.m.forEach((m, k) => notas.push({ t, d, m, nombre: nombreNota(m), mano: 'izq', dig: v.dedos[k] ? { piano: v.dedos[k] } : {} }));
+                notas.push(...ns); acordes.push(...as);
+                sonando = { nombre, notas: ns, acordes: as, fin: t + d };
             });
         });
         p = lugar.suenan ? ini + lugar.largo * A.compas : ini + nC * A.compas;
@@ -805,7 +821,7 @@ function posicionesTexto(txt) {
         if (m[0] === '|' || m[0] === '\n') { cerrar(); continue; }
         actual.hasToks = true;
         const tok = m[0];
-        if (tok === '%' || tok === '-') { if (previo) actual.lista.push({ a: m.index, b: m.index + tok.length }); continue; }
+        if (tok === '%' || tok === '-' || tok === '_') { if (previo) actual.lista.push({ a: m.index, b: m.index + tok.length }); continue; }
         if (leerAcorde(tok)) { previo = tok; actual.lista.push({ a: m.index, b: m.index + tok.length }); }
     }
     cerrar();
@@ -1290,7 +1306,7 @@ function nota(c, m, t, d, vol, tipo = 'triangle') {
 $('rit-oir').onclick = () => {
     if (ritOir) { detenerRitmo(); return; }
     const r = ritSec?.ritmo; if (!r) return;
-    const primero = compasesDe(ritSec).compases.flat()[0];
+    const primero = compasesDe(ritSec).compases.flat().find(n => n !== LIGA);
     if (!primero) { toast('Escribe los acordes de la secuencia para escucharla.'); return; }
     const c = audio(), t0 = c.currentTime + 0.1, sP = 60 / A.tempo, sT = sP / 4, nodos = [];
     const conMel = !!(ritSec.melodia && A.melodia), der = acordeDer(primero), bajo = bajoDe(primero);
