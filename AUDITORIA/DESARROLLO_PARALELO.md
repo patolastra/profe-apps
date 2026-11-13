@@ -9571,3 +9571,27 @@ una sección que se repite corría o perdía las secuencias). Además: la Coda a
   (`A / _ / _ / E`: La dura tres compases). Sin ritmo se alarga la nota; con 🥁 ritmo el ritmo sigue con ese acorde.
   Si un corte de la adaptación queda entremedio, se vuelve a tocar. El resaltado marca el `_` mientras suena. Dentro de
   un compás con otros acordes, `_` = repetir (como `%`). Sigue: duraciones menores a un compás.
+
+### HF. Editor de arreglos con pestañas por instrumento — paso 1: 🪘 Cajón — HECHO (2026-11-13)
+*Origen: PO 2026-11-13 ("quiero poder hacer, en la misma lógica, para la misma adaptación, un arreglo de cajón para la
+misma canción; a futuro arreglos para piano, metalófono, cajón, guitarra, ukelele, bajo para una misma canción y/o
+adaptación"; "el editor de arreglos debería tener pestañas para todos los instrumentos, para cualquier arreglo, y al
+entrar a la pestaña se edita").*
+- **Auditoría:** el Cajón guarda ritmos sueltos (`tipo = 'cajon'`: cifra, división, 1–8 compases, golpes `"c:t"` a
+  480 ticks por negra, mano) que se repiten en bucle, con su propio reloj; no sigue la grabación. El Arreglo de piano
+  ya sigue la Estructura de la Ficha, la adaptación (HC) y la grabación (`GrabacionTono`, mapa de tempo).
+- **Plan aprobado por el PO (2026-11-13):** un arreglo = un recurso con una parte por instrumento; el Editor de
+  arreglos tiene pestañas 🎹 Piano · 🪘 Cajón (después guitarra, ukelele, bajo, metalófono). Comparten Base, Estructura
+  de la Ficha, adaptación y grabación. Cajón: a cada sección de la Estructura un ritmo 🪘 (de la canción o de los
+  estilos; se copia al arreglo), uno nuevo, o silencio; se repite de corrido en los compases que suenan. Vista previa:
+  la figura del cajón tocando junto a la grabación. Guardar y compartir con el estudiante. Sin Supabase.
+  Después: remates/quiebres; los acordes pasan a ser de la canción cuando llegue el segundo instrumento con acordes.
+- **Hecho (2026-11-13):** el Editor de arreglos (`ARREGLO/`, pestaña 🎼 Arreglo del Editor musical) tiene pestañas
+  🎹 Piano · 🪘 Cajón. La parte del cajón va en el mismo recurso (`A.cajon = { ritmos: { <id>: { nombre, r } }, sec:
+  { <id de sección o nombre#n>: <id> } }`): a cada sección de la Ficha un ritmo 🪘 de la canción o de los estilos (copia;
+  ↻ trae los cambios del original; aviso si su cifra ≠ la del arreglo), repetido de corrido en los compases que suenan.
+  El Cajón tiene un modo arreglo (`?vista=arreglo` por mensaje; estudiante `?modo=alumno&r=<id>`, link corto `c/?r=&n=`):
+  figura + cinta + 🎤 Melodía / 🎶 Karaoke + "Ir a…" sección; golpes en segundos de la grabación (`GrabacionTono`,
+  salta la adaptación). El archivo público `arreglo/<id>.json` lleva `cajon`. Biblioteca: 🪘 en el arreglo publicado
+  comparte la parte del cajón (mismo plazo que el piano). Probado con Estrechez / Castigadas (Cumbia y Cueca en los coros).
+  Sin probar: un estudiante real con el link (requiere guardar el arreglo).

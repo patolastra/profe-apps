@@ -26,6 +26,8 @@
         document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script><script src="../supabase/config.js"><\/script>'
             + '<script src="../comun/tempo-mapa.js?v=hd"><\/script>');
     }
+    // Arreglo de cajón (deuda HF): la grabación de la canción
+    if (/[?&](vista=arreglo|r=)/.test(location.search)) document.write('<script src="../comun/grabacion-tono.js?v=hc"><\/script>');
 </script>
 <style>
     :root {
@@ -129,6 +131,9 @@
     body.alumno #b-abrir, body.alumno #b-nuevo, body.alumno #b-editar, body.alumno .prog-hermanos,
     body.alumno .prog-recurso, body.alumno .prog-config > :not(#p-metro):not(#p-precuenta) { display: none; }
     body.alumno .celda { cursor: default; }
+    /* Arreglo de cajón (HF): solo la figura, tocar y la grabación */
+    body.arreglo #b-abrir, body.arreglo #b-nuevo, body.arreglo #b-editar, body.arreglo #b-repetir,
+    body.arreglo #b-menos, body.arreglo #b-mas, body.arreglo #bpm, body.arreglo #prog { display: none !important; }
     /* Patrón abierto para mirar y tocar (se edita con ✏️ Editar ritmo) */
     body.viendo .prog-recurso, body.viendo .prog-config > :not(#p-metro):not(#p-precuenta) { display: none; }
     body.viendo .celda { cursor: default; }
@@ -290,6 +295,8 @@
 'use strict';
 const ALUMNO = new URLSearchParams(location.search).get('modo') === 'alumno';
 if (ALUMNO) document.body.classList.add('alumno');
+const VISTA_ARR = new URLSearchParams(location.search).get('vista') === 'arreglo';
+const ARR = VISTA_ARR || (ALUMNO && !!new URLSearchParams(location.search).get('r'));
 // ═══════════════════════════════════════════════════════════════════════════
 // LECTOR DE MIDI (propio, sin librerías): notas, tempo y compás
 // ═══════════════════════════════════════════════════════════════════════════
@@ -487,8 +494,11 @@ function cargar(buf, nombre) {
 }
 
 function prepararGolpes() {
-    const tol = datos.ppq / 24;
     golpes = datos.notas.map(n => ({ t: datos.tickASeg(n.tick), tick: n.tick, tipo: mapa[n.pitch] || 'agudo', vel: n.vel / 127, mano: 'R', fija: n.mano || null }));
+    asignarManos();
+}
+function asignarManos() {
+    const tol = datos.ppq / 24;
     // Manos: golpes simultáneos = una en cada mano; seguidos (< 0,5 s) se alternan; con tiempo, la derecha.
     // Un golpe con mano elegida (programador, EH) la conserva; dos golpes juntos nunca van en la misma mano.
     const otra = (m) => (m === 'R' ? 'L' : 'R');
@@ -514,6 +524,7 @@ function prepararGolpes() {
 // RELOJ Y PROGRAMACIÓN DEL SONIDO
 // ═══════════════════════════════════════════════════════════════════════════
 function posEn(ctxT) {
+    if (ARR) return grab && tocando ? (grab.oido() ?? posPausa) : posPausa;
     const a = (anclaPrev && ctxT < ancla.ctx0) ? anclaPrev : ancla;
     return a.pos0 + (ctxT - a.ctx0) * ritmo;
 }
@@ -565,6 +576,7 @@ const CLAVE_PRECUENTA = 'profe_cajon_precuenta';
 let precuenta = (() => { try { return localStorage.getItem(CLAVE_PRECUENTA) !== '0'; } catch (e) { return true; } })();
 let cuentaIni = 0, cuentaPaso = 0, cuentaN = 0;   // segundos de AudioContext del primer clic, entre clics y cuántos
 function tocar() {
+    if (ARR) return tocarArr();
     if (!datos || tocando) return;
     asegurarAudio();
     if (ctx.state === 'suspended') ctx.resume();
@@ -587,6 +599,7 @@ function tocar() {
     pintarPlay();
 }
 function pausar() {
+    if (ARR) return pausarArr();
     if (!tocando) return;
     posPausa = Math.max(0, Math.min(posEn(ctx.currentTime), datos.fin));
     tocando = false; clearInterval(reloj); reloj = null;
@@ -1327,6 +1340,19 @@ window.addEventListener('beforeunload', (e) => { if (recurso && hayCambios() && 
 
 (async () => {
     const q = new URLSearchParams(location.search);
+    if (ALUMNO && ARR) {         // arreglo de cajón para el estudiante (HF)
+        const STORAGE = 'https://bfinpxcwcsteintikrtt.supabase.co/storage/v1/object/public/repertorio-assets/';
+        try {
+            const r = await fetch(`${STORAGE}arreglo/${encodeURIComponent(q.get('r') || '')}.json?t=${Date.now()}`, { cache: 'no-store' });
+            if (!r.ok) throw new Error();
+            const d = await r.json();
+            const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+            if (!d.cajon || (d.hasta && hoy > d.hasta)) throw new Error();
+            ponerArreglo(d.cajon);
+            document.title = ($('nombre').title || 'Arreglo') + ' · Cajón';
+        } catch (e) { aviso('Este arreglo no está disponible. Pídele al profe el enlace de nuevo.', true); }
+        return;
+    }
     if (ALUMNO) {
         const STORAGE = 'https://bfinpxcwcsteintikrtt.supabase.co/storage/v1/object/public/repertorio-assets/';
         try {
@@ -1359,6 +1385,130 @@ window.addEventListener('beforeunload', (e) => { if (recurso && hayCambios() && 
         cargar(await r.arrayBuffer(), q.get('nombre') || decodeURIComponent(url.split('/').pop()).replace(/\.midi?$/i, ''));
     } catch (e) { aviso('No se pudo abrir el MIDI de la dirección.', true); }
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ARREGLO DE CAJÓN (deuda HF): la parte del cajón de un arreglo de la canción, tocada junto a su grabación.
+// ?vista=arreglo = vista previa del Editor de arreglos (los datos llegan por mensaje: 'arreglo-cajon');
+// ?modo=alumno&r=<id> = estudiante (lee la parte `cajon` de repertorio-assets/arreglo/<id>.json, sin base de datos).
+// Golpes en segundos de la grabación; la grabación (GrabacionTono) salta lo omitido por la adaptación.
+// ═══════════════════════════════════════════════════════════════════════════
+let ARRD = null, grab = null, arrIdx = 0, arrDesde = 0, arrVoz = 'melodia', arrCargando = false;
+const urlVoz = () => ARRD?.audio?.[arrVoz] || ARRD?.audio?.melodia || ARRD?.audio?.karaoke || null;
+function ponerArreglo(d) {
+    const seguia = tocando, pos = tocando && grab ? (grab.oido() ?? posPausa) : posPausa;
+    if (seguia) pausar();
+    ARRD = d || { golpes: [] };
+    const comps = ARRD.compases || [], nc = ARRD.negrasCompas || 4, tc = Math.round(PPQ * nc);
+    const den = +String(ARRD.cifra || '4/4').split('/')[1] || 4;
+    // Segundo de la grabación → tick (compás a compás, el tempo de la grabación puede variar)
+    const segATick = s => {
+        if (comps.length < 2) return 0;
+        let i = 0; while (i + 1 < comps.length && comps[i + 1] <= s) i++;
+        const a = comps[i], b = comps[i + 1] ?? (a + (a - comps[i - 1]));
+        return (i + Math.max(0, Math.min(1, (s - a) / ((b - a) || 1)))) * tc;
+    };
+    const fin = grab?.duracion || (comps.length ? comps[comps.length - 1] + 1 : 0);
+    datos = { ppq: PPQ, notas: [], comp: { num: Math.round(nc * den / 4), den }, ticksCompas: tc, finTick: Math.max(1, comps.length - 1) * tc,
+        fin, bpmBase: 120, tickASeg: t => t / TPS, segATick, gm: true, nombre: 'Arreglo' };
+    golpes = (ARRD.golpes || []).map(g => ({ t: g.s, tick: g.n * PPQ, tipo: g.t === 'grave' ? 'grave' : 'agudo', vel: 0.85, mano: 'R', fija: g.m || null }));
+    asignarManos();
+    clics = []; repetir = false; ritmo = 1;
+    ['b-inicio', 'b-play'].forEach(id => $(id).disabled = !golpes.length);
+    const nombre = new URLSearchParams(location.search).get('n') || [ARRD.cancion, ARRD.etiqueta].filter(Boolean).join(' — ') || 'Arreglo';
+    $('nombre').textContent = '🪘 ' + nombre; $('nombre').title = nombre;
+    pintarVoz();
+    // Secciones de la canción: ir a una (las que suenan con el cajón primero se marcan con 🪘)
+    const ss = $('sel-sec');
+    if (ss) {
+        const L = (ARRD.secciones || []).filter(x => !(ARRD.audio?.saltos || []).some(t => x.s >= t.desde - 0.05 && x.s < t.hasta - 0.05));
+        const conCajon = x => { const i = L.indexOf(x), fin = L[i + 1]?.s ?? Infinity; return golpes.some(g => g.t >= x.s - 0.01 && g.t < fin); };
+        ss.innerHTML = '<option value="">Ir a…</option>' + L.map(x => `<option value="${x.s}">${conCajon(x) ? '🪘 ' : ''}${esc(x.nombre)}</option>`).join('');
+        ss.style.visibility = L.length ? 'visible' : 'hidden';
+    }
+    aviso(golpes.length ? '' : 'Elige un ritmo para alguna sección y aparece aquí.');
+    if (seguia && golpes.length) { posPausa = pos; tocar(); }
+}
+function pintarVoz() {
+    const b = $('b-voz'); if (!b) return;
+    const dos = !!(ARRD?.audio?.melodia && ARRD?.audio?.karaoke);
+    b.style.visibility = dos ? 'visible' : 'hidden';
+    b.textContent = arrVoz === 'karaoke' ? '🎶 Karaoke' : '🎤 Melodía';
+}
+async function tocarArr() {
+    if (!ARRD || !golpes.length || tocando || arrCargando) return;
+    const url = urlVoz();
+    if (!url) { aviso('La canción no tiene grabación: el arreglo de cajón suena con ella.', true); return; }
+    asegurarAudio();
+    if (ctx.state === 'suspended') ctx.resume();
+    if (!grab) grab = GrabacionTono.crear(ctx, salida);
+    arrCargando = true;
+    try { aviso('Cargando la grabación…'); await grab.cargar(url); aviso(''); }
+    catch (e) { aviso('No se pudo cargar la grabación.', true); return; }
+    finally { arrCargando = false; }
+    datos.fin = grab.duracion;
+    if (posPausa >= datos.fin) posPausa = 0;
+    grab.alTerminar = () => { if (tocando) { pausar(); posPausa = 0; idxFx = 0; } };
+    await grab.tocar(posPausa, ARRD.audio?.semitonos || 0, 1, ARRD.audio?.saltos || null);
+    tocando = true;
+    arrDesde = posPausa - 1e-6; arrIdx = primerIdx(golpes, arrDesde); idxFx = arrIdx; ultVis = posPausa;
+    reloj = setInterval(programarArr, 25);
+    pintarPlay();
+}
+function programarArr() {
+    if (!tocando || !grab) return;
+    const o = grab.oido(); if (o === null) return;
+    while (arrIdx < golpes.length && golpes[arrIdx].t < o + 0.2) {
+        const g = golpes[arrIdx++];
+        if (g.t < arrDesde || grab.omitido(g.t)) continue;
+        const ctxT = Math.max(ctx.currentTime, grab.aCtx(g.t));
+        programados.push({ ctxT, nodos: g.tipo === 'grave' ? sonarGrave(ctxT, 0.35 + 0.65 * g.vel) : sonarAgudo(ctxT, 0.35 + 0.65 * g.vel) });
+    }
+    if (programados.length > 200) programados = programados.filter(p => p.ctxT > ctx.currentTime - 1);
+    if (window.parent !== window) { try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: o }, '*'); } catch (_) {} }
+}
+function pausarArr() {
+    if (!tocando) return;
+    posPausa = Math.max(0, grab ? (grab.oido() ?? posPausa) : posPausa);
+    tocando = false; clearInterval(reloj); reloj = null;
+    if (grab) grab.detener();
+    cancelarFuturos();
+    pintarPlay();
+    if (window.parent !== window) { try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: null }, '*'); } catch (_) {} }
+}
+function irArr(seg) {
+    const seguia = tocando;
+    if (seguia) pausarArr();
+    posPausa = Math.max(0, seg); idxFx = primerIdx(golpes, posPausa); ultVis = posPausa;
+    tocarArr();
+}
+if (ARR) {
+    document.body.classList.add('arreglo');
+    // Melodía / Karaoke (si la canción tiene las dos): cambia en la misma muestra
+    const bv = document.createElement('button');
+    bv.id = 'b-voz'; bv.title = 'Grabación con voz (Melodía) o sin voz (Karaoke)'; bv.style.width = '120px'; bv.style.visibility = 'hidden';
+    $('b-repetir').after(bv);
+    const ss = document.createElement('select');
+    ss.id = 'sel-sec'; ss.title = 'Ir a una sección de la canción';
+    ss.style.cssText = 'height:36px;width:150px;background:#334155;color:var(--texto);border:1px solid #475569;border-radius:8px;visibility:hidden';
+    bv.after(ss);
+    ss.onchange = () => { const v = ss.value; ss.value = ''; ss.blur(); if (v !== '') irArr(+v); };
+    bv.onclick = async () => {
+        bv.blur();
+        arrVoz = arrVoz === 'karaoke' ? 'melodia' : 'karaoke'; pintarVoz();
+        const url = urlVoz();
+        if (grab && url) { if (tocando) await grab.cambiar(url).catch(() => {}); else grab.cargar(url).catch(() => {}); }
+    };
+    if (VISTA_ARR) {
+        window.addEventListener('message', e => {
+            if (e.source !== window.parent) return;
+            if (e.data?.tipo === 'arreglo-cajon') ponerArreglo(e.data.datos);
+            if (e.data?.tipo === 'arreglo-detener') { if (tocando) pausarArr(); }
+            if (e.data?.tipo === 'arreglo-tocar' && typeof e.data.seg === 'number') irArr(e.data.seg);
+        });
+        aviso('Elige un ritmo para alguna sección y aparece aquí.');
+        try { window.parent.postMessage({ tipo: 'cajon-listo' }, '*'); } catch (_) {}
+    }
+}
 
 requestAnimationFrame(cuadro);
 </script>
