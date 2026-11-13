@@ -181,7 +181,8 @@
 
         <div class="card">
             <h3>④ Acordes <small>mismas notas en toda la canción</small></h3>
-            <div class="ayuda">Sin ritmo, cada acorde se toca con la mano izquierda. En las secciones con 🥁 ritmo, los acordes van con la mano derecha y el bajo con la izquierda, en estas octavas:</div>
+            <div class="fila"><span>Sin ritmo, los acordes van con la</span><select id="mano-acordes"><option value="izq">Mano izquierda</option><option value="der">Mano derecha</option></select></div>
+            <div class="ayuda">Con la mano derecha suenan en la octava de los acordes. En las secciones con 🥁 ritmo, los acordes van siempre con la mano derecha y el bajo con la izquierda, en estas octavas:</div>
             <div class="fila"><span>Acordes (mano derecha)</span><select id="oct-acordes"></select><span>Bajo (mano izquierda)</span><select id="oct-bajo"></select></div>
             <div class="ayuda">Dedos: <b>1</b> pulgar · <b>2</b> índice · <b>3</b> medio · <b>4</b> anular · <b>5</b> meñique. Toca una tecla del acorde para cambiar su dedo (izquierda en azul, derecha en verde).</div>
             <div id="acordes"></div>
@@ -256,6 +257,7 @@ const A = {
     // Cada sección puede llevar ritmo: { div, compases, bajo (bool), acordes: [[ini, largo]…], bajos: [[ini, largo]…] }
     // (ini y largo en casillas de la división; se repite en cada compás de la sección)
     octavas: { acordes: 4, bajo: 2 },
+    manoAcordes: 'izq',         // mano de los acordes en las secciones sin ritmo ('izq' | 'der')
     audio: { original: 'C', desde: 1 },    // desde = compás de la canción donde empieza el arreglo; adaptacion = id de una ✂ adaptación de la Ficha (GK)
 };
 
@@ -520,6 +522,12 @@ function desplegar() {
             } else c.forEach((nombre, i) => {
                 const v = A.voicings[nombre]; if (!v) return;
                 const t = (p + i * dur) * 4, d = dur * 4;
+                if (A.manoAcordes === 'der') {      // sin ritmo, con la mano derecha: en la octava de los acordes
+                    const der = acordeDer(nombre);
+                    acordes.push({ t, d, nombre, ms: der.m });
+                    der.m.forEach((m, k) => notas.push({ t, d, m, nombre: nombreNota(m), mano: 'der', dig: { piano: der.dedos[k] } }));
+                    return;
+                }
                 acordes.push({ t, d, nombre, ms: v.m });
                 v.m.forEach((m, k) => notas.push({ t, d, m, nombre: nombreNota(m), mano: 'izq', dig: v.dedos[k] ? { piano: v.dedos[k] } : {} }));
             });
@@ -860,6 +868,7 @@ function svgAcorde(ms, dedos, mano = 'izq') {
 const manoAcorde = {};          // acorde → mano cuyos dedos se ven ('izq' | 'der'); solo en esta pantalla
 // Mano con que se toca el acorde en el arreglo: izquierda si alguna sección sin ritmo lo usa; si solo va en secciones con 🥁 ritmo, derecha
 function manoDeAcorde(n) {
+    if (A.manoAcordes === 'der') return 'der';     // todo acorde va con la derecha
     if (manoAcorde[n]) return manoAcorde[n];
     const ids = modoFicha() ? itemsEstructura().filter(x => x.incluida && x.sec).map(x => x.sec) : A.orden;
     const usadas = A.secciones.filter(s => ids.includes(s.id));
@@ -875,7 +884,7 @@ function pintarAcordes() {
         if (!v) return `<div class="aco"><b>${esc(n)}</b><div class="ayuda">sin posición</div></div>`;
         const mano = manoDeAcorde(n), der = mano === 'der' ? acordeDer(n) : null;
         return `<div class="aco" data-n="${esc(n)}"><b>${esc(n)}</b>
-            <div class="manos"><button class="btn${mano === 'izq' ? ' on' : ''}" data-mano="izq" title="Dedos de la mano izquierda (secciones sin ritmo)">Izquierda</button><button class="btn${mano === 'der' ? ' on' : ''}" data-mano="der" title="Dedos de la mano derecha (secciones con 🥁 ritmo)">Derecha</button></div>
+            <div class="manos" style="visibility:${A.manoAcordes === 'der' ? 'hidden' : 'visible'}"><button class="btn${mano === 'izq' ? ' on' : ''}" data-mano="izq" title="Dedos de la mano izquierda (secciones sin ritmo)">Izquierda</button><button class="btn${mano === 'der' ? ' on' : ''}" data-mano="der" title="Dedos de la mano derecha (secciones con 🥁 ritmo)">Derecha</button></div>
             ${der ? svgAcorde(der.m, der.dedos, 'der') : svgAcorde(v.m, v.dedos)}
             <div class="ctr"><button class="btn" data-mov="-1" title="Más grave">▼</button><button class="btn" data-oir title="Escuchar">♪</button><button class="btn" data-mov="1" title="Más agudo">▲</button></div></div>`;
     }).join('') || '<div class="ayuda">Los acordes aparecen aquí al escribir las secciones.</div>';
@@ -1192,8 +1201,10 @@ function pintarOctavas() {
     $('oct-acordes').innerHTML = [3, 4, 5].map(o => `<option value="${o}">Octava ${o} (desde Do${o})</option>`).join('');
     $('oct-bajo').innerHTML = [1, 2, 3].map(o => `<option value="${o}">Octava ${o} (desde Do${o})</option>`).join('');
     $('oct-acordes').value = A.octavas.acordes; $('oct-bajo').value = A.octavas.bajo;
+    $('mano-acordes').value = A.manoAcordes === 'der' ? 'der' : 'izq';
 }
-$('oct-acordes').onchange = e => { A.octavas.acordes = +e.target.value; cambio(); };
+$('mano-acordes').onchange = e => { e.target.blur(); A.manoAcordes = e.target.value; pintarAcordes(); cambio(); };
+$('oct-acordes').onchange = e => { A.octavas.acordes = +e.target.value; pintarAcordes(); cambio(); };
 $('oct-bajo').onchange = e => { A.octavas.bajo = +e.target.value; cambio(); };
 
 // ══ Sonido del editor (escuchar un acorde) ════════════════════════════════════════════════

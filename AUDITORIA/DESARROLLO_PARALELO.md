@@ -9538,6 +9538,10 @@ Intro marcha, 25 compases, quedan ~10) y una secuencia de los compases que suena
   `desplegar()` reparte la secuencia, el ritmo y la melodía copiada de corrido en esos compases. La Estructura muestra
   "✂ 18 de 35" y compara la secuencia con los que suenan. Probado con Estrechez / Castigadas 2026: Coro 2 = 18 compases
   (163–179 + el 197), su secuencia tiene 14. Lugares: solo el editor del Arreglo (el Piano recibe el archivo ya armado).
+- **Mano de los acordes (2026-11-13, pedido del PO):** en ④ Acordes, "Sin ritmo, los acordes van con la mano izquierda /
+  derecha" (`A.manoAcordes`, en el contenido del arreglo). Con derecha, las secciones sin ritmo tocan cada acorde en la
+  octava de los acordes con los dedos de la derecha (`acordeDer`), y las tarjetas muestran solo la derecha. Antes los
+  botones Izquierda / Derecha de cada tarjeta solo cambiaban la vista.
 - **Arreglo previo (2026-11-12, ee36014, subido):** Guardar quedaba deshabilitado en arreglos con Ficha (el orden manual
   queda vacío cuando manda la Estructura). Ahora basta con tener secuencias (`hayAlgo`). El PO iba a recargar para
   recuperar su borrador (localStorage `arreglo_borrador:nuevo:<cancion>`) y guardarlo; sin confirmar.
