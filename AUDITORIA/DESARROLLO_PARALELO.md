@@ -9545,6 +9545,9 @@ Intro marcha, 25 compases, quedan ~10) y una secuencia de los compases que suena
 - **Acorde que suena, resaltado (2026-11-13, pedido del PO):** mientras toca la vista previa, el acorde que suena se
   resalta en verde dentro del texto de su secuencia (`dondeSuena` + `posicionesTexto`; fondo detrás del cuadro, que ahora
   crece con su texto); al detenerse queda marcado el último, para revisar ahí. Sigue la adaptación (HC) y las repeticiones.
+- **Ctrl + clic en un acorde (2026-11-13, pedido del PO):** la vista previa toca desde ese acorde. Si la secuencia suena
+  en varios lugares, va al que se está escuchando (o al último escuchado), si no al siguiente, si no al primero
+  (`lugaresSonido`). Clic simple sigue siendo para escribir; editar mientras suena no corta la vista previa (probado).
 - **Arreglo previo (2026-11-12, ee36014, subido):** Guardar quedaba deshabilitado en arreglos con Ficha (el orden manual
   queda vacío cuando manda la Estructura). Ahora basta con tener secuencias (`hayAlgo`). El PO iba a recargar para
   recuperar su borrador (localStorage `arreglo_borrador:nuevo:<cancion>`) y guardarlo; sin confirmar.

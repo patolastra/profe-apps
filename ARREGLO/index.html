@@ -716,7 +716,7 @@ function pintarSecciones() {
             <div class="sec-cab"><input type="text" data-c="nombre" value="${esc(s.nombre)}" placeholder="Nombre (A, B, Estrofa, Puente…)">
                 <button class="btn" data-acc="sumar" title="Agregar al final de la estructura"${modoFicha() ? ' style="display:none"' : ''}>＋ a la estructura</button>
                 <button class="btn" data-acc="borrar" title="Borrar la secuencia">🗑</button></div>
-            <div class="ta-caja"><div class="ta-fondo"></div><textarea data-c="acordes" placeholder="A / E / F#m / D" spellcheck="false">${esc(s.acordes)}</textarea></div>
+            <div class="ta-caja"><div class="ta-fondo"></div><textarea data-c="acordes" placeholder="A / E / F#m / D" spellcheck="false" title="Ctrl + clic en un acorde: la vista previa toca desde ahí">${esc(s.acordes)}</textarea></div>
             <div class="sec-mel"><label><input type="checkbox" data-c="melodia" ${s.melodia ? 'checked' : ''} ${A.melodia ? '' : 'disabled'}> Lleva la melodía</label>
                 <span>desde el compás</span><input type="number" data-c="melDesde" min="1" value="${s.melDesde || 1}">
                 <button class="btn btn-ritmo${s.ritmo ? ' on' : ''}" data-acc="ritmo" title="Ritmo de los acordes en esta sección">🥁 ${esc(nombreRitmo(s.ritmo))}</button></div>
@@ -778,9 +778,10 @@ function itemsEstructura() {
 function fijarEstructura() { A.estructura = itemsEstructura().map(({ clave, incluida, sec }) => ({ clave, incluida, sec })); }
 // Compás de la canción donde está el pulso 0 del arreglo
 const origenArreglo = () => modoFicha() ? seccionesMapa()[0].compas : (A.audio.desde || 1);
-let pulsoSonando = null, resaltado = null;
+let pulsoSonando = null, resaltado = null, ultimoPulso = null;
 function marcarSonando(p) {
     pulsoSonando = typeof p === 'number' ? p : null;
+    if (pulsoSonando !== null) ultimoPulso = pulsoSonando;
     const its = modoFicha() ? itemsEstructura() : [];
     const c = pulsoSonando === null ? null : origenArreglo() + pulsoSonando / A.compas;
     document.querySelectorAll('#estructura .est-fila').forEach(f => {
@@ -808,8 +809,8 @@ function posicionesTexto(txt) {
     return out;
 }
 // Qué suena en el pulso p (negras desde el origen, canción completa): { sec, compas, acorde } de la secuencia
-function dondeSuena(p) {
-    if (typeof p !== 'number') return null;
+// Cada lugar donde suena una secuencia: { sec, pos: [inicio de cada compás que suena, en negras] }
+function lugaresSonido() {
     const C = cortesArreglo();
     let lugares;
     if (modoFicha()) lugares = itemsEstructura().filter(x => x.incluida && x.sec).map(x => {
@@ -818,7 +819,11 @@ function dondeSuena(p) {
     });
     else { let q = 0; lugares = A.orden.map(id => { const s = A.secciones.find(x => x.id === id); const n = s ? compasesDe(s).compases.length : 0;
         const pos = Array.from({ length: n }, (_, k) => q + k * A.compas); q += n * A.compas; return { sec: id, pos }; }); }
-    for (const l of lugares) {
+    return lugares;
+}
+function dondeSuena(p) {
+    if (typeof p !== 'number') return null;
+    for (const l of lugaresSonido()) {
         const k = l.pos.findIndex(q => p >= q - 1e-6 && p < q + A.compas - 1e-6); if (k < 0) continue;
         const s = A.secciones.find(x => x.id === l.sec); if (!s) return null;
         const base = compasesDe(s).compases; if (!base.length) return null;
@@ -851,6 +856,27 @@ function marcarAcordeSonando(p) {
     });
 }
 $('secciones').addEventListener('input', e => { const caja = e.target.closest('.ta-caja'); if (caja) { autoAlto(e.target); pintarFondo(caja, null); resaltado = null; } });
+// Ctrl + clic en un acorde de una secuencia: la vista previa toca desde ahí. Si la secuencia suena en varios lugares, va al
+// que se está escuchando (o al último escuchado); si no, al primero que viene después; si no, al primero.
+$('secciones').addEventListener('click', e => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const ta = e.target.closest('textarea[data-c="acordes"]'), sec = e.target.closest('.sec'); if (!ta || !sec) return;
+    const cur = ta.selectionStart, P = posicionesTexto(ta.value);
+    let mejor = null;          // el acorde bajo el cursor o el más cercano
+    P.forEach((c, k) => c.forEach((r, i) => { const d = cur < r.a ? r.a - cur : cur > r.b ? cur - r.b : 0; if (!mejor || d < mejor.d) mejor = { k, i, d }; }));
+    if (!mejor) return;
+    const s = A.secciones.find(x => x.id === sec.dataset.id), base = s ? compasesDe(s).compases : []; if (!base.length) return;
+    const ref = ultimoPulso ?? 0, opciones = [];
+    for (const l of lugaresSonido()) {
+        if (l.sec !== sec.dataset.id) continue;
+        const enEste = l.pos.length && ref >= l.pos[0] - 1e-6 && ref < l.pos[l.pos.length - 1] + A.compas - 1e-6;
+        l.pos.forEach((q, j) => { if (j % base.length === mejor.k) opciones.push({ p: q + mejor.i * A.compas / base[mejor.k].length, enEste }); });
+    }
+    if (!opciones.length) return;
+    const ir = opciones.find(o => o.enEste) || opciones.find(o => o.p >= ref - 1e-6) || opciones[0];
+    enviarPrevia();
+    try { $('previa').contentWindow.postMessage({ tipo: 'arreglo-tocar', pulso: aComprimido(ir.p) }, '*'); } catch (_) {}
+});
 $('secciones').addEventListener('scroll', e => { const caja = e.target.closest?.('.ta-caja'); if (caja) caja.querySelector('.ta-fondo').scrollTop = e.target.scrollTop; }, true);
 function pintarEstructura() {
     const its = itemsEstructura();
