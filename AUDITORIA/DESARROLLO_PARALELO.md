@@ -9601,3 +9601,14 @@ entrar a la pestaña se edita").*
   canción se edita; uno de un estilo se edita como variación nueva de la canción (el estilo no se toca). "Listo" guarda
   en la Biblioteca (protocolo `ws-guardar`); si se cierra sin guardar, la sección vuelve a su ritmo de antes.
   Probado sin guardar (variación de Cumbia en el Coro 2); el guardado en la Biblioteca queda para que lo pruebe el PO.
+
+### HG. Todo se pone al día solo (Biblioteca, Entrenador, Ficha, Editor musical, Cajón, estudiantes) — PRINCIPIO APROBADO, PASO 1 POR APROBAR
+*Origen: PO 2026-11-13 ("esto debería ser un principio de actualización entre todos los elementos de la biblioteca y el
+entrenador y la ficha y el editor de arreglos"; "en general creo que se deberían actualizar solos"; sobre las copias:
+"empiezo a escribir un arreglo, no alcanzo a terminarlo, pero lo entrego y luego termino, por lo que creo que debería
+actualizarse solo").*
+- **Auditoría (2026-11-13):** no se pisan (cada uno guarda lo suyo), pero no se enteran: la Ficha lee la letra solo al
+  abrirse; el Entrenador no repinta las secciones de la Ficha con la canción abierta (la Biblioteca recarga con
+  `TiempoReal`, pero espera a que se cierre el Entrenador y su "foto" no mira el contenido de la Ficha); el arreglo copia
+  melodía y ritmos; su archivo del estudiante se rehace solo al guardar el arreglo.
+- **Principio (DECISIÓN del PO):** regla 12 de CLAUDE.md §4.
