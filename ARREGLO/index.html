@@ -73,6 +73,12 @@
     .sec textarea { width: 100%; margin-top: 6px; min-height: 52px; resize: vertical; background: #0f172a; border: 1px solid #475569; border-radius: 7px;
         padding: 6px 8px; font-family: ui-monospace, Consolas, monospace; font-size: 15px; }
     .sec-info { font-size: 12px; color: var(--tenue); margin-top: 4px; }
+    /* El acorde que suena se resalta en el texto (fondo detrás del cuadro, mismo texto y medidas) */
+    .sec .ta-caja { position: relative; margin-top: 6px; background: #0f172a; border-radius: 7px; }
+    .sec .ta-caja textarea { position: relative; z-index: 1; display: block; margin-top: 0; background: transparent; }
+    .sec .ta-fondo { position: absolute; inset: 0; overflow: hidden; pointer-events: none; color: transparent; white-space: pre-wrap;
+        overflow-wrap: break-word; border: 1px solid transparent; padding: 6px 8px; font-family: ui-monospace, Consolas, monospace; font-size: 15px; }
+    .sec .ta-fondo mark { color: transparent; background: #16a34a; border-radius: 4px; box-shadow: 0 0 0 2px #16a34a; }
     .sec-info .mal { color: #f87171; }
     .sec-mel { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--tenue); margin-top: 6px; }
     .sec-mel input[type=number] { width: 56px; height: 26px; }
@@ -710,7 +716,7 @@ function pintarSecciones() {
             <div class="sec-cab"><input type="text" data-c="nombre" value="${esc(s.nombre)}" placeholder="Nombre (A, B, Estrofa, Puente…)">
                 <button class="btn" data-acc="sumar" title="Agregar al final de la estructura"${modoFicha() ? ' style="display:none"' : ''}>＋ a la estructura</button>
                 <button class="btn" data-acc="borrar" title="Borrar la secuencia">🗑</button></div>
-            <textarea data-c="acordes" placeholder="A / E / F#m / D" spellcheck="false">${esc(s.acordes)}</textarea>
+            <div class="ta-caja"><div class="ta-fondo"></div><textarea data-c="acordes" placeholder="A / E / F#m / D" spellcheck="false">${esc(s.acordes)}</textarea></div>
             <div class="sec-mel"><label><input type="checkbox" data-c="melodia" ${s.melodia ? 'checked' : ''} ${A.melodia ? '' : 'disabled'}> Lleva la melodía</label>
                 <span>desde el compás</span><input type="number" data-c="melDesde" min="1" value="${s.melDesde || 1}">
                 <button class="btn btn-ritmo${s.ritmo ? ' on' : ''}" data-acc="ritmo" title="Ritmo de los acordes en esta sección">🥁 ${esc(nombreRitmo(s.ritmo))}</button></div>
@@ -718,6 +724,9 @@ function pintarSecciones() {
         </div>`;
     }).join('') || '<div class="ayuda">Aún no hay secuencias armónicas.</div>';
     $('b-traer-sec').style.display = modoFicha() ? '' : 'none';
+    // Cada cuadro crece con su texto (sin barra: así el resaltado calza con las líneas)
+    document.querySelectorAll('#secciones textarea[data-c="acordes"]').forEach(autoAlto);
+    resaltado = null; marcarAcordeSonando(pulsoSonando);
     // Estructura sin tempo (EW): las secciones existen por segundo, pero el arreglo va por compás
     $('sec-sin-tempo').style.visibility = !seccionesMapa().length && fichaCancion?.secciones?.length ? 'visible' : 'hidden';
 }
@@ -769,7 +778,7 @@ function itemsEstructura() {
 function fijarEstructura() { A.estructura = itemsEstructura().map(({ clave, incluida, sec }) => ({ clave, incluida, sec })); }
 // Compás de la canción donde está el pulso 0 del arreglo
 const origenArreglo = () => modoFicha() ? seccionesMapa()[0].compas : (A.audio.desde || 1);
-let pulsoSonando = null;
+let pulsoSonando = null, resaltado = null;
 function marcarSonando(p) {
     pulsoSonando = typeof p === 'number' ? p : null;
     const its = modoFicha() ? itemsEstructura() : [];
@@ -778,7 +787,71 @@ function marcarSonando(p) {
         const x = its[+f.dataset.i];
         f.classList.toggle('sonando', c !== null && !!x && c >= x.compas - 1e-6 && c < x.compas + x.largo - 1e-6);
     });
+    marcarAcordeSonando(pulsoSonando);
 }
+// ══ El acorde que suena, resaltado en su secuencia ══════════════════════════════════════════
+// Dónde está cada acorde en el texto: [[{ a, b }…] por compás], igual que compasesDe (los que no se entienden no cuentan)
+function posicionesTexto(txt) {
+    const t = String(txt || '').replace(/(^|\s)\/(?=\s|$)/g, '$1|'), out = [];
+    let previo = null, actual = [];
+    const re = /[|\n]|[^\s|]+/g; let m;
+    const cerrar = () => { if (actual.hasToks) out.push(actual.lista); actual = { lista: [], hasToks: false }; };
+    actual = { lista: [], hasToks: false };
+    while ((m = re.exec(t))) {
+        if (m[0] === '|' || m[0] === '\n') { cerrar(); continue; }
+        actual.hasToks = true;
+        const tok = m[0];
+        if (tok === '%' || tok === '-') { if (previo) actual.lista.push({ a: m.index, b: m.index + tok.length }); continue; }
+        if (leerAcorde(tok)) { previo = tok; actual.lista.push({ a: m.index, b: m.index + tok.length }); }
+    }
+    cerrar();
+    return out;
+}
+// Qué suena en el pulso p (negras desde el origen, canción completa): { sec, compas, acorde } de la secuencia
+function dondeSuena(p) {
+    if (typeof p !== 'number') return null;
+    const C = cortesArreglo();
+    let lugares;
+    if (modoFicha()) lugares = itemsEstructura().filter(x => x.incluida && x.sec).map(x => {
+        const ini = (x.compas - origenArreglo()) * A.compas;
+        return { sec: x.sec, pos: compasesQueSuenan(x, C) || Array.from({ length: x.largo }, (_, k) => ini + k * A.compas) };
+    });
+    else { let q = 0; lugares = A.orden.map(id => { const s = A.secciones.find(x => x.id === id); const n = s ? compasesDe(s).compases.length : 0;
+        const pos = Array.from({ length: n }, (_, k) => q + k * A.compas); q += n * A.compas; return { sec: id, pos }; }); }
+    for (const l of lugares) {
+        const k = l.pos.findIndex(q => p >= q - 1e-6 && p < q + A.compas - 1e-6); if (k < 0) continue;
+        const s = A.secciones.find(x => x.id === l.sec); if (!s) return null;
+        const base = compasesDe(s).compases; if (!base.length) return null;
+        const c = base[k % base.length], i = Math.min(c.length - 1, Math.floor((p - l.pos[k]) / (A.compas / c.length) + 1e-6));
+        return { sec: l.sec, compas: k % base.length, acorde: i };
+    }
+    return null;
+}
+function autoAlto(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 2 + 'px'; }
+function pintarFondo(caja, marca) {
+    const ta = caja.querySelector('textarea'), fondo = caja.querySelector('.ta-fondo'), txt = ta.value;
+    let html = esc(txt);
+    if (marca) { const r = posicionesTexto(txt)[marca.compas]?.[marca.acorde]; if (r) html = esc(txt.slice(0, r.a)) + '<mark>' + esc(txt.slice(r.a, r.b)) + '</mark>' + esc(txt.slice(r.b)); }
+    fondo.innerHTML = html + '\n';
+    fondo.scrollTop = ta.scrollTop;
+    return fondo.querySelector('mark');
+}
+function marcarAcordeSonando(p) {
+    if (typeof p !== 'number' && resaltado !== null) return;   // al detenerse queda marcado el último (para revisar ahí)
+    const d = dondeSuena(p), clave = d ? `${d.sec}|${d.compas}|${d.acorde}` : '';
+    if (clave === resaltado) return;
+    resaltado = clave;
+    document.querySelectorAll('#secciones .sec').forEach(el => {
+        const caja = el.querySelector('.ta-caja'); if (!caja) return;
+        const mk = pintarFondo(caja, d && d.sec === el.dataset.id ? d : null);
+        if (mk) {           // que el acorde se vea dentro del cuadro si el texto es largo
+            const ta = caja.querySelector('textarea'), y = mk.offsetTop;
+            if (y < ta.scrollTop || y > ta.scrollTop + ta.clientHeight - 20) { ta.scrollTop = y - 10; caja.querySelector('.ta-fondo').scrollTop = ta.scrollTop; }
+        }
+    });
+}
+$('secciones').addEventListener('input', e => { const caja = e.target.closest('.ta-caja'); if (caja) { autoAlto(e.target); pintarFondo(caja, null); resaltado = null; } });
+$('secciones').addEventListener('scroll', e => { const caja = e.target.closest?.('.ta-caja'); if (caja) caja.querySelector('.ta-fondo').scrollTop = e.target.scrollTop; }, true);
 function pintarEstructura() {
     const its = itemsEstructura();
     const opciones = sel => '<option value="">— sin secuencia —</option>' + A.secciones.map(sq =>

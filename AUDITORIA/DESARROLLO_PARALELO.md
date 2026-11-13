@@ -9542,6 +9542,9 @@ Intro marcha, 25 compases, quedan ~10) y una secuencia de los compases que suena
   derecha" (`A.manoAcordes`, en el contenido del arreglo). Con derecha, las secciones sin ritmo tocan cada acorde en la
   octava de los acordes con los dedos de la derecha (`acordeDer`), y las tarjetas muestran solo la derecha. Antes los
   botones Izquierda / Derecha de cada tarjeta solo cambiaban la vista.
+- **Acorde que suena, resaltado (2026-11-13, pedido del PO):** mientras toca la vista previa, el acorde que suena se
+  resalta en verde dentro del texto de su secuencia (`dondeSuena` + `posicionesTexto`; fondo detrás del cuadro, que ahora
+  crece con su texto); al detenerse queda marcado el último, para revisar ahí. Sigue la adaptación (HC) y las repeticiones.
 - **Arreglo previo (2026-11-12, ee36014, subido):** Guardar quedaba deshabilitado en arreglos con Ficha (el orden manual
   queda vacío cuando manda la Estructura). Ahora basta con tener secuencias (`hayAlgo`). El PO iba a recargar para
   recuperar su borrador (localStorage `arreglo_borrador:nuevo:<cancion>`) y guardarlo; sin confirmar.
