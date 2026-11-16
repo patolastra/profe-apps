@@ -9811,3 +9811,7 @@ pasajes específicos". Decisión del PO: con la grabación, en bucle; en el caj�
   arreglo una vez). Probado en el Editor con Dinosaurio, sin guardar: el metalófono ofrece 🔁 Estrofas, Coro y No fui
   feliz (precuenta y luego la grabación en 109,3 s); un pasaje del cajón (c. 32–33) repite 42,5 → 44,9 s con
   precuenta en cada vuelta.
+- **Paso 2 (2026-11-16):** PO: en el Cajón el menú muestra solo "🎵 Canción completa" y los pasajes, sin las
+  secciones de la canción (también en la vista previa del Editor). Canción completa = desde el comienzo de la
+  grabación (precuenta solo si la grabación parte en el compás 1); el menú muestra lo que suena. El Metalófono queda
+  con secciones + 🔁 Practicar.

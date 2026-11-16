@@ -1458,17 +1458,22 @@ function ponerArreglo(d) {
     aviso(golpes.length ? '' : 'Elige un ritmo para alguna sección y aparece aquí.');
     if (seguia) { posPausa = pos; tocar(); }
 }
-// Ir a… (HS): las secciones y, aparte, 🔁 Practicar = los pasajes del arreglo (se repiten con precuenta)
+// El menú (HS, PO 2026-11-16): "Canción completa" y los 🔁 pasajes para practicar (se repiten con precuenta); sin las
+// secciones de la canción. Muestra lo que está sonando.
 function pintarSelArr() {
     const ss = $('sel-sec'); if (!ss || !ARRD) return;
-    const L = (ARRD.secciones || []).filter(x => !(ARRD.audio?.saltos || []).some(t => x.s >= t.desde - 0.05 && x.s < t.hasta - 0.05));
-    const conCajon = x => { const i = L.indexOf(x), fin = L[i + 1]?.s ?? Infinity; return golpes.some(g => g.t >= x.s - 0.01 && g.t < fin); };
     const P = ARRD.practicar || [];
-    ss.innerHTML = '<option value="">Ir a…</option>' + L.map(x => `<option value="${x.s}">${conCajon(x) ? '🪘 ' : ''}${esc(x.nombre)}</option>`).join('')
-        + (P.length ? `<optgroup label="🔁 Practicar">${P.map((x, i) => `<option value="p${i}">🔁 ${esc(x.nombre)}</option>`).join('')}</optgroup>` : '')
-        + (arrLoop ? '<option value="stop">⏹ Dejar de repetir</option>' : '');
-    ss.value = arrLoop ? 'p' + P.indexOf(arrLoop) : '';
-    ss.style.visibility = L.length || P.length ? 'visible' : 'hidden';
+    ss.innerHTML = '<option value="todo">🎵 Canción completa</option>'
+        + P.map((x, i) => `<option value="p${i}">🔁 ${esc(x.nombre)}</option>`).join('');
+    ss.value = arrLoop ? 'p' + P.indexOf(arrLoop) : 'todo';
+    ss.style.visibility = 'visible';
+}
+// Canción completa: desde el comienzo de la grabación; con precuenta solo si la grabación parte en el compás 1 (si
+// trae introducción, ella da la entrada)
+function cancionCompleta() {
+    arrLoop = null; pintarSelArr();
+    const c0 = ARRD?.compases?.[0] ?? 0;
+    irArr(c0 < 0.5 ? c0 : 0, c0 < 0.5);
 }
 function practicarArr(x) {
     arrLoop = x || null; pintarSelArr();
@@ -1582,14 +1587,13 @@ if (ARR) {
     bv.id = 'b-voz'; bv.title = 'Grabación con voz (Melodía) o sin voz (Karaoke)'; bv.style.width = '120px'; bv.style.visibility = 'hidden';
     $('b-repetir').after(bv);
     const ss = document.createElement('select');
-    ss.id = 'sel-sec'; ss.title = 'Ir a una sección de la canción';
-    ss.style.cssText = 'height:36px;width:150px;background:#334155;color:var(--texto);border:1px solid #475569;border-radius:8px;visibility:hidden';
+    ss.id = 'sel-sec'; ss.title = 'Tocar la canción completa o practicar un pasaje (se repite)';
+    ss.style.cssText = 'height:36px;width:180px;background:#334155;color:var(--texto);border:1px solid #475569;border-radius:8px;visibility:hidden';
     bv.after(ss);
     ss.onchange = () => {          // con precuenta (HR); 🔁 un pasaje se repite (HS)
         const v = ss.value; ss.blur();
-        if (v === 'stop') { arrLoop = null; pintarSelArr(); return; }
         if (v[0] === 'p') { practicarArr((ARRD?.practicar || [])[+v.slice(1)]); return; }
-        ss.value = ''; if (v !== '') irArr(+v, true);
+        cancionCompleta();
     };
     // Velocidad (HR): − 100% ＋ al lado de Ir a…
     const gv = document.createElement('div'); gv.className = 'grupo'; gv.title = 'Velocidad (para practicar más lento, sin cambiar el tono)';
