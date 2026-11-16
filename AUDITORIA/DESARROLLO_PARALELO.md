@@ -9773,3 +9773,7 @@ para un ensayo en vivo en clases (cajón, metalófono y letra), todo con la adap
 - **Hecho:** en los dos, modo alumno en celular (no dentro de otra página), el primer toque pide pantalla completa y
   bloquea horizontal (se reintenta al siguiente si falla); el aviso dice "o toca aquí". Probado en vista de celular:
   los links `c/?r=` y `m/?r=` de Dinosaurio cargan acostados sin errores; el toque que gira se prueba en el celular.
+- **Paso 2 (2026-11-16):** PO: la cinta del arreglo de cajón dejaba huecos en los compases omitidos por la ✂
+  adaptación. Ahora la cinta cuenta solo los compases que suenan (`datos.vivos`; `segATick` y `tickASegArr` los
+  saltan; los golpes dentro de lo omitido no se dibujan). Vale para estudiante, vista previa del Editor y Ensayo.
+  Probado con Dinosaurio (Cuarto básico 2026): del compás 93 sigue el 98 sin hueco; ida y vuelta segundo ↔ cinta exacta.

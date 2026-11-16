@@ -1429,17 +1429,23 @@ function ponerArreglo(d) {
     ARRD = d || { golpes: [] };
     const comps = ARRD.compases || [], nc = ARRD.negrasCompas || 4, tc = Math.round(PPQ * nc);
     const den = +String(ARRD.cifra || '4/4').split('/')[1] || 4;
+    // Compases omitidos por la ✂ adaptación (HQ): la cinta no los muestra (sin huecos), como no suenan
+    const saltos = ARRD.audio?.saltos || [], omitido = s => saltos.some(t => s >= t.desde - 0.05 && s < t.hasta - 0.05);
+    const vivos = [], antes = [];          // vivos = índices de los compases que suenan; antes[i] = cuántos suenan antes del i
+    comps.forEach((s, i) => { antes[i] = vivos.length; if (!omitido(s)) vivos.push(i); });
     // Segundo de la grabación → tick (compás a compás, el tempo de la grabación puede variar)
     const segATick = s => {
         if (comps.length < 2) return 0;
         let i = 0; while (i + 1 < comps.length && comps[i + 1] <= s) i++;
+        if (omitido(comps[i])) return antes[i] * tc;             // dentro de lo omitido: donde sigue la canción
         const a = comps[i], b = comps[i + 1] ?? (a + (a - comps[i - 1]));
-        return (i + Math.max(0, Math.min(1, (s - a) / ((b - a) || 1)))) * tc;
+        return (antes[i] + Math.max(0, Math.min(1, (s - a) / ((b - a) || 1)))) * tc;
     };
     const fin = grab?.duracion || (comps.length ? comps[comps.length - 1] + 1 : 0);
-    datos = { ppq: PPQ, notas: [], comp: { num: Math.round(nc * den / 4), den }, ticksCompas: tc, finTick: Math.max(1, comps.length - 1) * tc,
-        fin, bpmBase: 120, tickASeg: t => t / TPS, segATick, gm: true, nombre: 'Arreglo' };
-    golpes = (ARRD.golpes || []).map(g => ({ t: g.s, tick: g.n * PPQ, tipo: g.t === 'grave' ? 'grave' : 'agudo', vel: 0.85, mano: 'R', fija: g.m || null }));
+    datos = { ppq: PPQ, notas: [], comp: { num: Math.round(nc * den / 4), den }, ticksCompas: tc, finTick: Math.max(1, vivos.length - 1) * tc,
+        fin, bpmBase: 120, tickASeg: t => t / TPS, segATick, vivos, gm: true, nombre: 'Arreglo' };
+    golpes = (ARRD.golpes || []).filter(g => !omitido(g.s))
+        .map(g => ({ t: g.s, tick: segATick(g.s), tipo: g.t === 'grave' ? 'grave' : 'agudo', vel: 0.85, mano: 'R', fija: g.m || null }));
     asignarManos();
     clics = []; repetir = false; ritmo = 1;
     ['b-inicio', 'b-play', 'b-atras', 'b-adelante'].forEach(id => { if ($(id)) $(id).disabled = !urlVoz(); });     // se puede escuchar aunque aún no haya ritmos
@@ -1530,7 +1536,9 @@ function saltarCompas(dir) {
 // Tick de la cinta → segundo de la grabación (al revés de segATick)
 function tickASegArr(tick) {
     const comps = ARRD?.compases || [], tc = datos?.ticksCompas || 1; if (comps.length < 2) return 0;
-    const i = Math.max(0, Math.floor(tick / tc)), f = tick / tc - i;
+    const vivos = datos?.vivos || comps.map((_, i) => i);      // sin los compases omitidos (HQ)
+    const k = Math.max(0, Math.floor(tick / tc)), f = tick / tc - k;
+    const i = k < vivos.length ? vivos[k] : comps.length - 1 + (k - vivos.length + 1);
     const a = comps[Math.min(i, comps.length - 1)], b = comps[i + 1] ?? (a + (comps[comps.length - 1] - comps[comps.length - 2]));
     return a + f * (b - a);
 }
