@@ -9755,3 +9755,13 @@ para un ensayo en vivo en clases (cajón, metalófono y letra), todo con la adap
   abre el Entrenador (#eef2f6) u oscuro (#0f172a) con ☀ / 🌙 (se recuerda en el equipo); el nombre de la sección en
   mayúsculas chicas arriba a la izquierda y "♪ SECCIÓN" en las partes sin letra, como las etiquetas del Entrenador; un
   verso largo se achica hasta caber (los dos con la misma letra). Probado a 1280 y 800 de ancho.
+
+### HP. Plan — vincular un arreglo a una actividad y abrir el Editor de arreglos — HECHA (2026-11-16)
+*Origen: PO 2026-11-16: "que se pueda llamar al editor de arreglos desde una actividad del planer".*
+- **Hecho:** el selector 🎵 de las actividades tiene una quinta pestaña **🎼 Arreglo** (los arreglos de las canciones
+  del curso; al buscar, toda la Biblioteca y la canción se suma al curso, como los demás vínculos). El vínculo
+  (`plan_cards.canciones` `{ cancion_id, asset_id }`, sin cambios en la base de datos) muestra "🎼 Canción · detalle"
+  y al tocarlo (en la actividad, en la Presentación y en la vista de clase) abre el Editor musical de la canción en su
+  pestaña 🎼 Arreglo y en ese arreglo (pestaña `editor:<canción>` del Workspace, la misma que abre la Biblioteca).
+  Probado: selector con las 5 pestañas en el Plan de 4° (aparece el arreglo de Dinosaurio Anacleto) y el vínculo abre
+  el Editor musical en el arreglo; no se agregó nada a ninguna actividad.
