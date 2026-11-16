@@ -50,6 +50,7 @@
             window.METAL_ARREGLO = true;
             document.documentElement.classList.add('arreglo-metal');
             if (q.get('vista') === 'arreglo') document.documentElement.classList.add('vista-arreglo');
+            if (q.get('vista') === 'arreglo' && q.get('seguir') === '1') document.documentElement.classList.add('seguir');   // 🎭 Ensayo (HO)
             document.write('<script src="../comun/grabacion-tono.js?v=hc"><\/script>');
         })();
     </script>
@@ -330,6 +331,7 @@
         html.arreglo-metal #arr-sec { font-size: calc(14 * var(--u)); height: calc(32 * var(--u)); border-radius: calc(8 * var(--u));
             background: #3d3d45; color: #fff; border: 0; padding: 0 calc(6 * var(--u)); max-width: calc(170 * var(--u)); }
         html.arreglo-metal #arr-voz { width: calc(118 * var(--u)); }
+        html.seguir header { display: none !important; }
         html.modo-alumno .solo-alumno { display: revert; }
         html.modo-alumno #btn-nuevo-midi,
         html.modo-alumno #btn-practice-wrap,
@@ -1495,6 +1497,28 @@
             alumnoAjustarPlacas();
             pintar();
 
+            // 🎭 Ensayo (HO): sin barra ni sonido; las placas se iluminan según el reloj de la página de Ensayo
+            if (VISTA && q.get('seguir') === '1') {
+                let eSeg = 0, eT0 = 0, eToca = false, encendidas = new Set();
+                const ahora = () => eToca ? eSeg + (performance.now() - eT0) / 1000 : eSeg;
+                window.addEventListener('message', e => {
+                    if (e.source !== window.parent) return;
+                    const d = e.data || {};
+                    if (d.tipo === 'arreglo-metalofono') { D = d.datos || { notas: [] }; }
+                    if (d.tipo === 'ensayo-seg' && typeof d.seg === 'number') { eSeg = d.seg; eT0 = performance.now(); eToca = !!d.tocando; }
+                });
+                const cuadro = () => {
+                    const t = ahora(), on = new Set();
+                    if (eToca || t > 0) for (const n of N()) { if (n.s > t) break; if (t < Math.max(n.e - 0.03, n.s + 0.12)) on.add(n.m); }
+                    encendidas.forEach(m => { if (!on.has(m)) noteOff(m); });
+                    on.forEach(m => { if (!encendidas.has(m)) noteOn(m); });
+                    encendidas = on;
+                    requestAnimationFrame(cuadro);
+                };
+                requestAnimationFrame(cuadro);
+                try { window.parent.postMessage({ tipo: 'metal-listo' }, '*'); } catch (_) {}
+                return;
+            }
             if (VISTA) {                 // vista previa del Editor de arreglos: los datos llegan por mensaje
                 window.addEventListener('message', e => {
                     if (e.source !== window.parent) return;

@@ -81,6 +81,9 @@
     #prog { flex: 0 0 auto; max-height: 46vh; overflow: auto; border-top: 1px solid var(--borde); background: #111c33;
         padding: 10px 14px 14px; }
     #prog[hidden], #cinta[hidden] { display: none; }
+    /* 🎭 Ensayo (HO): solo la figura y la cinta */
+    body.seguir #barra, body.seguir #aviso, body.seguir #indicadores { display: none !important; }
+    body.seguir #cinta { height: 30%; max-height: none; }
     .prog-config { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; color: var(--tenue); font-size: 14px; }
     .prog-config select, .prog-config button { background: #334155; color: var(--texto); border: 1px solid #475569;
         border-radius: 8px; height: 32px; padding: 0 10px; font-size: 14px; cursor: pointer; }
@@ -303,6 +306,12 @@ const DENTRO = new URLSearchParams(location.search).get('dentro') === '1';
 if (DENTRO) document.body.classList.add('dentro');
 const alArreglo = (msg) => { if (DENTRO) { try { window.parent.postMessage(msg, '*'); } catch (_) {} } };
 const ARR = VISTA_ARR || (ALUMNO && !!new URLSearchParams(location.search).get('r'));
+// 🎭 Ensayo (deuda HO): ?vista=arreglo&seguir=1 = sin barra ni sonido; sigue el reloj de la página de Ensayo (mensajes
+// 'ensayo-seg' { seg, tocando }) y dibuja figura, manos y cinta en ese segundo de la grabación
+const SEGUIR = VISTA_ARR && new URLSearchParams(location.search).get('seguir') === '1';
+if (SEGUIR) document.body.classList.add('seguir');
+let extSeg = 0, extT0 = 0, extTocando = false;
+const segExterno = () => extTocando ? extSeg + (performance.now() - extT0) / 1000 : extSeg;
 // ═══════════════════════════════════════════════════════════════════════════
 // LECTOR DE MIDI (propio, sin librerías): notas, tempo y compás
 // ═══════════════════════════════════════════════════════════════════════════
@@ -530,6 +539,7 @@ function asignarManos() {
 // RELOJ Y PROGRAMACIÓN DEL SONIDO
 // ═══════════════════════════════════════════════════════════════════════════
 function posEn(ctxT) {
+    if (SEGUIR) return segExterno();
     if (ARR) return grab && tocando ? (grab.oido() ?? posPausa) : posPausa;
     const a = (anclaPrev && ctxT < ancla.ctx0) ? anclaPrev : ancla;
     return a.pos0 + (ctxT - a.ctx0) * ritmo;
@@ -819,10 +829,10 @@ function dibujarCinta(vis) {
 // CUADRO A CUADRO
 // ═══════════════════════════════════════════════════════════════════════════
 function cuadro() {
-    let vis = posPausa;
-    if (tocando && ctx) {
-        const lat = ctx.outputLatency || ctx.baseLatency || 0;
-        vis = Math.max(0, posEn(ctx.currentTime - lat));
+    let vis = SEGUIR ? segExterno() : posPausa;
+    if (tocando && (ctx || SEGUIR)) {
+        const lat = ctx ? ctx.outputLatency || ctx.baseLatency || 0 : 0;
+        vis = Math.max(0, posEn(ctx ? ctx.currentTime - lat : 0));
         if (!repetir && vis >= datos.fin) { tocando = false; clearInterval(reloj); reloj = null; posPausa = 0; vis = 0; idxFx = 0; pintarPlay(); }
         else {
             if (vis < ultVis - 1e-3) {                                          // dio la vuelta
@@ -1566,6 +1576,14 @@ if (ARR) {
     if (VISTA_ARR) {
         window.addEventListener('message', e => {
             if (e.source !== window.parent) return;
+            if (SEGUIR && e.data?.tipo === 'ensayo-seg' && typeof e.data.seg === 'number') {
+                const antes = segExterno(), s = e.data.seg;
+                // un salto (⏪ ⏩, Ir a…) no dispara de golpe los efectos de lo que se saltó
+                if (Math.abs(s - antes) > 0.3) { idxFx = primerIdx(golpes, s); ultVis = s; }
+                extSeg = s; extT0 = performance.now(); extTocando = !!e.data.tocando;
+                tocando = extTocando; posPausa = s;
+                return;
+            }
             if (e.data?.tipo === 'arreglo-cajon') ponerArreglo(e.data.datos);
             if (e.data?.tipo === 'arreglo-detener') { if (tocando) pausarArr(); }
             if (e.data?.tipo === 'arreglo-tocar' && typeof e.data.seg === 'number') irArr(e.data.seg);

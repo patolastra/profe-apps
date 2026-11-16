@@ -40,6 +40,7 @@
 | Link / QR del alumno (`m/?a=&n=`) | alumno (sin Supabase) |
 | Vista previa de la pestaña 🎵 del Editor de arreglos (`?modo=alumno&vista=arreglo`) | alumno + arreglo con grabación (HJ) |
 | Link / QR del arreglo de metalófono (`m/?r=&n=`) | alumno + arreglo con grabación (HJ) |
+| 🎭 Ensayo (`?modo=alumno&vista=arreglo&seguir=1`) | sin barra ni sonido, sigue el reloj del Ensayo (HO) |
 
 ## Editor de Melodías (`MELODIA/index.html`, deuda DK)
 

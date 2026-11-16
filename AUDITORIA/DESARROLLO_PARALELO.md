@@ -9722,3 +9722,21 @@ completó sola con 17 y quedó muda ("la melodía no llega…").*
 - **Hecho:** si se pasa del final: con 🔁 en la anterior, sigue dentro de su vuelta (y hereda el 🔁); sin 🔁, parte en 1.
   El aviso dice "la melodía tiene N compases". Probado: 4 compases, Estrofa 1 de 16 con 🔁 → Estrofa 2 desde 1 con 🔁;
   la siguiente tras 6 compases → desde 3; sin 🔁 → desde 1.
+
+### HO. 🎭 Ensayo del arreglo — letra + cajón + metalófono a la vez, con la adaptación — HECHA (2026-11-16)
+*Origen: PO 2026-11-16: "quisiera poder renderizar los dos arreglos que tengo, más la letra de la canción al mismo tiempo
+para un ensayo en vivo en clases (cajón, metalófono y letra), todo con la adaptación 'Cuarto básico 2026'".*
+- **Diseño aprobado por el PO (con boceto):** arriba, franja de la letra (solo el verso que suena y el que viene);
+  abajo a la izquierda, el cajón (figura con las manos y debajo su cinta de golpes); abajo a la derecha, el metalófono.
+- **Técnica:** página `ENSAYO/index.html?r=<arreglo>`: una sola grabación (`GrabacionTono`, con los saltos de la
+  adaptación del arreglo) manda el tiempo; el Cajón (`?vista=arreglo&seguir=1`) y el Metalófono
+  (`?modo=alumno&vista=arreglo&seguir=1`) siguen ese reloj por mensaje (`ensayo-seg`), sin sonido propio. La letra y
+  su sincronía se leen de la Biblioteca (Supabase). Sin cambios en la base de datos. Se abre con 🎭 desde el Editor de
+  arreglos y desde la ficha de la canción en la Biblioteca.
+- **Hecho:** controles discretos arriba a la derecha (▶ ⏸, ⏪ ⏩ por compás, Ir a… sección, 🎤/🎶 si hay Karaoke, ⛶;
+  teclas Espacio, ← →, F). La letra muestra "♪" en partes instrumentales y salta los versos de lo omitido. Sin parte de
+  un instrumento, su lugar queda vacío. Botón 🎭 en la barra del Editor de arreglos (guarda antes) y en el arreglo de la
+  ficha de la canción (Biblioteca), abre la pestaña `ensayo:<id>` del Workspace. Probado con el arreglo real de
+  Dinosaurio Anacleto (`mwj7krwrrajn`, solo lectura): letra (28 versos), cajón y metalófono siguen la misma
+  grabación al mismo segundo, ⏩ por compás. Sin probar: proyectado en la sala. Siguiente posible: mandarlo a la
+  Pizarra con la clase en curso.

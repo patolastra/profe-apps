@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ensayo</title>
+<!--
+  🎭 Ensayo del arreglo (deuda HO): para ensayar en vivo en clase, proyectado. Arriba la letra (el verso que suena y el
+  que viene); abajo a la izquierda el cajón (figura, manos y cinta) y a la derecha el metalófono. Una sola grabación
+  (con la ✂ adaptación del arreglo) manda el tiempo; el Cajón y el Metalófono la siguen sin sonar (?seguir=1).
+  Dirección: ?r=<id del arreglo>. Lee arreglo/<id>.json (público) y la letra sincronizada de la Biblioteca.
+-->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
+<script src="../comun/un-sonido.js"></script>
+<script src="../comun/grabacion-tono.js?v=hc"></script>
+<style>
+    :root { --bg: #0b1020; --panel: #111827; --borde: #1f2937; --texto: #f8fafc; --tenue: #94a3b8; --acento: #fde047; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto); overflow: hidden;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    body { display: grid; grid-template-rows: 26vh 1fr; grid-template-columns: 28vw 1fr; }
+    #letra { grid-column: 1 / 3; background: #000; position: relative; display: flex; flex-direction: column;
+        justify-content: center; align-items: center; padding: 0 4vw; text-align: center; gap: 1.2vh; }
+    #verso { font-size: min(8vh, 4.6vw); font-weight: 800; line-height: 1.12; min-height: 1.12em; }
+    #verso.instr { color: var(--tenue); font-weight: 600; }
+    #sigue { font-size: min(4.6vh, 2.7vw); color: #64748b; font-weight: 600; line-height: 1.15; min-height: 1.15em; }
+    #cajon, #metal { border: 0; width: 100%; height: 100%; display: block; }
+    #cajon { border-right: 2px solid var(--borde); background: #0f172a; }
+    #metal { background: #FCFFA0; }
+    .oculto { visibility: hidden; }
+    /* Controles: arriba a la derecha de la letra, discretos (se ven más al pasar el mouse) */
+    #ctl { position: absolute; top: 8px; right: 10px; display: flex; gap: 6px; align-items: center; opacity: .55; transition: opacity .2s; }
+    #ctl:hover, body.pausa #ctl { opacity: 1; }
+    #ctl button, #ctl select { height: 34px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: var(--texto);
+        font-size: 15px; cursor: pointer; }
+    #ctl button { min-width: 40px; padding: 0 8px; }
+    #b-play { width: 56px; background: #15803d; border-color: #22c55e; }
+    #b-voz { width: 118px; }
+    #sel-sec { width: 150px; padding: 0 6px; }
+    #ctl button:disabled { opacity: .4; cursor: default; }
+    #titulo { position: absolute; top: 12px; left: 14px; font-size: 14px; color: var(--tenue); max-width: 40vw;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #aviso { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; padding: 30px;
+        background: var(--bg); color: var(--tenue); font-size: 18px; z-index: 10; }
+    #aviso.on { display: flex; }
+</style>
+</head>
+<body class="pausa">
+<div id="letra">
+    <div id="titulo"></div>
+    <div id="ctl">
+        <button id="b-atras" title="Un compás atrás (←)" disabled>⏪</button>
+        <button id="b-play" title="Tocar / pausa (Espacio)" disabled>▶</button>
+        <button id="b-adelante" title="Un compás adelante (→)" disabled>⏩</button>
+        <select id="sel-sec" title="Ir a una sección de la canción"></select>
+        <button id="b-voz" title="Grabación con voz (Melodía) o sin voz (Karaoke)" style="visibility:hidden">🎤 Melodía</button>
+        <button id="b-pantalla" title="Pantalla completa (F)">⛶</button>
+    </div>
+    <div id="verso"></div>
+    <div id="sigue"></div>
+</div>
+<iframe id="cajon" title="Cajón"></iframe>
+<iframe id="metal" title="Metalófono"></iframe>
+<div id="aviso">Cargando el ensayo…</div>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const q = new URLSearchParams(location.search), RID = (q.get('r') || '').trim();
+const BUCKET = 'repertorio-assets';
+const publica = p => `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${p}`;
+const sb = window.supabase && typeof SUPABASE_URL !== 'undefined' ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
+const aviso = t => { $('aviso').textContent = t; $('aviso').classList.toggle('on', !!t); };
+
+let ARR = null, AUD = null, LINEAS = [], COMPASES = [], SECC = [], SALTOS = [];
+let ctx = null, grab = null, tocando = false, pos = 0, voz = 'melodia', cargando = false;
+const urlVoz = () => AUD?.[voz] || AUD?.melodia || AUD?.karaoke || null;
+const omitido = s => SALTOS.some(t => s >= t.desde - 0.05 && s < t.hasta - 0.05);
+const ahora = () => tocando && grab ? (grab.oido() ?? pos) : pos;
+
+// ── Letra: las líneas como las arma la Biblioteca (orden de la letra + tiempos de la sincronía) ──
+function parseLRC(text) {
+    if (!text) return [];
+    const out = [], re = /\[(\d{2}):(\d{2})[.:](\d{2,3})(?:-(\d{2}):(\d{2})[.:](\d{2,3}))?\](.*)$/gm;
+    let m;
+    const ms = (mm, ss, cc) => parseInt(mm) * 60000 + parseInt(ss) * 1000 + (cc.length === 2 ? parseInt(cc) * 10 : parseInt(cc));
+    while ((m = re.exec(text)) !== null) out.push({ time: ms(m[1], m[2], m[3]), timeOut: m[4] ? ms(m[4], m[5], m[6]) : undefined, text: m[7].trim() });
+    return out.sort((a, b) => a.time - b.time);
+}
+function lineasDe(l) {
+    const cola = new Map();
+    parseLRC(l.synced).forEach(x => { if (!cola.has(x.text)) cola.set(x.text, []); cola.get(x.text).push(x); });
+    const base = l.contenido ? l.contenido.split('\n') : parseLRC(l.synced).map(x => x.text);
+    return base.map(raw => { const x = raw.trim(), ts = x ? cola.get(x)?.shift() : null;
+        return { t: ts ? ts.time / 1000 : null, f: ts?.timeOut != null ? ts.timeOut / 1000 : null, x }; })
+        .filter(y => y.x && y.t !== null).sort((a, b) => a.t - b.t);
+}
+let pintado = '';
+function pintarLetra(s) {
+    let i = -1;
+    for (let k = 0; k < LINEAS.length; k++) { if (LINEAS[k].t <= s + 0.05) i = k; else break; }
+    const act = i >= 0 ? LINEAS[i] : null;
+    // Después de un verso con final marcado, o mucho después del último, es una parte instrumental
+    const fuera = act && ((act.f !== null && s > act.f + 0.3) || (i === LINEAS.length - 1 && s > act.t + 12));
+    let j = i + 1; while (j < LINEAS.length && omitido(LINEAS[j].t)) j++;   // el que viene (saltando lo omitido)
+    const sig = LINEAS[j] || null;
+    const v = !act || fuera ? (sig ? '♪' : '') : act.x, n = sig ? sig.x : '';
+    const clave = v + '|' + n;
+    if (clave === pintado) return;
+    pintado = clave;
+    $('verso').textContent = v; $('verso').classList.toggle('instr', v === '♪');
+    $('sigue').textContent = n;
+}
+
+// ── Reloj: la grabación manda; el Cajón y el Metalófono lo siguen ──
+const marcos = () => [$('cajon').contentWindow, $('metal').contentWindow];
+function avisarReloj() {
+    const m = { tipo: 'ensayo-seg', seg: ahora(), tocando };
+    marcos().forEach(w => { try { w.postMessage(m, '*'); } catch (_) {} });
+}
+setInterval(avisarReloj, 60);
+(function cuadro() { pintarLetra(ahora()); requestAnimationFrame(cuadro); })();
+
+function pintar() {
+    $('b-play').textContent = tocando ? '⏸' : '▶';
+    const hay = !!urlVoz();
+    ['b-play', 'b-atras', 'b-adelante'].forEach(id => { $(id).disabled = !hay; });
+    $('b-voz').style.visibility = AUD?.melodia && AUD?.karaoke ? 'visible' : 'hidden';
+    $('b-voz').textContent = voz === 'karaoke' ? '🎶 Karaoke' : '🎤 Melodía';
+    document.body.classList.toggle('pausa', !tocando);
+}
+async function tocar() {
+    if (tocando || cargando || !urlVoz()) return;
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    if (!grab) { grab = GrabacionTono.crear(ctx, ctx.destination); }
+    cargando = true; $('b-play').textContent = '⏳';
+    try { await grab.cargar(urlVoz()); } catch (e) { cargando = false; pintar(); aviso('No se pudo cargar la grabación.'); return; }
+    cargando = false;
+    if (pos >= grab.duracion - 0.05) pos = 0;
+    grab.alTerminar = () => { if (tocando) { pausar(); pos = 0; avisarReloj(); } };
+    await grab.tocar(pos, AUD.semitonos || 0, 1, SALTOS.length ? SALTOS : null);
+    tocando = true; pintar(); avisarReloj();
+}
+function pausar() {
+    if (!tocando) return;
+    pos = Math.max(0, grab.oido() ?? pos);
+    tocando = false; grab.detener(); pintar(); avisarReloj();
+}
+function ir(seg, tocarYa) {
+    const seguia = tocando;
+    if (seguia) pausar();
+    pos = Math.max(0, seg); avisarReloj();
+    if (seguia || tocarYa) tocar();
+}
+function saltar(dir) {
+    const L = COMPASES.filter(s => !omitido(s)), p = ahora();
+    const d = dir < 0 ? [...L].reverse().find(s => s < p - (tocando ? 0.4 : 0.02)) ?? 0 : L.find(s => s > p + 0.02);
+    if (d !== undefined) ir(d, false);
+}
+$('b-play').onclick = e => { e.target.blur(); tocando ? pausar() : tocar(); };
+$('b-atras').onclick = e => { e.target.blur(); saltar(-1); };
+$('b-adelante').onclick = e => { e.target.blur(); saltar(1); };
+$('sel-sec').onchange = e => { const v = e.target.value; e.target.value = ''; e.target.blur(); if (v !== '') ir(+v, true); };
+$('b-voz').onclick = async e => {
+    e.target.blur(); voz = voz === 'karaoke' ? 'melodia' : 'karaoke'; pintar();
+    if (grab && urlVoz()) { if (tocando) await grab.cambiar(urlVoz()).catch(() => {}); else grab.cargar(urlVoz()).catch(() => {}); }
+};
+const pantalla = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.(); };
+$('b-pantalla').onclick = e => { e.target.blur(); pantalla(); };
+document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'SELECT') return;
+    if (e.code === 'Space') { e.preventDefault(); $('b-play').click(); }
+    else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') { e.preventDefault(); saltar(e.code === 'ArrowLeft' ? -1 : 1); }
+    else if (e.code === 'KeyF') pantalla();
+});
+// El teclado también funciona con el foco dentro de un marco (clic en el cajón o el metalófono)
+window.addEventListener('blur', () => setTimeout(() => { if (document.activeElement?.tagName === 'IFRAME') window.focus(); }, 0));
+if (window.UnSonido) UnSonido.alDetener(() => pausar(), () => tocando);
+
+// ── Los datos a cada marco, cuando avisa que está listo ──
+window.addEventListener('message', e => {
+    const t = e.data?.tipo;
+    if (t === 'cajon-listo' && e.source === $('cajon').contentWindow && ARR?.cajon) e.source.postMessage({ tipo: 'arreglo-cajon', datos: ARR.cajon }, '*');
+    if (t === 'metal-listo' && e.source === $('metal').contentWindow && ARR?.metalofono) e.source.postMessage({ tipo: 'arreglo-metalofono', datos: ARR.metalofono }, '*');
+});
+
+async function iniciar() {
+    if (!RID) { aviso('Abre el Ensayo desde un arreglo (Editor de arreglos o Biblioteca).'); return; }
+    try {
+        const r = await fetch(publica(`arreglo/${encodeURIComponent(RID)}.json`) + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error('sin archivo');
+        ARR = await r.json();
+    } catch (_) { aviso('Este arreglo aún no está listo: ábrelo en su editor y guárdalo.'); return; }
+    const parte = ARR.cajon || ARR.metalofono;
+    if (!parte) { aviso('Este arreglo no tiene parte de cajón ni de metalófono.'); return; }
+    AUD = parte.audio || ARR.audio || {};
+    SALTOS = AUD.saltos || [];
+    COMPASES = parte.compases || [];
+    SECC = (parte.secciones || []).filter(x => !omitido(x.s));
+    $('sel-sec').innerHTML = '<option value="">Ir a…</option>' + SECC.map(x => `<option value="${x.s}">${String(x.nombre).replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;')}</option>`).join('');
+    const nombre = q.get('n') || [ARR.cancion, ARR.etiqueta].filter(Boolean).join(' — ') || 'Arreglo';
+    $('titulo').textContent = '🎭 ' + nombre; document.title = nombre + ' · Ensayo';
+    // Sin parte de un instrumento, su lugar queda vacío
+    if (ARR.cajon) $('cajon').src = '../CAJON-PERUANO/index.html?vista=arreglo&seguir=1';
+    else $('cajon').classList.add('oculto');
+    if (ARR.metalofono) $('metal').src = encodeURI('../METALÓFONO APP/METAL21 (ALPHA).HTML') + '?modo=alumno&vista=arreglo&seguir=1';
+    else $('metal').classList.add('oculto');
+    // La letra sincronizada de la canción (Biblioteca)
+    try {
+        if (sb) {
+            const { data: a } = await sb.from('repertorio_assets').select('cancion_id').eq('id', RID).single();
+            const { data: ls } = await sb.from('repertorio_assets').select('contenido, synced').eq('cancion_id', a.cancion_id).eq('tipo', 'letra');
+            const l = (ls || []).find(x => (x.synced || '').trim()) || (ls || [])[0];
+            if (l) LINEAS = lineasDe(l);
+        }
+    } catch (_) {}
+    if (!LINEAS.length) $('sigue').textContent = 'La letra de la canción aún no está sincronizada (Entrenador).';
+    aviso('');
+    pintar();
+    // Deja la grabación lista para que ▶ parta de inmediato
+    try { ctx = new (window.AudioContext || window.webkitAudioContext)(); grab = GrabacionTono.crear(ctx, ctx.destination); grab.precargar(AUD.melodia); grab.precargar(AUD.karaoke); } catch (_) {}
+}
+iniciar();
+</script>
+</body>
+</html>
