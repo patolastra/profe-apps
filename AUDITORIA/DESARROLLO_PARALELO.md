@@ -9625,3 +9625,17 @@ actualizarse solo").*
   secciones; rehacer de un arreglo inexistente no escribe nada (un archivo de prueba que sí se alcanzó a escribir se borró).
   Sin probar: el rehacer real sobre un arreglo del PO (escribe su archivo de estudiantes).
 - **Siguen (paso 2):** Cantar y la letra; avisar antes de borrar algo que otro usa; el resto de la Biblioteca.
+
+### HH. Cifra 1/4 en todo el sistema — HECHA (2026-11-16)
+*Origen: PO 2026-11-16 ("quiero poder tener el compás de 1/4 en el tempomapper, lo que implicaría todo el editor de arreglos").*
+- **Alcance aprobado:** 1/4 entra a las cifras del sistema (`TempoMapa.CIFRAS` en `comun/tempo-mapa.js` y la copia del
+  Cajón), contado en negras (1 pulso por compás). Vale para la canción entera o para un compás suelto (cambio de cifra).
+  Sin Supabase. Lugares: Ficha (TEMPO), Biblioteca (ficha), Editor de arreglos (piano y cajón), Melodías, Cajón,
+  Metrónomo (RITMOS), Piano del estudiante, Lector (sincronía con la canción).
+- **Hecho (2026-11-16):** 1/4 en `TempoMapa.CIFRAS` (`tempo-mapa.js?v=hh` en las 8 páginas) y en la copia del Cajón. En los
+  ritmos del Arreglo, en 1/4 queda "Negra" + "Corcheas" (sin "Negras" repetido). Probado: mapa con compases de 1/4 y
+  cambio a 4/4 (segundos y compases correctos); cambiar un compás suelto a 1/4 en la Ficha (los dos modos); Metrónomo
+  tocando en 1/4; Cajón (cuadrícula de una negra por compás); Arreglo y Melodías aceptan 1/4.
+- **Límite que ya existía (no es del 1/4):** el Editor de arreglos usa una sola cifra para toda la canción. Si la Ficha
+  cambia de cifra a mitad de la canción (un compás de 1/4, o de 2/4, en una canción en 4/4), lo que viene después queda
+  corrido respecto de la grabación. Arreglarlo es un paso aparte, a decidir por el PO.

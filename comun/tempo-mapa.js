@@ -235,8 +235,8 @@
     const nombreTonalidad = t => t?.tonica ? `${SOLF[t.tonica[0]]}${t.tonica[1] === '#' ? '♯' : t.tonica[1] === 'b' ? '♭' : ''} ${t.modo}` : '';
     // Las tónicas que se ofrecen (las mismas del Editor de Melodías y del Arreglo)
     // Cifras del sistema (deuda FO): las ofrecen la Ficha y todas las apps musicales. Cómo se cuenta cada una:
-    // x/4 en negras · 2/2 en blancas · 6/8, 9/8 y 12/8 en negra con punto · 3/8 y 7/8 en corcheas.
-    const CIFRAS = ['2/4', '3/4', '4/4', '5/4', '6/4', '7/4', '2/2', '3/8', '6/8', '7/8', '9/8', '12/8'];
+    // x/4 en negras (también 1/4, deuda HH) · 2/2 en blancas · 6/8, 9/8 y 12/8 en negra con punto · 3/8 y 7/8 en corcheas.
+    const CIFRAS = ['1/4', '2/4', '3/4', '4/4', '5/4', '6/4', '7/4', '2/2', '3/8', '6/8', '7/8', '9/8', '12/8'];
     // → { texto, n, d, compas (negras por compás), pulso (negras por pulso contado), pulsos (por compás),
     //     figura (del pulso: ♩ 𝅗𝅥 ♩. ♪), mapa (negras por pulso del mapa de tempo = 4/d) } o null
     function cifraInfo(texto) {
