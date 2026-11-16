@@ -47,6 +47,12 @@
         (function () {
             const q = new URLSearchParams(location.search);
             if (q.get('modo') !== 'alumno' || !(q.get('r') || q.get('vista') === 'arreglo')) return;
+            // ?r=<id>&mel=<i> (HT): una melodía del arreglo sola, en el Metalófono de siempre (▶ con ritmo, 🎯 Práctica)
+            if (q.get('r') && q.get('mel') !== null) {
+                window.MEL_ARREGLO = { r: q.get('r'), i: Math.max(0, parseInt(q.get('mel'), 10) || 0) };
+                document.documentElement.classList.add('mel-arreglo');
+                return;
+            }
             window.METAL_ARREGLO = true;
             document.documentElement.classList.add('arreglo-metal');
             if (q.get('vista') === 'arreglo') document.documentElement.classList.add('vista-arreglo');
@@ -331,6 +337,12 @@
         html.arreglo-metal #arr-sec { font-size: calc(14 * var(--u)); height: calc(32 * var(--u)); border-radius: calc(8 * var(--u));
             background: #3d3d45; color: #fff; border: 0; padding: 0 calc(6 * var(--u)); max-width: calc(170 * var(--u)); }
         html.arreglo-metal #arr-voz { width: calc(118 * var(--u)); }
+        /* Melodía de un arreglo en el Metalófono de siempre (HT) y su entrada desde el arreglo */
+        #mel-volver { display: none; }
+        html.mel-arreglo #mel-volver { display: inline-block; }
+        #arr-sola { position: fixed; left: calc(10 * var(--u, 1px)); top: calc(64 * var(--u, 1px)); z-index: 40; visibility: hidden;
+            font-size: calc(15 * var(--u, 1px)); font-weight: 700; padding: calc(8 * var(--u, 1px)) calc(14 * var(--u, 1px));
+            border-radius: calc(10 * var(--u, 1px)); border: 0; background: var(--orange); color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.3); }
         html.arreglo-metal #arr-vel { display: inline-block; width: calc(46 * var(--u)); text-align: center; font-size: calc(14 * var(--u)); font-weight: 700; color: #fff; }
         html.seguir header { display: none !important; }
         #seguir-sonido { position: fixed; top: 8px; right: 8px; z-index: 50; width: 46px; height: 46px; border-radius: 50%;
@@ -514,6 +526,7 @@
             </div>
         </div>
         <div class="ctrl-group" id="grupo-centro">
+            <button id="mel-volver" title="Volver al arreglo, con la canción">↩ Con la canción</button>
             <span id="alumno-titulo" class="solo-alumno"></span>
             <button id="btn-cambiar-cifrado" title="Cambiar cifrado">🔤 Cifrado</button>
             <div id="colores-wrap" style="position: relative; display: inline-block;">
@@ -650,7 +663,7 @@
         let countingIn = false;
 
         // Repetir +5 (deuda AF n°1, solo modo profesor): preferencia y tope persistidos.
-        let repetirOn = !MODO_ALUMNO && localStorage.getItem('metal_repetir') === 'true';
+        let repetirOn = window.MEL_ARREGLO ? true : !MODO_ALUMNO && localStorage.getItem('metal_repetir') === 'true';   // HT: siempre en bucle
         let repetirTope = parseInt(localStorage.getItem('metal_repetir_tope')) || 140;
         let bpmInicial = null;   // velocidad con que se partió; se recupera al detener
         let playSeq = 0;         // cada reproducción tiene su número (evita detener una nueva con un aviso viejo)
@@ -879,8 +892,8 @@
                     }, (inicio + note.ticks) + "i");
                 });
             });
-            const fin = inicio + currentMidi.durationTicks;
-            if (!(repetirOn && !MODO_ALUMNO)) {
+            const fin = inicio + (window.MEL_ARREGLO?.largo || currentMidi.durationTicks);   // HT: el tramo entero
+            if (!(repetirOn && (!MODO_ALUMNO || window.MEL_ARREGLO))) {
                 const seq = playSeq;   // fin de la melodía con temporizador (no depende del dibujo)
                 Tone.Transport.scheduleOnce((time) => alTiempo(time, () => { if (seq === playSeq && isPlaying) stopAudio(); }), fin + "i");
                 return;
@@ -897,7 +910,7 @@
             }, inicio + "i");
             // Subida de velocidad justo al terminar la vuelta (antes de la precuenta siguiente).
             Tone.Transport.scheduleOnce((time) => {
-                const nuevo = globalBPM >= repetirTope ? globalBPM : Math.min(globalBPM + 5, repetirTope);
+                const nuevo = window.MEL_ARREGLO || globalBPM >= repetirTope ? globalBPM : Math.min(globalBPM + 5, repetirTope);   // HT: misma velocidad
                 Tone.Transport.bpm.setValueAtTime(nuevo, time);
                 alTiempo(time, () => { if (isPlaying) mostrarBPM(nuevo); });
                 globalBPM = nuevo;
@@ -1226,7 +1239,51 @@
         const _urlMidi = MODO_ALUMNO
             ? (/^[a-z0-9]{6,40}$/i.test(_alumnoId) ? ALUMNO_STORAGE + _alumnoId + '.mid' : null)
             : new URLSearchParams(location.search).get('midi');
-        if (MODO_ALUMNO && !window.METAL_ARREGLO) alumnoInit(!!_urlMidi);
+        if (MODO_ALUMNO && !window.METAL_ARREGLO) alumnoInit(!!_urlMidi || !!window.MEL_ARREGLO);
+        // Una melodía del arreglo (HT): sus notas (en segundos de la grabación) pasan a un MIDI con su ritmo, al tempo de
+        // la grabación en ese tramo y con la cifra de la canción; lo omitido por la adaptación se salta
+        if (window.MEL_ARREGLO) (async () => {
+            const { r, i } = window.MEL_ARREGLO, q = new URLSearchParams(location.search);
+            const STORAGE = window.METAL_ALUMNO_STORAGE.replace(/midi\/$/, '');
+            const volver = new URL(location.href); volver.searchParams.delete('mel'); volver.searchParams.set('p', String(i));
+            document.getElementById('mel-volver').onclick = () => location.replace(volver.toString());
+            try {
+                const d = await fetch(`${STORAGE}arreglo/${encodeURIComponent(r)}.json?t=${Date.now()}`, { cache: 'no-store' }).then(x => { if (!x.ok) throw new Error(); return x.json(); });
+                const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+                const M = d.metalofono, P = M && (M.practicar || [])[i];
+                if (!P || (d.hasta && hoy > d.hasta)) throw new Error();
+                const saltos = M.audio?.saltos || [], omit = x => saltos.some(t => x >= t.desde - 0.05 && x < t.hasta - 0.05);
+                const comps = M.compases || [], nc = M.negrasCompas || 4, vivos = [], antes = [];
+                comps.forEach((x, k) => { antes[k] = vivos.length; if (!omit(x)) vivos.push(k); });
+                const negra = x => {           // segundo de la grabación → negras (sin los compases omitidos)
+                    let k = 0; while (k + 1 < comps.length && comps[k + 1] <= x) k++;
+                    if (omit(comps[k])) return antes[k] * nc;
+                    const a = comps[k], b = comps[k + 1] ?? (a + (a - comps[k - 1]));
+                    return (antes[k] + Math.max(0, Math.min(1, (x - a) / ((b - a) || 1)))) * nc;
+                };
+                const b0 = negra(P.desde), b1 = negra(P.hasta);
+                const notas = (M.notas || []).filter(n => n.s >= P.desde - 0.01 && n.s < P.hasta - 0.01 && !omit(n.s));
+                if (!notas.length) throw new Error();
+                const midi = new Midi(), ppq = midi.header.ppq;
+                const [cn, cd] = String(M.cifra || '4/4').split('/').map(Number);
+                midi.header.setTempo(Math.round((b1 - b0) / Math.max(0.5, P.hasta - P.desde - saltos.reduce((q2, t) => q2 + Math.max(0, Math.min(t.hasta, P.hasta) - Math.max(t.desde, P.desde)), 0)) * 60));
+                midi.header.timeSignatures.push({ ticks: 0, timeSignature: [cn || 4, cd || 4], measures: 0 });
+                midi.header.name = P.nombre;
+                const pista = midi.addTrack();
+                notas.forEach(n => {
+                    const t0 = negra(n.s) - b0, t1 = Math.min(negra(n.e), b1) - b0;
+                    pista.addNote({ midi: n.m, ticks: Math.round(t0 * ppq), durationTicks: Math.max(Math.round(ppq / 8), Math.round((t1 - t0) * ppq)), velocity: 0.8 });
+                });
+                window.MEL_ARREGLO.largo = Math.round((b1 - b0) * ppq);   // la vuelta dura todo el tramo (con sus silencios)
+                const nombre = [q.get('n'), P.nombre].filter(Boolean).join(' · ');
+                cargarMidiBuffer(midi.toArray().buffer, nombre);
+                alumnoMidiListo();
+                document.getElementById('alumno-nombre').textContent = nombre;
+                const tt = document.getElementById('alumno-titulo'); tt.textContent = P.nombre; tt.title = nombre;
+                document.title = nombre + ' · Metalófono';
+            } catch (e) { alumnoMsg('Esta melodía no está disponible. Pídele al profe el enlace de nuevo.'); }
+        })();
+
         if (_urlMidi) {
             btnNuevoMidi.style.display = 'none';
             statusDiv.innerText = "Cargando MIDI…";
@@ -1325,7 +1382,11 @@
             melodyNoteVisible = false;
             practiceIndex++;
             if (practiceIndex >= practiceSequence.length) {              // fin de la melodía
-                alumnoFinTimer = setTimeout(() => { alumnoFinTimer = null; stopPractice(); }, 2000);
+                alumnoFinTimer = setTimeout(() => {
+                    alumnoFinTimer = null;
+                    if (window.MEL_ARREGLO && practiceMode === 'melody') { practiceIndex = 0; alumnoMostrarNota(0); return; }   // HT: en bucle
+                    stopPractice();
+                }, 2000);
                 return;
             }
             if (practiceSequence[practiceIndex] === anterior) {         // nota repetida
@@ -1398,11 +1459,22 @@
                     + P.map((x, i) => `<option value="p${i}">🔁 ${e(x.nombre)}</option>`).join('');
                 sel.value = loop ? 'p' + P.indexOf(loop) : 'todo';
                 sel.style.visibility = 'visible';
+                const bs = document.getElementById('arr-sola'); if (bs) bs.style.visibility = loop ? 'visible' : 'hidden';
             }
             function practicar(x) {
                 loop = x || null; pintarSel();
                 if (x) ir(x.desde, true, true, true);
             }
+            // 🎯 Sin la canción (HT): la melodía elegida en el Metalófono de siempre (▶ con ritmo, 🎯 Práctica nota por nota)
+            const bSola = document.createElement('button'); bSola.id = 'arr-sola'; bSola.textContent = '🎯 Sin la canción';
+            bSola.title = 'Esta melodía sola, como en el Metalófono de siempre: con ritmo o nota por nota';
+            bSola.onclick = () => {
+                const P = D?.practicar || [], i = P.indexOf(loop); if (i < 0) return;
+                if (tocando) pausar();
+                const u = new URL(location.href); u.searchParams.delete('p'); u.searchParams.set('mel', String(i));
+                location.href = u.toString();
+            };
+            if (!VISTA) document.body.appendChild(bSola);
             // Velocidad para practicar (HR): de 50% a 100%, de a 5 puntos, sin cambiar el tono; sonando cambia sin cortar
             const bMenos = mk('arr-vel-menos', '−', 'Más lento', () => cambiarVel(vel - 0.05));
             const bMas = mk('arr-vel-mas', '＋', 'Más rápido (hasta la velocidad de la canción)', () => cambiarVel(vel + 0.05));
@@ -1617,6 +1689,8 @@
                     const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
                     if (!d.metalofono || (d.hasta && hoy > d.hasta)) throw new Error();
                     ponerDatos(d.metalofono);
+                    const pv = q.get('p'), Pv = pv !== null && (D.practicar || [])[+pv];   // al volver de 🎯 Sin la canción (HT)
+                    if (Pv) { loop = Pv; pos = Pv.desde; pintarSel(); }
                     document.title = (document.getElementById('alumno-titulo').title || 'Arreglo') + ' · Metalófono';
                     msg(''); bTocar.disabled = false;
                 })

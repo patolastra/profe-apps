@@ -101,7 +101,7 @@ Columna vertebral de la interoperabilidad. Toda app nueva debe respetarlo.
 | `?tab=<path>` | Path relativo a `tabs/TABS/` | Lector |
 | `?a=<id>` / `?s=<sección>` | Tablatura **publicada** para estudiantes (modo público, solo esa sección si viene `s`); link corto `t/?a=&s=` | Lector |
 | `?modo=alumno&a=<id>&n=` | Ritmo de cajón **publicado** para estudiantes (archivo público `cajon/<id>.json`); link corto `c/?a=&n=` | Cajón |
-| `?modo=alumno&r=<id>&n=` · `?modo=alumno&vista=arreglo` | Parte de metalófono de un **arreglo** (archivo público `arreglo/<id>.json`, campo `metalofono`, con la grabación; deuda HJ); link corto `m/?r=&n=` · vista previa del Editor de arreglos | Metalófono |
+| `?modo=alumno&r=<id>&n=` · `?modo=alumno&vista=arreglo` | Parte de metalófono de un **arreglo** (archivo público `arreglo/<id>.json`, campo `metalofono`, con la grabación; deuda HJ); link corto `m/?r=&n=` · vista previa del Editor de arreglos · `&mel=<i>` = una melodía del arreglo sola en el Metalófono de siempre (con ritmo, 🎯 nota por nota; HT) | Metalófono |
 | `?modo=alumno&r=<id>&n=` · `?vista=arreglo` | Parte de cajón de un **arreglo** (archivo público `arreglo/<id>.json`, campo `cajon`) para estudiantes; link corto `c/?r=&n=` · vista previa del Editor de arreglos | Cajón |
 | `?cancion=<id>` / `?practicar=` / `?proyeccion=1` / `?vista=sesiones` | Canción / práctica / proyección / Entrenador | Biblioteca |
 | `?r=<id>&n=` | Arreglo de piano **compartido** (archivo público `arreglo/<id>.json`); link corto `p/?r=&n=` | Piano |

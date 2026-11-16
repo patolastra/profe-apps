@@ -9817,3 +9817,16 @@ pasajes específicos". Decisión del PO: con la grabación, en bucle; en el caj�
   con secciones + 🔁 Practicar.
 - **Paso 3 (2026-11-16):** PO: el Metalófono igual que el Cajón: el menú muestra solo "🎵 Canción completa" y 🔁 cada
   melodía (Estrofas, Coro, No fui feliz en Dinosaurio), sin las secciones de la canción.
+
+### HT. Arreglo de metalófono — cada melodía en el Metalófono de siempre (con ritmo y nota por nota) — HECHA (2026-11-16)
+*Origen: PO 2026-11-16: "quiero poder ver las melodías del arreglo… en loop, tal como se renderizarían en el metalófono
+tradicional (me falta la revisión nota por nota)". Decisiones del PO: en el mismo link del arreglo; las tres formas (nota
+por nota, con ritmo sin grabación, con la grabación); las notas del arreglo.*
+- **Hecho:** en el arreglo (estudiante), al elegir una melodía en el menú aparece **🎯 Sin la canción**: abre
+  `?modo=alumno&r=<id>&mel=<i>` (mismo link, sin base de datos), que arma un MIDI con las notas de esa melodía en el
+  arreglo (`metalofono.practicar[i]`: tono del arreglo, placas, el tramo de su primera sección, sin lo omitido), al
+  tempo de la grabación en ese tramo y con la cifra de la canción, y lo toca con el Metalófono de siempre: ▶ con
+  precuenta y − / ＋, en bucle a la misma velocidad (sin +5), y 🎯 Práctica nota por nota que vuelve a empezar al
+  terminar. **↩ Con la canción** vuelve al arreglo con esa melodía elegida (`&p=<i>`).
+- Probado con Dinosaurio: Coro = 36 notas, 106 BPM, 2/4, en negras exactas; vuelta 2 automática; nota por nota vuelve
+  a la primera; ida y vuelta con la melodía elegida.
