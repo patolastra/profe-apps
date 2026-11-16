@@ -1368,7 +1368,7 @@
         if (window.METAL_ARREGLO) (function () {
             const q = new URLSearchParams(location.search), VISTA = q.get('vista') === 'arreglo';
             const STORAGE = window.METAL_ALUMNO_STORAGE.replace(/midi\/$/, '');
-            let D = null, ctx = null, grab = null, tocando = false, pos = 0, idx = 0, desde = 0, reloj = null, voz = 'melodia', placasOn = true, cargando = false, vel = 1;
+            let D = null, ctx = null, grab = null, tocando = false, pos = 0, idx = 0, desde = 0, reloj = null, voz = 'melodia', placasOn = true, cargando = false, vel = 1, loop = null;   // loop (HS): { nombre, desde, hasta } que se repite
             let osc = [], timers = [];
             const N = () => D?.notas || [];
             const urlVoz = () => D?.audio?.[voz] || D?.audio?.melodia || D?.audio?.karaoke || null;
@@ -1381,7 +1381,31 @@
             const bVoz = mk('arr-voz', '🎤 Melodía', 'Grabación con voz (Melodía) o sin voz (Karaoke)', cambiarVoz);
             const bPlacas = mk('arr-placas', '🔔', 'Sonido de las placas (encendido / apagado)', () => { placasOn = !placasOn; pintar(); });
             const sel = document.createElement('select'); sel.id = 'arr-sec'; sel.title = 'Ir a una sección de la canción';
-            sel.onchange = () => { const v = sel.value; sel.value = ''; sel.blur(); if (v !== '') ir(+v, true, true); };   // con precuenta (HR)
+            sel.onchange = () => {          // con precuenta (HR); 🔁 una melodía se repite (HS)
+                const v = sel.value; sel.blur();
+                if (v === 'stop') { loop = null; pintarSel(); return; }
+                if (v[0] === 'p') { practicar((D?.practicar || [])[+v.slice(1)]); return; }
+                sel.value = ''; if (v !== '') ir(+v, true, true);
+            };
+            // Ir a… (HS): las secciones y, aparte, 🔁 Practicar = cada melodía del arreglo (se repite con precuenta)
+            function pintarSel() {
+                if (!D) return;
+                const saltos = D.audio?.saltos || [];
+                const L = (D.secciones || []).filter(x => !saltos.some(t => x.s >= t.desde - 0.05 && x.s < t.hasta - 0.05));
+                const P = D.practicar || [], e = t => String(t).replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
+                sel.innerHTML = '<option value="">Ir a…</option>' + L.map(x => {
+                    const fin = L[L.indexOf(x) + 1]?.s ?? Infinity, con = N().some(n => n.s >= x.s - 0.01 && n.s < fin);
+                    return `<option value="${x.s}">${con ? '🎵 ' : ''}${e(x.nombre)}</option>`;
+                }).join('')
+                    + (P.length ? `<optgroup label="🔁 Practicar">${P.map((x, i) => `<option value="p${i}">🔁 ${e(x.nombre)}</option>`).join('')}</optgroup>` : '')
+                    + (loop ? '<option value="stop">⏹ Dejar de repetir</option>' : '');
+                sel.value = loop ? 'p' + P.indexOf(loop) : '';
+                sel.style.visibility = L.length || P.length ? 'visible' : 'hidden';
+            }
+            function practicar(x) {
+                loop = x || null; pintarSel();
+                if (x) ir(x.desde, true, true, true);
+            }
             // Velocidad para practicar (HR): de 50% a 100%, de a 5 puntos, sin cambiar el tono; sonando cambia sin cortar
             const bMenos = mk('arr-vel-menos', '−', 'Más lento', () => cambiarVel(vel - 0.05));
             const bMas = mk('arr-vel-mas', '＋', 'Más rápido (hasta la velocidad de la canción)', () => cambiarVel(vel + 0.05));
@@ -1428,13 +1452,8 @@
                 const seguia = tocando, p = seguia ? (grab.oido() ?? pos) : pos;
                 if (seguia) pausar();
                 D = d || { notas: [] };
-                const saltos = D.audio?.saltos || [];
-                const L = (D.secciones || []).filter(x => !saltos.some(t => x.s >= t.desde - 0.05 && x.s < t.hasta - 0.05));
-                sel.innerHTML = '<option value="">Ir a…</option>' + L.map(x => {
-                    const fin = L[L.indexOf(x) + 1]?.s ?? Infinity, con = N().some(n => n.s >= x.s - 0.01 && n.s < fin);
-                    return `<option value="${x.s}">${con ? '🎵 ' : ''}${String(x.nombre).replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;')}</option>`;
-                }).join('');
-                sel.style.visibility = L.length ? 'visible' : 'hidden';
+                if (loop) loop = (D.practicar || []).find(x => x.nombre === loop.nombre) || null;
+                pintarSel();
                 const nombre = q.get('n') || [D.cancion, D.etiqueta].filter(Boolean).join(' — ') || 'Arreglo';
                 const t = document.getElementById('alumno-titulo'); t.textContent = nombre; t.title = nombre;
                 document.getElementById('alumno-nombre').textContent = nombre;
@@ -1482,7 +1501,7 @@
                 const L = N(), lat = ctx.outputLatency || ctx.baseLatency || 0;
                 while (idx < L.length && L[idx].s < o + 0.25) {
                     const n = L[idx++];
-                    if (n.s < desde || grab.omitido(n.s)) continue;
+                    if (n.s < desde || grab.omitido(n.s) || (loop && n.s >= loop.hasta - 0.01)) continue;
                     const t = Math.max(ctx.currentTime, grab.aCtx(n.s)), t2 = Math.max(t + 0.12, grab.aCtx(n.e) - 0.03);
                     if (placasOn) placa(n.m, t);
                     timers.push(setTimeout(() => noteOn(n.m), (t + lat - ctx.currentTime) * 1000));
@@ -1491,6 +1510,7 @@
                 if (osc.length > 100) osc = osc.filter(x => x.t > ctx.currentTime - 1);
                 if (timers.length > 400) timers = timers.slice(-200);
                 if (VISTA) try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: o }, '*'); } catch (_) {}
+                if (loop && o >= loop.hasta - 0.03) { const L0 = loop; pausar(); ir(L0.desde, true, true, true); }   // vuelta (HS)
             }
             function pausar() {
                 if (!tocando) return;
@@ -1503,7 +1523,8 @@
                 pintar();
                 if (VISTA) try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: null }, '*'); } catch (_) {}
             }
-            function ir(seg, tocarYa, conPrecuenta = false) {
+            function ir(seg, tocarYa, conPrecuenta = false, mantenerLoop = false) {
+                if (!mantenerLoop && loop) { loop = null; pintarSel(); }     // ir a otra parte deja de repetir
                 const seguia = tocando;
                 if (seguia) pausar();
                 pos = Math.max(0, seg);

@@ -9795,3 +9795,19 @@ cajón al compartir el arreglo deberían poder tener controles de velocidad (con
   − 100% ＋ al lado de Ir a… (`arrVel` / `vel`, `grab.velocidad` sonando). `grabacion-tono.js?v=hr` en Cajón,
   Metalófono, Piano, Ficha y Ensayo. Probado con Dinosaurio (2/4): Estrofa 3 → 4 clics (2 compases) y luego la
   grabación justo en 43,83 s; a 80% / 90% la grabación avanza a 0,8 / 0,9; la barra del Metalófono cabe a 812 de ancho.
+
+### HS. Arreglos para estudiantes — practicar pasajes en bucle (melodías del metalófono, pasajes del cajón) — HECHA (2026-11-16)
+*Origen: PO 2026-11-16: "al compartir el arreglo… los estudiantes puedan revisar aquellas partes constitutivas del
+arreglo: en el metalófono las melodías (Estrofa, Coro, No fui feliz); en el cajón poner marcadores para que revisen
+pasajes específicos". Decisión del PO: con la grabación, en bucle; en el cajón, nombre + desde / hasta compás.*
+- **Alcance:** Editor de arreglos, pestaña 🪘 Cajón: "🔁 Pasajes para practicar" (＋ Pasaje: nombre, desde y hasta
+  compás de la canción; `A.pasajesCajon = [{ id, nombre, desde, hasta }]`). Archivo público: `cajon.practicar` y
+  `metalofono.practicar` = `[{ nombre, desde, hasta }]` en segundos de la grabación (el metalófono, uno por melodía:
+  la primera sección donde suena). Cajón y Metalófono (estudiante y vista previa): "Ir a…" suma el grupo 🔁 Practicar;
+  al elegir uno, precuenta y la grabación toca el pasaje y vuelve a empezar (con precuenta) hasta "Dejar de repetir"
+  o ir a otra parte; la velocidad sirve igual.
+- **Hecho:** como el alcance. Ir a otra sección, ⏪ ⏩ o arrastrar la cinta dejan de repetir; ▶ / pausa siguen en el
+  pasaje. El archivo público se rehace al guardar el arreglo (para que salgan las melodías del metalófono, guardar el
+  arreglo una vez). Probado en el Editor con Dinosaurio, sin guardar: el metalófono ofrece 🔁 Estrofas, Coro y No fui
+  feliz (precuenta y luego la grabación en 109,3 s); un pasaje del cajón (c. 32–33) repite 42,5 → 44,9 s con
+  precuenta en cada vuelta.

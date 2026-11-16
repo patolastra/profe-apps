@@ -66,6 +66,9 @@
     .cj-info .mal { color: #f87171; }
     .cj-info button { height: 22px; padding: 0 6px; font-size: 11px; }
     .cj-fila [data-cj-editar] { height: 28px; width: 30px; padding: 0; }
+    .pj-fila { display: grid; grid-template-columns: 30px 1fr 64px 12px 64px 30px; gap: 6px; align-items: center; padding: 3px 6px; font-size: 13px; }
+    .pj-fila input { height: 28px; width: 100%; }
+    .pj-fila button { height: 28px; width: 30px; padding: 0; }
     #cuerpo { position: relative; }
     #cj-modal { position: absolute; left: 0; top: 0; bottom: 0; width: max(540px, 58%); display: none; flex-direction: column; background: var(--bg);
         border-right: 1px solid var(--borde); z-index: 20; box-shadow: 8px 0 24px rgba(0,0,0,.4); }
@@ -202,6 +205,9 @@
             <div class="fila"><button class="btn" id="cj-nuevo" title="Abre el Cajón para programar un ritmo nuevo de esta canción">＋ Nuevo ritmo en el Cajón</button>
                 <button class="btn" id="cj-recargar" title="Vuelve a leer los ritmos de la canción y de los estilos">↻ Actualizar ritmos</button></div>
             <div class="ayuda">Los ritmos son los 🪘 Cajón de esta canción y de los estilos de la Biblioteca. Al elegir uno se copia al arreglo: si después lo cambias en el Cajón, aparece ↻ para traer los cambios.</div>
+            <h3 style="margin-top:14px">🔁 Pasajes para practicar <small>los estudiantes los eligen en "Ir a…" y se repiten con precuenta</small></h3>
+            <div id="cj-pasajes"></div>
+            <div class="fila"><button class="btn" id="cj-pasaje-nuevo">＋ Pasaje</button></div>
         </div>
 
         <div class="card p-metal">
@@ -1121,7 +1127,7 @@ function pintarAudio() {
         pintarAdaptArreglo();
     }
 }
-function pintarTodo() { pintarBase(); pintarSecciones(); pintarOrden(); pintarOctavas(); pintarAcordes(); pintarAudio(); pintarCajon(); pintarMetal(); cambio(); }
+function pintarTodo() { pintarBase(); pintarSecciones(); pintarOrden(); pintarOctavas(); pintarAcordes(); pintarAudio(); pintarCajon(); pintarPasajes(); pintarMetal(); cambio(); }
 
 // ══ Cambios ═════════════════════════════════════════════════════════════════════════════
 // Lo guardado no lleva la cifra cuando es x/4 (así se leía antes de FN/FO)
@@ -1715,8 +1721,64 @@ function datosCajon() {
     return { cancion: cancionNombre, etiqueta: $('etiqueta').value.trim(), cifra: A.cifra, negrasCompas: A.compas,
         golpes: g.map(x => ({ s: x.seg, n: Math.round(x.n * 1000) / 1000, t: x.tipo, ...(x.mano ? { m: x.mano } : {}) })), compases,
         secciones: itemsEstructura().map(x => ({ nombre: x.etiqueta, s: compases[x.compas - o] ?? null })).filter(x => x.s !== null),
+        practicar: pasajesPublicos(compases, o, (A.pasajesCajon || []).map(p => ({ nombre: p.nombre, desde: p.desde, hasta: p.hasta + 1 }))),
         audio: { melodia: audios.melodia, karaoke: audios.karaoke, semitonos: semitonos(), ...(ad ? { saltos: ad.omitir } : {}) } };
 }
+// 🔁 Pasajes para practicar (HS): [{ nombre, desde, hasta }] en compases de la canción (hasta = el compás donde termina,
+// sin incluirlo) → en segundos de la grabación; los que quedan fuera del arreglo o enteros en lo omitido no van
+function pasajesPublicos(compases, o, lista) {
+    const ad = adaptacionArreglo(), saltos = ad?.omitir || [], out = [];
+    const omit = (a, b) => saltos.some(t => a >= t.desde - 0.05 && b <= t.hasta + 0.05);
+    for (const p of lista) {
+        const a = compases[p.desde - o], b = compases[Math.min(p.hasta, o + compases.length - 1) - o];
+        if (a == null || b == null || b <= a || omit(a, b)) continue;
+        out.push({ nombre: String(p.nombre || '').trim() || 'Pasaje', desde: a, hasta: b });
+    }
+    return out;
+}
+// Los pasajes del cajón (HS), en la pestaña Cajón
+function pintarPasajes() {
+    const el = $('cj-pasajes'); if (!el) return;
+    const L = A.pasajesCajon || [];
+    if (!modoFicha()) { el.innerHTML = ''; $('cj-pasaje-nuevo').style.display = 'none'; return; }
+    $('cj-pasaje-nuevo').style.display = '';
+    const its = itemsEstructura(), u = its[its.length - 1], ult = u ? u.compas + u.largo - 1 : 1;
+    el.innerHTML = L.length ? L.map((p, i) => `<div class="pj-fila" data-i="${i}">
+        <button class="btn" data-pj-ir title="Escucharlo en la vista previa, en bucle">▶</button>
+        <input data-pj-nombre value="${esc(p.nombre)}" placeholder="Nombre del pasaje" title="Nombre que ven los estudiantes">
+        <input type="number" data-pj-desde min="1" max="${ult}" value="${p.desde}" title="Desde el compás (de la canción)">
+        <span>–</span>
+        <input type="number" data-pj-hasta min="1" max="${ult}" value="${p.hasta}" title="Hasta el compás (incluido)">
+        <button class="btn" data-pj-borrar title="Quitar el pasaje">🗑</button></div>`).join('')
+        : '<div class="ayuda">Sin pasajes. Con ＋ Pasaje marcas un tramo (desde y hasta qué compás de la canción) para que lo practiquen.</div>';
+}
+$('cj-pasaje-nuevo').onclick = e => {
+    e.target.blur();
+    const its = itemsEstructura(), L = A.pasajesCajon = A.pasajesCajon || [];
+    const ant = L[L.length - 1], desde = ant ? ant.hasta + 1 : (its.find(x => A.cajon?.sec?.[claveItem(x)]) || its[0])?.compas || 1;
+    L.push({ id: Math.random().toString(36).slice(2, 10), nombre: 'Pasaje ' + (L.length + 1), desde, hasta: desde + 3 });
+    pintarPasajes(); cambio();
+    $('cj-pasajes').querySelector('.pj-fila:last-child [data-pj-nombre]')?.select();
+};
+$('cj-pasajes').addEventListener('change', e => {
+    const f = e.target.closest('.pj-fila'), p = f && A.pasajesCajon?.[+f.dataset.i]; if (!p) return;
+    if (e.target.matches('[data-pj-nombre]')) p.nombre = e.target.value.trim();
+    if (e.target.matches('[data-pj-desde]')) p.desde = Math.max(1, Math.round(+e.target.value || 1));
+    if (e.target.matches('[data-pj-hasta]')) p.hasta = Math.max(1, Math.round(+e.target.value || 1));
+    if (p.hasta < p.desde) p.hasta = p.desde;
+    pintarPasajes(); cambio();
+});
+$('cj-pasajes').addEventListener('click', e => {
+    const f = e.target.closest('.pj-fila'), i = f ? +f.dataset.i : -1, p = A.pasajesCajon?.[i]; if (!p) return;
+    if (e.target.closest('[data-pj-borrar]')) {
+        A.pasajesCajon.splice(i, 1); if (!A.pasajesCajon.length) delete A.pasajesCajon;
+        pintarPasajes(); cambio(); return;
+    }
+    if (e.target.closest('[data-pj-ir]')) {
+        e.target.blur(); enviarCajon();
+        try { $('previa-cajon').contentWindow.postMessage({ tipo: 'arreglo-practicar', nombre: (p.nombre || '').trim() || 'Pasaje' }, '*'); } catch (_) {}
+    }
+});
 function enviarCajon() {
     const f = $('previa-cajon'); if (!f.getAttribute('src')) return;
     try { f.contentWindow.postMessage({ tipo: 'arreglo-cajon', datos: datosCajon() }, '*'); } catch (_) {}
@@ -1916,8 +1978,17 @@ function partesMetal() {
 // Lo que lee el Metalófono: lo mismo que el Cajón (compases, secciones, grabación) con las notas en vez de los golpes
 function datosMetal() {
     const b = datosCajon(); if (!b.compases) return { notas: [] };
-    const { golpes, ...resto } = b;
-    return { ...resto, notas: partesMetal().notas };
+    const { golpes, practicar, ...resto } = b;
+    // 🔁 Practicar (HS): cada melodía, en la primera sección donde suena
+    const C = cortesArreglo(), vistas = new Set(), lista = [];
+    for (const x of itemsEstructura()) {
+        const c = A.metal?.sec?.[claveItem(x)], M = c && A.metal.mels?.[c.mel];
+        if (!M || vistas.has(c.mel)) continue;
+        const s = compasesQueSuenan(x, C); if (s && !s.length) continue;
+        vistas.add(c.mel);
+        lista.push({ nombre: M.etiqueta || 'Melodía', desde: x.compas, hasta: x.compas + x.largo });
+    }
+    return { ...resto, notas: partesMetal().notas, practicar: pasajesPublicos(b.compases, origenArreglo(), lista) };
 }
 function enviarMetal() {
     const f = $('previa-metal'); if (!f.getAttribute('src')) return;

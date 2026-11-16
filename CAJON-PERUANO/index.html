@@ -1421,7 +1421,7 @@ window.addEventListener('beforeunload', (e) => { if (recurso && hayCambios() && 
 // ?modo=alumno&r=<id> = estudiante (lee la parte `cajon` de repertorio-assets/arreglo/<id>.json, sin base de datos).
 // Golpes en segundos de la grabación; la grabación (GrabacionTono) salta lo omitido por la adaptación.
 // ═══════════════════════════════════════════════════════════════════════════
-let ARRD = null, grab = null, arrIdx = 0, arrDesde = 0, arrVoz = 'melodia', arrCargando = false, arrVel = 1;
+let ARRD = null, grab = null, arrIdx = 0, arrDesde = 0, arrVoz = 'melodia', arrCargando = false, arrVel = 1, arrLoop = null;   // arrLoop (HS): { nombre, desde, hasta } que se repite
 const urlVoz = () => ARRD?.audio?.[arrVoz] || ARRD?.audio?.melodia || ARRD?.audio?.karaoke || null;
 function ponerArreglo(d) {
     const seguia = tocando, pos = tocando && grab ? (grab.oido() ?? posPausa) : posPausa;
@@ -1453,15 +1453,26 @@ function ponerArreglo(d) {
     $('nombre').textContent = '🪘 ' + nombre; $('nombre').title = nombre;
     pintarVoz();
     // Secciones de la canción: ir a una (las que suenan con el cajón primero se marcan con 🪘)
-    const ss = $('sel-sec');
-    if (ss) {
-        const L = (ARRD.secciones || []).filter(x => !(ARRD.audio?.saltos || []).some(t => x.s >= t.desde - 0.05 && x.s < t.hasta - 0.05));
-        const conCajon = x => { const i = L.indexOf(x), fin = L[i + 1]?.s ?? Infinity; return golpes.some(g => g.t >= x.s - 0.01 && g.t < fin); };
-        ss.innerHTML = '<option value="">Ir a…</option>' + L.map(x => `<option value="${x.s}">${conCajon(x) ? '🪘 ' : ''}${esc(x.nombre)}</option>`).join('');
-        ss.style.visibility = L.length ? 'visible' : 'hidden';
-    }
+    if (arrLoop) arrLoop = (ARRD.practicar || []).find(x => x.nombre === arrLoop.nombre) || null;
+    pintarSelArr();
     aviso(golpes.length ? '' : 'Elige un ritmo para alguna sección y aparece aquí.');
     if (seguia) { posPausa = pos; tocar(); }
+}
+// Ir a… (HS): las secciones y, aparte, 🔁 Practicar = los pasajes del arreglo (se repiten con precuenta)
+function pintarSelArr() {
+    const ss = $('sel-sec'); if (!ss || !ARRD) return;
+    const L = (ARRD.secciones || []).filter(x => !(ARRD.audio?.saltos || []).some(t => x.s >= t.desde - 0.05 && x.s < t.hasta - 0.05));
+    const conCajon = x => { const i = L.indexOf(x), fin = L[i + 1]?.s ?? Infinity; return golpes.some(g => g.t >= x.s - 0.01 && g.t < fin); };
+    const P = ARRD.practicar || [];
+    ss.innerHTML = '<option value="">Ir a…</option>' + L.map(x => `<option value="${x.s}">${conCajon(x) ? '🪘 ' : ''}${esc(x.nombre)}</option>`).join('')
+        + (P.length ? `<optgroup label="🔁 Practicar">${P.map((x, i) => `<option value="p${i}">🔁 ${esc(x.nombre)}</option>`).join('')}</optgroup>` : '')
+        + (arrLoop ? '<option value="stop">⏹ Dejar de repetir</option>' : '');
+    ss.value = arrLoop ? 'p' + P.indexOf(arrLoop) : '';
+    ss.style.visibility = L.length || P.length ? 'visible' : 'hidden';
+}
+function practicarArr(x) {
+    arrLoop = x || null; pintarSelArr();
+    if (x) irArr(x.desde, true, true);
 }
 function pintarVoz() {
     const b = $('b-voz'); if (!b) return;
@@ -1507,12 +1518,13 @@ function programarArr() {
     const o = grab.oido(); if (o === null) return;
     while (arrIdx < golpes.length && golpes[arrIdx].t < o + 0.2) {
         const g = golpes[arrIdx++];
-        if (g.t < arrDesde || grab.omitido(g.t)) continue;
+        if (g.t < arrDesde || grab.omitido(g.t) || (arrLoop && g.t >= arrLoop.hasta - 0.01)) continue;
         const ctxT = Math.max(ctx.currentTime, grab.aCtx(g.t));
         programados.push({ ctxT, nodos: g.tipo === 'grave' ? sonarGrave(ctxT, 0.35 + 0.65 * g.vel) : sonarAgudo(ctxT, 0.35 + 0.65 * g.vel) });
     }
     if (programados.length > 200) programados = programados.filter(p => p.ctxT > ctx.currentTime - 1);
     if (window.parent !== window) { try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: o }, '*'); } catch (_) {} }
+    if (arrLoop && o >= arrLoop.hasta - 0.03) { const L = arrLoop; pausarArr(); irArr(L.desde, true, true); }   // vuelta del pasaje (HS)
 }
 function pausarArr() {
     if (!tocando) return;
@@ -1523,7 +1535,8 @@ function pausarArr() {
     pintarPlay();
     if (window.parent !== window) { try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: null }, '*'); } catch (_) {} }
 }
-function irArr(seg, conPrecuenta = false) {
+function irArr(seg, conPrecuenta = false, mantenerLoop = false) {
+    if (!mantenerLoop && arrLoop) { arrLoop = null; pintarSelArr(); }     // ir a otra parte deja de repetir el pasaje
     const seguia = tocando;
     if (seguia) pausarArr();
     posPausa = Math.max(0, seg); idxFx = primerIdx(golpes, posPausa); ultVis = posPausa;
@@ -1572,7 +1585,12 @@ if (ARR) {
     ss.id = 'sel-sec'; ss.title = 'Ir a una sección de la canción';
     ss.style.cssText = 'height:36px;width:150px;background:#334155;color:var(--texto);border:1px solid #475569;border-radius:8px;visibility:hidden';
     bv.after(ss);
-    ss.onchange = () => { const v = ss.value; ss.value = ''; ss.blur(); if (v !== '') irArr(+v, true); };   // con precuenta (HR)
+    ss.onchange = () => {          // con precuenta (HR); 🔁 un pasaje se repite (HS)
+        const v = ss.value; ss.blur();
+        if (v === 'stop') { arrLoop = null; pintarSelArr(); return; }
+        if (v[0] === 'p') { practicarArr((ARRD?.practicar || [])[+v.slice(1)]); return; }
+        ss.value = ''; if (v !== '') irArr(+v, true);
+    };
     // Velocidad (HR): − 100% ＋ al lado de Ir a…
     const gv = document.createElement('div'); gv.className = 'grupo'; gv.title = 'Velocidad (para practicar más lento, sin cambiar el tono)';
     gv.innerHTML = '<button id="arr-vel-menos">−</button><span id="arr-vel" style="display:inline-block;width:44px;text-align:center">100%</span><button id="arr-vel-mas" disabled>＋</button>';
@@ -1625,6 +1643,7 @@ if (ARR) {
             if (e.data?.tipo === 'arreglo-cajon') { ponerArreglo(e.data.datos); sonIdx = primerIdx(golpes, segExterno()); }
             if (e.data?.tipo === 'arreglo-detener') { if (tocando) pausarArr(); }
             if (e.data?.tipo === 'arreglo-tocar' && typeof e.data.seg === 'number') irArr(e.data.seg);
+            if (e.data?.tipo === 'arreglo-practicar') practicarArr((ARRD?.practicar || []).find(x => x.nombre === e.data.nombre));
         });
         aviso('Elige un ritmo para alguna sección y aparece aquí.');
         if (SEGUIR) {        // 🔊 / 🔇 del cajón en el Ensayo (HO): suena al compás de la grabación del Ensayo
