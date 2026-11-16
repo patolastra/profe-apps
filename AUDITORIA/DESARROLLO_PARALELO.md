@@ -9750,3 +9750,8 @@ para un ensayo en vivo en clases (cajón, metalófono y letra), todo con la adap
   reloj del Ensayo; un salto o una pausa cancela lo programado. Probado con el arreglo de Dinosaurio Anacleto:
   golpes y placas suenan con la grabación y se callan al silenciar. Siguen (PO, por partes): la letra del Ensayo con
   el estilo del Entrenador; abrir el Editor de arreglos desde una actividad del Plan.
+- **Parte 3 (2026-11-16, PO: "que la franja de la letra respete el style del Entrenador"), hecha:** cursiva y negrita,
+  verso que suena en naranjo (#ea580c) y el que viene como los demás versos (#334155; oscuro #64748b), tema claro como
+  abre el Entrenador (#eef2f6) u oscuro (#0f172a) con ☀ / 🌙 (se recuerda en el equipo); el nombre de la sección en
+  mayúsculas chicas arriba a la izquierda y "♪ SECCIÓN" en las partes sin letra, como las etiquetas del Entrenador; un
+  verso largo se achica hasta caber (los dos con la misma letra). Probado a 1280 y 800 de ancho.

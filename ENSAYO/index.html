@@ -20,11 +20,20 @@
     html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto); overflow: hidden;
         font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
     body { display: grid; grid-template-rows: 26vh 1fr; grid-template-columns: 28vw 1fr; }
-    #letra { grid-column: 1 / 3; background: #000; position: relative; display: flex; flex-direction: column;
-        justify-content: center; align-items: center; padding: 0 4vw; text-align: center; gap: 1.2vh; }
-    #verso { font-size: min(8vh, 4.6vw); font-weight: 800; line-height: 1.12; min-height: 1.12em; }
-    #verso.instr { color: var(--tenue); font-weight: 600; }
-    #sigue { font-size: min(4.6vh, 2.7vw); color: #64748b; font-weight: 600; line-height: 1.15; min-height: 1.15em; }
+    /* La letra con el estilo del Entrenador (HO parte 3): cursiva y negrita, el verso que suena en naranjo y el que
+       viene como los demás versos; tema claro (como abre el Entrenador) u oscuro con ☀ / 🌙 */
+    #letra { grid-column: 1 / 3; position: relative; display: flex; flex-direction: column; justify-content: center;
+        align-items: center; padding: 44px 3vw 1vh; text-align: center; overflow: hidden;
+        background: #eef2f6; font-family: system-ui, -apple-system, sans-serif; }
+    .linea { font-weight: 700; font-style: italic; line-height: 1.3; white-space: nowrap; max-width: 100%;
+        font-size: var(--fs, min(6.4vh, 3.8vw)); min-height: 1.3em; }
+    #verso { color: #ea580c; }
+    #sigue { color: #334155; }
+    #seccion { position: absolute; top: 30px; left: 14px; font-size: min(2.2vh, 1.3vw); font-weight: 700;
+        letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; white-space: nowrap; }
+    body.oscuro #letra { background: #0f172a; }
+    body.oscuro #sigue { color: #64748b; }
+    body.oscuro #titulo { color: #64748b; }
     #cajon, #metal { border: 0; width: 100%; height: 100%; display: block; }
     #cajon { border-right: 2px solid var(--borde); background: #0f172a; }
     #metal { background: #FCFFA0; }
@@ -32,10 +41,11 @@
     /* Controles: arriba a la derecha de la letra, discretos (se ven más al pasar el mouse) */
     #ctl { position: absolute; top: 8px; right: 10px; display: flex; gap: 6px; align-items: center; opacity: .55; transition: opacity .2s; }
     #ctl:hover, body.pausa #ctl { opacity: 1; }
-    #ctl button, #ctl select { height: 34px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: var(--texto);
+    #ctl button, #ctl select { height: 34px; border-radius: 8px; border: 1px solid #cbd5e1; background: #e2e8f0; color: #334155;
         font-size: 15px; cursor: pointer; }
+    body.oscuro #ctl button, body.oscuro #ctl select { border-color: #334155; background: #1e293b; color: var(--texto); }
     #ctl button { min-width: 40px; padding: 0 8px; }
-    #b-play { width: 56px; background: #15803d; border-color: #22c55e; }
+    #ctl #b-play { width: 56px; background: #ea580c; border-color: #ea580c; color: #fff; }
     #b-voz { width: 118px; }
     #sel-sec { width: 150px; padding: 0 6px; }
     #ctl button:disabled { opacity: .4; cursor: default; }
@@ -55,10 +65,12 @@
         <button id="b-adelante" title="Un compás adelante (→)" disabled>⏩</button>
         <select id="sel-sec" title="Ir a una sección de la canción"></select>
         <button id="b-voz" title="Grabación con voz (Melodía) o sin voz (Karaoke)" style="visibility:hidden">🎤 Melodía</button>
+        <button id="b-tema" title="Tema claro u oscuro (como el Entrenador)">🌙</button>
         <button id="b-pantalla" title="Pantalla completa (F)">⛶</button>
     </div>
-    <div id="verso"></div>
-    <div id="sigue"></div>
+    <div id="seccion"></div>
+    <div id="verso" class="linea"></div>
+    <div id="sigue" class="linea"></div>
 </div>
 <iframe id="cajon" title="Cajón"></iframe>
 <iframe id="metal" title="Metalófono"></iframe>
@@ -104,13 +116,24 @@ function pintarLetra(s) {
     const fuera = act && ((act.f !== null && s > act.f + 0.3) || (i === LINEAS.length - 1 && s > act.t + 12));
     let j = i + 1; while (j < LINEAS.length && omitido(LINEAS[j].t)) j++;   // el que viene (saltando lo omitido)
     const sig = LINEAS[j] || null;
-    const v = !act || fuera ? (sig ? '♪' : '') : act.x, n = sig ? sig.x : '';
-    const clave = v + '|' + n;
+    let sec = null; for (const x of SECC) { if (x.s <= s + 0.05) sec = x; else break; }
+    const v = !act || fuera ? (sec ? '♪ ' + String(sec.nombre).toUpperCase() : '♪') : act.x, n = sig ? sig.x : '';
+    const clave = v + '|' + n + '|' + (sec?.nombre || '');
     if (clave === pintado) return;
     pintado = clave;
-    $('verso').textContent = v; $('verso').classList.toggle('instr', v === '♪');
-    $('sigue').textContent = n;
+    $('verso').textContent = v; $('sigue').textContent = n;
+    $('seccion').textContent = sec && act && !fuera ? sec.nombre : '';
+    ajustarLetra();
 }
+// Un verso largo se achica hasta caber en el ancho (los dos con la misma letra, como en el Entrenador)
+function ajustarLetra() {
+    const L = $('letra'), a = $('verso'), b = $('sigue');
+    L.style.removeProperty('--fs');
+    const base = parseFloat(getComputedStyle(a).fontSize), ancho = L.clientWidth * 0.94;
+    const mayor = Math.max(a.scrollWidth, b.scrollWidth);
+    if (mayor > ancho) L.style.setProperty('--fs', Math.floor(base * ancho / mayor) + 'px');
+}
+window.addEventListener('resize', () => { pintado = ''; pintarLetra(ahora()); });
 
 // ── Reloj: la grabación manda; el Cajón y el Metalófono lo siguen ──
 const marcos = () => [$('cajon').contentWindow, $('metal').contentWindow];
@@ -166,6 +189,10 @@ $('b-voz').onclick = async e => {
     e.target.blur(); voz = voz === 'karaoke' ? 'melodia' : 'karaoke'; pintar();
     if (grab && urlVoz()) { if (tocando) await grab.cambiar(urlVoz()).catch(() => {}); else grab.cargar(urlVoz()).catch(() => {}); }
 };
+// Tema (como el Entrenador: abre claro; se recuerda en este equipo)
+const ponerTema = osc => { document.body.classList.toggle('oscuro', osc); $('b-tema').textContent = osc ? '☀' : '🌙'; try { localStorage.setItem('ensayo_tema', osc ? 'oscuro' : 'claro'); } catch (_) {} };
+try { ponerTema(localStorage.getItem('ensayo_tema') === 'oscuro'); } catch (_) {}
+$('b-tema').onclick = e => { e.target.blur(); ponerTema(!document.body.classList.contains('oscuro')); };
 const pantalla = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.(); };
 $('b-pantalla').onclick = e => { e.target.blur(); pantalla(); };
 document.addEventListener('keydown', e => {
