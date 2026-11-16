@@ -9694,3 +9694,12 @@ Melodía suelta para el Metalófono (que suena sin grabación ni adaptación).*
   musical espera hasta 8 s y guardar un arreglo sube archivo y fila: la recarga podía cortar el guardado a la mitad.
 - **Hecho:** un borrador nunca se descarta solo: nuevo → se recupera siempre; guardado que cambió en otro lado →
   pregunta. El Workspace espera hasta 20 s. Probado: borrador de arreglo nuevo con otro punto de partida se recupera.
+
+### HL. Arreglo de metalófono — 🔁 repetir la melodía hasta el final de la sección — HECHA (2026-11-16)
+*Origen: PO 2026-11-16: "las melodías se repiten luego de terminadas? si la sección no ha terminado todavía, debería haber
+la opción de que sí, de que se repita hasta que se termine la sección".*
+- **Antes:** la melodía sonaba una vez; si terminaba antes que la sección, el resto quedaba en silencio.
+- **Hecho:** botón 🔁 por sección (`A.metal.sec[…].rep`): la melodía, desde su compás "desde" hasta el final, se repite
+  de corrido hasta que termina la sección (también en los compases que suenan de una adaptación). La fila dice
+  "🔁 ×2,5" o, sin 🔁, "termina antes". Probado: melodía de 2 compases en una sección de 5 → 20 notas, la última
+  termina con la sección.

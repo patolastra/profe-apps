@@ -54,7 +54,8 @@
     #inst .btn[data-inst="metal"] { width: 130px; }
     body[data-inst="cajon"] .p-piano, body[data-inst="metal"] .p-piano, body:not([data-inst="cajon"]) .p-cajon,
     body:not([data-inst="metal"]) .p-metal { display: none !important; }
-    .mt-fila { grid-template-columns: 1fr 170px 62px 110px; }
+    .cj-fila.mt-fila { grid-template-columns: 1fr 160px 56px 34px 104px; }
+    .mt-fila [data-mt-rep] { height: 28px; width: 34px; padding: 0; }
     .mt-fila input { height: 28px; width: 100%; }
     .cj-fila { display: grid; grid-template-columns: 1fr 190px 30px 110px; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 7px; font-size: 13px; }
     .cj-fila.sonando { background: rgba(34,197,94,.18); }
@@ -1865,8 +1866,16 @@ function partesMetal() {
         lens.reduce((q, l, k) => { acum[k] = q; return q + l * 4; }, 0);
         const finTramo = k => { let j = k; while (j + 1 < nC && pos[j + 1] - pos[j] < lens[j] + 1e-6) j++; return pos[j] + lens[j]; };
         const off = (Math.max(1, cfg.desde || 1) - 1) * A.compas * 4;
-        for (const n of M.notas) {
-            const L = n.t - off; if (L < -1e-9) continue;
+        // 🔁 (HL): la melodía (desde su compás "desde" hasta el final) se repite hasta que termina la sección
+        const vuelta = (compasesMel(M) - Math.max(1, cfg.desde || 1) + 1) * A.compas * 4, total = acum[nC - 1] + lens[nC - 1] * 4;
+        const veces = cfg.rep && vuelta > 0 ? Math.ceil(total / vuelta - 1e-9) : 1;
+        const lista = [];
+        for (let r = 0; r < veces; r++) for (const n of M.notas) {
+            const L0 = n.t - off; if (L0 < -1e-9 || (cfg.rep && L0 >= vuelta - 1e-9)) continue;
+            lista.push({ L: L0 + r * vuelta, d: n.d, m: n.m });
+        }
+        for (const n of lista) {
+            const L = n.L;
             let k = -1; for (let j = 0; j < nC; j++) if (L >= acum[j] - 1e-9 && L < acum[j] + lens[j] * 4 - 1e-9) { k = j; break; }
             if (k < 0) continue;                 // lo que no cabe en la sección no suena
             const t = pos[k] * 4 + (L - acum[k]), d = Math.min(n.d, finTramo(k) * 4 - t);
@@ -1909,13 +1918,19 @@ function pintarMetal() {
         const cfg = mt.sec?.[claveItem(x)], M = cfg && mt.mels?.[cfg.mel];
         let info = '';
         if (!L) info = '✂ no va en la adaptación';
-        else if (M) { const n = compasesMel(M), d = cfg.desde || 1; info = d > n ? '<span class="mal">la melodía no llega a ese compás</span>' : `c. ${d}–${Math.min(n, d + L - 1)} de ${n}`; }
+        else if (M) {
+            const n = compasesMel(M), d = cfg.desde || 1, tramo = n - d + 1;
+            info = d > n ? '<span class="mal">la melodía no llega a ese compás</span>'
+                : cfg.rep && L > tramo ? `🔁 ×${Math.round(L / tramo * 10) / 10} · c. ${d}–${n} de ${n}`
+                : `c. ${d}–${Math.min(n, d + L - 1)} de ${n}` + (L > tramo ? ' · <span class="mal">termina antes</span>' : '');
+        }
         const huerfana = M && !melodias.some(m => m.id === cfg.mel) ? `<option value="${esc(cfg.mel)}" selected>${esc(M.etiqueta || 'Melodía')} (copia)</option>` : '';
         return `<div class="cj-fila mt-fila" data-i="${i}">
             <button class="cj-tit" data-mt-ir title="Tocar desde aquí">▶ ${esc(x.etiqueta)} <small>c. ${x.compas} · ${L === x.largo ? x.largo : `✂ ${L} de ${x.largo}`}</small></button>
             <select data-mt-sel ${L ? '' : 'disabled'}><option value="">— descansa —</option>${huerfana}${melodias.map(m => `<option value="${m.id}"${M && cfg.mel === m.id ? ' selected' : ''}>${esc(m.etiqueta || 'Melodía')}</option>`).join('')}</select>
             <input type="number" data-mt-desde min="1" step="1" value="${M ? cfg.desde || 1 : ''}" ${M && L ? '' : 'disabled'} title="Desde qué compás de la melodía">
-            <span class="cj-info">${info}</span></div>`;
+            <button class="btn${cfg?.rep && M ? ' on' : ''}" data-mt-rep ${M && L ? '' : 'disabled'} title="${cfg?.rep ? 'Se repite hasta que termina la sección. Clic: tocarla una sola vez' : 'Repetir la melodía hasta que termine la sección'}">🔁</button>
+            <span class="cj-info" title="${info.replace(/<[^>]*>/g, '')}">${info}</span></div>`;
     }).join('');
     const p = partesMetal();
     $('mt-info').textContent = !melodias.length ? 'La canción aún no tiene melodías: escríbela en el Editor de Melodías (desde la ficha de la canción).'
@@ -1940,7 +1955,8 @@ async function ponerMelodiaMetal(x, id) {
             const c = A.metal.sec[claveItem(its[j])];
             if (c && c.mel === id) { const s = compasesQueSuenan(its[j], C); desde = (c.desde || 1) + (s ? s.length : its[j].largo); break; }
         }
-        A.metal.sec[k] = { mel: id, desde: A.metal.sec[k]?.mel === id ? A.metal.sec[k].desde : desde };
+        const antes = A.metal.sec[k];
+        A.metal.sec[k] = { mel: id, desde: antes?.mel === id ? antes.desde : desde, ...(antes?.rep ? { rep: true } : {}) };
     } else delete A.metal.sec[k];
     const usadas = new Set(Object.values(A.metal.sec).map(c => c.mel));
     Object.keys(A.metal.mels).forEach(m => { if (!usadas.has(m)) delete A.metal.mels[m]; });
@@ -1957,8 +1973,16 @@ $('mt-lista').addEventListener('change', e => {
     }
 });
 $('mt-lista').addEventListener('click', e => {
-    const f = e.target.closest('.mt-fila'); if (!f || !e.target.closest('[data-mt-ir]') || !mapaTempo) return;
+    const f = e.target.closest('.mt-fila'); if (!f) return;
     const x = itemsEstructura()[+f.dataset.i]; if (!x) return;
+    const br = e.target.closest('[data-mt-rep]');
+    if (br) {
+        br.blur();
+        const c = A.metal?.sec?.[claveItem(x)]; if (!c) return;
+        if (c.rep) delete c.rep; else c.rep = true;
+        pintarMetal(); cambio(); return;
+    }
+    if (!e.target.closest('[data-mt-ir]') || !mapaTempo) return;
     enviarMetal();
     try { $('previa-metal').contentWindow.postMessage({ tipo: 'arreglo-tocar', seg: mapaTempo.segDePulso(mapaTempo.pulsoDeCompas(x.compas)) }, '*'); } catch (_) {}
 });
