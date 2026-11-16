@@ -9740,3 +9740,7 @@ para un ensayo en vivo en clases (cajón, metalófono y letra), todo con la adap
   Dinosaurio Anacleto (`mwj7krwrrajn`, solo lectura): letra (28 versos), cajón y metalófono siguen la misma
   grabación al mismo segundo, ⏩ por compás. Sin probar: proyectado en la sala. Siguiente posible: mandarlo a la
   Pizarra con la clase en curso.
+- **Corrección (2026-11-16, PO: "hago clic en ensayo y no muestra nada"):** el 🎭 del Editor de arreglos le hablaba
+  directo al Workspace (`window.top`), pero el Editor de arreglos va dentro del Editor musical y el Workspace solo
+  escucha a sus pestañas. Ahora va por la ventana de arriba (`window.parent`), que lo reenvía; igual "＋ Nuevo ritmo en
+  el Cajón", que tenía la misma falla. Probado: Editor musical → Editor de arreglos → 🎭 llega el pedido de abrir.
