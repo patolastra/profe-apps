@@ -529,7 +529,7 @@ function desplegar() {
     const C = cortesArreglo();
     const lugares = modoFicha()
         ? itemsEstructura().filter(x => x.incluida && x.sec).map(x => ({ s: A.secciones.find(y => y.id === x.sec), nombre: x.etiqueta,
-            ini: (x.compas - origenArreglo()) * A.compas, largo: x.largo, suenan: compasesQueSuenan(x, C) })).filter(x => x.s && x.ini >= 0)
+            ini: negDeCompas(x.compas), c0: x.compas, largo: x.largo, suenan: compasesQueSuenan(x, C) })).filter(x => x.s && x.ini >= 0)
         : A.orden.map(id => ({ s: A.secciones.find(x => x.id === id) })).filter(x => x.s).map(x => ({ ...x, nombre: x.s.nombre || 'Sección' }));
     for (const lugar of lugares) {
         const s = lugar.s;
@@ -538,8 +538,9 @@ function desplegar() {
         if (lugar.ini !== undefined) p = lugar.ini;
         const ini = p;
         // Dónde empieza cada compás (en negras, en la canción completa) y hasta dónde llega el tramo seguido que suena
-        const pos = lugar.suenan || Array.from({ length: lugar.largo ?? base.length }, (_, k) => ini + k * A.compas);
-        const finTramo = k => { let j = k; while (j + 1 < pos.length && pos[j + 1] - pos[j] < A.compas + 1e-6) j++; return pos[j] + A.compas; };
+        // Cada compás con su largo (HH: un compás de la canción puede ser más corto o más largo, p. ej. un 1/4 suelto)
+        const pos = lugar.suenan || posDesde(ini, lugar.largo ?? base.length), lens = pos.map(largoEn);
+        const finTramo = k => { let j = k; while (j + 1 < pos.length && pos[j + 1] - pos[j] < lens[j] + 1e-6) j++; return pos[j] + lens[j]; };
         const nC = pos.length;
         // El acorde que sigue en un compás "_": el último de antes en la secuencia (dando la vuelta si empieza con "_")
         const antesDe = k => { for (let j = 1; j <= base.length; j++) { const c = base[((k - j) % base.length + base.length) % base.length]; if (c[0] !== LIGA) return c[c.length - 1]; } return null; };
@@ -550,19 +551,21 @@ function desplegar() {
             p = pos[ci];
             const liga = c0[0] === LIGA, sigue = liga ? antesDe(ci) : null;
             if (liga && !r && sonando && sonando.nombre === sigue && Math.abs(sonando.fin - p * 4) < 1e-6) {
-                const D = A.compas * 4;
+                const D = lens[ci] * 4;
                 sonando.notas.forEach(n => { n.d += D; }); sonando.acordes.forEach(a => { a.d += D; }); sonando.fin += D;
                 return;
             }
             const c = liga ? (sigue ? [sigue] : []) : c0;
-            const dur = A.compas / (c.length || 1);
+            const dur = lens[ci] / (c.length || 1);
             if (r) {
                 // Con ritmo (FM): cada figura toma el acorde que suena en su momento; en secciones con melodía solo el bajo
                 c.forEach((nombre, i) => { const der = acordeDer(nombre); if (der) acordes.push({ t: (p + i * dur) * 4, d: dur * 4, nombre, ms: der.m }); });
+                // En un compás más corto suena solo el comienzo del compás del ritmo (HH)
                 const N = celdasCompas(r), cT = celdaT(r), k0 = (ci % r.compases) * N, finSec = finTramo(ci) * 4;
+                const Nc = Math.min(N, Math.round(lens[ci] * 4 / cT));
                 const poner = (lista, fn) => lista.forEach(([a, l]) => {
-                    if (a < k0 || a >= k0 + N) return;
-                    const off = (a - k0) * cT, t = p * 4 + off, d = Math.min(l * cT, finSec - t);
+                    if (a < k0 || a >= k0 + Nc) return;
+                    const off = (a - k0) * cT, t = p * 4 + off, d = Math.min(l * cT, finSec - t, Nc < N ? (k0 + Nc - a) * cT : Infinity);
                     const nombre = c[Math.min(c.length - 1, Math.floor(off / 4 / dur))];
                     if (nombre && d > 0) fn(nombre, t, d);
                 });
@@ -590,14 +593,16 @@ function desplegar() {
                 sonando = { nombre, notas: ns, acordes: as, fin: t + d };
             });
         });
-        p = lugar.suenan ? ini + lugar.largo * A.compas : ini + nC * A.compas;
+        p = lugar.c0 !== undefined ? negDeCompas(lugar.c0 + lugar.largo) : nC ? pos[nC - 1] + lens[nC - 1] : ini;
         if (s.melodia && A.melodia && nC) {
-            // La melodía también va de corrido por los compases que suenan
+            // La melodía también va de corrido por los compases que suenan (cada uno con su largo, HH)
             const Q = A.compas * 4, off = (Math.max(1, s.melDesde || 1) - 1) * Q;
+            const acum = []; lens.reduce((q, l, k) => { acum[k] = q; return q + l * 4; }, 0);
             for (const n of A.melodia.notas) {
-                const L = off + n.t, k = Math.floor(L / Q + 1e-9);
-                if (k >= nC) continue;               // lo que no cabe en la sección no suena
-                const t = pos[k] * 4 + (L - k * Q);
+                const L = off + n.t;
+                let k = -1; for (let j = 0; j < nC; j++) if (L >= acum[j] - 1e-9 && L < acum[j] + lens[j] * 4 - 1e-9) { k = j; break; }
+                if (k < 0) continue;                 // lo que no cabe en la sección no suena
+                const t = pos[k] * 4 + (L - acum[k]);
                 notas.push({ t, d: Math.min(n.d, finTramo(k) * 4 - t), m: n.m, nombre: n.nombre, mano: 'der', dig: n.dedo ? { piano: n.dedo } : {} });
             }
         }
@@ -615,7 +620,7 @@ function desplegar() {
     acordes.splice(0, acordes.length, ...recortar(acordes));
     notas.sort((a, b) => a.t - b.t || a.m - b.m);
     // Con Ficha, el arreglo dura hasta el final de la canción (la grabación sigue aunque el piano calle)
-    if (modoFicha()) { const ms = seccionesMapa(), u = ms[ms.length - 1]; fin = Math.max(fin, (u.compas + u.largo - origenArreglo()) * A.compas); }
+    if (modoFicha()) { const ms = seccionesMapa(), u = ms[ms.length - 1]; fin = Math.max(fin, negDeCompas(u.compas + u.largo)); }
     return { notas, acordes, secciones, pulsos: fin };
 }
 function datosPublicos(hasta) {
@@ -627,6 +632,7 @@ function datosPublicos(hasta) {
         audio: (audios.melodia || audios.karaoke) && mapaTempo ? { melodia: audios.melodia, karaoke: audios.karaoke, semitonos: semitonos(),
             cancion: cancionId, desde: origenArreglo(), tempoV, ...(ad ? { saltos: ad.omitir, adaptacion: ad.nombre } : {}) } : null,
         fin: d.pulsos,
+        ...(compasesDisparejos() ? { barras: barrasPublicas(d.pulsos) } : {}),   // HH: dónde empieza cada compás (si no son todos iguales)
         ...(cj.golpes.length ? { cajon: cj } : {}),
         ...(omitidosV.length ? { omitidos: omitidosV } : {}),   // para dibujarlos en la vista previa del editor
         ...(hasta ? { hasta } : {}) };
@@ -638,6 +644,32 @@ function datosPublicos(hasta) {
 // (pulsos "reales") y al final se comprime: cortes = [{ a, b, v }] en negras desde el origen del arreglo (v = dónde cae a
 // en la línea comprimida, la que ve el Piano). ✂ Omitir del arreglo (FR) sigue aparte: piano callado, la canción suena.
 const negrasPorPulsoMapa = () => 4 / (+String(A.cifra || '4/4').split('/')[1] || 4);
+// ── Compases de distinto largo (deuda HH) ────────────────────────────────────────────────────
+// La Ficha puede cambiar de cifra en un compás suelto (un 1/4 en una canción en 4/4). Si el arreglo va en la cifra de la
+// canción, dónde empieza y cuánto dura cada compás sale de su mapa de tempo; si no (o sin Ficha), todos miden A.compas.
+const compasesDelMapa = () => !!mapaTempo && mapaTempo.cifraApp()?.texto === A.cifra;
+function negDeCompas(c) {          // negras desde el origen del arreglo hasta el comienzo del compás c de la canción
+    if (!compasesDelMapa()) return (c - origenArreglo()) * A.compas;
+    return (mapaTempo.pulsoDeCompas(c) - mapaTempo.pulsoDeCompas(origenArreglo())) * negrasPorPulsoMapa();
+}
+const largoCompas = c => negDeCompas(c + 1) - negDeCompas(c);
+function compasEnNeg(q) {          // el compás de la canción donde cae q (negras desde el origen)
+    if (!compasesDelMapa()) return origenArreglo() + Math.floor(q / A.compas + 1e-9);
+    return mapaTempo.compasDePulso(mapaTempo.pulsoDeCompas(origenArreglo()) + q / negrasPorPulsoMapa()).compas;
+}
+const largoEn = q => largoCompas(compasEnNeg(q));
+const posDesde = (q, n) => { const c0 = compasEnNeg(q); return Array.from({ length: n }, (_, k) => negDeCompas(c0 + k)); };
+// ¿Hay algún compás de otro largo en la canción? (entonces el Piano dibuja las líneas de compás donde van)
+const compasesDisparejos = () => compasesDelMapa() && mapaTempo.cifras.some(x => x.n * 4 / x.d !== A.compas);
+function barrasPublicas(fin) {      // comienzo de cada compás, en negras de la línea que ve el Piano (comprimida)
+    const out = [], C = cortesArreglo(), o = origenArreglo();
+    for (let c = o; negDeCompas(c) < fin - 1e-6 && out.length < 5000; c++) {
+        const q = negDeCompas(c);
+        if (C.some(t => q >= t.a - 1e-6 && q < t.b - 1e-6)) continue;
+        out.push(Math.round(aComprimido(q, C) * 1000) / 1000);
+    }
+    return out;
+}
 function adaptacionArreglo() {
     const id = A.audio?.adaptacion; if (!id || !mapaTempo) return null;
     return (mapaTempo.adaptaciones || []).find(x => x.id === id && x.omitir.length) || null;
@@ -654,9 +686,9 @@ function cortesArreglo() {
 // el origen; sin adaptación, null (todos). Un compás suena si su mitad no cae en un tramo omitido (los tramos van al 1).
 function compasesQueSuenan(x, C = cortesArreglo()) {
     if (!C.length) return null;
-    const a0 = (x.compas - origenArreglo()) * A.compas, out = [];
+    const out = [];
     for (let k = 0; k < x.largo; k++) {
-        const q = a0 + k * A.compas, m = q + A.compas / 2;
+        const q = negDeCompas(x.compas + k), m = q + largoCompas(x.compas + k) / 2;
         if (!C.some(t => m >= t.a && m < t.b)) out.push(q);
     }
     return out;
@@ -839,7 +871,7 @@ function marcarSonando(p) {
     pulsoSonando = typeof p === 'number' ? p : null;
     if (pulsoSonando !== null) ultimoPulso = pulsoSonando;
     const its = modoFicha() ? itemsEstructura() : [];
-    const c = pulsoSonando === null ? null : origenArreglo() + pulsoSonando / A.compas;
+    const c = pulsoSonando === null ? null : compasEnNeg(pulsoSonando);
     document.querySelectorAll('#estructura .est-fila').forEach(f => {
         const x = its[+f.dataset.i];
         f.classList.toggle('sonando', c !== null && !!x && c >= x.compas - 1e-6 && c < x.compas + x.largo - 1e-6);
@@ -874,20 +906,19 @@ function lugaresSonido() {
     const C = cortesArreglo();
     let lugares;
     if (modoFicha()) lugares = itemsEstructura().filter(x => x.incluida && x.sec).map(x => {
-        const ini = (x.compas - origenArreglo()) * A.compas;
-        return { sec: x.sec, pos: compasesQueSuenan(x, C) || Array.from({ length: x.largo }, (_, k) => ini + k * A.compas) };
+        return { sec: x.sec, pos: compasesQueSuenan(x, C) || Array.from({ length: x.largo }, (_, k) => negDeCompas(x.compas + k)) };
     });
     else { let q = 0; lugares = A.orden.map(id => { const s = A.secciones.find(x => x.id === id); const n = s ? compasesDe(s).compases.length : 0;
-        const pos = Array.from({ length: n }, (_, k) => q + k * A.compas); q += n * A.compas; return { sec: id, pos }; }); }
+        const pos = posDesde(q, n); if (n) q = pos[n - 1] + largoEn(pos[n - 1]); return { sec: id, pos }; }); }
     return lugares;
 }
 function dondeSuena(p) {
     if (typeof p !== 'number') return null;
     for (const l of lugaresSonido()) {
-        const k = l.pos.findIndex(q => p >= q - 1e-6 && p < q + A.compas - 1e-6); if (k < 0) continue;
+        const k = l.pos.findIndex(q => p >= q - 1e-6 && p < q + largoEn(q) - 1e-6); if (k < 0) continue;
         const s = A.secciones.find(x => x.id === l.sec); if (!s) return null;
         const base = compasesDe(s).compases; if (!base.length) return null;
-        const c = base[k % base.length], i = Math.min(c.length - 1, Math.floor((p - l.pos[k]) / (A.compas / c.length) + 1e-6));
+        const c = base[k % base.length], i = Math.min(c.length - 1, Math.floor((p - l.pos[k]) / (largoEn(l.pos[k]) / c.length) + 1e-6));
         return { sec: l.sec, compas: k % base.length, acorde: i };
     }
     return null;
@@ -929,8 +960,8 @@ $('secciones').addEventListener('click', e => {
     const ref = ultimoPulso ?? 0, opciones = [];
     for (const l of lugaresSonido()) {
         if (l.sec !== sec.dataset.id) continue;
-        const enEste = l.pos.length && ref >= l.pos[0] - 1e-6 && ref < l.pos[l.pos.length - 1] + A.compas - 1e-6;
-        l.pos.forEach((q, j) => { if (j % base.length === mejor.k) opciones.push({ p: q + mejor.i * A.compas / base[mejor.k].length, enEste }); });
+        const ult = l.pos[l.pos.length - 1], enEste = l.pos.length && ref >= l.pos[0] - 1e-6 && ref < ult + largoEn(ult) - 1e-6;
+        l.pos.forEach((q, j) => { if (j % base.length === mejor.k) opciones.push({ p: q + mejor.i * largoEn(q) / base[mejor.k].length, enEste }); });
     }
     if (!opciones.length) return;
     const ir = opciones.find(o => o.enEste) || opciones.find(o => o.p >= ref - 1e-6) || opciones[0];
@@ -989,7 +1020,7 @@ $('estructura').addEventListener('click', e => {
     const x = itemsEstructura()[+ir.closest('.est-fila').dataset.i]; if (!x) return;
     // La vista previa salta a ese compás de la canción y toca (la grabación suena aunque aún no haya arreglo)
     enviarPrevia();
-    try { $('previa').contentWindow.postMessage({ tipo: 'arreglo-tocar', pulso: aComprimido((x.compas - origenArreglo()) * A.compas) }, '*'); } catch (_) {}
+    try { $('previa').contentWindow.postMessage({ tipo: 'arreglo-tocar', pulso: aComprimido(negDeCompas(x.compas)) }, '*'); } catch (_) {}
 });
 function pintarOrden() {
     pintarCajon();
@@ -1627,14 +1658,13 @@ function golpesCajon() {
     const C = cortesArreglo(), o = mapaTempo.pulsoDeCompas(origenArreglo()), F = negrasPorPulsoMapa(), omit = A.omitidos || [], out = [];
     for (const x of itemsEstructura()) {
         const rid = A.cajon.sec?.[claveItem(x)], R = rid && A.cajon.ritmos?.[rid]?.r; if (!R) continue;
-        const ini = (x.compas - origenArreglo()) * A.compas;
-        const pos = compasesQueSuenan(x, C) || Array.from({ length: x.largo }, (_, k) => ini + k * A.compas);
+        const pos = compasesQueSuenan(x, C) || Array.from({ length: x.largo }, (_, k) => negDeCompas(x.compas + k));
         const nR = Math.max(1, R.compases | 0), regla = REGLA_CJ[R.regla] || {};
         pos.forEach((q, k) => {
             const pc = k % nR;
             for (const tipo of ['grave', 'agudo']) for (const key of R[tipo] || []) {
                 const [c, t] = String(key).split(':').map(Number); if (c !== pc) continue;
-                const off = t / 480; if (off >= A.compas - 1e-6) continue;
+                const off = t / 480; if (off >= Math.min(A.compas, largoEn(q)) - 1e-6) continue;   // compás corto: solo su comienzo (HH)
                 const n = q + off;
                 if (omit.some(([a, b]) => n >= a - 1e-6 && n < b - 1e-6)) continue;
                 out.push({ seg: Math.round(mapaTempo.segDePulso(o + n / F) * 1000) / 1000, n, tipo, mano: (R.mano || {})[tipo + ':' + key] || regla[tipo] || null });

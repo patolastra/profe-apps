@@ -9636,6 +9636,13 @@ actualizarse solo").*
   ritmos del Arreglo, en 1/4 queda "Negra" + "Corcheas" (sin "Negras" repetido). Probado: mapa con compases de 1/4 y
   cambio a 4/4 (segundos y compases correctos); cambiar un compás suelto a 1/4 en la Ficha (los dos modos); Metrónomo
   tocando en 1/4; Cajón (cuadrícula de una negra por compás); Arreglo y Melodías aceptan 1/4.
-- **Límite que ya existía (no es del 1/4):** el Editor de arreglos usa una sola cifra para toda la canción. Si la Ficha
-  cambia de cifra a mitad de la canción (un compás de 1/4, o de 2/4, en una canción en 4/4), lo que viene después queda
-  corrido respecto de la grabación. Arreglarlo es un paso aparte, a decidir por el PO.
+- **Paso 2 — compás suelto (PO 2026-11-16: "un compás suelto"), hecho:** el Editor de arreglos usaba una sola cifra para
+  toda la canción; un cambio de cifra a mitad (1/4 o 2/4 en una canción en 4/4) corría todo lo de después. Ahora, si el
+  arreglo va en la cifra de la canción, dónde empieza y cuánto dura cada compás sale del mapa de la Ficha
+  (`negDeCompas`, `largoEn`). En el compás corto: el acorde dura lo que el compás; el 🥁 ritmo y el 🪘 cajón tocan solo
+  el comienzo de su compás; la melodía sigue de corrido; `_` alarga lo que dura ese compás. El archivo de estudiantes
+  lleva `barras` (comienzo de cada compás) cuando hay compases disparejos, y el Piano dibuja ahí las líneas de compás.
+  Si el arreglo está en otra cifra que la canción ("≠ canción"), sigue como antes (todos los compases iguales).
+  Probado con una canción 4/4 con un 1/4 en el compás 3: acordes, bajo, ritmo, melodía, cajón, resaltado del acorde
+  que suena, líneas del Piano; canción toda en 4/4 y sin Ficha quedan igual que antes.
+  Sin probar: con una canción real del PO y su grabación.
