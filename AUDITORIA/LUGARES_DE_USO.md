@@ -38,6 +38,8 @@
 | Workspace, Biblioteca, Plan (`?midi=&nombre=`) | profesor |
 | Dentro del Entrenador (`#metal-overlay`) | profesor |
 | Link / QR del alumno (`m/?a=&n=`) | alumno (sin Supabase) |
+| Vista previa de la pestaña 🎵 del Editor de arreglos (`?modo=alumno&vista=arreglo`) | alumno + arreglo con grabación (HJ) |
+| Link / QR del arreglo de metalófono (`m/?r=&n=`) | alumno + arreglo con grabación (HJ) |
 
 ## Editor de Melodías (`MELODIA/index.html`, deuda DK)
 

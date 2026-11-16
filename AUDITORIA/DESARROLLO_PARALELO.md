@@ -9654,3 +9654,32 @@ navegar hacia adelante o atrás en la canción, en el visor del arreglo para el 
   de ▶ y ← → saltan un compás (los omitidos por la adaptación no cuentan); arrastrar la cinta mueve la canción (mouse o
   dedo). Sonando sigue sonando desde ahí; en pausa solo se mueve. Probado con datos de prueba (saltos, adaptación,
   arrastre). Sin probar: con la grabación real.
+
+### HJ. Editor de arreglos — pestaña 🎵 Metalófono (con la grabación y la adaptación) — HECHA (2026-11-16)
+*Origen: PO 2026-11-16: "quiero hacer un arreglo de metalófono ahora para la misma canción (Dinosaurio Anacleto, 4°
+básico 2026)… también sería para la adaptación". Eligió la opción B (pestaña en el Editor de arreglos) en vez de una
+Melodía suelta para el Metalófono (que suena sin grabación ni adaptación).*
+- **Auditoría:** el Editor de arreglos ya tiene pestañas 🎹 Piano · 🪘 Cajón (HF): por sección de la Ficha se elige un
+  ritmo (copia que se pone al día, HG) y el Cajón lo toca con la grabación (`GrabacionTono`), salta lo omitido por la
+  adaptación y se comparte (`c/?r=`). El Metalófono de estudiantes hoy solo toca un MIDI suelto con Tone.js, sin
+  grabación ni mapa de tempo; sus placas van de La5 a La7 (MIDI 81–105). Las Melodías de la canción (Editor de
+  Melodías) no saben en qué compás de la canción empiezan.
+- **Propuesta:** pestaña 🎵 Metalófono: por sección de la Ficha, una Melodía de la canción (copia que sigue a su
+  original) y desde qué compás de la melodía; secciones sin melodía = el metalófono descansa. Se corre de octava hasta
+  caber en las placas. Vista previa = el Metalófono (`?vista=arreglo`) con la grabación; estudiante
+  `?modo=alumno&r=<id>` (link corto `m/?r=&n=`), lee la parte `metalofono` de `arreglo/<id>.json`: la grabación suena,
+  las placas se iluminan y suenan (con botón para apagar su sonido), ⏪ ⏩ por compás. Sin Supabase. El modo profesor del
+  Metalófono y el link `m/?a=` no cambian.
+- **Aprobada por el PO (2026-11-16) y hecha:** `A.metal = { mels: { <melodía>: copia { etiqueta, tonalidad, notas } },
+  sec: { <sección>: { mel, desde } } }`. Al elegir la melodía en una sección, "desde" sigue donde quedó la sección
+  anterior con esa melodía (sus compases que suenan). Las copias siguen a su original (`sincronizarCopias`, AlDia) salvo
+  📌 Fijar. `arreglo/<id>.json` lleva `metalofono: { notas: [{ s, e, m }], compases, secciones, audio }` (notas en
+  segundos de la grabación, ya en las placas: la octava con más notas adentro, las demás dobladas). Metalófono:
+  `?modo=alumno&vista=arreglo` (vista previa, mensajes `arreglo-metalofono` / `metal-listo`) y `?modo=alumno&r=<id>`
+  (estudiante; link corto `m/?r=&n=`); grabación con `GrabacionTono` en su propio AudioContext, placas con sonido
+  propio (🔔 / 🔕), ⏪ ⏩ / ← → por compás, Ir a… sección, 🎤 Melodía / 🎶 Karaoke; se detiene al salir de la app.
+  Biblioteca: botón 🎵 en el arreglo publicado con metalófono (`compartirArreglo(…, 'metal')`, con 📅 Disponible hasta).
+  Probado: reparto por secciones con adaptación (sección omitida), "desde" que continúa, octavas, vista previa tocando
+  con una grabación de prueba (placas en orden, ⏩, fila de la sección marcada), link de estudiante inexistente (aviso),
+  modo profesor y link `m/?a=` sin cambios. Sin probar: con la melodía y la grabación reales de Dinosaurio Anacleto;
+  el link de estudiante con un arreglo guardado.

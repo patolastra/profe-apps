@@ -51,7 +51,11 @@
     /* Pestañas por instrumento (deuda HF): cada una muestra lo suyo y su vista previa */
     #inst { flex: 0 0 auto; }
     #inst .btn { height: 34px; width: 104px; }
-    body[data-inst="cajon"] .p-piano, body:not([data-inst="cajon"]) .p-cajon { display: none !important; }
+    #inst .btn[data-inst="metal"] { width: 130px; }
+    body[data-inst="cajon"] .p-piano, body[data-inst="metal"] .p-piano, body:not([data-inst="cajon"]) .p-cajon,
+    body:not([data-inst="metal"]) .p-metal { display: none !important; }
+    .mt-fila { grid-template-columns: 1fr 170px 62px 110px; }
+    .mt-fila input { height: 28px; width: 100%; }
     .cj-fila { display: grid; grid-template-columns: 1fr 190px 30px 110px; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 7px; font-size: 13px; }
     .cj-fila.sonando { background: rgba(34,197,94,.18); }
     .cj-fila select { height: 28px; width: 100%; }
@@ -170,7 +174,7 @@
     <div id="cancion">🎹 Arreglo</div>
     <input id="etiqueta" placeholder="Detalle (opcional)" title="Detalle del arreglo, p. ej. 'para el taller'">
     <button class="btn" id="b-fijo" style="height:34px;width:40px">📌</button>
-    <div class="seg" id="inst"><button class="btn on" data-inst="piano" title="La parte del piano">🎹 Piano</button><button class="btn" data-inst="cajon" title="La parte del cajón">🪘 Cajón</button></div>
+    <div class="seg" id="inst"><button class="btn on" data-inst="piano" title="La parte del piano">🎹 Piano</button><button class="btn" data-inst="cajon" title="La parte del cajón">🪘 Cajón</button><button class="btn" data-inst="metal" title="La parte del metalófono">🎵 Metalófono</button></div>
     <div class="sep"></div>
     <div id="estado"></div>
     <button id="b-guardar">Guardar</button>
@@ -196,6 +200,13 @@
             <div class="fila"><button class="btn" id="cj-nuevo" title="Abre el Cajón para programar un ritmo nuevo de esta canción">＋ Nuevo ritmo en el Cajón</button>
                 <button class="btn" id="cj-recargar" title="Vuelve a leer los ritmos de la canción y de los estilos">↻ Actualizar ritmos</button></div>
             <div class="ayuda">Los ritmos son los 🪘 Cajón de esta canción y de los estilos de la Biblioteca. Al elegir uno se copia al arreglo: si después lo cambias en el Cajón, aparece ↻ para traer los cambios.</div>
+        </div>
+
+        <div class="card p-metal">
+            <h3>🎵 Metalófono <small>por sección, una melodía de la canción y desde qué compás de ella</small></h3>
+            <div id="mt-lista"></div>
+            <div class="ayuda" id="mt-info"></div>
+            <div class="ayuda">Las melodías son las de esta canción (Editor de Melodías). Se copian al arreglo y siguen a su original. Si no caben en las placas (La a La, dos octavas), se suben o bajan de octava.</div>
         </div>
 
         <div class="card p-piano">
@@ -249,6 +260,7 @@
         <div id="vista-tit">Vista previa — así lo ve el estudiante</div>
         <iframe id="previa" class="p-piano" src="../PIANO/index.html?vista=editor" title="Vista previa"></iframe>
         <iframe id="previa-cajon" class="p-cajon" title="Vista previa del cajón"></iframe>
+        <iframe id="previa-metal" class="p-metal" title="Vista previa del metalófono"></iframe>
     </div>
 </div>
 <div id="rit-fondo"><div id="rit">
@@ -624,7 +636,7 @@ function desplegar() {
     return { notas, acordes, secciones, pulsos: fin };
 }
 function datosPublicos(hasta) {
-    const d = comprimir(desplegar()), C = cortesArreglo(), ad = adaptacionArreglo(), cj = datosCajon();
+    const d = comprimir(desplegar()), C = cortesArreglo(), ad = adaptacionArreglo(), cj = datosCajon(), mt = datosMetal();
     const omitidosV = (A.omitidos || []).map(([a, b]) => [aComprimido(a, C), aComprimido(b, C)]).filter(([a, b]) => b - a > 1e-6);
     return { v: 1, tipo: 'arreglo', cancion: cancionNombre, etiqueta: $('etiqueta').value.trim(), tempo: A.tempo, compas: A.compas, pulso: A.pulso, cifra: A.cifra,
         tonalidad: nombreTonalidad(), notas: d.notas, acordes: d.acordes, secciones: d.secciones,
@@ -634,6 +646,7 @@ function datosPublicos(hasta) {
         fin: d.pulsos,
         ...(compasesDisparejos() ? { barras: barrasPublicas(d.pulsos) } : {}),   // HH: dónde empieza cada compás (si no son todos iguales)
         ...(cj.golpes.length ? { cajon: cj } : {}),
+        ...(mt.notas.length ? { metalofono: mt } : {}),
         ...(omitidosV.length ? { omitidos: omitidosV } : {}),   // para dibujarlos en la vista previa del editor
         ...(hasta ? { hasta } : {}) };
 }
@@ -877,7 +890,7 @@ function marcarSonando(p) {
         f.classList.toggle('sonando', c !== null && !!x && c >= x.compas - 1e-6 && c < x.compas + x.largo - 1e-6);
     });
     marcarAcordeSonando(pulsoSonando);
-    document.querySelectorAll('#cj-lista .cj-fila').forEach(f => {
+    document.querySelectorAll('#cj-lista .cj-fila, #mt-lista .cj-fila').forEach(f => {
         const x = its[+f.dataset.i];
         f.classList.toggle('sonando', c !== null && !!x && c >= x.compas - 1e-6 && c < x.compas + x.largo - 1e-6);
     });
@@ -1106,7 +1119,7 @@ function pintarAudio() {
         pintarAdaptArreglo();
     }
 }
-function pintarTodo() { pintarBase(); pintarSecciones(); pintarOrden(); pintarOctavas(); pintarAcordes(); pintarAudio(); pintarCajon(); cambio(); }
+function pintarTodo() { pintarBase(); pintarSecciones(); pintarOrden(); pintarOctavas(); pintarAcordes(); pintarAudio(); pintarCajon(); pintarMetal(); cambio(); }
 
 // ══ Cambios ═════════════════════════════════════════════════════════════════════════════
 // Lo guardado no lleva la cifra cuando es x/4 (así se leía antes de FN/FO)
@@ -1126,7 +1139,7 @@ function canon(txt) {
     return JSON.stringify(orden(o));
 }
 // Hay algo que guardar: secuencias o un orden (con Ficha la Estructura reemplaza al orden manual, que queda vacío)
-const hayAlgo = () => !!(A.secciones.length || A.orden.length || Object.keys(A.cajon?.sec || {}).length);
+const hayAlgo = () => !!(A.secciones.length || A.orden.length || Object.keys(A.cajon?.sec || {}).length || Object.keys(A.metal?.sec || {}).length);
 const hayCambios = () => canon(contenidoActual()) !== canon(contenidoBase) || $('etiqueta').value.trim() !== etiquetaBase;
 const claveBorrador = () => 'arreglo_borrador:' + (assetId || 'nuevo:' + cancionId);
 let previaT = null;
@@ -1143,13 +1156,14 @@ function cambio() {
 }
 function enviarPrevia() {
     try { $('previa').contentWindow.postMessage({ tipo: 'arreglo-datos', datos: datosPublicos() }, '*'); } catch (_) {}
-    enviarCajon();
+    enviarCajon(); enviarMetal();
 }
 $('previa').addEventListener('load', enviarPrevia);
 window.addEventListener('message', e => {
     if (e.data?.tipo === 'piano-listo') enviarPrevia();
     if (e.data?.tipo === 'cajon-listo') enviarCajon();
-    if (e.source === $('previa-cajon').contentWindow && e.data?.tipo === 'arreglo-pulso') {
+    if (e.data?.tipo === 'metal-listo') enviarMetal();
+    if ((e.source === $('previa-cajon').contentWindow || e.source === $('previa-metal').contentWindow) && e.data?.tipo === 'arreglo-pulso') {
         marcarSonando(typeof e.data.seg === 'number' && mapaTempo ? (mapaTempo.pulsoDeSeg(e.data.seg) - mapaTempo.pulsoDeCompas(origenArreglo())) * negrasPorPulsoMapa() : null);
         return;
     }
@@ -1552,6 +1566,10 @@ async function sincronizarCopias() {
             }
         } catch (_) {}
     }
+    for (const id of Object.keys(A.metal?.mels || {})) {      // las melodías del metalófono (HJ)
+        const j = await leerMelodia(id).catch(() => null), c = A.metal.mels[id];
+        if (j && JSON.stringify(j.notas) !== JSON.stringify(c.notas)) { c.notas = j.notas; cambios.push('de la melodía ' + (c.etiqueta || '') + ' del metalófono'); }
+    }
     const ids = Object.keys(A.cajon?.ritmos || {}).filter(x => !x.startsWith('__'));
     if (ids.length) {
         const { data } = await sb.from('repertorio_assets').select('id, contenido').in('id', ids);
@@ -1587,7 +1605,7 @@ if (window.AlDia && !REHACER) {
             alDiaT = setTimeout(async () => { await cargarTempo(); pintarTodo(); toast('La Ficha de la canción cambió: el arreglo ya la sigue'); }, 600);
             return;
         }
-        if ((msg.tipo === 'melodia' && A.melodia?.origen === msg.id) || (msg.tipo === 'cajon' && A.cajon?.ritmos?.[msg.id])) {
+        if ((msg.tipo === 'melodia' && (A.melodia?.origen === msg.id || A.metal?.mels?.[msg.id])) || (msg.tipo === 'cajon' && A.cajon?.ritmos?.[msg.id])) {
             if (A.fijo) return;
             const c = await sincronizarCopias();
             if (c.length) { toast('Se trajeron los cambios ' + c.join(' y ')); pintarTodo(); }
@@ -1819,22 +1837,154 @@ window.addEventListener('message', e => {
 });
 $('cj-modal-cerrar').onclick = e => { e.target.blur(); cerrarEditorCajon(); };
 
+// ══ 🎵 Metalófono (deuda HJ) ═════════════════════════════════════════════════════════════
+// La parte del metalófono: a cada sección de la Estructura de la Ficha, una Melodía de la canción (copiada al arreglo, sigue
+// a su original) desde un compás de esa melodía; de corrido en los compases que suenan (la adaptación se salta sola). Suena
+// en el Metalófono (modo alumno, ?vista=arreglo / ?r=) junto a la grabación: notas en segundos de la grabación.
+// A.metal = { mels: { <id melodía>: { etiqueta, tonalidad, notas: [{ t, d, m }] } }, sec: { <sección>: { mel, desde } } }
+const METAL_SRC = encodeURI('../METALÓFONO APP/METAL21 (ALPHA).HTML');
+const PLACA_MIN = 81, PLACA_MAX = 105;          // La5 a La7
+async function leerMelodia(id) {
+    const r = await fetch(publica(`melodia/${id}.json`) + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    return { etiqueta: j.etiqueta || melodias.find(m => m.id === id)?.etiqueta || '', tonalidad: j.tonalidad || '',
+        notas: (j.notas || []).map(n => ({ t: n.t, d: n.d, m: n.m })) };
+}
+const compasesMel = M => Math.max(1, Math.ceil(Math.max(0, ...M.notas.map(n => n.t + n.d)) / 4 / A.compas - 1e-9));
+// Las notas del metalófono, en segundos de la grabación, y cuántas octavas se corrieron para caber en las placas
+function partesMetal() {
+    if (!mapaTempo || !modoFicha() || !A.metal) return { notas: [], oct: 0, fuera: 0 };
+    const C = cortesArreglo(), o = mapaTempo.pulsoDeCompas(origenArreglo()), F = negrasPorPulsoMapa(), omit = A.omitidos || [], out = [];
+    const seg = n => Math.round(mapaTempo.segDePulso(o + n / F) * 1000) / 1000;
+    for (const x of itemsEstructura()) {
+        const cfg = A.metal.sec?.[claveItem(x)], M = cfg && A.metal.mels?.[cfg.mel]; if (!M) continue;
+        const pos = compasesQueSuenan(x, C) || Array.from({ length: x.largo }, (_, k) => negDeCompas(x.compas + k));
+        const nC = pos.length; if (!nC) continue;
+        const lens = pos.map(largoEn), acum = [];
+        lens.reduce((q, l, k) => { acum[k] = q; return q + l * 4; }, 0);
+        const finTramo = k => { let j = k; while (j + 1 < nC && pos[j + 1] - pos[j] < lens[j] + 1e-6) j++; return pos[j] + lens[j]; };
+        const off = (Math.max(1, cfg.desde || 1) - 1) * A.compas * 4;
+        for (const n of M.notas) {
+            const L = n.t - off; if (L < -1e-9) continue;
+            let k = -1; for (let j = 0; j < nC; j++) if (L >= acum[j] - 1e-9 && L < acum[j] + lens[j] * 4 - 1e-9) { k = j; break; }
+            if (k < 0) continue;                 // lo que no cabe en la sección no suena
+            const t = pos[k] * 4 + (L - acum[k]), d = Math.min(n.d, finTramo(k) * 4 - t);
+            if (d <= 0 || omit.some(([a, b]) => t / 4 >= a - 1e-6 && t / 4 < b - 1e-6)) continue;
+            out.push({ s: seg(t / 4), e: seg((t + d) / 4), m: n.m });
+        }
+    }
+    out.sort((a, b) => a.s - b.s || a.m - b.m);
+    // A las placas: la octava con más notas adentro (y la más cercana); las que igual quedan fuera, a la octava que cabe
+    let oct = 0, mejor = -1;
+    for (const k of [0, 1, -1, 2, -2, 3, -3, 4, -4]) {
+        const dentro = out.filter(n => n.m + 12 * k >= PLACA_MIN && n.m + 12 * k <= PLACA_MAX).length;
+        if (dentro > mejor) { mejor = dentro; oct = k; }
+    }
+    let fuera = 0;
+    out.forEach(n => {
+        n.m += 12 * oct;
+        if (n.m < PLACA_MIN || n.m > PLACA_MAX) fuera++;
+        while (n.m < PLACA_MIN) n.m += 12;
+        while (n.m > PLACA_MAX) n.m -= 12;
+    });
+    return { notas: out, oct, fuera };
+}
+// Lo que lee el Metalófono: lo mismo que el Cajón (compases, secciones, grabación) con las notas en vez de los golpes
+function datosMetal() {
+    const b = datosCajon(); if (!b.compases) return { notas: [] };
+    const { golpes, ...resto } = b;
+    return { ...resto, notas: partesMetal().notas };
+}
+function enviarMetal() {
+    const f = $('previa-metal'); if (!f.getAttribute('src')) return;
+    try { f.contentWindow.postMessage({ tipo: 'arreglo-metalofono', datos: datosMetal() }, '*'); } catch (_) {}
+}
+function pintarMetal() {
+    const el = $('mt-lista'); if (!el) return;
+    if (!modoFicha()) { el.innerHTML = '<div class="ayuda">El metalófono va por las secciones de la Ficha de la canción: márcalas en la Ficha, con su tempo.</div>'; $('mt-info').textContent = ''; return; }
+    const C = cortesArreglo(), its = itemsEstructura(), mt = A.metal || {};
+    el.innerHTML = its.map((x, i) => {
+        const suenan = compasesQueSuenan(x, C), L = suenan ? suenan.length : x.largo;
+        const cfg = mt.sec?.[claveItem(x)], M = cfg && mt.mels?.[cfg.mel];
+        let info = '';
+        if (!L) info = '✂ no va en la adaptación';
+        else if (M) { const n = compasesMel(M), d = cfg.desde || 1; info = d > n ? '<span class="mal">la melodía no llega a ese compás</span>' : `c. ${d}–${Math.min(n, d + L - 1)} de ${n}`; }
+        const huerfana = M && !melodias.some(m => m.id === cfg.mel) ? `<option value="${esc(cfg.mel)}" selected>${esc(M.etiqueta || 'Melodía')} (copia)</option>` : '';
+        return `<div class="cj-fila mt-fila" data-i="${i}">
+            <button class="cj-tit" data-mt-ir title="Tocar desde aquí">▶ ${esc(x.etiqueta)} <small>c. ${x.compas} · ${L === x.largo ? x.largo : `✂ ${L} de ${x.largo}`}</small></button>
+            <select data-mt-sel ${L ? '' : 'disabled'}><option value="">— descansa —</option>${huerfana}${melodias.map(m => `<option value="${m.id}"${M && cfg.mel === m.id ? ' selected' : ''}>${esc(m.etiqueta || 'Melodía')}</option>`).join('')}</select>
+            <input type="number" data-mt-desde min="1" step="1" value="${M ? cfg.desde || 1 : ''}" ${M && L ? '' : 'disabled'} title="Desde qué compás de la melodía">
+            <span class="cj-info">${info}</span></div>`;
+    }).join('');
+    const p = partesMetal();
+    $('mt-info').textContent = !melodias.length ? 'La canción aún no tiene melodías: escríbela en el Editor de Melodías (desde la ficha de la canción).'
+        : !p.notas.length ? 'Elige una melodía para alguna sección.'
+        : `${p.notas.length} notas` + (p.oct ? ` · ${p.oct > 0 ? 'subida' : 'bajada'} ${Math.abs(p.oct)} ${Math.abs(p.oct) === 1 ? 'octava' : 'octavas'} para caber en las placas` : '')
+            + (p.fuera ? ` · ${p.fuera} ${p.fuera === 1 ? 'nota quedó' : 'notas quedaron'} en otra octava (no cabían)` : '');
+    marcarSonando(pulsoSonando);
+}
+async function ponerMelodiaMetal(x, id) {
+    const k = claveItem(x);
+    A.metal = A.metal || { mels: {}, sec: {} };
+    A.metal.mels = A.metal.mels || {}; A.metal.sec = A.metal.sec || {};
+    if (id) {
+        if (!A.metal.mels[id]) {
+            try { A.metal.mels[id] = await leerMelodia(id); }
+            catch (e) { toast('No se pudo copiar la melodía: ' + (e.message || e)); pintarMetal(); return; }
+        }
+        // Parte donde quedó la sección anterior con esa melodía (sus compases que suenan); si no hay, en el compás 1
+        const its = itemsEstructura(), i = its.findIndex(y => claveItem(y) === k), C = cortesArreglo();
+        let desde = 1;
+        for (let j = i - 1; j >= 0; j--) {
+            const c = A.metal.sec[claveItem(its[j])];
+            if (c && c.mel === id) { const s = compasesQueSuenan(its[j], C); desde = (c.desde || 1) + (s ? s.length : its[j].largo); break; }
+        }
+        A.metal.sec[k] = { mel: id, desde: A.metal.sec[k]?.mel === id ? A.metal.sec[k].desde : desde };
+    } else delete A.metal.sec[k];
+    const usadas = new Set(Object.values(A.metal.sec).map(c => c.mel));
+    Object.keys(A.metal.mels).forEach(m => { if (!usadas.has(m)) delete A.metal.mels[m]; });
+    if (!usadas.size) delete A.metal;
+    pintarMetal(); cambio();
+}
+$('mt-lista').addEventListener('change', e => {
+    const f = e.target.closest('.mt-fila'); if (!f) return;
+    const x = itemsEstructura()[+f.dataset.i]; if (!x) return;
+    if (e.target.matches('[data-mt-sel]')) { e.target.blur(); ponerMelodiaMetal(x, e.target.value || null); return; }
+    if (e.target.matches('[data-mt-desde]')) {
+        const c = A.metal?.sec?.[claveItem(x)]; if (!c) return;
+        c.desde = Math.max(1, Math.round(+e.target.value || 1)); pintarMetal(); cambio();
+    }
+});
+$('mt-lista').addEventListener('click', e => {
+    const f = e.target.closest('.mt-fila'); if (!f || !e.target.closest('[data-mt-ir]') || !mapaTempo) return;
+    const x = itemsEstructura()[+f.dataset.i]; if (!x) return;
+    enviarMetal();
+    try { $('previa-metal').contentWindow.postMessage({ tipo: 'arreglo-tocar', seg: mapaTempo.segDePulso(mapaTempo.pulsoDeCompas(x.compas)) }, '*'); } catch (_) {}
+});
+
 // Al volver a esta pestaña (p. ej. después de programar un ritmo en el Cajón), los ritmos se leen de nuevo
 document.addEventListener('visibilitychange', () => { if (!document.hidden && document.body.dataset.inst === 'cajon') cargarRitmosCajon(); });
 // Pestañas por instrumento: cada una con su vista previa; la otra se calla
+const PREVIAS = { piano: 'previa', cajon: 'previa-cajon', metal: 'previa-metal' };
 function ponerInst(inst) {
     document.body.dataset.inst = inst;
     document.querySelectorAll('#inst [data-inst]').forEach(b => b.classList.toggle('on', b.dataset.inst === inst));
-    const otra = inst === 'cajon' ? $('previa') : $('previa-cajon');
-    try { otra.contentWindow?.postMessage({ tipo: 'arreglo-detener' }, '*'); } catch (_) {}
+    Object.entries(PREVIAS).forEach(([k, id]) => { if (k !== inst) try { $(id).contentWindow?.postMessage({ tipo: 'arreglo-detener' }, '*'); } catch (_) {} });
     if (inst === 'cajon') {
         const f = $('previa-cajon');
         if (!f.getAttribute('src')) f.src = '../CAJON-PERUANO/index.html?vista=arreglo';
         else enviarCajon();
         cargarRitmosCajon();
     }
-    $('vista-tit').textContent = inst === 'cajon' ? 'Vista previa del cajón — con la grabación de la canción' : 'Vista previa — así lo ve el estudiante';
-    $('cancion').textContent = (inst === 'cajon' ? '🪘 ' : '🎹 ') + (cancionNombre || 'Arreglo');
+    if (inst === 'metal') {
+        const f = $('previa-metal');
+        if (!f.getAttribute('src')) f.src = METAL_SRC + '?modo=alumno&vista=arreglo';
+        else enviarMetal();
+        pintarMetal();
+    }
+    $('vista-tit').textContent = { cajon: 'Vista previa del cajón — con la grabación de la canción', metal: 'Vista previa del metalófono — así lo ve el estudiante, con la grabación' }[inst] || 'Vista previa — así lo ve el estudiante';
+    $('cancion').textContent = ({ cajon: '🪘 ', metal: '🎵 ' }[inst] || '🎹 ') + (cancionNombre || 'Arreglo');
 }
 $('inst').addEventListener('click', e => { const b = e.target.closest('[data-inst]'); if (b) { b.blur(); ponerInst(b.dataset.inst); } });
 
@@ -1902,7 +2052,9 @@ async function iniciar() {
     pintarTodo();
     cargarRitmosCajon();
     // Arreglo que solo tiene cajón (o pedido así): abre en esa pestaña
-    if (new URLSearchParams(location.search).get('inst') === 'cajon' || (A.cajon && !A.secciones.length)) ponerInst('cajon');
+    const pide = new URLSearchParams(location.search).get('inst');
+    if (pide === 'metal' || (!pide && A.metal && !A.secciones.length && !A.cajon)) ponerInst('metal');
+    else if (pide === 'cajon' || (A.cajon && !A.secciones.length)) ponerInst('cajon');
 }
 iniciar().then(alAbrir);
 </script>

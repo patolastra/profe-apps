@@ -42,6 +42,16 @@
             cs.name = 'color-scheme'; cs.content = 'only light';
             document.head.appendChild(cs);
         }
+        // ARREGLO DE METALÓFONO (deuda HJ): ?modo=alumno&r=<id> (estudiante, link corto m/?r=) o ?modo=alumno&vista=arreglo
+        // (vista previa del Editor de arreglos). Toca la parte del metalófono junto a la grabación de la canción.
+        (function () {
+            const q = new URLSearchParams(location.search);
+            if (q.get('modo') !== 'alumno' || !(q.get('r') || q.get('vista') === 'arreglo')) return;
+            window.METAL_ARREGLO = true;
+            document.documentElement.classList.add('arreglo-metal');
+            if (q.get('vista') === 'arreglo') document.documentElement.classList.add('vista-arreglo');
+            document.write('<script src="../comun/grabacion-tono.js?v=hc"><\/script>');
+        })();
     </script>
     <!-- Versión fija (rendimiento): antes "tone" / "@tonejs/midi" sin versión obligaban a una
          redirección que caducaba a los 60 s en cada visita. Son exactamente las mismas versiones. -->
@@ -313,6 +323,13 @@
            cambia el espacio en px CSS y todo escala junto: misma barra, mismo orden,
            misma relación barra/instrumento. Sin tamaños fijos ni mínimos que la rompan. */
         .solo-alumno { display: none; }
+        /* Arreglo de metalófono (HJ): sin Práctica ni velocidad; sus botones van con la grabación */
+        html.arreglo-metal #btn-alumno-practica, html.arreglo-metal .tempo-wrapper { display: none !important; }
+        html.vista-arreglo #alumno-girar, html.vista-arreglo #alumno-inicio { display: none !important; }
+        html.arreglo-metal header button.arr-off, html.arreglo-metal header button.arr-off:hover { background: #3d3d45; }
+        html.arreglo-metal #arr-sec { font-size: calc(14 * var(--u)); height: calc(32 * var(--u)); border-radius: calc(8 * var(--u));
+            background: #3d3d45; color: #fff; border: 0; padding: 0 calc(6 * var(--u)); max-width: calc(170 * var(--u)); }
+        html.arreglo-metal #arr-voz { width: calc(118 * var(--u)); }
         html.modo-alumno .solo-alumno { display: revert; }
         html.modo-alumno #btn-nuevo-midi,
         html.modo-alumno #btn-practice-wrap,
@@ -1203,7 +1220,7 @@
         const _urlMidi = MODO_ALUMNO
             ? (/^[a-z0-9]{6,40}$/i.test(_alumnoId) ? ALUMNO_STORAGE + _alumnoId + '.mid' : null)
             : new URLSearchParams(location.search).get('midi');
-        if (MODO_ALUMNO) alumnoInit(!!_urlMidi);
+        if (MODO_ALUMNO && !window.METAL_ARREGLO) alumnoInit(!!_urlMidi);
         if (_urlMidi) {
             btnNuevoMidi.style.display = 'none';
             statusDiv.innerText = "Cargando MIDI…";
@@ -1337,6 +1354,177 @@
         }
 
         updateLabels();
+
+        // ═══ ARREGLO DE METALÓFONO (deuda HJ) ═══════════════════════════════════════════════════
+        // La parte del metalófono de un arreglo (Editor de arreglos, pestaña 🎵): notas en segundos de la grabación de la
+        // canción ({ s, e, m }), que suena con GrabacionTono (salta lo omitido por la adaptación). Las placas se iluminan y
+        // suenan (🔔 apaga su sonido). ⏪ ⏩ / ← → un compás; Espacio toca o pausa. Sonido propio (Web Audio), sin Tone.
+        if (window.METAL_ARREGLO) (function () {
+            const q = new URLSearchParams(location.search), VISTA = q.get('vista') === 'arreglo';
+            const STORAGE = window.METAL_ALUMNO_STORAGE.replace(/midi\/$/, '');
+            let D = null, ctx = null, grab = null, tocando = false, pos = 0, idx = 0, desde = 0, reloj = null, voz = 'melodia', placasOn = true, cargando = false;
+            let osc = [], timers = [];
+            const N = () => D?.notas || [];
+            const urlVoz = () => D?.audio?.[voz] || D?.audio?.melodia || D?.audio?.karaoke || null;
+            const primer = t => { const L = N(); let lo = 0, hi = L.length; while (lo < hi) { const m = (lo + hi) >> 1; if (L[m].s < t) lo = m + 1; else hi = m; } return lo; };
+
+            // Barra: ⏪ ▶ ⏩ · 🎤 Melodía / 🎶 Karaoke · 🔔 · Ir a… (sección)
+            const mk = (id, txt, title, fn) => { const b = document.createElement('button'); b.id = id; b.textContent = txt; b.title = title; b.onclick = () => { b.blur(); fn(); }; return b; };
+            const bAtras = mk('arr-atras', '⏪', 'Un compás atrás (←)', () => saltar(-1));
+            const bAdel = mk('arr-adelante', '⏩', 'Un compás adelante (→)', () => saltar(1));
+            const bVoz = mk('arr-voz', '🎤 Melodía', 'Grabación con voz (Melodía) o sin voz (Karaoke)', cambiarVoz);
+            const bPlacas = mk('arr-placas', '🔔', 'Sonido de las placas (encendido / apagado)', () => { placasOn = !placasOn; pintar(); });
+            const sel = document.createElement('select'); sel.id = 'arr-sec'; sel.title = 'Ir a una sección de la canción';
+            sel.onchange = () => { const v = sel.value; sel.value = ''; sel.blur(); if (v !== '') ir(+v, true); };
+            btnPlay.before(bAtras); btnPlay.after(bAdel); bAdel.after(bVoz); bVoz.after(bPlacas);
+            document.getElementById('alumno-titulo').after(sel);
+            btnPlay.onclick = () => { btnPlay.blur(); tocando ? pausar() : tocar(); };
+            function pintar() {
+                btnPlay.textContent = tocando ? '⏸ Pausa' : '▶ Tocar';
+                const hay = !!(D && urlVoz());
+                [btnPlay, bAtras, bAdel].forEach(b => { b.disabled = !hay; });
+                bVoz.style.visibility = D?.audio?.melodia && D?.audio?.karaoke ? 'visible' : 'hidden';
+                bVoz.textContent = voz === 'karaoke' ? '🎶 Karaoke' : '🎤 Melodía';
+                bPlacas.classList.toggle('arr-off', !placasOn);
+                bPlacas.textContent = placasOn ? '🔔' : '🔕';
+            }
+            function ponerDatos(d) {
+                const seguia = tocando, p = seguia ? (grab.oido() ?? pos) : pos;
+                if (seguia) pausar();
+                D = d || { notas: [] };
+                const saltos = D.audio?.saltos || [];
+                const L = (D.secciones || []).filter(x => !saltos.some(t => x.s >= t.desde - 0.05 && x.s < t.hasta - 0.05));
+                sel.innerHTML = '<option value="">Ir a…</option>' + L.map(x => {
+                    const fin = L[L.indexOf(x) + 1]?.s ?? Infinity, con = N().some(n => n.s >= x.s - 0.01 && n.s < fin);
+                    return `<option value="${x.s}">${con ? '🎵 ' : ''}${String(x.nombre).replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;')}</option>`;
+                }).join('');
+                sel.style.visibility = L.length ? 'visible' : 'hidden';
+                const nombre = q.get('n') || [D.cancion, D.etiqueta].filter(Boolean).join(' — ') || 'Arreglo';
+                const t = document.getElementById('alumno-titulo'); t.textContent = nombre; t.title = nombre;
+                document.getElementById('alumno-nombre').textContent = nombre;
+                if (ctx && urlVoz()) { asegurarGrab(); grab.precargar(D.audio?.melodia); grab.precargar(D.audio?.karaoke); }
+                pintar();
+                if (seguia) { pos = p; tocar(); }
+            }
+            function asegurarCtx() {
+                if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+                if (ctx.state === 'suspended') ctx.resume();
+            }
+            function asegurarGrab() {
+                if (grab) return;
+                const g = ctx.createGain(); g.gain.value = 0.9; g.connect(ctx.destination);
+                grab = GrabacionTono.crear(ctx, g);
+            }
+            // Una placa: triángulo con caída corta (como el sintetizador del Metalófono)
+            function placa(m, t) {
+                const o = ctx.createOscillator(), g = ctx.createGain();
+                o.type = 'triangle'; o.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
+                g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.32, t + 0.003); g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+                o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.6);
+                osc.push({ o, t });
+            }
+            async function tocar() {
+                if (!D || tocando || cargando) return;
+                const url = urlVoz(); if (!url) return;
+                asegurarCtx(); asegurarGrab();
+                cargando = true; btnPlay.textContent = '⏳';
+                try { await grab.cargar(url); }
+                catch (e) { cargando = false; pintar(); document.getElementById('alumno-msg').textContent = 'No se pudo cargar la grabación.'; return; }
+                cargando = false;
+                if (pos >= grab.duracion - 0.05) pos = 0;
+                grab.alTerminar = () => { if (tocando) { pausar(); pos = 0; } };
+                await grab.tocar(pos, D.audio?.semitonos || 0, 1, D.audio?.saltos || null);
+                tocando = true; desde = pos - 1e-6; idx = primer(desde);
+                reloj = setInterval(programar, 25);
+                pintar();
+            }
+            function programar() {
+                if (!tocando || !grab) return;
+                const o = grab.oido(); if (o === null) return;
+                const L = N(), lat = ctx.outputLatency || ctx.baseLatency || 0;
+                while (idx < L.length && L[idx].s < o + 0.25) {
+                    const n = L[idx++];
+                    if (n.s < desde || grab.omitido(n.s)) continue;
+                    const t = Math.max(ctx.currentTime, grab.aCtx(n.s)), t2 = Math.max(t + 0.12, grab.aCtx(n.e) - 0.03);
+                    if (placasOn) placa(n.m, t);
+                    timers.push(setTimeout(() => noteOn(n.m), (t + lat - ctx.currentTime) * 1000));
+                    timers.push(setTimeout(() => noteOff(n.m), (t2 + lat - ctx.currentTime) * 1000));
+                }
+                if (osc.length > 100) osc = osc.filter(x => x.t > ctx.currentTime - 1);
+                if (timers.length > 400) timers = timers.slice(-200);
+                if (VISTA) try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: o }, '*'); } catch (_) {}
+            }
+            function pausar() {
+                if (!tocando) return;
+                pos = Math.max(0, grab.oido() ?? pos);
+                tocando = false; clearInterval(reloj); reloj = null;
+                grab.detener();
+                osc.forEach(x => { try { x.o.stop(0); } catch (_) {} }); osc = [];
+                timers.forEach(clearTimeout); timers = [];
+                resetVisuals();
+                pintar();
+                if (VISTA) try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: null }, '*'); } catch (_) {}
+            }
+            function ir(seg, tocarYa) {
+                const seguia = tocando;
+                if (seguia) pausar();
+                pos = Math.max(0, seg);
+                if (seguia || tocarYa) tocar();
+            }
+            function saltar(dir) {
+                const comps = D?.compases || []; if (!comps.length) return;
+                const saltos = D.audio?.saltos || [], omit = s => saltos.some(t => s >= t.desde - 0.05 && s < t.hasta - 0.05);
+                const p = tocando ? (grab.oido() ?? pos) : pos, L = comps.filter(s => !omit(s));
+                const destino = dir < 0 ? [...L].reverse().find(s => s < p - (tocando ? 0.4 : 0.02)) ?? 0 : L.find(s => s > p + 0.02);
+                if (destino !== undefined) ir(destino, false);
+            }
+            async function cambiarVoz() {
+                voz = voz === 'karaoke' ? 'melodia' : 'karaoke'; pintar();
+                const url = urlVoz();
+                if (grab && url) { if (tocando) await grab.cambiar(url).catch(() => {}); else grab.cargar(url).catch(() => {}); }
+            }
+            document.addEventListener('keydown', e => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || !D) return;
+                if (e.code === 'Space') { e.preventDefault(); btnPlay.click(); }
+                else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') { e.preventDefault(); saltar(e.code === 'ArrowLeft' ? -1 : 1); }
+            }, true);
+            // Workspace (FK): si otra pestaña empieza a sonar, esta se calla
+            if (window.UnSonido) UnSonido.alDetener(() => pausar(), () => tocando);
+            window.addEventListener('resize', alumnoAjustarPlacas);
+            if ('ResizeObserver' in window) new ResizeObserver(alumnoAjustarPlacas).observe(document.getElementById('case'));
+            alumnoAjustarPlacas();
+            pintar();
+
+            if (VISTA) {                 // vista previa del Editor de arreglos: los datos llegan por mensaje
+                window.addEventListener('message', e => {
+                    if (e.source !== window.parent) return;
+                    const d = e.data || {};
+                    if (d.tipo === 'arreglo-metalofono') ponerDatos(d.datos);
+                    if (d.tipo === 'arreglo-detener') pausar();
+                    if (d.tipo === 'arreglo-tocar' && typeof d.seg === 'number') { asegurarCtx(); ir(d.seg, true); }
+                });
+                try { window.parent.postMessage({ tipo: 'metal-listo' }, '*'); } catch (_) {}
+                return;
+            }
+            // Estudiante: lee la parte del metalófono del archivo público del arreglo; al salir de la app se detiene (ET)
+            const alSalir = () => pausar();
+            document.addEventListener('visibilitychange', () => { if (document.hidden) alSalir(); });
+            window.addEventListener('pagehide', alSalir);
+            window.addEventListener('blur', alSalir);
+            const bTocar = document.getElementById('btn-alumno-tocar'), msg = t => { document.getElementById('alumno-msg').textContent = t; };
+            bTocar.onclick = () => { asegurarCtx(); asegurarGrab(); if (urlVoz()) grab.cargar(urlVoz()).catch(() => {}); document.getElementById('alumno-inicio').classList.add('oculto'); alumnoAjustarPlacas(); };
+            msg('Cargando el arreglo…');
+            fetch(`${STORAGE}arreglo/${encodeURIComponent(q.get('r') || '')}.json?t=${Date.now()}`, { cache: 'no-store' })
+                .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+                .then(d => {
+                    const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+                    if (!d.metalofono || (d.hasta && hoy > d.hasta)) throw new Error();
+                    ponerDatos(d.metalofono);
+                    document.title = (document.getElementById('alumno-titulo').title || 'Arreglo') + ' · Metalófono';
+                    msg(''); bTocar.disabled = false;
+                })
+                .catch(() => msg('Este arreglo no está disponible. Pídele al profe el enlace de nuevo.'));
+        })();
     </script>
 </body>
 </html>
