@@ -8,6 +8,7 @@
 //   await g.cambiar(url)                    // sonando, pasa a la otra grabación en la misma muestra (deuda ET)
 //   await g.tocar(desdeSeg, semitonos, velocidad, saltos);   // velocidad 1 = normal, 0.5 = mitad; saltos (opcional,
 //                                           GK) = [{ desde, hasta }] tramos que no suenan (una adaptación de la canción)
+//   g.tocar(…, saltos, { en })            // en (HR) = hora del AudioContext en que parte (silencio antes: una precuenta)
 //   g.omitido(seg)  → ese segundo cae en un salto
 //   g.oido()        → segundo de la grabación que suena ahora (null si no suena)
 //   g.aCtx(seg)     → hora del AudioContext en que sonará ese segundo de la grabación
@@ -25,7 +26,7 @@
     function crear(ctx, destino) {
         const g = { buffer: null, url: null, sonando: false, duracion: 0, alTerminar: null };
         let nodo = null, ancla = null, vel = 1;   // ancla: { ctx, seg } = a esa hora del contexto suena ese segundo
-        let stActual = null, filtroActual = null, base = { seg: 0, pos: 0 };   // base: desde esa salida, a la velocidad de ahora
+        let stActual = null, filtroActual = null, base = { seg: 0, pos: 0 }, esperaHasta = null;   // base: desde esa salida, a la velocidad de ahora
         const cache = {};       // url → AudioBuffer (promesa)
         // Descarga (con avance 0..1 si se pide; FV) y decodifica, una vez por url
         const progreso = {};    // url → [fn]: quienes esperan el avance de esa descarga
@@ -74,7 +75,7 @@
         };
         const aReal = v => { let r = v; for (const x of cortes) { if (x.v <= v + 1e-9) r += x.b - x.a; else break; } return r; };
         const aVirtual = s => { let q = 0; for (const x of cortes) { if (s >= x.b) q += x.b - x.a; else if (s >= x.a) return x.v; else break; } return s - q; };
-        g.tocar = async (desde, semitonos = 0, velocidad = 1, saltos = null) => {
+        g.tocar = async (desde, semitonos = 0, velocidad = 1, saltos = null, opciones = {}) => {
             g.detener();
             const L = await cargarLib();
             const st = new L.SoundTouch();
@@ -115,13 +116,25 @@
             base = { seg: ini / sr, pos: 0 };
             const muestras = new Float32Array(BLOQUE * 2);
             const n = ctx.createScriptProcessor(BLOQUE, 2, 2);
-            ancla = { ctx: ctx.currentTime + BLOQUE / ctx.sampleRate, seg: base.seg };
+            // opciones.en (HR): hora del AudioContext en que parte (antes, silencio: p. ej. una precuenta), a la muestra
+            let espera = opciones.en > ctx.currentTime ? opciones.en : null;
+            esperaHasta = espera;
+            ancla = { ctx: espera ?? ctx.currentTime + BLOQUE / ctx.sampleRate, seg: base.seg };
             n.onaudioprocess = ev => {
-                // lo que sale en este bloque empieza en este segundo (virtual) de la grabación
-                ancla = { ctx: ev.playbackTime, seg: base.seg + (filtro.position - base.pos) * vel / sr };
                 const izq = ev.outputBuffer.getChannelData(0), der = ev.outputBuffer.getChannelData(1);
-                const k = filtro.extract(muestras, BLOQUE);
-                for (let i = 0; i < BLOQUE; i++) { izq[i] = i < k ? muestras[i * 2] : 0; der[i] = i < k ? muestras[i * 2 + 1] : 0; }
+                let z = 0;                    // muestras de silencio al comienzo del bloque (esperando la hora de partir)
+                if (espera !== null) {
+                    z = Math.max(0, Math.round((espera - ev.playbackTime) * ctx.sampleRate));
+                    if (z >= BLOQUE) { izq.fill(0); der.fill(0); return; }
+                    espera = null;
+                }
+                // lo que sale en este bloque empieza en este segundo (virtual) de la grabación
+                ancla = { ctx: ev.playbackTime + z / ctx.sampleRate, seg: base.seg + (filtro.position - base.pos) * vel / sr };
+                const k = filtro.extract(muestras, BLOQUE - z);
+                for (let i = 0; i < BLOQUE; i++) {
+                    const j = i - z, si = j >= 0 && j < k;
+                    izq[i] = si ? muestras[j * 2] : 0; der[i] = si ? muestras[j * 2 + 1] : 0;
+                }
                 if (k === 0 && g.sonando) { g.detener(); g.alTerminar?.(); }
             };
             n.connect(destino);
@@ -140,7 +153,8 @@
             window.UnSonido?.suena(g, false);
         };
         const salida = () => ctx.outputLatency || ctx.baseLatency || 0;
-        g.oido = () => g.sonando && ancla ? aReal(ancla.seg + (ctx.currentTime - salida() - ancla.ctx) * vel) : null;
+        // esperando la hora de partir (opciones.en), lo que se oye es el comienzo: no retrocede durante la precuenta
+        g.oido = () => g.sonando && ancla ? aReal(ancla.seg + Math.max(esperaHasta !== null && ctx.currentTime - salida() < esperaHasta ? 0 : -Infinity, (ctx.currentTime - salida() - ancla.ctx) * vel)) : null;
         g.aCtx = seg => ancla ? ancla.ctx + (aVirtual(seg) - ancla.seg) / vel : ctx.currentTime;
         g.omitido = seg => cortes.some(x => seg >= x.a && seg < x.b);   // ese segundo no suena (está en un salto)
         return g;

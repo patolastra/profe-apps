@@ -27,7 +27,7 @@
             + '<script src="../comun/tempo-mapa.js?v=hh"><\/script><script src="../comun/al-dia.js?v=hg"><\/script>');
     }
     // Arreglo de cajón (deuda HF): la grabación de la canción
-    if (/[?&](vista=arreglo|r=)/.test(location.search)) document.write('<script src="../comun/grabacion-tono.js?v=hc"><\/script>');
+    if (/[?&](vista=arreglo|r=)/.test(location.search)) document.write('<script src="../comun/grabacion-tono.js?v=hr"><\/script>');
 </script>
 <style>
     :root {
@@ -1421,7 +1421,7 @@ window.addEventListener('beforeunload', (e) => { if (recurso && hayCambios() && 
 // ?modo=alumno&r=<id> = estudiante (lee la parte `cajon` de repertorio-assets/arreglo/<id>.json, sin base de datos).
 // Golpes en segundos de la grabación; la grabación (GrabacionTono) salta lo omitido por la adaptación.
 // ═══════════════════════════════════════════════════════════════════════════
-let ARRD = null, grab = null, arrIdx = 0, arrDesde = 0, arrVoz = 'melodia', arrCargando = false;
+let ARRD = null, grab = null, arrIdx = 0, arrDesde = 0, arrVoz = 'melodia', arrCargando = false, arrVel = 1;
 const urlVoz = () => ARRD?.audio?.[arrVoz] || ARRD?.audio?.melodia || ARRD?.audio?.karaoke || null;
 function ponerArreglo(d) {
     const seguia = tocando, pos = tocando && grab ? (grab.oido() ?? posPausa) : posPausa;
@@ -1469,7 +1469,18 @@ function pintarVoz() {
     b.style.visibility = dos ? 'visible' : 'hidden';
     b.textContent = arrVoz === 'karaoke' ? '🎶 Karaoke' : '🎤 Melodía';
 }
-async function tocarArr() {
+// Precuenta al ir a una sección (HR): clics al tempo de la grabación en ese compás. 1 compás; 2 si el compás tiene 2
+// pulsos (2/4, 6/8, 2/2); 4 si tiene 1 (1/4)
+function precuentaArr(seg) {
+    const comps = ARRD?.compases || []; if (comps.length < 2) return null;
+    let i = 0; while (i + 1 < comps.length && comps[i + 1] <= seg + 0.05) i++;
+    const dur = (comps[i + 1] ?? comps[i] + (comps[i] - comps[i - 1])) - comps[i];
+    const [n, d] = String(ARRD.cifra || '4/4').split('/').map(Number);
+    const pulsos = d === 8 && n % 3 === 0 && n > 3 ? n / 3 : (n || 4);
+    const veces = pulsos === 1 ? 4 : pulsos === 2 ? 2 : 1;
+    return { pulso: dur / pulsos / arrVel, pulsos, total: veces * pulsos };
+}
+async function tocarArr(conPrecuenta = false) {
     if (!ARRD || tocando || arrCargando) return;
     const url = urlVoz();
     if (!url) { aviso('La canción no tiene grabación: el arreglo de cajón suena con ella.', true); return; }
@@ -1483,7 +1494,9 @@ async function tocarArr() {
     datos.fin = grab.duracion;
     if (posPausa >= datos.fin) posPausa = 0;
     grab.alTerminar = () => { if (tocando) { pausar(); posPausa = 0; idxFx = 0; } };
-    await grab.tocar(posPausa, ARRD.audio?.semitonos || 0, 1, ARRD.audio?.saltos || null);
+    const pc = conPrecuenta ? precuentaArr(posPausa) : null, t0 = ctx.currentTime + 0.15;
+    await grab.tocar(posPausa, ARRD.audio?.semitonos || 0, arrVel, ARRD.audio?.saltos || null, pc ? { en: t0 + pc.total * pc.pulso } : {});
+    if (pc) for (let k = 0; k < pc.total; k++) { const t = t0 + k * pc.pulso; programados.push({ ctxT: t, nodos: sonarClic(t, k % pc.pulsos === 0) }); }
     tocando = true;
     arrDesde = posPausa - 1e-6; arrIdx = primerIdx(golpes, arrDesde); idxFx = arrIdx; ultVis = posPausa;
     reloj = setInterval(programarArr, 25);
@@ -1510,11 +1523,18 @@ function pausarArr() {
     pintarPlay();
     if (window.parent !== window) { try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: null }, '*'); } catch (_) {} }
 }
-function irArr(seg) {
+function irArr(seg, conPrecuenta = false) {
     const seguia = tocando;
     if (seguia) pausarArr();
     posPausa = Math.max(0, seg); idxFx = primerIdx(golpes, posPausa); ultVis = posPausa;
-    tocarArr();
+    tocarArr(conPrecuenta);
+}
+// Velocidad para practicar (HR): de 50% a 100%, de a 5 puntos, sin cambiar el tono; sonando cambia sin cortar
+function cambiarVelArr(v) {
+    arrVel = Math.max(0.5, Math.min(1, Math.round(v * 20) / 20));
+    $('arr-vel').textContent = Math.round(arrVel * 100) + '%';
+    $('arr-vel-menos').disabled = arrVel <= 0.5; $('arr-vel-mas').disabled = arrVel >= 1;
+    if (tocando && grab) grab.velocidad(arrVel);
 }
 // ── Adelante / atrás en la canción (PO 2026-11-16) ──────────────────────────────────────────
 // ⏪ ⏩ y ← → saltan un compás (los omitidos por la adaptación no cuentan); arrastrar la cinta la mueve.
@@ -1552,7 +1572,13 @@ if (ARR) {
     ss.id = 'sel-sec'; ss.title = 'Ir a una sección de la canción';
     ss.style.cssText = 'height:36px;width:150px;background:#334155;color:var(--texto);border:1px solid #475569;border-radius:8px;visibility:hidden';
     bv.after(ss);
-    ss.onchange = () => { const v = ss.value; ss.value = ''; ss.blur(); if (v !== '') irArr(+v); };
+    ss.onchange = () => { const v = ss.value; ss.value = ''; ss.blur(); if (v !== '') irArr(+v, true); };   // con precuenta (HR)
+    // Velocidad (HR): − 100% ＋ al lado de Ir a…
+    const gv = document.createElement('div'); gv.className = 'grupo'; gv.title = 'Velocidad (para practicar más lento, sin cambiar el tono)';
+    gv.innerHTML = '<button id="arr-vel-menos">−</button><span id="arr-vel" style="display:inline-block;width:44px;text-align:center">100%</span><button id="arr-vel-mas" disabled>＋</button>';
+    ss.after(gv);
+    $('arr-vel-menos').onclick = e => { e.currentTarget.blur(); cambiarVelArr(arrVel - 0.05); };
+    $('arr-vel-mas').onclick = e => { e.currentTarget.blur(); cambiarVelArr(arrVel + 0.05); };
     // ⏪ ⏩ un compás atrás / adelante, a los lados de ▶
     const nb = (id, txt, title, dir) => { const b = document.createElement('button'); b.id = id; b.textContent = txt; b.title = title; b.disabled = true;
         b.onclick = () => { b.blur(); saltarCompas(dir); }; return b; };

@@ -51,7 +51,7 @@
             document.documentElement.classList.add('arreglo-metal');
             if (q.get('vista') === 'arreglo') document.documentElement.classList.add('vista-arreglo');
             if (q.get('vista') === 'arreglo' && q.get('seguir') === '1') document.documentElement.classList.add('seguir');   // 🎭 Ensayo (HO)
-            document.write('<script src="../comun/grabacion-tono.js?v=hc"><\/script>');
+            document.write('<script src="../comun/grabacion-tono.js?v=hr"><\/script>');
         })();
     </script>
     <!-- Versión fija (rendimiento): antes "tone" / "@tonejs/midi" sin versión obligaban a una
@@ -331,6 +331,7 @@
         html.arreglo-metal #arr-sec { font-size: calc(14 * var(--u)); height: calc(32 * var(--u)); border-radius: calc(8 * var(--u));
             background: #3d3d45; color: #fff; border: 0; padding: 0 calc(6 * var(--u)); max-width: calc(170 * var(--u)); }
         html.arreglo-metal #arr-voz { width: calc(118 * var(--u)); }
+        html.arreglo-metal #arr-vel { display: inline-block; width: calc(46 * var(--u)); text-align: center; font-size: calc(14 * var(--u)); font-weight: 700; color: #fff; }
         html.seguir header { display: none !important; }
         #seguir-sonido { position: fixed; top: 8px; right: 8px; z-index: 50; width: 46px; height: 46px; border-radius: 50%;
         border: 2px solid rgba(255,255,255,.35); background: rgba(15,23,42,.75); color: #fff; font-size: 22px; cursor: pointer; }
@@ -1367,7 +1368,7 @@
         if (window.METAL_ARREGLO) (function () {
             const q = new URLSearchParams(location.search), VISTA = q.get('vista') === 'arreglo';
             const STORAGE = window.METAL_ALUMNO_STORAGE.replace(/midi\/$/, '');
-            let D = null, ctx = null, grab = null, tocando = false, pos = 0, idx = 0, desde = 0, reloj = null, voz = 'melodia', placasOn = true, cargando = false;
+            let D = null, ctx = null, grab = null, tocando = false, pos = 0, idx = 0, desde = 0, reloj = null, voz = 'melodia', placasOn = true, cargando = false, vel = 1;
             let osc = [], timers = [];
             const N = () => D?.notas || [];
             const urlVoz = () => D?.audio?.[voz] || D?.audio?.melodia || D?.audio?.karaoke || null;
@@ -1380,14 +1381,44 @@
             const bVoz = mk('arr-voz', '🎤 Melodía', 'Grabación con voz (Melodía) o sin voz (Karaoke)', cambiarVoz);
             const bPlacas = mk('arr-placas', '🔔', 'Sonido de las placas (encendido / apagado)', () => { placasOn = !placasOn; pintar(); });
             const sel = document.createElement('select'); sel.id = 'arr-sec'; sel.title = 'Ir a una sección de la canción';
-            sel.onchange = () => { const v = sel.value; sel.value = ''; sel.blur(); if (v !== '') ir(+v, true); };
+            sel.onchange = () => { const v = sel.value; sel.value = ''; sel.blur(); if (v !== '') ir(+v, true, true); };   // con precuenta (HR)
+            // Velocidad para practicar (HR): de 50% a 100%, de a 5 puntos, sin cambiar el tono; sonando cambia sin cortar
+            const bMenos = mk('arr-vel-menos', '−', 'Más lento', () => cambiarVel(vel - 0.05));
+            const bMas = mk('arr-vel-mas', '＋', 'Más rápido (hasta la velocidad de la canción)', () => cambiarVel(vel + 0.05));
+            const lVel = document.createElement('span'); lVel.id = 'arr-vel'; lVel.title = 'Velocidad'; lVel.textContent = '100%';
             btnPlay.before(bAtras); btnPlay.after(bAdel); bAdel.after(bVoz); bVoz.after(bPlacas);
             document.getElementById('alumno-titulo').after(sel);
+            sel.after(bMenos); bMenos.after(lVel); lVel.after(bMas);
+            function cambiarVel(v) {
+                vel = Math.max(0.5, Math.min(1, Math.round(v * 20) / 20));
+                lVel.textContent = Math.round(vel * 100) + '%';
+                pintar();
+                if (tocando && grab) grab.velocidad(vel);
+            }
+            // Precuenta al ir a una sección (HR): clics al tempo de la grabación en ese compás. 1 compás; 2 si el compás
+            // tiene 2 pulsos (2/4, 6/8, 2/2); 4 si tiene 1 (1/4)
+            function precuenta(seg) {
+                const comps = D?.compases || []; if (comps.length < 2) return null;
+                let i = 0; while (i + 1 < comps.length && comps[i + 1] <= seg + 0.05) i++;
+                const dur = (comps[i + 1] ?? comps[i] + (comps[i] - comps[i - 1])) - comps[i];
+                const [n, d] = String(D.cifra || '4/4').split('/').map(Number);
+                const pulsos = d === 8 && n % 3 === 0 && n > 3 ? n / 3 : (n || 4);
+                const veces = pulsos === 1 ? 4 : pulsos === 2 ? 2 : 1;
+                return { pulso: dur / pulsos / vel, pulsos, total: veces * pulsos };
+            }
+            function clic(t, acento) {
+                const o = ctx.createOscillator(), g = ctx.createGain();
+                o.type = 'sine'; o.frequency.value = acento ? 1600 : 1050;
+                g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(acento ? 0.45 : 0.28, t + 0.002); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+                o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.06);
+                osc.push({ o, t });
+            }
             btnPlay.onclick = () => { btnPlay.blur(); tocando ? pausar() : tocar(); };
             function pintar() {
                 btnPlay.textContent = tocando ? '⏸ Pausa' : '▶ Tocar';
                 const hay = !!(D && urlVoz());
                 [btnPlay, bAtras, bAdel].forEach(b => { b.disabled = !hay; });
+                bMenos.disabled = vel <= 0.5; bMas.disabled = vel >= 1;
                 bVoz.style.visibility = D?.audio?.melodia && D?.audio?.karaoke ? 'visible' : 'hidden';
                 bVoz.textContent = voz === 'karaoke' ? '🎶 Karaoke' : '🎤 Melodía';
                 bPlacas.classList.toggle('arr-off', !placasOn);
@@ -1428,7 +1459,7 @@
                 o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.6);
                 osc.push({ o, t });
             }
-            async function tocar() {
+            async function tocar(conPrecuenta = false) {
                 if (!D || tocando || cargando) return;
                 const url = urlVoz(); if (!url) return;
                 asegurarCtx(); asegurarGrab();
@@ -1438,7 +1469,9 @@
                 cargando = false;
                 if (pos >= grab.duracion - 0.05) pos = 0;
                 grab.alTerminar = () => { if (tocando) { pausar(); pos = 0; } };
-                await grab.tocar(pos, D.audio?.semitonos || 0, 1, D.audio?.saltos || null);
+                const pc = conPrecuenta ? precuenta(pos) : null, t0 = ctx.currentTime + 0.15;
+                await grab.tocar(pos, D.audio?.semitonos || 0, vel, D.audio?.saltos || null, pc ? { en: t0 + pc.total * pc.pulso } : {});
+                if (pc) for (let k = 0; k < pc.total; k++) clic(t0 + k * pc.pulso, k % pc.pulsos === 0);
                 tocando = true; desde = pos - 1e-6; idx = primer(desde);
                 reloj = setInterval(programar, 25);
                 pintar();
@@ -1470,11 +1503,11 @@
                 pintar();
                 if (VISTA) try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: null }, '*'); } catch (_) {}
             }
-            function ir(seg, tocarYa) {
+            function ir(seg, tocarYa, conPrecuenta = false) {
                 const seguia = tocando;
                 if (seguia) pausar();
                 pos = Math.max(0, seg);
-                if (seguia || tocarYa) tocar();
+                if (seguia || tocarYa) tocar(conPrecuenta);
             }
             function saltar(dir) {
                 const comps = D?.compases || []; if (!comps.length) return;

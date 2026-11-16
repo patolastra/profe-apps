@@ -9777,3 +9777,21 @@ para un ensayo en vivo en clases (cajón, metalófono y letra), todo con la adap
   adaptación. Ahora la cinta cuenta solo los compases que suenan (`datos.vivos`; `segATick` y `tickASegArr` los
   saltan; los golpes dentro de lo omitido no se dibujan). Vale para estudiante, vista previa del Editor y Ensayo.
   Probado con Dinosaurio (Cuarto básico 2026): del compás 93 sigue el 98 sin hueco; ida y vuelta segundo ↔ cinta exacta.
+
+### HR. Arreglos de cajón y metalófono — precuenta al ir a una sección y velocidad para practicar — HECHA (2026-11-16)
+*Origen: PO 2026-11-16: "para todas las selecciones de sección en el dropdown de cajón, y de metalófono… agregar
+siempre una precuenta (si el compás es de dos golpes fuertes: 6/8 o 2/4, dos compases de precuenta); metalófono y
+cajón al compartir el arreglo deberían poder tener controles de velocidad (con tope al 100%, que se pueda bajar)".*
+- **Alcance:** Cajón (`CAJON-PERUANO/`, arreglo: estudiante y vista previa del Editor) y Metalófono (`?modo=alumno`
+  con arreglo, estudiante y vista previa). "Ir a…" → precuenta de clics al tempo de esa parte de la grabación y
+  la grabación parte justo en la sección: 1 compás; 2 compases si el compás tiene 2 pulsos (2/4, 6/8, 2/2); 4 si
+  tiene 1 (1/4). Velocidad − / ＋ de a 5 puntos, de 50% a 100% (sin cambiar el tono), también sonando.
+- **Pieza:** `comun/grabacion-tono.js` gana `opciones.en` en `tocar` (hora del audio en que parte, silencio antes),
+  para que la precuenta calce exacta. Lugares de uso: Piano, Ficha (TEMPO), Ensayo, Cajón, Metalófono (sin cambio
+  para los que no la usan; se sube su `?v=` en todos). El Piano ya tiene velocidad; su precuenta (1 compás de la
+  grabación) queda como está salvo que el PO diga.
+- **Hecho:** "Ir a…" del Cajón y del Metalófono (arreglo) toca la precuenta y la grabación parte en la sección
+  (`grab.tocar(…, { en })`, clics programados en el audio; ▶, ⏪ ⏩ y arrastrar siguen sin precuenta). Velocidad
+  − 100% ＋ al lado de Ir a… (`arrVel` / `vel`, `grab.velocidad` sonando). `grabacion-tono.js?v=hr` en Cajón,
+  Metalófono, Piano, Ficha y Ensayo. Probado con Dinosaurio (2/4): Estrofa 3 → 4 clics (2 compases) y luego la
+  grabación justo en 43,83 s; a 80% / 90% la grabación avanza a 0,8 / 0,9; la barra del Metalófono cabe a 812 de ancho.
