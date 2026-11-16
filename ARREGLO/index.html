@@ -1922,7 +1922,7 @@ function pintarMetal() {
         if (!L) info = '✂ no va en la adaptación';
         else if (M) {
             const n = compasesMel(M), d = cfg.desde || 1, tramo = n - d + 1;
-            info = d > n ? '<span class="mal">la melodía no llega a ese compás</span>'
+            info = d > n ? `<span class="mal">la melodía tiene ${n} ${n === 1 ? 'compás' : 'compases'}</span>`
                 : cfg.rep && L > tramo ? `🔁 ×${Math.round(L / tramo * 10) / 10} · c. ${d}–${n} de ${n}`
                 : `c. ${d}–${Math.min(n, d + L - 1)} de ${n}` + (L > tramo ? ' · <span class="mal">termina antes</span>' : '');
         }
@@ -1952,13 +1952,21 @@ async function ponerMelodiaMetal(x, id) {
         }
         // Parte donde quedó la sección anterior con esa melodía (sus compases que suenan); si no hay, en el compás 1
         const its = itemsEstructura(), i = its.findIndex(y => claveItem(y) === k), C = cortesArreglo();
-        let desde = 1;
+        // Si la anterior se pasa del final de la melodía: con 🔁 sigue dentro de la vuelta (y hereda el 🔁); sin 🔁, desde el 1 (HN)
+        let desde = 1, rep = false;
+        const n = compasesMel(A.metal.mels[id]);
         for (let j = i - 1; j >= 0; j--) {
             const c = A.metal.sec[claveItem(its[j])];
-            if (c && c.mel === id) { const s = compasesQueSuenan(its[j], C); desde = (c.desde || 1) + (s ? s.length : its[j].largo); break; }
+            if (c && c.mel === id) {
+                const s = compasesQueSuenan(its[j], C), L = s ? s.length : its[j].largo, d0 = Math.min(c.desde || 1, n);
+                desde = d0 + L;
+                if (desde > n) desde = c.rep ? d0 + L % (n - d0 + 1) : 1;
+                rep = !!c.rep;
+                break;
+            }
         }
-        const antes = A.metal.sec[k];
-        A.metal.sec[k] = { mel: id, desde: antes?.mel === id ? antes.desde : desde, ...(antes?.rep ? { rep: true } : {}) };
+        const antes = A.metal.sec[k], mismo = antes?.mel === id;
+        A.metal.sec[k] = { mel: id, desde: mismo ? antes.desde : desde, ...((mismo ? antes.rep : antes?.rep || rep) ? { rep: true } : {}) };
     } else delete A.metal.sec[k];
     const usadas = new Set(Object.values(A.metal.sec).map(c => c.mel));
     Object.keys(A.metal.mels).forEach(m => { if (!usadas.has(m)) delete A.metal.mels[m]; });

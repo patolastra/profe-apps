@@ -9713,3 +9713,12 @@ que se vuelva a repetir completa, pero el editor la termina cuando termina el ú
   Lo usan: el arreglo de metalófono (🔁 repite con el silencio incluido; las copias siguen el largo del original) y el
   Piano del estudiante (cada vuelta dura el largo). Probado: 2/4, 4 compases de notas + largo 6 → 2 de silencio en
   bloques y pentagrama, MIDI de 6 compases; bajar a 2 vuelve a 4.
+
+### HN. Arreglo de metalófono — el compás de partida que se completa solo — HECHA (2026-11-16)
+*Origen: PO 2026-11-16 (captura): Estrofa 1 con la melodía "Estrofas" (4 compases) desde el 1 con 🔁; la Estrofa 2 se
+completó sola con 17 y quedó muda ("la melodía no llega…").*
+- **Causa:** al elegir la misma melodía, "desde" sumaba los compases de la sección anterior sin mirar el largo de la
+  melodía ni su 🔁.
+- **Hecho:** si se pasa del final: con 🔁 en la anterior, sigue dentro de su vuelta (y hereda el 🔁); sin 🔁, parte en 1.
+  El aviso dice "la melodía tiene N compases". Probado: 4 compases, Estrofa 1 de 16 con 🔁 → Estrofa 2 desde 1 con 🔁;
+  la siguiente tras 6 compases → desde 3; sin 🔁 → desde 1.
