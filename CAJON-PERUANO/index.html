@@ -84,6 +84,9 @@
     /* 🎭 Ensayo (HO): solo la figura y la cinta */
     body.seguir #barra, body.seguir #aviso, body.seguir #indicadores { display: none !important; }
     body.seguir #cinta { height: 30%; max-height: none; }
+    #seguir-sonido { position: fixed; top: 8px; right: 8px; z-index: 50; width: 46px; height: 46px; border-radius: 50%;
+        border: 2px solid rgba(255,255,255,.35); background: rgba(15,23,42,.75); color: #fff; font-size: 22px; cursor: pointer; }
+    #seguir-sonido.on { background: #15803d; border-color: #4ade80; }
     .prog-config { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; color: var(--tenue); font-size: 14px; }
     .prog-config select, .prog-config button { background: #334155; color: var(--texto); border: 1px solid #475569;
         border-radius: 8px; height: 32px; padding: 0 10px; font-size: 14px; cursor: pointer; }
@@ -310,7 +313,7 @@ const ARR = VISTA_ARR || (ALUMNO && !!new URLSearchParams(location.search).get('
 // 'ensayo-seg' { seg, tocando }) y dibuja figura, manos y cinta en ese segundo de la grabación
 const SEGUIR = VISTA_ARR && new URLSearchParams(location.search).get('seguir') === '1';
 if (SEGUIR) document.body.classList.add('seguir');
-let extSeg = 0, extT0 = 0, extTocando = false;
+let extSeg = 0, extT0 = 0, extTocando = false, sonidoOn = false, sonIdx = 0;
 const segExterno = () => extTocando ? extSeg + (performance.now() - extT0) / 1000 : extSeg;
 // ═══════════════════════════════════════════════════════════════════════════
 // LECTOR DE MIDI (propio, sin librerías): notas, tempo y compás
@@ -1577,18 +1580,40 @@ if (ARR) {
         window.addEventListener('message', e => {
             if (e.source !== window.parent) return;
             if (SEGUIR && e.data?.tipo === 'ensayo-seg' && typeof e.data.seg === 'number') {
-                const antes = segExterno(), s = e.data.seg;
+                const antes = segExterno(), s = e.data.seg, salto = Math.abs(s - antes) > 0.3, partio = !!e.data.tocando !== extTocando;
                 // un salto (⏪ ⏩, Ir a…) no dispara de golpe los efectos de lo que se saltó
-                if (Math.abs(s - antes) > 0.3) { idxFx = primerIdx(golpes, s); ultVis = s; }
+                if (salto) { idxFx = primerIdx(golpes, s); ultVis = s; }
+                if (salto || partio) { sonIdx = primerIdx(golpes, s); if (ctx) cancelarFuturos(); }
                 extSeg = s; extT0 = performance.now(); extTocando = !!e.data.tocando;
                 tocando = extTocando; posPausa = s;
                 return;
             }
-            if (e.data?.tipo === 'arreglo-cajon') ponerArreglo(e.data.datos);
+            if (e.data?.tipo === 'arreglo-cajon') { ponerArreglo(e.data.datos); sonIdx = primerIdx(golpes, segExterno()); }
             if (e.data?.tipo === 'arreglo-detener') { if (tocando) pausarArr(); }
             if (e.data?.tipo === 'arreglo-tocar' && typeof e.data.seg === 'number') irArr(e.data.seg);
         });
         aviso('Elige un ritmo para alguna sección y aparece aquí.');
+        if (SEGUIR) {        // 🔊 / 🔇 del cajón en el Ensayo (HO): suena al compás de la grabación del Ensayo
+            const b = document.createElement('button'); b.id = 'seguir-sonido';
+            const pintarSon = () => { b.textContent = sonidoOn ? '🔊' : '🔇'; b.classList.toggle('on', sonidoOn); b.title = sonidoOn ? 'Silenciar el cajón' : 'Escuchar el cajón'; };
+            b.onclick = () => {
+                b.blur(); sonidoOn = !sonidoOn;
+                if (sonidoOn) { asegurarAudio(); if (ctx.state === 'suspended') ctx.resume(); sonIdx = primerIdx(golpes, segExterno()); }
+                else if (ctx) cancelarFuturos();
+                pintarSon();
+            };
+            document.body.appendChild(b); pintarSon();
+            setInterval(() => {
+                if (!sonidoOn || !ctx || !extTocando) return;
+                const s = segExterno(), lat = ctx.outputLatency || ctx.baseLatency || 0;
+                while (sonIdx < golpes.length && golpes[sonIdx].t < s + 0.2) {
+                    const g = golpes[sonIdx++]; if (g.t < s - 0.04) continue;
+                    const t = Math.max(ctx.currentTime, ctx.currentTime + (g.t - s) - lat);
+                    programados.push({ ctxT: t, nodos: g.tipo === 'grave' ? sonarGrave(t, 0.35 + 0.65 * g.vel) : sonarAgudo(t, 0.35 + 0.65 * g.vel) });
+                }
+                if (programados.length > 200) programados = programados.filter(p => p.ctxT > ctx.currentTime - 1);
+            }, 25);
+        }
         try { window.parent.postMessage({ tipo: 'cajon-listo' }, '*'); } catch (_) {}
     }
 }

@@ -9744,3 +9744,9 @@ para un ensayo en vivo en clases (cajón, metalófono y letra), todo con la adap
   directo al Workspace (`window.top`), pero el Editor de arreglos va dentro del Editor musical y el Workspace solo
   escucha a sus pestañas. Ahora va por la ventana de arriba (`window.parent`), que lo reenvía; igual "＋ Nuevo ritmo en
   el Cajón", que tenía la misma falla. Probado: Editor musical → Editor de arreglos → 🎭 llega el pedido de abrir.
+- **Parte 2 (2026-11-16, PO: "que cada sección de instrumento permita escuchar/mutear su instrumento"), hecha:**
+  botón redondo 🔇 / 🔊 arriba a la derecha de cada panel (dentro del Cajón y del Metalófono en `?seguir=1`; parte
+  en 🔇 porque tocan los estudiantes). Encendido, cada uno programa su sonido (golpes del cajón, placas) al compás del
+  reloj del Ensayo; un salto o una pausa cancela lo programado. Probado con el arreglo de Dinosaurio Anacleto:
+  golpes y placas suenan con la grabación y se callan al silenciar. Siguen (PO, por partes): la letra del Ensayo con
+  el estilo del Entrenador; abrir el Editor de arreglos desde una actividad del Plan.

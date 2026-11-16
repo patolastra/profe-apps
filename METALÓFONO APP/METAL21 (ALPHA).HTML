@@ -332,6 +332,9 @@
             background: #3d3d45; color: #fff; border: 0; padding: 0 calc(6 * var(--u)); max-width: calc(170 * var(--u)); }
         html.arreglo-metal #arr-voz { width: calc(118 * var(--u)); }
         html.seguir header { display: none !important; }
+        #seguir-sonido { position: fixed; top: 8px; right: 8px; z-index: 50; width: 46px; height: 46px; border-radius: 50%;
+        border: 2px solid rgba(255,255,255,.35); background: rgba(15,23,42,.75); color: #fff; font-size: 22px; cursor: pointer; }
+        #seguir-sonido.on { background: #15803d; border-color: #4ade80; }
         html.modo-alumno .solo-alumno { display: revert; }
         html.modo-alumno #btn-nuevo-midi,
         html.modo-alumno #btn-practice-wrap,
@@ -1499,14 +1502,33 @@
 
             // 🎭 Ensayo (HO): sin barra ni sonido; las placas se iluminan según el reloj de la página de Ensayo
             if (VISTA && q.get('seguir') === '1') {
-                let eSeg = 0, eT0 = 0, eToca = false, encendidas = new Set();
+                let eSeg = 0, eT0 = 0, eToca = false, encendidas = new Set(), sonOn = false, sonIdx = 0;
                 const ahora = () => eToca ? eSeg + (performance.now() - eT0) / 1000 : eSeg;
+                const callar = () => { osc.forEach(x => { if (x.t > (ctx?.currentTime ?? 0)) try { x.o.stop(0); } catch (_) {} }); osc = []; };
                 window.addEventListener('message', e => {
                     if (e.source !== window.parent) return;
                     const d = e.data || {};
-                    if (d.tipo === 'arreglo-metalofono') { D = d.datos || { notas: [] }; }
-                    if (d.tipo === 'ensayo-seg' && typeof d.seg === 'number') { eSeg = d.seg; eT0 = performance.now(); eToca = !!d.tocando; }
+                    if (d.tipo === 'arreglo-metalofono') { D = d.datos || { notas: [] }; sonIdx = primer(ahora()); }
+                    if (d.tipo === 'ensayo-seg' && typeof d.seg === 'number') {
+                        const salto = Math.abs(d.seg - ahora()) > 0.3, partio = !!d.tocando !== eToca;
+                        if (salto || partio) { sonIdx = primer(d.seg); callar(); }
+                        eSeg = d.seg; eT0 = performance.now(); eToca = !!d.tocando;
+                    }
                 });
+                // 🔊 / 🔇 del metalófono en el Ensayo (HO): las placas suenan al compás de la grabación del Ensayo
+                const bSon = document.createElement('button'); bSon.id = 'seguir-sonido';
+                const pintarSon = () => { bSon.textContent = sonOn ? '🔊' : '🔇'; bSon.classList.toggle('on', sonOn); bSon.title = sonOn ? 'Silenciar el metalófono' : 'Escuchar el metalófono'; };
+                bSon.onclick = () => { bSon.blur(); sonOn = !sonOn; if (sonOn) { asegurarCtx(); sonIdx = primer(ahora()); } else callar(); pintarSon(); };
+                document.body.appendChild(bSon); pintarSon();
+                setInterval(() => {
+                    if (!sonOn || !ctx || !eToca) return;
+                    const s = ahora(), L = N(), lat = ctx.outputLatency || ctx.baseLatency || 0;
+                    while (sonIdx < L.length && L[sonIdx].s < s + 0.2) {
+                        const n = L[sonIdx++]; if (n.s < s - 0.04) continue;
+                        placa(n.m, Math.max(ctx.currentTime, ctx.currentTime + (n.s - s) - lat));
+                    }
+                    if (osc.length > 100) osc = osc.filter(x => x.t > ctx.currentTime - 1);
+                }, 25);
                 const cuadro = () => {
                     const t = ahora(), on = new Set();
                     if (eToca || t > 0) for (const n of N()) { if (n.s > t) break; if (t < Math.max(n.e - 0.03, n.s + 0.12)) on.add(n.m); }
