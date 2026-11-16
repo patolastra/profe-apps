@@ -184,6 +184,9 @@
         </div>
         <button class="btn" id="b-grabar">● Grabar</button>
         <button class="btn" id="b-regrabar" disabled>⟲ Regrabar compás</button>
+        <div class="grupo" title="Cuántos compases dura la melodía: si es más que hasta la última nota, el resto es silencio al final (p. ej. antes de que se repita)"><span>Largo</span>
+            <input id="largo" type="number" min="1" step="1" style="width:56px"><span>compases</span><span id="largo-sil" style="display:inline-block;width:150px;color:var(--tenue)"></span>
+        </div>
         <div class="grupo"><span>Ritmo</span>
             <button class="btn" id="b-mitad" title="Todas las duraciones a la mitad">½×</button><button class="btn" id="b-doble" title="Todas las duraciones al doble">2×</button>
         </div>
@@ -252,7 +255,9 @@ let compasSel = null;          // compás elegido para regrabar
 let nombres = 'solfeo';
 
 const tpc = () => M.compas * 4;                  // ticks por compás
-const totalCompases = () => Math.max(1, Math.ceil(Math.max(0, ...M.notas.map(n => n.t + n.d)) / tpc()));
+// Largo (HM): hasta la última nota, o más si se fijó un largo (silencio al final, p. ej. antes de repetirse)
+const compasesNotas = () => Math.max(1, Math.ceil(Math.max(0, ...M.notas.map(n => n.t + n.d)) / tpc()));
+const totalCompases = () => Math.max(compasesNotas(), M.largo || 0);
 const ordenar = () => M.notas.sort((x, y) => x.t - y.t);
 
 // ══ Tonalidad y nombres ═══════════════════════════════════════════════════════════════════
@@ -719,7 +724,21 @@ function pintarBotones() {
     document.getElementById('b-guardar').disabled = !cambios || !M.notas.length || guardando;
     document.getElementById('estado').textContent = guardando ? 'Guardando…' : !assetId && !M.notas.length ? '' : cambios ? 'Sin guardar' : 'Guardado ✓';
 }
+// Largo de la melodía (HM): el campo muestra el total; menos que hasta la última nota vuelve a "hasta la última nota"
+function pintarLargo() {
+    const el = document.getElementById('largo'); if (!el) return;
+    if (document.activeElement !== el) el.value = totalCompases();
+    el.min = compasesNotas();
+    const sil = totalCompases() - compasesNotas();
+    document.getElementById('largo-sil').textContent = sil > 0 ? `(${sil} de silencio al final)` : '';
+}
+document.getElementById('largo').addEventListener('change', e => {
+    const v = Math.round(+e.target.value || 0);
+    M.largo = v > compasesNotas() ? v : null;
+    e.target.blur(); huboCambio(); pintarTodo();
+});
 function pintarTodo() {
+    pintarLargo();
     pintarDif();
     pintarBloques();
     pintarPartitura();
@@ -1104,7 +1123,8 @@ function contenidoActual() {
     return JSON.stringify({ v: 1, tempo: M.tempo, compas: M.compas, ...(M.cifra !== M.compas + '/4' ? { cifra: M.cifra, pulso: M.pulso } : {}), fig: M.fig, tonica: M.tonica, modo: M.modo,
         ...(M.instrumentos.length ? { inst: M.instrumentos } : {}),
         ...(M.mano === 'izq' ? { mano: 'izq' } : {}),
-        notas: M.notas.map(n => n.dig ? [n.t, n.d, n.g, n.o, n.a, n.dig] : [n.t, n.d, n.g, n.o, n.a]) });
+        notas: M.notas.map(n => n.dig ? [n.t, n.d, n.g, n.o, n.a, n.dig] : [n.t, n.d, n.g, n.o, n.a]),
+        ...(M.largo > compasesNotas() ? { largo: M.largo } : {}) });
 }
 let etiquetaBase = '';
 const hayCambios = () => contenidoActual() !== contenidoBase || document.getElementById('etiqueta').value.trim() !== etiquetaBase;
@@ -1122,6 +1142,7 @@ function cargarContenido(txt) {
     M.notas = (j.notas || []).map(([t, d, g, o, a, dig]) => ({ t, d, g, o: o || 0, a: a || 0, ...(dig ? { dig } : {}) }));
     M.instrumentos = j.inst || [];
     M.mano = j.mano || 'der';
+    M.largo = j.largo || null;
     ordenar();
 }
 function aplicarControles() {
@@ -1164,7 +1185,7 @@ function midiBytes() {
     const pista = [];
     let prev = 0;
     for (const [t, , bytes] of ev) { pista.push(...vlq(t - prev), ...bytes); prev = t; }
-    pista.push(0, 0xff, 0x2f, 0);
+    pista.push(...vlq(Math.max(0, totalCompases() * tpc() * T - prev)), 0xff, 0x2f, 0);   // termina al final del largo (HM)
     const u32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
     out.push(0x4d, 0x54, 0x68, 0x64, ...u32(6), 0, 0, 0, 1, (PPQ >> 8) & 255, PPQ & 255);
     out.push(0x4d, 0x54, 0x72, 0x6b, ...u32(pista.length), ...pista);
@@ -1183,7 +1204,7 @@ async function subirMidi(id) {
 // Archivo público de la melodía para el piano del estudiante (sin base de datos): alturas reales y digitaciones
 async function subirJson(id, etiqueta) {
     const datos = { v: 1, cancion: cancionNombre, etiqueta, tempo: M.tempo, compas: M.compas, pulso: M.pulso, cifra: M.cifra, tonalidad: nombreTonalidad(),
-        instrumentos: M.instrumentos, mano: M.mano,
+        instrumentos: M.instrumentos, mano: M.mano, compases: totalCompases(),
         notas: M.notas.filter(n => n.g > 0).map(n => {
             const h = alturaDe(n);
             return { t: n.t, d: n.d, m: h.midi, nombre: SOLFEO[h.letra] + ACC_TXT[h.acc], dig: n.dig || {} };

@@ -1569,7 +1569,8 @@ async function sincronizarCopias() {
     }
     for (const id of Object.keys(A.metal?.mels || {})) {      // las melodías del metalófono (HJ)
         const j = await leerMelodia(id).catch(() => null), c = A.metal.mels[id];
-        if (j && JSON.stringify(j.notas) !== JSON.stringify(c.notas)) { c.notas = j.notas; cambios.push('de la melodía ' + (c.etiqueta || '') + ' del metalófono'); }
+        if (j && (JSON.stringify(j.notas) !== JSON.stringify(c.notas) || (j.compases || 0) !== (c.compases || 0))) {
+            c.notas = j.notas; if (j.compases) c.compases = j.compases; else delete c.compases; cambios.push('de la melodía ' + (c.etiqueta || '') + ' del metalófono'); }
     }
     const ids = Object.keys(A.cajon?.ritmos || {}).filter(x => !x.startsWith('__'));
     if (ids.length) {
@@ -1850,9 +1851,10 @@ async function leerMelodia(id) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
     return { etiqueta: j.etiqueta || melodias.find(m => m.id === id)?.etiqueta || '', tonalidad: j.tonalidad || '',
+        ...(j.compases ? { compases: j.compases } : {}),      // largo con silencio al final (HM)
         notas: (j.notas || []).map(n => ({ t: n.t, d: n.d, m: n.m })) };
 }
-const compasesMel = M => Math.max(1, Math.ceil(Math.max(0, ...M.notas.map(n => n.t + n.d)) / 4 / A.compas - 1e-9));
+const compasesMel = M => Math.max(1, M.compases || 0, Math.ceil(Math.max(0, ...M.notas.map(n => n.t + n.d)) / 4 / A.compas - 1e-9));
 // Las notas del metalófono, en segundos de la grabación, y cuántas octavas se corrieron para caber en las placas
 function partesMetal() {
     if (!mapaTempo || !modoFicha() || !A.metal) return { notas: [], oct: 0, fuera: 0 };

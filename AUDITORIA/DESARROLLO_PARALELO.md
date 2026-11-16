@@ -9703,3 +9703,13 @@ la opción de que sí, de que se repita hasta que se termine la sección".*
   de corrido hasta que termina la sección (también en los compases que suenan de una adaptación). La fila dice
   "🔁 ×2,5" o, sin 🔁, "termina antes". Probado: melodía de 2 compases en una sección de 5 → 20 notas, la última
   termina con la sección.
+
+### HM. Editor de Melodías — silencio al final (largo en compases) — HECHA (2026-11-16)
+*Origen: PO 2026-11-16, editando la melodía de Dinosaurio Anacleto: "tiene un silencio de dos compases al final antes de
+que se vuelva a repetir completa, pero el editor la termina cuando termina el último compás de la última nota".*
+- **Hecho:** campo **Largo … compases** en ① Ritmo (muestra "(2 de silencio al final)"); menos que hasta la última nota
+  vuelve a "hasta la última nota". Se guarda `largo` en el contenido solo si alarga (las melodías de antes no cambian);
+  el archivo público `melodia/<id>.json` lleva `compases` (el largo total) y el MIDI termina al final del largo.
+  Lo usan: el arreglo de metalófono (🔁 repite con el silencio incluido; las copias siguen el largo del original) y el
+  Piano del estudiante (cada vuelta dura el largo). Probado: 2/4, 4 compases de notas + largo 6 → 2 de silencio en
+  bloques y pentagrama, MIDI de 6 compases; bajar a 2 vuelve a 4.
