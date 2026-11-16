@@ -120,6 +120,7 @@
 
 | Lugar | Cómo se abre |
 |---|---|
+| 🎭 Ensayo del arreglo | `?vista=arreglo&seguir=1`: sin barra ni sonido, sigue el reloj del Ensayo (HO) |
 | 🥁 Ritmos, pestaña 🪘 Cajón | adentro de Ritmos; 🎛️ Programar → 📂 Abrir los ritmos guardados |
 | Biblioteca, ficha de la canción | ＋ recurso → 🪘 Cajón (`?cancion=`) o ✏️ de un recurso Cajón (`?asset=`): pestaña cerrable del Workspace |
 | Suelto | `CAJON-PERUANO/index.html` (con `?midi=` carga un MIDI) |
