@@ -9683,3 +9683,14 @@ Melodía suelta para el Metalófono (que suena sin grabación ni adaptación).*
   con una grabación de prueba (placas en orden, ⏩, fila de la sección marcada), link de estudiante inexistente (aviso),
   modo profesor y link `m/?a=` sin cambios. Sin probar: con la melodía y la grabación reales de Dinosaurio Anacleto;
   el link de estudiante con un arreglo guardado.
+
+### HK. Borradores sin guardar que se perdían — HECHA (2026-11-16)
+*Origen: PO 2026-11-16: "tenía un arreglo de Dinosaurio Anacleto que al subirse la última versión se perdió".*
+- **Auditoría:** el arreglo (cajón por secciones, adaptación "Cuarto básico 2026") nunca llegó a la base de datos ni a
+  `arreglo/`: vivía como borrador del navegador. Los 3 ritmos 🪘 (Marcha 1, Entrada cajones, Coro) sí están guardados.
+  Dos fallas: (1) el Editor de arreglos, el de Melodías y la Ficha recuperaban el borrador solo si partía exactamente de
+  lo mismo; si no (p. ej. un arreglo nuevo cuyo punto de partida cambió con la Ficha), lo **borraban** sin avisar al
+  abrir. (2) "Recargar" (y cerrar una pestaña) del Workspace esperaba solo 4 s a que la pestaña guardara; el Editor
+  musical espera hasta 8 s y guardar un arreglo sube archivo y fila: la recarga podía cortar el guardado a la mitad.
+- **Hecho:** un borrador nunca se descarta solo: nuevo → se recupera siempre; guardado que cambió en otro lado →
+  pregunta. El Workspace espera hasta 20 s. Probado: borrador de arreglo nuevo con otro punto de partida se recupera.
