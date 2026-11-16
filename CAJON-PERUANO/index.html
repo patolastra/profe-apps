@@ -1429,7 +1429,7 @@ function ponerArreglo(d) {
     golpes = (ARRD.golpes || []).map(g => ({ t: g.s, tick: g.n * PPQ, tipo: g.t === 'grave' ? 'grave' : 'agudo', vel: 0.85, mano: 'R', fija: g.m || null }));
     asignarManos();
     clics = []; repetir = false; ritmo = 1;
-    ['b-inicio', 'b-play'].forEach(id => $(id).disabled = !urlVoz());     // se puede escuchar aunque aún no haya ritmos
+    ['b-inicio', 'b-play', 'b-atras', 'b-adelante'].forEach(id => { if ($(id)) $(id).disabled = !urlVoz(); });     // se puede escuchar aunque aún no haya ritmos
     const nombre = new URLSearchParams(location.search).get('n') || [ARRD.cancion, ARRD.etiqueta].filter(Boolean).join(' — ') || 'Arreglo';
     $('nombre').textContent = '🪘 ' + nombre; $('nombre').title = nombre;
     pintarVoz();
@@ -1497,6 +1497,30 @@ function irArr(seg) {
     posPausa = Math.max(0, seg); idxFx = primerIdx(golpes, posPausa); ultVis = posPausa;
     tocarArr();
 }
+// ── Adelante / atrás en la canción (PO 2026-11-16) ──────────────────────────────────────────
+// ⏪ ⏩ y ← → saltan un compás (los omitidos por la adaptación no cuentan); arrastrar la cinta la mueve.
+// Si estaba sonando sigue sonando desde ahí; en pausa solo se mueve.
+const posArr = () => tocando && grab ? (grab.oido() ?? posPausa) : posPausa;
+function moverArr(seg) {
+    seg = Math.max(0, Math.min(seg, (datos?.fin || seg) - 0.05));
+    if (tocando) return irArr(seg);
+    posPausa = seg; idxFx = primerIdx(golpes, seg); ultVis = seg;
+}
+function saltarCompas(dir) {
+    const comps = ARRD?.compases || []; if (!comps.length) return;
+    const saltos = ARRD.audio?.saltos || [], omit = s => saltos.some(t => s >= t.desde - 0.05 && s < t.hasta - 0.05);
+    const p = posArr(), L = comps.filter(s => !omit(s));
+    // Atrás: el comienzo de compás anterior (si recién empezó uno, el de antes); adelante: el siguiente
+    const destino = dir < 0 ? [...L].reverse().find(s => s < p - (tocando ? 0.4 : 0.02)) ?? 0 : L.find(s => s > p + 0.02);
+    if (destino !== undefined) moverArr(destino);
+}
+// Tick de la cinta → segundo de la grabación (al revés de segATick)
+function tickASegArr(tick) {
+    const comps = ARRD?.compases || [], tc = datos?.ticksCompas || 1; if (comps.length < 2) return 0;
+    const i = Math.max(0, Math.floor(tick / tc)), f = tick / tc - i;
+    const a = comps[Math.min(i, comps.length - 1)], b = comps[i + 1] ?? (a + (comps[comps.length - 1] - comps[comps.length - 2]));
+    return a + f * (b - a);
+}
 if (ARR) {
     document.body.classList.add('arreglo');
     // Melodía / Karaoke (si la canción tiene las dos): cambia en la misma muestra
@@ -1508,6 +1532,31 @@ if (ARR) {
     ss.style.cssText = 'height:36px;width:150px;background:#334155;color:var(--texto);border:1px solid #475569;border-radius:8px;visibility:hidden';
     bv.after(ss);
     ss.onchange = () => { const v = ss.value; ss.value = ''; ss.blur(); if (v !== '') irArr(+v); };
+    // ⏪ ⏩ un compás atrás / adelante, a los lados de ▶
+    const nb = (id, txt, title, dir) => { const b = document.createElement('button'); b.id = id; b.textContent = txt; b.title = title; b.disabled = true;
+        b.onclick = () => { b.blur(); saltarCompas(dir); }; return b; };
+    $('b-play').before(nb('b-atras', '⏪', 'Un compás atrás (←)', -1));
+    $('b-play').after(nb('b-adelante', '⏩', 'Un compás adelante (→)', 1));
+    document.addEventListener('keydown', e => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || !ARRD) return;
+        if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') { e.preventDefault(); saltarCompas(e.code === 'ArrowLeft' ? -1 : 1); }
+    });
+    // Arrastrar la cinta: la canción se mueve con el dedo / mouse (al soltar sigue sonando si sonaba)
+    let arrastre = null;
+    cinta.style.cursor = 'grab'; cinta.style.touchAction = 'none';
+    cinta.addEventListener('pointerdown', e => {
+        if (!ARRD?.compases?.length || !datos) return;
+        const seguia = tocando; if (seguia) pausarArr();
+        arrastre = { x: e.clientX, tick: datos.segATick(posPausa), seguia, px: Math.max(60, cinta.clientWidth / 8) };
+        cinta.setPointerCapture(e.pointerId); cinta.style.cursor = 'grabbing';
+    });
+    cinta.addEventListener('pointermove', e => {
+        if (!arrastre) return;
+        const tick = Math.max(0, arrastre.tick - (e.clientX - arrastre.x) / arrastre.px * datos.ppq);
+        moverArr(tickASegArr(tick));
+    });
+    const soltar = () => { if (!arrastre) return; const s = arrastre.seguia; arrastre = null; cinta.style.cursor = 'grab'; if (s) tocarArr(); };
+    cinta.addEventListener('pointerup', soltar); cinta.addEventListener('pointercancel', soltar);
     bv.onclick = async () => {
         bv.blur();
         arrVoz = arrVoz === 'karaoke' ? 'melodia' : 'karaoke'; pintarVoz();

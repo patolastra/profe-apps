@@ -9646,3 +9646,11 @@ actualizarse solo").*
   Probado con una canción 4/4 con un 1/4 en el compás 3: acordes, bajo, ritmo, melodía, cajón, resaltado del acorde
   que suena, líneas del Piano; canción toda en 4/4 y sin Ficha quedan igual que antes.
   Sin probar: con una canción real del PO y su grabación.
+
+### HI. Arreglo de cajón — adelante / atrás en la canción — HECHA (2026-11-16)
+*Origen: PO 2026-11-16, editando el arreglo de cajón de Dinosaurio Anacleto (4° básico, con adaptación): "necesito poder
+navegar hacia adelante o atrás en la canción, en el visor del arreglo para el cajón".*
+- **Hecho:** en el Cajón con arreglo (vista previa del Editor `?vista=arreglo` y estudiante `c/?r=`): ⏪ ⏩ a los lados
+  de ▶ y ← → saltan un compás (los omitidos por la adaptación no cuentan); arrastrar la cinta mueve la canción (mouse o
+  dedo). Sonando sigue sonando desde ahí; en pausa solo se mueve. Probado con datos de prueba (saltos, adaptación,
+  arrastre). Sin probar: con la grabación real.
