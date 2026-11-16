@@ -9765,3 +9765,11 @@ para un ensayo en vivo en clases (cajón, metalófono y letra), todo con la adap
   pestaña 🎼 Arreglo y en ese arreglo (pestaña `editor:<canción>` del Workspace, la misma que abre la Biblioteca).
   Probado: selector con las 5 pestañas en el Plan de 4° (aparece el arreglo de Dinosaurio Anacleto) y el vínculo abre
   el Editor musical en el arreglo; no se agregó nada a ninguna actividad.
+
+### HQ. Cajón y Metalófono de estudiantes — horizontal con un toque — HECHA (2026-11-16)
+*Origen: PO 2026-11-16: los links de cajón y metalófono de un arreglo se quedan en "gira el celular" aunque se gire.*
+- **Causa:** con el giro automático apagado, girar no cambia la pantalla; el Piano y el Lector ya pedían pantalla
+  completa + horizontal al primer toque, el Cajón y el Metalófono (modo alumno) no.
+- **Hecho:** en los dos, modo alumno en celular (no dentro de otra página), el primer toque pide pantalla completa y
+  bloquea horizontal (se reintenta al siguiente si falla); el aviso dice "o toca aquí". Probado en vista de celular:
+  los links `c/?r=` y `m/?r=` de Dinosaurio cargan acostados sin errores; el toque que gira se prueba en el celular.
