@@ -1380,27 +1380,24 @@
             const bAdel = mk('arr-adelante', '⏩', 'Un compás adelante (→)', () => saltar(1));
             const bVoz = mk('arr-voz', '🎤 Melodía', 'Grabación con voz (Melodía) o sin voz (Karaoke)', cambiarVoz);
             const bPlacas = mk('arr-placas', '🔔', 'Sonido de las placas (encendido / apagado)', () => { placasOn = !placasOn; pintar(); });
-            const sel = document.createElement('select'); sel.id = 'arr-sec'; sel.title = 'Ir a una sección de la canción';
+            const sel = document.createElement('select'); sel.id = 'arr-sec'; sel.title = 'Tocar la canción completa o practicar una melodía (se repite)';
             sel.onchange = () => {          // con precuenta (HR); 🔁 una melodía se repite (HS)
                 const v = sel.value; sel.blur();
-                if (v === 'stop') { loop = null; pintarSel(); return; }
                 if (v[0] === 'p') { practicar((D?.practicar || [])[+v.slice(1)]); return; }
-                sel.value = ''; if (v !== '') ir(+v, true, true);
+                // Canción completa: desde el comienzo de la grabación (precuenta solo si parte en el compás 1)
+                loop = null; pintarSel();
+                const c0 = D?.compases?.[0] ?? 0;
+                ir(c0 < 0.5 ? c0 : 0, true, c0 < 0.5);
             };
-            // Ir a… (HS): las secciones y, aparte, 🔁 Practicar = cada melodía del arreglo (se repite con precuenta)
+            // El menú (HS, PO 2026-11-16): "Canción completa" y 🔁 cada melodía del arreglo (se repite con precuenta);
+            // sin las secciones de la canción. Muestra lo que está sonando.
             function pintarSel() {
                 if (!D) return;
-                const saltos = D.audio?.saltos || [];
-                const L = (D.secciones || []).filter(x => !saltos.some(t => x.s >= t.desde - 0.05 && x.s < t.hasta - 0.05));
                 const P = D.practicar || [], e = t => String(t).replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
-                sel.innerHTML = '<option value="">Ir a…</option>' + L.map(x => {
-                    const fin = L[L.indexOf(x) + 1]?.s ?? Infinity, con = N().some(n => n.s >= x.s - 0.01 && n.s < fin);
-                    return `<option value="${x.s}">${con ? '🎵 ' : ''}${e(x.nombre)}</option>`;
-                }).join('')
-                    + (P.length ? `<optgroup label="🔁 Practicar">${P.map((x, i) => `<option value="p${i}">🔁 ${e(x.nombre)}</option>`).join('')}</optgroup>` : '')
-                    + (loop ? '<option value="stop">⏹ Dejar de repetir</option>' : '');
-                sel.value = loop ? 'p' + P.indexOf(loop) : '';
-                sel.style.visibility = L.length || P.length ? 'visible' : 'hidden';
+                sel.innerHTML = '<option value="todo">🎵 Canción completa</option>'
+                    + P.map((x, i) => `<option value="p${i}">🔁 ${e(x.nombre)}</option>`).join('');
+                sel.value = loop ? 'p' + P.indexOf(loop) : 'todo';
+                sel.style.visibility = 'visible';
             }
             function practicar(x) {
                 loop = x || null; pintarSel();

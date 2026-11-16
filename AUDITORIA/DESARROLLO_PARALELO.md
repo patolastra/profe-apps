@@ -9815,3 +9815,5 @@ pasajes específicos". Decisión del PO: con la grabación, en bucle; en el caj�
   secciones de la canción (también en la vista previa del Editor). Canción completa = desde el comienzo de la
   grabación (precuenta solo si la grabación parte en el compás 1); el menú muestra lo que suena. El Metalófono queda
   con secciones + 🔁 Practicar.
+- **Paso 3 (2026-11-16):** PO: el Metalófono igual que el Cajón: el menú muestra solo "🎵 Canción completa" y 🔁 cada
+  melodía (Estrofas, Coro, No fui feliz en Dinosaurio), sin las secciones de la canción.
