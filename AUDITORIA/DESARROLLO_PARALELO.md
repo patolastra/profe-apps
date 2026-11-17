@@ -9844,7 +9844,7 @@ regrabar todo? Decisión del PO: doble clic en un hueco.*
   lienzo y el navegador pierde el `dblclick`. Probado con doble clic real: hueco en el ritmo → nota sin grado en su
   lugar; en la fila mi → nota con grado 3.
 
-### HV. Plan — los grupos de trabajo de una evaluación dentro de una actividad, con bitácora por grupo — HECHA (2026-11-17)
+### HV. Plan — los grupos de trabajo de una evaluación dentro de una actividad, con bitácora por grupo — HECHA, falta probar en clase (2026-11-17)
 *Origen: 🐞 Mejoras (6°, 2026-11-17): "actividades por grupo de trabajo en una actividad del libro de clases (una
 evaluación)". PO 2026-11-17: "debería ser una misma actividad (Karaoke) pero con llamada a cada grupo de trabajo…
 dentro del plan, poder escribir la bitácora del grupo más o menos rápido; en el libro se arman los grupos".*
@@ -9893,8 +9893,10 @@ anotaciones (tal como ocurre en todas las actividades, pero específica para cad
   escribir**; **✍🏼 Ver / Ocultar bitácoras** en la cabecera de los grupos las muestra u oculta (se recuerda en el
   equipo, parte oculto). Probado: escribir un objetivo en el plan del Grupo 1 lo guarda (y borrarlo lo quita), Ver
   bitácoras muestra las 8, ✍🏼 abre lo escrito del grupo.
+- **Falta probar (PO):** grupos y su plan en la vista de clase (con la clase de Karaoke en curso); subido y SQL corrido
+  (`plan_cards.evaluacion_id`, `plan_cards.grupos_plan` existen).
 
-### HX. Editor por bloques — títulos desplegables — HECHA (2026-11-17)
+### HX. Editor por bloques — títulos desplegables — HECHA, falta probar escribir bajo un título plegado (2026-11-17)
 *Origen: PO 2026-11-17, mirando la bitácora de Karaoke (HV): "¿es posible hacer eso mismo pero desplegable (para el
 título Karaoke)?".*
 - **Auditoría:** `comun/editor-bloques.js` no pliega títulos; el texto guardado es una línea por bloque (`# `, `## `,
