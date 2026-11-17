@@ -9893,3 +9893,21 @@ anotaciones (tal como ocurre en todas las actividades, pero específica para cad
   escribir**; **✍🏼 Ver / Ocultar bitácoras** en la cabecera de los grupos las muestra u oculta (se recuerda en el
   equipo, parte oculto). Probado: escribir un objetivo en el plan del Grupo 1 lo guarda (y borrarlo lo quita), Ver
   bitácoras muestra las 8, ✍🏼 abre lo escrito del grupo.
+
+### HX. Editor por bloques — títulos desplegables — HECHA (2026-11-17)
+*Origen: PO 2026-11-17, mirando la bitácora de Karaoke (HV): "¿es posible hacer eso mismo pero desplegable (para el
+título Karaoke)?".*
+- **Auditoría:** `comun/editor-bloques.js` no pliega títulos; el texto guardado es una línea por bloque (`# `, `## `,
+  `### `), que leen el celular y las demás vistas.
+- **Aprobado (PO 2026-11-17):** cada título (Título 1, 2 y 3) lleva un triángulo a su izquierda; al tocarlo se pliega
+  lo de abajo hasta el siguiente título de su nivel o mayor. No cambia el texto guardado: plegar es solo para
+  mirar y se recuerda en el equipo (por nivel y texto del título). Parte todo abierto.
+- **Lugares de uso** (la misma pieza, en edición y en lectura): Cursos PC (clases, notas, ☀ Hoy, 📚 Estudios), Plan
+  (✍🏼 Bitácora, actividades, 🕘 Historial, bitácora de grupos), Pizarra (lo que usa la pieza), celular (Cursos e
+  inicio).
+- **Hecho:** ▶ girado = abierto, ▶ = plegado (en lectura, el título plegado termina en "…"). El estado se guarda en el
+  equipo como nivel + texto del título (`profe_eb_plegados`), así que un mismo título (p. ej. "Karaoke") queda plegado
+  en todas las bitácoras y vistas a la vez, y entre pestañas. Si se va a escribir en un bloque escondido (Enter tras un
+  título plegado, flechas), lo que lo tapa se despliega solo. El texto guardado no cambia.
+- **Probado:** Cursos de 6°: "Karaoke" (17/11) pliega sus 8 grupos, sigue plegado al recargar y se despliega con un
+  toque; la vista de lectura del celular arma los triángulos.

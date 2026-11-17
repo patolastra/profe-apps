@@ -176,8 +176,9 @@
 
     // ── Bloques en pantalla ─────────────────────────────────────────────
     const esObjetivo = b => b.t === 'p' && /^\s*OA?:/.test(mdAPlano(b.x));   // "O:" u "OA:" (PO 2026-10-24)
-    function htmlBloque(b, num, editable, vacio, op) {
+    function htmlBloque(b, num, editable, vacio, op, pl) {
         let marca = '';
+        if (NIVEL[b.t]) marca = `<button class="eb-marca eb-pleg" tabindex="-1" contenteditable="false" title="Plegar o desplegar lo que va bajo este título">▶&#xFE0E;</button>`;
         if (b.t === 'ul')   marca = '<span class="eb-marca">•</span>';
         if (b.t === 'ol')   marca = `<span class="eb-marca">${num}.</span>`;
         if (b.t === 'todo') marca = `<span class="eb-marca"><input type="checkbox"${b.c ? ' checked' : ''}${editable ? '' : ' disabled'}></span>`;
@@ -190,14 +191,86 @@
         const vaciaCls = !editable && b.t === 'p' && !b.x ? ' eb-vacia' : '';
         const objCls = op?.objetivo && esObjetivo(b) ? ' eb-objetivo' : '';
         const pegCls = b.t === 'p' && b.pegar ? ' eb-pegar' : '';
-        return `<div class="eb-blq eb-t-${b.t}${b.t === 'todo' && b.c ? ' eb-hecho' : ''}${vaciaCls}${objCls}${pegCls}" data-id="${b.id}">${asas}${marca}${cuerpo}</div>`;
+        const plCls = (pl?.pleg ? ' eb-plegado' : '') + (pl?.oculto ? ' eb-oculto' : '');
+        return `<div class="eb-blq eb-t-${b.t}${b.t === 'todo' && b.c ? ' eb-hecho' : ''}${vaciaCls}${objCls}${pegCls}${plCls}" data-id="${b.id}">${asas}${marca}${cuerpo}</div>`;
     }
     function html(texto, op) {
         let num = 0;
         const bs = aBloques(texto);
         while (bs.length && bs[bs.length - 1].t === 'p' && !bs[bs.length - 1].x) bs.pop();
-        return `<div class="eb eb-lectura"><div class="eb-bloques">${bs.map(b => { num = b.t === 'ol' ? num + 1 : 0; return htmlBloque(b, num, false, '', op); }).join('')}</div></div>`;
+        const pl = plegado(bs.map(b => ({ t: b.t, txt: NIVEL[b.t] ? mdAPlano(b.x) : '' })));
+        return `<div class="eb eb-lectura"><div class="eb-bloques">${bs.map((b, k) => { num = b.t === 'ol' ? num + 1 : 0; return htmlBloque(b, num, false, '', op, pl[k]); }).join('')}</div></div>`;
     }
+
+    // ── Títulos desplegables (deuda HX, 2026-11-17) ─────────────────────
+    // ▶ (girado = abierto) a la izquierda de cada título pliega lo de abajo hasta el siguiente título de su nivel o mayor. No cambia el
+    // texto: se recuerda en el equipo por nivel + texto del título (localStorage), en todas las vistas a la vez.
+    const NIVEL = { h1: 1, h2: 2, h3: 3 };
+    const PLEG_KEY = 'profe_eb_plegados';
+    let plegSet = null;
+    function plegados() {
+        if (!plegSet) { try { plegSet = new Set(JSON.parse(localStorage.getItem(PLEG_KEY) || '[]')); } catch (_) { plegSet = new Set(); } }
+        return plegSet;
+    }
+    const clavePleg = (t, txt) => NIVEL[t] && (txt || '').trim() ? NIVEL[t] + ':' + txt.trim() : null;
+    // items = [{ t, txt }] en orden → [{ pleg, oculto }]
+    function plegado(items) {
+        const set = plegados();
+        let tope = 0;   // nivel del título plegado que tapa lo de abajo (0 = nada)
+        return items.map(it => {
+            const n = NIVEL[it.t] || 0;
+            if (tope && n && n <= tope) tope = 0;
+            const oculto = !!tope;
+            const k = clavePleg(it.t, it.txt);
+            const pleg = !!(k && set.has(k));
+            if (!oculto && pleg) tope = n;
+            return { pleg, oculto };
+        });
+    }
+    function aplicarPlegado(cont) {
+        const els = [...cont.querySelectorAll(':scope > .eb-blq')];
+        const tipo = el => (el.className.match(/eb-t-(\w+)/) || [])[1];
+        const pl = plegado(els.map(el => ({ t: tipo(el), txt: NIVEL[tipo(el)] ? el.querySelector('.eb-txt')?.textContent : '' })));
+        els.forEach((el, k) => {
+            el.classList.toggle('eb-plegado', pl[k].pleg);
+            el.classList.toggle('eb-oculto', pl[k].oculto);
+        });
+    }
+    function aplicarPlegadoTodo() { document.querySelectorAll('.eb-bloques').forEach(aplicarPlegado); }
+    function guardarPleg() {
+        const arr = [...plegados()].slice(-400);
+        try { localStorage.setItem(PLEG_KEY, JSON.stringify(arr)); } catch (_) {}
+    }
+    function plegar(el, si) {
+        const k = clavePleg((el.className.match(/eb-t-(\w+)/) || [])[1], el.querySelector('.eb-txt')?.textContent);
+        if (!k) return;
+        if (si ?? !plegados().has(k)) plegados().add(k); else plegados().delete(k);
+        guardarPleg();
+        aplicarPlegadoTodo();
+    }
+    // Un bloque escondido que se va a escribir (Enter tras un título plegado, flechas): se despliega lo que lo tapa.
+    function destapar(el) {
+        if (!el?.classList.contains('eb-oculto')) return;
+        let p = el.previousElementSibling, n = 9;
+        while (p) {
+            const t = (p.className.match(/eb-t-(\w+)/) || [])[1];
+            if (NIVEL[t] && NIVEL[t] < n) {
+                n = NIVEL[t];
+                const k = clavePleg(t, p.querySelector('.eb-txt')?.textContent);
+                if (k) plegados().delete(k);
+            }
+            p = p.previousElementSibling;
+        }
+        guardarPleg();
+        aplicarPlegadoTodo();
+    }
+    document.addEventListener('mousedown', e => { if (e.target.closest?.('.eb-pleg')) e.preventDefault(); }, true);
+    document.addEventListener('click', e => {
+        const b = e.target.closest?.('.eb-pleg'); if (!b) return;
+        e.preventDefault(); e.stopPropagation();
+        plegar(b.closest('.eb-blq'));
+    }, true);
+    window.addEventListener('storage', e => { if (e.key === PLEG_KEY) { plegSet = null; aplicarPlegadoTodo(); } });
 
     // ── Instancias ──────────────────────────────────────────────────────
     const instancias = {};
@@ -254,6 +327,7 @@
         let num = 0, h = '';
         I.bloques.forEach(b => { num = b.t === 'ol' ? num + 1 : 0; h += htmlBloque(b, num, true, I.op.vacio, I.op); });
         cont.insertAdjacentHTML('beforeend', h);
+        aplicarPlegado(cont);
         marcarSolo(I);
     }
     function marcarSolo(I) {
@@ -282,6 +356,7 @@
         s.removeAllRanges(); s.addRange(r);
     }
     function enfocar(id, off) {
+        destapar(elDe(id));
         const el = txtDe(id);
         if (el) ponerCursor(el, off === 'fin' ? el.textContent.length : off);
     }
