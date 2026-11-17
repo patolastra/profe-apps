@@ -9843,3 +9843,30 @@ regrabar todo? Decisión del PO: doble clic en un hueco.*
   nota"). El doble clic se detecta a mano (dos clics en 400 ms en el mismo punto), porque el primer clic redibuja el
   lienzo y el navegador pierde el `dblclick`. Probado con doble clic real: hueco en el ritmo → nota sin grado en su
   lugar; en la fila mi → nota con grado 3.
+
+### HV. Plan — los grupos de trabajo de una evaluación dentro de una actividad, con bitácora por grupo — HECHA (2026-11-17)
+*Origen: 🐞 Mejoras (6°, 2026-11-17): "actividades por grupo de trabajo en una actividad del libro de clases (una
+evaluación)". PO 2026-11-17: "debería ser una misma actividad (Karaoke) pero con llamada a cada grupo de trabajo…
+dentro del plan, poder escribir la bitácora del grupo más o menos rápido; en el libro se arman los grupos".*
+- **Auditoría:** los grupos viven en `libro_evaluacion_grupos` (nombre, `tipicos` = canción u obra del grupo) y sus
+  integrantes en `libro_evaluacion_notas.grupo_id`; solo los cursos tienen evaluaciones. La bitácora de la clase es un
+  solo texto (`memorias.contenido`) con un apartado `### <actividad>` por actividad (BW parte 2); el editor por bloques
+  solo tiene 3 niveles de título.
+- **Aprobado (PO 2026-11-17):** ⋯ de la actividad → **👥 Grupos de trabajo**: se elige una evaluación del curso (del
+  año de la clase). La actividad muestra sus grupos (nombre, integrantes, canción del grupo, que abre el Entrenador
+  mínimo); ✍🏼 en un grupo abre un cuadro para escribir su bitácora, que queda en la bitácora de la clase como apartado
+  `### <actividad> · <grupo>` (junto al de la actividad), visible en Cursos, Historial y celular. Igual en la vista de
+  clase. El Libro no cambia: los grupos solo se ven.
+- **Supabase (lo corre el PO):** `supabase/plan_cards_evaluacion.sql` (`plan_cards.evaluacion_id`, se suelta si la
+  evaluación se borra).
+- **Lugares de uso:** Plan (columna Plan y vista de clase). "➜ Continuar en la próxima clase" lleva también la
+  evaluación.
+- **Hecho:** como lo aprobado. Integrantes con el nombre del Libro (con apellido si se repite o está marcado), A–Z;
+  la canción u obra del grupo (🎵 abre el Entrenador mínimo, ✏️ texto); el grupo con bitácora muestra su texto bajo
+  los integrantes. Un apartado nuevo de grupo queda justo después del de su actividad y de sus otros grupos. Los
+  grupos se ponen al día al volver al Plan. Quitar los grupos no toca el Libro ni la bitácora. La lista de la vista de
+  clase suma "👥 N grupos".
+- **Probado** (sin guardar nada; la columna aún no existía): Karaoke de 6° del 17/11 con la evaluación Karaoke →
+  8 grupos con integrantes y canciones; ✍🏼 abre y cierra el cuadro; vista de clase en grande; selector con las 4
+  evaluaciones de 6° del año (Karaoke ✓, 8 grupos). El lugar del apartado en la bitácora, probado en memoria.
+- **Pendiente del PO:** correr `supabase/plan_cards_evaluacion.sql` en Supabase; sin eso, vincular avisa que falta.
