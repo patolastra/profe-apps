@@ -9870,3 +9870,18 @@ dentro del plan, poder escribir la bitácora del grupo más o menos rápido; en 
   8 grupos con integrantes y canciones; ✍🏼 abre y cierra el cuadro; vista de clase en grande; selector con las 4
   evaluaciones de 6° del año (Karaoke ✓, 8 grupos). El lugar del apartado en la bitácora, probado en memoria.
 - **Pendiente del PO:** correr `supabase/plan_cards_evaluacion.sql` en Supabase; sin eso, vincular avisa que falta.
+
+### HW. Plan — el plan de cada grupo de trabajo (objetivos y anotaciones) — HECHA (2026-11-17)
+*Origen: PO 2026-11-17: "cada grupo de trabajo debería poder tener uno o varios OA, diferenciados de los demás,
+anotaciones (tal como ocurre en todas las actividades, pero específica para cada grupo)". Sigue a HV.*
+- **Aprobado (PO 2026-11-17):** en la actividad con grupos (HV), cada grupo tiene **📋 Plan** además de ✍🏼 Bitácora:
+  el editor por bloques de las actividades (párrafo "O:" = objetivo, varios posibles) para lo que hará ese grupo; se
+  ve bajo sus integrantes (y en grande en la vista de clase). Se guarda en la actividad de esa clase
+  (`plan_cards.grupos_plan` = `{ "<id del grupo>": "texto" }`) y "➜ Continuar en la próxima clase" lo copia.
+- **Supabase (lo corre el PO):** `supabase/plan_cards_grupos_plan.sql`.
+- **Lugares de uso:** Plan (columna Plan y vista de clase).
+- **Hecho:** cada grupo tiene 📋 (plan) y ✍🏼 (bitácora); el plan se ve bajo los integrantes con sus objetivos
+  destacados, y la bitácora debajo con su rótulo; el cuadro de edición dice cuál de los dos se escribe. Borrar todo el
+  texto del plan de un grupo lo quita. "➜ Continuar" copia el plan de los grupos con la actividad.
+- **Probado** con Karaoke de 6° (17/11), antes de la columna: 📋 del Grupo 1 abre el editor, "O: …" se destaca y el
+  guardado avisa que falta el SQL sin cambiar nada (prueba descartada).

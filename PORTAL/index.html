@@ -945,6 +945,12 @@
         .pgr-mie { font-size: 0.74rem; color: #4b5563; padding: 1px 0 0 33px; }
         .pgr-lee { padding: 2px 0 0 33px; font-size: 0.8rem; color: #1f2937; }
         .pgr-lee[hidden] { display: none; }
+        .pgr-lee.pgr-plan .eb-lectura, .pgr-lee.pgr-bitl .eb-lectura { padding: 0; }
+        .pgr-lee.pgr-bitl { border-left: 3px solid #c7d2fe; padding-left: 8px; margin: 3px 0 0 33px; }
+        .pgr-lee-tit { display: block; font-size: 0.66rem; font-weight: 800; color: #4f46e5; text-transform: uppercase; letter-spacing: .04em; }
+        .pgr-caja-tit { font-size: 0.66rem; font-weight: 800; color: #4f46e5; text-transform: uppercase; letter-spacing: .04em; }
+        .pgr-caja.plan { border-color: #86efac; }
+        .pgr-caja.plan .pgr-caja-tit { color: #166534; }
         .pgr-caja { margin: 5px 0 2px 33px; background: #fff; border: 2px solid #a5b4fc; border-radius: 8px; padding: 6px 8px; }
         .pgr-caja[hidden] { display: none; }
         .pgr-ed { min-height: 50px; }
@@ -5034,6 +5040,7 @@ async function continuarActividad(c) {
         titulo: c.titulo || '', contenido: c.ed ? c.ed.texto() : (c.contenido || ''),
         canciones: cancionesDe(c), minutos: c.minutos ?? null, updated_at: ahora,
         ...(c.evaluacion_id ? { evaluacion_id: c.evaluacion_id } : {}),   // sus grupos de trabajo (HV)
+        ...(c.grupos_plan ? { grupos_plan: c.grupos_plan } : {}),         // y el plan de cada grupo (HW)
     }).select('id').single();
     if (error) { planEstado('No se pudo copiar la actividad — revisa la conexión.', true); return; }
     // Sus diapositivas, tras su marca, al final de la presentación de esa clase (con su diapositiva inicial si no tenía).
@@ -5774,6 +5781,9 @@ async function cargarGruposMem() {
     gruposMem = { sid, texto: data?.contenido || '' };
     repintarGrupos();
 }
+// Plan de cada grupo (deuda HW): plan_cards.grupos_plan = { "<id del grupo>": texto del editor por bloques }
+const FALTA_GPLAN = 'No se pudo guardar el plan del grupo. ¿Falta correr supabase/plan_cards_grupos_plan.sql?';
+const planDeGrupo = (c, gid) => ((c.grupos_plan && typeof c.grupos_plan === 'object' ? c.grupos_plan[gid] : '') || '').trim();
 const bitDeGrupo = (c, g) => gruposMem.sid === sesionActual?.id ? bitCuerpo(gruposMem.texto, tituloAct(c) + ' · ' + g.nombre) : '';
 
 function gruposHTML(c) {
@@ -5789,12 +5799,14 @@ function gruposHTML(c) {
     }).join('');
     return `<div class="pgr-tit" title="Grupos de trabajo de esta evaluación: se arman en el Libro">👥 ${esc(d.nombre)} · ${n} ${n === 1 ? 'grupo' : 'grupos'} ${quitar}</div>`
         + (n ? d.grupos.map(g => {
-            const bit = bitDeGrupo(c, g);
+            const bit = bitDeGrupo(c, g), plan = planDeGrupo(c, g.id);
             return `<div class="pgr" data-g="${g.id}"><div class="pgr-fila">
-                    <button class="pgr-bit${bit ? ' con' : ''}" title="${bit ? 'Seguir la bitácora de este grupo' : 'Escribir la bitácora de este grupo'}">✍🏼</button>
+                    <button class="pgr-bit pgr-pl${plan ? ' con' : ''}" data-modo="plan" title="Plan de este grupo: objetivos (O:) y anotaciones">📋</button>
+                    <button class="pgr-bit${bit ? ' con' : ''}" data-modo="bit" title="${bit ? 'Seguir la bitácora de este grupo' : 'Escribir la bitácora de este grupo'}">✍🏼</button>
                     <span class="pgr-nom">${esc(g.nombre)}</span>${tips(g)}</div>
                 <div class="pgr-mie">${g.miembros.map(esc).join(' · ') || 'Sin integrantes'}</div>
-                ${bit ? `<div class="pgr-lee">${EditorBloques.html(bit)}</div>` : ''}
+                ${plan ? `<div class="pgr-lee pgr-plan" data-modo="plan">${EditorBloques.html(plan, { objetivo: true })}</div>` : ''}
+                ${bit ? `<div class="pgr-lee pgr-bitl" data-modo="bit"><span class="pgr-lee-tit">✍🏼 Bitácora</span>${EditorBloques.html(bit)}</div>` : ''}
                 <div class="pgr-caja" hidden></div></div>`;
         }).join('') : '<div class="pgr-mie">Aún no tiene grupos: se arman en el Libro.</div>');
 }
@@ -5872,20 +5884,34 @@ async function ponerEvaluacion(c, id) {
 }
 
 // ✍🏼 de un grupo: su apartado de la bitácora, en un cuadro bajo el grupo.
-async function abrirGrupoBit(c, gid, box) {
+// 📋 (modo 'plan', HW): el plan del grupo en la actividad, con el editor de las actividades ("O:" = objetivo).
+async function abrirGrupoBit(c, gid, box, modo = 'bit') {
     const pgr = box.querySelector(`.pgr[data-g="${gid}"]`);
     const g = gruposDatos.get(c.evaluacion_id)?.grupos?.find(x => x.id === gid);
     if (!pgr || !g || !sesionActual) return;
-    if (grupoBit) cerrarGrupoBit();
+    if (grupoBit) await cerrarGrupoBit();
     const act = tituloAct(c), titulo = act + ' · ' + g.nombre, sid = sesionActual.id;
-    const caja = pgr.querySelector('.pgr-caja');
+    const pgr2 = box.querySelector(`.pgr[data-g="${gid}"]`) || pgr;   // cerrar el anterior pudo repintar
+    const caja = pgr2.querySelector('.pgr-caja');
     caja.hidden = false;
-    caja.innerHTML = `<div class="pgr-ed"></div><div class="pgr-pie"><span class="pgr-est">Cargando…</span><button class="pgr-listo">Listo</button></div>`;
-    pgr.querySelector('.pgr-lee')?.setAttribute('hidden', '');
-    pgr.querySelector('.pgr-bit').classList.add('on');
-    const B = { cardId: c.id, gid, titulo, act, sid, timer: null, sucio: false, caja, ed: null };
+    caja.classList.toggle('plan', modo === 'plan');
+    caja.innerHTML = `<div class="pgr-caja-tit">${modo === 'plan' ? '📋 Plan' : '✍🏼 Bitácora'} · ${esc(g.nombre)}</div><div class="pgr-ed"></div><div class="pgr-pie"><span class="pgr-est">Cargando…</span><button class="pgr-listo">Listo</button></div>`;
+    pgr2.querySelector(`.pgr-lee[data-modo="${modo}"]`)?.setAttribute('hidden', '');
+    pgr2.querySelector(`.pgr-bit[data-modo="${modo}"]`)?.classList.add('on');
+    const B = { cardId: c.id, gid, titulo, act, sid, modo, timer: null, sucio: false, caja, ed: null };
     grupoBit = B;
     const est = caja.querySelector('.pgr-est');
+    if (modo === 'plan') {
+        B.ed = EditorBloques.crear(caja.querySelector('.pgr-ed'), {
+            texto: planDeGrupo(c, gid), objetivo: true,
+            vacio: `O: objetivo de ${g.nombre} · luego anotaciones…`,
+            alPendiente: texto => planPendienteDesde(texto, r => { est.textContent = r.aviso; setTimeout(() => { if (est.textContent === r.aviso) est.textContent = ''; }, 4000); }),
+            alCambiar: () => { B.sucio = true; est.textContent = 'Sin guardar…'; clearTimeout(B.timer); B.timer = setTimeout(() => guardarGrupoBit(B), 1000); },
+        });
+        est.textContent = '';
+        B.ed.enfocar('fin');
+        return;
+    }
     const { data, error } = await sb.from('memorias').select('contenido').eq('sesion_id', sid).maybeSingle();
     if (grupoBit !== B) return;
     if (error) { est.textContent = 'No se pudo cargar la bitácora — revisa la conexión.'; return; }
@@ -5903,6 +5929,19 @@ async function guardarGrupoBit(B) {
     clearTimeout(B.timer); B.timer = null; B.sucio = false;
     const est = B.caja.querySelector('.pgr-est');
     const cuerpo = B.ed.texto().replace(/\s+$/, '');
+    if (B.modo === 'plan') {
+        const c = planCards.find(x => x.id === B.cardId); if (!c) return;
+        const antes = c.grupos_plan;
+        const gp = { ...(antes && typeof antes === 'object' ? antes : {}) };
+        if (cuerpo.trim()) gp[B.gid] = cuerpo; else delete gp[B.gid];
+        c.grupos_plan = Object.keys(gp).length ? gp : null;
+        const ahora = new Date().toISOString();
+        c.ultEnvio = ahora; c.updated_at = ahora; planPropios.anotar(ahora);
+        const { error } = await sb.from('plan_cards').update({ grupos_plan: c.grupos_plan, updated_at: ahora }).eq('id', c.id);
+        if (error) { c.grupos_plan = antes; B.sucio = true; if (est) est.textContent = FALTA_GPLAN; return; }
+        if (est && grupoBit === B) { est.textContent = 'Guardado ✓'; setTimeout(() => { if (est.textContent === 'Guardado ✓') est.textContent = ''; }, 2000); }
+        return;
+    }
     const { data, error } = await sb.from('memorias').select('contenido').eq('sesion_id', B.sid).maybeSingle();
     if (error) { B.sucio = true; if (est) est.textContent = 'No se pudo guardar — revisa la conexión.'; return; }
     const nuevo = bitPoner(data?.contenido || '', B.titulo, cuerpo, B.act);
@@ -5939,9 +5978,9 @@ document.addEventListener('click', e => {
     const b = e.target.closest('.pgr-bit');
     if (b) {
         e.stopPropagation();
-        const gid = b.closest('.pgr').dataset.g;
-        if (grupoBit && grupoBit.cardId === c.id && grupoBit.gid === gid) cerrarGrupoBit();
-        else abrirGrupoBit(c, gid, box);
+        const gid = b.closest('.pgr').dataset.g, modo = b.dataset.modo || 'bit';
+        if (grupoBit && grupoBit.cardId === c.id && grupoBit.gid === gid && grupoBit.modo === modo) cerrarGrupoBit();
+        else abrirGrupoBit(c, gid, box, modo);
     }
 });
 
