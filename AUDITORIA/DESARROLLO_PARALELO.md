@@ -9830,3 +9830,16 @@ por nota, con ritmo sin grabación, con la grabación); las notas del arreglo.*
   terminar. **↩ Con la canción** vuelve al arreglo con esa melodía elegida (`&p=<i>`).
 - Probado con Dinosaurio: Coro = 36 notas, 106 BPM, 2/4, en negras exactas; vuelta 2 automática; nota por nota vuelve
   a la primera; ida y vuelta con la melodía elegida.
+
+### HU. Editor de Melodías — agregar una nota en un silencio (sin regrabar) — HECHA (2026-11-17)
+*Origen: PO 2026-11-17: si al tapear el ritmo el editor no tomó una nota, ¿cómo la agrego en mitad de la melodía sin
+regrabar todo? Decisión del PO: doble clic en un hueco.*
+- **Alcance:** `MELODIA/index.html`: doble clic en un hueco del lienzo (ritmo o una fila de la escala) pone ahí una
+  nota de la figura más corta, ajustada a la cuadrícula; en la fila de ritmo queda sin grado, en una fila de la
+  escala con ese grado. Luego se corrige como siempre (alargar, mover, D, U). Sin tocar lo demás.
+- **Lugares de uso:** solo el Editor de Melodías (también dentro del 🎼 Editor musical, pestaña ♬ Melodía, que es el
+  mismo archivo).
+- **Hecho:** como el alcance; sobre una nota o donde no cabe la figura más corta no agrega nada ("Ahí ya hay una
+  nota"). El doble clic se detecta a mano (dos clics en 400 ms en el mismo punto), porque el primer clic redibuja el
+  lienzo y el navegador pierde el `dblclick`. Probado con doble clic real: hueco en el ritmo → nota sin grado en su
+  lugar; en la fila mi → nota con grado 3.

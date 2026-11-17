@@ -695,7 +695,7 @@ function pintarPartitura() {
 }
 
 const AYUDA = {
-    1: '<b>● Grabar</b>: precuenta de 1 compás · <b>Espacio</b> tapear (mantener = larga) · <b>Enter</b> terminar · Corregir: <b>Shift+← →</b> acortar/alargar (o arrastrar el borde) · <b>Alt+← →</b> mover (o arrastrar) · <b>D</b> dividir · <b>U</b> unir · <b>Supr</b> borrar · clic en un compás: <b>Espacio</b> lo escucha desde ahí y ⟲ lo regraba',
+    1: '<b>● Grabar</b>: precuenta de 1 compás · <b>Espacio</b> tapear (mantener = larga) · <b>Enter</b> terminar · Corregir: <b>Shift+← →</b> acortar/alargar (o arrastrar el borde) · <b>Alt+← →</b> mover (o arrastrar) · <b>D</b> dividir · <b>U</b> unir · <b>Supr</b> borrar · <b>doble clic</b> en un hueco = nota nueva · clic en un compás: <b>Espacio</b> lo escucha desde ahí y ⟲ lo regraba',
     2: 'Elige la tónica y el modo. El <b>1°</b> es siempre la tónica; cambiar la tonalidad mueve toda la melodía.',
     4: 'Marca para qué instrumentos es la melodía y elige cuál digitar · <b>1–5</b> dedo (y avanza) · <b>0 / Retroceso</b> quitar · <b>← →</b> moverse · <b>Espacio</b> escuchar',
     3: '<b>1–7</b> grado (y avanza) · <b>0</b> silencio · <b>↑ ↓</b> octava · <b>+ −</b> medio tono · <b>← →</b> moverse · <b>arrastrar arriba/abajo</b> cambia la nota · <b>Retroceso</b> borrar · <b>Shift / Alt+← →</b> ritmo · <b>Espacio</b> escuchar desde el compás elegido · <b>Ctrl+S</b> guardar',
@@ -1065,13 +1065,37 @@ document.getElementById('lienzo').addEventListener('pointerup', () => {
     pintarTodo();
 });
 document.getElementById('lienzo').addEventListener('click', e => {
-    if (rec || e.target.closest('.nota[data-i]')) return;
+    if (rec || e.target.closest('.nota[data-i]')) { clicPrevio = null; return; }
+    if (esDobleClic(e)) return agregarEnHueco(e);
     const c = e.target.closest('.compas');
     const x = e.clientX - document.getElementById('lienzo').getBoundingClientRect().left;
     const ci = c ? +c.dataset.c : Math.floor(x / (tpc() * PX));
     compasSel = compasSel === ci ? null : ci;
     pintarTodo();
 });
+// Doble clic en un hueco: una nota nueva de la figura más corta (la que el tapeo no alcanzó a tomar)
+// (el primer clic redibuja el lienzo y el navegador pierde el dblclick: se detecta a mano)
+let clicPrevio = null;
+function esDobleClic(e) {
+    const p = clicPrevio, ahora = performance.now();
+    clicPrevio = { x: e.clientX, y: e.clientY, h: ahora };
+    if (p && ahora - p.h < 400 && Math.abs(e.clientX - p.x) < 6 && Math.abs(e.clientY - p.y) < 6) { clicPrevio = null; return true; }
+    return false;
+}
+function agregarEnHueco(e) {
+    const r = document.getElementById('lienzo').getBoundingClientRect();
+    const t = Math.floor((e.clientX - r.left) / PX / M.fig) * M.fig;
+    if (t < 0) return;
+    if (M.notas.some(n => n.t < t + M.fig && n.t + n.d > t)) return toast('Ahí ya hay una nota');
+    const fila = filaEn(e.clientY - r.top);
+    const n = fila === null ? { t, d: M.fig, g: null, o: 0, a: 0 }
+        : { t, d: M.fig, g: ((fila % 7) + 7) % 7 + 1, o: Math.floor(fila / 7), a: 0 };
+    let i = M.notas.findIndex(x => x.t > t); if (i < 0) i = M.notas.length;
+    M.notas.splice(i, 0, n);
+    cursor = i; compasSel = Math.floor(t / tpc());
+    if (n.g > 0) sonarNota(n);
+    huboCambio(); pintarTodo();
+}
 window.addEventListener('resize', () => { clearTimeout(window._rz); window._rz = setTimeout(pintarPartitura, 150); });
 
 // Teclado
