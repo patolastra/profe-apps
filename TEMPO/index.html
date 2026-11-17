@@ -137,6 +137,12 @@
     #toast { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); background: #0b1222; border: 1px solid #475569;
         padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 40; max-width: 80vw; }
     #toast.on { opacity: 1; }
+    /* Sin grabación (IA): la melodía suena como grabación; los compases salen de ella (fijos) */
+    body.singrab #seg-grab, body.singrab #b-marcar, body.singrab #b-fijar, body.singrab #b-c1, body.singrab #b-borrar,
+    body.singrab #b-emparejar, body.singrab #b-golpes, body.singrab #b-importar, body.singrab #b-limpiar,
+    body.singrab #seg-modo [data-m="adapt"], body.singrab .no-singrab { display: none; }
+    #singrab-info { display: none; color: var(--tenue); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; flex: none; }
+    body.singrab #singrab-info { display: inline; }
     #sin { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; padding: 30px; color: var(--tenue); background: var(--bg); z-index: 50; }
 </style>
 </head>
@@ -149,6 +155,7 @@
         <button class="btn" data-v="melodia">🎤 Melodía</button><button class="btn" data-v="karaoke">🎶 Karaoke</button></div>
     <span id="ton" title="Tonalidad oficial de la canción (la leen las otras apps)">Tonalidad
         <select id="ton-tonica"></select><select id="ton-modo"><option value="mayor">mayor</option><option value="menor">menor</option></select></span>
+    <span id="singrab-info"></span>
     <div class="sep"></div>
     <div id="estado"></div>
     <button id="b-guardar">Guardar</button>
@@ -177,8 +184,8 @@
         <button class="btn" id="b-c1" title="El compás elegido pasa a ser el compás 1">Aquí empieza el compás 1</button>
         <input id="sec-nombre" list="sec-lista" placeholder="🏷 Sección desde aquí" title="Nombre de la sección que empieza en este compás (Enter). Vacío: la quita" disabled>
         <datalist id="sec-lista"><option>Intro</option><option>Estrofa</option><option>Pre-coro</option><option>Coro</option><option>Puente</option><option>Interludio</option><option>Solo</option><option>Mambo</option><option>Final</option></datalist>
-        <span class="rot">Cifra de este compás</span>
-        <select id="sel-cifra"></select>
+        <span class="rot no-singrab">Cifra de este compás</span>
+        <select id="sel-cifra" class="no-singrab"></select>
         <button class="btn" id="b-borrar" title="Borrar el compás elegido: se junta con el anterior (Supr)">🗑 Borrar compás</button>
     </div>
     <div class="caja fila fila-estr">
@@ -1609,6 +1616,103 @@ function toast(t) {
     clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2800);
 }
 
+// ══ Sin grabación (IA) ═══════════════════════════════════════════════════════════════════
+// Una canción sin audio (p. ej. Tetris: solo melodías del Editor o MIDI de metalófono): la melodía más larga suena
+// como si fuera la grabación (sonido del computador) y sus compases salen de ella, fijos. Las secciones se marcan por
+// compás igual que siempre y quedan en la misma Ficha (las leen todas las melodías y arreglos de la canción).
+let sinGrab = null;              // { nombre, n, d, compas (s), dur (s) }
+let melodias = [];               // MIDIs de la canción: [{ nombre, url }]
+function leerMidi(buf8) {
+    const v = new DataView(buf8.buffer, buf8.byteOffset, buf8.byteLength);
+    let p = 0;
+    const u32 = () => { const x = v.getUint32(p); p += 4; return x; }, u16 = () => { const x = v.getUint16(p); p += 2; return x; };
+    const vlq = () => { let n = 0, b; do { b = v.getUint8(p++); n = (n << 7) | (b & 0x7f); } while (b & 0x80); return n; };
+    if (u32() !== 0x4d546864) throw new Error('No es un MIDI');
+    const lh = u32(); u16();
+    const ntr = u16(), ppq = u16();
+    p = 8 + lh;
+    let us = 500000, n = 4, d = 4, fin = 0, conTempo = false, conCifra = false;
+    const notas = [], abiertas = new Map();
+    for (let k = 0; k < ntr && p + 8 <= v.byteLength; k++) {
+        if (u32() !== 0x4d54726b) break;
+        const largo = u32(), hasta = p + largo;
+        let t = 0, st = 0;
+        while (p < hasta) {
+            t += vlq();
+            const b = v.getUint8(p);
+            if (b & 0x80) { st = b; p++; }
+            if (st === 0xff) {
+                const tipo = v.getUint8(p++), l = vlq();
+                if (tipo === 0x51 && l === 3 && !conTempo) { us = (v.getUint8(p) << 16) | (v.getUint8(p + 1) << 8) | v.getUint8(p + 2); conTempo = true; }
+                if (tipo === 0x58 && l >= 2 && !conCifra) { n = v.getUint8(p); d = 2 ** v.getUint8(p + 1); conCifra = true; }
+                p += l; st = 0; continue;
+            }
+            if (st === 0xf0 || st === 0xf7) { p += vlq(); st = 0; continue; }
+            const hi = st & 0xf0, a1 = v.getUint8(p++), a2 = (hi === 0xc0 || hi === 0xd0) ? 0 : v.getUint8(p++);
+            if (hi === 0x90 && a2 > 0) abiertas.set(a1, t);
+            else if (hi === 0x80 || (hi === 0x90 && a2 === 0)) {
+                const t0 = abiertas.get(a1);
+                if (t0 !== undefined) { notas.push({ t: t0, d: t - t0, m: a1 }); abiertas.delete(a1); }
+            }
+        }
+        fin = Math.max(fin, t); p = hasta;
+    }
+    const seg = us / 1e6 / ppq;   // segundos por tick (tempo fijo: el primero)
+    return { notas: notas.map(x => ({ t: x.t * seg, d: x.d * seg, m: x.m })), fin: fin * seg, n, d, compas: n * (4 / d) * ppq * seg };
+}
+// La melodía, sintetizada (como suena en el Editor) y convertida en un WAV que la Ficha toca como grabación
+async function melodiaEnWav(mid) {
+    const sr = 22050, dur = Math.max(mid.fin, ...mid.notas.map(x => x.t + x.d)) + 1;
+    const oc = new OfflineAudioContext(1, Math.ceil(sr * dur), sr);
+    for (const x of mid.notas) {
+        const f = 440 * 2 ** ((x.m - 69) / 12), g = oc.createGain(); g.connect(oc.destination);
+        const o1 = oc.createOscillator(); o1.type = 'triangle'; o1.frequency.value = f; o1.connect(g);
+        const g2 = oc.createGain(); g2.gain.value = 0.25; g2.connect(g);
+        const o2 = oc.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2; o2.connect(g2);
+        const a = x.t, fin = a + Math.max(0.08, x.d);
+        g.gain.setValueAtTime(0.0001, a); g.gain.exponentialRampToValueAtTime(0.35, a + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.16, a + Math.min(0.25, Math.max(0.02, x.d * 0.6)));
+        g.gain.setValueAtTime(0.16, Math.max(a + 0.03, fin - 0.03)); g.gain.exponentialRampToValueAtTime(0.0001, fin + 0.06);
+        [o1, o2].forEach(o => { o.start(a); o.stop(fin + 0.1); });
+    }
+    const b = (await oc.startRendering()).getChannelData(0), L = b.length;
+    const w = new DataView(new ArrayBuffer(44 + L * 2));
+    const txt = (o, t) => { for (let i = 0; i < t.length; i++) w.setUint8(o + i, t.charCodeAt(i)); };
+    txt(0, 'RIFF'); w.setUint32(4, 36 + L * 2, true); txt(8, 'WAVE'); txt(12, 'fmt '); w.setUint32(16, 16, true);
+    w.setUint16(20, 1, true); w.setUint16(22, 1, true); w.setUint32(24, sr, true); w.setUint32(28, sr * 2, true);
+    w.setUint16(32, 2, true); w.setUint16(34, 16, true); txt(36, 'data'); w.setUint32(40, L * 2, true);
+    for (let i = 0; i < L; i++) w.setInt16(44 + i * 2, Math.max(-1, Math.min(1, b[i])) * 32767, true);
+    return URL.createObjectURL(new Blob([w], { type: 'audio/wav' }));
+}
+async function prepararSinGrabacion() {
+    if (!melodias.length) return;
+    let mejor = null;
+    for (const m of melodias) {
+        try {
+            const r = await fetch(m.url, { cache: 'no-cache' });
+            if (!r.ok) continue;
+            const mid = leerMidi(new Uint8Array(await r.arrayBuffer()));
+            if (mid.notas.length && (!mejor || mid.fin > mejor.mid.fin)) mejor = { ...m, mid };
+        } catch (_) {}
+    }
+    if (!mejor) return;
+    const { mid } = mejor, N = Math.max(1, Math.round(mid.fin / mid.compas - 0.05));
+    sinGrab = { nombre: mejor.nombre, n: mid.n, d: mid.d, compas: mid.compas, dur: mid.fin };
+    audios = { melodia: await melodiaEnWav(mid), karaoke: null }; rol = 'melodia';
+    // Las secciones siguen en su compás; los compases (y la cifra) salen de la melodía
+    const C0 = S.compases, i0 = idxCercano(S.c1);
+    const numDe = t => C0.length > 1 && enRango(t) ? idxCercano(t) - i0 : Math.round(t / mid.compas);
+    const nums = S.secciones.map(x => numDe(x.t));
+    S.compases = Array.from({ length: N + 1 }, (_, i) => i * mid.compas);
+    S.c1 = 0;
+    S.cifras = [{ compas: 1, n: mid.n, d: mid.d }];
+    S.secciones = S.secciones.map((x, i) => ({ ...x, t: S.compases[Math.max(0, Math.min(N - 1, nums[i]))] }));
+    fijos = true;
+    document.body.classList.add('singrab');
+    $('singrab-info').textContent = `Sin grabación · suena: ${mejor.nombre}`;
+    $('singrab-info').title = 'La canción no tiene audio: suena su melodía más larga y los compases salen de ella. Las secciones quedan para todas sus melodías y arreglos.';
+}
+
 // ══ Inicio ═════════════════════════════════════════════════════════════════════════════
 function cargarDatos(d) { Object.assign(S, aCompases(d)); }
 async function iniciar() {
@@ -1617,7 +1721,7 @@ async function iniciar() {
         if (sb) {
             const [c, as] = await Promise.all([
                 sb.from('repertorio_canciones').select('nombre').eq('id', cancionId).single(),
-                sb.from('repertorio_assets').select('id, tipo, rol, etiqueta, instrumento, storage_path, contenido, synced, tab_sync, orden, created_at').eq('cancion_id', cancionId).in('tipo', ['audio', 'tempo', 'tab', 'letra']),
+                sb.from('repertorio_assets').select('id, tipo, rol, etiqueta, instrumento, storage_path, contenido, synced, tab_sync, orden, created_at').eq('cancion_id', cancionId).in('tipo', ['audio', 'tempo', 'tab', 'letra', 'melodia', 'metalofono']),
             ]);
             cancionNombre = c.data?.nombre || '';
             const lista = (as.data || []).sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.created_at || '').localeCompare(String(b.created_at || '')));
@@ -1627,6 +1731,10 @@ async function iniciar() {
             const kar = aud.find(a => a.rol === 'karaoke' && a !== mel) || null;
             audios = { melodia: mel ? publica(mel.storage_path) : null, karaoke: kar ? publica(kar.storage_path) : null };
             if (!audios.melodia) rol = 'karaoke';
+            // Sin audio (IA): sus melodías (Editor) y MIDIs de metalófono, para sonar como grabación
+            if (!audios.melodia && !audios.karaoke)
+                melodias = lista.filter(a => (a.tipo === 'melodia' || a.tipo === 'metalofono') && a.storage_path)
+                    .map(a => ({ nombre: a.etiqueta || (a.tipo === 'melodia' ? 'Melodía' : 'Metalófono'), url: publica(a.storage_path) }));
             const t = lista.find(a => a.tipo === 'tempo');
             if (t) { assetId = t.id; try { cargarDatos(JSON.parse(t.contenido || '{}')); } catch (_) {} }
             const letra = lista.find(a => a.tipo === 'letra');   // la misma que abre el Entrenador
@@ -1644,6 +1752,7 @@ async function iniciar() {
             Object.assign(S, b.S); toast('Se recuperó lo que no alcanzaste a guardar');
         }
     } catch (_) {}
+    await prepararSinGrabacion();
     $('cancion').textContent = '📋 ' + (cancionNombre || 'Ficha de la canción'); $('cancion').title = cancionNombre;
     document.title = `${cancionNombre || 'Canción'} · Ficha`;
     rehacer();

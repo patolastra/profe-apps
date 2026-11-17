@@ -4586,6 +4586,8 @@ function lineaFicha(c, ficha, todos) {
     let m = null; try { m = ficha ? TempoMapa.crear(JSON.parse(ficha.contenido || '{}')) : null; } catch (_) {}
     const t = m?.tonalidad, modo = t?.modo || 'mayor', ct = m ? m.cifraTexto(1) : '4/4';
     const conAudio = todos.some(a => a.tipo === 'audio');
+    // Sin audio, con una melodía (Editor o MIDI de metalófono): la Ficha la toca como grabación (IA)
+    const conMel = !conAudio && todos.some(a => (a.tipo === 'melodia' || a.tipo === 'metalofono') && a.storage_path);
     const tonicas = '<option value="">Tonalidad</option>' + TempoMapa.TONICAS[modo].map(x =>
         `<option value="${x}"${x === t?.tonica ? ' selected' : ''}>${TempoMapa.nombreTonalidad({ tonica: x, modo }).split(' ')[0]}</option>`).join('');
     const cifras = (FICHA_CIFRAS.includes(ct) ? FICHA_CIFRAS : [...FICHA_CIFRAS, ct]).map(x => `<option${x === ct ? ' selected' : ''}>${x}</option>`).join('');
@@ -4594,7 +4596,7 @@ function lineaFicha(c, ficha, todos) {
         <select class="fo-ton" onchange="cambiarFicha('${c.id}')">${tonicas}</select>
         <select class="fo-modo" onchange="cambiarFicha('${c.id}', 'modo')"${t ? '' : ' disabled'}><option value="mayor"${modo === 'mayor' ? ' selected' : ''}>mayor</option><option value="menor"${modo === 'menor' ? ' selected' : ''}>menor</option></select>
         <select class="fo-cifra" onchange="cambiarFicha('${c.id}', 'cifra')" title="Cifra de compás">${cifras}</select>
-        <button class="fo-tempo" onclick="abrirTempo('${c.id}')"${conAudio ? '' : ' disabled'} title="${conAudio ? 'Marcar el pulso de la grabación (tempo, compases y secciones)' : 'Necesita el audio de la canción'}">⏱ Tempo${m?.bpm ? ' ' + tempoFicha(m) : ''}</button>
+        <button class="fo-tempo" onclick="abrirTempo('${c.id}')"${conAudio || conMel ? '' : ' disabled'} title="${conAudio ? 'Marcar el pulso de la grabación (tempo, compases y secciones)' : conMel ? 'Secciones por compás, con la melodía de la canción (no tiene audio)' : 'Necesita el audio o una melodía de la canción'}">⏱ Tempo${m?.bpm ? ' ' + tempoFicha(m) : ''}</button>
         <span class="fo-sep"></span>
         ${ficha ? `<button class="btn-icon danger fo-borrar" onclick="eliminarAsset('${c.id}','${ficha.id}')" title="Borrar la Ficha (también el tempo marcado)">🗑</button>` : ''}
     </div>`;
@@ -4695,7 +4697,7 @@ function assetItemHTML(a, i) {
                     ? `<button class="btn-icon" onclick="karCrear('${songActiva.id}','${a.id}')" title="Crear el Karaoke: sacarle la voz a esta grabación (en este computador)">🎶</button>` : ''}
                 ${conPiano ? `<button class="btn-icon" onclick="abrirPiano('${a.id}')" title="Abrir en el piano (como lo ve el estudiante)">🎹</button>` : ''}
                 ${conPiano && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirPiano('${a.id}', this)" title="Compartir el piano con los estudiantes: link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
-                ${isMetal || (isMelodia && conMetal) ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${nombreAsset(a, songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre)" title="Abrir en Metalófono">${isMelodia ? '🎼' : '🎹'}</button>` : ''}
+                ${isMetal || (isMelodia && conMetal) ? `<button class="btn-icon" data-midi-url="${url}" data-midi-nombre="${nombreAsset(a, songActiva.nombre).replace(/"/g,'&quot;')}" onclick="abrirMetalofono(this.dataset.midiUrl,this.dataset.midiNombre,'${songActiva.id}')" title="Abrir en Metalófono">${isMelodia ? '🎼' : '🎹'}</button>` : ''}
                 ${(isMetal || (isMelodia && conMetal)) && estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirMetalofono('${a.id}', this)" title="Compartir ${isMelodia ? 'el metalófono ' : ''}con los estudiantes (celular): link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
                 <button class="btn-icon" onclick="event.stopPropagation();descargarAsset('${a.id}')" title="Descargar">⬇</button>
                 ${isMelodia
@@ -6310,10 +6312,13 @@ function abrirCajon(songId, assetId) {
     window.open(src, '_blank');
 }
 
-function abrirMetalofono(midiUrl, nombre) {
+function abrirMetalofono(midiUrl, nombre, cancionId) {
     const base = new URL('../METALÓFONO APP/METAL21 (ALPHA).HTML', location.href);
     base.searchParams.set('midi', midiUrl);
     if (nombre) base.searchParams.set('nombre', nombre);
+    // Canción sin grabación (IA): el Metalófono ofrece sus secciones de la Ficha (compás 1 = comienzo de la melodía)
+    const c = cancionId && (canciones.find(x => x.id === cancionId) || (entrenadorSong?.id === cancionId ? entrenadorSong : null));
+    if (c && !(c.assets || []).some(x => x.tipo === 'audio')) base.searchParams.set('cancion', cancionId);
     document.getElementById('metal-header-nombre').textContent = nombre || 'Metalófono';
     document.getElementById('metal-iframe').src = base.toString();
     document.getElementById('metal-overlay').classList.add('visible');
@@ -8544,8 +8549,8 @@ function entRenderMetalofono(asset, userInitiated) {
         <div class="ent-metal-ico">🎹</div>
         <button id="ent-metal-open" class="btn-secondary">Abrir en Metalófono</button>
     </div>`;
-    document.getElementById('ent-metal-open').onclick = () => abrirMetalofono(url, label);
-    if (userInitiated) abrirMetalofono(url, label);   // clic en el chip → abre directo
+    document.getElementById('ent-metal-open').onclick = () => abrirMetalofono(url, label, entrenadorSong?.id);
+    if (userInitiated) abrirMetalofono(url, label, entrenadorSong?.id);   // clic en el chip → abre directo
 }
 
 function entParseStanzas() {

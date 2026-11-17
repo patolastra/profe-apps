@@ -9953,3 +9953,39 @@ todo eso, como todo el resto".*
   `midi/` y `.MID`, no están, y la toma de `melodia/`); su MIDI tiene cifra de compás; en la ficha de Tetris aparece ✈
   y abre Copiar link · Generar QR · Generar guía QR.
 - **Falta probar (PO):** abrir el link o el QR en el celular.
+
+### IA. Secciones de una canción sin grabación (Ficha) y el Metalófono por secciones — HECHA, falta probar con Tetris (2026-11-17)
+*Origen: 🐞 mejora 2026-11-17 ("una melodía, solo en metalófono… no está la estructura… no puedo abrir la ficha porque
+no hay audio") y PO 2026-11-17 (Tetris): "marcar secciones en la melodía, para todos los arreglos melódicos, y luego en
+la Pizarra revisar esas secciones por separado; quizá desde la Ficha de la canción".*
+- **Auditoría:** la 🧩 Estructura de la Ficha marca las secciones en segundos sobre la onda de la grabación; sin
+  grabación no hay dónde marcarlas. `TempoMapa` ya acepta secciones por compás (`{ compas, seg, nombre }`). El
+  Metalófono del arreglo tiene un menú Canción completa + melodías (HS); el Metalófono de una melodía suelta no.
+- **Aprobado (PO 2026-11-17), pasos 1 y 2:** (1) Ficha sin grabación: la Estructura muestra compases numerados (largo =
+  la melodía más larga de la canción) y se marcan las secciones por compás, con tonalidad, cifra y tempo; queda en la
+  misma Ficha, para todas las melodías y arreglos. (2) Metalófono (Plan, Entrenador, copia en la Pizarra): menú
+  🎵 Canción completa + una opción por sección; una sección suena y se ve sola, repitiéndose con precuenta.
+  Paso 3 (después): arreglo de cajón en una canción sin grabación.
+- **Hecho:** (1) **Ficha sin grabación** (`TEMPO/`): si la canción no tiene audio, toma sus melodías (Editor, `melodia/<id>.mid`)
+  y MIDIs de metalófono, elige la más larga, la sintetiza (sonido del Editor) y la toca como si fuera la grabación; los
+  compases salen de ella (tempo y cifra del MIDI, compás 1 = comienzo), quedan fijos y se ocultan Marcar, Emparejar,
+  Ajustar, Importar, Borrar, la cifra por compás, Melodía/Karaoke y ✂ Adaptaciones; aviso "Sin grabación · suena: …".
+  Las secciones se ponen como siempre (⏱ elegir un compás → 🏷 Sección desde aquí, o 🧩 Estructura) y se guardan por
+  compás en la misma Ficha (pulsos de esa "grabación" sintetizada). Si la melodía cambia de largo, la Ficha rehace los
+  compases y las secciones siguen en su compás. En la Biblioteca, ⏱ Tempo se habilita con una melodía aunque no haya audio.
+  (2) **Metalófono por secciones:** modo profesor con `&cancion=<id>` (la Biblioteca y el Entrenador lo pasan solo en
+  canciones **sin audio**) lee las secciones de `tempo/<id>.json` y muestra un menú 🎵 Canción completa · 🔁 cada sección;
+  una sección deja solo ese tramo (tocar, 🎯 Práctica, 📝 Ver notas), se repite con precuenta a la misma velocidad
+  (con 🔁 +5 prendido, sube como siempre). La copia en la Pizarra muestra las placas de lo que suena (sin menú).
+- **Lugares de uso:** Ficha (Biblioteca ⏱ Tempo, 📋 del Entrenador); Metalófono abierto desde la ficha de la canción
+  (🎼 / 🎹), el Entrenador (Biblioteca, sesión del curso, mínimo del Plan) y su copia en la Pizarra. El Metalófono de
+  estudiantes no cambia.
+- **No incluido:** canciones con audio (la melodía puede no empezar en el compás 1 de la grabación); paso 3 (arreglo
+  de cajón sin grabación).
+- **Probado** (sin guardar nada): Ficha de Tetris abre sin audio con 8 compases a ♩ 120, 4/4, aviso "Sin grabación";
+  elegir el compás 5 y escribir "B" crea la sección (se guardaría como compás 5). Metalófono con la melodía de Tetris y
+  secciones A (1) y B (5): el menú aparece; B deja 19 notas desde el comienzo y 4 compases; ▶ sigue sonando en bucle
+  pasado el final; Canción completa vuelve a la melodía entera. Biblioteca: ⏱ Tempo de Tetris habilitado y el
+  Metalófono recibe la canción.
+- **Falta probar (PO):** marcar y guardar las secciones de Tetris en su Ficha; elegirlas en el Metalófono del Plan con la
+  clase en curso (Pizarra).

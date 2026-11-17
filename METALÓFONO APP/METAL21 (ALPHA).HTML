@@ -569,6 +569,7 @@
                 <label id="repetir-tope-wrap" title="Velocidad máxima: al llegar, sigue repitiendo a esa velocidad">hasta
                     <input type="text" class="bpm-display" id="repetir-tope" maxlength="3" value="140"></label>
             </span>
+            <select id="sel-seccion" title="Tocar la canción completa o solo una sección (se repite con precuenta)" style="display:none"></select>
             <button id="btn-play" class="btn-play" disabled>▶ REPRODUCIR</button>
         </div>
         <div class="ctrl-group" id="fullscreen-group">
@@ -895,8 +896,8 @@
                     }, (inicio + note.ticks) + "i");
                 });
             });
-            const fin = inicio + (window.MEL_ARREGLO?.largo || currentMidi.durationTicks);   // HT: el tramo entero
-            if (!(repetirOn && (!MODO_ALUMNO || window.MEL_ARREGLO))) {
+            const fin = inicio + (window.MEL_ARREGLO?.largo || tramoSec?.largo || currentMidi.durationTicks);   // HT / IA: el tramo entero
+            if (!((repetirOn || tramoSec) && (!MODO_ALUMNO || window.MEL_ARREGLO))) {
                 const seq = playSeq;   // fin de la melodía con temporizador (no depende del dibujo)
                 Tone.Transport.scheduleOnce((time) => alTiempo(time, () => { if (seq === playSeq && isPlaying) stopAudio(); }), fin + "i");
                 return;
@@ -913,7 +914,7 @@
             }, inicio + "i");
             // Subida de velocidad justo al terminar la vuelta (antes de la precuenta siguiente).
             Tone.Transport.scheduleOnce((time) => {
-                const nuevo = window.MEL_ARREGLO || globalBPM >= repetirTope ? globalBPM : Math.min(globalBPM + 5, repetirTope);   // HT: misma velocidad
+                const nuevo = window.MEL_ARREGLO || (tramoSec && !repetirOn) || globalBPM >= repetirTope ? globalBPM : Math.min(globalBPM + 5, repetirTope);   // HT: misma velocidad
                 Tone.Transport.bpm.setValueAtTime(nuevo, time);
                 alTiempo(time, () => { if (isPlaying) mostrarBPM(nuevo); });
                 globalBPM = nuevo;
@@ -1298,12 +1299,60 @@
             (window.__midiPrefetch && window.__midiPrefetchUrl === _urlMidi
                 ? window.__midiPrefetch
                 : window.metalDescargarMidi(_urlMidi))
-                .then(buf => { cargarMidiBuffer(buf, _nombreMidi); if (MODO_ALUMNO) alumnoMidiListo(); })
+                .then(buf => { midiCompleto = { buf: buf.slice(0), nombre: _nombreMidi }; cargarMidiBuffer(buf, _nombreMidi); if (MODO_ALUMNO) alumnoMidiListo(); seccionesCancion(); })
                 .catch(err => {
                     statusDiv.innerText = "Error cargando MIDI: " + err.message; statusDiv.className = "st-error";
                     if (MODO_ALUMNO) alumnoMsg('No se pudo cargar la melodía.');
                 });
         }
+
+        // ═══ SECCIONES DE LA CANCIÓN (deuda IA) ═══════════════════════════════════════
+        // Modo profesor con ?cancion=<id> (el Entrenador la pasa en las canciones sin grabación): las secciones de su
+        // Ficha (archivo público tempo/<id>.json, por compás; compás 1 = el comienzo del MIDI). Elegir una deja solo ese
+        // tramo (tocar, 🎯 Práctica, 📝 Ver notas) y lo repite con precuenta; 🔁 +5 sigue subiendo la velocidad si está prendido.
+        var midiCompleto = null, tramoSec = null, seccionesFicha = [];
+        const selSeccion = document.getElementById('sel-seccion');
+        async function seccionesCancion() {
+            const cid = new URLSearchParams(location.search).get('cancion');
+            if (MODO_ALUMNO || !cid || !midiCompleto) return;
+            try {
+                const base = window.METAL_ALUMNO_STORAGE.replace(/midi\/$/, '');
+                const f = await fetch(`${base}tempo/${encodeURIComponent(cid)}.json?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null);
+                const L = (f?.secciones || []).filter(x => Number.isFinite(x.compas) && x.compas >= 1).sort((a, b) => a.compas - b.compas);
+                seccionesFicha = L.map((x, i) => ({ nombre: String(x.nombre || 'Sección'), desde: x.compas, hasta: L[i + 1]?.compas ?? null }));
+            } catch (_) { seccionesFicha = []; }
+            if (!seccionesFicha.length) { selSeccion.style.display = 'none'; return; }
+            const e = t => t.replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
+            selSeccion.innerHTML = '<option value="">🎵 Canción completa</option>'
+                + seccionesFicha.map((x, i) => `<option value="${i}">🔁 ${e(x.nombre)}</option>`).join('');
+            selSeccion.value = tramoSec ? String(tramoSec.i) : '';
+            selSeccion.style.display = '';
+        }
+        selSeccion.onchange = () => {
+            selSeccion.blur();
+            if (!midiCompleto) return;
+            const bpm = globalBPM, v = selSeccion.value;
+            if (isPlaying) stopAudio();
+            if (v === '') { tramoSec = null; cargarMidiBuffer(midiCompleto.buf.slice(0), midiCompleto.nombre); updateInterfaceBPM(bpm); return; }
+            const x = seccionesFicha[+v];
+            const full = new Midi(midiCompleto.buf.slice(0)), ppq = full.header.ppq;
+            const ts = full.header.timeSignatures[0]?.timeSignature || [4, 4];
+            const compas = ppq * (4 / ts[1]) * ts[0];
+            const a = (x.desde - 1) * compas, b = x.hasta ? (x.hasta - 1) * compas : Math.max(a + compas, Math.ceil(full.durationTicks / compas) * compas);
+            const m = new Midi(), k = m.header.ppq / ppq;
+            m.header.setTempo(full.header.tempos[0]?.bpm || 120);
+            m.header.timeSignatures.push({ ticks: 0, timeSignature: ts, measures: 0 });
+            m.header.name = x.nombre;
+            const pista = m.addTrack();
+            full.tracks.forEach(t => t.notes.forEach(n => {
+                if (n.ticks < a - 1 || n.ticks >= b - 1) return;
+                pista.addNote({ midi: n.midi, ticks: Math.round((n.ticks - a) * k), durationTicks: Math.max(1, Math.round(Math.min(n.durationTicks, b - n.ticks) * k)), velocity: n.velocity });
+            }));
+            if (!pista.notes.length) { statusDiv.innerText = `«${x.nombre}» no tiene notas en esta melodía`; statusDiv.className = 'st-error'; selSeccion.value = tramoSec ? String(tramoSec.i) : ''; return; }
+            tramoSec = { i: +v, largo: Math.round((b - a) * k) };
+            cargarMidiBuffer(m.toArray().buffer, `${midiCompleto.nombre} · ${x.nombre}`);
+            updateInterfaceBPM(bpm);
+        };
 
         // ═══ MODO ALUMNO ═══════════════════════════════════════════════════════
         // Reutiliza el motor existente (carga, reproducción, precuenta, práctica
