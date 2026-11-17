@@ -730,6 +730,12 @@
         .cl-bit-est { flex: 1; font-size: 0.75rem; color: var(--muted); }
         .cl-bit-pie button { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 4px 12px; cursor: pointer; font-weight: 700; }
         .cl-vacio { color: var(--muted); font-size: 1.1rem; padding: 40px; text-align: center; }
+        /* Piano y Cajón en el panel (HY): barra delgada con ✕ y el nombre (el Entrenador y el Lector traen la suya) */
+        #prev-mini .prev-mini-hdr { display: none; align-items: center; gap: 8px; height: 34px; padding: 0 8px; background: #0f172a; color: #e2e8f0; font-size: 0.85rem; font-weight: 700; flex-shrink: 0; border-bottom: 1px solid #1e293b; }
+        #prev-mini.con-x .prev-mini-hdr { display: flex; }
+        #prev-mini .prev-mini-x { border: none; background: none; color: #cbd5e1; font-size: 1rem; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; }
+        #prev-mini .prev-mini-x:hover { background: #1e293b; color: #fff; }
+        #prev-mini .prev-mini-tit { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #prev-mini { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 20; display: flex; flex-direction: column; background: #0f172a; }
         /* 🕘 Historial al lado del Plan (deuda CL): encima de la Presentación, la Vista previa, el Entrenador mínimo y el panel de clase */
         #hist-lado { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 25; display: flex; flex-direction: column;
@@ -1600,6 +1606,7 @@
             <!-- Vista de clase (deuda BW): diapositivas y canciones de la actividad escogida, sobre Presentación y Vista previa -->
             <div id="clase-panel" hidden></div>
             <div id="prev-mini" hidden>
+                <div class="prev-mini-hdr"><button class="prev-mini-x" onclick="cerrarMini()" title="Cerrar">✕</button><span class="prev-mini-tit"></span></div>
                 <iframe allow="window-management; autoplay; fullscreen"></iframe>
             </div>
             <!-- 🕘 Historial del curso al lado del Plan (deuda CL): sobre Presentación y Vista previa; 🕘 o ✕ lo cierra -->
@@ -2545,7 +2552,7 @@ function pintarSecciones() {
             box.querySelector('.psec-cancs').addEventListener('click', e => {
                 const b = e.target.closest('.psec-canc'); if (!b) return;
                 e.stopPropagation();
-                abrirMini(b.dataset.id, box.dataset.act || null, b.dataset.asset, b.dataset.seccion);
+                abrirMini(b.dataset.id, box.dataset.act || null, b.dataset.asset, b.dataset.seccion, b.dataset.inst);
             });
             box.querySelector('.psec-hdr').addEventListener('click', () => {
                 if (!box.classList.contains('vacio')) { irActividad(box.dataset.act || null); return; }
@@ -2582,7 +2589,7 @@ function pintarSecciones() {
             if (cs.length && !bibCanciones) cargarBib().then(() => pintarSecciones());
             box.querySelector('.psec-cancs').innerHTML = cs.map(x => {
                 const v = vinculo(x);
-                return `<button class="psec-canc" draggable="true" data-k="${cs.indexOf(x)}" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" title="${v.ayuda}: ${esc(v.corto)} (arrastra para ordenar)">${v.ico} ${esc(v.corto)}</button>`;
+                return `<button class="psec-canc" draggable="true" data-k="${cs.indexOf(x)}" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" data-inst="${x.inst || ''}" title="${v.ayuda}: ${esc(v.corto)} (arrastra para ordenar)">${v.ico} ${esc(v.corto)}</button>`;
             }).join('');
             if (c.card) ordenarArrastrando(box.querySelector('.psec-cancs'), '.psec-canc', (de, a) => moverVinculo(c.card, de, a));
         }
@@ -5138,18 +5145,35 @@ function cargarBib(forzar) {
     if (!bibCargando) bibCargando = Promise.all([
         sb.from('repertorio_canciones').select('id, nombre, artista'),
         sb.from('repertorio_assets').select('id, cancion_id, tipo, etiqueta, dificultad, instrumento, tonalidad, clase, simplificado, orden, storage_path, nombre_archivo, tab_sync')
-            .in('tipo', ['metalofono', 'ritmo', 'tab', 'arreglo'])
-    ]).then(([rc, ra]) => {
+            .in('tipo', ['metalofono', 'ritmo', 'tab', 'arreglo', 'cajon']),
+        // Melodías del Editor (HY): su contenido dice para qué instrumentos son (metalófono / piano)
+        sb.from('repertorio_assets').select('id, cancion_id, tipo, etiqueta, dificultad, instrumento, tonalidad, clase, simplificado, orden, storage_path, contenido')
+            .eq('tipo', 'melodia'),
+    ]).then(([rc, ra, rm]) => {
         bibCargando = null;
         if (rc.error) return bibCanciones || new Map();
         bibCanciones = new Map((rc.data || []).map(r => [r.id, r]));
-        bibRecursos = new Map((ra.data || []).map(r => [r.id, r]));
+        bibRecursos = new Map([...(ra.data || []), ...(rm.data || [])].map(r => [r.id, bibFila(r)]));
         return bibCanciones;
     });
     return bibCargando;
 }
+// Recursos que se vinculan (HY: + melodías del Editor y ritmos del Cajón). Una melodía (tipo 'melodia') queda con
+// `inst` = los instrumentos para los que es (de su contenido), sin guardar el contenido en memoria.
+const BIB_TIPOS = ['metalofono', 'ritmo', 'tab', 'arreglo', 'cajon', 'melodia'];
+function bibFila(r) {
+    if (r.tipo !== 'melodia') return r;
+    let inst = [];
+    try { inst = JSON.parse(r.contenido || '{}').inst || []; } catch (_) {}
+    const { contenido, ...resto } = r;
+    return { ...resto, inst };
+}
+const melParaMetal = r => !r.inst?.length || r.inst.includes('metalofono');
+const melParaPiano = r => !!r.inst?.some(i => i === 'piano' || i === 'melodica');
 const VINC_TIPO = { cancion: { ico: '🎵', uno: 'canción', varios: 'canciones' },
                     metalofono: { ico: '🎹', uno: 'metalófono', varios: 'metalófonos' },
+                    piano: { ico: '🎶', uno: 'piano', varios: 'pianos' },       // HY: melodías del Editor para piano
+                    cajon: { ico: '🪘', uno: 'cajón', varios: 'cajones' },      // HY: ritmos del Cajón
                     ritmo: { ico: '🥁', uno: 'ritmo', varios: 'ritmos' },
                     tab: { ico: '🎸', uno: 'tablatura', varios: 'tablaturas' },   // deuda DX
                     arreglo: { ico: '🎼', uno: 'arreglo', varios: 'arreglos' } };   // deuda HP: abre el Editor de arreglos
@@ -5163,14 +5187,23 @@ function vinculo(x) {
         const sub = (r.etiqueta || '').trim() || 'Arreglo';
         return { tipo: 'arreglo', ico: '🎼', nom: cancion, sub, corto: cancion + ' · ' + sub, ayuda: 'Abrir el Editor de arreglos' };
     }
-    const tipo = r?.tipo === 'ritmo' ? 'ritmo' : r?.tipo === 'tab' ? 'tab' : 'metalofono';
+    const tipo = vincTipo(r, x.inst);
     const p = r ? partesAsset(r) : {};
-    const sub = r ? [tipo === 'tab' ? p.instrumento : '', p.detalle, p.dificultad, x.seccion ? '▸ ' + x.seccion : ''].filter(Boolean).join(' · ')
+    const sub = r ? [tipo === 'tab' ? p.instrumento : '', r.tipo === 'melodia' && !p.detalle ? 'Melodía' : '', p.detalle, p.dificultad, x.seccion ? '▸ ' + x.seccion : ''].filter(Boolean).join(' · ')
                   : (bibRecursos ? 'Recurso no encontrado' : '');
     return { tipo, ico: VINC_TIPO[tipo].ico, nom: cancion, sub, corto: cancion + (sub ? ' · ' + sub : ''),
-             ayuda: tipo === 'ritmo' ? 'Abrir el ritmo' : tipo === 'tab' ? 'Abrir en el Lector de tablaturas' : 'Abrir la melodía en el metalófono' };
+             ayuda: tipo === 'ritmo' ? 'Abrir el ritmo' : tipo === 'tab' ? 'Abrir en el Lector de tablaturas'
+                  : tipo === 'piano' ? 'Abrir la melodía en el piano' : tipo === 'cajon' ? 'Abrir el ritmo en el cajón' : 'Abrir la melodía en el metalófono' };
 }
-const vincClave = x => x.cancion_id + (x.asset_id ? ':' + x.asset_id : '') + (x.seccion ? ':' + x.seccion : '');
+const vincClave = x => x.cancion_id + (x.asset_id ? ':' + x.asset_id : '') + (x.seccion ? ':' + x.seccion : '') + (x.inst ? ':' + x.inst : '');
+// Pestaña del selector de un recurso (una melodía del Editor: piano si se eligió así o si no es para metalófono).
+function vincTipo(r, inst) {
+    if (!r) return 'metalofono';
+    if (r.tipo === 'melodia') return inst === 'piano' || !melParaMetal(r) ? 'piano' : 'metalofono';
+    return ['ritmo', 'tab', 'cajon', 'arreglo'].includes(r.tipo) ? r.tipo : 'metalofono';
+}
+// Pestañas del selector donde aparece un recurso
+const tiposDeRecurso = r => r.tipo === 'melodia' ? [melParaMetal(r) ? 'metalofono' : '', melParaPiano(r) ? 'piano' : ''].filter(Boolean) : [r.tipo];
 // La Biblioteca cambió en otro equipo o pestaña (deuda BE): canciones y recursos de metalófono o ritmo nuevos,
 // editados o borrados se ven al instante en las actividades y en el selector abierto.
 let pcancRepintar = null;   // repinta el selector 🎵 si está abierto
@@ -5189,7 +5222,7 @@ TiempoReal.escuchar('repertorio_canciones', ({ evento, nuevo, viejo }) => {
 TiempoReal.escuchar('repertorio_assets', ({ evento, nuevo, viejo }) => {
     if (!bibRecursos) return;
     if (evento === 'DELETE') { if (!bibRecursos.delete(viejo?.id)) return; }
-    else if (nuevo?.id && ['metalofono', 'ritmo', 'tab', 'arreglo'].includes(nuevo.tipo)) bibRecursos.set(nuevo.id, nuevo);
+    else if (nuevo?.id && BIB_TIPOS.includes(nuevo.tipo)) bibRecursos.set(nuevo.id, bibFila(nuevo));
     else return;
     bibRepintar();
 });
@@ -5219,7 +5252,7 @@ function pintarCancionesCard(c, el) {
         if (x) { e.stopPropagation(); quitarCancionCard(c, +x.dataset.k); return; }
         const f = e.target.closest('.pcard-canc');
         const v = f && cancionesDe(c)[+f.dataset.k];
-        if (v) abrirMini(v.cancion_id, c.id, v.asset_id, v.seccion);
+        if (v) abrirMini(v.cancion_id, c.id, v.asset_id, v.seccion, v.inst);
     };
     ordenarArrastrando(cont, '.pcard-canc', (de, a) => moverVinculo(c, de, a));
 }
@@ -5336,12 +5369,14 @@ async function elegirCancion(c, boton) {
     if (!pop.isConnected) return;
     const enCurso = new Set(curso);
     const norm = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    const ya = (id, aid, sec) => cancionesDe(c).some(x => x.cancion_id === id && (x.asset_id || '') === (aid || '') && (x.seccion || '') === (sec || ''));
+    const ya = (id, aid, sec, inst) => cancionesDe(c).some(x => x.cancion_id === id && (x.asset_id || '') === (aid || '') && (x.seccion || '') === (sec || '') && (x.inst || '') === (inst || ''));
     const fila = (id, aid, sec) => {
         const s = bibCanciones.get(id); if (!s) return '';
-        const v = vinculo({ cancion_id: id, asset_id: aid, seccion: sec });
-        const esta = ya(id, aid, sec);
-        return `<button class="pcanc-op${esta ? ' ya' : ''}${sec ? ' sec' : ''}" data-id="${id}" data-asset="${aid || ''}" data-seccion="${esc(sec || '')}" ${esta ? 'disabled title="Ya está en la actividad"' : ''}>
+        // Melodía del Editor en la pestaña Piano: el vínculo guarda inst 'piano' (HY)
+        const inst = tipo === 'piano' && bibRecursos?.get(aid)?.tipo === 'melodia' ? 'piano' : '';
+        const v = vinculo({ cancion_id: id, asset_id: aid, seccion: sec, inst });
+        const esta = ya(id, aid, sec, inst);
+        return `<button class="pcanc-op${esta ? ' ya' : ''}${sec ? ' sec' : ''}" data-id="${id}" data-asset="${aid || ''}" data-seccion="${esc(sec || '')}" data-inst="${inst}" ${esta ? 'disabled title="Ya está en la actividad"' : ''}>
             <b>${sec ? '▸ ' + esc(sec) : (aid ? v.ico + ' ' : '') + esc(s.nombre || '')}</b><small>${esc(sec ? 'solo esta sección' : v.sub)}</small></button>`;
     };
     // Tablatura (deuda DX): la tablatura completa y, debajo, cada una de sus secciones.
@@ -5363,7 +5398,7 @@ async function elegirCancion(c, boton) {
             otras = t ? [...bib.keys()].filter(id => !enCurso.has(id) && pasaCanc(id))
                 .sort((a, b) => (bib.get(a).nombre || '').localeCompare(bib.get(b).nombre || '')).slice(0, 30).map(id => [id]) : [];
         } else {
-            const pasa = a => a.tipo === tipo && bib.get(a.cancion_id) && (!t || pasaCanc(a.cancion_id) || norm(vinculo({ cancion_id: a.cancion_id, asset_id: a.id }).sub).includes(t));
+            const pasa = a => tiposDeRecurso(a).includes(tipo) && bib.get(a.cancion_id) && (!t || pasaCanc(a.cancion_id) || norm(vinculo({ cancion_id: a.cancion_id, asset_id: a.id }).sub).includes(t));
             delCurso = curso.flatMap(id => recursos.filter(a => a.cancion_id === id && pasa(a)).map(a => [id, a.id]));
             otras = t ? recursos.filter(a => !enCurso.has(a.cancion_id) && pasa(a))
                 .sort((a, b) => (bib.get(a.cancion_id).nombre || '').localeCompare(bib.get(b.cancion_id).nombre || ''))
@@ -5390,13 +5425,13 @@ async function elegirCancion(c, boton) {
     pop.addEventListener('click', async e => {
         e.stopPropagation();
         const op = e.target.closest('.pcanc-op'); if (!op || op.disabled) return;
-        const id = op.dataset.id, aid = op.dataset.asset || null, sec = op.dataset.seccion || null;
+        const id = op.dataset.id, aid = op.dataset.asset || null, sec = op.dataset.seccion || null, inst = op.dataset.inst || null;
         cerrar();
         if (!enCurso.has(id)) {
             try { await sumarAlCurso(id); }
             catch (_) { planEstado('No se pudo sumar la canción al repertorio del curso — revisa la conexión.', true); return; }
         }
-        c.canciones = [...cancionesDe(c), aid ? { cancion_id: id, asset_id: aid, ...(sec ? { seccion: sec } : {}) } : { cancion_id: id }];
+        c.canciones = [...cancionesDe(c), aid ? { cancion_id: id, asset_id: aid, ...(sec ? { seccion: sec } : {}), ...(inst ? { inst } : {}) } : { cancion_id: id }];
         pintarCancionesCard(c);
         pintarSecciones();
         guardarCancionesCard(c);
@@ -5428,10 +5463,28 @@ function abrirTabLector(asset, seccion, actId) {
     miniUbicar();
     marcarEnPizarra();
 }
-async function abrirMini(cancionId, actId, assetId, seccion) {
+// Piano de estudiantes o Cajón en el mismo panel (HY), con ✕ para cerrarlo (no avisan al Plan como el Entrenador).
+function abrirPanelApp(src, actId, titulo) {
+    miniAct = actId || null;
+    const box = document.getElementById('prev-mini');
+    box.querySelector('.prev-mini-tit').textContent = titulo || '';
+    box.querySelector('iframe').src = src;
+    box.classList.add('con-x');
+    box.hidden = false;
+    miniUbicar();
+    marcarEnPizarra();
+}
+async function abrirMini(cancionId, actId, assetId, seccion, inst) {
     if (!cancionId || !sesionActual) return;
+    document.getElementById('prev-mini').classList.remove('con-x');
     const rec = assetId && bibRecursos?.get(assetId);
     if (rec?.tipo === 'tab') { abrirTabLector(rec, seccion, actId); return; }   // tablatura (DX/DZ): Lector en el panel
+    if (rec?.tipo === 'melodia' && vincTipo(rec, inst) === 'piano') {           // melodía para piano (HY): Piano de estudiantes
+        const n = [bibCanciones?.get(cancionId)?.nombre, (rec.etiqueta || '').trim()].filter(Boolean).join(' — ');
+        abrirPanelApp(`../PIANO/index.html?${new URLSearchParams({ a: assetId, n })}`, actId, '🎶 ' + vinculo({ cancion_id: cancionId, asset_id: assetId, inst: 'piano' }).corto);
+        return;
+    }
+    if (rec?.tipo === 'cajon') { abrirPanelApp(`../CAJON-PERUANO/index.html?${new URLSearchParams({ asset: assetId })}`, actId, '🪘 ' + vinculo({ cancion_id: cancionId, asset_id: assetId }).corto); return; }   // HY
     if (rec?.tipo === 'arreglo') { abrirArregloEditor(cancionId, assetId); return; }   // arreglo (HP): Editor musical
     miniAct = actId || null;
     const curso = await cancionesDelCurso();
@@ -5544,7 +5597,7 @@ function claseItems() {
 }
 function claseMeta(it) {
     const n = document.querySelectorAll(`#prev-body .slide-prev[data-act="${it.id}"]`).length;
-    const k = { cancion: 0, metalofono: 0, ritmo: 0, tab: 0, arreglo: 0 };
+    const k = { cancion: 0, metalofono: 0, piano: 0, ritmo: 0, cajon: 0, tab: 0, arreglo: 0 };
     (it.card ? cancionesDe(it.card) : []).forEach(x => k[!x.asset_id ? 'cancion' : vinculo(x).tipo]++);
     const gr = it.card?.evaluacion_id ? gruposDatos.get(it.card.evaluacion_id) : null;
     return [it.card && esLibre(it.card) ? '⏱ ' + minutosLibre(it.card) + ' minutos' : '',
@@ -5619,7 +5672,7 @@ function pintarClaseDer() {
     try { cols = localStorage.getItem('profe_clase_cols') === '4' ? 4 : 3; } catch (_) {}
     // Las canciones van como diapositivas moradas (repertorio), antes de las diapositivas de la actividad.
     const cancHTML = cs.map(x => { const v = vinculo(x);
-        return `<button class="cl-canc" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" title="${v.ayuda}"><span class="cl-canc-ico">${v.ico}</span>
+        return `<button class="cl-canc" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" data-inst="${x.inst || ''}" title="${v.ayuda}"><span class="cl-canc-ico">${v.ico}</span>
             <span class="cl-canc-nom">${esc(v.nom)}</span>${v.sub ? `<span class="cl-canc-art">${esc(v.sub)}</span>` : ''}</button>`; }).join('');
     panel.innerHTML = `<div class="cl-top"><div class="cl-cancs"></div>
             <div class="cl-cols" title="Diapositivas por fila">Por fila <button data-n="3" class="${cols === 3 ? 'on' : ''}">3</button><button data-n="4" class="${cols === 4 ? 'on' : ''}">4</button></div></div>
@@ -6163,7 +6216,7 @@ document.getElementById('clase-panel')?.addEventListener('click', e => {
     const n = e.target.closest('.cl-cols button');
     if (n) { try { localStorage.setItem('profe_clase_cols', n.dataset.n); } catch (_) {} pintarClaseDer(); return; }
     const canc = e.target.closest('.cl-canc');
-    if (canc) { abrirMini(canc.dataset.id, claseSel || null, canc.dataset.asset, canc.dataset.seccion); return; }
+    if (canc) { abrirMini(canc.dataset.id, claseSel || null, canc.dataset.asset, canc.dataset.seccion, canc.dataset.inst); return; }
     if (e.target.closest('.libre-prev')) {   // Tiempo libre: pide confirmar los minutos (si no está corriendo)
         const a = Recurrentes.actual();
         if (!(a && a.sesionId === sesionActual?.id && a.diapo === 'libre')) { libreConfirmar = true; pintarLibre(); }

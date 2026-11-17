@@ -9913,3 +9913,28 @@ título Karaoke)?".*
   título plegado, flechas), lo que lo tapa se despliega solo. El texto guardado no cambia.
 - **Probado:** Cursos de 6°: "Karaoke" (17/11) pliega sus 8 grupos, sigue plegado al recargar y se despliega con un
   toque; la vista de lectura del celular arma los triángulos.
+
+### HY. Plan — vincular melodías del Editor y ritmos del Cajón a una actividad — HECHA, falta probar en clase (2026-11-17)
+*Origen: PO 2026-11-17: "la canción Tetris no tiene letra pero tiene una melodía de metalófono; no puedo llamar a ese
+asset desde el planificador; debería poderse (todos los elementos del arreglo de una canción)".*
+- **Auditoría:** el selector 🎵 de las actividades lee de la Biblioteca solo `metalofono` (MIDI subido), `ritmo`, `tab` y
+  `arreglo`; la melodía de Tetris es `tipo = 'melodia'` (Editor de Melodías, con su MIDI `melodia/<id>.mid` y en
+  `contenido.inst` para qué instrumentos es) y los ritmos del Cajón son `tipo = 'cajon'`: no aparecen. El Entrenador
+  tampoco abre `melodia`.
+- **Aprobado (PO 2026-11-17):** sumar **Melodías del Editor** y **Ritmos del Cajón** (no la Ficha). Una melodía de
+  metalófono se abre en el Plan, como los metalófonos de siempre (Entrenador mínimo; con la clase en curso, también en
+  la Pizarra); una melodía de piano, en el **Piano de estudiantes**.
+- **Diseño:** pestañas del selector: 🎹 Metalófono (MIDI subido + melodías para metalófono o sin instrumento),
+  🎶 Piano (melodías para piano o melódica) y 🪘 Cajón. El vínculo de piano guarda `inst: 'piano'` (misma lista
+  `plan_cards.canciones`, sin cambios en la base de datos). Piano y Cajón se abren en el panel sobre Presentación y
+  Vista previa, con ✕ para cerrar; el Entrenador abre una melodía como un metalófono (su MIDI).
+- **Lugares de uso:** actividad del Plan, cuadros de la Presentación, vista de clase; Entrenador (`?asset=` de una
+  melodía).
+- **Hecho:** como el diseño. Una melodía para los dos instrumentos aparece en 🎹 Metalófono y en 🎶 Piano. Piano y Cajón
+  se abren en el panel con una barra delgada (✕ y el nombre); el Cajón abre en su programador (si se cambia el ritmo,
+  guardarlo antes de cerrar). En la Pizarra (clase en curso), la melodía de metalófono va como los metalófonos de
+  siempre; Piano y Cajón no van a la Pizarra.
+- **Probado** (Plan de 6° del 10/11, sin agregar nada): pestañas 🎵 🎹 🎶 🪘 🥁 🎸 🎼; "tetris" en 🎹 Metalófono muestra
+  "Tetris · Melodía"; abrirla muestra el Metalófono con la melodía de Tetris; una melodía de piano abre el Piano de
+  estudiantes; un ritmo de cajón abre el Cajón; ✕ cierra el panel.
+- **Falta probar (PO):** vincular Tetris a una actividad y abrirla en clase (copia en la Pizarra).
