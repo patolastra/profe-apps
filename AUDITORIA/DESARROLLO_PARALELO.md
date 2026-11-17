@@ -9885,3 +9885,11 @@ anotaciones (tal como ocurre en todas las actividades, pero específica para cad
   texto del plan de un grupo lo quita. "➜ Continuar" copia el plan de los grupos con la actividad.
 - **Probado** con Karaoke de 6° (17/11), antes de la columna: 📋 del Grupo 1 abre el editor, "O: …" se destaca y el
   guardado avisa que falta el SQL sin cambiar nada (prueba descartada).
+- **Paso 2 (PO 2026-11-17):** (1) la bitácora de una actividad con grupos va con **un solo título** `## <actividad>`
+  (su texto) y debajo un **subtítulo por grupo con sus integrantes**: `### <grupo> · <integrantes>`; lo escrito en la
+  forma anterior (`### <actividad> · <grupo>`) pasa solo a esta al abrir el Plan (hecho con 6° del 17/11: los 8
+  grupos con su texto intacto). El ✍🏼 de la actividad respeta ese título y sus grupos. (2) El **plan de cada grupo
+  queda siempre a la vista** en un cuadro bajo sus integrantes (sin botón 📋). (3) ✍🏼 del grupo **solo para
+  escribir**; **✍🏼 Ver / Ocultar bitácoras** en la cabecera de los grupos las muestra u oculta (se recuerda en el
+  equipo, parte oculto). Probado: escribir un objetivo en el plan del Grupo 1 lo guarda (y borrarlo lo quita), Ver
+  bitácoras muestra las 8, ✍🏼 abre lo escrito del grupo.
