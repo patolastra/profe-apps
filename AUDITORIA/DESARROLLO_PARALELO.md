@@ -9938,3 +9938,18 @@ asset desde el planificador; debería poderse (todos los elementos del arreglo d
   "Tetris · Melodía"; abrirla muestra el Metalófono con la melodía de Tetris; una melodía de piano abre el Piano de
   estudiantes; un ritmo de cajón abre el Cajón; ✕ cierra el panel.
 - **Falta probar (PO):** vincular Tetris a una actividad y abrirla en clase (copia en la Pizarra).
+
+### HZ. Compartir con los estudiantes una melodía del Editor (metalófono) — HECHA, falta probar en el celular (2026-11-17)
+*Origen: PO 2026-11-17 (Tetris): "esa melodía, creada en el editor de melodías, que se pueda compartir con QR y link y
+todo eso, como todo el resto".*
+- **Auditoría:** la ficha de la canción muestra ✈ solo para metalófonos de MIDI subido (`tipo = 'metalofono'`,
+  `compartirMetalofono`: revisa que el MIDI tenga cifra de compás y arma `m/?a=<id>&n=`). El Metalófono de estudiantes
+  (`?modo=alumno&a=`) busca `midi/<id>.mid` (o `.MID`); la melodía del Editor guarda su MIDI en `melodia/<id>.mid`.
+- **Hecho:** ✈ también en las melodías del Editor para metalófono (publicadas), con el mismo menú (link, QR, guía QR);
+  el Metalófono de estudiantes, si no encuentra `midi/<id>`, prueba `melodia/<id>.mid` (sin consultar tablas; el link
+  es el mismo de siempre, `m/?a=<id>&n=`). Modo profesor sin cambios.
+- **Lugares de uso:** ficha de la canción en la Biblioteca (PC); Metalófono de estudiantes (link y QR).
+- **Probado:** `m/?a=<id de la melodía de Tetris>&n=Tetris` abre el Metalófono de estudiantes con la melodía (pide
+  `midi/` y `.MID`, no están, y la toma de `melodia/`); su MIDI tiene cifra de compás; en la ficha de Tetris aparece ✈
+  y abre Copiar link · Generar QR · Generar guía QR.
+- **Falta probar (PO):** abrir el link o el QR en el celular.
