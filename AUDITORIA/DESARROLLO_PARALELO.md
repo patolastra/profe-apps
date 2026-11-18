@@ -10040,3 +10040,15 @@ ligando las melodías en la clase; hoy solo puedo la canción completa o una sec
   También: el menú de secciones toma el aspecto de los botones del Metalófono (PO 2026-11-18).
 - **Probado** (Tetris, Partes 1–6 reales): Parte 1 sola = 7 notas (con la llegada); Parte 1 hasta Parte 2 = 13 notas,
   2 compases + llegada; hasta Parte 6 = sin 🔚 (última); elegir Parte 3 vuelve "hasta" a Parte 3.
+
+### IE. Metalófono — 📝 Ver notas por secciones, con la nota de llegada marcada — HECHA, falta probar en clase (2026-11-18)
+*Origen: PO 2026-11-18: "Ver notas ordena por compás; si la melodía tiene estructura, que se vea por estructura, y las
+notas que se repiten (por la nota de llegada) se coloreen distinto, para señalarlas a los estudiantes como la misma
+nota".*
+- **Hecho:** con secciones de la Ficha (IA), 📝 Ver notas muestra las secciones del tramo elegido (o todas, con la
+  canción completa): título de cada una y sus compases con el número real en la canción. Si la sección tiene 🔚 Llegada
+  prendida, su último compás termina con "→" y la primera nota de la siguiente; esa nota va en naranja subrayado allí y
+  al comienzo de la sección siguiente (la misma nota). 📋 Copiar copia lo mismo en texto (títulos y "→"). Sin secciones,
+  igual que antes. Lugar de uso: el Metalófono del profe (no se proyecta).
+- **Probado** (Tetris, Parte 1 hasta Parte 3): PARTE 1 · 1 … → La, · PARTE 2 · 2 La, (naranja) … → Si, · PARTE 3 ·
+  3 Si, (naranja) … · 4 … → Re.

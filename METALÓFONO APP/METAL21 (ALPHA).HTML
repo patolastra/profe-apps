@@ -482,6 +482,11 @@
         #notas-texto .compas { display: flex; gap: .4em; align-items: baseline; }
         #notas-texto .num { color: #6b7280; font-size: .45em; min-width: 2.2em; }
         .notas-pie { font-size: 1.8vh; color: #9ca3af; }
+        /* Ver notas por secciones (IE): título de cada sección y la nota de llegada (la misma nota en las dos secciones) */
+        #notas-texto .notas-sec { margin: .5em 0 .1em; font-size: .5em; color: var(--gold); letter-spacing: .04em; text-transform: uppercase; }
+        #notas-texto .notas-sec:first-child { margin-top: 0; }
+        #notas-texto .llegada { color: #fb923c; text-decoration: underline; text-decoration-thickness: .08em; text-underline-offset: .15em; }
+        #notas-texto .llegada-flecha { color: #fb923c; font-size: .6em; }
         html.modo-alumno #notas-overlay { display: none !important; }
         /* Repetir +5 (deuda AF n°1, solo modo profesor) */
         #repetir-wrap { display: inline-flex; align-items: center; gap: 6px; }
@@ -1122,20 +1127,70 @@
             notas.forEach(n => { const i = Math.floor(n.ticks / compas.barTicks); (lineas[i] = lineas[i] || []).push(nombreNotaLista(n.midi)); });
             return lineas.map(l => l || []);   // compases sin notas quedan vacíos (silencio)
         }
+        // Con las secciones de la Ficha (IE): la melodía por secciones (las del tramo elegido o todas), cada compás con su
+        // número real en la canción; con 🔚 Llegada prendida, la sección termina con la primera nota de la siguiente y
+        // esa nota se marca igual en las dos (es la misma nota)
+        function notasPorEstructura() {
+            if (!seccionesFicha?.length || !midiCompleto) return null;
+            const full = new Midi(midiCompleto.buf.slice(0)), ppq = full.header.ppq;
+            const ts = full.header.timeSignatures[0]?.timeSignature || [4, 4];
+            const C = ppq * (4 / ts[1]) * ts[0];
+            const notas = [];
+            full.tracks.forEach(t => t.notes.forEach(n => notas.push(n)));
+            notas.sort((x, y) => x.ticks - y.ticks || x.midi - y.midi);
+            const totalC = Math.max(1, Math.ceil(full.durationTicks / C - 0.001));
+            const primeras = b => {          // las notas que suenan primero desde el tick b (dentro de su primer compás)
+                const sig = notas.filter(n => n.ticks >= b - 1);
+                const t0 = sig.length ? sig[0].ticks : null;
+                return t0 !== null && t0 < b + C ? sig.filter(n => n.ticks === t0) : [];
+            };
+            const i0 = tramoSec ? tramoSec.i : 0, j0 = tramoSec ? tramoSec.j : seccionesFicha.length - 1;
+            const out = [];
+            let marcadas = new Set();        // notas que abren una sección y llegaron como nota de llegada de la anterior
+            for (let s = i0; s <= j0; s++) {
+                const x = seccionesFicha[s], d = x.desde, h = x.hasta ? x.hasta - 1 : totalC;
+                const lineas = [];
+                for (let c = d; c <= h; c++) {
+                    const a = (c - 1) * C, b = c * C;
+                    lineas.push({ num: c, notas: notas.filter(n => n.ticks >= a - 1 && n.ticks < b - 1).map(n => ({ t: nombreNotaLista(n.midi), llegada: marcadas.has(n) })) });
+                }
+                marcadas = new Set();
+                let llegada = [];
+                if (x.hasta && conLlegada(x)) {
+                    const pr = primeras((x.hasta - 1) * C);
+                    llegada = pr.map(n => ({ t: nombreNotaLista(n.midi), llegada: true }));
+                    pr.forEach(n => marcadas.add(n));
+                }
+                out.push({ nombre: x.nombre, lineas, llegada });
+            }
+            return out;
+        }
         function abrirNotas() {
             practicePanel.style.display = 'none';
             if (!currentMidi) { alert("Carga un MIDI primero"); return; }
-            const lineas = notasPorCompas();
             const nombre = (new URLSearchParams(location.search).get('nombre')) || currentMidi.name || 'Melodía';
             document.getElementById('notas-titulo').textContent = nombre;
-            document.getElementById('notas-texto').innerHTML = lineas.map((l, i) =>
-                `<div class="compas"><span class="num">${i + 1}</span><span>${l.length ? l.join(' - ') : '(silencio)'}</span></div>`).join('');
+            const e = t => String(t).replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
+            const nota = n => n.llegada ? `<span class="llegada">${e(n.t)}</span>` : e(n.t);
+            const est = notasPorEstructura();
+            document.getElementById('notas-texto').innerHTML = est
+                ? est.map(sec => `<div class="notas-sec">${e(sec.nombre)}</div>` + sec.lineas.map((l, k) => {
+                    const ult = k === sec.lineas.length - 1 && sec.llegada.length;
+                    const txt = l.notas.length ? l.notas.map(nota).join(' - ') : '(silencio)';
+                    return `<div class="compas"><span class="num">${l.num}</span><span>${txt}${ult ? ` <span class="llegada-flecha">→</span> ${sec.llegada.map(nota).join(' - ')}` : ''}</span></div>`;
+                }).join('')).join('')
+                : notasPorCompas().map((l, i) =>
+                    `<div class="compas"><span class="num">${i + 1}</span><span>${l.length ? l.join(' - ') : '(silencio)'}</span></div>`).join('');
             document.getElementById('notas-overlay').hidden = false;
         }
         function cerrarNotas() { document.getElementById('notas-overlay').hidden = true; }
         async function copiarNotas() {
             const nombre = document.getElementById('notas-titulo').textContent;
-            const texto = nombre + '\n' + notasPorCompas().map(l => l.length ? l.join(' - ') : '(silencio)').join('\n');
+            const est = notasPorEstructura();
+            const texto = nombre + '\n' + (est
+                ? est.map(sec => sec.nombre.toUpperCase() + '\n' + sec.lineas.map((l, k) => (l.notas.length ? l.notas.map(n => n.t).join(' - ') : '(silencio)')
+                    + (k === sec.lineas.length - 1 && sec.llegada.length ? ' → ' + sec.llegada.map(n => n.t).join(' - ') : '')).join('\n')).join('\n\n')
+                : notasPorCompas().map(l => l.length ? l.join(' - ') : '(silencio)').join('\n'));
             let ok = false;
             try { await navigator.clipboard.writeText(texto); ok = true; }
             catch (_) {
