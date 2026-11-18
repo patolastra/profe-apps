@@ -10090,3 +10090,5 @@ letra".*
   son blancas sobre fondo oscuro). Lugar de uso: Ver notas del Metalófono del profe.
 - **Probado:** el botón dice "✔ Copiado"; el contenido con formato, dibujado sobre fondo blanco, muestra título,
   partes, notas y las llegadas en sus colores. Falta pegarlo en Word / Google Docs (PO).
+- **Ajuste (PO 2026-11-18):** al copiar, el título y los títulos de parte (dorados) van subrayados; las notas de
+  llegada ya no van subrayadas en ninguna parte (copiado, pantalla del profe y Pizarra), solo con su color.
