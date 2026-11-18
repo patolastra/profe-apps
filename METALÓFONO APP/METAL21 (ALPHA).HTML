@@ -457,15 +457,16 @@
         /* 🔚 Nota de llegada por sección (IC) */
         #btn-llegada.on { background: var(--orange); color: #fff; }
         /* Menú de secciones (IA): mismo aspecto que los botones de la barra; ancho fijo (barra estable) */
-        #sel-seccion {
+        #sel-seccion, #sel-hasta {
             width: 170px; padding: 10px 34px 10px 14px; border: none; border-radius: 8px; font: inherit; font-weight: bold;
             background: #3d3d45 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23ffffff' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 12px center;
             color: #fff; cursor: pointer; appearance: none; -webkit-appearance: none; outline: none;
             text-overflow: ellipsis; white-space: nowrap; overflow: hidden; transition: 0.15s;
         }
-        #sel-seccion:hover { background-color: #4d4d57; }
-        #sel-seccion:focus-visible { box-shadow: 0 0 0 2px var(--orange); }
-        #sel-seccion option { background: #2a2a31; color: #fff; font-weight: normal; }
+        #sel-hasta { width: 150px; }
+        #sel-seccion:hover, #sel-hasta:hover { background-color: #4d4d57; }
+        #sel-seccion:focus-visible, #sel-hasta:focus-visible { box-shadow: 0 0 0 2px var(--orange); }
+        #sel-seccion option, #sel-hasta option { background: #2a2a31; color: #fff; font-weight: normal; }
         /* Melodía como lista de notas (deuda AF n°2) */
         #notas-overlay {
             position: fixed; inset: 0; z-index: 5000; background: rgba(17,17,22,.96); color: #fff;
@@ -582,6 +583,7 @@
                     <input type="text" class="bpm-display" id="repetir-tope" maxlength="3" value="140"></label>
             </span>
             <select id="sel-seccion" title="Tocar la canción completa o solo una sección (se repite con precuenta)" style="display:none"></select>
+            <select id="sel-hasta" title="Hasta qué sección: varias seguidas, para ir ligándolas" style="display:none"></select>
             <button id="btn-llegada" title="Nota de llegada: la sección termina con la primera nota de la siguiente" style="display:none">🔚 Llegada</button>
             <button id="btn-play" class="btn-play" disabled>▶ REPRODUCIR</button>
         </div>
@@ -1324,7 +1326,7 @@
         // Ficha (archivo público tempo/<id>.json, por compás; compás 1 = el comienzo del MIDI). Elegir una deja solo ese
         // tramo (tocar, 🎯 Práctica, 📝 Ver notas) y lo repite con precuenta; 🔁 +5 sigue subiendo la velocidad si está prendido.
         var midiCompleto = null, tramoSec = null, seccionesFicha = [];
-        const selSeccion = document.getElementById('sel-seccion');
+        const selSeccion = document.getElementById('sel-seccion'), selHasta = document.getElementById('sel-hasta');   // ID: varias seguidas
         async function seccionesCancion() {
             const cid = new URLSearchParams(location.search).get('cancion');
             if (MODO_ALUMNO || !cid || !midiCompleto) return;
@@ -1334,35 +1336,54 @@
                 const L = (f?.secciones || []).filter(x => Number.isFinite(x.compas) && x.compas >= 1).sort((a, b) => a.compas - b.compas);
                 seccionesFicha = L.map((x, i) => ({ id: String(x.id || x.nombre || i), nombre: String(x.nombre || 'Sección'), desde: x.compas, hasta: L[i + 1]?.compas ?? null }));
             } catch (_) { seccionesFicha = []; }
-            if (!seccionesFicha.length) { selSeccion.style.display = 'none'; btnLlegada.style.display = 'none'; return; }
+            if (!seccionesFicha.length) { selSeccion.style.display = selHasta.style.display = 'none'; btnLlegada.style.display = 'none'; return; }
             const e = t => t.replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
             selSeccion.innerHTML = '<option value="">🎵 Canción completa</option>'
                 + seccionesFicha.map((x, i) => `<option value="${i}">🔁 ${e(x.nombre)}</option>`).join('');
             selSeccion.value = tramoSec ? String(tramoSec.i) : '';
-            selSeccion.style.display = ''; btnLlegada.style.display = '';
-            pintarLlegada();
+            selSeccion.style.display = selHasta.style.display = ''; btnLlegada.style.display = '';
+            pintarHasta(); pintarLlegada();
+        }
+        // El menú "hasta" (ID): desde la sección elegida hasta una de las siguientes; oculto (sin mover la barra) con la canción completa
+        function pintarHasta() {
+            const e = t => t.replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
+            if (!tramoSec) { selHasta.style.visibility = 'hidden'; return; }
+            selHasta.innerHTML = seccionesFicha.map((x, i) => i < tramoSec.i ? '' : `<option value="${i}">hasta ${e(x.nombre)}</option>`).join('');
+            selHasta.value = String(tramoSec.j);
+            selHasta.style.visibility = seccionesFicha.length - tramoSec.i > 1 ? 'visible' : 'hidden';
         }
         selSeccion.onchange = () => {
             selSeccion.blur();
             if (!midiCompleto) return;
-            const bpm = globalBPM, v = selSeccion.value;
+            const v = selSeccion.value;
+            if (v === '') {
+                if (isPlaying) stopAudio();
+                const bpm = globalBPM; tramoSec = null; cargarMidiBuffer(midiCompleto.buf.slice(0), midiCompleto.nombre); updateInterfaceBPM(bpm);
+                pintarHasta(); pintarLlegada(); return;
+            }
+            armarTramo(+v, +v);
+        };
+        selHasta.onchange = () => { selHasta.blur(); if (tramoSec) armarTramo(tramoSec.i, +selHasta.value); };
+        function armarTramo(i, j) {
+            if (!midiCompleto) return;
+            const bpm = globalBPM;
             if (isPlaying) stopAudio();
-            if (v === '') { tramoSec = null; cargarMidiBuffer(midiCompleto.buf.slice(0), midiCompleto.nombre); updateInterfaceBPM(bpm); return; }
-            const x = seccionesFicha[+v];
+            const x0 = seccionesFicha[i], x = seccionesFicha[j];   // x = la última del tramo (su final y su llegada)
+            const nombreTramo = i === j ? x.nombre : `${x0.nombre} – ${x.nombre}`;
             const full = new Midi(midiCompleto.buf.slice(0)), ppq = full.header.ppq;
             const ts = full.header.timeSignatures[0]?.timeSignature || [4, 4];
             const compas = ppq * (4 / ts[1]) * ts[0];
-            const a = (x.desde - 1) * compas, b = x.hasta ? (x.hasta - 1) * compas : Math.max(a + compas, Math.ceil(full.durationTicks / compas) * compas);
+            const a = (x0.desde - 1) * compas, b = x.hasta ? (x.hasta - 1) * compas : Math.max(a + compas, Math.ceil(full.durationTicks / compas) * compas);
             const m = new Midi(), k = m.header.ppq / ppq;
             m.header.setTempo(full.header.tempos[0]?.bpm || 120);
             m.header.timeSignatures.push({ ticks: 0, timeSignature: ts, measures: 0 });
-            m.header.name = x.nombre;
+            m.header.name = nombreTramo;
             const pista = m.addTrack();
             full.tracks.forEach(t => t.notes.forEach(n => {
                 if (n.ticks < a - 1 || n.ticks >= b - 1) return;
                 pista.addNote({ midi: n.midi, ticks: Math.round((n.ticks - a) * k), durationTicks: Math.max(1, Math.round(Math.min(n.durationTicks, b - n.ticks) * k)), velocity: n.velocity });
             }));
-            if (!pista.notes.length) { statusDiv.innerText = `«${x.nombre}» no tiene notas en esta melodía`; statusDiv.className = 'st-error'; selSeccion.value = tramoSec ? String(tramoSec.i) : ''; pintarLlegada(); return; }
+            if (!pista.notes.length) { statusDiv.innerText = `«${nombreTramo}» no tiene notas en esta melodía`; statusDiv.className = 'st-error'; selSeccion.value = tramoSec ? String(tramoSec.i) : ''; pintarHasta(); pintarLlegada(); return; }
             let fin = b;
             // Nota de llegada (IC): la primera nota de la sección siguiente (todas las que caen juntas), en su momento real
             if (x.hasta && conLlegada(x)) {
@@ -1374,11 +1395,12 @@
                     fin = Math.max(fin, n.ticks + n.durationTicks);
                 });
             }
-            tramoSec = { i: +v, largo: Math.round((fin - a) * k) };
-            cargarMidiBuffer(m.toArray().buffer, `${midiCompleto.nombre} · ${x.nombre}`);
+            tramoSec = { i, j, largo: Math.round((fin - a) * k) };
+            selSeccion.value = String(i);
+            cargarMidiBuffer(m.toArray().buffer, `${midiCompleto.nombre} · ${nombreTramo}`);
             updateInterfaceBPM(bpm);
-            pintarLlegada();
-        };
+            pintarHasta(); pintarLlegada();
+        }
         // 🔚 Llegada por sección (IC): parte prendida; las apagadas vienen de la melodía (?llegada=<ids>, separadas por
         // coma) y se guardan con ella: el Metalófono avisa a la página que lo abrió (Biblioteca / Entrenador / Plan)
         const qLl = new URLSearchParams(location.search);
@@ -1388,7 +1410,7 @@
         const puedeGuardarLlegada = !!assetLlegada && window.parent !== window;
         function conLlegada(x) { return !sinLlegada.has(x.id); }
         function pintarLlegada() {
-            const x = tramoSec ? seccionesFicha[tramoSec.i] : null;
+            const x = tramoSec ? seccionesFicha[tramoSec.j] : null;
             btnLlegada.style.visibility = x && x.hasta ? 'visible' : 'hidden';   // barra estable: solo se oculta
             const on = !!x && conLlegada(x);
             btnLlegada.classList.toggle('on', on);
@@ -1398,12 +1420,12 @@
         }
         btnLlegada.onclick = () => {
             btnLlegada.blur();
-            const x = tramoSec ? seccionesFicha[tramoSec.i] : null;
+            const x = tramoSec ? seccionesFicha[tramoSec.j] : null;
             if (!x || !x.hasta || !puedeGuardarLlegada) return;
             const on = !conLlegada(x);
             if (on) sinLlegada.delete(x.id); else sinLlegada.add(x.id);
             try { window.parent.postMessage({ tipo: 'metal-llegada', asset: assetLlegada, seccion: x.id, on }, '*'); } catch (_) {}
-            selSeccion.onchange();      // rehace la sección con o sin la nota
+            armarTramo(tramoSec.i, tramoSec.j);      // rehace el tramo con o sin la nota
         };
 
         // ═══ MODO ALUMNO ═══════════════════════════════════════════════════════

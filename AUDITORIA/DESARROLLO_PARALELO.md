@@ -10027,3 +10027,16 @@ completitud; lo mismo la 2 con la 3".*
   última en el compás 3, vuelta de 2 compases + esa nota; 🔚 apagado = 12 notas y 2 compases justos, y la melodía
   guardó `llegada: { sA: false }`; prenderlo de nuevo dejó el contenido de la melodía idéntico al original.
 - **Falta probar (PO):** con las secciones reales de Tetris, en el Plan y en la Pizarra.
+
+### ID. Metalófono — tocar varias secciones seguidas — HECHA, falta probar en clase (2026-11-18)
+*Origen: PO 2026-11-18: "necesito reproducir algunas partes contiguas de la melodía (la primera y la segunda), para ir
+ligando las melodías en la clase; hoy solo puedo la canción completa o una sección".*
+- **Aprobado (PO 2026-11-18):** junto al menú de secciones, un menú **"hasta"** (parte en la misma sección; ofrece las
+  siguientes); el tramo suena en bucle con precuenta, sirve para 🎯 Práctica y 📝 Ver notas; 🔚 Llegada es la de la
+  última sección del tramo; con 🎵 Canción completa el menú se oculta sin mover la barra.
+- **Hecho:** menú "hasta <sección>" (`#sel-hasta`, mismo aspecto que la barra, ancho fijo, oculto con visibilidad);
+  elegir una sección lo deja en ella misma; el tramo `{ i, j }` va del comienzo de la sección i al final de la j, con la
+  🔚 Llegada de la j (si es la última, sin llegada). Lugares de uso: los mismos del menú de secciones (IA).
+  También: el menú de secciones toma el aspecto de los botones del Metalófono (PO 2026-11-18).
+- **Probado** (Tetris, Partes 1–6 reales): Parte 1 sola = 7 notas (con la llegada); Parte 1 hasta Parte 2 = 13 notas,
+  2 compases + llegada; hasta Parte 6 = sin 🔚 (última); elegir Parte 3 vuelve "hasta" a Parte 3.
