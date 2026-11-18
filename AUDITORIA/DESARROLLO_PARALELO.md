@@ -10003,3 +10003,27 @@ quisiera verlas en la pestaña Estructura, para estructurar la canción más rá
 - **Probado** (El Dinosaurio Anacleto, sin guardar): en 🧩 Estructura se ven las líneas de los compases con su número;
   una sección nueva entre los compases 5 y 6 queda en el 5; arrastrar Estrofa 1 la deja en el 1 de un compás (el 4);
   deshacer vuelve todo y la Ficha queda sin cambios.
+
+### IC. Metalófono — nota de llegada al practicar una sección — HECHA, falta probar en clase (2026-11-18)
+*Origen: PO 2026-11-18 (Tetris): "al subdividir la melodía para abordarla por partes en clase, las secciones quedan
+incompletas: la sección 1 debería terminar haciendo sonar la primera nota de la sección 2, para dar la sensación de
+completitud; lo mismo la 2 con la 3".*
+- **Auditoría:** el menú de secciones del Metalófono (IA) corta el MIDI en el compás donde empieza la sección siguiente;
+  el Metalófono profesor no usa la base de datos (lo abre la Biblioteca/Entrenador en un marco).
+- **Aprobado (PO 2026-11-18):** al elegir una sección (no la última) se suma la primera nota de la siguiente, en su
+  momento real, con su duración y su placa, también en 🎯 Práctica; botón **🔚 Llegada** junto al menú para prenderla
+  o apagarla **por sección**, parte prendida, y queda guardado **con la melodía** (cada melodía lo suyo; por la
+  identidad fija de la sección). Abierto suelto (sin la Biblioteca) suena igual pero no se puede cambiar.
+- **Hecho:** el Metalófono suma, al cortar una sección que tiene otra después, la(s) primera(s) nota(s) de la siguiente
+  (las que caen juntas en su primer momento, si cae dentro de su primer compás) y la vuelta dura hasta que esa nota
+  termina. **🔚 Llegada** (naranja = prendida; se oculta sin sección o en la última, sin mover la barra). Lo apagado se
+  guarda con la melodía como `{ <id de la sección>: false }`: en el `contenido` de una melodía del Editor (`llegada`,
+  que el Editor conserva al guardar) o en `tab_sync.llegada` de un MIDI subido (ese tipo no lo usa). La Biblioteca lo
+  pasa al Metalófono (`&asset=<id>&llegada=<ids apagadas>`) y guarda lo que el Metalófono le avisa (`metal-llegada`).
+  Abierto sin la Biblioteca, el botón queda apagado (suena con llegada).
+- **Lugares de uso:** Metalófono abierto desde la ficha de la canción, el Entrenador (Biblioteca, sesión, mínimo del
+  Plan); la copia en la Pizarra muestra las placas (también la de llegada). Editor de Melodías (solo conserva el dato).
+- **Probado** (Tetris, secciones de prueba A 1 · B 3 · C 5 sin guardarlas en la Ficha): A con llegada = 13 notas, la
+  última en el compás 3, vuelta de 2 compases + esa nota; 🔚 apagado = 12 notas y 2 compases justos, y la melodía
+  guardó `llegada: { sA: false }`; prenderlo de nuevo dejó el contenido de la melodía idéntico al original.
+- **Falta probar (PO):** con las secciones reales de Tetris, en el Plan y en la Pizarra.

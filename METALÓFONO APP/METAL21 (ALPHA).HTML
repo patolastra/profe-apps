@@ -454,6 +454,9 @@
         /* --- PRECUENTA (count-in) --- */
         /* Toggle en el toolbar: estado "on" reutiliza el naranja de acento de la app */
         #btn-precuenta.on { background: var(--orange); color: #fff; }
+        /* 🔚 Nota de llegada por sección (IC) */
+        #btn-llegada.on { background: var(--orange); color: #fff; }
+        #btn-llegada:disabled { opacity: .55; cursor: default; }
         /* Melodía como lista de notas (deuda AF n°2) */
         #notas-overlay {
             position: fixed; inset: 0; z-index: 5000; background: rgba(17,17,22,.96); color: #fff;
@@ -570,6 +573,7 @@
                     <input type="text" class="bpm-display" id="repetir-tope" maxlength="3" value="140"></label>
             </span>
             <select id="sel-seccion" title="Tocar la canción completa o solo una sección (se repite con precuenta)" style="display:none"></select>
+            <button id="btn-llegada" title="Nota de llegada: la sección termina con la primera nota de la siguiente" style="display:none">🔚 Llegada</button>
             <button id="btn-play" class="btn-play" disabled>▶ REPRODUCIR</button>
         </div>
         <div class="ctrl-group" id="fullscreen-group">
@@ -1319,14 +1323,15 @@
                 const base = window.METAL_ALUMNO_STORAGE.replace(/midi\/$/, '');
                 const f = await fetch(`${base}tempo/${encodeURIComponent(cid)}.json?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null);
                 const L = (f?.secciones || []).filter(x => Number.isFinite(x.compas) && x.compas >= 1).sort((a, b) => a.compas - b.compas);
-                seccionesFicha = L.map((x, i) => ({ nombre: String(x.nombre || 'Sección'), desde: x.compas, hasta: L[i + 1]?.compas ?? null }));
+                seccionesFicha = L.map((x, i) => ({ id: String(x.id || x.nombre || i), nombre: String(x.nombre || 'Sección'), desde: x.compas, hasta: L[i + 1]?.compas ?? null }));
             } catch (_) { seccionesFicha = []; }
-            if (!seccionesFicha.length) { selSeccion.style.display = 'none'; return; }
+            if (!seccionesFicha.length) { selSeccion.style.display = 'none'; btnLlegada.style.display = 'none'; return; }
             const e = t => t.replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
             selSeccion.innerHTML = '<option value="">🎵 Canción completa</option>'
                 + seccionesFicha.map((x, i) => `<option value="${i}">🔁 ${e(x.nombre)}</option>`).join('');
             selSeccion.value = tramoSec ? String(tramoSec.i) : '';
-            selSeccion.style.display = '';
+            selSeccion.style.display = ''; btnLlegada.style.display = '';
+            pintarLlegada();
         }
         selSeccion.onchange = () => {
             selSeccion.blur();
@@ -1348,10 +1353,48 @@
                 if (n.ticks < a - 1 || n.ticks >= b - 1) return;
                 pista.addNote({ midi: n.midi, ticks: Math.round((n.ticks - a) * k), durationTicks: Math.max(1, Math.round(Math.min(n.durationTicks, b - n.ticks) * k)), velocity: n.velocity });
             }));
-            if (!pista.notes.length) { statusDiv.innerText = `«${x.nombre}» no tiene notas en esta melodía`; statusDiv.className = 'st-error'; selSeccion.value = tramoSec ? String(tramoSec.i) : ''; return; }
-            tramoSec = { i: +v, largo: Math.round((b - a) * k) };
+            if (!pista.notes.length) { statusDiv.innerText = `«${x.nombre}» no tiene notas en esta melodía`; statusDiv.className = 'st-error'; selSeccion.value = tramoSec ? String(tramoSec.i) : ''; pintarLlegada(); return; }
+            let fin = b;
+            // Nota de llegada (IC): la primera nota de la sección siguiente (todas las que caen juntas), en su momento real
+            if (x.hasta && conLlegada(x)) {
+                const sig = [];
+                full.tracks.forEach(t => t.notes.forEach(n => { if (n.ticks >= b - 1) sig.push(n); }));
+                const t0 = sig.length ? Math.min(...sig.map(n => n.ticks)) : null;
+                if (t0 !== null && t0 < b + compas) sig.filter(n => n.ticks === t0).forEach(n => {
+                    pista.addNote({ midi: n.midi, ticks: Math.round((n.ticks - a) * k), durationTicks: Math.max(1, Math.round(n.durationTicks * k)), velocity: n.velocity });
+                    fin = Math.max(fin, n.ticks + n.durationTicks);
+                });
+            }
+            tramoSec = { i: +v, largo: Math.round((fin - a) * k) };
             cargarMidiBuffer(m.toArray().buffer, `${midiCompleto.nombre} · ${x.nombre}`);
             updateInterfaceBPM(bpm);
+            pintarLlegada();
+        };
+        // 🔚 Llegada por sección (IC): parte prendida; las apagadas vienen de la melodía (?llegada=<ids>, separadas por
+        // coma) y se guardan con ella: el Metalófono avisa a la página que lo abrió (Biblioteca / Entrenador / Plan)
+        const qLl = new URLSearchParams(location.search);
+        const assetLlegada = qLl.get('asset');
+        const sinLlegada = new Set((qLl.get('llegada') || '').split(',').filter(Boolean));
+        const btnLlegada = document.getElementById('btn-llegada');
+        const puedeGuardarLlegada = !!assetLlegada && window.parent !== window;
+        function conLlegada(x) { return !sinLlegada.has(x.id); }
+        function pintarLlegada() {
+            const x = tramoSec ? seccionesFicha[tramoSec.i] : null;
+            btnLlegada.style.visibility = x && x.hasta ? 'visible' : 'hidden';   // barra estable: solo se oculta
+            const on = !!x && conLlegada(x);
+            btnLlegada.classList.toggle('on', on);
+            btnLlegada.disabled = !puedeGuardarLlegada;
+            btnLlegada.title = (on ? 'Termina con la primera nota de la sección siguiente' : 'Termina en su último compás, sin la nota de la sección siguiente')
+                + (puedeGuardarLlegada ? ' · clic: cambiar (se guarda con la melodía)' : ' · ábrelo desde la Biblioteca para cambiarlo');
+        }
+        btnLlegada.onclick = () => {
+            btnLlegada.blur();
+            const x = tramoSec ? seccionesFicha[tramoSec.i] : null;
+            if (!x || !x.hasta || !puedeGuardarLlegada) return;
+            const on = !conLlegada(x);
+            if (on) sinLlegada.delete(x.id); else sinLlegada.add(x.id);
+            try { window.parent.postMessage({ tipo: 'metal-llegada', asset: assetLlegada, seccion: x.id, on }, '*'); } catch (_) {}
+            selSeccion.onchange();      // rehace la sección con o sin la nota
         };
 
         // ═══ MODO ALUMNO ═══════════════════════════════════════════════════════
