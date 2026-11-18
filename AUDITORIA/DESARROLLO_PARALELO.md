@@ -10052,3 +10052,16 @@ nota".*
   igual que antes. Lugar de uso: el Metalófono del profe (no se proyecta).
 - **Probado** (Tetris, Parte 1 hasta Parte 3): PARTE 1 · 1 … → La, · PARTE 2 · 2 La, (naranja) … → Si, · PARTE 3 ·
   3 Si, (naranja) … · 4 … → Re.
+
+### IF. Ver notas — ajustes y copia en la Pizarra — HECHA, falta probar en clase (2026-11-18)
+*Origen: PO 2026-11-18 (captura de Tetris): "borra los números de compás; el título sin el nivel 'Inicial' y más grande
+que el resto; cada par de notas que se repiten con un color distinto (en Tetris son 4); y si la melodía está en la
+Pizarra (clase en curso) y abro Ver notas (para el cuaderno), que se vea también en la Pizarra".*
+- **Hecho:** por secciones, sin números de compás; título sin la dificultad y más grande que las notas; cada nota de
+  llegada con su par en un color propio (naranja, celeste, rosado, verde, violeta, amarillo, en ese orden). La copia del
+  Metalófono en la Pizarra (`espejoMetalFoto` / `espejoMetalAplicar`) lleva también Ver notas abierto o cerrado, con su
+  título y lista, sin los botones Copiar y ✕ ni el pie.
+- **Probado:** Tetris completo: 6 partes sin números, título «Tetris · Melodía» grande, llegadas en colores distintos;
+  la "foto" que va a la Pizarra trae Ver notas abierto (título y lista) y, aplicada, lo muestra; cerrado, lo oculta.
+- **Falta probar (PO):** con la clase en curso, Ver notas en la Pizarra.
+- **Pendiente de proponer (PO):** marcar "esta parte es igual a la Parte X" (Ver notas no la repite; Práctica lo dice).

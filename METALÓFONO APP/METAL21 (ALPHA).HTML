@@ -474,7 +474,7 @@
         }
         #notas-overlay[hidden] { display: none; }
         .notas-barra { display: flex; align-items: center; gap: 10px; }
-        #notas-titulo { flex: 1; font-size: 2.6vh; font-weight: 700; color: var(--gold); }
+        #notas-titulo { flex: 1; font-size: clamp(24px, 7vh, 76px); font-weight: 800; color: var(--gold); line-height: 1.1; }
         #notas-texto {
             flex: 1; overflow: auto; font-size: clamp(18px, 5vh, 56px); font-weight: 700; line-height: 1.45;
             white-space: pre-wrap; user-select: text;
@@ -485,8 +485,11 @@
         /* Ver notas por secciones (IE): título de cada sección y la nota de llegada (la misma nota en las dos secciones) */
         #notas-texto .notas-sec { margin: .5em 0 .1em; font-size: .5em; color: var(--gold); letter-spacing: .04em; text-transform: uppercase; }
         #notas-texto .notas-sec:first-child { margin-top: 0; }
-        #notas-texto .llegada { color: #fb923c; text-decoration: underline; text-decoration-thickness: .08em; text-underline-offset: .15em; }
-        #notas-texto .llegada-flecha { color: #fb923c; font-size: .6em; }
+        #notas-texto .llegada { text-decoration: underline; text-decoration-thickness: .08em; text-underline-offset: .15em; }
+        #notas-texto .llegada.p0 { color: #fb923c; } #notas-texto .llegada.p1 { color: #22d3ee; } #notas-texto .llegada.p2 { color: #f472b6; }
+        #notas-texto .llegada.p3 { color: #a3e635; } #notas-texto .llegada.p4 { color: #c084fc; } #notas-texto .llegada.p5 { color: #facc15; }
+        #notas-texto .llegada-flecha { color: #9ca3af; font-size: .6em; }
+        #notas-texto .compas.sin-num .num { display: none; }
         html.modo-alumno #notas-overlay { display: none !important; }
         /* Repetir +5 (deuda AF n°1, solo modo profesor) */
         #repetir-wrap { display: inline-flex; align-items: center; gap: 6px; }
@@ -1146,20 +1149,20 @@
             };
             const i0 = tramoSec ? tramoSec.i : 0, j0 = tramoSec ? tramoSec.j : seccionesFicha.length - 1;
             const out = [];
-            let marcadas = new Set();        // notas que abren una sección y llegaron como nota de llegada de la anterior
+            let marcadas = new Map(), par = 0;   // notas que abren una sección y llegaron como llegada de la anterior → n° de par (color)
             for (let s = i0; s <= j0; s++) {
                 const x = seccionesFicha[s], d = x.desde, h = x.hasta ? x.hasta - 1 : totalC;
                 const lineas = [];
                 for (let c = d; c <= h; c++) {
                     const a = (c - 1) * C, b = c * C;
-                    lineas.push({ num: c, notas: notas.filter(n => n.ticks >= a - 1 && n.ticks < b - 1).map(n => ({ t: nombreNotaLista(n.midi), llegada: marcadas.has(n) })) });
+                    lineas.push({ num: c, notas: notas.filter(n => n.ticks >= a - 1 && n.ticks < b - 1).map(n => ({ t: nombreNotaLista(n.midi), llegada: marcadas.has(n), par: marcadas.get(n) })) });
                 }
-                marcadas = new Set();
+                marcadas = new Map();
                 let llegada = [];
                 if (x.hasta && conLlegada(x)) {
-                    const pr = primeras((x.hasta - 1) * C);
-                    llegada = pr.map(n => ({ t: nombreNotaLista(n.midi), llegada: true }));
-                    pr.forEach(n => marcadas.add(n));
+                    const pr = primeras((x.hasta - 1) * C), k = par++ % 6;
+                    llegada = pr.map(n => ({ t: nombreNotaLista(n.midi), llegada: true, par: k }));
+                    pr.forEach(n => marcadas.set(n, k));
                 }
                 out.push({ nombre: x.nombre, lineas, llegada });
             }
@@ -1168,16 +1171,17 @@
         function abrirNotas() {
             practicePanel.style.display = 'none';
             if (!currentMidi) { alert("Carga un MIDI primero"); return; }
-            const nombre = (new URLSearchParams(location.search).get('nombre')) || currentMidi.name || 'Melodía';
+            // Título sin la dificultad (IF): «Tetris · Melodía»
+            const nombre = ((new URLSearchParams(location.search).get('nombre')) || currentMidi.name || 'Melodía').replace(/ · (Inicial|Media|Difícil|Experto)$/i, '');
             document.getElementById('notas-titulo').textContent = nombre;
             const e = t => String(t).replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
-            const nota = n => n.llegada ? `<span class="llegada">${e(n.t)}</span>` : e(n.t);
+            const nota = n => n.llegada ? `<span class="llegada p${n.par || 0}">${e(n.t)}</span>` : e(n.t);
             const est = notasPorEstructura();
             document.getElementById('notas-texto').innerHTML = est
                 ? est.map(sec => `<div class="notas-sec">${e(sec.nombre)}</div>` + sec.lineas.map((l, k) => {
                     const ult = k === sec.lineas.length - 1 && sec.llegada.length;
                     const txt = l.notas.length ? l.notas.map(nota).join(' - ') : '(silencio)';
-                    return `<div class="compas"><span class="num">${l.num}</span><span>${txt}${ult ? ` <span class="llegada-flecha">→</span> ${sec.llegada.map(nota).join(' - ')}` : ''}</span></div>`;
+                    return `<div class="compas sin-num"><span class="num">${l.num}</span><span>${txt}${ult ? ` <span class="llegada-flecha">→</span> ${sec.llegada.map(nota).join(' - ')}` : ''}</span></div>`;
                 }).join('')).join('')
                 : notasPorCompas().map((l, i) =>
                     `<div class="compas"><span class="num">${i + 1}</span><span>${l.length ? l.join(' - ') : '(silencio)'}</span></div>`).join('');
