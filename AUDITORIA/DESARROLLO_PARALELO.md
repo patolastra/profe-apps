@@ -10080,3 +10080,13 @@ notas no la repita (para que los niños escriban menos) y que al practicar diga 
 - **Probado** (Tetris, guardado real y luego devuelto): Parte 6 ＝ Parte 3 se guardó en la melodía; el menú y el aviso
   lo dicen; canción completa: «PARTE 6 = PARTE 3» sin notas; Parte 6 sola: título con «= PARTE 3» y sus notas. La
   melodía quedó idéntica a como estaba.
+
+### IH. Ver notas — 📋 Copiar con formato para Word o Google Docs — HECHA (2026-11-18)
+*Origen: PO 2026-11-18: "que el botón Copiar de Ver notas incluya, para Word o Google Docs, el tamaño, tipo y color de
+letra".*
+- **Hecho:** 📋 Copiar pone en el portapapeles el texto con formato (y el texto simple como respaldo): Segoe UI, título
+  28 pt dorado, títulos de parte 12 pt dorados, notas 20 pt en negrita; las notas de llegada subrayadas con el color de
+  su par (un tono más oscuro que en pantalla, para leerse sobre hoja blanca); las notas comunes en negro (en pantalla
+  son blancas sobre fondo oscuro). Lugar de uso: Ver notas del Metalófono del profe.
+- **Probado:** el botón dice "✔ Copiado"; el contenido con formato, dibujado sobre fondo blanco, muestra título,
+  partes, notas y las llegadas en sus colores. Falta pegarlo en Word / Google Docs (PO).
