@@ -10065,3 +10065,18 @@ Pizarra (clase en curso) y abro Ver notas (para el cuaderno), que se vea tambié
   la "foto" que va a la Pizarra trae Ver notas abierto (título y lista) y, aplicada, lo muestra; cerrado, lo oculta.
 - **Falta probar (PO):** con la clase en curso, Ver notas en la Pizarra.
 - **Pendiente de proponer (PO):** marcar "esta parte es igual a la Parte X" (Ver notas no la repite; Práctica lo dice).
+
+### IG. Metalófono — partes iguales ("Parte 6 = Parte 3") — HECHA, falta probar en clase (2026-11-18)
+*Origen: PO 2026-11-18 (Tetris): "la Parte 6 es idéntica a la Parte 3; quiero decir 'estas partes son iguales', que Ver
+notas no la repita (para que los niños escriban menos) y que al practicar diga 'Parte X, igual a Parte Y'".*
+- **Aprobado (PO 2026-11-18):** menú **＝ Igual a** junto a 🔚 Llegada para la parte elegida (una de las anteriores o
+  ninguna), guardado con la melodía como la llegada (cada melodía lo suyo). Ver notas muestra «PARTE 6 = PARTE 3» sin
+  sus notas; el menú de partes y el aviso dicen «Parte 6 (igual a Parte 3)».
+- **Hecho:** menú **＝** (＝ Única / ＝ una parte anterior) visible solo con una parte sola elegida (no la primera);
+  guardado con la melodía como `iguales: { <id parte>: <id parte igual> }` (contenido de la melodía del Editor, que lo
+  conserva; `tab_sync.iguales` de un MIDI subido), por el mismo camino que la llegada (`metal-igual`). Menú de partes
+  «🔁 Parte 6 = Parte 3»; aviso «Parte 6 (igual a Parte 3)». Ver notas: «PARTE 6 = PARTE 3» sin sus notas **si la
+  Parte 3 también está a la vista**; sola, la muestra con sus notas (los estudiantes las necesitan).
+- **Probado** (Tetris, guardado real y luego devuelto): Parte 6 ＝ Parte 3 se guardó en la melodía; el menú y el aviso
+  lo dicen; canción completa: «PARTE 6 = PARTE 3» sin notas; Parte 6 sola: título con «= PARTE 3» y sus notas. La
+  melodía quedó idéntica a como estaba.

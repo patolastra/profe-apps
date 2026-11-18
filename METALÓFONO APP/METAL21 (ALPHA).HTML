@@ -457,16 +457,18 @@
         /* 🔚 Nota de llegada por sección (IC) */
         #btn-llegada.on { background: var(--orange); color: #fff; }
         /* Menú de secciones (IA): mismo aspecto que los botones de la barra; ancho fijo (barra estable) */
-        #sel-seccion, #sel-hasta {
+        #sel-seccion, #sel-hasta, #sel-igual {
             width: 170px; padding: 10px 34px 10px 14px; border: none; border-radius: 8px; font: inherit; font-weight: bold;
             background: #3d3d45 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23ffffff' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 12px center;
             color: #fff; cursor: pointer; appearance: none; -webkit-appearance: none; outline: none;
             text-overflow: ellipsis; white-space: nowrap; overflow: hidden; transition: 0.15s;
         }
         #sel-hasta { width: 150px; }
-        #sel-seccion:hover, #sel-hasta:hover { background-color: #4d4d57; }
-        #sel-seccion:focus-visible, #sel-hasta:focus-visible { box-shadow: 0 0 0 2px var(--orange); }
-        #sel-seccion option, #sel-hasta option { background: #2a2a31; color: #fff; font-weight: normal; }
+        #sel-igual { width: 140px; }
+        #sel-igual:disabled { opacity: 0.3; cursor: not-allowed; }
+        #sel-seccion:hover, #sel-hasta:hover, #sel-igual:hover:not(:disabled) { background-color: #4d4d57; }
+        #sel-seccion:focus-visible, #sel-hasta:focus-visible, #sel-igual:focus-visible { box-shadow: 0 0 0 2px var(--orange); }
+        #sel-seccion option, #sel-hasta option, #sel-igual option { background: #2a2a31; color: #fff; font-weight: normal; }
         /* Melodía como lista de notas (deuda AF n°2) */
         #notas-overlay {
             position: fixed; inset: 0; z-index: 5000; background: rgba(17,17,22,.96); color: #fff;
@@ -593,6 +595,7 @@
             <select id="sel-seccion" title="Tocar la canción completa o solo una sección (se repite con precuenta)" style="display:none"></select>
             <select id="sel-hasta" title="Hasta qué sección: varias seguidas, para ir ligándolas" style="display:none"></select>
             <button id="btn-llegada" title="Nota de llegada: la sección termina con la primera nota de la siguiente" style="display:none">🔚 Llegada</button>
+            <select id="sel-igual" title="Esta parte es igual a otra (Ver notas no la repite)" style="display:none"></select>
             <button id="btn-play" class="btn-play" disabled>▶ REPRODUCIR</button>
         </div>
         <div class="ctrl-group" id="fullscreen-group">
@@ -1152,8 +1155,10 @@
             let marcadas = new Map(), par = 0;   // notas que abren una sección y llegaron como llegada de la anterior → n° de par (color)
             for (let s = i0; s <= j0; s++) {
                 const x = seccionesFicha[s], d = x.desde, h = x.hasta ? x.hasta - 1 : totalC;
+                const y = igualA(x);             // IG: igual a otra parte → sin sus notas, si esa parte también se ve
+                const omitir = !!y && seccionesFicha.indexOf(y) >= i0;
                 const lineas = [];
-                for (let c = d; c <= h; c++) {
+                if (!omitir) for (let c = d; c <= h; c++) {
                     const a = (c - 1) * C, b = c * C;
                     lineas.push({ num: c, notas: notas.filter(n => n.ticks >= a - 1 && n.ticks < b - 1).map(n => ({ t: nombreNotaLista(n.midi), llegada: marcadas.has(n), par: marcadas.get(n) })) });
                 }
@@ -1164,7 +1169,7 @@
                     llegada = pr.map(n => ({ t: nombreNotaLista(n.midi), llegada: true, par: k }));
                     pr.forEach(n => marcadas.set(n, k));
                 }
-                out.push({ nombre: x.nombre, lineas, llegada });
+                out.push({ nombre: y ? `${x.nombre} = ${y.nombre}` : x.nombre, igual: omitir, lineas, llegada });
             }
             return out;
         }
@@ -1178,7 +1183,9 @@
             const nota = n => n.llegada ? `<span class="llegada p${n.par || 0}">${e(n.t)}</span>` : e(n.t);
             const est = notasPorEstructura();
             document.getElementById('notas-texto').innerHTML = est
-                ? est.map(sec => `<div class="notas-sec">${e(sec.nombre)}</div>` + sec.lineas.map((l, k) => {
+                ? est.map(sec => `<div class="notas-sec">${e(sec.nombre)}</div>` + (sec.igual
+                    ? (sec.llegada.length ? `<div class="compas sin-num"><span class="num"></span><span><span class="llegada-flecha">→</span> ${sec.llegada.map(nota).join(' - ')}</span></div>` : '')
+                    : '') + sec.lineas.map((l, k) => {
                     const ult = k === sec.lineas.length - 1 && sec.llegada.length;
                     const txt = l.notas.length ? l.notas.map(nota).join(' - ') : '(silencio)';
                     return `<div class="compas sin-num"><span class="num">${l.num}</span><span>${txt}${ult ? ` <span class="llegada-flecha">→</span> ${sec.llegada.map(nota).join(' - ')}` : ''}</span></div>`;
@@ -1192,7 +1199,7 @@
             const nombre = document.getElementById('notas-titulo').textContent;
             const est = notasPorEstructura();
             const texto = nombre + '\n' + (est
-                ? est.map(sec => sec.nombre.toUpperCase() + '\n' + sec.lineas.map((l, k) => (l.notas.length ? l.notas.map(n => n.t).join(' - ') : '(silencio)')
+                ? est.map(sec => sec.nombre.toUpperCase() + (sec.igual && sec.llegada.length ? ' → ' + sec.llegada.map(n => n.t).join(' - ') : '') + (sec.igual ? '' : '\n') + sec.lineas.map((l, k) => (l.notas.length ? l.notas.map(n => n.t).join(' - ') : '(silencio)')
                     + (k === sec.lineas.length - 1 && sec.llegada.length ? ' → ' + sec.llegada.map(n => n.t).join(' - ') : '')).join('\n')).join('\n\n')
                 : notasPorCompas().map(l => l.length ? l.join(' - ') : '(silencio)').join('\n'));
             let ok = false;
@@ -1395,13 +1402,16 @@
                 const L = (f?.secciones || []).filter(x => Number.isFinite(x.compas) && x.compas >= 1).sort((a, b) => a.compas - b.compas);
                 seccionesFicha = L.map((x, i) => ({ id: String(x.id || x.nombre || i), nombre: String(x.nombre || 'Sección'), desde: x.compas, hasta: L[i + 1]?.compas ?? null }));
             } catch (_) { seccionesFicha = []; }
-            if (!seccionesFicha.length) { selSeccion.style.display = selHasta.style.display = 'none'; btnLlegada.style.display = 'none'; return; }
+            if (!seccionesFicha.length) { selSeccion.style.display = selHasta.style.display = selIgual.style.display = 'none'; btnLlegada.style.display = 'none'; return; }
+            seccionesCancionMenu();
+            selSeccion.style.display = selHasta.style.display = selIgual.style.display = ''; btnLlegada.style.display = '';
+            pintarHasta(); pintarLlegada();
+        }
+        function seccionesCancionMenu() {
             const e = t => t.replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
             selSeccion.innerHTML = '<option value="">🎵 Canción completa</option>'
-                + seccionesFicha.map((x, i) => `<option value="${i}">🔁 ${e(x.nombre)}</option>`).join('');
+                + seccionesFicha.map((x, i) => `<option value="${i}">🔁 ${e(x.nombre)}${igualA(x) ? ' = ' + e(igualA(x).nombre) : ''}</option>`).join('');
             selSeccion.value = tramoSec ? String(tramoSec.i) : '';
-            selSeccion.style.display = selHasta.style.display = ''; btnLlegada.style.display = '';
-            pintarHasta(); pintarLlegada();
         }
         // El menú "hasta" (ID): desde la sección elegida hasta una de las siguientes; oculto (sin mover la barra) con la canción completa
         function pintarHasta() {
@@ -1428,7 +1438,7 @@
             const bpm = globalBPM;
             if (isPlaying) stopAudio();
             const x0 = seccionesFicha[i], x = seccionesFicha[j];   // x = la última del tramo (su final y su llegada)
-            const nombreTramo = i === j ? x.nombre : `${x0.nombre} – ${x.nombre}`;
+            const nombreTramo = i === j ? x.nombre + (igualA(x) ? ` (igual a ${igualA(x).nombre})` : '') : `${x0.nombre} – ${x.nombre}`;
             const full = new Midi(midiCompleto.buf.slice(0)), ppq = full.header.ppq;
             const ts = full.header.timeSignatures[0]?.timeSignature || [4, 4];
             const compas = ppq * (4 / ts[1]) * ts[0];
@@ -1468,7 +1478,38 @@
         const btnLlegada = document.getElementById('btn-llegada');
         const puedeGuardarLlegada = !!assetLlegada && window.parent !== window;
         function conLlegada(x) { return !sinLlegada.has(x.id); }
+        // ＝ Igual a (IG): ?iguales=<id parte>:<id parte igual>,… (de la melodía); se guarda igual que la llegada
+        const iguales = new Map((qLl.get('iguales') || '').split(',').filter(Boolean).map(t => t.split(':')));
+        const selIgual = document.getElementById('sel-igual');
+        function igualA(x) {
+            const y = iguales.has(x.id) ? seccionesFicha.find(z => z.id === iguales.get(x.id)) : null;
+            return y && y !== x ? y : null;
+        }
+        function pintarIgual() {
+            const e = t => String(t).replace(/[<&]/g, c => c === '<' ? '&lt;' : '&amp;');
+            const i = tramoSec && tramoSec.i === tramoSec.j ? tramoSec.i : -1;
+            selIgual.style.visibility = i > 0 ? 'visible' : 'hidden';   // barra estable: una sola parte (no la primera)
+            if (i <= 0) return;
+            const x = seccionesFicha[i];
+            selIgual.innerHTML = '<option value="">＝ Única</option>' + seccionesFicha.slice(0, i).map(y => `<option value="${e(y.id)}">＝ ${e(y.nombre)}</option>`).join('');
+            selIgual.value = igualA(x)?.id || '';
+            selIgual.disabled = !puedeGuardarLlegada;
+            selIgual.title = (igualA(x) ? `${x.nombre} es igual a ${igualA(x).nombre}: Ver notas no la repite` : 'Esta parte es igual a otra (Ver notas no la repite)')
+                + (puedeGuardarLlegada ? '' : ' · ábrelo desde la Biblioteca para cambiarlo');
+        }
+        selIgual.onchange = () => {
+            selIgual.blur();
+            const x = tramoSec && tramoSec.i === tramoSec.j ? seccionesFicha[tramoSec.i] : null;
+            if (!x || !puedeGuardarLlegada) return;
+            const v = selIgual.value || null;
+            if (v) iguales.set(x.id, v); else iguales.delete(x.id);
+            try { window.parent.postMessage({ tipo: 'metal-igual', asset: assetLlegada, seccion: x.id, igual: v }, '*'); } catch (_) {}
+            const i = tramoSec.i;
+            seccionesCancionMenu();
+            armarTramo(i, i);
+        };
         function pintarLlegada() {
+            pintarIgual();
             const x = tramoSec ? seccionesFicha[tramoSec.j] : null;
             btnLlegada.style.visibility = x && x.hasta ? 'visible' : 'hidden';   // barra estable: solo se oculta
             const on = !!x && conLlegada(x);
