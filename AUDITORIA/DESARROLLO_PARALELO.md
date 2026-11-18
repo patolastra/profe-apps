@@ -9989,3 +9989,17 @@ la Pizarra revisar esas secciones por separado; quizá desde la Ficha de la canc
   Metalófono recibe la canción.
 - **Falta probar (PO):** marcar y guardar las secciones de Tetris en su Ficha; elegirlas en el Metalófono del Plan con la
   clase en curso (Pizarra).
+
+### IB. Ficha — los compases marcados se ven en la 🧩 Estructura — HECHA (2026-11-18)
+*Origen: 🐞 mejora 2026-11-16: "acabo de hacer el tempomap de Dinosaurio Anacleto y, teniendo todas esas marcas,
+quisiera verlas en la pestaña Estructura, para estructurar la canción más rápido; no se muestran".*
+- **Auditoría:** `dibujarEstructura` dibuja solo la onda, los segundos y los versos; los compases no. Al soltar una
+  sección, `rehacer()` ya la pega al compás más cercano si cae en lo marcado, pero no se ve mientras se arrastra.
+- **Aprobado (PO 2026-11-18):** con tempo marcado, la Estructura muestra cada compás (línea tenue y su número);
+  arrastrar una sección salta de compás en compás; doble clic y Enter sonando la ponen en el compás más cercano. Sin
+  tempo, igual que antes (por segundo).
+- **Hecho:** como lo aprobado (`TEMPO/index.html`: `dibujarEstructura`, arrastre de sección y `agregarSeccion`); la
+  ayuda de la Estructura lo dice. Lugar de uso: solo la Ficha.
+- **Probado** (El Dinosaurio Anacleto, sin guardar): en 🧩 Estructura se ven las líneas de los compases con su número;
+  una sección nueva entre los compases 5 y 6 queda en el 5; arrastrar Estrofa 1 la deja en el 1 de un compás (el 4);
+  deshacer vuelve todo y la Ficha queda sin cambios.

@@ -220,7 +220,7 @@
         <kbd>Espacio</kbd> o <kbd>K</kbd>: tocar / detener · sonando, <kbd>Enter</kbd> pone el comienzo de una parte donde va y <kbd>Retroceso</kbd> quita la última que pasó ·
         clic en la onda: mover el cursor · arrastrar el comienzo de una parte: moverlo · doble clic: nueva parte · <kbd>Supr</kbd>: quitar la elegida ·
         <kbd>←</kbd> <kbd>→</kbd>: pasar de parte · <kbd>J</kbd> / <kbd>L</kbd>: 5 s atrás / adelante · <kbd>{</kbd> <kbd>}</kbd> velocidad −/+ 5 %, <kbd>+</kbd> normal.
-        Sin compases: cada parte va por su segundo. Al marcar el tempo, las que caen en lo marcado se pegan al 1 del compás más cercano.
+        Con tempo marcado se ven los compases y cada parte va al 1 del compás más cercano; sin tempo, cada parte va por su segundo.
     </div>
     <div class="ayuda fila-adapt">
         <kbd>Ctrl</kbd> + clic en un compás: apagarlo o volver a encenderlo · clic: mover el cursor · arrastrar sobre la onda: omitir ese tramo (con tempo marcado se ajusta al 1 de los compases; <kbd>Alt</kbd>: sin ajustar) ·
@@ -626,6 +626,18 @@ function dibujarEstructura(g, W, H, top, bot, alto, medio) {
         const x = xDeSeg(s, W); g.fillRect(x, H - bot, 1, 4);
         g.fillText(reloj(s, paso < 1), x + 3, H - 3);
     }
+    // Con tempo marcado (IB): cada compás, tenue y con su número (todos o cada 4, según el zoom)
+    const P = S.compases;
+    if (P.length > 1) {
+        const i0 = idxCercano(S.c1), pxCompas = (P[P.length - 1] - P[0]) / (P.length - 1) / vista.dur * W;
+        g.font = '11px system-ui';
+        for (let i = 0; i < P.length; i++) {
+            const x = xDeSeg(P[i], W); if (x < -30 || x > W + 30) continue;
+            const compas = i - i0 + 1;
+            g.fillStyle = 'rgba(226,232,240,.22)'; g.fillRect(Math.round(x), top, 1, alto);
+            if (pxCompas > 18 || compas % 4 === 1) { g.fillStyle = '#94a3b8'; g.fillText(String(compas), x + 3, top + 11); }
+        }
+    }
     // Una marca por comienzo de estrofa y por verso ligado (en medio de una estrofa), con su texto
     const U = uniones(), deVerso = new Map();
     U.forEach((u, i) => { if (u.verso !== null) deVerso.set(u.verso, i); });
@@ -750,7 +762,10 @@ window.addEventListener('mousemove', e => {
     if (arrastre.secK !== undefined) {   // Estructura: el comienzo de la parte, entre sus vecinas
         const L = S.secciones, k = arrastre.secK;
         const lo = k > 0 ? L[k - 1].t + 0.05 : 0, hi = k + 1 < L.length ? L[k + 1].t - 0.05 : duracion();
-        L[k].t = Math.max(lo, Math.min(hi, segDeX(x, r.width)));
+        const t = Math.max(lo, Math.min(hi, segDeX(x, r.width)));
+        // Con tempo marcado (IB): salta de compás en compás (entre sus vecinas); fuera de lo marcado, por segundo
+        const C = enRango(t) ? S.compases.filter(c => c >= lo && c <= hi) : [];
+        L[k].t = C.length ? C.reduce((m, c) => Math.abs(c - t) < Math.abs(m - t) ? c : m, C[0]) : t;
         arrastre.movio = true; sucio = true;
         return;
     }
@@ -1051,6 +1066,7 @@ $('es-letra').onchange = e => {
 
 // ══ 🧩 Estructura (EW): el comienzo de cada parte, por su segundo ══════════════════════════════
 function agregarSeccion(t) {
+    if (enRango(t)) t = S.compases[idxCercano(t)];               // con tempo marcado, en el compás más cercano (IB)
     if (S.secciones.some(x => Math.abs(x.t - t) < 0.3)) return;   // un doble toque no crea dos
     antes();
     const n = 1 + Math.max(0, ...S.secciones.map(x => +(/^Sección (\d+)$/.exec(x.nombre)?.[1] || 0)));
