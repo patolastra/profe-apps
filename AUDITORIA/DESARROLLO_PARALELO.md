@@ -10093,3 +10093,18 @@ letra".*
 - **Ajuste (PO 2026-11-18):** al copiar, el título y los títulos de parte (dorados) van subrayados; las notas de
   llegada ya no van subrayadas en ninguna parte (copiado, pantalla del profe y Pizarra), solo con su color.
   Títulos al copiar en negro y negrita (no dorados), PO 2026-11-18.
+
+### II. Ver notas — 🔤 Placas: el nombre de cada placa con coma o comilla, en tres zonas — HECHA, falta probar en clase (2026-11-19)
+*Origen: PO 2026-11-18: "un renderizado del metalófono, no para mostrar melodías, sino para distinguir las notas que
+tienen coma abajo, coma arriba y las que no tienen".*
+- **Aprobado (PO 2026-11-19):** botón **🔤 Placas** en la barra de Ver notas: muestra el metalófono completo (mismo
+  dibujo) con el nombre de cada placa como en Ver notas, también las negras (La#, · Do# · Do#'); tres zonas con líneas
+  verticales, un color de fondo por zona y su rótulo encima (GRAVES , · MEDIAS · AGUDAS '); igual en la Pizarra con la
+  clase en curso; solo para mirar.
+- **Hecho:** 🔤 Placas (naranja = prendido) deja ver el metalófono de siempre bajo Ver notas, con cada placa nombrada
+  como en la lista (`nombreNotaLista`: La, · La#, · Do … Si · Do' … La', en latino o americano según el cifrado) en
+  letra más grande; zonas azul (GRAVES ,), verde (MEDIAS) y naranja (AGUDAS ') con líneas blancas entre ellas, cortadas
+  entre Si, y Do y entre Si y Do'; rótulos que se achican si la zona es angosta. Al apagarlo o cerrar Ver notas vuelven
+  los nombres de siempre y la lista. La Pizarra copia las placas, la clase de la página y las zonas (en % del ancho).
+- **Probado:** Tetris: tres zonas y nombres correctos; apagar devuelve «A / La» y la lista; la "foto" para la Pizarra
+  trae «placas», «La,» y las 3 zonas, y aplicada las muestra.

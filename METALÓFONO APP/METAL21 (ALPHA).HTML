@@ -484,6 +484,18 @@
         #notas-texto .compas { display: flex; gap: .4em; align-items: baseline; }
         #notas-texto .num { color: #6b7280; font-size: .45em; min-width: 2.2em; }
         .notas-pie { font-size: 1.8vh; color: #9ca3af; }
+        /* 🔤 Placas (II): el metalófono de siempre a la vista, cada placa con su nombre (coma / comilla) y tres zonas */
+        #notas-overlay.placas { background: transparent; padding: 0; }
+        #notas-overlay.placas .notas-barra { background: rgba(17,17,22,.92); padding: 1.2vh 3vw; position: relative; z-index: 3; }
+        #notas-overlay.placas .notas-pie, #notas-overlay.placas #notas-copiar { display: none; }
+        #notas-placas.on { background: var(--orange); color: #fff; }
+        #notas-overlay.placas #notas-texto { overflow: visible; }
+        .pl-zona { position: fixed; top: 0; bottom: 0; pointer-events: none; z-index: 1; }
+        .pl-zona + .pl-zona { border-left: .45vw solid rgba(255,255,255,.9); }
+        .pl-rot { position: absolute; left: 0; right: 0; top: 15vh; text-align: center; font-weight: 900; white-space: nowrap;
+            letter-spacing: .06em; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+        body.placas-nombres .key span { font-size: 2.4vw; line-height: 1; white-space: nowrap; }
+        body.placas-nombres #sharp-row .key span { font-size: 1.5vw; }
         /* Ver notas por secciones (IE): título de cada sección y la nota de llegada (la misma nota en las dos secciones) */
         #notas-texto .notas-sec { margin: .5em 0 .1em; font-size: .5em; color: var(--gold); letter-spacing: .04em; text-transform: uppercase; }
         #notas-texto .notas-sec:first-child { margin-top: 0; }
@@ -615,6 +627,7 @@
     <div id="notas-overlay" hidden>
         <div class="notas-barra">
             <span id="notas-titulo"></span>
+            <button id="notas-placas" onclick="verPlacas()" title="El nombre de cada placa, con coma (graves) o comilla (agudas)">🔤 Placas</button>
             <button id="notas-copiar" onclick="copiarNotas()">📋 Copiar</button>
             <button onclick="cerrarNotas()" title="Cerrar (Esc)">✕</button>
         </div>
@@ -1194,7 +1207,36 @@
                     `<div class="compas"><span class="num">${i + 1}</span><span>${l.length ? l.join(' - ') : '(silencio)'}</span></div>`).join('');
             document.getElementById('notas-overlay').hidden = false;
         }
-        function cerrarNotas() { document.getElementById('notas-overlay').hidden = true; }
+        function cerrarNotas() { if (placasOn) verPlacas(); document.getElementById('notas-overlay').hidden = true; }
+        // 🔤 Placas (II): dentro de Ver notas, el metalófono con el nombre de cada placa como en la lista (La, · Si · Do')
+        // y tres zonas (graves con coma, medias sin marca, agudas con comilla). Solo para mirar; la Pizarra lo copia.
+        let placasOn = false;
+        const ZONAS = [{ desde: 0, hasta: 83, rot: 'GRAVES ,', col: 'rgba(59,130,246,.30)' },
+                       { desde: 84, hasta: 95, rot: 'MEDIAS', col: 'rgba(34,197,94,.26)' },
+                       { desde: 96, hasta: 999, rot: "AGUDAS '", col: 'rgba(249,115,22,.30)' }];
+        function pintarZonas() {
+            const W = window.innerWidth, x = m => document.querySelector(`#natural-row .key[data-midi="${m}"]`)?.getBoundingClientRect();
+            const r83 = x(83), r84 = x(84), r95 = x(95), r96 = x(96);
+            if (!r83 || !r84 || !r95 || !r96) return '';
+            const b1 = (r83.right + r84.left) / 2 / W * 100, b2 = (r95.right + r96.left) / 2 / W * 100;
+            const lim = [[0, b1], [b1, b2], [b2, 100]];
+            return ZONAS.map((z, i) => `<div class="pl-zona" style="left:${lim[i][0].toFixed(2)}%;width:${(lim[i][1] - lim[i][0]).toFixed(2)}%;background:${z.col}"><div class="pl-rot" style="font-size:min(5vh,${((lim[i][1] - lim[i][0]) / 6.5).toFixed(2)}vw)">${z.rot}</div></div>`).join('');
+        }
+        function verPlacas() {
+            placasOn = !placasOn;
+            const ov = document.getElementById('notas-overlay');
+            ov.classList.toggle('placas', placasOn);
+            document.body.classList.toggle('placas-nombres', placasOn);
+            document.getElementById('notas-placas').classList.toggle('on', placasOn);
+            if (placasOn) {
+                document.querySelectorAll('#case .key[data-midi]').forEach(k => { const sp = k.querySelector('span'); if (sp) sp.innerHTML = nombreNotaLista(+k.dataset.midi); });
+                document.getElementById('notas-texto').innerHTML = pintarZonas();
+            } else {
+                updateLabels();
+                abrirNotas();
+            }
+        }
+        window.addEventListener('resize', () => { if (placasOn) document.getElementById('notas-texto').innerHTML = pintarZonas(); });
         async function copiarNotas() {
             const nombre = document.getElementById('notas-titulo').textContent;
             const est = notasPorEstructura();
