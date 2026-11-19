@@ -10141,7 +10141,7 @@ a HV/HW.*
 - **Falta probar (PO):** en clase real con el arrastre a mano (la prueba simuló el arrastre) y ➜ Continuar.
 
 
-### IK. Melodías subidas → melodías del Editor (un solo tipo de melodía) — HECHA, falta revisión del PO (2026-11-19)
+### IK. Melodías subidas → melodías del Editor (un solo tipo de melodía) — HECHA (2026-11-19)
 - **Origen (PO):** las melodías MIDI subidas antes del Editor se tratan distinto de las del Editor (no entran al
   Arreglo ni al Piano; no se piensan por secciones). El PO ya no subirá melodías: todas se escribirán en el Editor.
 - **Auditoría:** el Metalófono da las partes igual a las dos (requisito: Ficha con secciones y canción sin grabación);
@@ -10163,3 +10163,32 @@ a HV/HW.*
   duraciones en semicorcheas, tempo y cifra); todas caben en el Metalófono.
 - **Falta (PO):** revisarlas; con su OK se borran las 8 subidas en borrador (las 3 publicadas quedan hasta fin de año).
   Para tener partes: Ficha con secciones en Cumpleaños Feliz y Melodía Andina.
+- **Hecho (borrado, con OK del PO):** antes de borrar, 12 presentaciones (diapositivas `@metal:` de clases pasadas) y la
+  actividad "Montaje: Anacleto" se apuntaron a las melodías nuevas (`melodia/<id>.mid`); luego se borraron las 8
+  subidas en borrador (fila + `midi/<id>.mid`). Quedan las 3 publicadas.
+
+### IL. Estructura propia de cada melodía (🧩 Partes en el Editor de Melodías) — HECHA, falta probar en clase (2026-11-19)
+- **Origen (PO):** en canciones con grabación la Ficha va según el audio; las melodías de una canción necesitan su
+  propia estructura para enseñarlas por partes.
+- **Auditoría:** hoy el Metalófono toma las partes de la Ficha (`tempo/<cancion>.json`) solo si la canción no tiene
+  audio (`abrirMetalofono` pasa `&cancion=`); 🔚 Llegada e ＝ Igual se guardan en la melodía con el id de cada sección.
+  El Metalófono del profe no usa la base de datos: lee archivos públicos y parámetros.
+- **Aprobado (PO):** cada melodía del Editor tiene sus partes (desde qué compás, con nombre), con o sin grabación.
+  **Solo la propia**: la Ficha deja de dar partes al Metalófono. **Siempre desde cero** (sin copiar de la Ficha).
+- **Diseño:** en el Editor, clic en la franja de números de compás → "empieza aquí una parte" (nombre; cambiar o
+  quitar), etiqueta morada sobre el compás. Se guarda en `contenido.secciones = [{ id, nombre, compas }]` (antes de
+  `llegada`/`iguales`) y en el archivo público `melodia/<id>.json`. La Biblioteca abre el Metalófono con
+  `&asset=<id>&partes=1` (solo melodías del Editor); el Metalófono lee las partes de `melodia/<id>.json`.
+- **Tetris:** su melodía ya tiene Llegada e Igual sobre las secciones de su Ficha; para no perderlas se le copian esas
+  secciones con los mismos ids (única excepción a "desde cero", para no romper lo que ya funciona).
+- **Supabase:** sin columnas nuevas (va dentro de `contenido`).
+- **Lugares de uso:** Editor de Melodías; Metalófono del profe abierto desde la Biblioteca, el Entrenador (chip) y el
+  Plan (mínimo); Ver notas y su copia en la Pizarra (usan las mismas partes).
+- **Hecho:** Editor de Melodías: franja de números de compás con "＋ parte" al pasar el mouse y etiqueta 🧩 morada;
+  clic → nombre (Enter / Listo), Quitar; `contenido.secciones` y `melodia/<id>.json` (`secciones`). Metalófono: lee
+  las partes de `melodia/<asset>.json` con `&partes=1` (ya no de la Ficha). Biblioteca (`abrirMetalofono`): solo
+  melodías del Editor, con o sin grabación. Tetris (`mwknj2ficu6n`) recibió las 6 secciones de su Ficha con sus ids.
+- **Probado:** crear, renombrar y quitar una parte (vuelve a "Guardado ✓", sin borrador); Tetris en el Metalófono
+  desde la Biblioteca: Canción completa + Parte 1–6, "Parte 6 = Parte 3" y la Llegada apagada se conservan; El Crack
+  (con grabación, sin partes) abre sin menú de partes.
+- **Falta probar (PO):** marcar partes en una melodía de canción con grabación y usarlas en clase.

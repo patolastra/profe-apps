@@ -99,6 +99,21 @@
     .compas { position: absolute; top: 0; bottom: 0; border-left: 1px solid #475569; }
     .compas.sel { background: rgba(34,211,238,.06); }
     .compas .num { position: absolute; top: 2px; left: 4px; font-size: 11px; color: var(--tenue); }
+    /* 🧩 Partes de la melodía (deuda IL): en la franja de números de compás */
+    .compas.parte-ini { border-left: 2px solid #a78bfa; }
+    .compas .parte { position: absolute; top: 1px; left: 22px; height: 16px; line-height: 16px; padding: 0 7px; border-radius: 4px;
+        background: #7c3aed; color: #fff; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; z-index: 1; }
+    .compas .parte-mas { position: absolute; top: 1px; left: 22px; height: 16px; line-height: 16px; padding: 0 6px; border-radius: 4px;
+        color: #c4b5fd; font-size: 11px; cursor: pointer; visibility: hidden; }
+    .compas:hover .parte-mas { visibility: visible; }
+    .compas .parte-mas:hover { background: rgba(124,58,237,.3); }
+    #pop-parte { position: fixed; z-index: 30; background: #1e293b; border: 1px solid #7c3aed; border-radius: 9px; padding: 8px;
+        display: none; gap: 6px; align-items: center; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
+    #pop-parte.on { display: flex; }
+    #pop-parte input { width: 150px; height: 30px; background: #0f172a; color: var(--texto); border: 1px solid #475569; border-radius: 7px; padding: 0 8px; font-size: 14px; }
+    #pop-parte button { height: 30px; border-radius: 7px; border: 1px solid #475569; background: #334155; color: var(--texto); cursor: pointer; padding: 0 10px; font-size: 13px; }
+    #pop-parte button.ok { border-color: #7c3aed; background: #6d28d9; color: #fff; }
+    #pop-parte button.quitar { color: #fca5a5; }
     .pulso { position: absolute; top: 18px; bottom: 0; border-left: 1px dashed #263248; }
     .fila { position: absolute; left: 0; right: 0; border-top: 1px solid #1f2a3d; }
     .fila.tonica { background: rgba(99,102,241,.07); }
@@ -222,6 +237,8 @@
 <div id="partitura"><div id="part-izq"></div><div id="part-der"></div></div>
 <div id="ayuda"></div>
 <div id="toast"></div>
+<div id="pop-parte"><span id="pop-parte-tit" style="font-size:12px;color:var(--tenue)"></span><input id="pop-parte-nom" maxlength="30" placeholder="Nombre de la parte">
+    <button class="ok" id="pop-parte-ok">Listo</button><button class="quitar" id="pop-parte-quitar">Quitar</button></div>
 
 <script>
 'use strict';
@@ -233,7 +250,8 @@ const PARAMS = new URLSearchParams(location.search);
 const sb = (() => { try { return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON); } catch (_) { return null; } })();
 const BUCKET = 'repertorio-assets';
 
-const M = { tempo: 90, cifra: '4/4', compas: 4, pulso: 1, fig: 2, tonica: 'C', modo: 'mayor', notas: [], instrumentos: [], mano: 'der' };
+const M = { tempo: 90, cifra: '4/4', compas: 4, pulso: 1, fig: 2, tonica: 'C', modo: 'mayor', notas: [], instrumentos: [], mano: 'der', secciones: [] };
+// 🧩 Partes de la melodía (IL): M.secciones = [{ id, nombre, compas }] (compás desde 1), ordenadas; las usa el Metalófono
 // Cifras del sistema (deudas FN y FO, TempoMapa.cifraInfo): M.cifra ('6/8'…), M.compas = negras por compás y
 // M.pulso = negras por pulso contado (2/2: 2 · 6/8: 1,5 · 3/8: 0,5). M.tempo va siempre en negras por minuto y en
 // pantalla se muestra en la figura del pulso. Cambiar de cifra no cambia la velocidad de las notas.
@@ -559,7 +577,10 @@ function filaEn(y) {
 function htmlCompases(desde, hasta) {
     let h = '';
     for (let c = desde; c < hasta; c++) {
-        h += `<div class="compas${c === compasSel ? ' sel' : ''}" data-c="${c}" style="left:${c * tpc() * PX}px;width:${tpc() * PX}px"><span class="num">${c + 1}</span></div>`;
+        const pt = (M.secciones || []).find(x => x.compas === c + 1);
+        const et = s => String(s).replace(/[<&"]/g, ch => ({ '<': '&lt;', '&': '&amp;', '"': '&quot;' })[ch]);
+        h += `<div class="compas${c === compasSel ? ' sel' : ''}${pt ? ' parte-ini' : ''}" data-c="${c}" style="left:${c * tpc() * PX}px;width:${tpc() * PX}px"><span class="num">${c + 1}</span>`
+            + (pt ? `<span class="parte" title="Parte: clic para cambiar el nombre o quitarla">🧩 ${et(pt.nombre)}</span>` : `<span class="parte-mas" title="Empieza aquí una parte">＋ parte</span>`) + `</div>`;
         for (let p = M.pulso; p < M.compas - 1e-9; p += M.pulso) h += `<div class="pulso" style="left:${(c * tpc() + p * 4) * PX}px"></div>`;
     }
     return h;
@@ -797,6 +818,39 @@ function borrarGolpe() {
     huboCambio(); pintarTodo();
 }
 // Partir de nuevo: borra ritmo y notas (lo guardado en la Biblioteca no cambia hasta Guardar)
+// ── 🧩 Partes (IL): clic en la franja de números de compás ──
+let parteCompas = null;
+function abrirParte(compas, ancla) {
+    if (rec) return;
+    parteCompas = compas;
+    const pt = M.secciones.find(x => x.compas === compas);
+    const pop = document.getElementById('pop-parte'), inp = document.getElementById('pop-parte-nom');
+    document.getElementById('pop-parte-tit').textContent = `Compás ${compas}`;
+    inp.value = pt ? pt.nombre : `Parte ${M.secciones.filter(x => x.compas < compas).length + 1}`;
+    document.getElementById('pop-parte-quitar').style.display = pt ? '' : 'none';
+    pop.classList.add('on');
+    const r = ancla.getBoundingClientRect();
+    pop.style.left = Math.min(r.left, innerWidth - pop.offsetWidth - 8) + 'px';
+    pop.style.top = (r.bottom + 4) + 'px';
+    inp.focus(); inp.select();
+}
+function cerrarParte() { document.getElementById('pop-parte').classList.remove('on'); parteCompas = null; }
+function ponerParte(nombre) {
+    if (parteCompas === null) return;
+    const pt = M.secciones.find(x => x.compas === parteCompas);
+    if (nombre === null) M.secciones = M.secciones.filter(x => x !== pt);
+    else if (pt) pt.nombre = nombre;
+    else { M.secciones.push({ id: genId(), nombre, compas: parteCompas }); M.secciones.sort((a, b) => a.compas - b.compas); }
+    cerrarParte(); huboCambio(); pintarTodo();
+}
+document.getElementById('pop-parte-ok').onclick = () => { const v = document.getElementById('pop-parte-nom').value.trim(); if (v) ponerParte(v); else cerrarParte(); };
+document.getElementById('pop-parte-quitar').onclick = () => ponerParte(null);
+document.getElementById('pop-parte-nom').addEventListener('keydown', e => {
+    e.stopPropagation();          // las teclas del editor (1–7, Espacio…) no actúan mientras se escribe el nombre
+    if (e.key === 'Enter') document.getElementById('pop-parte-ok').click();
+    if (e.key === 'Escape') cerrarParte();
+});
+document.addEventListener('pointerdown', e => { if (parteCompas !== null && !e.target.closest('#pop-parte, .parte, .parte-mas')) cerrarParte(); });
 function limpiar() {
     if (rec || !M.notas.length) return;
     if (!confirm('¿Borrar todo el ritmo y las notas para partir de nuevo?\nLo guardado en la Biblioteca no cambia hasta que guardes.')) return;
@@ -1066,6 +1120,7 @@ document.getElementById('lienzo').addEventListener('pointerup', () => {
 });
 document.getElementById('lienzo').addEventListener('click', e => {
     if (rec || e.target.closest('.nota[data-i]')) { clicPrevio = null; return; }
+    if (e.target.closest('.parte, .parte-mas')) { clicPrevio = null; return abrirParte(+e.target.closest('.compas').dataset.c + 1, e.target); }
     if (esDobleClic(e)) return agregarEnHueco(e);
     const c = e.target.closest('.compas');
     const x = e.clientX - document.getElementById('lienzo').getBoundingClientRect().left;
@@ -1149,6 +1204,7 @@ function contenidoActual() {
         ...(M.mano === 'izq' ? { mano: 'izq' } : {}),
         notas: M.notas.map(n => n.dig ? [n.t, n.d, n.g, n.o, n.a, n.dig] : [n.t, n.d, n.g, n.o, n.a]),
         ...(M.largo > compasesNotas() ? { largo: M.largo } : {}),
+        ...(M.secciones?.length ? { secciones: M.secciones.map(({ id, nombre, compas }) => ({ id, nombre, compas })) } : {}),
         ...(M.llegada && Object.keys(M.llegada).length ? { llegada: M.llegada } : {}),
         ...(M.iguales && Object.keys(M.iguales).length ? { iguales: M.iguales } : {}) });
 }
@@ -1169,6 +1225,7 @@ function cargarContenido(txt) {
     M.instrumentos = j.inst || [];
     M.mano = j.mano || 'der';
     M.largo = j.largo || null;
+    M.secciones = (j.secciones || []).filter(x => x && x.compas >= 1).sort((a, b) => a.compas - b.compas);   // 🧩 partes (IL)
     M.llegada = j.llegada || null;   // 🔚 nota de llegada por sección (IC): la anota el Metalófono; aquí solo se conserva
     M.iguales = j.iguales || null;   // ＝ partes iguales (IG): ídem
     ordenar();
@@ -1233,6 +1290,7 @@ async function subirMidi(id) {
 async function subirJson(id, etiqueta) {
     const datos = { v: 1, cancion: cancionNombre, etiqueta, tempo: M.tempo, compas: M.compas, pulso: M.pulso, cifra: M.cifra, tonalidad: nombreTonalidad(),
         instrumentos: M.instrumentos, mano: M.mano, compases: totalCompases(),
+        secciones: (M.secciones || []).map(({ id, nombre, compas }) => ({ id, nombre, compas })),   // 🧩 partes (IL): las lee el Metalófono
         notas: M.notas.filter(n => n.g > 0).map(n => {
             const h = alturaDe(n);
             return { t: n.t, d: n.d, m: h.midi, nombre: SOLFEO[h.letra] + ACC_TXT[h.acc], dig: n.dig || {} };
