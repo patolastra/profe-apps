@@ -10140,3 +10140,26 @@ a HV/HW.*
   🗑 con y sin aviso; ✕ Quitar deja `grupos` y `grupos_plan` vacíos.
 - **Falta probar (PO):** en clase real con el arrastre a mano (la prueba simuló el arrastre) y ➜ Continuar.
 
+
+### IK. Melodías subidas → melodías del Editor (un solo tipo de melodía) — HECHA, falta revisión del PO (2026-11-19)
+- **Origen (PO):** las melodías MIDI subidas antes del Editor se tratan distinto de las del Editor (no entran al
+  Arreglo ni al Piano; no se piensan por secciones). El PO ya no subirá melodías: todas se escribirán en el Editor.
+- **Auditoría:** el Metalófono da las partes igual a las dos (requisito: Ficha con secciones y canción sin grabación);
+  la diferencia real es que el Arreglo y el Piano solo aceptan `tipo = 'melodia'`. Hay 11 subidas (`tipo = 'metalofono'`)
+  en 7 canciones; todas de una sola nota a la vez, en la cuadrícula de semicorcheas (salvo duraciones apenas cortas).
+- **Aprobado (PO):** sin botón nuevo; Claude las convierte una vez. Cada una queda como melodía del Editor en su
+  canción, en Borrador, con su misma etiqueta; la subida no se toca hasta que el PO revise. Las 3 publicadas
+  conservan su subida hasta fin de año (links/QR entregados). Partes en canciones con grabación: más adelante.
+- **Cómo:** script fuera de la app lee cada MIDI (tempo, cifra, notas; tonalidad elegida por sus notas, etiqueta y nota
+  final) y arma el contenido del Editor (grados, octava elegida para que el MIDI del Metalófono vuelva a las mismas
+  placas); se guarda con el propio `guardar()` del Editor (MIDI, archivo público, fila, AlDia).
+- **Supabase:** solo filas nuevas en `repertorio_assets` y archivos `melodia/<id>.*` (autorizado por el PO); sin columnas.
+- **Hecho:** las 11 convertidas (Borrador, misma etiqueta): Cumpleaños Feliz `mwnpgufwnjab`; Melodía Andina `mwnphxghg1rd`,
+  loop inicial `mwnphs37lyjh`, cierre `mwnphuqvujot`; El Crack Completa `mwnpi2lkihk6`, Parte 1 `mwnpi00lu794`,
+  Parte 2 `mwnpi5c8j6e5`, Final parte 1 `mwnpiaeqmn78`, Final parte 2 `mwnpi7t4rkq2`; Anacleto Acompañamiento
+  `mwnpicx118d9`; Aló, Aló Intro completa `mwnpiflfw5rx`. Tonalidades: Mi♭ menor (Andina), Do mayor (Crack,
+  Cumpleaños), Si♭ mayor (Acompañamiento), Sol mayor (Aló, 6/8). Ninguna nota alterada fuera de la escala.
+- **Probado:** el MIDI que genera el Editor para cada una es igual al subido (mismas notas, alturas, inicios,
+  duraciones en semicorcheas, tempo y cifra); todas caben en el Metalófono.
+- **Falta (PO):** revisarlas; con su OK se borran las 8 subidas en borrador (las 3 publicadas quedan hasta fin de año).
+  Para tener partes: Ficha con secciones en Cumpleaños Feliz y Melodía Andina.
