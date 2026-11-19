@@ -10192,3 +10192,20 @@ a HV/HW.*
   desde la Biblioteca: Canción completa + Parte 1–6, "Parte 6 = Parte 3" y la Llegada apagada se conservan; El Crack
   (con grabación, sin partes) abre sin menú de partes.
 - **Falta probar (PO):** marcar partes en una melodía de canción con grabación y usarlas en clase.
+
+### IM. La canción del Entrenador no se detiene al ocultar la ventana — HECHA, falta probar en el PC (2026-11-19)
+- **Necesidad:** dejar sonando una canción del Entrenador (embebido en el Plan) para que el curso cante mientras el
+  profe hace otras cosas en el computador; al cambiar de pantalla la canción se pausaba (también anotado en 🐞 Mejoras:
+  "audio que se corta al minimizar").
+- **Auditoría:** cambiar de pestaña dentro del Workspace no la detiene (probado). Con Karaoke, tono cambiado o una
+  ✂ adaptación suena el reproductor de `comun/dos-grabaciones.js` y el `<audio>` queda **en silencio** (`muted`) como
+  reloj; Chrome/Brave pausan el audio en silencio cuando la ventana no se ve (minimizada u otro programa encima), y
+  `audioEl.onpause` detiene el reproductor. No hay código que pause el Entrenador del PC al ocultarse (solo el celular).
+- **Aprobado (PO):** arreglarlo ya.
+- **Hecho:** `entAplicarSalidaAudio()` (REPERTORIO): fuera de la copia de la Pizarra el reloj ya no se silencia; queda
+  con volumen 0.0001 (≈ −80 dB, no se oye) mientras suena el reproductor, y como piso del volumen del profe (🔇).
+  La copia de la Pizarra sigue en silencio total. Supabase sin cambios.
+- **Lugares de uso:** el Entrenador en todas sus versiones (Biblioteca, sesión del curso, Plan, mínimo); la copia de
+  la Pizarra queda igual a propósito; las versiones de estudiantes siguen deteniéndose al salir (ET).
+- **Falta probar (PO):** en el PC, con una canción con Karaoke sonando, minimizar el navegador o poner otro programa
+  encima: debe seguir sonando.

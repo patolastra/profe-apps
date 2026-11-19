@@ -7302,8 +7302,12 @@ let entDosCarga = 0;            // número de la carga en curso (abrir otra canc
 const entMotorActivo = () => !ESPEJO && (entTonoTotal() !== 0 || entDosListas || !!entSaltos());
 function entAplicarSalidaAudio() {
     const m = entAudio();
-    m.muted = ESPEJO || !!entPitchNode;           // la copia de la Pizarra no suena; con el reproductor, suena él
-    try { m.volume = entNivelVolumen(); } catch (_) {}
+    // La copia de la Pizarra no suena; con el reproductor, suena él. Fuera de la copia el reloj nunca queda en silencio
+    // total sino con un volumen que no se oye (deuda IM): el navegador pausa el audio en silencio cuando la ventana
+    // no se ve (minimizada u otro programa encima), y al pausarse el reloj se detenía también la canción.
+    const MINIMO = 0.0001;   // ≈ −80 dB
+    m.muted = ESPEJO;
+    try { m.volume = ESPEJO ? 0 : entPitchNode ? MINIMO : Math.max(MINIMO, entNivelVolumen()); } catch (_) {}
 }
 // Barra mínima: una línea en el borde de abajo del botón Melodía / Karaoke (x = 0..1; null = lista)
 function entPintarCargaAudio(x) {
