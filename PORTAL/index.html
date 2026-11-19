@@ -978,6 +978,28 @@
         .pgr-box.grande .pgr-lee, .pgr-box.grande .pgr-caja { margin-left: 42px; padding-left: 0; font-size: 1rem; }
         .pgr-box.grande .pgr-caja { padding: 8px 10px; }
         .pgr-box.grande .pgr-bit { width: 36px; height: 32px; font-size: 1.1rem; }
+        /* ✋ Grupos armados en la actividad (deuda IJ) */
+        .pgr-disp { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 5px; padding: 5px 6px; border: 1px dashed #bbf7d0; border-radius: 8px; background: #fff; }
+        .pgr-disp-tit { font-size: 0.66rem; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: .04em; margin-right: 4px; }
+        .pgr-vacio { font-size: 0.72rem; color: var(--muted); font-style: italic; }
+        .pgr-alu { display: inline-block; font-size: 0.74rem; font-weight: 600; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; border-radius: 999px; padding: 1px 9px; cursor: grab; user-select: none; white-space: nowrap; }
+        .pgr-alu:hover { background: #d1fae5; }
+        .pgr-alu.aus { background: #f3f4f6; border-color: #e5e7eb; color: #9ca3af; text-decoration: line-through; }
+        .pgr-alu.arrastrando { opacity: .4; }
+        .pgr-alu-nom { font-size: 0.82rem; font-weight: 700; }
+        .pgr-nuevos { display: flex; gap: 6px; margin-top: 5px; }
+        .pgr-drop { flex: 1; border: 2px dashed #86efac; border-radius: 8px; color: #16a34a; font-weight: 800; font-size: 0.76rem; text-align: center; padding: 5px 4px; }
+        .pgr-drop small { display: block; font-weight: 500; font-size: 0.66rem; color: #4ade80; }
+        .pgr-box .dragover { background: #dcfce7; border-color: #22c55e; }
+        .pgr-propio.dragover { border-radius: 6px; box-shadow: inset 0 0 0 2px #22c55e; }
+        .pgr-mie-alu { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 3px; }
+        .pgr-add, .pgr-borrar { border: none; background: none; cursor: pointer; font-size: 0.7rem; color: #16a34a; font-weight: 700; padding: 1px 6px; border-radius: 6px; visibility: hidden; }
+        .pgr-borrar { margin-left: auto; }
+        .pgr-propio:hover .pgr-add, .pgr-propio:hover .pgr-borrar { visibility: visible; }
+        .pgr-add:hover, .pgr-borrar:hover { background: #dcfce7; }
+        .pgr-box.grande .pgr-alu { font-size: 0.95rem; padding: 2px 12px; }
+        .pgr-box.grande .pgr-mie-alu { padding-left: 42px; }
+        .pgr-box.grande .pgr-drop { font-size: 0.95rem; padding: 8px 4px; }
         .pgr-pop { max-width: min(380px, calc(100vw - 16px)); max-height: 60vh; overflow: auto; }
         .pgr-pop-tit { font-size: 0.72rem; font-weight: 800; color: #166534; padding: 4px 10px 2px; }
         .pgr-pop button.on { background: #f0fdf4; font-weight: 700; }
@@ -2851,7 +2873,7 @@ function pasarLista() {
         sb, sesionId: sesionActual.id, ctxNombre: ctx.nombre,
         anio: anioActivo || (sesionActual.fecha || '').slice(0, 4),
         fecha: sesionActual.fecha, titulo: ctxDisplay(ctx.nombre),
-    }).then(() => renderBotonLista());
+    }).then(() => { renderBotonLista(); if (planCards.some(esPropios)) cargarPobGr(true).then(repintarGrupos); });
 }
 async function renderBotonLista() {
     const btn = document.getElementById('btn-lista');
@@ -4861,7 +4883,7 @@ function pintarPlan() {
         verLibre();   // ya con su editor
         pintarGrupos(c, el.querySelector('.pgr-box'));   // 👥 grupos de trabajo (HV)
     });
-    if (planCards.some(c => c.evaluacion_id)) cargarGruposMem();
+    if (planCards.some(c => c.evaluacion_id || esPropios(c))) cargarGruposMem();
     presTitulos();       // un cuadro de diapositivas por actividad y rótulos de la vista previa al día (BS)
     marcarEnPizarra();
     pintarClase();
@@ -4980,7 +5002,7 @@ function menuPlanCard(c, boton) {
     const pop = document.createElement('div');
     pop.className = 'pcard-pop';
     pop.innerHTML = `${libreSinTexto(c) ? '<button data-a="texto">✏️ Agregar texto</button>' : ''}<button data-a="cancion">🎵 Vincular canción, metalófono o ritmo</button>
-        <button data-a="grupos">👥 Grupos de trabajo (de una evaluación del Libro)</button>
+        <button data-a="grupos">👥 Grupos de trabajo</button>
         <button data-a="continuar">➜ Continuar en la próxima clase</button>
         ${c.hilo_id ? '<button data-a="hilo">🧵 Ver el hilo</button>' : ''}
         ${i > 0 ? '<button data-a="subir">↑ Subir</button>' : ''}
@@ -5056,6 +5078,7 @@ async function continuarActividad(c) {
         canciones: cancionesDe(c), minutos: c.minutos ?? null, updated_at: ahora,
         ...(c.evaluacion_id ? { evaluacion_id: c.evaluacion_id } : {}),   // sus grupos de trabajo (HV)
         ...(c.grupos_plan ? { grupos_plan: c.grupos_plan } : {}),         // y el plan de cada grupo (HW)
+        ...(esPropios(c) ? { grupos: c.grupos } : {}),                    // los grupos armados en el Plan (IJ)
     }).select('id').single();
     if (error) { planEstado('No se pudo copiar la actividad — revisa la conexión.', true); return; }
     // Sus diapositivas, tras su marca, al final de la presentación de esa clase (con su diapositiva inicial si no tenía).
@@ -5342,7 +5365,7 @@ async function sumarAlCurso(cancionId) {
 }
 
 // Selector: primero el repertorio del curso; al escribir, también el resto de la Biblioteca.
-async function elegirCancion(c, boton) {
+async function elegirCancion(c, boton, dest) {   // dest: { lista, poner } = el repertorio de un grupo (IJ)
     document.querySelector('.pcanc-pop')?.remove();
     const pop = document.createElement('div');
     pop.className = 'pcanc-pop';
@@ -5369,7 +5392,7 @@ async function elegirCancion(c, boton) {
     if (!pop.isConnected) return;
     const enCurso = new Set(curso);
     const norm = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    const ya = (id, aid, sec, inst) => cancionesDe(c).some(x => x.cancion_id === id && (x.asset_id || '') === (aid || '') && (x.seccion || '') === (sec || '') && (x.inst || '') === (inst || ''));
+    const ya = (id, aid, sec, inst) => (dest ? dest.lista() : cancionesDe(c)).some(x => x.cancion_id === id && (x.asset_id || '') === (aid || '') && (x.seccion || '') === (sec || '') && (x.inst || '') === (inst || ''));
     const fila = (id, aid, sec) => {
         const s = bibCanciones.get(id); if (!s) return '';
         // Melodía del Editor en la pestaña Piano: el vínculo guarda inst 'piano' (HY)
@@ -5431,7 +5454,9 @@ async function elegirCancion(c, boton) {
             try { await sumarAlCurso(id); }
             catch (_) { planEstado('No se pudo sumar la canción al repertorio del curso — revisa la conexión.', true); return; }
         }
-        c.canciones = [...cancionesDe(c), aid ? { cancion_id: id, asset_id: aid, ...(sec ? { seccion: sec } : {}), ...(inst ? { inst } : {}) } : { cancion_id: id }];
+        const nuevo = aid ? { cancion_id: id, asset_id: aid, ...(sec ? { seccion: sec } : {}), ...(inst ? { inst } : {}) } : { cancion_id: id };
+        if (dest) { dest.poner([...dest.lista(), nuevo]); return; }
+        c.canciones = [...cancionesDe(c), nuevo];
         pintarCancionesCard(c);
         pintarSecciones();
         guardarCancionesCard(c);
@@ -5599,7 +5624,7 @@ function claseMeta(it) {
     const n = document.querySelectorAll(`#prev-body .slide-prev[data-act="${it.id}"]`).length;
     const k = { cancion: 0, metalofono: 0, piano: 0, ritmo: 0, cajon: 0, tab: 0, arreglo: 0 };
     (it.card ? cancionesDe(it.card) : []).forEach(x => k[!x.asset_id ? 'cancion' : vinculo(x).tipo]++);
-    const gr = it.card?.evaluacion_id ? gruposDatos.get(it.card.evaluacion_id) : null;
+    const gr = it.card ? datosGr(it.card) : null;
     return [it.card && esLibre(it.card) ? '⏱ ' + minutosLibre(it.card) + ' minutos' : '',
         gr && !gr.borrada ? '👥 ' + gr.grupos.length + (gr.grupos.length === 1 ? ' grupo' : ' grupos') : '',
         n ? n + (n === 1 ? ' diapositiva' : ' diapositivas') : '',
@@ -5797,6 +5822,201 @@ var grupoBit = null;                                   // { cardId, gid, titulo,
 const tituloAct = c => (c.titulo || '').trim() || 'Actividad sin título';
 const normGr = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+// ── ✋ Grupos armados en la actividad, sin evaluación (deuda IJ) ──
+// plan_cards.grupos = [{ id, nombre, integrantes: [estudiante_id], canciones: [vínculos], individual? }]. Los estudiantes
+// del curso (comun/asistencia.js, la misma regla que el Libro; ausentes de Pasar lista en gris) se arrastran a
+// ＋ Nuevo grupo, a ＋ Individual (grupo de uno con su nombre), a un grupo o de vuelta a Disponibles. Cada grupo tiene
+// su repertorio, su plan (HW) y su bitácora (HV), con las mismas piezas que los grupos de una evaluación.
+const FALTA_GRUPOS = 'No se pudieron guardar los grupos. ¿Falta correr supabase/plan_cards_grupos.sql?';
+function esPropios(c) { return Array.isArray(c?.grupos); }
+var pobGr = { sid: null, lista: [], aus: new Set(), nom: new Map(), listo: false, fallo: false, prom: null };
+function cargarPobGr(forzar) {
+    if (!sesionActual) return Promise.resolve();
+    const sid = sesionActual.id;
+    if (pobGr.sid !== sid) pobGr = { sid, lista: [], aus: new Set(), nom: new Map(), listo: false, fallo: false, prom: null };
+    if (!forzar && pobGr.prom) return pobGr.prom;
+    const ctx = contextos[sesionActual.contexto_id];
+    const p = (async () => {
+        try {
+            const [lista, asis] = await Promise.all([
+                Asistencia.poblacion({ sesionId: sid, ctxNombre: ctx?.nombre || '', anio: anioActivo || String(sesionActual.fecha || '').slice(0, 4), fecha: sesionActual.fecha }),
+                Asistencia.obtener(sid)]);
+            if (pobGr.sid !== sid) return;
+            // Nombres como en el Libro: el de pila (o social); con apellido si se repite o si está marcado
+            const cuenta = {};
+            (lista || []).forEach(e => { const k = normGr(e.nombre); cuenta[k] = (cuenta[k] || 0) + 1; });
+            const nom = new Map((lista || []).map(e => {
+                const n = (e.nombre || '').trim(), ap = (e.apellido || '').trim();
+                return [e.id, ((e.mostrar_apellido || cuenta[normGr(n)] > 1) && ap) ? n + ' ' + ap : (n || ap)];
+            }));
+            Object.assign(pobGr, { lista: lista || [], aus: new Set(asis?.ausentes || []), nom, listo: true, fallo: false });
+        } catch (_) {
+            if (pobGr.sid === sid && !pobGr.listo) pobGr.fallo = true;
+        }
+    })();
+    pobGr.prom = p;
+    return p;
+}
+// Los grupos de la actividad con el mismo formato que los de una evaluación ({ grupos: [{ id, nombre, miembros }] }).
+function datosGr(c) {
+    if (!esPropios(c)) return c?.evaluacion_id ? gruposDatos.get(c.evaluacion_id) : null;
+    if (pobGr.sid !== sesionActual?.id) return null;
+    if (!pobGr.listo) return pobGr.fallo ? { fallo: true, grupos: [] } : null;
+    return { propios: true, grupos: c.grupos.map(g => {
+        const ids = Array.isArray(g.integrantes) ? g.integrantes : [];
+        return { id: g.id, individual: !!g.individual, ids, tipicos: [],
+            nombre: g.individual ? (pobGr.nom.get(ids[0]) || g.nombre || 'Estudiante') : ((g.nombre || '').trim() || 'Grupo'),
+            canciones: Array.isArray(g.canciones) ? g.canciones : [],
+            miembros: g.individual ? [] : ids.map(id => pobGr.nom.get(id)).filter(Boolean).sort((a, b) => a.localeCompare(b, 'es')) };
+    }) };
+}
+const nuevoIdGr = () => 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function grupoConAlgo(c, g) {
+    if (planDeGrupo(c, g.id) || (g.canciones || []).length) return true;
+    const d = datosGr(c), x = d?.grupos?.find(y => y.id === g.id);
+    return !!(x && bitDeGrupo(c, d, x));
+}
+
+function gruposPropiosHTML(c, d) {
+    const quitar = '<button class="pgr-quitar" title="Quitar los grupos de esta actividad">✕</button>';
+    if (!d) return `<div class="pgr-tit">👥 Cargando la lista del curso…</div>`;
+    if (d.fallo) return `<div class="pgr-tit">👥 No se pudo leer la lista del curso — revisa la conexión. ${quitar}</div>`;
+    const n = d.grupos.length;
+    const usados = new Set(c.grupos.flatMap(g => g.integrantes || []));
+    const disp = pobGr.lista.filter(e => !usados.has(e.id));
+    const alu = (id, extra) => `<span class="pgr-alu${pobGr.aus.has(id) ? ' aus' : ''}${extra || ''}" draggable="true" data-est="${id}"
+        title="${pobGr.aus.has(id) ? 'Ausente hoy · ' : ''}Arrástralo a un grupo">${esc(pobGr.nom.get(id) || 'Estudiante')}</span>`;
+    const rep = g => g.canciones.map((x, k) => { const v = vinculo(x);
+        return `<span class="pcard-canc pgr-rep" data-k="${k}" title="${v.ayuda} · ${esc(v.nom)}${v.sub ? ' · ' + esc(v.sub) : ''}"><span class="pcard-canc-t">${v.ico} ${esc(v.corto)}</span><button class="pcard-canc-x" data-k="${k}" title="Quitar">✕</button></span>`; }).join('');
+    return `<div class="pgr-tit"><span>👥 Grupos de trabajo · ${n} ${n === 1 ? 'grupo' : 'grupos'}</span>
+            ${n ? `<button class="pgr-verbit${gruposVerBit ? ' on' : ''}" title="Mostrar u ocultar lo escrito en la bitácora de cada grupo">✍🏼 ${gruposVerBit ? 'Ocultar bitácoras' : 'Ver bitácoras'}</button>` : ''}${quitar}</div>
+        <div class="pgr-disp" data-drop="disp"><span class="pgr-disp-tit">Disponibles (${disp.length})</span>
+            ${disp.map(e => alu(e.id)).join('') || `<span class="pgr-vacio">${pobGr.lista.length ? 'Todos están en un grupo.' : 'El curso no tiene estudiantes este año.'}</span>`}</div>
+        <div class="pgr-nuevos"><div class="pgr-drop" data-drop="nuevo">＋ Nuevo grupo<small>suelta aquí a un estudiante</small></div>
+            <div class="pgr-drop" data-drop="indiv">＋ Individual<small>trabaja solo</small></div></div>`
+        + d.grupos.map(g => {
+            const bit = bitDeGrupo(c, d, g);
+            const mie = g.ids.filter(id => pobGr.nom.has(id)).map(id => alu(id)).join('') || '<span class="pgr-vacio">Sin integrantes</span>';
+            return `<div class="pgr pgr-propio${g.individual ? ' indiv' : ''}" data-g="${g.id}" data-drop="${g.individual ? '' : 'g'}"><div class="pgr-fila">
+                    <button class="pgr-bit${bit ? ' con' : ''}" title="Escribir en la bitácora de ${g.individual ? 'este estudiante' : 'este grupo'}">✍🏼</button>
+                    ${g.individual ? `<span class="pgr-nom" hidden>${esc(g.nombre)}</span>${alu(g.ids[0], ' pgr-alu-nom')}` : `<span class="pgr-nom">${esc(g.nombre)}</span>`}
+                    ${rep(g)}
+                    <button class="pgr-add" title="Agregar repertorio: canción, melodía o ritmo">＋ Repertorio</button>
+                    <button class="pgr-borrar" title="${g.individual ? 'Quitar (vuelve a Disponibles)' : 'Deshacer el grupo (sus integrantes vuelven a Disponibles)'}">🗑</button></div>
+                ${g.individual ? '' : `<div class="pgr-mie pgr-mie-alu">${mie}</div>`}
+                <div class="pgr-plan-ed"></div>
+                ${gruposVerBit && bit ? `<div class="pgr-lee pgr-bitl"><span class="pgr-lee-tit">✍🏼 Bitácora</span>${EditorBloques.html(bit)}</div>` : ''}
+                <div class="pgr-caja" hidden></div></div>`;
+        }).join('');
+}
+async function guardarGruposPropios(c, gs, extra) {
+    const antes = { grupos: c.grupos, grupos_plan: c.grupos_plan };
+    c.grupos = gs; if (extra) Object.assign(c, extra);
+    const ahora = new Date().toISOString();
+    c.ultEnvio = ahora; c.updated_at = ahora; planPropios.anotar(ahora);
+    repintarGruposDe(c);
+    const { error } = await sb.from('plan_cards').update({ grupos: gs, ...(extra || {}), updated_at: ahora }).eq('id', c.id);
+    if (error) { Object.assign(c, antes); planEstado(FALTA_GRUPOS, true); repintarGruposDe(c); return false; }
+    if (!planCards.some(x => x.sucio)) planEstado('Guardado ✓');
+    return true;
+}
+function repintarGruposDe(c) {
+    if (document.activeElement?.closest?.(`.pgr-box[data-card="${c.id}"]`)) document.activeElement.blur();
+    document.querySelectorAll(`.pgr-box[data-card="${c.id}"]`).forEach(b => pintarGrupos(c, b));
+    if (claseAqui() && claseVista !== 'detalle') pintarClaseIzq();
+}
+// Mueve a un estudiante: 'disp' (sale de su grupo) · 'nuevo' · 'indiv' · id de un grupo.
+function moverEst(c, est, dest) {
+    let gs = c.grupos.map(g => ({ ...g, integrantes: [...(g.integrantes || [])] }));
+    const de = gs.find(g => g.integrantes.includes(est));
+    if (!de && dest === 'disp') return;
+    if (de && (de.id === dest || (de.individual && dest === 'indiv'))) return;
+    if (de?.individual && grupoConAlgo(c, de) && !confirm(`${pobGr.nom.get(est) || 'Este estudiante'} tiene repertorio, plan o bitácora como individual.\n¿Moverlo igual? Su plan y su repertorio se pierden (lo escrito en la bitácora de la clase se queda).`)) return;
+    if (de) de.integrantes = de.integrantes.filter(x => x !== est);
+    const fuera = gs.filter(g => g.individual && !g.integrantes.length).map(g => g.id);
+    gs = gs.filter(g => !fuera.includes(g.id));
+    if (dest === 'nuevo') {
+        let k = 1; while (gs.some(g => !g.individual && g.nombre === 'Grupo ' + k)) k++;
+        gs.push({ id: nuevoIdGr(), nombre: 'Grupo ' + k, integrantes: [est], canciones: [] });
+    } else if (dest === 'indiv') {
+        gs.push({ id: nuevoIdGr(), nombre: pobGr.nom.get(est) || 'Estudiante', individual: true, integrantes: [est], canciones: [] });
+    } else if (dest !== 'disp') {
+        const g = gs.find(x => x.id === dest); if (!g || g.individual) return;
+        g.integrantes.push(est);
+    }
+    guardarGruposPropios(c, gs, planSinGrupos(c, fuera));
+}
+// El plan de los grupos que se quitan (para no dejar textos sueltos en grupos_plan).
+function planSinGrupos(c, ids) {
+    const gp = c.grupos_plan && typeof c.grupos_plan === 'object' ? { ...c.grupos_plan } : null;
+    if (!gp || !ids.some(id => id in gp)) return null;
+    ids.forEach(id => delete gp[id]);
+    return { grupos_plan: Object.keys(gp).length ? gp : null };
+}
+function borrarGrupoPropio(c, gid) {
+    const g = c.grupos.find(x => x.id === gid); if (!g) return;
+    const nom = g.individual ? (pobGr.nom.get((g.integrantes || [])[0]) || 'este estudiante') : g.nombre;
+    if (grupoConAlgo(c, g) && !confirm(`¿Quitar ${nom}?\nSe pierden su plan y su repertorio; lo escrito en la bitácora de la clase se queda.`)) return;
+    if (grupoBit?.cardId === c.id && grupoBit.gid === gid) { grupoBit.ed?.destruir(); grupoBit = null; }
+    guardarGruposPropios(c, c.grupos.filter(x => x.id !== gid), planSinGrupos(c, [gid]));
+}
+// El repertorio de un grupo: el mismo selector de la actividad, con su propia lista.
+const destGrupo = (c, gid) => ({
+    lista: () => (c.grupos?.find(g => g.id === gid)?.canciones || []),
+    poner: lista => guardarGruposPropios(c, c.grupos.map(g => g.id === gid ? { ...g, canciones: lista } : g)),
+});
+// Arrastrar estudiantes (en el Plan y en la vista de clase).
+var arrGr = null;   // { cardId, est }
+function zonaGr(e) {
+    const z = e.target.closest?.('.pgr-box [data-drop]');
+    return z && z.dataset.drop && arrGr && z.closest('.pgr-box').dataset.card === arrGr.cardId ? z : null;
+}
+function limpiarArrGr() { document.querySelectorAll('.pgr-box .dragover, .pgr-box .arrastrando').forEach(x => x.classList.remove('dragover', 'arrastrando')); }
+document.addEventListener('dragstart', e => {
+    const ch = e.target.closest?.('.pgr-box [data-est]'); if (!ch) return;
+    arrGr = { cardId: ch.closest('.pgr-box').dataset.card, est: ch.dataset.est };
+    ch.classList.add('arrastrando');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', ch.textContent.trim()); } catch (_) {}
+});
+document.addEventListener('dragover', e => {
+    if (!arrGr) return;
+    const z = zonaGr(e);
+    document.querySelectorAll('.pgr-box .dragover').forEach(x => { if (x !== z) x.classList.remove('dragover'); });
+    if (!z) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    z.classList.add('dragover');
+});
+document.addEventListener('drop', e => {
+    if (!arrGr) return;
+    const z = zonaGr(e);
+    const a = arrGr; arrGr = null; limpiarArrGr();
+    if (!z) return;
+    e.preventDefault();
+    const c = planCards.find(x => x.id === a.cardId);
+    if (c && esPropios(c)) moverEst(c, a.est, z.dataset.drop === 'g' ? z.dataset.g : z.dataset.drop);
+});
+document.addEventListener('dragend', () => { arrGr = null; limpiarArrGr(); });
+// Cambiar entre grupos propios, los de una evaluación o ninguno.
+async function fijarGrupos(c, cambios) {
+    if (grupoBit?.cardId === c.id) await cerrarGrupoBit();
+    const antes = { evaluacion_id: c.evaluacion_id ?? null, grupos: c.grupos ?? null };
+    Object.assign(c, cambios);
+    const ahora = new Date().toISOString();
+    c.ultEnvio = ahora; c.updated_at = ahora; planPropios.anotar(ahora);
+    const { error } = await sb.from('plan_cards').update({ ...cambios, updated_at: ahora }).eq('id', c.id);
+    if (error) { Object.assign(c, antes); planEstado('grupos' in cambios ? FALTA_GRUPOS : FALTA_EVAL, true); }
+    else planEstado('Guardado ✓');
+    if (c.evaluacion_id) cargarGrupos(c.evaluacion_id, true);
+    if (esPropios(c)) cargarPobGr();
+    if (c.evaluacion_id || esPropios(c)) cargarGruposMem();
+    document.activeElement?.blur?.();
+    repintarGrupos();
+    pintarClase();
+}
+Asistencia.onCambio(id => { if (sesionActual && id === sesionActual.id && planCards.some(esPropios)) cargarPobGr(true).then(repintarGrupos); });
+
 function cargarGrupos(evalId, forzar) {
     if (!forzar && gruposProm.has(evalId)) return gruposProm.get(evalId);
     const p = (async () => {
@@ -5930,7 +6150,8 @@ async function migrarBitGrupos() {
 }
 
 function gruposHTML(c) {
-    const d = gruposDatos.get(c.evaluacion_id);
+    const d = datosGr(c);
+    if (esPropios(c)) return gruposPropiosHTML(c, d);
     const quitar = '<button class="pgr-quitar" title="Quitar los grupos de esta actividad">✕</button>';
     if (!d) return `<div class="pgr-tit">👥 Cargando grupos…</div>`;
     if (d.borrada) return `<div class="pgr-tit">👥 La evaluación ya no existe ${quitar}</div>`;
@@ -5996,13 +6217,14 @@ function pintarGrupos(c, box) {
     if (!box) return;
     if (box.dataset.card && box.dataset.card !== c.id) soltarPlanesGrupos(box);
     box.dataset.card = c.id;
-    if (!c.evaluacion_id) { soltarPlanesGrupos(box); box.hidden = true; box.innerHTML = ''; return; }
+    if (!c.evaluacion_id && !esPropios(c)) { soltarPlanesGrupos(box); box.hidden = true; box.innerHTML = ''; return; }
     if (box.isConnected && gruposOcupado(box)) { box._pend = true; return; }   // se está escribiendo aquí: después
     box._pend = false;
     box.hidden = false;
-    const d = gruposDatos.get(c.evaluacion_id);
-    if (!d) cargarGrupos(c.evaluacion_id).then(() => { repintarGrupos(); if (claseAqui()) pintarClaseIzq(); migrarBitGrupos(); });
-    if (d?.grupos?.some(g => g.tipicos.some(x => x.cancion_id)) && !bibCanciones) cargarBib().then(() => repintarGrupos());
+    const d = datosGr(c);
+    if (!d && esPropios(c)) cargarPobGr().then(() => { repintarGrupos(); if (claseAqui()) pintarClaseIzq(); });
+    else if (!d) cargarGrupos(c.evaluacion_id).then(() => { repintarGrupos(); if (claseAqui()) pintarClaseIzq(); migrarBitGrupos(); });
+    if ((d?.grupos?.some(g => g.tipicos.some(x => x.cancion_id)) || (esPropios(c) && c.grupos.some(g => (g.canciones || []).length))) && !bibCanciones) cargarBib().then(() => repintarGrupos());
     soltarPlanesGrupos(box);
     box.innerHTML = gruposHTML(c);
     crearPlanesGrupos(c, box);
@@ -6024,6 +6246,7 @@ document.addEventListener('focusout', () => setTimeout(() => {
 }, 0));
 // Los grupos se arman en el Libro (otra pestaña u otro equipo): se ponen al día al volver al Plan.
 function refrescarGrupos() {
+    if (planCards.some(esPropios)) { cargarPobGr(true).then(() => { repintarGrupos(); if (claseAqui()) pintarClaseIzq(); }); cargarGruposMem(); }
     const ids = [...new Set(planCards.map(c => c.evaluacion_id).filter(Boolean))];
     if (!ids.length) return;
     Promise.all(ids.map(id => cargarGrupos(id, true))).then(() => { repintarGrupos(); if (claseAqui()) pintarClaseIzq(); });
@@ -6048,11 +6271,15 @@ async function elegirEvaluacion(c, boton) {
     const pop = document.createElement('div');
     pop.className = 'pcard-pop pgr-pop';
     const f = s => { const [, m, d] = String(s || '').split('-'); return d ? `${+d}/${+m}` : ''; };
-    pop.innerHTML = `<div class="pgr-pop-tit">👥 Grupos de trabajo de…</div>`
+    const aqui = esPropios(c);
+    pop.innerHTML = `<div class="pgr-pop-tit">👥 Grupos de trabajo</div>
+        <button data-e="__aqui"${aqui ? ' class="on"' : ''}>${aqui ? '✓ ' : ''}✋ Armar los grupos aquí
+            <span class="pgr-pop-sub">arrastrando a los estudiantes del curso</span></button>
+        <div class="pgr-pop-tit">O los de una evaluación del Libro</div>`
         + (ids.length ? data.map(e => `<button data-e="${e.id}"${e.id === c.evaluacion_id ? ' class="on"' : ''}>${e.id === c.evaluacion_id ? '✓ ' : ''}${esc(e.nombre || 'Evaluación')}
               <span class="pgr-pop-sub">${f(e.fecha)} · ${n[e.id] ? n[e.id] + (n[e.id] === 1 ? ' grupo' : ' grupos') : 'sin grupos'}${e.estado === 'cerrado' ? ' · cerrada' : ''}</span></button>`).join('')
             : '<div class="pgr-pop-vacio">Este curso no tiene evaluaciones este año.<br>Créala y arma sus grupos en el Libro (📒).</div>')
-        + (c.evaluacion_id ? '<button data-e="" class="peligro">✕ Quitar los grupos</button>' : '');
+        + (c.evaluacion_id || aqui ? '<button data-e="" class="peligro">✕ Quitar los grupos</button>' : '');
     document.body.appendChild(pop);
     const r = boton.getBoundingClientRect();
     pop.style.top = Math.min(r.bottom + 4, innerHeight - pop.offsetHeight - 8) + 'px';
@@ -6060,7 +6287,14 @@ async function elegirEvaluacion(c, boton) {
     pop.addEventListener('click', e => {
         const b = e.target.closest('button[data-e]'); if (!b) return;
         pop.remove();
-        if ((b.dataset.e || null) !== (c.evaluacion_id || null)) ponerEvaluacion(c, b.dataset.e || null);
+        const v = b.dataset.e || null;
+        if (v === '__aqui') { if (!aqui) fijarGrupos(c, c.evaluacion_id ? { evaluacion_id: null, grupos: [] } : { grupos: [] }); return; }
+        if (aqui) {   // se dejan los grupos armados aquí (IJ)
+            if (c.grupos.length && !confirm(`¿Quitar los ${c.grupos.length} grupos armados en "${tituloAct(c)}"?\nSe pierden sus integrantes, su plan y su repertorio; lo escrito en la bitácora de la clase se queda.`)) return;
+            fijarGrupos(c, v ? { grupos: null, evaluacion_id: v } : { grupos: null });
+            return;
+        }
+        if (v !== (c.evaluacion_id || null)) ponerEvaluacion(c, v);
     });
     setTimeout(() => document.addEventListener('click', function fuera(ev) {
         if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener('click', fuera); }
@@ -6083,7 +6317,7 @@ async function ponerEvaluacion(c, id) {
 
 // ✍🏼 de un grupo (solo para escribir): su parte de la bitácora, en un cuadro bajo el grupo.
 async function abrirGrupoBit(c, gid, box) {
-    const d = gruposDatos.get(c.evaluacion_id);
+    const d = datosGr(c);
     const g = d?.grupos?.find(x => x.id === gid);
     if (!g || !sesionActual) return;
     if (grupoBit) await cerrarGrupoBit();
@@ -6115,7 +6349,7 @@ async function guardarGrupoBit(B) {
     clearTimeout(B.timer); B.timer = null; B.sucio = false;
     const est = B.caja.querySelector('.pgr-est');
     const c = planCards.find(x => x.id === B.cardId);
-    const d = c && gruposDatos.get(c.evaluacion_id);
+    const d = c && datosGr(c);
     const g = d?.grupos?.find(x => x.id === B.gid);
     if (!g) return;
     const cuerpo = B.ed.texto().replace(/\s+$/, '');
@@ -6145,6 +6379,20 @@ window.addEventListener('beforeunload', () => { if (grupoBit?.sucio) guardarGrup
 document.addEventListener('click', e => {
     const box = e.target.closest?.('.pgr-box'); if (!box) return;
     const c = planCards.find(x => x.id === box.dataset.card); if (!c) return;
+    if (esPropios(c)) {   // grupos armados aquí (IJ)
+        const pgr = e.target.closest('.pgr[data-g]'), gid = pgr?.dataset.g;
+        if (e.target.closest('.pgr-quitar')) {
+            e.stopPropagation();
+            if (!c.grupos.length || confirm(`¿Quitar los ${c.grupos.length} grupos armados en "${tituloAct(c)}"?\nSe pierden sus integrantes, su plan y su repertorio; lo escrito en la bitácora de la clase se queda.`)) fijarGrupos(c, { grupos: null });
+            return;
+        }
+        if (gid && e.target.closest('.pgr-add')) { e.stopPropagation(); elegirCancion(c, e.target.closest('.pgr-add'), destGrupo(c, gid)); return; }
+        if (gid && e.target.closest('.pgr-borrar')) { e.stopPropagation(); borrarGrupoPropio(c, gid); return; }
+        const x = e.target.closest('.pgr-rep .pcard-canc-x');
+        if (gid && x) { e.stopPropagation(); const D = destGrupo(c, gid); D.poner(D.lista().filter((_, i) => i !== +x.dataset.k)); return; }
+        const r = e.target.closest('.pgr-rep');
+        if (gid && r) { e.stopPropagation(); const v = destGrupo(c, gid).lista()[+r.dataset.k]; if (v) abrirMini(v.cancion_id, c.id, v.asset_id, v.seccion, v.inst); return; }
+    }
     if (e.target.closest('.pgr-quitar')) {
         e.stopPropagation();
         if (confirm(`¿Quitar los grupos de "${tituloAct(c)}"?\nLos grupos siguen en el Libro y la bitácora no cambia.`)) ponerEvaluacion(c, null);

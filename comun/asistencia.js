@@ -393,5 +393,5 @@
     function iniciar(sb) { if (sb) _sb = sb; subirPendientes(); }
     window.addEventListener('online', () => subirPendientes());
 
-    window.Asistencia = { ICONO, abrir, espejo, obtener, guardar, iniciar, onCambio, subirPendientes };
+    window.Asistencia = { ICONO, abrir, espejo, obtener, guardar, iniciar, onCambio, subirPendientes, poblacion };
 })();

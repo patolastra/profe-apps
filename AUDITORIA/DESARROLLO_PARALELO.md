@@ -10108,3 +10108,35 @@ tienen coma abajo, coma arriba y las que no tienen".*
   los nombres de siempre y la lista. La Pizarra copia las placas, la clase de la página y las zonas (en % del ancho).
 - **Probado:** Tetris: tres zonas y nombres correctos; apagar devuelve «A / La» y la lista; la "foto" para la Pizarra
   trae «placas», «La,» y las 3 zonas, y aplicada las muestra.
+
+### IJ. Plan — armar grupos de trabajo en la actividad (sin evaluación), con repertorio, plan y bitácora por grupo — HECHA, falta probar en clase (2026-11-19)
+*Origen: PO 2026-11-19: "en una actividad de una clase en curso, poder generar grupos de trabajo pero en el planer, que
+funcione igual que en el libro de clases, con el drag drop… que a cada grupo (también individualmente) se pueda añadir
+un repertorio, y la bitácora, la planificación". Más adelante se podría convertir en evaluación (por ahora no). Sigue
+a HV/HW.*
+- **Auditoría:** los grupos del Libro viven en `libro_evaluacion_grupos` y exigen una evaluación; el Plan solo los
+  muestra (HV) con plan (HW, `plan_cards.grupos_plan`) y bitácora por grupo (`### <grupo> · <integrantes>` bajo
+  `## <actividad>` en `memorias.contenido`). La lista del curso la da `comun/asistencia.js` (misma regla que el Libro).
+- **Aprobado (PO 2026-11-19):** ⋯ → 👥 Grupos de trabajo ofrece **✋ Armar los grupos aquí** (nuevo) o usar los de una
+  evaluación (HV, sigue igual). Al armar: los estudiantes del curso (ausentes de Pasar lista en gris) se arrastran a
+  **＋ Nuevo grupo**, a **＋ Individual** (grupo de uno con su nombre) o a un grupo; soltarlos en Disponibles los saca.
+  Cada grupo: **repertorio** (🎵 canciones, melodías, ritmos, como la actividad), **plan** (HW) y **bitácora** (HV).
+  Se arma y se mueve en el Plan y en la vista de clase. "➜ Continuar" copia los grupos (integrantes, repertorio y
+  plan; la bitácora queda en cada clase). Nada más por ahora.
+- **Supabase (lo corre el PO):** `supabase/plan_cards_grupos.sql` (`plan_cards.grupos` JSONB =
+  `[{ id, nombre, integrantes: [estudiante_id], canciones: [vínculos], individual? }]`).
+- **Lugares de uso:** Plan (columna Plan y vista de clase). El Libro no cambia.
+- **Hecho:** ⋯ → 👥 Grupos de trabajo: ✋ Armar los grupos aquí (arriba) o una evaluación del Libro. Disponibles con los
+  estudiantes del curso (`Asistencia.poblacion`, ahora pública; nombres como en el Libro, con apellido si se repite;
+  ausentes tachados), ＋ Nuevo grupo ("Grupo N" automático), ＋ Individual (su nombre, arrastrable), soltar en
+  Disponibles lo saca. Al pasar el mouse por un grupo: ＋ Repertorio (el selector de la actividad; la canción se suma al
+  curso si no estaba) y 🗑. Plan (HW) y bitácora (HV: `### Grupo N · integrantes` o `### Nombre`) con las mismas
+  piezas. Pide confirmar solo si se pierde un plan, repertorio o bitácora; el individual que queda vacío se quita.
+  Cambiar a una evaluación o ✕ Quitar borra los grupos armados (con aviso). Vista de clase: "👥 N grupos" y el mismo
+  cuadro en grande. Continuar copia `grupos`. Los ausentes se ponen al día al pasar lista y al volver al Plan.
+- **Probado** (6° 17/11, en una actividad de prueba que después se borró junto con su bitácora): armar, mover entre
+  grupos, individual, sacar a Disponibles, guardado en Supabase; repertorio del grupo (no toca la actividad); plan
+  "O:" del grupo; bitácora `## PRUEBA GRUPOS / ### Grupo 1 · Aaron`; el cuadro grande se pone al día con el del Plan;
+  🗑 con y sin aviso; ✕ Quitar deja `grupos` y `grupos_plan` vacíos.
+- **Falta probar (PO):** en clase real con el arrastre a mano (la prueba simuló el arrastre) y ➜ Continuar.
+
