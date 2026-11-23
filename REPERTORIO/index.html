@@ -6349,6 +6349,15 @@ window.addEventListener('message', async e => {
         }
         const { error: e2 } = await sb.from('repertorio_assets').update(cambio).eq('id', f.id);
         if (e2) throw e2;
+        // IN: el archivo público de la melodía (lo lee la versión del estudiante) lleva la misma llegada e iguales
+        if (f.tipo === 'melodia') try {
+            const ruta = `melodia/${f.id}.json`;
+            const pub = await fetch(storageUrl(ruta) + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null);
+            if (pub) {
+                if (Object.keys(ll).length) pub[clave] = ll; else delete pub[clave];
+                await sb.storage.from(BUCKET).upload(ruta, new Blob([JSON.stringify(pub)], { type: 'application/json' }), { upsert: true, contentType: 'application/json' });
+            }
+        } catch (_) {}
         canciones.forEach(c => (c.assets || []).forEach(x => { if (x.id === f.id) Object.assign(x, cambio); }));
         (entrenadorSong?.assets || []).forEach(x => { if (x.id === f.id) Object.assign(x, cambio); });
         toast(clave === 'iguales' ? (m.igual ? 'Parte marcada como igual a otra' : 'La parte ya no es igual a otra')

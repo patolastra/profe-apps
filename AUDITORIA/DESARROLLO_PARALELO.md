@@ -10214,3 +10214,18 @@ a HV/HW.*
   la Pizarra queda igual a propósito; las versiones de estudiantes siguen deteniéndose al salir (ET).
 - **Falta probar (PO):** en el PC, con una canción con Karaoke sonando, minimizar el navegador o poner otro programa
   encima: debe seguir sonando.
+
+### IN. Partes de la melodía en la versión del estudiante — HECHA, falta probar en un celular (2026-11-23)
+- **Necesidad:** que el estudiante practique en su celular una parte de la melodía en bucle, como en clase.
+- **Auditoría:** las 🧩 partes (IL) solo las usa el Metalófono del profe (`?asset=&partes=1`); el estudiante (`m/?a=<id>`)
+  ve la melodía completa. 🔚 Llegada e ＝ Igual viven en `contenido` de la melodía y llegan al profe por la dirección;
+  el archivo público `melodia/<id>.json` no los tenía.
+- **Aprobado (PO):** sí, hacerlo.
+- **Hecho:** Metalófono, modo alumno con `?a=` de una melodía del Editor: lee `melodia/<id>.json` y muestra el menú
+  🎵 Canción completa · 🔁 cada parte (con "= otra" si es igual); la parte elegida se repite con precuenta a la misma
+  velocidad (también 🎯 Práctica sobre esa parte), con la nota de llegada según la melodía. Sin menú "hasta", sin
+  🔚 ni ＝ (son del profe). Editor de Melodías: el archivo público lleva `llegada` e `iguales`. Biblioteca: al cambiarlos
+  desde el Metalófono también se reescribe el archivo público. Links de MIDI subidos y de arreglos: sin cambios.
+- **Lugares de uso:** Metalófono del estudiante (`m/?a=`); Editor de Melodías (archivo público); Biblioteca (llegada e
+  iguales). El Metalófono del profe queda igual.
+- **Falta probar (PO):** abrir el link de una melodía con partes en un celular, elegir una parte y tocarla.

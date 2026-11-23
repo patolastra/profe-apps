@@ -359,7 +359,15 @@
         html.modo-alumno #btn-precuenta,
         html.modo-alumno #repetir-wrap,
         html.modo-alumno #fullscreen-group,
-        html.modo-alumno #speed-slider { display: none !important; }
+        html.modo-alumno #speed-slider,
+        html.modo-alumno #sel-hasta,
+        html.modo-alumno #btn-llegada,
+        html.modo-alumno #sel-igual { display: none !important; }
+        /* 🧩 Partes de la melodía para el estudiante (deuda IN): del tamaño de los botones de su barra */
+        html.modo-alumno #sel-seccion {
+            width: calc(150 * var(--u)); font-size: calc(15 * var(--u)); padding: calc(7 * var(--u)) calc(28 * var(--u)) calc(7 * var(--u)) calc(12 * var(--u));
+            border-radius: calc(8 * var(--u)); background-position: right calc(10 * var(--u)) center;
+        }
         html.modo-alumno {
             color-scheme: only light;
             --u: min(calc(100dvh / 390), calc(100vw / 844));
@@ -936,7 +944,7 @@
                 });
             });
             const fin = inicio + (window.MEL_ARREGLO?.largo || tramoSec?.largo || currentMidi.durationTicks);   // HT / IA: el tramo entero
-            if (!((repetirOn || tramoSec) && (!MODO_ALUMNO || window.MEL_ARREGLO))) {
+            if (!((repetirOn || tramoSec) && (!MODO_ALUMNO || window.MEL_ARREGLO || tramoSec))) {   // IN: el estudiante repite su parte
                 const seq = playSeq;   // fin de la melodía con temporizador (no depende del dibujo)
                 Tone.Transport.scheduleOnce((time) => alTiempo(time, () => { if (seq === playSeq && isPlaying) stopAudio(); }), fin + "i");
                 return;
@@ -1455,11 +1463,19 @@
         var midiCompleto = null, tramoSec = null, seccionesFicha = [];
         const selSeccion = document.getElementById('sel-seccion'), selHasta = document.getElementById('sel-hasta');   // ID: varias seguidas
         async function seccionesCancion() {
-            const qp = new URLSearchParams(location.search), aid = qp.get('asset');
-            if (MODO_ALUMNO || !aid || !qp.has('partes') || !midiCompleto) return;
+            // Estudiante (deuda IN): link de una melodía del Editor (?a=<id>); las partes, su llegada y sus iguales vienen
+            // del mismo archivo público (los links de MIDI subidos no lo tienen: sin partes, como antes)
+            const qp = new URLSearchParams(location.search);
+            const alumno = MODO_ALUMNO && !window.METAL_ARREGLO && !window.MEL_ARREGLO;
+            const aid = alumno ? qp.get('a') : qp.get('asset');
+            if ((MODO_ALUMNO && !alumno) || !aid || (!alumno && !qp.has('partes')) || !midiCompleto) return;
             try {
                 const base = window.METAL_ALUMNO_STORAGE.replace(/midi\/$/, '');
                 const f = await fetch(`${base}melodia/${encodeURIComponent(aid)}.json?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null);
+                if (alumno) {
+                    Object.entries(f?.llegada || {}).forEach(([k, v]) => { if (v === false) sinLlegada.add(k); });
+                    Object.entries(f?.iguales || {}).forEach(([k, v]) => iguales.set(k, String(v)));
+                }
                 const L = (f?.secciones || []).filter(x => Number.isFinite(x.compas) && x.compas >= 1).sort((a, b) => a.compas - b.compas);
                 seccionesFicha = L.map((x, i) => ({ id: String(x.id || x.nombre || i), nombre: String(x.nombre || 'Sección'), desde: x.compas, hasta: L[i + 1]?.compas ?? null }));
             } catch (_) { seccionesFicha = []; }
