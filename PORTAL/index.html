@@ -5217,7 +5217,7 @@ let bibCargando = null;
 // forzar: vuelve a leer la Biblioteca (al abrir el selector); mientras tanto se siguen viendo los datos que había.
 function cargarBib(forzar) {
     if (bibCanciones && !forzar) return Promise.resolve(bibCanciones);
-    if (forzar) arrPartesCache.clear();   // IQ: las partes de los arreglos se vuelven a leer
+    if (forzar) arrPartesViejas.clear(), arrPartesCache.forEach((_, k) => arrPartesViejas.add(k));   // IQ: se releen sin borrar lo que se ve (sin parpadeo)
     if (!bibCargando) bibCargando = Promise.all([
         sb.from('repertorio_canciones').select('id, nombre, artista'),
         sb.from('repertorio_assets').select('id, cancion_id, tipo, etiqueta, dificultad, instrumento, tonalidad, clase, simplificado, orden, storage_path, nombre_archivo, tab_sync')
@@ -5585,9 +5585,14 @@ async function abrirMini(cancionId, actId, assetId, seccion, inst, adapt) {
 // el 🎭 ensayo. Se arma con el contenido del arreglo (versión y ritmos) y su archivo público (pasajes, piano).
 const ARR_PUB = 'https://bfinpxcwcsteintikrtt.supabase.co/storage/v1/object/public/repertorio-assets/';
 var arrPartesCache = new Map();   // assetId → null (cargando) | { adapt, ritmos, cajon, metal, piano }
+// Se relee en segundo plano (al volver a la página): lo que se ve sigue igual hasta que llegue lo nuevo, y solo se
+// repinta si cambió (antes se borraba y la card del arreglo parpadeaba)
+var arrPartesViejas = new Set(), arrPartesLeyendo = new Set();
 function arrPartes(assetId, cancionId) {
-    if (arrPartesCache.has(assetId)) return arrPartesCache.get(assetId);
-    arrPartesCache.set(assetId, null);
+    const hay = arrPartesCache.get(assetId);
+    if (hay && !arrPartesViejas.has(assetId)) return hay;
+    if (arrPartesLeyendo.has(assetId)) return hay || null;
+    arrPartesLeyendo.add(assetId); arrPartesViejas.delete(assetId);
     const json = u => fetch(ARR_PUB + u + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
     Promise.all([
         sb.from('repertorio_assets').select('contenido').eq('id', assetId).maybeSingle(),
@@ -5598,16 +5603,20 @@ function arrPartes(assetId, cancionId) {
         try { c = JSON.parse(ra.data?.contenido || '{}'); } catch (_) {}
         const aid = c.audio?.adaptacion;
         const ad = aid ? (tempo?.adaptaciones || []).find(x => x.id === aid) : null;
-        arrPartesCache.set(assetId, {
+        const nuevo = {
             adapt: ad ? { id: ad.id, nombre: ad.nombre } : null,
             ritmos: Object.entries(c.cajon?.ritmos || {}).map(([id, r]) => ({ id, nombre: r?.nombre || 'Ritmo' })),
             cajon: pub?.cajon ? (pub.cajon.practicar || []).map(x => x.nombre) : null,
             metal: pub?.metalofono ? (pub.metalofono.practicar || []).map(x => x.nombre) : null,
             piano: !!(pub && ((pub.notas || []).length || (pub.acordes || []).length)),
-        });
+        };
+        arrPartesLeyendo.delete(assetId);
+        if (ra.error && hay) return;   // sin conexión: se queda lo que había
+        if (hay && JSON.stringify(hay) === JSON.stringify(nuevo)) return;
+        arrPartesCache.set(assetId, nuevo);
         bibRepintar();
-    });
-    return null;
+    }, () => arrPartesLeyendo.delete(assetId));
+    return hay || null;
 }
 function arrPartesHTML(x, actId, grande) {
     if (!x.asset_id || bibRecursos?.get(x.asset_id)?.tipo !== 'arreglo') return '';

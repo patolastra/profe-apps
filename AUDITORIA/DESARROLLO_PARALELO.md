@@ -10362,3 +10362,5 @@ a HV/HW.*
 - **Arreglos (PO, mismo día):** chips parejos (un nombre largo se corta con "…" y la ▾ siempre se ve); el arreglo sale
   siempre como card doble (sin el parpadeo de una card simple mientras se leen sus partes) y con su alto desde el primer
   dibujo; la actividad escogida ya no salta a Inicio si la Pizarra deja de dar señales un momento.
+- **Parpadeo en el Plan y la Presentación (PO):** al volver a la página del Plan, las partes de los arreglos se borraban
+  y se volvían a leer (los chips desaparecían un instante). Ahora se releen en segundo plano y solo se repinta si cambió.
