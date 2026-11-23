@@ -704,6 +704,10 @@
         .cl-arr-tit { min-height: 0; overflow: hidden; color: #4c1d95; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 12px; text-align: center; }
         .cl-arr .arr-partes.grande { grid-column: auto; margin: 0; border: none; border-left: 1px solid #c4b5fd; border-radius: 0; background: #f5f3ff; display: grid; grid-template-columns: 1fr 1fr; align-content: center; gap: 6px; padding: 8px 10px; min-height: 0; overflow: hidden; }
         .cl-arr .arr-partes.grande .arr-parte, .cl-arr .arr-partes.grande .arr-flecha { font-size: 0.82rem; padding: 3px 8px; }
+        /* Todos los chips iguales: el nombre se corta con "…" antes que la ▾ (IT) */
+        .cl-arr .arr-chip { min-width: 0; }
+        .cl-arr .arr-chip .arr-parte { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cl-arr .arr-flecha { flex: 0 0 auto; }
         .cl-arr .arr-partes.grande .arr-chip { justify-content: space-between; }
         .cl-arr .arr-partes.grande .arr-chip .arr-parte { flex: 1; text-align: left; }
         /* ⏱ Tiempo libre (deuda BZ) */
@@ -3074,7 +3078,8 @@ function marcarEnPizarra() {
     });
     if (idx === -1 && p && p.act && p.sesionId === sesionActual?.id && Proyeccion.pizarraViva()) act = p.act;   // Pizarra en blanco de esa actividad
     // Escogida en la vista de clase: manda mientras la Pizarra siga en la misma diapositiva (deuda BW).
-    if (actManual) { if (idx === actManual.idx) act = actManual.id; else actManual = null; }
+    // (IT) Si la Pizarra deja de dar señales un momento (idx -1), la escogida se mantiene: no salta a otra actividad
+    if (actManual) { if (idx === actManual.idx || idx === -1) act = actManual.id; else actManual = null; }
     // En clase, con la letra de una canción de una actividad en la Pizarra, la actividad en curso es esa.
     const st = ClaseVivo.get();
     if (miniAct && !document.getElementById('prev-mini')?.hidden && st && sesionActual && st.sesionId === sesionActual.id) act = miniAct;
@@ -5846,8 +5851,11 @@ function pintarClaseDer() {
     let cols = 3;
     try { cols = localStorage.getItem('profe_clase_cols') === '4' ? 4 : 3; } catch (_) {}
     // Las canciones van como diapositivas moradas (repertorio), antes de las diapositivas de la actividad.
-    const cancHTML = cs.map(x => { const v = vinculo(x);
-        const partes = arrPartesHTML(x, card?.id, true);
+    // Sin la Biblioteca cargada aún no se sabe qué es cada vínculo: no se dibujan (evita un parpadeo de card simple)
+    const cancHTML = !bibCanciones ? '' : cs.map(x => { const v = vinculo(x);
+        const esArr = !!x.asset_id && bibRecursos?.get(x.asset_id)?.tipo === 'arreglo';
+        // Un arreglo es siempre la card doble; mientras se leen sus partes, el lado de los chips queda vacío
+        const partes = esArr ? (arrPartesHTML(x, card?.id, true) || '<div class="arr-partes grande"></div>') : '';
         const boton = `<button class="cl-canc" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" data-inst="${x.inst || ''}" title="${v.ayuda}"><span class="cl-canc-ico">${v.ico}</span>
             <span class="cl-canc-nom">${esc(v.nom)}</span>${v.sub ? `<span class="cl-canc-art">${esc(v.sub)}</span>` : ''}</button>`;
         // Arreglo (IT, PO): una sola card de dos espacios; en clase el título no abre el Editor, solo los chips abren partes
@@ -5870,6 +5878,7 @@ function pintarClaseDer() {
         grid.appendChild(el);
     });
     grid.insertAdjacentHTML('beforeend', '<button class="cl-nueva">＋ Diapositiva</button>');
+    altoArreglos();   // al tiro, sin esperar al cuadro siguiente (no se ve la card con otro alto)
     requestAnimationFrame(() => { grid.querySelectorAll('.cl-slide').forEach(autoFitSlide); altoArreglos(); });
 }
 

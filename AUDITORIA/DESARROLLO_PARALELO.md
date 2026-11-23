@@ -10359,3 +10359,6 @@ a HV/HW.*
 - **Ajuste (PO, mismo día):** el arreglo es **una sola card** de dos espacios (nombre y ✂ versión a la izquierda, chips a la
   derecha en dos columnas, un solo marco y el mismo alto que una diapositiva) y en clase **su título no abre el Editor**:
   solo los chips abren partes de la canción.
+- **Arreglos (PO, mismo día):** chips parejos (un nombre largo se corta con "…" y la ▾ siempre se ve); el arreglo sale
+  siempre como card doble (sin el parpadeo de una card simple mientras se leen sus partes) y con su alto desde el primer
+  dibujo; la actividad escogida ya no salta a Inicio si la Pizarra deja de dar señales un momento.
