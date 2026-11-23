@@ -1302,6 +1302,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (_) {}
 })();
 
+// Cajón, Metalófono o Piano de un arreglo en la Pizarra (deuda IS): abiertos en el panel del Plan con la clase en curso,
+// avisan qué muestran y en qué segundo van (canal 'profe-espejo-arreglo', comun/espejo-arreglo.js); esta ventana pone
+// encima una copia que los sigue sin sonar (Cajón y Metalófono en modo seguir, con los datos del archivo público del
+// arreglo; Piano con ?espejo=1). Al cerrar el panel ('off') se quita y la Pizarra queda donde estaba.
+(function () {
+    if (!('BroadcastChannel' in window)) return;
+    const canal = new BroadcastChannel('profe-espejo-arreglo');
+    const miSesion = new URLSearchParams(location.search).get('sesion');
+    const PUB = 'https://bfinpxcwcsteintikrtt.supabase.co/storage/v1/object/public/repertorio-assets/';
+    let capa = null, actual = null, datos = null;
+    function quitar() { if (capa) { capa.remove(); capa = null; } actual = null; datos = null; }
+    function mostrar(m) {
+        if (actual && actual.inst === m.inst && actual.r === m.r && capa) return;
+        quitar();
+        actual = m;
+        const src = m.inst === 'cajon' ? '../CAJON-PERUANO/index.html?vista=arreglo&seguir=1'
+            : m.inst === 'metal' ? encodeURI('../METALÓFONO APP/METAL21 (ALPHA).HTML') + '?modo=alumno&vista=arreglo&seguir=1'
+            : '../PIANO/index.html?' + new URLSearchParams({ r: m.r, n: m.n || '', espejo: '1', prof: '1' });
+        capa = document.createElement('iframe');
+        capa.id = 'espejo-arreglo';
+        capa.src = src + (src.includes('?') ? '&' : '?') + 'v=' + Date.now();
+        capa.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;z-index:8600;background:#0f172a';
+        document.body.appendChild(capa);
+        try { Recurrentes.alProyectar(); } catch (_) {}
+        if (m.inst !== 'piano') fetch(PUB + 'arreglo/' + encodeURIComponent(m.r) + '.json?t=' + Date.now(), { cache: 'no-store' })
+            .then(r => r.ok ? r.json() : null).then(d => { if (actual === m) { datos = d; enviarDatos(); } }).catch(() => {});
+    }
+    function enviarDatos() {
+        if (!capa || !datos) return;
+        const w = capa.contentWindow;
+        if (actual.inst === 'cajon' && datos.cajon) w.postMessage({ tipo: 'arreglo-cajon', datos: datos.cajon }, '*');
+        if (actual.inst === 'metal' && datos.metalofono) w.postMessage({ tipo: 'arreglo-metalofono', datos: datos.metalofono }, '*');
+    }
+    // La copia avisa que está lista (como en el Ensayo): ahí recibe los datos
+    window.addEventListener('message', e => {
+        if (!capa || e.source !== capa.contentWindow) return;
+        if (e.data?.tipo === 'cajon-listo' || e.data?.tipo === 'metal-listo') enviarDatos();
+    });
+    canal.onmessage = ev => {
+        const m = ev.data || {};
+        if (m.sesionId !== miSesion) return;
+        if (m.tipo === 'on' && m.r && ['cajon', 'metal', 'piano'].includes(m.inst)) mostrar(m);
+        else if (m.tipo === 'seg' && capa) { try { capa.contentWindow.postMessage({ tipo: 'ensayo-seg', seg: m.seg, tocando: m.tocando }, '*'); } catch (_) {} }
+        else if (m.tipo === 'off') quitar();
+    };
+    canal.postMessage({ tipo: 'quien', sesionId: miSesion });   // Pizarra recién abierta con algo ya en el panel
+})();
+
 // 🔴 Puntero (deuda CT): el mouse del profe sobre esta diapositiva en su Vista previa se ve aquí como un punto rojo.
 // Con el Entrenador encima, el punto lo dibuja su copia (sobre la letra).
 Puntero.receptor(m => {

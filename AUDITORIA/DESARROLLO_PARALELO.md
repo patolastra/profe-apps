@@ -10322,3 +10322,25 @@ a HV/HW.*
 - **Lugares de uso:** Cajón y Metalófono del arreglo. El Metalófono de siempre (🔁 partes de la melodía, 🔁 +5) tiene su
   propio motor y sigue con precuenta en cada vuelta: pendiente si el PO lo quiere también ahí.
 - **Falta probar (PO):** en el celular, un pasaje corto del cajón con "Solo al inicio".
+
+
+### IS. Cajón, Metalófono y Piano de un arreglo, en la Pizarra durante la clase — HECHA (2026-11-23)
+- **Necesidad:** en clase, lo del arreglo que se abre desde el Plan (IQ) debe verse proyectado; hoy solo la letra llega a
+  la Pizarra (el cajón, el metalófono y el piano quedan en el panel del profe).
+- **Auditoría:** la Pizarra ya pone encima copias que siguen al panel (Entrenador, canal `profe-espejo-entrenador`;
+  Lector, `profe-espejo-lector`). El Cajón y el Metalófono ya saben seguir un reloj ajeno sin sonar (`?vista=arreglo&
+  seguir=1`, mensajes `ensayo-seg` y datos `arreglo-cajon` / `arreglo-metalofono`, deuda HO); el Piano no.
+- **Aprobado (PO):** sí. También quitar las 3 pastillas "Recurso no encontrado" (hecho: 6 actividades "Montaje: Anacleto"
+  de clases anteriores apuntaban a 3 recursos que ya no existen).
+- **Plan:** pieza `comun/espejo-arreglo.js` (`EspejoArreglo.emitir`): con `&pizarra=1&sesion=` (lo pone el Plan con la
+  clase de esa sesión en curso), el Cajón, el Metalófono y el Piano del arreglo avisan "on" (instrumento + arreglo), su
+  segundo de la grabación y si suena (canal `profe-espejo-arreglo`), y "off" al cerrarse. La Pizarra pone encima la copia
+  (Cajón y Metalófono en modo seguir, con los datos del archivo público; Piano con `&espejo=1`, nuevo: sin barra, sigue
+  el segundo que llega) y la quita con "off". Sin cambios en Supabase.
+- **Hecho:** como en el plan. Además, `&prof=1` (lo pone el Plan y la Pizarra): el profe abre el arreglo aunque su
+  "📅 Disponible hasta" para estudiantes ya venció (Cajón, Metalófono y Piano). Probado con dos pestañas y una sesión de
+  prueba (sin comenzar clase): Cajón (figura y cinta siguen el pasaje), Metalófono (placas), Piano (teclado sin barra,
+  mismo pulso que el panel); al cerrar el panel la copia se quita.
+- **Lugares de uso:** chips del arreglo en la actividad, la Presentación y la vista de clase del Plan. La 🎤 Letra ya iba a
+  la Pizarra (Entrenador mínimo). El Ensayo y la vista previa del Editor no cambian.
+- **Falta probar (PO):** en clase real con el proyector: abrir 🪘 Cajón y un pasaje, 🎹 Metalófono, ✕.

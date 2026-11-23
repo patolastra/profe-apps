@@ -61,6 +61,7 @@
             if (q.get('vista') === 'arreglo') document.documentElement.classList.add('vista-arreglo');
             if (q.get('vista') === 'arreglo' && q.get('seguir') === '1') document.documentElement.classList.add('seguir');   // 🎭 Ensayo (HO)
             document.write('<script src="../comun/grabacion-tono.js?v=ir"><\/script>');
+            if (q.get('pizarra') === '1') document.write('<script src="../comun/espejo-arreglo.js?v=is"><\/script>');   // IS: copia en la Pizarra
         })();
     </script>
     <!-- Versión fija (rendimiento): antes "tone" / "@tonejs/midi" sin versión obligaban a una
@@ -1406,7 +1407,7 @@
                 const d = await fetch(`${STORAGE}arreglo/${encodeURIComponent(r)}.json?t=${Date.now()}`, { cache: 'no-store' }).then(x => { if (!x.ok) throw new Error(); return x.json(); });
                 const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
                 const M = d.metalofono, P = M && (M.practicar || [])[i];
-                if (!P || (d.hasta && hoy > d.hasta)) throw new Error();
+                if (!P || (d.hasta && hoy > d.hasta && q.get('prof') !== '1')) throw new Error();
                 const saltos = M.audio?.saltos || [], omit = x => saltos.some(t => x >= t.desde - 0.05 && x < t.hasta - 0.05);
                 const comps = M.compases || [], nc = M.negrasCompas || 4, vivos = [], antes = [];
                 comps.forEach((x, k) => { antes[k] = vivos.length; if (!omit(x)) vivos.push(k); });
@@ -2015,8 +2016,9 @@
                 .then(r => { if (!r.ok) throw new Error(); return r.json(); })
                 .then(d => {
                     const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-                    if (!d.metalofono || (d.hasta && hoy > d.hasta)) throw new Error();
+                    if (!d.metalofono || (d.hasta && hoy > d.hasta && q.get('prof') !== '1')) throw new Error();
                     ponerDatos(d.metalofono);
+                    window.EspejoArreglo?.emitir({ inst: 'metal', r: q.get('r'), n: q.get('n'), seg: () => tocando && grab ? (grab.oido() ?? pos) : pos, tocando: () => tocando });   // IS
                     const pv = q.get('p'), Pv = pv !== null && (D.practicar || [])[+pv];   // al volver de 🎯 Sin la canción (HT)
                     if (Pv) { loop = Pv; pos = Pv.desde; pintarSel(); }
                     document.title = (document.getElementById('alumno-titulo').title || 'Arreglo') + ' · Metalófono';

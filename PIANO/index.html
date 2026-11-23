@@ -19,7 +19,10 @@
 <script src="../comun/un-sonido.js"></script>
 <script src="../comun/grabacion-tono.js?v=ir"></script>
 <script src="../comun/tempo-mapa.js?v=hh"></script>
+<script src="../comun/espejo-arreglo.js?v=is"></script>
 <style>
+    /* Copia en la Pizarra (IS): sin barra ni botones; sigue el segundo de la grabación que manda la Pizarra */
+    body.espejo #barra, body.espejo #b-dedos { display: none !important; }
     :root { --bg: #0b1020; --panel: #151c2f; --borde: #2a3550; --texto: #e2e8f0; --tenue: #94a3b8; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto); overflow: hidden;
@@ -241,7 +244,19 @@ function detener() {
 const EDITOR = Q.get('vista') === 'editor';
 let vistaP = null, omitirOn = false, trazoOm = null, geo = null;
 let saltoP = null, saltoT = null;   // rueda mientras suena (FS): adónde se va a saltar (se ve al tiro, suena al soltar)
+// Copia en la Pizarra (IS): el segundo de la grabación lo manda la Pizarra (mensajes 'ensayo-seg'), sin sonar
+const ESPEJO = Q.get('espejo') === '1';
+let espSeg = null, espT0 = 0, espToca = false;
+const espAhora = () => espSeg === null ? null : espToca ? espSeg + (performance.now() - espT0) / 1000 : espSeg;
+if (ESPEJO) {
+    document.body.classList.add('espejo');
+    window.addEventListener('message', e => {
+        if (e.source !== window.parent || e.data?.tipo !== 'ensayo-seg' || typeof e.data.seg !== 'number') return;
+        espSeg = e.data.seg; espT0 = performance.now(); espToca = !!e.data.tocando;
+    });
+}
 function ahora() {
+    if (ARR && ESPEJO) { const s = espAhora(); return { pulso: s === null ? inicioSeccion() - 0.01 : pulsoDeSrc(s), vuelta: null }; }
     if (ARR) return { pulso: rep ? (saltoP ?? pulsoArr()) : (vistaP ?? inicioSeccion() - 0.01), vuelta: null };
     if (!vueltas.length) return { pulso: -1, vuelta: null };
     const t = audio().currentTime;
@@ -748,7 +763,7 @@ async function iniciar() {
     }
     // Fecha límite (hasta = último día disponible, inclusive)
     const d = new Date(), hoy = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    if (datos.hasta && hoy > datos.hasta) {
+    if (datos.hasta && hoy > datos.hasta && Q.get('prof') !== '1') {   // IS: el profe (Plan, Pizarra) lo abre igual
         const [aa, mm, dd] = datos.hasta.split('-');
         aviso.textContent = `${idArr ? 'Este arreglo' : 'Esta melodía'} estuvo disponible hasta el ${+dd}/${+mm}/${aa}.`;
         return;
@@ -782,6 +797,8 @@ function aplicarDatos(datos) {
     pintarBarra();
     pintarMano();
     if (ARR) { llenarSecciones(); pintarArr(); prepararMapa(); }
+    if (ARR && primera && !EDITOR && !ESPEJO && Q.get('r'))   // IS: abierto desde el Plan en clase, copia en la Pizarra
+        window.EspejoArreglo?.emitir({ inst: 'piano', r: Q.get('r'), n: Q.get('n'), seg: () => srcDePulso(ahora().pulso), tocando: () => !!rep });
 }
 // Sin melodía en la dirección (abierto por el profe desde el menú + del Workspace): lista de melodías.
 // Solo aquí se usa la base de datos; el enlace del estudiante (?a=) nunca la toca.
