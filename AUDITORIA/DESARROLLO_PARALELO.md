@@ -10296,6 +10296,10 @@ a HV/HW.*
   metalófono en "No fui feliz".
 - **Lugares de uso:** actividad del Plan, Presentación, vista de clase (no probada en clase en curso para no tocar la
   clase real). La Biblioteca sigue igual.
+- **Ajuste (PO, mismo día):** las filas quedaban desordenadas. Ahora la pastilla del arreglo se nombra por su versión
+  ("El Dinosaurio Anacleto · ✂ Cuarto básico 2026": el arreglo entero es de esa adaptación) y debajo va **un chip por
+  instrumento** (🎤 Letra · 🪘 Cajón · 🎹 Metalófono · 🎶 Piano · 🎭 Ensayo): clic = la canción completa en esa versión;
+  **▾** (si hay más de una opción) = menú con los 🔁 pasajes, y en el Cajón también sus ritmos. Probado en el Plan del 16/11.
 - **Falta probar (PO):** en clase, abrir desde la vista de clase la letra, un pasaje del cajón y una parte del metalófono.
 
 

@@ -923,14 +923,19 @@
         .pcard-cancs { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px 0 4px 14px; }
         .pcard-cancs[hidden] { display: none; }
         /* Partes de un arreglo vinculado (IQ) */
-        .arr-partes { flex-basis: 100%; display: flex; flex-direction: column; gap: 3px; padding: 2px 0 4px 10px; border-left: 2px solid #ddd6fe; margin-left: 6px; }
-        .arr-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
-        .arr-fila-t { font-size: 0.68rem; font-weight: 700; color: #6d28d9; min-width: 88px; }
-        .arr-parte { border: 1px solid #ddd6fe; background: #faf5ff; color: #5b21b6; border-radius: 999px; padding: 0 7px; font-size: 0.68rem; font-weight: 600; cursor: pointer; white-space: nowrap; line-height: 1.6; }
-        .arr-parte:hover { background: #ede9fe; }
-        .arr-partes.grande { grid-column: 1 / -1; margin: 0; padding: 6px 10px; background: #faf5ff; border: 2px solid #ddd6fe; border-radius: 8px; gap: 6px; }
-        .arr-partes.grande .arr-fila-t { font-size: 0.85rem; min-width: 120px; }
-        .arr-partes.grande .arr-parte { font-size: 0.85rem; padding: 2px 10px; }
+        .arr-partes { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 1px 0 4px 10px; border-left: 2px solid #ddd6fe; margin-left: 6px; }
+        .arr-chip { display: inline-flex; align-items: stretch; border: 1px solid #ddd6fe; background: #faf5ff; border-radius: 999px; overflow: hidden; }
+        .arr-chip .arr-parte, .arr-flecha { border: none; background: none; color: #5b21b6; font-size: 0.7rem; font-weight: 600; cursor: pointer; white-space: nowrap; line-height: 1.6; padding: 0 8px; }
+        .arr-flecha { padding: 0 6px; border-left: 1px solid #ddd6fe; }
+        .arr-chip .arr-parte:hover, .arr-flecha:hover { background: #ede9fe; }
+        .arr-menu-abierto { position: fixed; z-index: 3000; display: flex; flex-direction: column; min-width: 150px; max-height: 60vh; overflow-y: auto; background: #fff; border: 1px solid #ddd6fe; border-radius: 8px; box-shadow: 0 6px 20px rgba(76,29,149,.18); padding: 4px; }
+        .arr-menu-abierto .arr-op { border: none; background: none; text-align: left; color: #4c1d95; font-size: 0.78rem; font-weight: 600; padding: 4px 8px; border-radius: 5px; cursor: pointer; white-space: nowrap; }
+        .arr-menu-abierto .arr-op:hover { background: #ede9fe; }
+        .arr-op-tit { font-size: 0.64rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; padding: 6px 8px 2px; }
+        .arr-menu-abierto.grande .arr-op { font-size: 0.95rem; padding: 6px 10px; }
+        .arr-partes.grande { grid-column: 1 / -1; margin: 0; padding: 6px 10px; background: #faf5ff; border: 2px solid #ddd6fe; border-radius: 8px; gap: 8px; }
+        .arr-partes.grande .arr-chip { background: #fff; }
+        .arr-partes.grande .arr-parte, .arr-partes.grande .arr-flecha { font-size: 0.9rem; padding: 3px 12px; }
         .pcard-canc { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; border-radius: 999px; padding: 1px 4px 1px 9px; font-size: 0.74rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
         .pcard-canc-t { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .pcard-canc-x { flex-shrink: 0; }
@@ -5241,8 +5246,10 @@ function vinculo(x) {
     if (!x.asset_id) return { tipo: 'cancion', ico: '🎵', nom: cancion, sub: so?.artista || '', corto: cancion, ayuda: 'Ver la letra' };
     const r = bibRecursos?.get(x.asset_id);
     if (r?.tipo === 'arreglo') {
-        const sub = (r.etiqueta || '').trim() || 'Arreglo';
-        return { tipo: 'arreglo', ico: '🎼', nom: cancion, sub, corto: cancion + ' · ' + sub, ayuda: 'Abrir el Editor de arreglos' };
+        // IQ: el arreglo entero es de una ✂ versión de la canción: se nombra por ella
+        const ad = arrPartesCache?.get(r.id)?.adapt;
+        const sub = [(r.etiqueta || '').trim(), ad ? '✂ ' + ad.nombre : ''].filter(Boolean).join(' · ') || 'Arreglo';
+        return { tipo: 'arreglo', ico: '🎼', nom: cancion, sub, corto: cancion + ' · ' + sub, ayuda: 'Abrir el Editor de arreglos' + (ad ? ' (arreglo de la versión ' + ad.nombre + ')' : '') };
     }
     const tipo = vincTipo(r, x.inst);
     const p = r ? partesAsset(r) : {};
@@ -5563,7 +5570,7 @@ async function abrirMini(cancionId, actId, assetId, seccion, inst, adapt) {
 // la letra en su ✂ versión, el cajón (completo, 🔁 pasajes y ritmos), el metalófono (completo y 🔁 partes), el piano y
 // el 🎭 ensayo. Se arma con el contenido del arreglo (versión y ritmos) y su archivo público (pasajes, piano).
 const ARR_PUB = 'https://bfinpxcwcsteintikrtt.supabase.co/storage/v1/object/public/repertorio-assets/';
-const arrPartesCache = new Map();   // assetId → null (cargando) | { adapt, ritmos, cajon, metal, piano }
+var arrPartesCache = new Map();   // assetId → null (cargando) | { adapt, ritmos, cajon, metal, piano }
 function arrPartes(assetId, cancionId) {
     if (arrPartesCache.has(assetId)) return arrPartesCache.get(assetId);
     arrPartesCache.set(assetId, null);
@@ -5592,21 +5599,48 @@ function arrPartesHTML(x, actId, grande) {
     if (!x.asset_id || bibRecursos?.get(x.asset_id)?.tipo !== 'arreglo') return '';
     const d = arrPartes(x.asset_id, x.cancion_id);
     if (!d) return '';
-    const b = (acc, t, ayuda, extra = '') => `<button type="button" class="arr-parte" data-acc="${acc}" data-asset="${x.asset_id}" data-id="${x.cancion_id}" data-act="${actId || ''}"${extra} title="${esc(ayuda)}">${esc(t)}</button>`;
-    const fila = (ico, nom, cosas) => `<span class="arr-fila"><span class="arr-fila-t">${ico} ${nom}</span>${cosas}</span>`;
-    const filas = [
-        fila('🎤', 'Letra', b('letra', d.adapt ? '✂ ' + d.adapt.nombre : 'Completa', 'La letra con la grabación' + (d.adapt ? ', en la versión del arreglo' : ''), d.adapt ? ` data-adapt="${d.adapt.id}"` : '')),
-        d.cajon || d.ritmos.length ? fila('🪘', 'Cajón', (d.cajon ? b('cajon', 'Completo', 'El cajón del arreglo con la grabación') + d.cajon.map((n, i) => b('cajon', '🔁 ' + n, 'Practicar este pasaje (se repite)', ` data-p="${i}"`)).join('') : '')
-            + d.ritmos.filter(r => bibRecursos?.get(r.id)).map(r => b('ritmo', '🥁 ' + r.nombre, 'Abrir este ritmo en el cajón', ` data-ritmo="${r.id}"`)).join('')) : '',
-        d.metal ? fila('🎹', 'Metalófono', b('metal', 'Completo', 'El metalófono del arreglo con la grabación') + d.metal.map((n, i) => b('metal', '🔁 ' + n, 'Practicar esta parte (se repite)', ` data-p="${i}"`)).join('')) : '',
-        d.piano ? fila('🎶', 'Piano', b('piano', 'Abrir', 'El arreglo en el piano')) : '',
-        d.cajon || d.metal ? fila('🎭', 'Ensayo', b('ensayo', 'Abrir', 'Letra, cajón y metalófono juntos, para proyectar')) : '',
+    const datos = (acc, extra = '') => `data-acc="${acc}" data-asset="${x.asset_id}" data-id="${x.cancion_id}" data-act="${actId || ''}"${extra}`;
+    const adapt = d.adapt ? ` data-adapt="${d.adapt.id}"` : '';
+    const ver = d.adapt ? ' (versión ' + d.adapt.nombre + ')' : '';
+    // Un chip por instrumento: clic = la canción completa; ▾ = un pasaje (o un ritmo del cajón)
+    const chip = (acc, t, ayuda, opciones = []) => `<span class="arr-chip"><button type="button" class="arr-parte" ${datos(acc, acc === 'letra' ? adapt : '')} title="${esc(ayuda)}">${t}</button>`
+        + (opciones.length ? `<button type="button" class="arr-flecha" title="Ir a una parte">▾</button><span class="arr-menu" hidden>${opciones.join('')}</span>` : '') + '</span>';
+    const op = (acc, t, ayuda, extra) => `<button type="button" class="arr-parte arr-op" ${datos(acc, extra)} title="${esc(ayuda)}">${esc(t)}</button>`;
+    const ritmos = d.ritmos.filter(r => bibRecursos?.get(r.id));
+    const pasajesCajon = (d.cajon || []).map((n, i) => op('cajon', '🔁 ' + n, 'Practicar este pasaje (se repite)', ` data-p="${i}"`));
+    const opsRitmos = ritmos.map(r => op('ritmo', '🥁 ' + r.nombre, 'Este ritmo solo, en el cajón', ` data-ritmo="${r.id}"`));
+    const opsCajon = pasajesCajon.concat(pasajesCajon.length && opsRitmos.length ? ['<span class="arr-op-tit">Ritmos</span>'] : [], opsRitmos);
+    const chips = [
+        chip('letra', '🎤 Letra', 'La letra con la grabación' + ver),
+        d.cajon ? chip('cajon', '🪘 Cajón', 'El cajón del arreglo, la canción completa' + ver, opsCajon) : '',
+        d.metal ? chip('metal', '🎹 Metalófono', 'El metalófono del arreglo, la canción completa' + ver,
+            d.metal.map((n, i) => op('metal', '🔁 ' + n, 'Practicar esta parte (se repite)', ` data-p="${i}"`))) : '',
+        d.piano ? chip('piano', '🎶 Piano', 'El arreglo en el piano' + ver) : '',
+        d.cajon || d.metal ? chip('ensayo', '🎭 Ensayo', 'Letra, cajón y metalófono juntos, para proyectar' + ver) : '',
     ].filter(Boolean).join('');
-    return `<div class="arr-partes${grande ? ' grande' : ''}">${filas}</div>`;
+    return `<div class="arr-partes${grande ? ' grande' : ''}">${chips}</div>`;
 }
+// ▾ de un chip: su lista de partes, flotando bajo el chip (fuera de cualquier caja que la corte)
+function arrCerrarMenus() { document.querySelectorAll('.arr-menu-abierto').forEach(m => m.remove()); }
+document.addEventListener('click', e => {
+    const f = e.target.closest('.arr-flecha');
+    if (!f) { if (!e.target.closest('.arr-menu-abierto')) arrCerrarMenus(); return; }
+    e.stopPropagation(); e.preventDefault();
+    const ya = document.querySelector('.arr-menu-abierto');
+    arrCerrarMenus();
+    if (ya && ya._de === f) return;
+    const m = f.parentNode.querySelector('.arr-menu').cloneNode(true);
+    m.hidden = false; m.className = 'arr-menu-abierto' + (f.closest('.arr-partes.grande') ? ' grande' : ''); m._de = f;
+    document.body.appendChild(m);
+    const r = f.closest('.arr-chip').getBoundingClientRect();
+    m.style.left = Math.max(4, Math.min(r.left, innerWidth - m.offsetWidth - 4)) + 'px';
+    m.style.top = (r.bottom + m.offsetHeight + 4 > innerHeight ? r.top - m.offsetHeight - 2 : r.bottom + 2) + 'px';
+}, true);
+addEventListener('scroll', e => { if (!e.target.closest?.('.arr-menu-abierto')) arrCerrarMenus(); }, true);
 document.addEventListener('click', e => {
     const t = e.target.closest('.arr-parte'); if (!t) return;
     e.stopPropagation(); e.preventDefault();
+    arrCerrarMenus();
     const { acc, asset, id, act } = t.dataset;
     const can = bibCanciones?.get(id)?.nombre || 'Canción';
     const p = t.dataset.p;
