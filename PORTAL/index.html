@@ -2571,6 +2571,7 @@ function pintarSecciones() {
             box.innerHTML = `<div class="psec-hdr" title="Ir a sus diapositivas"><span class="psec-tit"></span><span class="psec-cancs"></span><span class="psec-n"></span></div>
                 <textarea class="psec-ta" spellcheck="false"></textarea>`;
             const ta = box.querySelector('.psec-ta');
+            roTa?.observe(ta);
             ta.placeholder = c.id ? 'Diapositivas de esta actividad (sepáralas con ---)' : '# Título\n---\n## Subtítulo\n- ítem 1';
             ta.addEventListener('input', () => presCuadroInput(box.dataset.act, ta));
             ta.addEventListener('focus', () => { presUltimaTa = ta; });
@@ -2626,8 +2627,7 @@ function pintarSecciones() {
         }
         const ta = box.querySelector('.psec-ta');
         if (ta.value !== c.texto && document.activeElement !== ta) ta.value = c.texto;
-        ta.style.height = 'auto';
-        ta.style.height = ta.scrollHeight + 'px';
+        ajustarAltoTa(ta);
     });
     // ▶ de cada actividad del Plan: solo si tiene diapositivas (espacio reservado, regla 8b).
     document.querySelectorAll('#plan-cards .pcard').forEach(el => {
@@ -2647,6 +2647,30 @@ function presPosGlobal(id, local) {
     const t = presTramos(document.getElementById('pres-area').value).find(x => (x.id || '') === id);
     return t ? t.inicio + local : null;
 }
+// Alto de un cuadro de la Presentación = su texto. Con la columna oculta (pestaña del Workspace en otra parte, 🕘
+// Historial encima) no se puede medir y quedaba de 2 renglones: se mide de nuevo cuando la columna se ve o cambia de ancho.
+// Se mide en una copia oculta del mismo ancho: achicar el cuadro para medirlo quitaba la barra de la columna, el texto
+// se veía más ancho y la medida salía corta (el cuadro quedaba más bajo que su texto).
+function ajustarAltoTa(ta) {
+    const w = ta.offsetWidth;
+    if (!w || !ta.parentNode || ta === ajustarAltoTa.m) return;
+    let m = ajustarAltoTa.m;
+    if (!m) {
+        m = ajustarAltoTa.m = document.createElement('textarea');
+        m.className = 'psec-ta'; m.tabIndex = -1; m.setAttribute('aria-hidden', 'true');
+        m.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;height:0;min-height:0';
+    }
+    if (m.parentNode !== ta.parentNode) ta.parentNode.appendChild(m);
+    m.style.width = w + 'px'; m.style.height = '0';
+    m.value = ta.value;
+    const h = m.scrollHeight + 'px';
+    if (ta.style.height !== h) ta.style.height = h;
+}
+var roTa = window.ResizeObserver ? new ResizeObserver(es => es.forEach(e => {
+    const w = Math.round(e.contentRect.width);
+    if (w && w !== e.target._anchoTa) { e.target._anchoTa = w; ajustarAltoTa(e.target); }
+})) : null;
+document.fonts?.ready?.then(() => document.querySelectorAll('#pres-secc .psec-ta').forEach(ajustarAltoTa));
 // Selecciona en su cuadro el tramo [ini, fin) del texto completo y lo deja a la vista.
 function presSeleccionar(ini, fin) {
     const t = presTramos(document.getElementById('pres-area').value)
