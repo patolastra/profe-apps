@@ -10271,3 +10271,29 @@ a HV/HW.*
 - **Lugares de uso:** ficha de la canción en la Biblioteca (PC). El ✈ de la letra queda igual (parte en Canción completa).
 - **Falta probar (PO):** compartir con 🎤 desde el arreglo de Anacleto y abrir el link en un celular.
 
+
+
+### IQ. En el Plan, el arreglo vinculado muestra sus partes — HECHA (2026-11-23)
+- **Necesidad:** una actividad con un arreglo vinculado (Montaje: Anacleto) solo muestra la pastilla del arreglo, que abre
+  el Editor; en clase hay que llegar a la letra de su versión, a los ritmos y pasajes del cajón y a las partes del
+  metalófono sin pasar por la Biblioteca.
+- **Auditoría:** el vínculo (`plan_cards.canciones`, `{ cancion_id, asset_id }`) solo abre el Editor musical (HP). El
+  arreglo guarda su ✂ adaptación (`contenido.audio.adaptacion`) y los ritmos de cajón copiados (`contenido.cajon.ritmos`,
+  por id del ritmo original); su archivo público `arreglo/<id>.json` trae los 🔁 pasajes del cajón y del metalófono
+  (`cajon.practicar`, `metalofono.practicar`) y la parte de piano. El nombre de la adaptación está en
+  `tempo/<canción>.json`. El Metalófono ya abre un pasaje con `&p=`; el Cajón y el Entrenador no.
+- **Aprobado (PO):** sí.
+- **Plan:** bajo la pastilla del arreglo (actividad del Plan, Presentación y vista de clase), una fila por instrumento
+  armada con lo que tenga el arreglo: 🎤 Letra (con la ✂ versión del arreglo: Entrenador mínimo con `&adapt=`) ·
+  🪘 Cajón completo, 🔁 cada pasaje (`&p=`, nuevo en el Cajón) y cada ritmo · 🎹 Metalófono completo y 🔁 cada parte ·
+  🎶 Piano · 🎭 Ensayo. La pastilla sigue abriendo el Editor. Sin cambios en Supabase.
+- **Hecho:** Planificador: bajo la pastilla de un arreglo vinculado, filas 🎤 Letra (✂ su versión; el Entrenador mínimo
+  acepta `&adapt=<id>` y abre en esa versión sin cambiar la recordada) · 🪘 Cajón (Completo, 🔁 pasajes, 🥁 ritmos) ·
+  🎹 Metalófono (Completo, 🔁 partes) · 🎶 Piano (si el arreglo tiene parte de piano) · 🎭 Ensayo. Cajón, Metalófono y
+  Piano se abren en el panel con ✕ (versión del estudiante, `?modo=alumno&r=`, con `&p=` para un pasaje; el Cajón
+  aprendió `&p=`), el ensayo en su pestaña del Workspace. En la actividad, en la Presentación y en la vista de clase
+  (más grande). Probado con Anacleto (clase de 4° del 16/11): letra en "Cuarto básico 2026", cajón en "Entrada a coro",
+  metalófono en "No fui feliz".
+- **Lugares de uso:** actividad del Plan, Presentación, vista de clase (no probada en clase en curso para no tocar la
+  clase real). La Biblioteca sigue igual.
+- **Falta probar (PO):** en clase, abrir desde la vista de clase la letra, un pasaje del cajón y una parte del metalófono.

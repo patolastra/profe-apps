@@ -922,6 +922,15 @@
            y el marco dorado marca la diapositiva que está en la Pizarra. */
         .pcard-cancs { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px 0 4px 14px; }
         .pcard-cancs[hidden] { display: none; }
+        /* Partes de un arreglo vinculado (IQ) */
+        .arr-partes { flex-basis: 100%; display: flex; flex-direction: column; gap: 3px; padding: 2px 0 4px 10px; border-left: 2px solid #ddd6fe; margin-left: 6px; }
+        .arr-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+        .arr-fila-t { font-size: 0.68rem; font-weight: 700; color: #6d28d9; min-width: 88px; }
+        .arr-parte { border: 1px solid #ddd6fe; background: #faf5ff; color: #5b21b6; border-radius: 999px; padding: 0 7px; font-size: 0.68rem; font-weight: 600; cursor: pointer; white-space: nowrap; line-height: 1.6; }
+        .arr-parte:hover { background: #ede9fe; }
+        .arr-partes.grande { grid-column: 1 / -1; margin: 0; padding: 6px 10px; background: #faf5ff; border: 2px solid #ddd6fe; border-radius: 8px; gap: 6px; }
+        .arr-partes.grande .arr-fila-t { font-size: 0.85rem; min-width: 120px; }
+        .arr-partes.grande .arr-parte { font-size: 0.85rem; padding: 2px 10px; }
         .pcard-canc { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; border-radius: 999px; padding: 1px 4px 1px 9px; font-size: 0.74rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
         .pcard-canc-t { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .pcard-canc-x { flex-shrink: 0; }
@@ -2605,13 +2614,13 @@ function pintarSecciones() {
             : vacio ? '＋ Diapositivas' : n ? n + (n === 1 ? ' diapo.' : ' diapos.') : '';
         // Canciones de la actividad (BU): un botón por canción → su letra en la Vista previa (y en la Pizarra en clase).
         const cs = c.card ? cancionesDe(c.card) : [];
-        const clave = cs.map(vincClave).join(',') + (cs.length && !bibCanciones ? '…' : '');
+        const clave = cs.map(x => vincClave(x) + (arrPartesCache.get(x.asset_id) ? '+' : '')).join(',') + (cs.length && !bibCanciones ? '…' : '');
         if (box.dataset.cancs !== clave) {
             box.dataset.cancs = clave;
             if (cs.length && !bibCanciones) cargarBib().then(() => pintarSecciones());
             box.querySelector('.psec-cancs').innerHTML = cs.map(x => {
                 const v = vinculo(x);
-                return `<button class="psec-canc" draggable="true" data-k="${cs.indexOf(x)}" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" data-inst="${x.inst || ''}" title="${v.ayuda}: ${esc(v.corto)} (arrastra para ordenar)">${v.ico} ${esc(v.corto)}</button>`;
+                return `<button class="psec-canc" draggable="true" data-k="${cs.indexOf(x)}" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" data-inst="${x.inst || ''}" title="${v.ayuda}: ${esc(v.corto)} (arrastra para ordenar)">${v.ico} ${esc(v.corto)}</button>${arrPartesHTML(x, c.card?.id)}`;
             }).join('');
             if (c.card) ordenarArrastrando(box.querySelector('.psec-cancs'), '.psec-canc', (de, a) => moverVinculo(c.card, de, a));
         }
@@ -5165,6 +5174,7 @@ let bibCargando = null;
 // forzar: vuelve a leer la Biblioteca (al abrir el selector); mientras tanto se siguen viendo los datos que había.
 function cargarBib(forzar) {
     if (bibCanciones && !forzar) return Promise.resolve(bibCanciones);
+    if (forzar) arrPartesCache.clear();   // IQ: las partes de los arreglos se vuelven a leer
     if (!bibCargando) bibCargando = Promise.all([
         sb.from('repertorio_canciones').select('id, nombre, artista'),
         sb.from('repertorio_assets').select('id, cancion_id, tipo, etiqueta, dificultad, instrumento, tonalidad, clase, simplificado, orden, storage_path, nombre_archivo, tab_sync')
@@ -5268,7 +5278,7 @@ function pintarCancionesCard(c, el) {
     if (!bibCanciones) { cargarBib().then(() => pintarCancionesCard(c)); }
     cont.innerHTML = lista.map((x, k) => {
         const v = vinculo(x);
-        return `<span class="pcard-canc" draggable="true" data-k="${k}" title="${v.ayuda} · ${esc(v.nom)}${v.sub ? ' · ' + esc(v.sub) : ''} (arrastra para ordenar)"><span class="pcard-canc-t">${v.ico} ${esc(v.corto)}</span><button class="pcard-canc-x" data-k="${k}" title="Quitar de la actividad">✕</button></span>`;
+        return `<span class="pcard-canc" draggable="true" data-k="${k}" title="${v.ayuda} · ${esc(v.nom)}${v.sub ? ' · ' + esc(v.sub) : ''} (arrastra para ordenar)"><span class="pcard-canc-t">${v.ico} ${esc(v.corto)}</span><button class="pcard-canc-x" data-k="${k}" title="Quitar de la actividad">✕</button></span>${arrPartesHTML(x, c.id)}`;
     }).join('');
     cont.onclick = e => {
         const x = e.target.closest('.pcard-canc-x');
@@ -5499,7 +5509,7 @@ function abrirPanelApp(src, actId, titulo) {
     miniUbicar();
     marcarEnPizarra();
 }
-async function abrirMini(cancionId, actId, assetId, seccion, inst) {
+async function abrirMini(cancionId, actId, assetId, seccion, inst, adapt) {
     if (!cancionId || !sesionActual) return;
     document.getElementById('prev-mini').classList.remove('con-x');
     const rec = assetId && bibRecursos?.get(assetId);
@@ -5517,13 +5527,82 @@ async function abrirMini(cancionId, actId, assetId, seccion, inst) {
     const st = ClaseVivo.get();
     const enClase = !!(st && st.sesionId === sesionActual.id);
     const q = (sid && curso.includes(cancionId) ? `practicar=${encodeURIComponent(sid)}&cancion=` : 'cancion=') + encodeURIComponent(cancionId)
-        + (assetId ? '&asset=' + encodeURIComponent(assetId) : '');
+        + (assetId ? '&asset=' + encodeURIComponent(assetId) : '') + (adapt ? '&adapt=' + encodeURIComponent(adapt) : '');
     const box = document.getElementById('prev-mini');
     box.querySelector('iframe').src = `../REPERTORIO/index.html?mini=1${enClase ? '&pizarra=1' : ''}&${q}&v=${Date.now()}`;
     box.hidden = false;
     miniUbicar();
     marcarEnPizarra();
 }
+// ── Partes de un arreglo vinculado (deuda IQ) ──
+// Bajo la pastilla del arreglo (actividad, Presentación y vista de clase), una fila por instrumento con lo que tenga:
+// la letra en su ✂ versión, el cajón (completo, 🔁 pasajes y ritmos), el metalófono (completo y 🔁 partes), el piano y
+// el 🎭 ensayo. Se arma con el contenido del arreglo (versión y ritmos) y su archivo público (pasajes, piano).
+const ARR_PUB = 'https://bfinpxcwcsteintikrtt.supabase.co/storage/v1/object/public/repertorio-assets/';
+const arrPartesCache = new Map();   // assetId → null (cargando) | { adapt, ritmos, cajon, metal, piano }
+function arrPartes(assetId, cancionId) {
+    if (arrPartesCache.has(assetId)) return arrPartesCache.get(assetId);
+    arrPartesCache.set(assetId, null);
+    const json = u => fetch(ARR_PUB + u + '?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+    Promise.all([
+        sb.from('repertorio_assets').select('contenido').eq('id', assetId).maybeSingle(),
+        json(`arreglo/${encodeURIComponent(assetId)}.json`),
+        json(`tempo/${encodeURIComponent(cancionId)}.json`),
+    ]).then(([ra, pub, tempo]) => {
+        let c = {};
+        try { c = JSON.parse(ra.data?.contenido || '{}'); } catch (_) {}
+        const aid = c.audio?.adaptacion;
+        const ad = aid ? (tempo?.adaptaciones || []).find(x => x.id === aid) : null;
+        arrPartesCache.set(assetId, {
+            adapt: ad ? { id: ad.id, nombre: ad.nombre } : null,
+            ritmos: Object.entries(c.cajon?.ritmos || {}).map(([id, r]) => ({ id, nombre: r?.nombre || 'Ritmo' })),
+            cajon: pub?.cajon ? (pub.cajon.practicar || []).map(x => x.nombre) : null,
+            metal: pub?.metalofono ? (pub.metalofono.practicar || []).map(x => x.nombre) : null,
+            piano: !!(pub && ((pub.notas || []).length || (pub.acordes || []).length)),
+        });
+        bibRepintar();
+    });
+    return null;
+}
+function arrPartesHTML(x, actId, grande) {
+    if (!x.asset_id || bibRecursos?.get(x.asset_id)?.tipo !== 'arreglo') return '';
+    const d = arrPartes(x.asset_id, x.cancion_id);
+    if (!d) return '';
+    const b = (acc, t, ayuda, extra = '') => `<button type="button" class="arr-parte" data-acc="${acc}" data-asset="${x.asset_id}" data-id="${x.cancion_id}" data-act="${actId || ''}"${extra} title="${esc(ayuda)}">${esc(t)}</button>`;
+    const fila = (ico, nom, cosas) => `<span class="arr-fila"><span class="arr-fila-t">${ico} ${nom}</span>${cosas}</span>`;
+    const filas = [
+        fila('🎤', 'Letra', b('letra', d.adapt ? '✂ ' + d.adapt.nombre : 'Completa', 'La letra con la grabación' + (d.adapt ? ', en la versión del arreglo' : ''), d.adapt ? ` data-adapt="${d.adapt.id}"` : '')),
+        d.cajon || d.ritmos.length ? fila('🪘', 'Cajón', (d.cajon ? b('cajon', 'Completo', 'El cajón del arreglo con la grabación') + d.cajon.map((n, i) => b('cajon', '🔁 ' + n, 'Practicar este pasaje (se repite)', ` data-p="${i}"`)).join('') : '')
+            + d.ritmos.filter(r => bibRecursos?.get(r.id)).map(r => b('ritmo', '🥁 ' + r.nombre, 'Abrir este ritmo en el cajón', ` data-ritmo="${r.id}"`)).join('')) : '',
+        d.metal ? fila('🎹', 'Metalófono', b('metal', 'Completo', 'El metalófono del arreglo con la grabación') + d.metal.map((n, i) => b('metal', '🔁 ' + n, 'Practicar esta parte (se repite)', ` data-p="${i}"`)).join('')) : '',
+        d.piano ? fila('🎶', 'Piano', b('piano', 'Abrir', 'El arreglo en el piano')) : '',
+        d.cajon || d.metal ? fila('🎭', 'Ensayo', b('ensayo', 'Abrir', 'Letra, cajón y metalófono juntos, para proyectar')) : '',
+    ].filter(Boolean).join('');
+    return `<div class="arr-partes${grande ? ' grande' : ''}">${filas}</div>`;
+}
+document.addEventListener('click', e => {
+    const t = e.target.closest('.arr-parte'); if (!t) return;
+    e.stopPropagation(); e.preventDefault();
+    const { acc, asset, id, act } = t.dataset;
+    const can = bibCanciones?.get(id)?.nombre || 'Canción';
+    const p = t.dataset.p;
+    if (acc === 'letra') { abrirMini(id, act, null, null, null, t.dataset.adapt || ''); return; }
+    if (acc === 'ritmo') { abrirMini(id, act, t.dataset.ritmo); return; }
+    if (acc === 'ensayo') {
+        const src = `../ENSAYO/index.html?r=${encodeURIComponent(asset)}`;
+        if (window.parent && window.parent !== window) {
+            try { window.parent.postMessage({ tipo: 'ws-abrir', key: `ensayo:${asset}`, titulo: `${can} · Ensayo`, ico: '🎭', src }, '*'); return; } catch (_) {}
+        }
+        window.open(src, '_blank'); return;
+    }
+    const q = { modo: 'alumno', r: asset, n: can };
+    if (p !== undefined) q.p = p;
+    const parte = p !== undefined ? ' · ' + t.textContent.replace(/^🔁\s*/, '') : '';
+    if (acc === 'cajon') abrirPanelApp(`../CAJON-PERUANO/index.html?${new URLSearchParams(q)}`, act, `🪘 ${can} · Cajón${parte}`);
+    else if (acc === 'metal') abrirPanelApp(`../METALÓFONO APP/METAL21 (ALPHA).HTML?${new URLSearchParams(q)}`, act, `🎹 ${can} · Metalófono${parte}`);
+    else if (acc === 'piano') abrirPanelApp(`../PIANO/index.html?${new URLSearchParams({ r: asset, n: can })}`, act, `🎶 ${can} · Piano`);
+}, true);
+
 // Arreglo vinculado a una actividad (deuda HP): el Editor musical de la canción, en su pestaña 🎼 Arreglo y en ese
 // arreglo (la misma pestaña del Workspace que abre la Biblioteca; si ya está abierta, va a ese arreglo)
 function abrirArregloEditor(cancionId, assetId) {
@@ -5698,7 +5777,7 @@ function pintarClaseDer() {
     // Las canciones van como diapositivas moradas (repertorio), antes de las diapositivas de la actividad.
     const cancHTML = cs.map(x => { const v = vinculo(x);
         return `<button class="cl-canc" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" data-inst="${x.inst || ''}" title="${v.ayuda}"><span class="cl-canc-ico">${v.ico}</span>
-            <span class="cl-canc-nom">${esc(v.nom)}</span>${v.sub ? `<span class="cl-canc-art">${esc(v.sub)}</span>` : ''}</button>`; }).join('');
+            <span class="cl-canc-nom">${esc(v.nom)}</span>${v.sub ? `<span class="cl-canc-art">${esc(v.sub)}</span>` : ''}</button>${arrPartesHTML(x, card?.id, true)}`; }).join('');
     panel.innerHTML = `<div class="cl-top"><div class="cl-cancs"></div>
             <div class="cl-cols" title="Diapositivas por fila">Por fila <button data-n="3" class="${cols === 3 ? 'on' : ''}">3</button><button data-n="4" class="${cols === 4 ? 'on' : ''}">4</button></div></div>
         <div class="cl-grid" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">${card && esLibre(card)
