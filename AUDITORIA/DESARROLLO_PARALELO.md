@@ -10215,7 +10215,7 @@ a HV/HW.*
 - **Falta probar (PO):** en el PC, con una canción con Karaoke sonando, minimizar el navegador o poner otro programa
   encima: debe seguir sonando.
 
-### IN. Partes de la melodía en la versión del estudiante — HECHA, falta probar en un celular (2026-11-23)
+### IN. Partes de la melodía en la versión del estudiante — HECHA y probada en el celular por el PO (2026-11-23)
 - **Necesidad:** que el estudiante practique en su celular una parte de la melodía en bucle, como en clase.
 - **Auditoría:** las 🧩 partes (IL) solo las usa el Metalófono del profe (`?asset=&partes=1`); el estudiante (`m/?a=<id>`)
   ve la melodía completa. 🔚 Llegada e ＝ Igual viven en `contenido` de la melodía y llegan al profe por la dirección;
@@ -10229,3 +10229,29 @@ a HV/HW.*
 - **Lugares de uso:** Metalófono del estudiante (`m/?a=`); Editor de Melodías (archivo público); Biblioteca (llegada e
   iguales). El Metalófono del profe queda igual.
 - **Falta probar (PO):** abrir el link de una melodía con partes en un celular, elegir una parte y tocarla.
+
+### IO. Orden de la ficha de una canción con muchos recursos (caso: El Dinosaurio Anacleto) — HECHA (2026-11-23)
+- **Necesidad:** una canción con muchos recursos (Anacleto: 14) se vuelve difícil de leer en la ficha de la Biblioteca.
+- **Auditoría:** (1) 3 ritmos viejos de palmas (4/4, 90) repiten a los 3 ritmos nuevos de cajón (2/4, 105); (2) la
+  melodía "No fui feliz" no tiene instrumento y cae en Piano; (3) el arreglo vive en el grupo Piano aunque ya trae
+  cajón y metalófono, y su nombre queda tapado por los botones; (4) dentro de cada grupo el orden es el de creación
+  (o el arrastrado a mano), no el de la canción; (5) "sin clase · sin dificultad" se repite en todos. La Ficha en Sol y
+  las melodías en Si♭ es a propósito (PO).
+- **Aprobado (PO):** limpieza y nuevo orden.
+- **Plan:** archivar (no borrar) los 3 ritmos viejos y marcar "No fui feliz" como metalófono; grupo propio
+  🎛️ Arreglos después de 🎵 Canción (con "+ Arreglo"); dentro de cada instrumento, primero lo que no es de una
+  sección y luego en el orden de las secciones de la Ficha (por nombre, como los extractos; sin cambios en Supabase),
+  con el arrastre a mano todavía posible; borradores plegados bajo "Borradores (n)"; sin el rótulo "sin clase · sin
+  dificultad" en la ficha.
+- **Hecho:** datos (autorizado): los 3 ritmos viejos de Anacleto quedan **archivados** y "No fui feliz" como melodía de
+  metalófono. Ficha de la Biblioteca: grupo propio **🎶 Arreglos** después de 🎵 Canción (con "+ Arreglo"; se ve si la
+  canción tiene arreglos o recursos de instrumento; los botones del arreglo pasan a otra línea para que se lea su
+  nombre); en cada grupo de instrumento, **🧩** (al pasar el mouse por la cabecera, si la Ficha tiene secciones) ordena
+  según la canción: primero lo que no es de una sección y luego en el orden de la Ficha (por nombre, sin números,
+  plurales ni tildes, o la sección como palabra dentro del nombre); reescribe el mismo orden guardado del arrastre,
+  que sigue funcionando y que usa también el Entrenador. Borradores plegados bajo "▸ Borradores (n)" cuando hay
+  publicados; archivados aparte, siempre plegados, "▸ Archivados (n)". Se quitó el rótulo "sin clase · sin dificultad"
+  (el filtro 🏷 Sin clase del catálogo sigue). Anacleto ya quedó ordenado (Metalófono y Cajón).
+- **Lugares de uso:** ficha de la canción en la Biblioteca (PC); el orden guardado también lo ve el Entrenador.
+- **Falta probar (PO):** mirar la ficha de Anacleto y otra canción con varios recursos; probar 🧩 en una de ellas.
+
