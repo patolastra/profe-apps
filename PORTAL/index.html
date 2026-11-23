@@ -696,7 +696,14 @@
         .cl-edit-box div { display: flex; gap: 6px; justify-content: flex-end; }
         .cl-edit-box button { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 4px 12px; cursor: pointer; font-weight: 700; }
         .cl-edit-box button.cl-ok { background: var(--accent); color: #fff; border-color: var(--accent); }
-        .cl-det-barra { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .cl-det-barra { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+        .cl-det-barra .cl-det-tit { margin-bottom: 0; }
+        .cl-det { border: 2px solid #a5b4fc; }
+        /* Arreglo en la Presentación de la clase (IT): ocupa el lugar de dos diapositivas, card + chips */
+        .cl-arr { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+        .cl-arr .arr-partes.grande { grid-column: auto; margin: 0; flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: center; gap: 8px; }
+        .cl-arr .arr-partes.grande .arr-chip { justify-content: space-between; }
+        .cl-arr .arr-partes.grande .arr-chip .arr-parte { flex: 1; text-align: left; }
         /* ⏱ Tiempo libre (deuda BZ) */
         .pcard-libre { display: flex; align-items: center; gap: 6px; padding: 2px 0 6px 14px; font-size: 0.8rem; color: #0f766e; font-weight: 700; }
         .pcard-libre[hidden] { display: none; }
@@ -5803,25 +5810,26 @@ function pintarClaseIzq() {
     const items = claseItems();
     const act = actEnCursoUlt;
     const it = claseVista === 'detalle' ? items.find(i => i.id === claseSel) : null;
-    if (it) {
-        const texto = it.card ? (it.card.ed ? it.card.ed.texto() : it.card.contenido || '') : '';
-        pane.innerHTML = `<div class="cl-det-barra"><button class="cl-volver">← Actividades</button>
-                ${it.card ? '<button class="cl-bit-btn" title="Registrar bitácora de esta actividad">✍🏼</button>' : ''}</div>
-            <div class="cl-det${act && act === it.id ? ' en-curso' : ''}" data-id="${it.id}">
-                <div class="cl-det-tit">${esc(it.titulo)}</div>
+    // Acordeón (IT): todas las actividades a la vista; la elegida, desplegada; clic en el título de otra la despliega
+    const desplegada = i => {
+        const texto = i.card ? (i.card.ed ? i.card.ed.texto() : i.card.contenido || '') : '';
+        return `<div class="cl-det${act && act === i.id ? ' en-curso' : ''}" data-id="${i.id}">
+                <div class="cl-det-barra"><div class="cl-det-tit">${esc(i.titulo)}</div>
+                    ${i.card ? '<button class="cl-bit-btn" title="Registrar bitácora de esta actividad">✍🏼</button>' : ''}</div>
                 <div class="cl-det-txt">${texto ? EditorBloques.html(texto, { objetivo: true }) : ''}</div>
-                ${it.card && esLibre(it.card) ? `<div class="cl-libre" data-id="${it.id}"></div>` : ''}
-                ${it.card ? '<div class="pgr-box grande" hidden></div>' : ''}
+                ${i.card && esLibre(i.card) ? `<div class="cl-libre" data-id="${i.id}"></div>` : ''}
+                ${i.card ? '<div class="pgr-box grande" hidden></div>' : ''}
             </div>
-            <div class="cl-bit" hidden><div class="cl-bit-tit">✍🏼 Bitácora · ${esc(it.titulo)}</div><div class="cl-bit-ed"></div>
+            <div class="cl-bit" hidden><div class="cl-bit-tit">✍🏼 Bitácora · ${esc(i.titulo)}</div><div class="cl-bit-ed"></div>
                 <div class="cl-bit-pie"><span class="cl-bit-est"></span><button class="cl-bit-listo">Listo</button></div></div>`;
+    };
+    pane.innerHTML = items.length
+        ? `<div class="cl-lista">${items.map(i => i === it ? desplegada(i) : `<button class="cl-card${act && act === i.id ? ' en-curso' : ''}" data-id="${i.id}">
+            <span class="cl-card-tit">${esc(i.titulo)}</span><span class="cl-card-meta">${claseMeta(i)}</span></button>`).join('')}</div>`
+        : '<div class="cl-vacio">Esta clase aún no tiene actividades.</div>';
+    if (it) {
         pintarLibre();
         if (it.card) pintarGrupos(it.card, pane.querySelector('.pgr-box'));
-    } else {
-        pane.innerHTML = items.length
-            ? `<div class="cl-lista">${items.map(i => `<button class="cl-card${act && act === i.id ? ' en-curso' : ''}" data-id="${i.id}">
-                <span class="cl-card-tit">${esc(i.titulo)}</span><span class="cl-card-meta">${claseMeta(i)}</span></button>`).join('')}</div>`
-            : '<div class="cl-vacio">Esta clase aún no tiene actividades.</div>';
     }
 }
 
@@ -5837,8 +5845,10 @@ function pintarClaseDer() {
     try { cols = localStorage.getItem('profe_clase_cols') === '4' ? 4 : 3; } catch (_) {}
     // Las canciones van como diapositivas moradas (repertorio), antes de las diapositivas de la actividad.
     const cancHTML = cs.map(x => { const v = vinculo(x);
-        return `<button class="cl-canc" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" data-inst="${x.inst || ''}" title="${v.ayuda}"><span class="cl-canc-ico">${v.ico}</span>
-            <span class="cl-canc-nom">${esc(v.nom)}</span>${v.sub ? `<span class="cl-canc-art">${esc(v.sub)}</span>` : ''}</button>${arrPartesHTML(x, card?.id, true)}`; }).join('');
+        const partes = arrPartesHTML(x, card?.id, true);
+        const boton = `<button class="cl-canc" data-id="${x.cancion_id}" data-asset="${x.asset_id || ''}" data-seccion="${esc(x.seccion || '')}" data-inst="${x.inst || ''}" title="${v.ayuda}"><span class="cl-canc-ico">${v.ico}</span>
+            <span class="cl-canc-nom">${esc(v.nom)}</span>${v.sub ? `<span class="cl-canc-art">${esc(v.sub)}</span>` : ''}</button>`;
+        return partes ? `<div class="cl-arr">${boton}${partes}</div>` : boton; }).join('');
     panel.innerHTML = `<div class="cl-top"><div class="cl-cancs"></div>
             <div class="cl-cols" title="Diapositivas por fila">Por fila <button data-n="3" class="${cols === 3 ? 'on' : ''}">3</button><button data-n="4" class="${cols === 4 ? 'on' : ''}">4</button></div></div>
         <div class="cl-grid" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">${card && esLibre(card)
@@ -5865,7 +5875,9 @@ function claseElegir(id) {
     actManual = { id, idx: pizarraIdx() };
     marcarEnPizarra();
     pintarClase();
-    document.getElementById('col-plan-body').scrollTop = 0;
+    // La desplegada queda arriba a la vista (IT: las demás siguen en la lista)
+    const body = document.getElementById('col-plan-body'), det = document.querySelector('#pane-clase .cl-det');
+    if (body && det) body.scrollTop += det.getBoundingClientRect().top - body.getBoundingClientRect().top - 8;
 }
 
 // ── Bitácora de la actividad (deuda BW, parte 2) ──

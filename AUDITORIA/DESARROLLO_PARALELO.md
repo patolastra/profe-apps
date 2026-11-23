@@ -10344,3 +10344,15 @@ a HV/HW.*
 - **Lugares de uso:** chips del arreglo en la actividad, la Presentación y la vista de clase del Plan. La 🎤 Letra ya iba a
   la Pizarra (Entrenador mínimo). El Ensayo y la vista previa del Editor no cambian.
 - **Falta probar (PO):** en clase real con el proyector: abrir 🪘 Cajón y un pasaje, 🎹 Metalófono, ✕.
+
+
+### IT. Vista de clase: actividades en acordeón y arreglo en una card doble — HECHA (2026-11-23)
+- **Necesidad (PO, con capturas):** al comenzar la clase, el panel del profe muestra solo la actividad elegida (Inicio) y
+  hay que volver con "← Actividades" para ver las demás; y en la Presentación de la clase, la card del arreglo deja mucho
+  espacio vacío con los chips en una franja aparte.
+- **Aprobado (PO):** pedido directo.
+- **Plan / hecho:** columna izquierda de la vista de clase: todas las actividades siempre a la vista; la elegida se
+  despliega (su texto, grupos, ⏱, ✍🏼) y las demás quedan plegadas (título y resumen); clic en el título de una plegada
+  la despliega y pliega la anterior (y la derecha muestra sus diapositivas, como antes). Sin "← Actividades". Derecha: un
+  arreglo vinculado ocupa el lugar de dos diapositivas: a un lado la card con su nombre y ✂ versión, al otro los chips.
+- **Lugares de uso:** vista de clase del Plan (solo con la clase de esa sesión en curso).
