@@ -10389,7 +10389,7 @@ a HV/HW.*
   (grupos) debe seguir viéndose en el Plan.
 
 
-### IV. ⌨ Anotar rápido: el 🐞 bug o ✨ mejora guarda el lugar exacto donde se anotó — PASO 1 HECHO (2026-11-23)
+### IV. ⌨ Anotar rápido: el 🐞 bug o ✨ mejora guarda el lugar exacto donde se anotó — PASOS 1 Y 2 HECHOS (2026-11-23)
 - **Necesidad (PO, 🐞 Mejoras 2026-11-12 "Ctrl V para pegar la imagen", replanteada):** lo que de verdad se pierde al
   anotar un bug o una mejora en la marcha es el **contexto exacto** en que se descubrió la necesidad; leída después, la
   anotación queda descontextualizada. La imagen pegada queda como complemento futuro.
@@ -10409,6 +10409,11 @@ a HV/HW.*
   Probado en el Workspace local (sin enviar a la base): Entrenador solo y con una ventana dentro de otra.
 - **Lugares de uso:** el cuadro ⌨ Anotar rápido (todo el Workspace); 🐞 Mejoras en Cursos del PC y del celular. Un /bug
   escrito en el editor por bloques (bitácora, Plan) no lo captura: ya guarda curso y clase.
-- **Falta (paso 2):** `anotarContexto()` en el Entrenador (canción, versión ✂, segundo, modo) y el Plan (actividad
-  abierta), y después en los módulos que el PO indique.
+- **Hecho (paso 2):** `window.anotarContexto()` en la Biblioteca / Entrenador (todas sus versiones: canción y sesión,
+  recurso abierto, Melodía / Karaoke / versión, ✂ adaptación, segundo y si suena, velocidad, tono, 🎸 Bajo, 2ª voz, loop,
+  verso actual, modo y el id de la canción; sin Entrenador, la ficha abierta) y en el Plan (pestaña de la izquierda,
+  vista de clase y su actividad escogida, actividad donde se escribe, actividad en curso, Entrenador mínimo abierto,
+  diapositiva en la Pizarra y el id de la sesión). Con el Entrenador dentro del Plan se juntan los dos. Probado en el
+  Workspace local con "Estrechez de Corazón" y un Plan de Castigadas (sin escribir nada).
+- **Siguiente (si el PO quiere):** el mismo gancho en Cursos, Libro, Ficha de la canción, Editor musical y Cajón.
 - **Falta probar (PO):** anotar un /bug real desde el Entrenador embebido en un Plan y mirarlo en 🐞 Mejoras.
