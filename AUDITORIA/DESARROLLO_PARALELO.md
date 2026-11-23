@@ -10430,3 +10430,25 @@ a HV/HW.*
   texto de solo lectura (`.eb-lectura`: Historial del Plan, en su pestaña y al lado) arrastrar el mouse ya no arma el
   marco de selección de bloques (que anulaba la selección): marca el texto como en cualquier página, para copiarlo.
   Pieza `comun/editor-bloques.js` (todas sus páginas; los editores no cambian). Probado en el Plan de 6° (24/11).
+
+
+### IW. Plan: card "Inicio" fija para anotar el comienzo de la clase — HECHA (2026-11-23)
+- **Necesidad (PO, 🐞 Mejoras con 📍 en el Plan de 6°):** el Inicio de la clase solo tiene diapositivas (cuadro Inicio de la
+  Presentación); no hay dónde anotar qué hacer o decir al comenzar.
+- **Auditoría:** las actividades son filas de `plan_cards` (título + texto por bloques); sus diapositivas van tras una
+  marca `@actividad:<id>` y las de antes de toda marca son el Inicio. Leen `plan_cards`: el Plan (carga, avisos al
+  instante, relectura al volver, Continuar, hilos), la Planificación del mes ("Traer lo del mes") y `Pendientes`
+  (crea actividades al final). Ninguna actividad existente se llama "Inicio".
+- **Aprobado (PO):** una card "Inicio" fija arriba del Plan, siempre visible, sin arrastre ni título editable, con el
+  mismo editor (O:, viñetas, /pdte…); sus diapositivas son las del Inicio de siempre; en la vista de clase, Inicio
+  muestra su texto; ➜ Continuar la copia a la clase siguiente. Sin cambios en Supabase: una fila de `plan_cards` con
+  título reservado `@inicio` (orden −1), creada recién al escribir. Después, si sirve: 🎵 canciones y 👥 grupos.
+- **Hecho:** card "Inicio" arriba del Plan (fuera de la lista de actividades: no se arrastra, ▶ va a las diapositivas del
+  Inicio, ⋯ → ➜ Continuar). Se guarda como las actividades (al instante entre equipos, relectura al volver) y la fila
+  se crea con lo primero escrito. En la vista de clase, Inicio aparece si tiene diapositivas **o** anotaciones y
+  desplegado muestra su texto. ➜ Continuar suma su texto al Inicio de la clase siguiente (debajo de lo que tenga; sin
+  repetirlo; sus diapositivas no). La Planificación del mes lo trae como "Inicio de la clase". 📍 Anotar dice
+  "escribiendo en el Inicio". Probado en el Plan de 6° (24/11) con el guardado interceptado (no se escribió nada).
+- **Lugares de uso:** Plan (columna 📋 Plan y vista de clase), Planificación del mes. El Historial, la Pizarra y el
+  celular no muestran actividades del Plan.
+- **Falta probar (PO):** escribir en el Inicio de una clase real, verlo en la vista de clase y ➜ Continuar.

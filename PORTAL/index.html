@@ -599,6 +599,7 @@
         .pcard-ed .eb-mas { display: none; }   /* en la actividad, solo el ⋮⋮ (Enter ya crea el bloque siguiente) */
         .pcard-tit { flex: 1; min-width: 0; border: none; outline: none; background: none; font: inherit; font-size: 0.95rem; font-weight: 800; color: var(--text, #1e293b); padding: 2px 0; }
         .pcard-tit::placeholder { color: #cbd5e1; }
+        .pcard-ini-tit { flex: 1; min-width: 0; font-size: 0.95rem; font-weight: 800; color: var(--text, #1e293b); padding: 2px 0 2px 20px; }   /* card Inicio (IW): fija, sin asa */
         .pcard-menu { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: 0 4px; border-radius: 4px; }
         .pcard-menu:hover { background: #f1f5f9; }
         .pcard-ed { font-size: 13px; }
@@ -2653,6 +2654,8 @@ function pintarSecciones() {
         const c = presModelo.find(x => x.id === el.dataset.id);
         el.querySelector('.pcard-ir')?.classList.toggle('si', !!(c && presNDiapos(c.texto)));
     });
+    const ini = presModelo.find(x => !x.id);   // card Inicio (IW)
+    document.querySelector('#pane-plan .pcard-inicio .pcard-ir')?.classList.toggle('si', !!(ini && presNDiapos(ini.texto)));
 }
 
 function presCuadroInput(id, ta) {
@@ -4778,6 +4781,14 @@ EditorBloques.zona(document.querySelector('#hist-lado .hist-cuerpo'));
 // ── 📋 Plan de la clase: actividades (título + texto por bloques; párrafo "O:" = objetivo) ──
 const planPropios = TiempoReal.propios();   // guardados recientes de las actividades: su eco es propio (deuda CU)
 let planCards = [];          // [{ id, orden, titulo, contenido, updated_at, ed, sucio, timer, ultEnvio }]
+// Card "Inicio" (deuda IW): fija arriba del Plan, para anotar el comienzo de la clase. Es una fila de plan_cards con
+// título reservado (nunca se muestra) y orden −1, que se crea recién al escribir; no está en planCards (no es una
+// actividad: no se arrastra, no tiene cuadro propio de diapositivas —las suyas son las del Inicio de siempre—).
+const INICIO_TIT = '@inicio';
+const esInicioCard = r => r?.titulo === INICIO_TIT;
+let planInicio = null;       // { id (null = aún no existe), sesion_id, titulo, contenido, updated_at, ed, sucio, timer, creando }
+const cardsTodas = () => planInicio?.id ? [planInicio, ...planCards] : planCards;
+const textoInicio = () => planInicio ? (planInicio.ed ? planInicio.ed.texto() : planInicio.contenido || '') : '';
 let planSid = null;          // sesión de las cards cargadas
 let planRemotoPend = false;  // llegó un cambio de otro equipo mientras se escribía aquí
 // Texto del editor → pendiente / ✉️ mensaje / 🐞 mejora (deuda DE): del curso de esta clase; el pendiente va a la clase
@@ -4803,13 +4814,17 @@ async function cargarPlanCards() {
     const { data, error } = await sb.from('plan_cards').select('*').eq('sesion_id', sid).order('orden').order('created_at');
     if (!sesionActual || sesionActual.id !== sid) return;
     planCards.forEach(c => c.ed?.destruir());
+    planInicio?.ed?.destruir();
     planSid = sid;
     if (error) {
-        planCards = [];
+        planCards = []; planInicio = null;
         pane.innerHTML = `<div class="plan-vacio">No se pudo cargar el plan.<br>¿Falta crear la tabla? (supabase/plan_cards.sql)</div>`;
         return;
     }
-    planCards = (data || []).map(r => ({ ...r }));
+    const filas = (data || []).map(r => ({ ...r }));
+    // Si dos equipos la crearon a la vez, vale la primera (las otras quedan sin mostrarse)
+    planInicio = filas.find(esInicioCard) || { id: null, sesion_id: sid, titulo: INICIO_TIT, contenido: '', orden: -1, updated_at: null };
+    planCards = filas.filter(r => !esInicioCard(r));
     pintarPlan();
 }
 
@@ -4894,12 +4909,29 @@ function pintarPlan() {
     if (grupoBit && pane.contains(grupoBit.caja)) cerrarGrupoBit();
     pane.querySelectorAll('.pgr-box').forEach(soltarPlanesGrupos);
     planCards.forEach(c => c.ed?.destruir());
+    planInicio?.ed?.destruir();
     pane.innerHTML = `
+        <div class="pcard pcard-inicio" data-id="__inicio"><div class="pcard-hdr">
+            <span class="pcard-ini-tit">Inicio</span>
+            <button class="pcard-ir" title="Ir a sus diapositivas">▶</button>
+            <button class="pcard-menu" title="Opciones">⋯</button></div><div class="pcard-ed"></div></div>
         ${planCards.length ? '' : '<div class="plan-vacio">Arma el plan de esta clase en actividades:<br>un título, el objetivo (un párrafo que empieza con <b>O:</b> u <b>OA:</b>) y lo que vas a hacer.</div>'}
         <div id="plan-cards"><div id="pcard-ind"></div></div>
         <button class="plan-nueva" onclick="nuevaPlanCard()">＋ Actividad</button>
         <div class="plan-estado" id="plan-estado"></div>`;
     const cont = document.getElementById('plan-cards');
+    if (planInicio) {   // card Inicio (IW)
+        const el = pane.querySelector('.pcard-inicio'), c = planInicio;
+        el.querySelector('.pcard-ir').addEventListener('click', e => { e.stopPropagation(); irActividad(null); });
+        el.querySelector('.pcard-menu').addEventListener('click', e => { e.stopPropagation(); menuInicio(e.currentTarget); });
+        c.ed = EditorBloques.crear(el.querySelector('.pcard-ed'), {
+            texto: c.contenido || '', actualizado: c.updated_at,
+            vacio: 'Para el comienzo de la clase: saludo, recordatorios, lo que hay que decir…',
+            objetivo: true,
+            alCambiar: () => planCambio(c),
+            alPendiente: texto => planPendienteDesde(texto, r => planEstado(r.aviso, !r.ok)),
+        });
+    }
     planCards.forEach(c => {
         const el = document.createElement('div');
         el.className = 'pcard'; el.dataset.id = c.id;
@@ -4967,14 +4999,29 @@ async function guardarPlanCard(c) {
     c.sucio = false;
     const ahora = new Date().toISOString();
     c.contenido = c.ed ? c.ed.texto() : c.contenido;
+    if (!c.id) {   // card Inicio que aún no existe (IW): se crea recién con algo escrito
+        if (c.creando) { c.sucio = true; return; }   // se vuelve a guardar al terminar de crearse
+        if (!c.contenido.trim()) { if (!cardsTodas().some(x => x.sucio)) planEstado(''); return; }
+        c.creando = true;
+        c.ultEnvio = ahora; c.updated_at = ahora; planPropios.anotar(ahora);
+        const { data, error } = await sb.from('plan_cards').insert({ sesion_id: c.sesion_id, orden: -1, titulo: INICIO_TIT,
+            contenido: c.contenido, updated_at: ahora }).select('id').single();
+        c.creando = false;
+        if (error) { c.sucio = true; planEstado('No se pudo guardar — revisa la conexión.', true); return; }
+        c.id = data.id;
+        c.ed?.guardado(ahora);
+        if (c.sucio) guardarPlanCard(c); else if (!cardsTodas().some(x => x.sucio)) planEstado('Guardado ✓');
+        return;
+    }
     c.ultEnvio = ahora; c.updated_at = ahora; planPropios.anotar(ahora);
     const { error } = await sb.from('plan_cards').update({ titulo: c.titulo || '', contenido: c.contenido, updated_at: ahora }).eq('id', c.id);
     if (error) { c.sucio = true; planEstado('No se pudo guardar — revisa la conexión.', true); return; }
     c.ed?.guardado(ahora);
-    if (!planCards.some(x => x.sucio)) planEstado('Guardado ✓');
+    if (!cardsTodas().some(x => x.sucio)) planEstado('Guardado ✓');
 }
-function guardarPlanTodo() { return Promise.all(planCards.filter(c => c.sucio).map(guardarPlanCard)); }
-window.addEventListener('beforeunload', e => { if (planCards.some(c => c.sucio)) { guardarPlanTodo(); e.preventDefault(); e.returnValue = ''; } });
+const cardsSucias = () => [planInicio, ...planCards].filter(c => c && c.sucio);   // incluye el Inicio aún sin crear (IW)
+function guardarPlanTodo() { return Promise.all(cardsSucias().map(guardarPlanCard)); }
+window.addEventListener('beforeunload', e => { if (cardsSucias().length) { guardarPlanTodo(); e.preventDefault(); e.returnValue = ''; } });
 document.addEventListener('visibilitychange', () => { if (document.hidden) guardarPlanTodo(); });
 
 // Mueve la actividad de la posición `desde` a quedar antes de la posición `antes` (0..n) y guarda el orden.
@@ -5097,6 +5144,46 @@ function menuPlanCard(c, boton) {
     setTimeout(() => document.addEventListener('click', function fuera(ev) {
         if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener('click', fuera); }
     }), 0);
+}
+
+// ⋯ de la card Inicio (IW): por ahora solo ➜ Continuar (su texto pasa al Inicio de la clase siguiente, debajo de lo que
+// ya tenga; sus diapositivas no: cada clase tiene su propia diapositiva inicial).
+function menuInicio(boton) {
+    document.querySelector('.pcard-pop')?.remove();
+    const pop = document.createElement('div');
+    pop.className = 'pcard-pop';
+    pop.innerHTML = '<button data-a="continuar">➜ Continuar en la próxima clase</button>';
+    document.body.appendChild(pop);
+    const r = boton.getBoundingClientRect();
+    pop.style.top = (r.bottom + 4) + 'px';
+    pop.style.left = Math.max(8, r.right - pop.offsetWidth) + 'px';
+    pop.addEventListener('click', e => { if (e.target.closest('button')?.dataset.a === 'continuar') { pop.remove(); continuarInicio(); } });
+    setTimeout(() => document.addEventListener('click', function fuera(ev) {
+        if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener('click', fuera); }
+    }), 0);
+}
+async function continuarInicio() {
+    if (!sesionActual || !planInicio) return;
+    await guardarPlanTodo();
+    const texto = textoInicio().replace(/\s+$/, '');
+    if (!texto.trim()) { planEstado('El Inicio no tiene nada escrito para continuar.', true); return; }
+    planEstado('Buscando la próxima clase…');
+    const dest = await Pendientes.proximaClase(sesionActual.contexto_id, { despuesDe: sesionActual.fecha });
+    if (!dest?.sesion_id) { planEstado('No encontré la próxima clase de este curso.', true); return; }
+    const { data: ya, error: e0 } = await sb.from('plan_cards').select('id, contenido').eq('sesion_id', dest.sesion_id)
+        .eq('titulo', INICIO_TIT).order('created_at').limit(1);
+    if (e0) { planEstado('No se pudo copiar — revisa la conexión.', true); return; }
+    const ahora = new Date().toISOString();
+    let error;
+    if (ya?.length) {
+        const previo = (ya[0].contenido || '').replace(/\s+$/, '');
+        if (previo.includes(texto)) { planEstado(`El Inicio del ${fechaLargaFG(dest.fecha)} ya lo tiene.`); return; }
+        ({ error } = await sb.from('plan_cards').update({ contenido: previo ? previo + '\n' + texto : texto, updated_at: ahora }).eq('id', ya[0].id));
+    } else {
+        ({ error } = await sb.from('plan_cards').insert({ sesion_id: dest.sesion_id, orden: -1, titulo: INICIO_TIT, contenido: texto, updated_at: ahora }));
+    }
+    if (error) { planEstado('No se pudo copiar — revisa la conexión.', true); return; }
+    planEstado(`➜ Continúa en el Inicio del ${fechaLargaFG(dest.fecha)}`);
 }
 
 // ── 🧵 Actividades que continúan clase a clase (deuda FG) ──
@@ -5789,7 +5876,8 @@ window.anotarContexto = () => {
     }
     if (claseAqui()) p.push(`vista de clase${claseSel === '' ? ', Inicio' : claseSel ? `, actividad ${tit(claseSel) || ''}` : ''}`);
     const a = document.activeElement?.closest?.('.pcard');
-    if (a && tit(a.dataset.id)) p.push(`escribiendo en la actividad ${tit(a.dataset.id)}`);
+    if (a?.dataset.id === '__inicio') p.push('escribiendo en el Inicio');
+    else if (a && tit(a.dataset.id)) p.push(`escribiendo en la actividad ${tit(a.dataset.id)}`);
     const enCurso = document.querySelector('#plan-cards .pcard.en-curso');
     if (enCurso && enCurso !== a && tit(enCurso.dataset.id)) p.push(`actividad en curso ${tit(enCurso.dataset.id)}`);
     if (miniAct !== null && !document.getElementById('prev-mini')?.hidden) p.push(`Entrenador mínimo abierto${tit(miniAct) ? ' (' + tit(miniAct) + ')' : ''}`);
@@ -5806,7 +5894,7 @@ function pizarraIdx() {
 function claseItems() {
     const items = [];
     const ini = presModelo.find(c => !c.id);
-    if (ini && presNDiapos(ini.texto)) items.push({ id: '', titulo: 'Inicio' });
+    if ((ini && presNDiapos(ini.texto)) || textoInicio().trim()) items.push({ id: '', titulo: 'Inicio', inicio: true });   // con diapositivas o anotaciones (IW)
     (sesionActual && planSid === sesionActual.id ? planCards : []).forEach(c =>
         items.push({ id: c.id, titulo: (c.titulo || '').trim() || 'Actividad sin título', card: c }));
     return items;
@@ -5855,7 +5943,7 @@ function pintarClaseIzq() {
     const it = claseVista === 'detalle' ? items.find(i => i.id === claseSel) : null;
     // Acordeón (IT): todas las actividades a la vista; la elegida, desplegada; clic en el título de otra la despliega
     const desplegada = i => {
-        const texto = i.card ? (i.card.ed ? i.card.ed.texto() : i.card.contenido || '') : '';
+        const texto = i.card ? (i.card.ed ? i.card.ed.texto() : i.card.contenido || '') : i.inicio ? textoInicio() : '';
         return `<div class="cl-det${act && act === i.id ? ' en-curso' : ''}" data-id="${i.id}">
                 <div class="cl-det-barra"><div class="cl-det-tit">${esc(i.titulo)}</div>
                     ${i.card ? '<button class="cl-bit-btn" title="Registrar bitácora de esta actividad">✍🏼</button>' : ''}</div>
@@ -6714,15 +6802,15 @@ document.getElementById('clase-panel')?.addEventListener('click', e => {
 const escribiendoPlan = () => !!document.activeElement?.closest?.('#pane-plan');
 function planRemoto() {
     if (!sesionActual || planSid !== sesionActual.id) return;
-    if (escribiendoPlan() || planCards.some(c => c.sucio)) { planRemotoPend = true; return; }
+    if (escribiendoPlan() || cardsSucias().length) { planRemotoPend = true; return; }
     planRemotoPend = false;
     cargarPlanCards();
 }
 TiempoReal.escuchar('plan_cards', ({ evento, nuevo, viejo }) => {
     if (!sesionActual) return;
-    if (evento === 'DELETE') { if (planCards.some(c => c.id === viejo?.id)) planRemoto(); return; }
+    if (evento === 'DELETE') { if (cardsTodas().some(c => c.id === viejo?.id)) planRemoto(); return; }
     if (nuevo?.sesion_id !== sesionActual.id) return;
-    const c = planCards.find(x => x.id === nuevo.id);
+    const c = cardsTodas().find(x => x.id === nuevo.id) || (esInicioCard(nuevo) && planInicio && !planInicio.id && planInicio.creando ? planInicio : null);
     if (c && (planPropios.es(nuevo.updated_at) || TiempoReal.mismaHora(c.updated_at, nuevo.updated_at))) return;   // eco propio
     if (c?.sucio) { TiempoReal.aviso('Una actividad del plan cambió en otro equipo mientras escribías: quedó tu versión.'); return; }
     planRemoto();
@@ -6996,7 +7084,8 @@ TiempoReal.alVolver(async () => {
     const { data: hs, error: eh } = await sb.from('plan_cards').select('id, updated_at').eq('sesion_id', sidP);
     if (!eh && sesionActual?.id === sidP && planSid === sidP) {
         const ahora = new Map((hs || []).map(r => [r.id, r.updated_at]));
-        const igual = ahora.size === planCards.length && planCards.every(c => ahora.has(c.id) && TiempoReal.mismaHora(ahora.get(c.id), c.updated_at));
+        const todas = cardsTodas();   // con la card Inicio (IW)
+        const igual = ahora.size === todas.length && todas.every(c => ahora.has(c.id) && TiempoReal.mismaHora(ahora.get(c.id), c.updated_at));
         if (!igual) planRemoto();
     } else if (eh) planRemoto();
     const modal = document.getElementById('mem-modal');
