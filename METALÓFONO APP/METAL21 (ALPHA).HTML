@@ -60,7 +60,7 @@
             document.documentElement.classList.add('arreglo-metal');
             if (q.get('vista') === 'arreglo') document.documentElement.classList.add('vista-arreglo');
             if (q.get('vista') === 'arreglo' && q.get('seguir') === '1') document.documentElement.classList.add('seguir');   // 🎭 Ensayo (HO)
-            document.write('<script src="../comun/grabacion-tono.js?v=hr"><\/script>');
+            document.write('<script src="../comun/grabacion-tono.js?v=ir"><\/script>');
         })();
     </script>
     <!-- Versión fija (rendimiento): antes "tone" / "@tonejs/midi" sin versión obligaban a una
@@ -340,6 +340,7 @@
         html.arreglo-metal #arr-sec { font-size: calc(14 * var(--u)); height: calc(32 * var(--u)); border-radius: calc(8 * var(--u));
             background: #3d3d45; color: #fff; border: 0; padding: 0 calc(6 * var(--u)); max-width: calc(170 * var(--u)); }
         html.arreglo-metal #arr-voz { width: calc(118 * var(--u)); }
+        html.arreglo-metal #arr-pre { width: calc(128 * var(--u)); visibility: hidden; }
         /* Melodía de un arreglo en el Metalófono de siempre (HT) y su entrada desde el arreglo */
         #mel-volver { display: none; }
         html.mel-arreglo #mel-volver { display: inline-block; }
@@ -1736,6 +1737,10 @@
             let osc = [], timers = [];
             const N = () => D?.notas || [];
             const urlVoz = () => D?.audio?.[voz] || D?.audio?.melodia || D?.audio?.karaoke || null;
+            // Precuenta de los pasajes que se repiten (IR): en cada vuelta (como siempre) o solo al inicio, sin hueco entre
+            // vueltas (la grabación vuelve al comienzo del pasaje a la hora exacta: GrabacionTono, relevo). Se recuerda en el equipo.
+            let relevando = false;
+            const soloInicio = () => { try { return localStorage.getItem('arr_precuenta') === 'inicio'; } catch (_) { return false; } };
             const primer = t => { const L = N(); let lo = 0, hi = L.length; while (lo < hi) { const m = (lo + hi) >> 1; if (L[m].s < t) lo = m + 1; else hi = m; } return lo; };
 
             // Barra: ⏪ ▶ ⏩ · 🎤 Melodía / 🎶 Karaoke · 🔔 · Ir a… (sección)
@@ -1763,6 +1768,7 @@
                 sel.value = loop ? 'p' + P.indexOf(loop) : 'todo';
                 sel.style.visibility = 'visible';
                 const bs = document.getElementById('arr-sola'); if (bs) bs.style.visibility = loop ? 'visible' : 'hidden';
+                try { pintarPre(); } catch (_) {}
             }
             function practicar(x) {
                 loop = x || null; pintarSel();
@@ -1784,7 +1790,16 @@
             const lVel = document.createElement('span'); lVel.id = 'arr-vel'; lVel.title = 'Velocidad'; lVel.textContent = '100%';
             btnPlay.before(bAtras); btnPlay.after(bAdel); bAdel.after(bVoz); bVoz.after(bPlacas);
             document.getElementById('alumno-titulo').after(sel);
-            sel.after(bMenos); bMenos.after(lVel); lVel.after(bMas);
+            const bPre = mk('arr-pre', '', 'Al repetir el pasaje: precuenta en cada vuelta o solo al comienzo', () => {
+                try { localStorage.setItem('arr_precuenta', soloInicio() ? 'cada' : 'inicio'); } catch (_) {}
+                pintarPre();
+            });
+            function pintarPre() {
+                bPre.textContent = soloInicio() ? '🥁 Solo al inicio' : '🥁 Cada vuelta';
+                bPre.style.visibility = loop ? 'visible' : 'hidden';
+            }
+            sel.after(bPre); bPre.after(bMenos); bMenos.after(lVel); lVel.after(bMas);
+            pintarPre();
             function cambiarVel(v) {
                 vel = Math.max(0.5, Math.min(1, Math.round(v * 20) / 20));
                 lVel.textContent = Math.round(vel * 100) + '%';
@@ -1868,10 +1883,12 @@
                 pintar();
             }
             function programar() {
-                if (!tocando || !grab) return;
+                if (!tocando || !grab || relevando) return;
                 const o = grab.oido(); if (o === null) return;
                 const L = N(), lat = ctx.outputLatency || ctx.baseLatency || 0;
-                while (idx < L.length && L[idx].s < o + 0.25) {
+                const relevar = !!(loop && soloInicio() && o >= loop.hasta - 0.35 * vel);   // IR: la vuelta, sin precuenta
+                const tope = relevar ? loop.hasta : o + 0.25;
+                while (idx < L.length && L[idx].s < tope) {
                     const n = L[idx++];
                     if (n.s < desde || grab.omitido(n.s) || (loop && n.s >= loop.hasta - 0.01)) continue;
                     const t = Math.max(ctx.currentTime, grab.aCtx(n.s)), t2 = Math.max(t + 0.12, grab.aCtx(n.e) - 0.03);
@@ -1882,7 +1899,15 @@
                 if (osc.length > 100) osc = osc.filter(x => x.t > ctx.currentTime - 1);
                 if (timers.length > 400) timers = timers.slice(-200);
                 if (VISTA) try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: o }, '*'); } catch (_) {}
-                if (loop && o >= loop.hasta - 0.03) { const L0 = loop; pausar(); ir(L0.desde, true, true, true); }   // vuelta (HS)
+                if (relevar) {
+                    const L0 = loop;
+                    relevando = true;
+                    grab.tocar(L0.desde, D.audio?.semitonos || 0, vel, D.audio?.saltos || null, { en: grab.aCtx(L0.hasta), relevo: true }).then(() => {
+                        relevando = false;
+                        if (!tocando) { grab.detener(); return; }
+                        desde = L0.desde - 1e-6; idx = primer(desde);
+                    }, () => { relevando = false; });
+                } else if (loop && !soloInicio() && o >= loop.hasta - 0.03) { const L0 = loop; pausar(); ir(L0.desde, true, true, true); }   // vuelta (HS)
             }
             function pausar() {
                 if (!tocando) return;

@@ -10297,3 +10297,24 @@ a HV/HW.*
 - **Lugares de uso:** actividad del Plan, Presentación, vista de clase (no probada en clase en curso para no tocar la
   clase real). La Biblioteca sigue igual.
 - **Falta probar (PO):** en clase, abrir desde la vista de clase la letra, un pasaje del cajón y una parte del metalófono.
+
+
+### IR. Pasajes del arreglo en bucle: precuenta en cada vuelta o solo al inicio — HECHA (2026-11-23)
+- **Necesidad:** la parte de un instrumento en un arreglo suele ser una célula que se repite muchas veces; al
+  practicar un 🔁 pasaje en el Cajón o el Metalófono del arreglo, la precuenta en cada vuelta corta el pulso.
+- **Auditoría:** Cajón (`?modo=alumno&r=` / `?vista=arreglo`) y Metalófono del arreglo repiten el pasaje deteniendo la
+  grabación y partiendo de nuevo con precuenta (HS). Sin precuenta, partir de nuevo deja un hueco (~0,15 s).
+- **Aprobado (PO):** sí (pedido directo).
+- **Plan:** botón al lado del menú de pasajes, visible con un pasaje elegido: "Precuenta: cada vuelta" / "Precuenta: solo
+  al inicio" (se recuerda en el equipo; parte en cada vuelta, como hasta hoy). Solo al inicio: la grabación vuelve al
+  comienzo del pasaje justo a tiempo, sin hueco (`GrabacionTono.tocar(…, { en, relevo: true })`: la nueva parte a la
+  hora exacta en que termina la vuelta y la anterior se apaga ahí). Sin cambios en Supabase.
+- **Hecho:** Cajón y Metalófono del arreglo (estudiante `c/?r=` · `m/?r=`, vista previa del Editor y el panel del Plan):
+  con un 🔁 pasaje elegido aparece "🥁 Cada vuelta" / "🥁 Solo al inicio" (clave `arr_precuenta` en el equipo, común a
+  los dos). Solo al inicio: la vuelta se prepara 0,35 s antes y la grabación vuelve al comienzo a la hora exacta en que
+  termina (`GrabacionTono`, opción `relevo`; `?v=ir` en sus 5 páginas), con los golpes y notas del final de la vuelta.
+  Probado: Cajón, "Entrada de cajones" (7,95 s) da vueltas de 7,97 s sin parar; con Cada vuelta, precuenta de 2,25 s
+  como antes; Metalófono, "No fui feliz" sigue sonando después de dos vueltas.
+- **Lugares de uso:** Cajón y Metalófono del arreglo. El Metalófono de siempre (🔁 partes de la melodía, 🔁 +5) tiene su
+  propio motor y sigue con precuenta en cada vuelta: pendiente si el PO lo quiere también ahí.
+- **Falta probar (PO):** en el celular, un pasaje corto del cajón con "Solo al inicio".

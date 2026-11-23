@@ -9,6 +9,8 @@
 //   await g.tocar(desdeSeg, semitonos, velocidad, saltos);   // velocidad 1 = normal, 0.5 = mitad; saltos (opcional,
 //                                           GK) = [{ desde, hasta }] tramos que no suenan (una adaptación de la canción)
 //   g.tocar(…, saltos, { en })            // en (HR) = hora del AudioContext en que parte (silencio antes: una precuenta)
+//   g.tocar(…, saltos, { en, relevo: true })   // IR: sin cortar lo que suena; lo anterior se apaga a la hora `en`, justo
+//                                           cuando parte lo nuevo (un pasaje que se repite sin hueco ni precuenta)
 //   g.omitido(seg)  → ese segundo cae en un salto
 //   g.oido()        → segundo de la grabación que suena ahora (null si no suena)
 //   g.aCtx(seg)     → hora del AudioContext en que sonará ese segundo de la grabación
@@ -76,8 +78,10 @@
         const aReal = v => { let r = v; for (const x of cortes) { if (x.v <= v + 1e-9) r += x.b - x.a; else break; } return r; };
         const aVirtual = s => { let q = 0; for (const x of cortes) { if (s >= x.b) q += x.b - x.a; else if (s >= x.a) return x.v; else break; } return s - q; };
         g.tocar = async (desde, semitonos = 0, velocidad = 1, saltos = null, opciones = {}) => {
-            g.detener();
             const L = await cargarLib();
+            if (opciones.relevo && nodo && opciones.en > ctx.currentTime) {   // IR: lo que suena sigue hasta `en`
+                const viejo = nodo; viejo._hasta = opciones.en; nodo = null;
+            } else g.detener();
             const st = new L.SoundTouch();
             st.pitchSemitones = semitonos;
             st.tempo = velocidad;
@@ -122,6 +126,13 @@
             ancla = { ctx: espera ?? ctx.currentTime + BLOQUE / ctx.sampleRate, seg: base.seg };
             n.onaudioprocess = ev => {
                 const izq = ev.outputBuffer.getChannelData(0), der = ev.outputBuffer.getChannelData(1);
+                if (n._hasta !== undefined) {           // IR: relevado; suena hasta la hora en que parte lo nuevo y se apaga
+                    const corte = Math.max(0, Math.round((n._hasta - ev.playbackTime) * ctx.sampleRate));
+                    if (corte <= 0) { izq.fill(0); der.fill(0); n.onaudioprocess = null; setTimeout(() => { try { n.disconnect(); } catch (_) {} }, 50); return; }
+                    const k = filtro.extract(muestras, BLOQUE);
+                    for (let i = 0; i < BLOQUE; i++) { const si = i < corte && i < k; izq[i] = si ? muestras[i * 2] : 0; der[i] = si ? muestras[i * 2 + 1] : 0; }
+                    return;
+                }
                 let z = 0;                    // muestras de silencio al comienzo del bloque (esperando la hora de partir)
                 if (espera !== null) {
                     z = Math.max(0, Math.round((espera - ev.playbackTime) * ctx.sampleRate));

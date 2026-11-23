@@ -27,7 +27,7 @@
             + '<script src="../comun/tempo-mapa.js?v=hh"><\/script><script src="../comun/al-dia.js?v=hg"><\/script>');
     }
     // Arreglo de cajón (deuda HF): la grabación de la canción
-    if (/[?&](vista=arreglo|r=)/.test(location.search)) document.write('<script src="../comun/grabacion-tono.js?v=hr"><\/script>');
+    if (/[?&](vista=arreglo|r=)/.test(location.search)) document.write('<script src="../comun/grabacion-tono.js?v=ir"><\/script>');
 </script>
 <style>
     :root {
@@ -1423,6 +1423,15 @@ window.addEventListener('beforeunload', (e) => { if (recurso && hayCambios() && 
 // ?modo=alumno&r=<id> = estudiante (lee la parte `cajon` de repertorio-assets/arreglo/<id>.json, sin base de datos).
 // Golpes en segundos de la grabación; la grabación (GrabacionTono) salta lo omitido por la adaptación.
 // ═══════════════════════════════════════════════════════════════════════════
+// Precuenta de los pasajes que se repiten (IR): en cada vuelta (como siempre) o solo al inicio, sin hueco entre vueltas
+// (la grabación vuelve al comienzo del pasaje a la hora exacta: GrabacionTono, relevo). Se recuerda en el equipo.
+let arrRelevando = false;
+const arrSoloInicio = () => { try { return localStorage.getItem('arr_precuenta') === 'inicio'; } catch (_) { return false; } };
+function pintarPreArr() {
+    const b = $('b-pre'); if (!b) return;
+    b.textContent = arrSoloInicio() ? '🥁 Solo al inicio' : '🥁 Cada vuelta';
+    b.style.visibility = arrLoop ? 'visible' : 'hidden';
+}
 let ARRD = null, grab = null, arrIdx = 0, arrDesde = 0, arrVoz = 'melodia', arrCargando = false, arrVel = 1, arrLoop = null;   // arrLoop (HS): { nombre, desde, hasta } que se repite
 const urlVoz = () => ARRD?.audio?.[arrVoz] || ARRD?.audio?.melodia || ARRD?.audio?.karaoke || null;
 function ponerArreglo(d) {
@@ -1469,6 +1478,7 @@ function pintarSelArr() {
         + P.map((x, i) => `<option value="p${i}">🔁 ${esc(x.nombre)}</option>`).join('');
     ss.value = arrLoop ? 'p' + P.indexOf(arrLoop) : 'todo';
     ss.style.visibility = 'visible';
+    pintarPreArr();
 }
 // Canción completa: desde el comienzo de la grabación; con precuenta solo si la grabación parte en el compás 1 (si
 // trae introducción, ella da la entrada)
@@ -1521,9 +1531,11 @@ async function tocarArr(conPrecuenta = false) {
     pintarPlay();
 }
 function programarArr() {
-    if (!tocando || !grab) return;
+    if (!tocando || !grab || arrRelevando) return;
     const o = grab.oido(); if (o === null) return;
-    while (arrIdx < golpes.length && golpes[arrIdx].t < o + 0.2) {
+    const relevar = !!(arrLoop && arrSoloInicio() && o >= arrLoop.hasta - 0.35 * arrVel);   // IR: la vuelta, sin precuenta
+    const tope = relevar ? arrLoop.hasta : o + 0.2;
+    while (arrIdx < golpes.length && golpes[arrIdx].t < tope) {
         const g = golpes[arrIdx++];
         if (g.t < arrDesde || grab.omitido(g.t) || (arrLoop && g.t >= arrLoop.hasta - 0.01)) continue;
         const ctxT = Math.max(ctx.currentTime, grab.aCtx(g.t));
@@ -1531,7 +1543,15 @@ function programarArr() {
     }
     if (programados.length > 200) programados = programados.filter(p => p.ctxT > ctx.currentTime - 1);
     if (window.parent !== window) { try { window.parent.postMessage({ tipo: 'arreglo-pulso', seg: o }, '*'); } catch (_) {} }
-    if (arrLoop && o >= arrLoop.hasta - 0.03) { const L = arrLoop; pausarArr(); irArr(L.desde, true, true); }   // vuelta del pasaje (HS)
+    if (relevar) {
+        const L = arrLoop;
+        arrRelevando = true;
+        grab.tocar(L.desde, ARRD.audio?.semitonos || 0, arrVel, ARRD.audio?.saltos || null, { en: grab.aCtx(L.hasta), relevo: true }).then(() => {
+            arrRelevando = false;
+            if (!tocando) { grab.detener(); return; }
+            arrDesde = L.desde - 1e-6; arrIdx = primerIdx(golpes, arrDesde); idxFx = arrIdx; ultVis = L.desde;
+        }, () => { arrRelevando = false; });
+    } else if (arrLoop && !arrSoloInicio() && o >= arrLoop.hasta - 0.03) { const L = arrLoop; pausarArr(); irArr(L.desde, true, true); }   // vuelta del pasaje (HS)
 }
 function pausarArr() {
     if (!tocando) return;
@@ -1600,7 +1620,11 @@ if (ARR) {
     // Velocidad (HR): − 100% ＋ al lado de Ir a…
     const gv = document.createElement('div'); gv.className = 'grupo'; gv.title = 'Velocidad (para practicar más lento, sin cambiar el tono)';
     gv.innerHTML = '<button id="arr-vel-menos">−</button><span id="arr-vel" style="display:inline-block;width:44px;text-align:center">100%</span><button id="arr-vel-mas" disabled>＋</button>';
-    ss.after(gv);
+    const bp = document.createElement('button');
+    bp.id = 'b-pre'; bp.title = 'Al repetir el pasaje: precuenta en cada vuelta o solo al comienzo'; bp.style.width = '140px'; bp.style.visibility = 'hidden';
+    bp.onclick = () => { bp.blur(); try { localStorage.setItem('arr_precuenta', arrSoloInicio() ? 'cada' : 'inicio'); } catch (_) {} pintarPreArr(); };
+    ss.after(bp);
+    bp.after(gv);
     $('arr-vel-menos').onclick = e => { e.currentTarget.blur(); cambiarVelArr(arrVel - 0.05); };
     $('arr-vel-mas').onclick = e => { e.currentTarget.blur(); cambiarVelArr(arrVel + 0.05); };
     // ⏪ ⏩ un compás atrás / adelante, a los lados de ▶
