@@ -10167,6 +10167,11 @@ a HV/HW.*
   actividad "Montaje: Anacleto" se apuntaron a las melodías nuevas (`melodia/<id>.mid`); luego se borraron las 8
   subidas en borrador (fila + `midi/<id>.mid`). Quedan las 3 publicadas.
 
+- **Cierre (2026-11-23, PO):** las 11 melodías convertidas se publicaron. Las 3 subidas publicadas se borraron de la
+  Biblioteca (filas de `repertorio_assets`); antes se repuntaron 4 diapositivas y 2 actividades del Plan a sus
+  melodías nuevas. Sus MIDI públicos (`midi/mw23y47glocl.mid`, `midi/mpkka8oqzfjn.mid`, `midi/muvtzpj4huv2.mid`) **se
+  dejan** para que los links y QR ya repartidos sigan abriendo (no se ponen al día con la melodía nueva).
+
 ### IL. Estructura propia de cada melodía (🧩 Partes en el Editor de Melodías) — HECHA, falta probar en clase (2026-11-19)
 - **Origen (PO):** en canciones con grabación la Ficha va según el audio; las melodías de una canción necesitan su
   propia estructura para enseñarlas por partes.
