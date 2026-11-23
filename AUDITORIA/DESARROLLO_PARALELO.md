@@ -10255,3 +10255,19 @@ a HV/HW.*
 - **Lugares de uso:** ficha de la canción en la Biblioteca (PC); el orden guardado también lo ve el Entrenador.
 - **Falta probar (PO):** mirar la ficha de Anacleto y otra canción con varios recursos; probar 🧩 en una de ellas.
 
+
+### IP. El arreglo muestra su ✂ adaptación y comparte la letra y el audio de esa adaptación — HECHA (2026-11-23)
+- **Necesidad:** en la ficha no se ve de qué ✂ adaptación es un arreglo, y para que los estudiantes ensayen la letra de
+  esa misma versión hay que ir a la letra y elegirla a mano en ✈ → ✂ Versión.
+- **Auditoría:** el arreglo guarda su adaptación en `contenido.audio.adaptacion` (id de la Ficha; GK etapa 3). La letra
+  se comparte con `compartirCancion` (Cantar, `l/?a=&n=&v=`), que ya ofrece elegir la versión.
+- **Aprobado (PO):** sí (pedido directo).
+- **Plan:** la fila del arreglo muestra "✂ <nombre de la adaptación>" bajo su nombre; botón 🎤 en la fila que abre el
+  mismo menú de compartir de la letra con esa adaptación ya elegida (si la canción se puede compartir). El tono es el de
+  la grabación (Cantar no transpone).
+- **Hecho:** Biblioteca: la fila del arreglo dice "✂ <adaptación>" (si la que eligió sigue en la Ficha); 🎤 en la fila
+  abre el menú de compartir de la canción (Cantar) con esa ✂ Versión ya elegida (se puede cambiar ahí). Probado con
+  Anacleto ("✂ Cuarto básico 2026").
+- **Lugares de uso:** ficha de la canción en la Biblioteca (PC). El ✈ de la letra queda igual (parte en Canción completa).
+- **Falta probar (PO):** compartir con 🎤 desde el arreglo de Anacleto y abrir el link en un celular.
+

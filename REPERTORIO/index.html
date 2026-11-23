@@ -4727,7 +4727,10 @@ function assetItemHTML(a, i) {
     // Nombre de cortesía (comun/nombre-asset.js): el tipo ya se muestra arriba, aquí descripción · dificultad
     const pa = partesAsset(a);
     const sublabel = [pa.detalle, pa.dificultad].filter(Boolean).join(' · ');
-    const etiq = sublabel ? `<div class="asset-item-etiqueta">${sublabel}</div>` : '';
+    // ✂ Adaptación del arreglo (IP): de qué versión recortada de la canción es (Ficha, GK)
+    const adArr = a.tipo === 'arreglo' ? adaptacionDeArreglo(a) : null;
+    const etiqTxt = [sublabel, adArr ? `✂ ${escapar(adArr.nombre)}` : ''].filter(Boolean).join(' · ');
+    const etiq = etiqTxt ? `<div class="asset-item-etiqueta">${etiqTxt}</div>` : '';
     const btnClase = ['ritmo', 'cajon', 'melodia', 'arreglo'].includes(a.tipo)
         ? `<button class="btn-icon" onclick="abrirEditarAsset('${songActiva.id}','${a.id}')" title="Clase, dificultad y detalle">🏷</button>` : '';
 
@@ -4788,6 +4791,7 @@ function assetItemHTML(a, i) {
                 ? `<button class="btn-icon" onclick="abrirTempo('${songActiva.id}')" title="Editar la Ficha de la canción">✏️</button>`
                 : a.tipo === 'arreglo'
                 ? `${estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirArreglo('${a.id}', this)" title="Compartir el arreglo con los estudiantes: link, QR o guía QR, y hasta qué fecha">${Compartir.ICONO}</button>` : ''}
+                   ${cancionCompartible(songActiva) ? `<button class="btn-icon" onclick="compartirCancion('${songActiva.id}', this, '${adArr ? adArr.id : ''}')" title="Compartir la letra y el audio${adArr ? ` de la versión ✂ ${escapar(adArr.nombre)}` : ''} con los estudiantes: link, QR o guía QR">🎤</button>` : ''}
                    ${estadoDe(a) === 'publicado' && /"cajon"\s*:/.test(a.contenido || '') ? `<button class="btn-icon" onclick="compartirArreglo('${a.id}', this, 'cajon')" title="Compartir la parte del cajón con los estudiantes (con la grabación de la canción): link, QR o guía QR">🪘</button>` : ''}
                    ${/"(cajon|metal)"\s*:/.test(a.contenido || '') ? `<button class="btn-icon" onclick="abrirEnsayo('${a.id}')" title="🎭 Ensayo: la letra, el cajón y el metalófono a la vez, con la grabación (para proyectar en clase)">🎭</button>` : ''}
                    ${estadoDe(a) === 'publicado' && /"metal"\s*:/.test(a.contenido || '') ? `<button class="btn-icon" onclick="compartirArreglo('${a.id}', this, 'metal')" title="Compartir la parte del metalófono con los estudiantes (con la grabación de la canción): link, QR o guía QR">🎵</button>` : ''}
@@ -6334,7 +6338,14 @@ function cancionPublicaAlDia(cancionId, letraGuardada) {
         } catch (e) { console.warn('Canción para estudiantes sin actualizar:', e); }
     }, 1500);
 }
-async function compartirCancion(cancionId, boton) {
+// ✂ Adaptación de un arreglo (IP): la que eligió en ⑤ Grabación (contenido.audio.adaptacion), si sigue en la Ficha
+function adaptacionDeArreglo(a) {
+    let id = null;
+    try { id = JSON.parse(a.contenido || '{}').audio?.adaptacion || null; } catch (_) {}
+    const c = canciones.find(x => x.id === a.cancion_id) || songActiva;
+    return id ? entAdaptaciones(c).find(x => x.id === id) || null : null;
+}
+async function compartirCancion(cancionId, boton, adaptacion = '') {
     const c = canciones.find(x => x.id === cancionId);
     if (!c) return;
     const falta = faltaParaCompartir(c);
@@ -6347,7 +6358,7 @@ async function compartirCancion(cancionId, boton) {
     const url = `${CANTAR_LINK_ALUMNO}?a=${encodeURIComponent(c.id)}&n=${encodeURIComponent(c.nombre)}`;
     // ✂ Adaptaciones (GK): el link puede llevar una versión recortada (Cantar la lee de la Ficha pública)
     const adapt = entAdaptaciones(c).filter(a => a.omitir.length);
-    const variante = adapt.length ? { etiqueta: '✂ Versión', valor: '', opciones: [{ valor: '', texto: 'Canción completa' }, ...adapt.map(a => ({ valor: a.id, texto: a.nombre }))],
+    const variante = adapt.length ? { etiqueta: '✂ Versión', valor: adapt.some(a => a.id === adaptacion) ? adaptacion : '', opciones: [{ valor: '', texto: 'Canción completa' }, ...adapt.map(a => ({ valor: a.id, texto: a.nombre }))],
         url: v => v ? `${url}&v=${encodeURIComponent(v)}` : url } : null;
     Compartir.abrir(boton, { url, variante, titulo: c.nombre, cancion: c.nombre, instrumento: 'Canción', sb,
         plazo: { valor: hasta, guardar: async (f) => { await escribirCancionPublica(c, f); return true; } } });
