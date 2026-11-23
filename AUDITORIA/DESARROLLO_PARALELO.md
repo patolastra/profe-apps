@@ -10364,3 +10364,26 @@ a HV/HW.*
   dibujo; la actividad escogida ya no salta a Inicio si la Pizarra deja de dar señales un momento.
 - **Parpadeo en el Plan y la Presentación (PO):** al volver a la página del Plan, las partes de los arreglos se borraban
   y se volvían a leer (los chips desaparecían un instante). Ahora se releen en segundo plano y solo se repinta si cambió.
+
+
+### IU. Al volver a la página: releer solo si se cortó y redibujar solo lo que cambió — HECHA (2026-11-23)
+- **Necesidad (PO):** en clase, al volver a la pestaña del Plan (p. ej. tras pasar por la ventana de la Pizarra), la card
+  del arreglo, sus chips y las actividades pestañean.
+- **Auditoría:** los cambios de otros equipos ya llegan al instante (avisos de Supabase, deuda BE). Además, como resguardo,
+  `TiempoReal.alVolver` hacía releer **todo** (Biblioteca completa, actividades, diapositivas, materiales, grupos) cada vez
+  que la página volvía a verse tras 2 s, y los grupos también con cada `focus` de la ventana; cada respuesta borraba y
+  redibujaba su parte entera aunque fuera idéntica (actividades con sus editores, panel de la clase, chips).
+- **Aprobado (PO):** releer solo si se cortó · si se cortó, pedir solo lo nuevo · redibujar solo lo que cambió.
+- **Hecho:**
+  - `comun/tiempo-real.js` (todas las páginas que lo usan: Plan, Cursos PC y celular, Libro, Evaluar, Pizarra,
+    Biblioteca): `alVolver` avisa solo si la conexión de avisos **se cortó y volvió**, si la página estuvo oculta más de
+    **10 minutos**, al volver la señal o al volver de la memoria del navegador. Una página sin avisos conectados sigue
+    como antes.
+  - Plan, solo lo nuevo: las actividades preguntan solo `id` y hora del último cambio y se recargan solo si algo cambió
+    (las tablas de la Biblioteca no tienen hora de cambio: se releen, pero solo se repinta si algo cambió); los
+    materiales, solo si cambiaron.
+  - Redibujar solo lo que cambió: el panel de la clase (izquierda y derecha), los chips de cada actividad y los grupos se
+    arman y, si quedan iguales a lo que se ve, no se tocan (solo se mueve el marco de la diapositiva en la Pizarra).
+- **Lugares de uso:** `TiempoReal` en sus 7 páginas; el resto, Plan (actividad, Presentación, vista de clase).
+- **Falta probar (PO):** en clase, ir y volver de la ventana de la Pizarra: no debe pestañear nada; un cambio en el Libro
+  (grupos) debe seguir viéndose en el Plan.

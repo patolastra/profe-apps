@@ -27,7 +27,7 @@
     <script src="../comun/mensajes.js"></script>
     <link rel="stylesheet" href="../comun/ensayos.css">
     <script src="../comun/ensayos.js"></script>
-    <script src="../comun/tiempo-real.js"></script>
+    <script src="../comun/tiempo-real.js?v=iu"></script>
     <link rel="stylesheet" href="../comun/cuaderno.css">
     <script src="../comun/cuaderno.js"></script>
     <script src="../comun/fotos-clase.js?v=du4"></script>
@@ -2618,7 +2618,7 @@ function pintarSecciones() {
         const box = boxes[k];
         const tit = box.querySelector('.psec-tit');
         const nombre = c.id ? (c.huerfano ? 'Diapositivas sin actividad' : (c.card?.titulo || '').trim()) : 'Inicio';
-        tit.textContent = nombre || 'Actividad sin título';
+        if (tit.textContent !== (nombre || 'Actividad sin título')) tit.textContent = nombre || 'Actividad sin título';   // IU: sin tocar si es igual
         tit.classList.toggle('sin', !nombre);
         const n = presNDiapos(c.texto);
         // No toda actividad tiene diapositivas: sin texto, una línea delgada con "＋ Diapositivas".
@@ -2629,8 +2629,9 @@ function pintarSecciones() {
         box.classList.toggle('libre', libre);
         box.classList.toggle('con-canc', vacio && (libre || !!(c.card && cancionesDe(c.card).length)));
         box.querySelector('.psec-hdr').title = vacio ? 'Agregar diapositivas a esta actividad' : 'Ir a sus diapositivas';
-        box.querySelector('.psec-n').textContent = libre ? '⏱ ' + minutosLibre(c.card) + ' min' + (n ? ' · ' + n + (n === 1 ? ' diapo.' : ' diapos.') : '')
+        const nTxt = libre ? '⏱ ' + minutosLibre(c.card) + ' min' + (n ? ' · ' + n + (n === 1 ? ' diapo.' : ' diapos.') : '')
             : vacio ? '＋ Diapositivas' : n ? n + (n === 1 ? ' diapo.' : ' diapos.') : '';
+        const nEl = box.querySelector('.psec-n'); if (nEl.textContent !== nTxt) nEl.textContent = nTxt;
         // Canciones de la actividad (BU): un botón por canción → su letra en la Vista previa (y en la Pizarra en clase).
         const cs = c.card ? cancionesDe(c.card) : [];
         const clave = cs.map(x => vincClave(x) + (arrPartesCache.get(x.asset_id) ? '+' : '')).join(',') + (cs.length && !bibCanciones ? '…' : '');
@@ -2678,7 +2679,8 @@ function ajustarAltoTa(ta) {
         m.className = 'psec-ta'; m.tabIndex = -1; m.setAttribute('aria-hidden', 'true');
         m.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;height:0;min-height:0';
     }
-    if (m.parentNode !== ta.parentNode) ta.parentNode.appendChild(m);
+    const casa = ta.closest('#pres-secc') || ta.parentNode;   // un solo lugar (no se pasea entre los cuadros)
+    if (m.parentNode !== casa) casa.appendChild(m);
     m.style.width = w + 'px'; m.style.height = '0';
     m.value = ta.value;
     const h = m.scrollHeight + 'px';
@@ -5304,7 +5306,9 @@ TiempoReal.escuchar('repertorio_assets', ({ evento, nuevo, viejo }) => {
     else return;
     bibRepintar();
 });
-TiempoReal.alVolver(() => { if (bibCanciones) cargarBib(true).then(bibRepintar); });
+// IU: las tablas de la Biblioteca no guardan la hora de su último cambio: se releen, pero solo se repinta si algo cambió
+const bibFirma = () => JSON.stringify([...(bibCanciones || new Map()).values()]) + JSON.stringify([...(bibRecursos || new Map()).values()]);
+TiempoReal.alVolver(() => { if (!bibCanciones) return; const antes = bibFirma(); cargarBib(true).then(() => { if (bibFirma() !== antes) bibRepintar(); }); });
 // Canciones del repertorio del curso (en su orden), leídas al día.
 async function cancionesDelCurso() {
     if (!entrenamientoDefaultId) return [];
@@ -5319,12 +5323,13 @@ function pintarCancionesCard(c, el) {
     if (!cont) return;
     const lista = cancionesDe(c);
     cont.hidden = !lista.length;
-    if (!lista.length) { cont.innerHTML = ''; return; }
+    if (!lista.length) { cont.innerHTML = ''; cont._html = ''; return; }
     if (!bibCanciones) { cargarBib().then(() => pintarCancionesCard(c)); }
-    cont.innerHTML = lista.map((x, k) => {
+    const html = lista.map((x, k) => {
         const v = vinculo(x);
         return `<span class="pcard-canc" draggable="true" data-k="${k}" title="${v.ayuda} · ${esc(v.nom)}${v.sub ? ' · ' + esc(v.sub) : ''} (arrastra para ordenar)"><span class="pcard-canc-t">${v.ico} ${esc(v.corto)}</span><button class="pcard-canc-x" data-k="${k}" title="Quitar de la actividad">✕</button></span>${arrPartesHTML(x, c.id)}`;
     }).join('');
+    if (cont._html !== html) { cont.innerHTML = html; cont._html = html; }   // IU: igual a lo que se ve, no se toca
     cont.onclick = e => {
         const x = e.target.closest('.pcard-canc-x');
         if (x) { e.stopPropagation(); quitarCancionCard(c, +x.dataset.k); return; }
@@ -5821,7 +5826,6 @@ function pintarClaseIzq() {
     }
     const boxC = paneC.querySelector('.pgr-box');
     if (boxC && claseVista === 'detalle' && boxC.dataset.card === claseSel && gruposOcupado(boxC)) return;   // el plan de un grupo (HW)
-    paneC.querySelectorAll('.pgr-box').forEach(soltarPlanesGrupos);
     const pane = document.getElementById('pane-clase');
     const items = claseItems();
     const act = actEnCursoUlt;
@@ -5839,10 +5843,17 @@ function pintarClaseIzq() {
             <div class="cl-bit" hidden><div class="cl-bit-tit">✍🏼 Bitácora · ${esc(i.titulo)}</div><div class="cl-bit-ed"></div>
                 <div class="cl-bit-pie"><span class="cl-bit-est"></span><button class="cl-bit-listo">Listo</button></div></div>`;
     };
-    pane.innerHTML = items.length
+    const html = items.length
         ? `<div class="cl-lista">${items.map(i => i === it ? desplegada(i) : `<button class="cl-card${act && act === i.id ? ' en-curso' : ''}" data-id="${i.id}">
             <span class="cl-card-tit">${esc(i.titulo)}</span><span class="cl-card-meta">${claseMeta(i)}</span></button>`).join('')}</div>`
         : '<div class="cl-vacio">Esta clase aún no tiene actividades.</div>';
+    // IU: igual a lo que se ve → no se borra (solo se ponen al día el ⏱ y los grupos, que se cuidan solos)
+    const claveIzq = html.replace(/(class="eb-blq[^"]*") data-id="[^"]*"/g, '$1');   // los ids de bloque cambian en cada dibujo
+    if (pane._html !== claveIzq || !pane.childElementCount) {
+        paneC.querySelectorAll('.pgr-box').forEach(soltarPlanesGrupos);
+        pane.innerHTML = html;
+        pane._html = claveIzq;
+    }
     if (it) {
         pintarLibre();
         if (it.card) pintarGrupos(it.card, pane.querySelector('.pgr-box'));
@@ -5870,6 +5881,15 @@ function pintarClaseDer() {
         // Arreglo (IT, PO): una sola card de dos espacios; en clase el título no abre el Editor, solo los chips abren partes
         return partes ? `<div class="cl-arr"><div class="cl-arr-tit" title="${esc(v.nom)}${v.sub ? ' · ' + esc(v.sub) : ''}"><span class="cl-canc-ico">${v.ico}</span>
             <span class="cl-canc-nom">${esc(v.nom)}</span>${v.sub ? `<span class="cl-canc-art">${esc(v.sub)}</span>` : ''}</div>${partes}</div>` : boton; }).join('');
+    // IU: si lo que se mostraría es igual a lo que se ve, no se redibuja (solo el marco de la diapositiva en la Pizarra)
+    const pIdx0 = pizarraIdx();
+    const slidesSrc = [...document.querySelectorAll(`#prev-body .slide-prev[data-act="${claseSel}"]`)];
+    const claveDer = [claseSel, cols, cancHTML, card && esLibre(card) ? libreDiapoHTML(card, true) : '', slidesSrc.map(s => s.dataset.idx + '|' + s.className.replace(/\b(activa|en-pizarra|dragging|drag-over)\b/g, '') + '|' + s.dataset.raw).join('\n')].join('\u0001');
+    if (panel._clave === claveDer && panel.querySelector('.cl-grid')) {
+        panel.querySelectorAll('.cl-slide').forEach(el => el.classList.toggle('en-pizarra', parseInt(el.dataset.idx) === pIdx0));
+        return;
+    }
+    panel._clave = claveDer;
     panel.innerHTML = `<div class="cl-top"><div class="cl-cancs"></div>
             <div class="cl-cols" title="Diapositivas por fila">Por fila <button data-n="3" class="${cols === 3 ? 'on' : ''}">3</button><button data-n="4" class="${cols === 4 ? 'on' : ''}">4</button></div></div>
         <div class="cl-grid" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">${card && esLibre(card)
@@ -6409,8 +6429,12 @@ function pintarGrupos(c, box) {
     if (!d && esPropios(c)) cargarPobGr().then(() => { repintarGrupos(); if (claseAqui()) pintarClaseIzq(); });
     else if (!d) cargarGrupos(c.evaluacion_id).then(() => { repintarGrupos(); if (claseAqui()) pintarClaseIzq(); migrarBitGrupos(); });
     if ((d?.grupos?.some(g => g.tipicos.some(x => x.cancion_id)) || (esPropios(c) && c.grupos.some(g => (g.canciones || []).length))) && !bibCanciones) cargarBib().then(() => repintarGrupos());
+    // IU: si queda igual a lo que se ve (con el mismo plan de cada grupo), no se toca
+    const h = gruposHTML(c), clave = h.replace(/(class="eb-blq[^"]*") data-id="[^"]*"/g, '$1') + JSON.stringify(c.grupos_plan || null);
+    if (box._clave === clave && box.isConnected && box.childElementCount) return;
     soltarPlanesGrupos(box);
-    box.innerHTML = gruposHTML(c);
+    box.innerHTML = h;
+    box._clave = clave;
     crearPlanesGrupos(c, box);
 }
 function repintarGrupos() {
@@ -6606,6 +6630,7 @@ document.addEventListener('click', e => {
 function claseEditar(el, nueva) {
     const raw = nueva ? '' : (document.querySelector(`#prev-body .slide-prev[data-idx="${el.dataset.idx}"]`)?.dataset.raw || '');
     claseEditando = nueva ? 'nueva' : parseInt(el.dataset.idx);
+    const pn = document.getElementById('clase-panel'); if (pn) pn._clave = null;   // IU: al terminar de editar se redibuja sí o sí
     const box = document.createElement('div');
     box.className = 'cl-edit-box';
     box.innerHTML = `<textarea spellcheck="false" placeholder="# Título\n## Subtítulo\n- ítem"></textarea>
@@ -6943,7 +6968,14 @@ TiempoReal.escuchar('bitacora_paginas', ({ evento, nuevo, viejo }) => {   // not
 TiempoReal.alVolver(async () => {
     if (!sesionActual) return;
     if (cursoPintado) cursoRemoto();
-    planRemoto();
+    // IU: solo lo nuevo: se pregunta id y hora de cambio de las actividades; se recarga solo si algo cambió
+    const sidP = sesionActual.id;
+    const { data: hs, error: eh } = await sb.from('plan_cards').select('id, updated_at').eq('sesion_id', sidP);
+    if (!eh && sesionActual?.id === sidP && planSid === sidP) {
+        const ahora = new Map((hs || []).map(r => [r.id, r.updated_at]));
+        const igual = ahora.size === planCards.length && planCards.every(c => ahora.has(c.id) && TiempoReal.mismaHora(ahora.get(c.id), c.updated_at));
+        if (!igual) planRemoto();
+    } else if (eh) planRemoto();
     const modal = document.getElementById('mem-modal');
     if (!modal?.classList.contains('show') || memTimer) return;
     const { data } = await sb.from('memorias').select('contenido, updated_at').eq('sesion_id', sesionActual.id).maybeSingle();
@@ -7153,6 +7185,7 @@ async function cargarMateriales() {
         items = [];
     }
     if (sesionActual?.contexto_id !== cid) return;   // cambió de contexto mientras cargaba → descartar
+    if (JSON.stringify(items) === JSON.stringify(materialesActuales) && document.getElementById('mat-content')?.childElementCount) return;   // IU: igual, no se toca
     materialesActuales = items;
     renderMateriales();   // siempre colapsado tras cargar
 }

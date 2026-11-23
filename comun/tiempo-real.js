@@ -10,8 +10,9 @@
 // Uso:
 //   TiempoReal.conectar(sb)
 //   TiempoReal.escuchar('memorias', ({ evento, nuevo, viejo }) => …)   // INSERT | UPDATE | DELETE
-//   TiempoReal.alVolver(() => …)   // la página volvió a verse (el celular corta la conexión al
-//                                  // apagar la pantalla o cambiar de app) o volvió la señal
+//   TiempoReal.alVolver(() => …)   // hay que releer: la conexión de avisos se cortó y volvió, la página estuvo
+//                                  // oculta más de 10 min, volvió la señal o volvió de la memoria del navegador
+//                                  // (deuda IU: ya no cada vez que la página vuelve a verse; los avisos ya traen lo nuevo)
 //   TiempoReal.aviso('Cambió en otro equipo…')
 //   TiempoReal.mismaHora(a, b)     // dos fechas-hora iguales aunque vengan escritas distinto
 //   const p = TiempoReal.propios(); p.anotar(horaOTexto); p.es(horaOTexto)   // ecos de guardados propios (deuda CU)
@@ -22,6 +23,9 @@
     const oyentes = {};          // tabla → [cb]
     const canales = {};
     const alVolverCbs = [];
+    // IU: estado de cada canal de avisos. Si alguno se cortó, al volver a quedar conectado hay que releer
+    const estado = {};
+    let cortado = false;
 
     function conectar(cliente) {
         if (sb || !cliente) return;
@@ -36,7 +40,11 @@
                     const msg = { evento: pl.eventType, nuevo: pl.new || null, viejo: pl.old || null };
                     (oyentes[tabla] || []).forEach(cb => { try { cb(msg); } catch (e) { console.error(e); } });
                 })
-                .subscribe();
+                .subscribe(st => {
+                    estado[tabla] = st;
+                    if (st === 'SUBSCRIBED') { if (cortado && Object.values(estado).every(x => x === 'SUBSCRIBED')) { cortado = false; llamar(); } }
+                    else if (st === 'CLOSED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') cortado = true;
+                });
         } catch (_) {}
     }
     function escuchar(tabla, cb) {
@@ -49,8 +57,12 @@
     const llamar = () => alVolverCbs.forEach(cb => { try { cb(); } catch (e) { console.error(e); } });
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) { ocultaDesde = Date.now(); return; }
-        if (ocultaDesde && Date.now() - ocultaDesde > 2000) llamar();
+        const fuera = ocultaDesde ? Date.now() - ocultaDesde : 0;
         ocultaDesde = 0;
+        // Sin avisos conectados no se sabe si se perdió algo: como antes. Con avisos, solo tras mucho rato fuera
+        // (un corte que se recupera llama solo, al reconectar)
+        const sinAvisos = !Object.keys(canales).length;
+        if (fuera > (sinAvisos ? 2000 : 10 * 60 * 1000)) llamar();
     });
     window.addEventListener('pageshow', e => { if (e.persisted) llamar(); });
     window.addEventListener('online', () => setTimeout(llamar, 800));
