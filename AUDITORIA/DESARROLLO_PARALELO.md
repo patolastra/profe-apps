@@ -10389,7 +10389,7 @@ a HV/HW.*
   (grupos) debe seguir viéndose en el Plan.
 
 
-### IV. ⌨ Anotar rápido: el 🐞 bug o ✨ mejora guarda el lugar exacto donde se anotó — PASOS 1 Y 2 HECHOS (2026-11-23)
+### IV. ⌨ Anotar rápido: el 🐞 bug o ✨ mejora guarda el lugar exacto donde se anotó — HECHA (2026-11-23)
 - **Necesidad (PO, 🐞 Mejoras 2026-11-12 "Ctrl V para pegar la imagen", replanteada):** lo que de verdad se pierde al
   anotar un bug o una mejora en la marcha es el **contexto exacto** en que se descubrió la necesidad; leída después, la
   anotación queda descontextualizada. La imagen pegada queda como complemento futuro.
@@ -10415,5 +10415,12 @@ a HV/HW.*
   vista de clase y su actividad escogida, actividad donde se escribe, actividad en curso, Entrenador mínimo abierto,
   diapositiva en la Pizarra y el id de la sesión). Con el Entrenador dentro del Plan se juntan los dos. Probado en el
   Workspace local con "Estrechez de Corazón" y un Plan de Castigadas (sin escribir nada).
-- **Siguiente (si el PO quiere):** el mismo gancho en Cursos, Libro, Ficha de la canción, Editor musical y Cajón.
+- **Hecho (paso 3, PO "súmalo"):** el mismo gancho en **Cursos** (curso, ☀ Hoy, 📚 Estudios y su título, 🐞 Mejoras;
+  clase o nota donde se escribe o bajo el mouse), **Libro** (instancia, vista, evaluación / participación / entrega
+  abierta con su id), **Ficha de la canción** (⏱ Tempo o 🧩 Estructura, audio, segundo, velocidad, marcando, compás y
+  sección elegidos, ✂ adaptación), **Editor musical** (pestaña) con **Editor de Melodías** (nombre, paso, tonalidad,
+  cifra, tempo, grabando, nota del cursor, compás) y **Editor de arreglos** (nombre, pestaña de instrumento, tonalidad,
+  cifra, tempo) y **Cajón** (MIDI / programador / parte de un arreglo y su pasaje, editando o mirar, cifra, compases,
+  bpm, tocando). Probados en el Workspace local (Cursos Quinto, Libro Quinto, Cajón en Ritmos, Editor con el arreglo de
+  "Estrechez de Corazón", Ficha y Melodía nueva sin guardar).
 - **Falta probar (PO):** anotar un /bug real desde el Entrenador embebido en un Plan y mirarlo en 🐞 Mejoras.

@@ -139,5 +139,5 @@ const Estudios = (() => {
     }
     function insertar(texto) { if (ed) ed.insertar(texto); }
 
-    return { abrir, guardar };
+    return { abrir, guardar, titulo: () => actual ? (actual.titulo || 'Sin título') : null };   // titulo: 📍 Anotar (IV)
 })();
