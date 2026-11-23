@@ -10387,3 +10387,28 @@ a HV/HW.*
 - **Lugares de uso:** `TiempoReal` en sus 7 páginas; el resto, Plan (actividad, Presentación, vista de clase).
 - **Falta probar (PO):** en clase, ir y volver de la ventana de la Pizarra: no debe pestañear nada; un cambio en el Libro
   (grupos) debe seguir viéndose en el Plan.
+
+
+### IV. ⌨ Anotar rápido: el 🐞 bug o ✨ mejora guarda el lugar exacto donde se anotó — PASO 1 HECHO (2026-11-23)
+- **Necesidad (PO, 🐞 Mejoras 2026-11-12 "Ctrl V para pegar la imagen", replanteada):** lo que de verdad se pierde al
+  anotar un bug o una mejora en la marcha es el **contexto exacto** en que se descubrió la necesidad; leída después, la
+  anotación queda descontextualizada. La imagen pegada queda como complemento futuro.
+- **Auditoría:** el cuadro (`comun/anotar.js`) guarda solo el texto, el curso y nada más. El atajo ya llega desde la
+  ventana exacta donde se apretó (también dentro de ventanas embebidas: Entrenador en el Plan, Cajón en el Ritmos…).
+  `pendientes` no tiene dónde guardar más datos; los /bug y /mejora solo se ven en 🐞 Mejoras (Cursos PC y celular).
+- **Aprobado (PO):** el cuadro captura al abrirse dónde se estaba y lo guarda como una segunda línea "📍 …" del mismo
+  texto (sin cambios en Supabase); solo para /bug y /mejora; se ve antes de enviar y se puede quitar (✕). Paso 1:
+  lo general (pestaña del Workspace, ventanas embebidas con su app y su dirección, clase en curso, día y hora, botón o
+  campo con el cursor, lo que estaba bajo el mouse, texto marcado). Paso 2: módulo por módulo lo que conviene precisar
+  (`window.anotarContexto()`), partiendo por el Entrenador y el Plan.
+- **Hecho (paso 1):** al abrirse con Ctrl + Shift + Ñ, el cuadro anota la pestaña, cada ventana embebida hasta la que
+  tenía el teclado (nombre de la app y dirección, sin la versión), lo que la app diga de sí (`window.anotarContexto()`,
+  si existe), la clase en curso, día y hora, el control con el cursor, lo que estaba bajo el mouse y el texto marcado.
+  Con /bug o /mejora se ve una línea gris "📍 …" con ✕ para no guardarla; al enviar va como segunda línea del texto.
+  🐞 Mejoras (Cursos PC y celular) la muestra en gris bajo la anotación. El Workspace entrega `pestana` y `clase`.
+  Probado en el Workspace local (sin enviar a la base): Entrenador solo y con una ventana dentro de otra.
+- **Lugares de uso:** el cuadro ⌨ Anotar rápido (todo el Workspace); 🐞 Mejoras en Cursos del PC y del celular. Un /bug
+  escrito en el editor por bloques (bitácora, Plan) no lo captura: ya guarda curso y clase.
+- **Falta (paso 2):** `anotarContexto()` en el Entrenador (canción, versión ✂, segundo, modo) y el Plan (actividad
+  abierta), y después en los módulos que el PO indique.
+- **Falta probar (PO):** anotar un /bug real desde el Entrenador embebido en un Plan y mirarlo en 🐞 Mejoras.

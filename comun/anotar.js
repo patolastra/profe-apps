@@ -30,7 +30,7 @@
     let op = null, sb = null;
     let ctxs = [];                 // [{ id, nombre, tipo }] en el orden del sistema (General primero)
     let alias = [];                // [{ re, nombre }] para el curso escrito al comienzo
-    let caja = null, inp = null, sel = null, pista = null, sug = null, aviso = null;
+    let caja = null, inp = null, sel = null, pista = null, sug = null, aviso = null, lugar = null;
     let elegido = null;            // estudiante elegido para /apod: { id, nombre, cid }
     let sugs = [], sugI = -1;
     let enviando = false;
@@ -118,6 +118,10 @@
 #anotar .an-pista.error { color: #fca5a5; }
 #anotar .an-sug { margin-top: 6px; max-height: 190px; overflow-y: auto; border-top: 1px solid #253455; }
 #anotar .an-sug[hidden] { display: none; }
+#anotar .an-lugar { margin-top: 4px; display: flex; align-items: center; gap: 4px; font-size: .75rem; color: #7a8ba8; }
+#anotar .an-lugar[hidden] { display: none; }
+#anotar .an-lugar .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#anotar .an-lugar .an-x { font-size: .8rem; padding: 0 4px; }
 #anotar .an-sug div { padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: .88rem; display: flex; gap: 8px; }
 #anotar .an-sug div .c { flex: 0 0 auto; opacity: .8; }
 #anotar .an-sug div.on, #anotar .an-sug div:hover { background: #223052; }
@@ -138,10 +142,13 @@
         caja.innerHTML = `<div class="an-fila"><select title="Curso"></select>
             <input type="text" autocomplete="off" spellcheck="true" placeholder="Pendiente, /msj, /ensayo, /prueba, /apod, /rep, /bug, /mejora…">
             <button type="button" class="an-x" title="Cerrar (Esc)">✕</button></div>
-            <div class="an-sug" hidden></div><div class="an-pista"></div>`;
+            <div class="an-sug" hidden></div><div class="an-pista"></div>
+            <div class="an-lugar" hidden><span class="t"></span><button type="button" class="an-x" title="No guardar dónde estaba">✕</button></div>`;
         document.body.appendChild(caja);
         sel = caja.querySelector('select'); inp = caja.querySelector('input');
         pista = caja.querySelector('.an-pista'); sug = caja.querySelector('.an-sug');
+        lugar = caja.querySelector('.an-lugar');
+        lugar.querySelector('.an-x').onclick = () => { ctxQuitado = true; refrescar(); inp.focus(); };
         aviso = document.createElement('div');
         aviso.id = 'anotar-aviso'; aviso.hidden = true;
         document.body.appendChild(aviso);
@@ -183,6 +190,7 @@
         else if (r.cmd === 'apod') t += elegido ? ` · ${elegido.nombre} (${disp(nombreDeId(elegido.cid))})${r.conDosPuntos ? '' : ' — sigue con ":" y el motivo'}`
             : ' — escribe el nombre y elígelo de la lista';
         pintarPista(t);
+        pintarCtx(r);
         // Sugerencias de estudiantes (/apod, antes de los dos puntos)
         if (r.cmd === 'apod' && !r.conDosPuntos && r.quien.length >= 1) {
             const yo = ++pedidoAlumnos;
@@ -225,6 +233,100 @@
         const todos = listas.flat().sort((a, b) => a.n.localeCompare(b.n));
         cacheAl.set(curso, todos);
         return todos;
+    }
+
+    // ── 📍 Lugar exacto donde se anotó (deuda IV): solo para /bug y /mejora ─────────────
+    // Se captura al abrir el cuadro (antes de que el teclado se mueva): la pestaña del Workspace, cada ventana embebida
+    // hasta la que tenía el teclado (app + dirección), lo que esa app sepa decir de sí misma (window.anotarContexto(),
+    // opcional, paso 2), la clase en curso, día y hora, el control con el cursor, lo que estaba bajo el mouse y el texto
+    // marcado. Va como segunda línea "📍 …" del texto (Mejoras la muestra en gris).
+    const APP_DIR = { PORTAL: 'Dashboard', REPERTORIO: 'Biblioteca', CURSOS: 'Cursos', LIBROS: 'Libros', LIBRO: 'Libro',
+        PIZARRA: 'Pizarra', TABS: 'Lector', 'METALÓFONO APP': 'Metalófono', 'METAL%C3%93FONO%20APP': 'Metalófono',
+        'CAJON-PERUANO': 'Cajón', RITMOS: 'Ritmos', TEMPO: 'Ficha de la canción', ARREGLO: 'Arreglo', MELODIA: 'Editor de Melodías',
+        EDITOR: 'Editor musical', PIANO: 'Piano (estudiantes)', TECLADO: 'Piano', PLANIFICACION: 'Planificaciones', ENSAYO: 'Ensayo',
+        CANTAR: 'Cantar', ADMIN: 'Admin', MOVIL: 'Celular', MEMORIA: 'Bitácora' };
+    let ctxCapt = '', ctxQuitado = false;
+    const corto = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+    function nombreApp(w) {
+        let carpeta = '';
+        try { const p = decodeURIComponent(w.location.pathname).split('/').filter(Boolean); carpeta = (p[p.length - 2] || '').toUpperCase(); } catch (_) {}
+        let q;
+        try { q = new URLSearchParams(w.location.search); } catch (_) { q = new URLSearchParams(); }
+        let n = APP_DIR[carpeta] || carpeta || '?';
+        if (carpeta === 'PORTAL' && q.get('ctx') && q.get('fecha')) n = `Plan ${disp(q.get('ctx'))} ${q.get('fecha')}`;
+        if (carpeta === 'REPERTORIO' && ['vista', 'practicar', 'mini', 'asset', 'espejo', 'movil'].some(k => q.has(k))) n = 'Entrenador' + (q.has('mini') ? ' mínimo' : '');
+        return n;
+    }
+    function dirDe(w) {
+        try {
+            const p = decodeURIComponent(w.location.pathname).split('/').filter(Boolean);
+            const q = new URLSearchParams(w.location.search);
+            q.delete('wsv');   // versión de la app: ruido
+            const s = decodeURIComponent(q.toString());
+            return `${p.slice(-2).join('/')}${s ? '?' + s : ''}`;
+        } catch (_) { return ''; }
+    }
+    function describirControl(el) {
+        if (!el || el.nodeType !== 1) return '';
+        const tag = el.tagName.toLowerCase();
+        if (tag === 'body' || tag === 'html' || tag === 'iframe') return '';
+        const txt = el.getAttribute('aria-label') || el.getAttribute('title') || el.getAttribute('placeholder')
+            || (tag === 'input' || tag === 'textarea' || tag === 'select' ? '' : el.innerText) || el.value || '';
+        const tipo = { button: 'botón', input: 'campo', textarea: 'campo', select: 'lista', a: 'enlace' }[tag]
+            || (el.isContentEditable ? 'texto' : tag);
+        const t = corto(txt, 50);
+        return t ? `${tipo} "${t}"` : '';
+    }
+    // La ventana con el teclado: la que mandó el atajo, o bajando por las ventanas embebidas que tienen el foco
+    function ventanaConFoco() {
+        let w = window;
+        for (let i = 0; i < 6; i++) {
+            try { const a = w.document.activeElement; if (a && a.tagName === 'IFRAME' && a.contentWindow) { w = a.contentWindow; continue; } } catch (_) {}
+            break;
+        }
+        return w;
+    }
+    function capturar(fuente) {
+        const partes = [];
+        try {
+            const w0 = fuente || ventanaConFoco();
+            // Cadena de ventanas: desde el Workspace hasta la que tenía el teclado
+            const cadena = [];
+            let w = w0;
+            for (let i = 0; i < 8 && w; i++) { cadena.unshift(w); if (w === window || w === w.parent) break; try { w = w.parent; } catch (_) { break; } }
+            let pest = null;
+            try { pest = op.pestana?.() || null; } catch (_) {}
+            const ruta = [];
+            if (pest) ruta.push(pest);
+            const dirs = [];
+            cadena.filter(v => v !== window).forEach((v, i) => {
+                if (!(pest && i === 0)) ruta.push(nombreApp(v));   // la página de la pestaña ya la nombra la pestaña
+                dirs.push(dirDe(v));
+            });
+            if (ruta.length) partes.push(ruta.join(' › '));
+            // Lo que cada app sepa decir de sí misma (paso 2)
+            cadena.forEach(v => { try { const s = typeof v.anotarContexto === 'function' ? v.anotarContexto() : ''; if (s) partes.push(corto(s, 160)); } catch (_) {} });
+            let cl = null;
+            try { cl = op.clase?.() || null; } catch (_) {}
+            if (cl && cl.ctx) partes.push(`clase en curso ${disp(cl.ctx)}${cl.aqui === false ? ' (otro equipo)' : ''}`);
+            const d = new Date();
+            partes.push(`${['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+            const foco = describirControl(w0.document.activeElement);
+            if (foco) partes.push(`cursor en ${foco}`);
+            const bajo = describirControl(w0.__anotarMouse && w0.__anotarMouse.isConnected ? w0.__anotarMouse : null);
+            if (bajo && bajo !== foco) partes.push(`mouse sobre ${bajo}`);
+            let marcado = '';
+            try { marcado = corto(w0.getSelection?.().toString(), 80); } catch (_) {}
+            if (marcado) partes.push(`marcado "${marcado}"`);
+            const dir = dirs.filter(Boolean).join(' › ');
+            if (dir) partes.push(`[${dir}]`);
+        } catch (_) {}
+        return partes.join(' · ');
+    }
+    function pintarCtx(r) {
+        const ver = (r.cmd === 'bug' || r.cmd === 'mejora') && ctxCapt && !ctxQuitado;
+        lugar.hidden = !ver;
+        if (ver) { lugar.querySelector('.t').textContent = '📍 ' + ctxCapt; lugar.title = ctxCapt; }
     }
 
     // ── Anotar ────────────────────────────────────────────────────────
@@ -279,7 +381,8 @@
             return { texto: `☑ Pendiente${esGeneral ? ' · General' : enCurso}`, destino: { tipo: 'dashboard', vista: 'todos' } };
         }
         // /msj, /ensayo, /prueba, /bug, /mejora: los mismos de siempre (Pendientes los reconoce por el comando)
-        const texto = ['msj', 'ensayo', 'prueba'].includes(r.cmd) ? `/${r.cmd} ${r.quien}: ${r.que}` : `/${r.cmd} ${r.resto}`;
+        let texto = ['msj', 'ensayo', 'prueba'].includes(r.cmd) ? `/${r.cmd} ${r.quien}: ${r.que}` : `/${r.cmd} ${r.resto}`;
+        if ((r.cmd === 'bug' || r.cmd === 'mejora') && ctxCapt && !ctxQuitado) texto += `\n📍 ${ctxCapt}`;
         const x = await Pendientes.crear({ contexto_id: cid, sesion_id: null, texto, silencioso: true });
         if (!x) return null;
         if (r.cmd === 'msj') return { texto: `✉️ Mensaje para ${r.quien}${enCurso}`, destino: { tipo: 'dashboard', vista: 'msj' } };
@@ -297,11 +400,12 @@
     }
 
     // ── Abrir / cerrar ────────────────────────────────────────────────
-    async function abrir() {
+    async function abrir(fuente) {
         if (!op) return;
         try { if (op.puede && !op.puede()) return; } catch (_) {}
         armar();
         if (!caja.hidden) { inp.focus(); return; }
+        ctxCapt = capturar(fuente); ctxQuitado = false;   // antes de mover el teclado al cuadro
         aviso.hidden = true;
         try { volverA = document.activeElement; } catch (_) { volverA = null; }
         caja.hidden = false;
@@ -330,11 +434,19 @@
         if (k !== 'ñ' && e.code !== 'Semicolon' && e.code !== 'Digit7' && k !== '7' && k !== '/') return;
         e.preventDefault(); e.stopPropagation();
         if (e.repeat) return;
-        abrir();
+        let fuente = null;
+        try { fuente = e.view || e.target?.ownerDocument?.defaultView || null; } catch (_) {}
+        abrir(fuente);
     }
     const vistas = new Set();
     function enganchar(w) {
-        try { if (!w || w.__anotarAtajo) return; w.__anotarAtajo = true; w.addEventListener('keydown', alTeclear, true); vistas.add(w); } catch (_) {}
+        try {
+            if (!w || w.__anotarAtajo) return;
+            w.__anotarAtajo = true;
+            w.addEventListener('keydown', alTeclear, true);
+            w.addEventListener('pointerover', e => { try { if (!caja || !caja.contains(e.target)) w.__anotarMouse = e.target; } catch (_) {} }, true);   // 📍 lo que está bajo el mouse
+            vistas.add(w);
+        } catch (_) {}
     }
     function barrer(w, nivel = 0) {
         if (nivel > 5) return;
