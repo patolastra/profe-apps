@@ -10424,3 +10424,9 @@ a HV/HW.*
   bpm, tocando). Probados en el Workspace local (Cursos Quinto, Libro Quinto, Cajón en Ritmos, Editor con el arreglo de
   "Estrechez de Corazón", Ficha y Melodía nueva sin guardar).
 - **Falta probar (PO):** anotar un /bug real desde el Entrenador embebido en un Plan y mirarlo en 🐞 Mejoras.
+- **Primer uso real (PO, mismo día):** la primera ✨ mejora anotada llegó con su 📍 (Plan de 6° con el 🕘 Historial). Ajuste:
+  el Plan ahora dice también si el 🕘 Historial está abierto al lado y sobre qué clase o nota estaba el mouse.
+- **Esa mejora, resuelta (PO: "quiero seleccionar parte del texto del Historial para pegarlo en una diapo"):** en el
+  texto de solo lectura (`.eb-lectura`: Historial del Plan, en su pestaña y al lado) arrastrar el mouse ya no arma el
+  marco de selección de bloques (que anulaba la selección): marca el texto como en cualquier página, para copiarlo.
+  Pieza `comun/editor-bloques.js` (todas sus páginas; los editores no cambian). Probado en el Plan de 6° (24/11).

@@ -1055,6 +1055,8 @@
     const enZona = el => [...zonas].some(z => z.contains(el));
     document.addEventListener('mousedown', e => {
         if (e.button !== 0 || e.target.closest('.eb-flot, .eb-asas, input, button, select, textarea, a, [data-eb-no-marco]')) return;
+        // Texto de solo lectura (Historial del Plan…): se marca con el mouse como cualquier texto, para copiarlo (deuda IV)
+        if (e.target.closest('.eb-lectura')) { if (seleccion.length) limpiarSeleccion(); return; }
         const txt = e.target.closest('.eb[data-eb] .eb-txt');
         if (txt) { if (seleccion.length) limpiarSeleccion(); marcando = { x: e.clientX, y: e.clientY, desdeTexto: true, idInicio: txt.parentElement.dataset.id, I: insDe(txt) }; return; }
         if (e.target.closest('[contenteditable]') || !enZona(e.target)) { if (seleccion.length && !e.target.closest('.eb')) limpiarSeleccion(); return; }
