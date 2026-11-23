@@ -10357,4 +10357,5 @@ a HV/HW.*
   arreglo vinculado ocupa el lugar de dos diapositivas: a un lado la card con su nombre y ✂ versión, al otro los chips.
 - **Lugares de uso:** vista de clase del Plan (solo con la clase de esa sesión en curso).
 - **Ajuste (PO, mismo día):** el arreglo es **una sola card** de dos espacios (nombre y ✂ versión a la izquierda, chips a la
-  derecha, un solo marco) y en clase **su título no abre el Editor**: solo los chips abren partes de la canción.
+  derecha en dos columnas, un solo marco y el mismo alto que una diapositiva) y en clase **su título no abre el Editor**:
+  solo los chips abren partes de la canción.
