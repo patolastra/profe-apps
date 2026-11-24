@@ -10452,3 +10452,22 @@ a HV/HW.*
 - **Lugares de uso:** Plan (columna 📋 Plan y vista de clase), Planificación del mes. El Historial, la Pizarra y el
   celular no muestran actividades del Plan.
 - **Falta probar (PO):** escribir en el Inicio de una clase real, verlo en la vista de clase y ➜ Continuar.
+
+
+### IX. 😀 Panel grande de emojis para las diapositivas — HECHA (2026-11-23)
+- **Necesidad (PO, 🐞 Mejoras con 📍 en un cuadro de la Presentación de 6°):** un menú grande de emojis para incluir en
+  las diapositivas (el de Windows, Win + punto, es chico y en inglés).
+- **Auditoría:** los cuadros de la Presentación son `textarea` (texto markdown); ＋ Insertar escribe en el último cuadro
+  con el cursor (`presTa()`). La Pizarra y las miniaturas muestran los emojis tal cual (son texto).
+- **Aprobado (PO):** un botón 😀 **al lado** de ＋ Insertar (no dentro de su menú) que abre un panel grande: grupos
+  (música, caras, manos, escuela primero; luego animales, naturaleza, comida, celebración, deportes, símbolos),
+  buscador en español, usados últimamente arriba; clic pone el emoji donde estaba el cursor y el panel queda abierto;
+  Esc lo cierra. Sin internet ni Supabase. Pieza `comun/emojis.js` (`Emojis.abrir`) para sumarla después al editor de
+  actividades y a la bitácora si el PO lo pide.
+- **Hecho:** `comun/emojis.js` (`Emojis.abrir / cerrar / abierto`): ~600 emojis en 10 grupos con palabras en español,
+  buscador (cada palabra escrita es el comienzo de una palabra del emoji o de su grupo; Enter pone el primero),
+  "Usados últimamente" (24, en el equipo: `profe_emojis_usados`), nombre del emoji al pasar el mouse. Botón 😀 junto a
+  ＋ Insertar en la Presentación del Plan: el emoji va al cursor del último cuadro usado (`presTa()`), se guarda como
+  cualquier texto y se ve en la vista previa y la Pizarra. Probado en el Plan de 6° (24/11) con el guardado interceptado.
+- **Lugares de uso:** Presentación del Plan. La vista de clase (✏️ de una diapositiva) no lo tiene aún.
+- **Falta probar (PO):** en uso real, y si sirve, sumarlo al editor de actividades, la bitácora y la vista de clase.
