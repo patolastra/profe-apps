@@ -10619,3 +10619,22 @@ a HV/HW.*
 - **Hecho:** `#clase-perdido.show` con `pointer-events: auto`. Probado en una Pizarra de prueba (`?sesion=prueba-jg`,
   24/11): sin reloj el clic avanza; con el reloj a la vista (quieto) el clic queda en el reloj; al quitarlo vuelve a avanzar.
 - **Lugares de uso:** ventana de la Pizarra (Modo Clase). Las teclas ← → siguen funcionando con el reloj a la vista.
+
+
+### JH. Entrenador: una canción suelta se abre sola (sin la sesión anterior) y con la barra en cero — HECHA (2026-11-24)
+- **Necesidad (PO, 🐞 Mejoras 11/11 + uso real):** (1) abrir una canción suelta desde el Entrenador la carga "dentro"
+  de una sesión anterior ("Ven a bailar" dentro de la de Boyacá); (2) a veces, al abrir una canción, la barra de
+  progreso del audio queda como a la mitad de la canción anterior.
+- **Auditoría:** (1) `cerrarEntrenador` esconde el botón ☰ pero no la lista de la sesión (`#ent-sesion-lista`), y
+  `abrirEntrenador` (canción suelta) no la toca: la canción suelta aparece con la lista de la última sesión al lado.
+  Además `abrirEntrenador` no sale del modo sesión si se llama con una sesión abierta. (2) `abrirEntrenador` cambia el
+  audio pero no reinicia la barra ni el tiempo (solo lo hace el cambio de canción dentro de una sesión); en pausa la
+  barra no se mueve hasta que suena.
+- **Aprobado (PO):** arreglar ambas.
+- **Hecho:** `entEsconderSesion()` (lista, ☰, 📚, 🙋 y el pie ＋ Agregar) al cerrar y al abrir una canción suelta;
+  `abrirEntrenador` sale del modo sesión (guardando lo suyo) si había una abierta, y pone la barra y el tiempo en cero.
+  Probado en la Biblioteca local (24/11): sesión de 6° con la canción a la mitad → canción suelta: sin lista ni ☰,
+  barra 0 %; sesión → cerrar → canción suelta: sin lista; volver a la sesión: la lista y ＋ Agregar reaparecen; nada se
+  escribió.
+- **Lugares de uso:** Entrenador de la Biblioteca, pestaña de la sesión del curso y sesión desde el Plan (misma
+  página); el celular y el mínimo ya escondían la lista.

@@ -7970,6 +7970,10 @@ function abrirEntrenador(songId) {
     const c = canciones.find(x => x.id === songId);
     if (!c) return;
     callarBiblioteca();
+    // Canción suelta (JH): nunca "dentro" de una sesión. Si había una abierta, se sale de ella (guardando lo suyo) y
+    // su lista, ☰, 📚 y 🙋 se esconden.
+    if (entModoSesion || entModoEditSesion) { entFlushConfigSesion(); entModoSesion = false; entModoEditSesion = false; }
+    entEsconderSesion();
     entSegundaEq = entSegundaEqEquipo();   // fuera de una sesión, el equilibrio de la 2ª voz es el del equipo (GA)
     entSegundaAlAbrir = false;             // y parte apagada
     // Siempre abre en Melodía. Sin audio también se abre (solo la letra): el Entrenador es
@@ -8013,6 +8017,10 @@ function abrirEntrenador(songId) {
     audioEl.onseeked     = entPitchSyncPos;
     audioEl.onplay       = () => { if (entPitchCtx && entPitchNode) entCrearMotor(); };
     audioEl.onpause      = () => { if (entPitchCtx && entPitchNode) entPitchNode.detener(); };
+    // Barra y tiempo en cero (JH): en pausa no se mueven hasta que suena, y quedaban en la canción anterior.
+    document.getElementById('ent-progress-fill').style.width = '0%';
+    document.getElementById('ent-progress-punto').style.left = '0%';
+    entPintarTiempo(0, 0);
 
     document.getElementById('ent-vel-label').textContent = entFmtVel(entrenadorVelocidad);
     entPitchSemitones = 0; entBajoApagar();
@@ -8079,10 +8087,7 @@ function cerrarEntrenador() {
     }
     if (document.fullscreenElement) { try { document.exitFullscreen?.(); } catch (_) {} }
     document.getElementById('entrenador-overlay').classList.remove('visible');
-    document.getElementById('ent-btn-toggle-lista').style.display = 'none';
-    document.getElementById('ent-btn-biblio').style.display = 'none';
-    document.getElementById('ent-btn-toggle-lista').classList.remove('activo');
-    document.getElementById('ent-btn-pedir').style.display = 'none';
+    entEsconderSesion();
     // Estado de presentación no persiste entre aperturas: la próxima abre en Scroll,
     // con el header visible (los chips se recalculan al reabrir).
     entViewMode = 'scroll';
@@ -8098,6 +8103,15 @@ function cerrarEntrenador() {
     }
 }
 let entSalirA = 'sesiones';
+// Lo propio de una sesión en el Entrenador (lista, ☰, 📚, 🙋): fuera de una sesión no se ve (JH).
+function entEsconderSesion() {
+    document.getElementById('ent-sesion-lista').style.display = 'none';
+    document.getElementById('ent-btn-toggle-lista').style.display = 'none';
+    document.getElementById('ent-btn-biblio').style.display = 'none';
+    document.getElementById('ent-btn-toggle-lista').classList.remove('activo');
+    document.getElementById('ent-btn-pedir').style.display = 'none';
+    const pie = document.getElementById('esl-agregar-wrap'); if (pie) pie.hidden = true;
+}
 
 // Recursos de la canción como UN desplegable (reemplaza los chips sueltos). Conserva
 // el sistema genérico de assets: solo cambia la presentación en el header.
