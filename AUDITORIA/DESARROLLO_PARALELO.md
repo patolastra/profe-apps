@@ -10754,3 +10754,36 @@ a HV/HW.*
 - **Falta probar (PO):** escuchar algunas canciones en clase; subir un audio nuevo de calidad alta.
 - **Lugares de uso:** subida de Melodía / Karaoke / 2ª voz en la ficha de la canción (el karaoke creado con el
   separador ya salía en 128; extractos y versiones van a 📁 Archivos del curso sin cambio).
+
+
+### JO. Diseño: jerarquía de las piezas de una canción y el Editor de arreglos — DISEÑO APROBADO (2026-11-24)
+- **Necesidad (PO, Notion "El Arreglo no es solo de piano"):** las piezas de una canción (Ficha, audios, letra,
+  versiones, melodías, ritmos, acordes, arreglos) están desordenadas y el Editor de arreglos se presenta como "de
+  piano" aunque hace mucho más.
+- **Hecho:** conversación con el PO y documento `AUDITORIA/DISENO_CANCION_Y_ARREGLO.md`: cinco niveles (canción tal
+  como es · versiones · materiales · arreglos · lo que se usa); todo opcional salvo el nombre; Ficha siempre presente
+  y sin fricción; Secciones (de la canción) ≠ Partes (de un material); todo material es de la canción y el arreglo
+  lo elige (variantes en vez de copias); el material dice *qué* suena y la fila del instrumento *cómo*; el editor como
+  mapa instrumentos × secciones, sin instrumento principal. Sin cambios en la app.
+- **Siguiente:** revisar con el PO el orden de etapas (§4 del documento) antes de implementar.
+
+
+### JP. Etapa 1 del diseño JO: nombres — "🎶 Arreglo" y "Secciones" / "Partes" — HECHA (2026-11-24)
+- **Necesidad (PO):** primera etapa de `DISENO_CANCION_Y_ARREGLO.md` §4: que la app ya no diga "Arreglo de piano" y que
+  "secciones" (de la canción) y "partes" (de un material) se usen siempre con su sentido.
+- **Auditoría:** "Arreglo de piano" visible en `comun/nombre-asset.js` (nombre de cortesía de todo asset arreglo),
+  Piano (título de la pestaña), Editor musical (📍 Anotar) y el aviso del Editor de arreglos. Ícono del arreglo
+  disparejo: 🎹 (tipo en la Biblioteca, botón ＋, cabecera del editor), 🎼 (pestaña del Editor musical, vínculo del
+  Plan), 🎶 (grupo de la ficha). La Ficha llama "parte" a sus secciones (ayudas de 🧩 Estructura); el Metalófono del
+  profe llama "sección" a las partes de la melodía (desde IL). Las claves internas (`secciones` en el JSON de la
+  melodía) no se tocan: no se ven y las leen los links ya compartidos.
+- **Aprobado (PO):** la etapa 1 (decisión del diseño: el arreglo se llama 🎶 Arreglo).
+- **Lugares de uso:** Biblioteca (ficha, catálogo, botón ＋), Editor musical, Editor de arreglos, Piano, Plan, Ficha
+  de la canción, Metalófono del profe, ⌨ Anotar.
+- **Hecho:** "Arreglo de piano" → "Arreglo" en el nombre de cortesía (`nombre-asset.js`, `?v=jp` en sus 4 páginas),
+  la pestaña del Piano ("· Arreglo · Piano"), el 📍 del Editor musical y el aviso del editor. Ícono 🎶 para el
+  arreglo en todas partes (tipo y botón ＋ de la Biblioteca, cabecera del editor, pestaña del Editor musical, vínculo
+  del Plan). La Ficha dice "sección" en sus ayudas de 🧩 Estructura; el Metalófono dice "parte" (selector y nombre
+  por defecto). Claves internas sin cambio. Probado (24/11): Biblioteca, Ficha, Editor de arreglos, Editor musical,
+  Piano, Plan y Metalófono cargan sin errores con los textos nuevos.
+- **Queda (PO):** el 🎶 también lo usan el chip 🎶 Piano del Plan y el tipo Flauta.
