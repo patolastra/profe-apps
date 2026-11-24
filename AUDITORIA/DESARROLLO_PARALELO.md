@@ -10607,3 +10607,15 @@ a HV/HW.*
   escribió).
 - **Lugares de uso:** Entrenador en sesión: Biblioteca, pestaña de la sesión del curso, sesión abierta desde el Plan
   (misma página). Fuera: celular (`?movil=1`), copia de la Pizarra (`?espejo=1`), Entrenador mínimo (`?mini=1`).
+
+
+### JG. Pizarra: con el reloj de tiempo perdido a la vista, un clic no cambia las diapositivas de abajo — HECHA (2026-11-24)
+- **Necesidad (PO, 🐞 Mejoras con 📍 sobre el reloj 🎮 del Plan, clase de 6°):** con el tiempo perdido a la vista pero
+  detenido, un clic en la Pizarra cambia las diapositivas que quedan debajo del reloj.
+- **Auditoría:** la capa del reloj (`#clase-perdido`, encima de todo) tiene `pointer-events: none`: el clic pasa a
+  `#slide-area` (`handleClickArea` = siguiente diapositiva), sin verse.
+- **Aprobado (PO):** arreglarlo. Mientras el reloj está a la vista (corriendo o detenido) la capa recibe el clic y no
+  hace nada; al quitarlo, la Pizarra sigue donde estaba.
+- **Hecho:** `#clase-perdido.show` con `pointer-events: auto`. Probado en una Pizarra de prueba (`?sesion=prueba-jg`,
+  24/11): sin reloj el clic avanza; con el reloj a la vista (quieto) el clic queda en el reloj; al quitarlo vuelve a avanzar.
+- **Lugares de uso:** ventana de la Pizarra (Modo Clase). Las teclas ← → siguen funcionando con el reloj a la vista.
