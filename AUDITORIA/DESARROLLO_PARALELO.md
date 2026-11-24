@@ -10807,3 +10807,15 @@ a HV/HW.*
   (24/11): las 11 páginas cargan; el dibujo se ve a 13, 22 y 48 px; 🪈 se ve en Windows.
 - **Lugares de uso:** `comun/iconos.js` en Workspace, Plan, Biblioteca y Editor de arreglos (las que muestran el
   metalófono).
+
+
+### JR. Dibujo propio del cajón y metalófono ajustado — HECHA (2026-11-24)
+- **Necesidad (PO):** 🪘 es un djembe, no un cajón; en el metalófono la vara café sobresalía mucho a la derecha.
+- **Aprobado (PO, 24/11, tras varias pruebas):** cajón en perspectiva visto desde atrás (aristas iguales y paralelas,
+  agujero con perspectiva intermedia, madera clara, sin borde) y metalófono con la vara al ancho de las placas.
+- **Hecho:** `comun/iconos/cajon.svg` y `metalofono.svg` (nuevo); `Iconos.cajon` (`comun/iconos.js?v=jr`, ahora en
+  Workspace, Plan, Biblioteca, Editor de arreglos, Cajón y Ritmos). Reemplaza a 🪘 en: Biblioteca (tipo, botón ＋,
+  compartir la parte del cajón; también el de la parte del metalófono, que tenía 🎵), Plan (vínculos, chip del
+  arreglo, panel), Editor de arreglos (pestaña, título, ritmos, ventana de ritmo), Cajón (nombre del ritmo, listas) y
+  Ritmos (pestaña). En títulos de solo texto va la palabra "Cajón". Probado (24/11): las 6 páginas cargan; los dos
+  dibujos se ven a 13, 22 y 56 px.
