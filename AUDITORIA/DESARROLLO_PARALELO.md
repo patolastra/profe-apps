@@ -10545,3 +10545,21 @@ a HV/HW.*
   el marco para seleccionar bloques del editor. Los estudiantes arrastrables llevan ahora `data-eb-no-marco` (como los
   ⋮⋮). Probado con grupos propios de prueba en memoria (6°, 24/11): sin el arreglo aparece el marco, con él no.
 - **Lugares de uso:** estudiantes de los grupos armados en la actividad (columna del Plan y vista de clase).
+
+
+### JD. Presentación y Vista previa se pliegan juntas por actividad — HECHA (2026-11-23)
+- **Necesidad (PO, 🐞 Mejoras con 📍 sobre el plegado del cuadro Inicio, Plan de 6°):** al plegar un cuadro de la
+  Presentación (Inicio o una actividad), que se plieguen también sus miniaturas en la Vista previa y queden así; y clic
+  en el título de esas diapositivas en la Vista previa pliega / despliega las dos cosas.
+- **Auditoría:** el plegado de IZ es por clase y cuadro (`profe_pres_plegados`, `presPlegar`). La Vista previa tiene
+  un rótulo por actividad (`.prev-act`, `data-act-rot`; '' = Inicio) y cada miniatura sabe de cuál es (`data-act`;
+  Tiempo libre: `.libre-prev[data-libre]`). Hoy clic en el rótulo = ir a sus diapositivas.
+- **Aprobado (PO):** solo Presentación y Vista previa (las cards del Plan no, por ahora). Un solo estado por actividad:
+  plegar en cualquiera de las dos pliega ambas; recordado igual que IZ. Clic en el rótulo de la Vista previa = plegar /
+  desplegar (con ▾ / ▸). La vista de clase no cambia.
+- **Hecho:** `prevPlegar()` marca rótulos (`.plegada`) y oculta sus miniaturas (`.pleg`) según `profe_pres_plegados`;
+  corre al dibujar la Vista previa y en `presPlegar`. Clic en el rótulo pliega el cuadro (o, si la actividad no tiene
+  cuadro abierto, como un Tiempo libre, solo su parte de la Vista previa). El rótulo ya no lleva a las diapositivas (eso
+  sigue en el encabezado del cuadro). Probado en el Plan de 6° (24/11): plegar Inicio desde la Presentación pliega sus 4
+  miniaturas, el rótulo lo despliega todo y sigue plegado al redibujar; nada se escribió.
+- **Lugares de uso:** Presentación + Vista previa del Plan. La vista de clase tiene su propio panel (sin cambios).

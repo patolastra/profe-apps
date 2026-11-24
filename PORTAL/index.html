@@ -1074,6 +1074,9 @@
         .prev-act:first-child { border-top: none; padding-top: 0; }
         .prev-act:hover { color: var(--text); }
         .prev-act.en-curso { color: #b45309; }
+        .prev-act::before { content: '▾ '; }
+        .prev-act.plegada::before { content: '▸ '; }
+        #prev-body .slide-prev.pleg, #prev-body .libre-prev.pleg { display: none; }
 
         /* Slides UR buttons */
         .slides-ur-btns { margin-left: auto; display: flex; gap: 3px; }
@@ -2730,7 +2733,29 @@ function presPlegar(box, si) {
     if (si) set.add(k); else set.delete(k);
     try { localStorage.setItem(PLEG_KEY, JSON.stringify([...set].slice(-300))); } catch (_) {}
     if (!si) ajustarAltoTa(ta);
+    prevPlegar();
 }
+// Vista previa (deuda JD): las miniaturas de un cuadro plegado se pliegan bajo su rótulo; clic en el rótulo pliega o
+// despliega el cuadro y sus miniaturas. Solo con rótulo (sin actividades no hay dónde volver a abrirlas).
+function prevPlegar() {
+    const body = document.getElementById('prev-body'); if (!body) return;
+    const set = presPlegados(), rot = new Set([...body.querySelectorAll('.prev-act')].map(r => r.dataset.actRot || ''));
+    const pleg = a => rot.has(a || '') && set.has(presPlegClave(a));
+    body.querySelectorAll('.prev-act').forEach(r => r.classList.toggle('plegada', pleg(r.dataset.actRot)));
+    body.querySelectorAll('.slide-prev').forEach(el => el.classList.toggle('pleg', pleg(el.dataset.act)));
+    body.querySelectorAll('.libre-prev').forEach(el => el.classList.toggle('pleg', pleg(el.dataset.libre)));
+}
+document.addEventListener('click', e => {
+    const r = e.target.closest?.('#prev-body .prev-act'); if (!r) return;
+    const act = r.dataset.actRot || '';
+    const si = !presPlegados().has(presPlegClave(act));
+    const box = document.querySelector(`#pres-secc .psec[data-act="${act}"]`);
+    if (box && !box.classList.contains('vacio')) { presPlegar(box, si); return; }
+    const k = presPlegClave(act), set = presPlegados();   // actividad sin cuadro abierto (Tiempo libre): solo la Vista previa
+    if (si) set.add(k); else set.delete(k);
+    try { localStorage.setItem(PLEG_KEY, JSON.stringify([...set].slice(-300))); } catch (_) {}
+    prevPlegar();
+});
 // Selecciona en su cuadro el tramo [ini, fin) del texto completo y lo deja a la vista.
 function presSeleccionar(ini, fin) {
     const t = presTramos(document.getElementById('pres-area').value)
@@ -4197,8 +4222,7 @@ function actualizarPreview() {
         r.dataset.raw = raw; r.dataset.actRot = id;
         const card = planCards.find(c => c.id === id);
         r.textContent = !id ? 'Inicio' : card ? ((card.titulo || '').trim() || 'Actividad sin título') : 'Diapositivas sin actividad';
-        r.title = 'Ir a sus diapositivas';
-        r.addEventListener('click', () => irActividad(id || null));
+        r.title = 'Plegar o desplegar sus diapositivas';
         body.appendChild(r);
     };
     if (hayActs && rawParts[0].trim() && !esMarcaAct(rawParts[0])) rotulo('', '');
@@ -4223,6 +4247,7 @@ function actualizarPreview() {
     });
 
     previewLibres(body);
+    prevPlegar();
     pintarSecciones();
     if (claseAqui()) pintarClase();   // vista de clase al día (deuda BW)
     if (!slides.length && !body.querySelector('.libre-prev')) {
@@ -4253,7 +4278,6 @@ function previewLibres(body) {
         rot.className = 'prev-act';
         rot.dataset.raw = ''; rot.dataset.actRot = c.id;
         rot.textContent = (c.titulo || '').trim() || 'Tiempo libre';
-        rot.addEventListener('click', () => irActividad(c.id));
         let antes = null;
         for (const d of planCards.slice(k + 1)) { antes = body.querySelector(`.prev-act[data-act-rot="${d.id}"]`); if (antes) break; }
         if (!body.querySelector('.prev-act') && body.firstChild) {   // sin rótulos aún: las del comienzo son "Inicio"
