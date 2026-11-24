@@ -10638,3 +10638,20 @@ a HV/HW.*
   escribió.
 - **Lugares de uso:** Entrenador de la Biblioteca, pestaña de la sesión del curso y sesión desde el Plan (misma
   página); el celular y el mínimo ya escondían la lista.
+
+
+### JI. Entrenador: menús de Melodía y 🎸 Bajo claros y de a uno; ⌨ Anotar en claro — HECHA (2026-11-24)
+- **Necesidad (PO, 🐞 Mejoras 11/11):** los desplegables de Melodía y Bajo del Entrenador (y el cuadro ⌨ Anotar
+  rápido) deberían ser blancos, como el modo claro; son oscuros. Además los dos desplegables se pueden abrir a la vez.
+- **Auditoría:** los menús (`#ent-audio-pop`, `#ent-bajo-pop`) cuelgan del body, fuera del Entrenador: no les llega
+  el modo claro (`.ent-light`) y tienen colores oscuros fijos. Cada uno se cierra con un clic fuera de él, pero abrir
+  el otro no lo cierra (el clic del botón no llega al documento). ⌨ Anotar (`comun/anotar.js`, solo en el Workspace)
+  tiene colores oscuros fijos.
+- **Aprobado (PO):** menús en claro cuando el Entrenador está en modo claro (en oscuro siguen oscuros); abrir uno
+  cierra el otro. ⌨ Anotar siempre en claro.
+- **Hecho:** los menús llevan `.claro` si `entrenadorModoClaro` (estilos claros propios); abrir uno quita el otro.
+  ⌨ Anotar con fondo blanco, texto oscuro y bordes grises (`comun/anotar.js`; lo renueva el Workspace con cada
+  versión). Probado (24/11): en el Entrenador claro, Melodía → blanco; abrir Bajo cierra Melodía y viceversa; clic
+  fuera cierra; ⌨ Anotar en el Workspace local: fondo blanco, campos claros.
+- **Lugares de uso:** Entrenador del PC (Biblioteca, sesión del curso, Plan, mínimo); el menú de grabaciones también en
+  el celular (sigue el tema del Entrenador). ⌨ Anotar: Workspace PC (todas las pestañas).

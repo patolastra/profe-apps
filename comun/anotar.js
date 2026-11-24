@@ -103,28 +103,28 @@
         s.id = 'anotar-css';
         s.textContent = `
 #anotar { position: fixed; right: 16px; bottom: 16px; z-index: 9000; width: min(460px, calc(100vw - 32px));
-    background: #131c2e; border: 1px solid #3b82f6; border-radius: 12px; box-shadow: 0 18px 50px rgba(0,0,0,.55);
-    padding: 10px; font-family: system-ui, -apple-system, sans-serif; color: #f1f5f9; }
+    background: #ffffff; border: 1px solid #3b82f6; border-radius: 12px; box-shadow: 0 18px 50px rgba(15,23,42,.25);
+    padding: 10px; font-family: system-ui, -apple-system, sans-serif; color: #1e293b; }   /* en claro (JI) */
 #anotar[hidden] { display: none; }
 #anotar .an-fila { display: flex; gap: 6px; align-items: center; }
-#anotar select { flex: 0 0 150px; width: 150px; background: #1a2540; color: #f1f5f9; border: 1px solid #253455;
+#anotar select { flex: 0 0 150px; width: 150px; background: #f8fafc; color: #1e293b; border: 1px solid #cbd5e1;
     border-radius: 8px; padding: 7px 6px; font: inherit; font-size: .85rem; }
-#anotar input { flex: 1; min-width: 0; background: #0b1120; color: #f1f5f9; border: 1px solid #253455; border-radius: 8px;
+#anotar input { flex: 1; min-width: 0; background: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px;
     padding: 8px 10px; font: inherit; font-size: .95rem; outline: none; }
 #anotar input:focus { border-color: #3b82f6; }
-#anotar .an-x { flex: 0 0 auto; background: none; border: none; color: #7a8ba8; cursor: pointer; font-size: .95rem; padding: 4px 6px; }
-#anotar .an-x:hover { color: #f1f5f9; }
-#anotar .an-pista { margin-top: 6px; min-height: 1.2em; font-size: .8rem; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#anotar .an-pista.error { color: #fca5a5; }
-#anotar .an-sug { margin-top: 6px; max-height: 190px; overflow-y: auto; border-top: 1px solid #253455; }
+#anotar .an-x { flex: 0 0 auto; background: none; border: none; color: #64748b; cursor: pointer; font-size: .95rem; padding: 4px 6px; }
+#anotar .an-x:hover { color: #0f172a; }
+#anotar .an-pista { margin-top: 6px; min-height: 1.2em; font-size: .8rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#anotar .an-pista.error { color: #dc2626; }
+#anotar .an-sug { margin-top: 6px; max-height: 190px; overflow-y: auto; border-top: 1px solid #e2e8f0; }
 #anotar .an-sug[hidden] { display: none; }
-#anotar .an-lugar { margin-top: 4px; display: flex; align-items: center; gap: 4px; font-size: .75rem; color: #7a8ba8; }
+#anotar .an-lugar { margin-top: 4px; display: flex; align-items: center; gap: 4px; font-size: .75rem; color: #64748b; }
 #anotar .an-lugar[hidden] { display: none; }
 #anotar .an-lugar .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #anotar .an-lugar .an-x { font-size: .8rem; padding: 0 4px; }
 #anotar .an-sug div { padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: .88rem; display: flex; gap: 8px; }
 #anotar .an-sug div .c { flex: 0 0 auto; opacity: .8; }
-#anotar .an-sug div.on, #anotar .an-sug div:hover { background: #223052; }
+#anotar .an-sug div.on, #anotar .an-sug div:hover { background: #eff6ff; }
 #anotar-aviso { position: fixed; right: 16px; bottom: 16px; z-index: 9001; max-width: min(460px, calc(100vw - 32px));
     background: #14532d; border: 1px solid #22c55e; color: #dcfce7; border-radius: 12px; padding: 10px 14px;
     font-family: system-ui, -apple-system, sans-serif; font-size: .9rem; font-weight: 600; cursor: pointer;
