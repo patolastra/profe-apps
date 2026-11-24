@@ -10501,3 +10501,22 @@ a HV/HW.*
   clic en "Inicio" lo pliega (queda la línea con ▸ y "4 diapos."), sigue plegado al recargar y se despliega solo al
   escribir en él.
 - **Lugares de uso:** Presentación del Plan (cuadro Inicio y los de cada actividad). La vista de clase no tiene cuadros.
+
+
+### JA. Plan: plegar los grupos de una actividad y ordenarlos arrastrando — HECHA (2026-11-23)
+- **Necesidad (PO, 🐞 Mejoras con 📍 sobre el Grupo 1 de "Karaoke", Plan de 6°):** plegar los grupos para ver solo su
+  nombre e integrantes, y así ordenarlos arrastrando.
+- **Auditoría:** los grupos de una actividad son los de una evaluación del Libro (`libro_evaluacion_grupos`, en orden
+  de creación) o los armados en el Plan (`plan_cards.grupos`, en su orden). Cada uno lleva plan (`plan_cards.grupos_plan`,
+  `{ id del grupo: texto }`), repertorio y bitácora. Se ven en la columna del Plan y en la vista de clase.
+- **Aprobado (PO):** botón para plegar / desplegar los grupos de la actividad (recordado en el equipo); plegados, cada
+  grupo es una línea con su nombre e integrantes y se ordena arrastrándolo. El orden de los del Libro vale **solo en esa
+  actividad del Plan** (guardado en `grupos_plan.__orden`, sin tocar Supabase ni el Libro); los armados en el Plan se
+  reordenan en su propia lista.
+- **Hecho:** con 2 o más grupos, "▸ Plegar / ▾ Desplegar" en el título de los grupos (`profe_grupos_plegados`, por
+  actividad). Plegados: cada grupo en una línea (nombre + integrantes; sin plan, repertorio, bitácora, Disponibles ni
+  ＋ Nuevo grupo) con su ⋮⋮ para arrastrar; una raya azul marca dónde queda. Los del Libro se ordenan con
+  `grupos_plan.__orden` (`ordenGr`), los armados en el Plan reordenan `plan_cards.grupos`. Vale en la columna del Plan y
+  en la vista de clase (mismo dibujo). Probado en "Karaoke" (6°, 24/11, grupos del Libro) y con grupos propios de
+  prueba, guardado interceptado (la base no cambió).
+- **Falta probar (PO):** ordenar los grupos de Karaoke de verdad y ver que el orden se mantiene al volver al Plan.
