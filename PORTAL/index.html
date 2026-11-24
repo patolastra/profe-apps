@@ -918,6 +918,12 @@
         .psec-tit { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .psec-tit.sin { color: #94a3b8; font-weight: 600; font-style: italic; }
         .psec-n { min-width: 5.5em; white-space: nowrap; text-align: right; font-size: 0.68rem; font-weight: 600; color: var(--muted); flex-shrink: 0; }
+        .psec-pleg { flex: 0 0 auto; display: inline-block; width: 10px; font-size: 0.7rem; color: #94a3b8; transition: transform .12s; }   /* (IZ) */
+        .psec.vacio .psec-pleg { display: none; }
+        .psec.plegado .psec-pleg { transform: rotate(-90deg); }
+        .psec.plegado .psec-ta { display: none; }
+        .psec.plegado .psec-hdr { border-bottom: none; }
+        .psec-tit:hover { text-decoration: underline; }
         .psec.inicio .psec-hdr { color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.68rem; }
         .psec.huerfano .psec-hdr { color: #b45309; }
         .psec-ta { display: block; width: 100%; border: none; outline: none; resize: none; overflow: hidden; padding: 8px 12px; font-family: 'Courier New', monospace; font-size: 0.83rem; line-height: 1.6; color: var(--text); background: var(--card-bg); min-height: 3.4em; }
@@ -2590,7 +2596,7 @@ function pintarSecciones() {
             const box = document.createElement('div');
             box.className = 'psec' + (c.id ? '' : ' inicio') + (c.huerfano ? ' huerfano' : '');
             box.dataset.act = c.id || '';
-            box.innerHTML = `<div class="psec-hdr" title="Ir a sus diapositivas"><span class="psec-tit"></span><span class="psec-cancs"></span><span class="psec-n"></span></div>
+            box.innerHTML = `<div class="psec-hdr" title="Ir a sus diapositivas"><span class="psec-pleg" title="Plegar o desplegar el cuadro">▾</span><span class="psec-tit" title="Plegar o desplegar el cuadro"></span><span class="psec-cancs"></span><span class="psec-n"></span></div>
                 <textarea class="psec-ta" spellcheck="false"></textarea>`;
             const ta = box.querySelector('.psec-ta');
             roTa?.observe(ta);
@@ -2608,7 +2614,10 @@ function pintarSecciones() {
                 e.stopPropagation();
                 abrirMini(b.dataset.id, box.dataset.act || null, b.dataset.asset, b.dataset.seccion, b.dataset.inst);
             });
-            box.querySelector('.psec-hdr').addEventListener('click', () => {
+            box.querySelector('.psec-hdr').addEventListener('click', e => {
+                if (!box.classList.contains('vacio') && e.target.closest('.psec-tit, .psec-pleg')) {   // plegar / desplegar (IZ)
+                    presPlegar(box, !box.classList.contains('plegado')); return;
+                }
                 if (!box.classList.contains('vacio')) { irActividad(box.dataset.act || null); return; }
                 box.classList.remove('vacio'); box.classList.add('abierto');   // abrir el cuadro para escribir
                 ta.focus();
@@ -2628,6 +2637,7 @@ function pintarSecciones() {
         // No toda actividad tiene diapositivas: sin texto, una línea delgada con "＋ Diapositivas".
         const vacio = !!c.id && !c.texto && !box.classList.contains('abierto');
         box.classList.toggle('vacio', vacio);
+        box.classList.toggle('plegado', !vacio && presPlegados().has(presPlegClave(box.dataset.act)));   // (IZ)
         // Con canciones vinculadas, el título se ve activo aunque aún no tenga diapositivas (sigue sin cuadro de texto).
         const libre = !!(c.card && esLibre(c.card));
         box.classList.toggle('libre', libre);
@@ -2697,12 +2707,27 @@ var roTa = window.ResizeObserver ? new ResizeObserver(es => es.forEach(e => {
     if (w && w !== e.target._anchoTa) { e.target._anchoTa = w; ajustarAltoTa(e.target); }
 })) : null;
 document.fonts?.ready?.then(() => document.querySelectorAll('#pres-secc .psec-ta').forEach(ajustarAltoTa));
+// Cuadros plegados (deuda IZ): solo para mirar, recordados en el equipo por clase y cuadro.
+const PLEG_KEY = 'profe_pres_plegados';
+const presPlegClave = act => `${sesionActual?.id || ''}|${act || 'inicio'}`;
+function presPlegados() { try { return new Set(JSON.parse(localStorage.getItem(PLEG_KEY) || '[]')); } catch (_) { return new Set(); } }
+function presPlegar(box, si) {
+    if (!box) return;
+    const ta = box.querySelector('.psec-ta');
+    if (si && document.activeElement === ta) ta.blur();
+    box.classList.toggle('plegado', si);
+    const k = presPlegClave(box.dataset.act), set = presPlegados();
+    if (si) set.add(k); else set.delete(k);
+    try { localStorage.setItem(PLEG_KEY, JSON.stringify([...set].slice(-300))); } catch (_) {}
+    if (!si) ajustarAltoTa(ta);
+}
 // Selecciona en su cuadro el tramo [ini, fin) del texto completo y lo deja a la vista.
 function presSeleccionar(ini, fin) {
     const t = presTramos(document.getElementById('pres-area').value)
         .filter(x => x.inicio <= ini && ini <= x.inicio + x.texto.length).pop();
     const box = t && document.querySelector(`#pres-secc .psec[data-act="${t.id || ''}"]`);
     if (!box) return;
+    if (box.classList.contains('plegado')) presPlegar(box, false);
     const ta = box.querySelector('.psec-ta');
     ta.focus({ preventScroll: true });
     ta.setSelectionRange(ini - t.inicio, fin - t.inicio);
@@ -2714,8 +2739,11 @@ function presSeleccionar(ini, fin) {
 }
 // Dónde escribe Insertar: el último cuadro con el cursor (o Inicio).
 function presTa() {
-    return presUltimaTa && document.contains(presUltimaTa) ? presUltimaTa
+    const ta = presUltimaTa && document.contains(presUltimaTa) ? presUltimaTa
         : document.querySelector('#pres-secc .psec-ta') || document.getElementById('pres-area');
+    const box = ta?.closest?.('.psec.plegado');
+    if (box) presPlegar(box, false);   // se va a escribir ahí: se despliega (IZ)
+    return ta;
 }
 // Rearma el texto en el orden actual de las actividades (al moverlas) y lo guarda si cambió.
 function presReordenar() {

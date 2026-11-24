@@ -10486,3 +10486,18 @@ a HV/HW.*
   Se escribe con `execCommand('insertText')`: Ctrl+Z lo deshace. Probado con teclas reales en un cuadro de la
   Presentación de 6° (24/11), guardado interceptado (la diapositiva real no cambió).
 - **Lugares de uso:** Presentación del Plan (cuadros por actividad y texto completo) y ✏️ de la vista de clase.
+
+
+### IZ. Presentación: plegar el cuadro de diapositivas con clic en su título — HECHA (2026-11-23)
+- **Necesidad (PO, 🐞 Mejoras con 📍 en la Presentación de 6°):** con muchas diapositivas en el Inicio, plegar su cuadro
+  de texto haciendo clic en su título.
+- **Auditoría:** cada cuadro (`.psec`: Inicio y uno por actividad) tiene encabezado con título, canciones y n° de
+  diapositivas; clic en el encabezado = ir a sus diapositivas (o abrir el cuadro si la actividad no tiene).
+- **Aprobado (PO):** pedido directo (mejora chica). Clic en el **título** (con ▾ / ▸ al lado) pliega o despliega; el
+  resto del encabezado sigue llevando a sus diapositivas. Solo para mirar: se recuerda en el equipo por clase y cuadro;
+  el texto y las diapositivas no cambian. Si algo escribe en un cuadro plegado (＋ Insertar, 😀, clic en una
+  diapositiva de la vista previa), el cuadro se despliega.
+- **Hecho:** como lo aprobado (`presPlegar`, clave `profe_pres_plegados`, máx. 300). Probado en el Plan de 6° (24/11):
+  clic en "Inicio" lo pliega (queda la línea con ▸ y "4 diapos."), sigue plegado al recargar y se despliega solo al
+  escribir en él.
+- **Lugares de uso:** Presentación del Plan (cuadro Inicio y los de cada actividad). La vista de clase no tiene cuadros.
