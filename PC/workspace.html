@@ -308,7 +308,7 @@ function abrirInstancia({ key, titulo, ico, src, fijo = false, guardarAlCerrar =
         `<span class="tab-title"></span>` +
         (fijo ? '' : `<span class="tab-close" title="Cerrar pestaña">✕</span>`);
     tabEl.querySelector('.tab-title').textContent = titulo;   // texto por textContent (no HTML)
-    tabEl.onclick = () => activar(key);
+    tabEl.onclick = () => { activar(key); alEntrarEnClase(key); };
     const closeEl = tabEl.querySelector('.tab-close');
     if (closeEl) closeEl.onclick = (e) => { e.stopPropagation(); cerrarTab(key); };
     if (!fijo) {
@@ -380,6 +380,18 @@ function abrirApp(appId, fijo = false) {
 }
 
 // ── ACTIVAR (mostrar solo el iframe activo; el resto oculto pero VIVO) ──────
+// Clase en curso (deuda JE): al entrar con un clic a Libros o a la Biblioteca, van al curso de la clase, cada vez
+// (aunque antes se haya elegido otro curso a mano). Solo con el clic en la pestaña: las aperturas desde otras apps
+// (Plan, Libro) ya dicen adónde ir.
+function alEntrarEnClase(key) {
+    const ec = claseEnCurso();
+    if (!ec || !ec.ctx) return;
+    const t = tabs.find(x => x.key === key);
+    if (!t) return;
+    const m = key === 'libros' ? { tipo: 'ws-ir', ctx: ec.ctx, sesion: ec.sesionId }
+            : key === 'repertorio' ? { tipo: 'ws-ir', cursoEnClase: ec.ctx } : null;
+    if (m) try { t.iframeEl.contentWindow.postMessage(m, '*'); } catch (_) {}
+}
 function activar(key) {
     activeKey = key;
     tabs.forEach(t => {

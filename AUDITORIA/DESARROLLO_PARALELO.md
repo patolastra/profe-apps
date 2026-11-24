@@ -10563,3 +10563,24 @@ a HV/HW.*
   sigue en el encabezado del cuadro). Probado en el Plan de 6° (24/11): plegar Inicio desde la Presentación pliega sus 4
   miniaturas, el rótulo lo despliega todo y sigue plegado al redibujar; nada se escribió.
 - **Lugares de uso:** Presentación + Vista previa del Plan. La vista de clase tiene su propio panel (sin cambios).
+
+
+### JE. Barra de la clase más corta; Libros y Biblioteca van al curso de la clase en curso — HECHA (2026-11-23)
+- **Necesidad (PO, 🐞 Mejoras con 📍 en la barra de la vista de clase, 6°):** simplificar la barra. Se quedan Pasar
+  lista, ✍🏼 Bitácora, 📔 Cuaderno, 🔔 Recurrentes, 🔴 Puntero, 📽️ Abrir Pizarra y ↔ Cambiar de pantalla; se van 📒
+  Libro, 🎵 Repertorio, 📱 Remoto y ◀ ▶. A cambio, con una clase en curso, la pestaña 📒 Libros abre el curso de la
+  clase y la 📚 Biblioteca la sesión (repertorio) de ese curso.
+- **Auditoría:** los botones están en `.hdr-ses-right` del Plan (`abrirLibro`, `abrirRepertorioCurso`,
+  `mostrarQRRemoto`, `navPizarra`). El Workspace conoce la clase en curso (`ClaseVivo.enCurso()`: `ctx`, `sesionId`)
+  y ya manda `ws-ir` a Libros (`{ ctx, sesion }`) y a la Biblioteca. Libros recargaba el Libro en cada `abrir`.
+- **Aprobado (PO):** opción B: **cada vez que se entra** a la pestaña (clic en ella) durante la clase, salta al curso
+  de la clase (aunque se haya elegido otro a mano). Biblioteca: al entrar, se muestra la sesión del curso; todo se
+  valida en uso real. Siguiente paso aparte (PO): agregar canciones a la sesión del curso sin salir de ella.
+- **Hecho:** fuera los 4 botones (las funciones `abrirLibro` / `abrirRepertorioCurso` / `mostrarQRRemoto` / `navPizarra`
+  quedan, sin botón). Workspace: `alEntrarEnClase(key)` al hacer clic en la pestaña 📒 Libros (`ws-ir { ctx, sesion }`)
+  o 📚 Biblioteca (`ws-ir { cursoEnClase }`). Libros ya no recarga el Libro si ya está en ese curso y clase. Biblioteca:
+  abre la sesión del curso (`practicarSesion`) salvo que ya esté en ella (no corta lo que suena). Probado en el
+  Workspace local con una clase de 6° simulada (24/11): Libros entra en 6°, 8° a mano → al volver, 6°; sin recargar al
+  repetir; Biblioteca abre la sesión de 6° y al volver sigue en la misma canción; sin clase no cambia nada; nada se
+  escribió.
+- **Lugares de uso:** barra del Plan (vista normal y de clase); pestañas Libros y Biblioteca del Workspace PC.
