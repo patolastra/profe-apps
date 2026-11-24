@@ -10520,3 +10520,28 @@ a HV/HW.*
   en la vista de clase (mismo dibujo). Probado en "Karaoke" (6°, 24/11, grupos del Libro) y con grupos propios de
   prueba, guardado interceptado (la base no cambió).
 - **Falta probar (PO):** ordenar los grupos de Karaoke de verdad y ver que el orden se mantiene al volver al Plan.
+
+
+### JB. Plan: sin "✍🏼 Ver bitácoras" general; cada grupo muestra la suya con su ✍🏼 — HECHA (2026-11-23)
+- **Necesidad (PO, 🐞 Mejoras con 📍 sobre "Ver bitácoras", Plan de 6°):** el botón general "Ver / Ocultar bitácoras"
+  está de más; la bitácora de cada grupo se muestra y se oculta con su propio ✍🏼. Igual en los grupos armados en la
+  actividad.
+- **Auditoría:** el título de los grupos tiene "✍🏼 Ver bitácoras" (`gruposVerBit`, `profe_grupos_verbit`), que muestra
+  lo escrito de todos los grupos como texto de solo lectura (`.pgr-bitl`). El ✍🏼 de cada grupo ya abre (y cierra) su
+  parte de la bitácora en un cuadro bajo el grupo, con lo escrito adentro.
+- **Aprobado (PO):** quitar el botón general y la vista de solo lectura; el ✍🏼 de cada grupo abre y cierra lo suyo
+  (con lo escrito a la vista, editable). Columna del Plan y vista de clase; grupos del Libro y propios.
+- **Hecho:** fuera el botón, `gruposVerBit` / `profe_grupos_verbit` y la vista `.pgr-bitl`. De paso: al cerrar el ✍🏼
+  de un grupo (o Listo) el cuadro quedaba a la vista, porque el redibujo "solo si cambió" (IU) no cuenta el cuadro
+  abierto; ahora `cerrarGrupoBit` fuerza el redibujo. Probado en "Karaoke" (6°, 24/11): abre, cierra, reabre y Listo
+  cierran bien; guardado interceptado (nada se escribió).
+- **Lugares de uso:** grupos en la columna del Plan y en la vista de clase (mismo dibujo), del Libro y propios.
+
+### JC. Plan: tomar a un estudiante para un grupo sin que aparezca un cuadro de selección — HECHA (2026-11-23)
+- **Necesidad (PO, 🐞 Mejoras con 📍 sobre "Arrástralo a un grupo", Plan de 6°):** al tomar un estudiante para llevarlo
+  a un grupo aparece un cuadro de selección molesto (bug).
+- **Aprobado (PO):** reproducirlo y arreglarlo.
+- **Causa y arreglo:** apretar sobre un estudiante (dentro de la actividad, que es zona del editor por bloques) empezaba
+  el marco para seleccionar bloques del editor. Los estudiantes arrastrables llevan ahora `data-eb-no-marco` (como los
+  ⋮⋮). Probado con grupos propios de prueba en memoria (6°, 24/11): sin el arreglo aparece el marco, con él no.
+- **Lugares de uso:** estudiantes de los grupos armados en la actividad (columna del Plan y vista de clase).
