@@ -300,6 +300,24 @@
             gap: 14px;
         }
 
+        /* Vista de lista (deuda JK): una fila por canción */
+        #btn-vista-lista { flex-shrink: 0; width: 30px; padding: 3px 0; border-radius: 8px; border: 1.5px solid var(--border);
+            background: #fff; color: #334155; font-size: 0.85rem; cursor: pointer; line-height: 1.2; }
+        #btn-vista-lista:hover { border-color: #64748b; }
+        #lista.listado { display: flex; flex-direction: column; gap: 2px; }
+        .song-row { display: grid; grid-template-columns: 36px minmax(160px, 2fr) minmax(110px, 1.3fr) 110px minmax(120px, 1.2fr) minmax(120px, 1.5fr);
+            gap: 12px; align-items: center; padding: 5px 10px; background: var(--card-bg); border-radius: 8px; cursor: pointer;
+            border: 1.5px solid transparent; }
+        .song-row:hover { border-color: #cbd5e1; }
+        .song-row.activa { border-color: var(--accent); }
+        .song-row .r-art { width: 36px; height: 36px; border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: rgba(255,255,255,.35); font-size: 1rem; }
+        .song-row .r-art img { width: 100%; height: 100%; object-fit: cover; }
+        .song-row .r-art.bandera img { object-fit: contain; background: #fff; }
+        .song-row .r-nom { font-weight: 700; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .song-row .r-art-t, .song-row .r-gen { font-size: 0.78rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .song-row .r-chips { display: flex; gap: 3px; flex-wrap: wrap; overflow: hidden; max-height: 22px; }
+
         /* ── EMPTY STATE ── */
         #empty {
             display: none;
@@ -2939,6 +2957,7 @@
             <option value="nombre">A–Z canción</option>
             <option value="artista">A–Z artista</option>
         </select>
+        <button id="btn-vista-lista" onclick="toggleVistaLista()" title="Ver como lista">☰</button>
     </div>
 </div>
 
@@ -3915,7 +3934,7 @@ function practicarCurso() {
 }
 
 function render() {
-    const q = document.getElementById('search').value.trim().toLowerCase();
+    const q = sinTildes(document.getElementById('search').value.trim());   // sin tildes (JK)
     let lista = [...canciones];
 
     // pestaña del catálogo
@@ -3923,10 +3942,8 @@ function render() {
     if (filtroSinClase) lista = lista.filter(faltaClase);
     // filtro búsqueda
     if (q) {
-        lista = lista.filter(c =>
-            c.nombre.toLowerCase().includes(q) ||
-            (c.artista||'').toLowerCase().includes(q)
-        );
+        const pal = q.split(/\s+/);
+        lista = lista.filter(c => { const t = sinTildes(`${c.nombre} ${c.artista || ''}`); return pal.every(w => t.includes(w)); });
     }
     // filtro chip
     if (filtroCurso) lista = lista.filter(c => (c.contextos||[]).includes(filtroCurso));
@@ -3943,14 +3960,40 @@ function render() {
         empty.classList.add('visible');
     } else {
         empty.classList.remove('visible');
-        el.innerHTML = lista.map(c => cardHTML(c)).join('');
+        el.innerHTML = lista.map(c => vistaLista ? filaHTML(c) : cardHTML(c)).join('');
     }
+    el.classList.toggle('listado', vistaLista);
+    const bv = document.getElementById('btn-vista-lista');
+    if (bv) { bv.textContent = vistaLista ? '▦' : '☰'; bv.title = vistaLista ? 'Ver como tarjetas' : 'Ver como lista'; }
 
     // contador: va como texto del campo de búsqueda (deuda BH)
     const nCat = canciones.filter(c => (c.categoria || 'cancion') === filtroCategoria).length, nom = CATEGORIAS[filtroCategoria];
     document.getElementById('search').placeholder = nCat > 0 ? `Buscar en ${nCat} ${nCat !== 1 ? nom.varios : nom.uno}…` : `Buscar ${nom.uno}…`;
 
     renderChips();
+}
+
+// Minúsculas y sin tildes, para buscar (JK). Declarada como función: se puede usar antes de su línea.
+function sinTildes(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+// Vista de lista del catálogo (deuda JK), recordada en el equipo
+let vistaLista = false;
+try { vistaLista = localStorage.getItem('profe_bib_lista') === '1'; } catch (_) {}
+function toggleVistaLista() {
+    vistaLista = !vistaLista;
+    try { localStorage.setItem('profe_bib_lista', vistaLista ? '1' : '0'); } catch (_) {}
+    render();
+}
+function filaHTML(c) {
+    const tipos = [...new Set((c.assets || []).map(a => a.tipo))];
+    const art = c.artwork_url
+        ? `<div class="r-art${esBandera(c.artwork_url) ? ' bandera' : ''}"><img src="${c.artwork_url}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='${icoFicha(c)}'"></div>`
+        : `<div class="r-art">${icoFicha(c)}</div>`;
+    const recursos = tipos.map(t => { const i = TIPOS_ASSET[t]; return i ? `<span class="asset-ico ${i.clase}">${i.label}</span>` : ''; }).join('');
+    const cursos = (c.contextos || []).slice().sort((a, b) => (a === 'PERSONAL' ? -1 : b === 'PERSONAL' ? 1 : 0))
+        .map(ctx => `<span class="curso-badge${ctx === 'PERSONAL' ? ' personal' : ''}">${ctxLabel(ctx)}</span>`).join('');
+    return `<div class="song-row ${songActiva?.id === c.id ? 'activa' : ''}" onclick="abrirPanel('${c.id}')">
+        ${art}<div class="r-nom" title="${c.nombre}">${c.nombre}</div><div class="r-art-t">${c.artista || ''}</div>
+        <div class="r-gen">${c.estilo || ''}</div><div class="r-chips">${recursos}</div><div class="r-chips">${cursos}</div></div>`;
 }
 
 function cardHTML(c) {

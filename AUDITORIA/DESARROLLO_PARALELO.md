@@ -10668,3 +10668,18 @@ a HV/HW.*
   solo lo que suena. Probado con Estrechez de corazón + "Castigadas 2026" (24/11): desde 63,52 s (1 s tras el tramo
   42,26–62,52) J → 38,26 y J → 33,26 (nunca dentro de lo omitido); L desde 40,26 → 65,52.
 - **Lugares de uso:** Entrenador con teclado (Biblioteca, sesión del curso, Plan, mínimo). Sin adaptación, igual que antes.
+
+
+### JK. Biblioteca: buscar sin tildes y ver el catálogo como lista — HECHA (2026-11-24)
+- **Necesidad (PO, 🐞 Mejoras 23/11):** que la búsqueda de canciones de la Biblioteca no distinga tildes, y que haya una
+  vista tipo listado.
+- **Auditoría:** el buscador del catálogo (`render`) compara con `toLowerCase().includes`: "cancion" no encuentra
+  "Canción". El catálogo es solo de tarjetas grandes con carátula (`cardHTML`, grilla de 220 px).
+- **Aprobado (PO):** búsqueda sin tildes (por palabras, nombre y artista). Botón al lado del orden para pasar a
+  **lista**: una fila por canción con carátula chica, nombre, artista, género, recursos y cursos; clic = su ficha,
+  igual que la tarjeta. Se recuerda en el equipo. Vale en las tres pestañas (Canciones, Materiales, Estilos).
+- **Hecho:** `render` busca con `sinTildes` y por palabras; botón ☰ / ▦ junto al orden (`toggleVistaLista`,
+  `profe_bib_lista`), filas `filaHTML` (`#lista.listado`). Probado en la Biblioteca local (24/11): "cancion" encuentra
+  las dos "Canción", "corazon estrechez" encuentra "Estrechez de Corazón"; la lista muestra las 145 canciones en filas.
+- **Lugares de uso:** catálogo de la Biblioteca (pestaña fija del Workspace). El buscador del celular y el de la sesión
+  (JF) ya iban sin tildes.
