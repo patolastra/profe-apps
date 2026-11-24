@@ -3820,6 +3820,34 @@ function cursoAplicar(sesionId, cs, sesionNueva) {
     if (songActiva) renderPanel();
 }
 
+// Audios livianos (deuda JN): un audio de canción con más de 160 kbps se pasa a MP3 de 128 kbps antes de subirlo
+// (en el plan gratis el espacio se acaba; en la sala suena igual). lamejs no escribe el retraso del MP3 y el
+// navegador lo toca 1105 muestras tarde: se adelanta esa cantidad para que calce con el original (como el separador).
+// Si algo falla, se sube el original.
+async function audioLiviano(file, estado) {
+    try {
+        const datos = await file.arrayBuffer();
+        const buf = await new OfflineAudioContext(2, 1, 44100).decodeAudioData(datos.slice(0));
+        const kbps = file.size * 8 / buf.duration / 1000;
+        if (!(buf.duration > 1) || kbps <= 160) return file;
+        if (!window.lamejs) await new Promise((ok, mal) => { const sc = document.createElement('script');
+            sc.src = '../comun/lame.min.js'; sc.onload = ok; sc.onerror = mal; document.head.appendChild(sc); });
+        const RETRASO = 1105, sr = buf.sampleRate, ch = Math.min(2, buf.numberOfChannels), n = buf.length - RETRASO;
+        const aInt16 = c => { const f = buf.getChannelData(c), o = new Int16Array(n);
+            for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, f[i + RETRASO])); o[i] = v < 0 ? v * 0x8000 : v * 0x7FFF; } return o; };
+        const L = aInt16(0), R = ch === 2 ? aInt16(1) : null;
+        const enc = new lamejs.Mp3Encoder(ch, sr, 128), partes = [], BLOQUE = 1152 * 40;
+        for (let i = 0; i < n; i += BLOQUE) {
+            const mp3 = R ? enc.encodeBuffer(L.subarray(i, i + BLOQUE), R.subarray(i, i + BLOQUE)) : enc.encodeBuffer(L.subarray(i, i + BLOQUE));
+            if (mp3.length) partes.push(new Uint8Array(mp3));
+            if (estado) estado(`Comprimiendo… ${Math.round(i / n * 100)}%`);
+            await new Promise(r => setTimeout(r, 0));
+        }
+        const fin = enc.flush(); if (fin.length) partes.push(new Uint8Array(fin));
+        const nombre = file.name.replace(/\.[^.]+$/, '') + '.mp3';
+        return new File(partes, nombre, { type: 'audio/mpeg' });
+    } catch (e) { console.warn('audioLiviano', e); return file; }
+}
 // Subir archivo a Storage con prefijo por tipo
 function sbSubirArchivo(tipo, assetId, file, onProgress) {
     const ext    = file.name.split('.').pop();
@@ -5805,8 +5833,10 @@ async function guardarAsset() {
         wrapProg.style.display = '';
         bar.style.width = '0%'; pct.textContent = '0%';
         document.getElementById('asset-guardar').disabled = true;
+        let subir = audioFile;
         try {
-            storagePath = await sbSubirArchivo('audio', assetId, audioFile, p => {
+            subir = await audioLiviano(audioFile, t => { pct.textContent = t; });   // JN: más de 160 kbps → 128
+            storagePath = await sbSubirArchivo('audio', assetId, subir, p => {
                 bar.style.width = p + '%'; pct.textContent = p + '%';
             });
         } catch (e) {
@@ -5818,7 +5848,7 @@ async function guardarAsset() {
         document.getElementById('asset-guardar').disabled = false;
         const asset = {
             id: assetId, cancion_id: c.id, tipo: 'audio', etiqueta, mensaje,
-            contenido: '', synced: '', nombre_archivo: audioFile.name,
+            contenido: '', synced: '', nombre_archivo: subir.name,
             storage_path: storagePath, orden: 0, ...metaFields, rol,
         };
         try { await sbUpsertAsset(asset); }

@@ -10726,3 +10726,31 @@ a HV/HW.*
   y ws-callar; Workspace y Plan cargan sin errores; Mejoras pliega el 🧾. Falta que ocurra en uso real.
 - **Uso (PO):** cuando se corte, Ctrl + Shift + Ñ → `/bug se cortó el Entrenador` → Enter.
 - **Lugares de uso:** Workspace PC, Plan (Portal) y Biblioteca/Entrenador (todas sus versiones dentro del Workspace).
+
+
+### JN. Espacio en Supabase: comprimir los audios de las canciones — HECHA (2026-11-24)
+- **Necesidad (PO, Notion "Espacio en Supabase", Alta):** queda poco espacio en el plan gratis; las canciones y
+  karaokes lo llenarán. Lo ideal: no tener que preocuparse del espacio, a costo cero.
+- **Auditoría (24/11, solo lectura):** archivos = 791 MB (límite gratis ~1 GB). Audios de canciones
+  (`repertorio-assets/audio/`) = 757 MB en 159 MP3: 16 a 320 kbps (138 MB), 65 a 192 (351 MB), el resto a 128 o menos.
+  Lo demás < 35 MB. No se pudo medir la base de datos ni lo de la app de ensayo (se ve en el panel de Supabase).
+  La subida (`sbSubirArchivo`) guarda el archivo tal cual; `comun/lame.min.js` ya codifica MP3 en el navegador
+  (recortar del celular, separador de voz con su ajuste de 1105 muestras).
+- **Riesgo:** recodificar un MP3 puede correr el audio unas milésimas; Melodía y Karaoke deben seguir calzando en la
+  misma muestra (ET) y la letra sincronizada, el mapa de tempo y los extractos dependen del segundo exacto.
+- **Propuesta:** (1) respaldo de los 159 originales en el computador; (2) pasar los 81 de 192/320 a 128 kbps estéreo
+  en el mismo archivo (mismo link, nada que reconfigurar), comprobando cada uno contra el original (mismo largo y
+  sin corrimiento; si no calza, no se reemplaza); (3) la Biblioteca comprime sola a 128 los audios nuevos que vengan
+  con más calidad. Libera ~200 MB.
+- **Aprobado (PO, 24/11):** el plan completo.
+- **Hecho:** (1) respaldo de los 160 audios originales (758 MB, tamaños comprobados) en
+  `Desktop\PROFE\RESPALDO AUDIOS BIBLIOTECA 2026-11-24\` con `_lista.json`. (2) Los 81 de 192/320 kbps pasados a
+  128 kbps estéreo con ffmpeg (libmp3lame, sin carátula ni datos), cada uno comparado con su original: mismo largo y
+  corrimiento 0 en tres puntos (correlación > 0,99); 81 de 81 calzaron. Comprobado además en el navegador con 3 (mismo
+  largo en muestras, corrimiento 0). Reemplazados en el mismo archivo (`audio/<id>.mp3`): mismos links, la letra, el
+  tempo, los extractos y Melodía ↔ Karaoke siguen calzando. Archivos: 791 → 591 MB (audios 757 → 558 MB).
+  (3) La Biblioteca comprime sola al subir un audio de canción con más de 160 kbps (`audioLiviano`, lamejs a 128 con
+  el ajuste de 1105 muestras; si falla, sube el original). Probado con un WAV de 20 s: 3,4 MB → 313 KB, corrimiento 0.
+- **Falta probar (PO):** escuchar algunas canciones en clase; subir un audio nuevo de calidad alta.
+- **Lugares de uso:** subida de Melodía / Karaoke / 2ª voz en la ficha de la canción (el karaoke creado con el
+  separador ya salía en 128; extractos y versiones van a 📁 Archivos del curso sin cambio).
