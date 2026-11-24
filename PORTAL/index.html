@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal PROFE</title>
     <script src="../comun/registro.js?v=jm"></script>
+    <script src="../comun/iconos.js?v=jq"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
     <script src="../supabase/config.js"></script>
@@ -4625,7 +4626,7 @@ async function abrirPickerMetal() {
         const nombre = partesAsset({ ...a, tipo: 'metalofono' }).detalle || cancion || 'Melodía';
         const url = SUPABASE_URL + '/storage/v1/object/public/repertorio-assets/' + a.storage_path;
         return `<div class="metal-item" data-nombre="${nombre.replace(/"/g,'&quot;')}" data-url="${url}" onclick="insertarMetal(this.dataset.nombre,this.dataset.url)">
-            <div class="metal-item-ico">🎹</div>
+            <div class="metal-item-ico">${Iconos.metal}</div>
             <div>
                 <div class="metal-item-nombre">${nombre}</div>
                 ${cancion ? `<div class="metal-item-cancion">${cancion}</div>` : ''}
@@ -5450,8 +5451,8 @@ function bibFila(r) {
 const melParaMetal = r => !r.inst?.length || r.inst.includes('metalofono');
 const melParaPiano = r => !!r.inst?.some(i => i === 'piano' || i === 'melodica');
 const VINC_TIPO = { cancion: { ico: '🎵', uno: 'canción', varios: 'canciones' },
-                    metalofono: { ico: '🎹', uno: 'metalófono', varios: 'metalófonos' },
-                    piano: { ico: '🎶', uno: 'piano', varios: 'pianos' },       // HY: melodías del Editor para piano
+                    metalofono: { ico: Iconos.metal, uno: 'metalófono', varios: 'metalófonos' },
+                    piano: { ico: '🎹', uno: 'piano', varios: 'pianos' },       // HY: melodías del Editor para piano
                     cajon: { ico: '🪘', uno: 'cajón', varios: 'cajones' },      // HY: ritmos del Cajón
                     ritmo: { ico: '🥁', uno: 'ritmo', varios: 'ritmos' },
                     tab: { ico: '🎸', uno: 'tablatura', varios: 'tablaturas' },   // deuda DX
@@ -5466,7 +5467,7 @@ function vinculo(x) {
         // IQ: el arreglo entero es de una ✂ versión de la canción: se nombra por ella
         const ad = arrPartesCache?.get(r.id)?.adapt;
         const sub = [(r.etiqueta || '').trim(), ad ? '✂ ' + ad.nombre : ''].filter(Boolean).join(' · ') || 'Arreglo';
-        return { tipo: 'arreglo', ico: '🎶', nom: cancion, sub, corto: cancion + ' · ' + sub, ayuda: 'Abrir el Editor de arreglos' + (ad ? ' (arreglo de la versión ' + ad.nombre + ')' : '') };
+        return { tipo: 'arreglo', ico: '🎼', nom: cancion, sub, corto: cancion + ' · ' + sub, ayuda: 'Abrir el Editor de arreglos' + (ad ? ' (arreglo de la versión ' + ad.nombre + ')' : '') };
     }
     const tipo = vincTipo(r, x.inst);
     const p = r ? partesAsset(r) : {};
@@ -5753,7 +5754,7 @@ function abrirTabLector(asset, seccion, actId) {
 function abrirPanelApp(src, actId, titulo) {
     miniAct = actId || null;
     const box = document.getElementById('prev-mini');
-    box.querySelector('.prev-mini-tit').textContent = titulo || '';
+    box.querySelector('.prev-mini-tit').innerHTML = esc(titulo || '').replace('[metal]', Iconos.metal);   // JQ: [metal] = su dibujo
     box.querySelector('iframe').src = src;
     box.classList.add('con-x');
     box.hidden = false;
@@ -5767,7 +5768,7 @@ async function abrirMini(cancionId, actId, assetId, seccion, inst, adapt) {
     if (rec?.tipo === 'tab') { abrirTabLector(rec, seccion, actId); return; }   // tablatura (DX/DZ): Lector en el panel
     if (rec?.tipo === 'melodia' && vincTipo(rec, inst) === 'piano') {           // melodía para piano (HY): Piano de estudiantes
         const n = [bibCanciones?.get(cancionId)?.nombre, (rec.etiqueta || '').trim()].filter(Boolean).join(' — ');
-        abrirPanelApp(`../PIANO/index.html?${new URLSearchParams({ a: assetId, n })}`, actId, '🎶 ' + vinculo({ cancion_id: cancionId, asset_id: assetId, inst: 'piano' }).corto);
+        abrirPanelApp(`../PIANO/index.html?${new URLSearchParams({ a: assetId, n })}`, actId, '🎹 ' + vinculo({ cancion_id: cancionId, asset_id: assetId, inst: 'piano' }).corto);
         return;
     }
     if (rec?.tipo === 'cajon') { abrirPanelApp(`../CAJON-PERUANO/index.html?${new URLSearchParams({ asset: assetId })}`, actId, '🪘 ' + vinculo({ cancion_id: cancionId, asset_id: assetId }).corto); return; }   // HY
@@ -5840,11 +5841,11 @@ function arrPartesHTML(x, actId, grande) {
     const opsRitmos = ritmos.map(r => op('ritmo', '🥁 ' + r.nombre, 'Este ritmo solo, en el cajón', ` data-ritmo="${r.id}"`));
     const opsCajon = pasajesCajon.concat(pasajesCajon.length && opsRitmos.length ? ['<span class="arr-op-tit">Ritmos</span>'] : [], opsRitmos);
     const chips = [
-        chip('letra', '🎤 Letra', 'La letra con la grabación' + ver),
+        chip('letra', '📝 Letra', 'La letra con la grabación' + ver),
         d.cajon ? chip('cajon', '🪘 Cajón', 'El cajón del arreglo, la canción completa' + ver, opsCajon) : '',
-        d.metal ? chip('metal', '🎹 Metalófono', 'El metalófono del arreglo, la canción completa' + ver,
+        d.metal ? chip('metal', Iconos.metal + ' Metalófono', 'El metalófono del arreglo, la canción completa' + ver,
             d.metal.map((n, i) => op('metal', '🔁 ' + n, 'Practicar esta parte (se repite)', ` data-p="${i}"`))) : '',
-        d.piano ? chip('piano', '🎶 Piano', 'El arreglo en el piano' + ver) : '',
+        d.piano ? chip('piano', '🎹 Piano', 'El arreglo en el piano' + ver) : '',
         d.cajon || d.metal ? chip('ensayo', '🎭 Ensayo', 'Letra, cajón y metalófono juntos, para proyectar' + ver) : '',
     ].filter(Boolean).join('');
     return `<div class="arr-partes${grande ? ' grande' : ''}">${chips}</div>`;
@@ -5889,8 +5890,8 @@ document.addEventListener('click', e => {
     Object.assign(q, pz);
     const parte = p !== undefined ? ' · ' + t.textContent.replace(/^🔁\s*/, '') : '';
     if (acc === 'cajon') abrirPanelApp(`../CAJON-PERUANO/index.html?${new URLSearchParams(q)}`, act, `🪘 ${can} · Cajón${parte}`);
-    else if (acc === 'metal') abrirPanelApp(`../METALÓFONO APP/METAL21 (ALPHA).HTML?${new URLSearchParams(q)}`, act, `🎹 ${can} · Metalófono${parte}`);
-    else if (acc === 'piano') abrirPanelApp(`../PIANO/index.html?${new URLSearchParams({ r: asset, n: can, prof: '1', ...pz })}`, act, `🎶 ${can} · Piano`);
+    else if (acc === 'metal') abrirPanelApp(`../METALÓFONO APP/METAL21 (ALPHA).HTML?${new URLSearchParams(q)}`, act, `[metal] ${can} · Metalófono${parte}`);
+    else if (acc === 'piano') abrirPanelApp(`../PIANO/index.html?${new URLSearchParams({ r: asset, n: can, prof: '1', ...pz })}`, act, `🎹 ${can} · Piano`);
 }, true);
 
 // Arreglo vinculado a una actividad (deuda HP): el Editor musical de la canción, en su pestaña 🎼 Arreglo y en ese
@@ -7584,7 +7585,7 @@ async function guardarMateriales() {
 
 <!-- DROPDOWN INSERTAR — fuera de todo overflow:hidden para que position:fixed funcione -->
 <div class="insertar-menu" id="insertar-menu">
-    <button onclick="cerrarMenuInsertar();abrirPickerMetal()">🎹 Metalófono</button>
+    <button onclick="cerrarMenuInsertar();abrirPickerMetal()"><i class="ico-metal"></i> Metalófono</button>
     <button onclick="cerrarMenuInsertar();insertarYoutube()">▶ YouTube</button>
     <button onclick="cerrarMenuInsertar();abrirPickerImg()">🖼 Imagen</button>
 </div>

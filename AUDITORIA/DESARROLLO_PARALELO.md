@@ -10787,3 +10787,23 @@ a HV/HW.*
   por defecto). Claves internas sin cambio. Probado (24/11): Biblioteca, Ficha, Editor de arreglos, Editor musical,
   Piano, Plan y Metalófono cargan sin errores con los textos nuevos.
 - **Queda (PO):** el 🎶 también lo usan el chip 🎶 Piano del Plan y el tipo Flauta.
+
+
+### JQ. Íconos claros: 🎤 Karaoke, 💿 Melodía, 🎼 Arreglo, 🎹 Piano, 🪈 Flauta y dibujo propio del metalófono — HECHA (2026-11-24)
+- **Necesidad (PO):** tras JP, 🎶 quedó para el Arreglo y también para el Karaoke, el chip del Piano del Plan y la
+  Flauta; el metalófono usaba 🎹, 🎼 o 🎵 según la pantalla.
+- **Aprobado (PO, 24/11):** 🎤 = Karaoke · 💿 = Melodía (la grabación original) · 🎼 = Arreglo (pentagrama) ·
+  🎹 = Piano · 🪈 = Flauta · metalófono = **dibujo propio** que viaja con la app (opción A: placas de colores
+  colgando de una barra café arriba, sin baqueta). El dibujo se escala; solo donde el navegador acepta únicamente
+  texto (menús desplegables nativos, título de la pestaña del navegador) va la palabra "Metalófono".
+- **Auditoría:** ~45 lugares en Biblioteca/Entrenador, Plan, Workspace, Editor de arreglos, Editor musical, Cajón,
+  Cantar, Ensayo, Piano, Ficha y Separar. La letra en los chips del arreglo del Plan usaba 🎤: pasa a 📝 (el ícono
+  de la Letra en la Biblioteca). "🎤 Grabar audio" del celular sigue igual (es grabar, no karaoke).
+- **Hecho:** pieza `comun/iconos.js` (`Iconos.metal`: el dibujo `comun/iconos/metalofono.svg` como `<i>` que toma
+  el tamaño de la letra; `Iconos.texto(s)` lo quita donde solo va texto).
+  Cambiados: Biblioteca (tipos, grupos de la ficha, botones ＋, Entrenador: Melodía / Karaoke, crear karaoke, mezcla de
+  voz), Plan (chips del arreglo, vínculos, menú insertar, panel), Workspace (pestaña Metalófono; el 📍 lo quita),
+  Editor de arreglos (pestaña y cabecera), Editor musical, Cajón, Cantar, Ensayo, Piano, Ficha y Separar. Probado
+  (24/11): las 11 páginas cargan; el dibujo se ve a 13, 22 y 48 px; 🪈 se ve en Windows.
+- **Lugares de uso:** `comun/iconos.js` en Workspace, Plan, Biblioteca y Editor de arreglos (las que muestran el
+  metalófono).
