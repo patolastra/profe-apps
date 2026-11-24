@@ -184,7 +184,12 @@ Cada etapa con su ficha, su prueba y su checkpoint; los arreglos y links que ya 
 5. **El arreglo apunta en vez de copiar**, y aparecen las **variantes** (📌 Fijar sigue existiendo).
 6. **Filas nuevas:** cuerdas (guitarra, ukelele, bajo → tablatura en el Lector) y voces.
 
+**Avance:** etapa 1 HECHA (JP, y JQ/JR íconos) · etapa 2 HECHA (JS; el tempo desde el arreglo queda pendiente:
+la Ficha solo tiene tempo con el pulso marcado) · etapa 3 HECHA (JT: 🎶 Armonía; por ahora se escribe en el arreglo).
+
 ## 5. Pendientes
+
+- Un espacio propio para escribir y editar la 🎶 Armonía rápido, sin pasar por el arreglo (PO, 24/11).
 
 - Cerrar el detalle de dónde se elige la versión (§2, nivel 5).
 - Si en el futuro el arreglo debe poder **copiar** en vez de usar variantes.

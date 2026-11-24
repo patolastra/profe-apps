@@ -10840,3 +10840,34 @@ a HV/HW.*
 - **Queda (PO):** el **tempo** desde el Arreglo no se hizo: la Ficha solo tiene tempo cuando se marca el pulso (sale
   de los pulsos); guardar un tempo sin marcar requiere cambiar `comun/tempo-mapa.js` (pieza que usan ~15 páginas).
 - **Lugares de uso:** Editor de Melodías, Editor de arreglos, Cajón (versión del profe), Entrenador (📋).
+
+
+### JT. Etapa 3 del diseño JO: 🎶 Armonía como material de la canción — HECHA (2026-11-24)
+- **Necesidad (PO):** los acordes viven solo dentro del arreglo y las "secuencias armónicas" mezclan *qué acordes* con
+  *cómo los toca el piano* (COQUETA: tres secuencias con los mismos acordes y distinto ritmo).
+- **Auditoría:** 4 arreglos (Tu Amor, Estrechez de Corazón, COQUETA, El Dinosaurio Anacleto); 3 con acordes. Cada
+  secuencia (`A.secciones`) lleva acordes (texto) + lo del piano (ritmo, melodía, desde qué compás); la Estructura las
+  une a las secciones de la Ficha. El archivo público del arreglo lleva los acordes ya armados (los estudiantes no
+  cambian). Las copias del arreglo (melodías, ritmos) siguen a su original (`sincronizarCopias`, AlDia).
+- **Aprobado (PO, 24/11):** nace el material **Armonía** (varias por canción, el arreglo elige una); por ahora se
+  escribe dentro del arreglo (lo escrito en ② se guarda en la Armonía, con la marca "nació en el arreglo"); más
+  adelante, un espacio propio para escribirla rápido; el arreglo la transporta si está en otra tonalidad; los 3
+  arreglos con acordes pasan a su Armonía (respaldo antes).
+- **Ícono:** 🎶 (quedó libre: Karaoke 🎤, Arreglo 🎼; 🎹 es Piano).
+- **Hecho:** material `repertorio_assets` tipo `armonia` (contenido `{ v, tonica, modo, partes: [{ id, nombre, acordes }],
+  nacio, de }`). Editor de arreglos: barra "🎶 Armonía" en ② (elegir otra de la canción, ＋ Variante); cada secuencia
+  elige qué **parte** toca (las que tocan la misma cambian juntas; ＋ Parte nueva); `A.armonia` + `s.parte`, y
+  `s.acordes` queda como copia transportada a la tonalidad del arreglo, que sigue a la Armonía (`seguirArmonia`, dentro
+  de `sincronizarCopias`; lo escrito sin guardar no se pisa). Al guardar, lo de ② pasa a la Armonía (`guardarArmonia`;
+  un arreglo 📌 fijado no la toca) y AlDia rehace los arreglos que la usan (`al-dia.js?v=jt`, tipo `armonia`).
+  Biblioteca: grupo 🎶 Armonías (sus partes y tonalidad; ✏️ abre el arreglo que la usa); `nombre-asset.js?v=jt`.
+  De paso: el editor ya no abre "Sin guardar" los arreglos guardados antes de elegir la mano de los acordes.
+- **Paso de los arreglos (24/11, con respaldo en `Desktop\PROFE\RESPALDO ARREGLOS 2026-11-24\`):** Tu Amor (2 partes),
+  Estrechez de Corazón (8) y COQUETA (3) ya tienen su Armonía; El Dinosaurio Anacleto no tiene acordes. Sin unir
+  partes iguales a propósito (en Estrechez, intro y Estrofa coinciden hoy pero son partes distintas): en COQUETA el PO
+  puede unir sus tres secuencias a una parte con el selector.
+- **Probado (24/11):** transposición (letras, solfeo, bajos, ida y vuelta); con base falsa: nace la Armonía, dos
+  secuencias en la misma parte cambian juntas, guardar actualiza la parte y otro arreglo en La menor la recibe
+  transportada; COQUETA real abre con su Armonía y sin cambios pendientes; la ficha de la canción muestra 🎶 Armonías.
+- **Queda:** un espacio propio para escribir la Armonía rápido (PO); ojo con el nombre: la "Clase" de un recurso (EP)
+  también tiene la opción "Armonía".

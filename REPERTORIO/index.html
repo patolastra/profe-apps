@@ -12,7 +12,7 @@
     <script src="../comun/clase-vivo.js"></script>
     <script src="../comun/puntero.js"></script>
     <script src="../comun/volumen.js"></script>
-    <script src="../comun/nombre-asset.js?v=jp"></script>
+    <script src="../comun/nombre-asset.js?v=jt"></script>
     <link rel="stylesheet" href="../comun/archivos-curso.css?v=ej1">
     <script src="../comun/archivos-curso.js?v=fc1"></script>
     <link rel="stylesheet" href="../comun/compartir.css?v=gk">
@@ -21,7 +21,7 @@
     <script src="../comun/separador-voz.js?v=gz1"></script>
     <script src="../comun/un-sonido.js"></script>
     <script src="../comun/tempo-mapa.js?v=hh"></script>
-    <script src="../comun/al-dia.js?v=hg"></script>
+    <script src="../comun/al-dia.js?v=jt"></script>
     <script src="../comun/tiempo-real.js?v=iu"></script>
     <script src="../comun/pedidos-cancion.js"></script>
     <!-- Motor de ritmo (API existente, no rehacer). VexFlow local vendorizado, sin CDN. -->
@@ -3616,6 +3616,7 @@ const TIPOS_ASSET = {
     melodia:   { ico: '♬',  label: 'Melodía',    clase: 'melodia' },
     cajon:     { ico: Iconos.cajon, label: 'Cajón',      clase: 'cajon'   },
     arreglo:   { ico: '🎼', label: 'Arreglo',    clase: 'arreglo' },
+    armonia:   { ico: '🎶', label: 'Armonía',    clase: 'arreglo' },   // JT: acordes de la canción (se escriben en el arreglo)
     tempo:     { ico: '📋', label: 'Ficha de la canción', clase: 'tempo' },
 };
 
@@ -4206,6 +4207,7 @@ function tabEntryHTML(a, songId) {
 // publicado arriba y lo demás (borrador, experimental, archivado) abajo; "Publicado / Borrador / Ambos" filtra.
 const GRUPOS_FICHA = [
     { k: 'cancion',    ico: '🎵', t: 'Canción' },
+    { k: 'armonia',    ico: '🎶', t: 'Armonías' },   // JT
     { k: 'arreglo',    ico: '🎼', t: 'Arreglos' },   // IO: el arreglo junta a todos los instrumentos
     { k: 'guitarra',   ico: '🎸', t: 'Guitarra' },
     { k: 'ukelele',    ico: '🪕', t: 'Ukelele' },
@@ -4222,6 +4224,7 @@ function grupoDeAsset(a) {
     if (a.tipo === 'melodia') { const ins = instrumentosMelodia(a); return !ins.length || ins.includes('piano') || ins.includes('melodica') ? 'piano' : 'metalofono'; }
     if (a.tipo === 'ritmo' || a.tipo === 'cajon') return 'ritmo';
     if (a.tipo === 'arreglo') return 'arreglo';
+    if (a.tipo === 'armonia') return 'armonia';   // JT
     return 'otros';
 }
 let fichaVer = (() => { try { return localStorage.getItem('profe_bib_ficha_ver') || 'ambos'; } catch (_) { return 'ambos'; } })();
@@ -4843,6 +4846,13 @@ async function cambiarFicha(cid, que) {
     renderPanel();
 }
 
+// 🎶 Armonía (JT): se escribe dentro de un arreglo; abre el primero de la canción que la usa
+function abrirArmonia(songId, armId) {
+    const c = canciones.find(x => x.id === songId);
+    const arr = (c?.assets || []).find(x => x.tipo === 'arreglo' && (x.contenido || '').includes(`"origen":"${armId}"`));
+    if (arr) abrirEditorArreglo(songId, arr.id);
+    else toast('Esta armonía se escribe dentro de un arreglo: crea uno con ＋ Arreglo');
+}
 function assetItemHTML(a, i) {
     const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo, clase: '' };
     // Nombre de cortesía (comun/nombre-asset.js): el tipo ya se muestra arriba, aquí descripción · dificultad
@@ -4894,6 +4904,13 @@ function assetItemHTML(a, i) {
         </div>`;
     }
 
+    // 🎶 Armonía (JT): sus partes y su tonalidad; se escribe dentro de un arreglo
+    let etiqArm = '';
+    if (a.tipo === 'armonia') {
+        let d = null; try { d = JSON.parse(a.contenido || 'null'); } catch (_) {}
+        const partes = (d?.partes || []).map(x => x.nombre).filter(Boolean);
+        etiqArm = `<div class="asset-item-etiqueta">${[escapar(a.etiqueta || ''), escapar(a.tonalidad || ''), partes.length ? escapar(partes.join(' · ')) : ''].filter(Boolean).join(' — ')}</div>`;
+    }
     // Texto (letra, cifrado, notas)
     return `
     <div class="asset-item" data-id="${a.id}" draggable="true">
@@ -4901,7 +4918,7 @@ function assetItemHTML(a, i) {
         <div class="asset-item-ico">${info.ico}</div>
         <div class="asset-item-info">
             <div class="asset-item-tipo">${info.label}</div>
-            ${etiq}
+            ${a.tipo === 'armonia' ? etiqArm : etiq}
         </div>
         <div class="asset-item-actions">
             ${a.tipo === 'tempo' ? '' : estadoBadgeHTML(a)}
@@ -4918,6 +4935,8 @@ function assetItemHTML(a, i) {
                    ${estadoDe(a) === 'publicado' && /"metal"\s*:/.test(a.contenido || '') ? `<button class="btn-icon" onclick="compartirArreglo('${a.id}', this, 'metal')" title="Compartir la parte del metalófono con los estudiantes (con la grabación de la canción): link, QR o guía QR">${Iconos.metal}</button>` : ''}
                    <button class="btn-icon" onclick="abrirArreglo('${a.id}')" title="Abrir en el piano (como lo ve el estudiante)">🎹</button>
                    <button class="btn-icon" onclick="abrirEditorArreglo('${songActiva.id}','${a.id}')" title="Editar arreglo">✏️</button>`
+                : a.tipo === 'armonia'
+                ? `<button class="btn-icon" onclick="abrirArmonia('${songActiva.id}','${a.id}')" title="Editar: se escribe en el arreglo que la usa">✏️</button>`
                 : a.tipo === 'cajon'
                 ? `${estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirCajon('${a.id}', this)" title="Compartir con los estudiantes (celular): link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
                    <button class="btn-icon" onclick="abrirCajon('${songActiva.id}','${a.id}')" title="Abrir en el Cajón (tocar y editar)">✏️</button>`

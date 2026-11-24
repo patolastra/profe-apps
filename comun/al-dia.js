@@ -54,7 +54,7 @@
         return tarea;
     }
     async function rehacer({ cancion, tipo, id }) {
-        if (!sb || !['tempo', 'cajon', 'melodia'].includes(tipo)) return 0;
+        if (!sb || !['tempo', 'cajon', 'melodia', 'armonia'].includes(tipo)) return 0;
         // Los arreglos de la canción y, para un ritmo o una melodía, los de cualquier canción que tengan su copia
         const qs = [sb.from('repertorio_assets').select('id, contenido').eq('tipo', 'arreglo').eq('cancion_id', cancion)];
         if (id && tipo !== 'tempo') qs.push(sb.from('repertorio_assets').select('id, contenido').eq('tipo', 'arreglo').like('contenido', `%"${id}"%`));
@@ -66,6 +66,7 @@
             if (!c || c.fijo) return false;
             if (tipo === 'tempo') return true;
             if (tipo === 'melodia') return c.melodia && c.melodia.origen === id;
+            if (tipo === 'armonia') return !!(c.armonia && c.armonia.origen === id);   // JT
             return !!(c.cajon && c.cajon.ritmos && c.cajon.ritmos[id]);
         });
         let n = 0;

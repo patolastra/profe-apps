@@ -26,7 +26,7 @@
 <script src="../comun/tempo-mapa.js?v=hh"></script>
 <script src="../comun/un-sonido.js"></script>
 <script src="../comun/iconos.js?v=jr"></script>
-<script src="../comun/al-dia.js?v=hg"></script>
+<script src="../comun/al-dia.js?v=jt"></script>
 <script src="../comun/ficha.js?v=js"></script>
 <style>
     :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; }
@@ -99,6 +99,9 @@
 
     .sec { border: 1px solid var(--borde); border-radius: 8px; padding: 8px; margin-bottom: 8px; background: #172033; }
     .sec-cab { display: flex; align-items: center; gap: 6px; }
+    .sec-cab select[data-c=parte] { width: 150px; flex: 0 0 auto; }
+    .arm-barra { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-weight: 600; }
+    .arm-barra select { min-width: 160px; }
     .sec-cab input[type=text] { flex: 1 1 auto; min-width: 0; font-weight: 600; }
     .sec textarea { width: 100%; margin-top: 6px; min-height: 52px; resize: vertical; background: #0f172a; border: 1px solid #475569; border-radius: 7px;
         padding: 6px 8px; font-family: ui-monospace, Consolas, monospace; font-size: 15px; }
@@ -221,6 +224,8 @@
 
         <div class="card p-piano">
             <h3>② Secuencias armónicas <small>un acorde por compás, separados por /</small></h3>
+            <div class="arm-barra" title="Los acordes se guardan en la 🎶 Armonía de la canción: otros arreglos pueden usarla">🎶 Armonía <select id="arm-sel"></select>
+                <button class="btn" id="arm-nueva" title="Una armonía nueva para esta canción, a partir de esta (p. ej. Simplificada)">＋ Variante</button></div>
             <div id="secciones"></div>
             <button class="btn" id="b-nueva-sec">＋ Secuencia</button>
             <button class="btn" id="b-traer-sec" title="Crea una secuencia con el nombre de cada sección de la Ficha que aún no tiene una, y las une en la Estructura">📋 Crear las que faltan</button>
@@ -818,10 +823,12 @@ function pintarBase() {
     }
 }
 function pintarSecciones() {
+    const opcPartes = partesOpciones();   // JT
     $('secciones').innerHTML = A.secciones.map(s => {
         const { compases, malos } = compasesDe(s);
         return `<div class="sec" data-id="${s.id}">
             <div class="sec-cab"><input type="text" data-c="nombre" value="${esc(s.nombre)}" placeholder="Nombre (A, B, Estrofa, Puente…)">
+                <select data-c="parte" title="Parte de la 🎶 Armonía que tocan estos acordes: las secuencias con la misma parte cambian juntas">${[...opcPartes].map(([pid, n]) => `<option value="${pid}"${s.parte === pid ? ' selected' : ''}>🎶 ${esc(n)}</option>`).join('')}<option value=""${s.parte && opcPartes.has(s.parte) ? '' : ' selected'}>＋ Parte nueva</option></select>
                 <button class="btn" data-acc="sumar" title="Agregar al final de la estructura"${modoFicha() ? ' style="display:none"' : ''}>＋ a la estructura</button>
                 <button class="btn" data-acc="borrar" title="Borrar la secuencia">🗑</button></div>
             <div class="ta-caja"><div class="ta-fondo"></div><textarea data-c="acordes" placeholder="A / E / F#m / D" spellcheck="false" title="Ctrl + clic en un acorde: la vista previa toca desde ahí">${esc(s.acordes)}</textarea></div>
@@ -1143,6 +1150,7 @@ const contenidoActual = () => {
 function canon(txt) {
     let o; try { o = JSON.parse(txt || '{}'); } catch (_) { return txt; }
     if (o.octavas && o.octavas.acordes === 4 && o.octavas.bajo === 2) delete o.octavas;
+    if (!o.manoAcordes || o.manoAcordes === 'izq') delete o.manoAcordes;   // lo de antes de elegir la mano abre sin "Sin guardar"
     if (!o.cifra || o.cifra === o.compas + '/4') { delete o.cifra; if (!o.pulso || o.pulso === 1) delete o.pulso; }
     const orden = x => Array.isArray(x) ? x.map(orden) : x && typeof x === 'object'
         ? Object.fromEntries(Object.keys(x).sort().map(k => [k, orden(x[k])])) : x;
@@ -1230,9 +1238,26 @@ $('secciones').addEventListener('input', e => {
     const el = e.target.closest('[data-c]'), sec = e.target.closest('.sec'); if (!el || !sec) return;
     const s = A.secciones.find(x => x.id === sec.dataset.id); if (!s) return;
     const c = el.dataset.c;
+    if (c === 'parte') {   // JT: tocar otra parte de la Armonía (o una nueva)
+        if (!el.value) s.parte = genId();
+        else {
+            s.parte = el.value;
+            const otro = A.secciones.find(o => o !== s && o.parte === el.value), arm = armActual();
+            const t = otro ? otro.acordes : arm ? parteTxt(arm, el.value) : null;
+            if (t !== null) s.acordes = t;
+        }
+        completarVoicings(); pintarSecciones(); pintarInfoSecciones(); pintarAcordes(); pintarOrden(); cambio();
+        return;
+    }
     if (c === 'melodia') s.melodia = el.checked;
     else if (c === 'melDesde') s.melDesde = Math.max(1, Math.round(+el.value || 1));
     else s[c] = el.value;
+    if (c === 'acordes' && s.parte) A.secciones.forEach(o => {   // JT: las que tocan la misma parte cambian juntas
+        if (o === s || o.parte !== s.parte) return;
+        o.acordes = s.acordes;
+        const ta = document.querySelector(`#secciones .sec[data-id="${o.id}"] textarea[data-c="acordes"]`);
+        if (ta) { ta.value = o.acordes; autoAlto(ta); }
+    });
     if (c === 'acordes') { completarVoicings(); pintarInfoSecciones(); pintarAcordes(); }
     pintarOrden(); cambio();
 });
@@ -1517,6 +1542,7 @@ async function guardar() {
     try {
         const nuevo = !assetId, id = assetId || genId();
         const etiqueta = $('etiqueta').value.trim();
+        const armCambio = await guardarArmonia(id);   // JT: lo de ② a la 🎶 Armonía de la canción
         await subirJson(id);
         const fila = { tipo: 'arreglo', etiqueta, instrumento: 'piano', contenido: contenidoActual(), tonalidad: nombreTonalidad(),
             storage_path: '', nombre_archivo: '' };
@@ -1534,6 +1560,7 @@ async function guardar() {
         if (nuevo) history.replaceState(null, '', `?asset=${id}`);
         toast('Arreglo guardado en la Biblioteca');
         if (window.AlDia) AlDia.avisar({ cancion: cancionId, tipo: 'arreglo', id });
+        if (armCambio && window.AlDia) { AlDia.avisar({ cancion: cancionId, tipo: 'armonia', id: armCambio }); AlDia.rehacerArreglos({ cancion: cancionId, tipo: 'armonia', id: armCambio }); }
         // 📋 La Ficha se llena sola (JS): lo que le falte (tonalidad, cifra) lo toma de este arreglo; nunca pisa lo suyo
         window.Ficha?.completar(sb, cancionId, { tonalidad: { tonica: A.tonica, modo: A.modo }, cifra: A.cifra })
             .then(t => { if (t) setTimeout(() => toast(`📋 Ficha de la canción: ${t}, desde este arreglo`), 1800); });
@@ -1574,9 +1601,114 @@ function toast(t) {
 // Las copias (la melodía y los ritmos del cajón) siguen a su original; la Ficha se vuelve a leer cuando cambia; con
 // 📌 Fijar el arreglo no se toca (ni para los estudiantes). ?rehacer=1: escondido, pone al día y rehace el archivo público.
 const REHACER = PARAMS.get('rehacer') === '1';
+// ══ 🎶 Armonía (deuda JT) ═══════════════════════════════════════════════════════════════
+// Los acordes son de la canción: material 🎶 Armonía (repertorio_assets tipo 'armonia', contenido { v, tonica, modo,
+// partes: [{ id, nombre, acordes }], nacio, de }). Una canción puede tener varias (Completa, Simplificada…) y el arreglo
+// elige una: A.armonia = { origen, etiqueta, tonica, modo }. Cada secuencia apunta a una de sus partes (s.parte) y
+// s.acordes es la copia en la tonalidad del arreglo (transportada), que sigue a la Armonía como las melodías y los ritmos.
+// Lo escrito en ② se guarda en la Armonía al guardar el arreglo (un arreglo 📌 fijado no la toca). Varias secuencias
+// pueden tocar la misma parte (los mismos acordes de distintas maneras): cambian juntas.
+const LETRAS_S = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const LETRAS_B = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+function transportar(txt, semis, tonica, modo) {
+    semis = ((semis % 12) + 12) % 12;
+    if (!semis) return String(txt || '');
+    const L = (BEM[modo] || []).includes(tonica) ? LETRAS_B : LETRAS_S;
+    return String(txt || '').replace(/(^|[\s\/(|])(do|re|mi|fa|sol|la|si|[A-G])([#b♯♭]?)/gi, (m, pre, raiz, alt) => {
+        const so = SOLF_LET[raiz.toLowerCase()];
+        if (!so && raiz.length === 1 && raiz !== raiz.toUpperCase()) return m;
+        const a = alt === '♯' ? '#' : alt === '♭' ? 'b' : alt;
+        return pre + L[(pcDe((so || raiz) + a) + semis) % 12];
+    });
+}
+let armonias = [];   // las Armonías de la canción: [{ id, etiqueta, d }]
+async function leerArmonias() {
+    if (!sb || !cancionId) return;
+    const { data } = await sb.from('repertorio_assets').select('id, etiqueta, contenido').eq('cancion_id', cancionId).eq('tipo', 'armonia').order('created_at');
+    armonias = (data || []).map(a => {
+        let d = null; try { d = JSON.parse(a.contenido || 'null'); } catch (_) {}
+        return d && Array.isArray(d.partes) ? { id: a.id, etiqueta: a.etiqueta || 'Armonía', d } : null;
+    }).filter(Boolean);
+    pintarArmonia();
+}
+const armActual = () => armonias.find(x => x.id === A.armonia?.origen) || null;
+const semisArm = arm => pcDe(A.tonica) - pcDe(arm.d.tonica || A.tonica);   // de la Armonía al arreglo
+const parteTxt = (arm, pid) => { const p = arm.d.partes.find(x => x.id === pid); return p ? transportar(p.acordes, semisArm(arm), A.tonica, A.modo) : null; };
+// Seguir a la Armonía (lo escrito aquí y aún no guardado no se pisa)
+async function seguirArmonia(cambios) {
+    if (!A.armonia?.origen) return;
+    await leerArmonias();
+    const arm = armActual(); if (!arm) return;
+    let base = null; try { base = JSON.parse(contenidoBase || 'null'); } catch (_) {}
+    let n = 0;
+    A.secciones.forEach(s => {
+        if (!s.parte) return;
+        const t = parteTxt(arm, s.parte); if (t === null || t === s.acordes) return;
+        const b = base?.secciones?.find(x => x.id === s.id);
+        if (b && b.acordes !== s.acordes) return;
+        s.acordes = t; n++;
+    });
+    if (arm.etiqueta !== A.armonia.etiqueta) A.armonia.etiqueta = arm.etiqueta;
+    if (n) { completarVoicings(); cambios.push('de la armonía'); }
+}
+// Al guardar el arreglo: lo escrito en ② pasa a la Armonía (si no hay, nace aquí). → id de la Armonía si cambió
+async function guardarArmonia(arregloId) {
+    if (!sb || !cancionId || A.fijo) return null;
+    const conAc = A.secciones.filter(s => (s.acordes || '').trim());
+    if (!conAc.length) return null;
+    try {
+        if (A.armonia?.origen && !armActual()) await leerArmonias();
+        let arm = armActual(), nueva = false;
+        if (!arm) {
+            arm = { id: A.armonia?.origen || genId(), etiqueta: A.armonia?.etiqueta || 'Armonía',
+                d: { v: 1, tonica: A.tonica, modo: A.modo, partes: [], nacio: arregloId, ...(A.armonia?.de ? { de: A.armonia.de } : {}) } };
+            nueva = true;
+        }
+        const antes = JSON.stringify(arm.d);
+        conAc.forEach(s => {
+            if (!s.parte) s.parte = s.id;
+            const txt = transportar(s.acordes, -semisArm(arm), arm.d.tonica, arm.d.modo);
+            const p = arm.d.partes.find(x => x.id === s.parte);
+            if (p) p.acordes = txt; else arm.d.partes.push({ id: s.parte, nombre: s.nombre || 'Parte', acordes: txt });
+        });
+        A.armonia = { origen: arm.id, etiqueta: arm.etiqueta, tonica: arm.d.tonica, modo: arm.d.modo };
+        if (!REHACER) pintarSecciones();   // los selectores de parte ya muestran las partes nuevas
+        const contenido = JSON.stringify(arm.d);
+        if (!nueva && contenido === antes) return null;
+        if (nueva) {
+            const { data: hermanos } = await sb.from('repertorio_assets').select('orden').eq('cancion_id', cancionId);
+            const orden = Math.max(-1, ...(hermanos || []).map(h => h.orden || 0).filter(o => o < 1000)) + 1;
+            const { error } = await sb.from('repertorio_assets').insert({ id: arm.id, cancion_id: cancionId, tipo: 'armonia', etiqueta: arm.etiqueta,
+                instrumento: '', contenido, storage_path: '', nombre_archivo: '', synced: '', orden, dificultad: '', estado: 'publicado',
+                tonalidad: `${nombreTon(arm.d.tonica)} ${arm.d.modo}` });
+            if (error) throw error;
+            armonias.push(arm);
+        } else {
+            const { error } = await sb.from('repertorio_assets').update({ contenido }).eq('id', arm.id);
+            if (error) throw error;
+        }
+        pintarArmonia();
+        return arm.id;
+    } catch (err) { toast('No se pudo guardar la armonía: ' + (err.message || err)); return null; }
+}
+function pintarArmonia() {
+    const sel = $('arm-sel'); if (!sel) return;
+    const act = A.armonia?.origen, L = armonias.slice();
+    if (act && !L.some(x => x.id === act)) L.push({ id: act, etiqueta: A.armonia.etiqueta || 'Armonía' });
+    sel.innerHTML = (act ? '' : '<option value="">Se crea al guardar</option>')
+        + L.map(a => `<option value="${a.id}"${a.id === act ? ' selected' : ''}>${esc(a.etiqueta)}</option>`).join('');
+}
+// Partes que una secuencia puede tocar: las de la Armonía y las de las otras secuencias
+function partesOpciones() {
+    const m = new Map();
+    (armActual()?.d.partes || []).forEach(p => m.set(p.id, p.nombre || 'Parte'));
+    A.secciones.forEach(s => { if (s.parte && !m.has(s.parte)) m.set(s.parte, s.nombre || 'Parte'); });
+    return m;
+}
 async function sincronizarCopias() {
     if (!sb || A.fijo) return [];
     const cambios = [];
+    await seguirArmonia(cambios);   // JT
     if (A.melodia?.origen) {
         try {
             const r = await fetch(publica(`melodia/${A.melodia.origen}.json`) + '?t=' + Date.now(), { cache: 'no-store' });
@@ -1630,7 +1762,8 @@ if (window.AlDia && !REHACER) {
             alDiaT = setTimeout(async () => { await cargarTempo(); pintarTodo(); toast('La Ficha de la canción cambió: el arreglo ya la sigue'); }, 600);
             return;
         }
-        if ((msg.tipo === 'melodia' && (A.melodia?.origen === msg.id || A.metal?.mels?.[msg.id])) || (msg.tipo === 'cajon' && A.cajon?.ritmos?.[msg.id])) {
+        if (msg.tipo === 'armonia' && msg.cancion === cancionId && A.armonia?.origen !== msg.id) { leerArmonias(); return; }   // JT
+        if ((msg.tipo === 'melodia' && (A.melodia?.origen === msg.id || A.metal?.mels?.[msg.id])) || (msg.tipo === 'cajon' && A.cajon?.ritmos?.[msg.id]) || (msg.tipo === 'armonia' && A.armonia?.origen === msg.id)) {
             if (A.fijo) return;
             const c = await sincronizarCopias();
             if (c.length) { toast('Se trajeron los cambios ' + c.join(' y ')); pintarTodo(); }
@@ -1670,7 +1803,31 @@ async function alAbrir() {
     }
     const c = await sincronizarCopias();
     if (c.length) { toast('Se trajeron los cambios ' + c.join(' y ')); pintarTodo(); }
+    if (!armonias.length) await leerArmonias();   // JT
+    pintarSecciones();
 }
+// 🎶 Elegir otra Armonía de la canción: cada secuencia toma su parte (por la misma parte o por el nombre)
+$('arm-sel').onchange = e => {
+    const arm = armonias.find(x => x.id === e.target.value);
+    if (!arm || arm.id === A.armonia?.origen) return;
+    if (!confirm(`¿Usar la armonía «${arm.etiqueta}»? Cada secuencia toma los acordes de su parte (las que no la tienen quedan como están).`)) { pintarArmonia(); return; }
+    A.armonia = { origen: arm.id, etiqueta: arm.etiqueta, tonica: arm.d.tonica, modo: arm.d.modo };
+    const norm = t => String(t || '').trim().toLowerCase();
+    A.secciones.forEach(s => {
+        const p = arm.d.partes.find(x => x.id === s.parte) || arm.d.partes.find(x => norm(x.nombre) === norm(s.nombre));
+        if (p) { s.parte = p.id; s.acordes = transportar(p.acordes, semisArm(arm), A.tonica, A.modo); }
+    });
+    completarVoicings(); pintarTodo(); cambio();
+};
+// ＋ Variante: una Armonía nueva de la canción a partir de la actual (se crea al guardar el arreglo)
+$('arm-nueva').onclick = e => {
+    e.target.blur();
+    const nombre = (prompt('Nombre de la nueva armonía de la canción (p. ej. Simplificada):', 'Simplificada') || '').trim();
+    if (!nombre) return;
+    A.armonia = { origen: genId(), etiqueta: nombre, tonica: A.tonica, modo: A.modo, ...(A.armonia?.origen ? { de: A.armonia.origen } : {}) };
+    pintarArmonia(); cambio();
+    toast(`Armonía «${nombre}»: se crea al guardar el arreglo`);
+};
 
 // ══ 🪘 Cajón (deuda HF) ═════════════════════════════════════════════════════════════════
 // La parte del cajón: a cada sección de la Estructura de la Ficha, un ritmo 🪘 (copiado al arreglo) que se repite de
