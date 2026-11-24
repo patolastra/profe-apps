@@ -1000,6 +1000,10 @@
         button.pgr-tip { cursor: pointer; font-family: inherit; }
         button.pgr-tip:hover { background: #dcfce7; }
         .pgr-mie { font-size: 0.74rem; color: #4b5563; padding: 1px 0 0 33px; }
+        .pgr-mie-n { cursor: pointer; border-radius: 3px; }
+        .pgr-mie-n:hover { color: #4f46e5; text-decoration: underline; }
+        .pgr-box.plegados .pgr-mie-n { cursor: inherit; }
+        .pgr-box.plegados .pgr-mie-n:hover { color: inherit; text-decoration: none; }
         .pgr-lee { padding: 2px 0 0 33px; font-size: 0.8rem; color: #1f2937; }
         .pgr-lee[hidden] { display: none; }
         .pgr-plan-ed { margin: 4px 0 2px 33px; background: #fff; border: 1px solid #d1fae5; border-radius: 6px; padding: 2px 6px; min-height: 28px; }
@@ -6589,7 +6593,7 @@ function gruposHTML(c) {
             return `<div class="pgr" data-g="${g.id}"><div class="pgr-fila"><span class="pgr-asa" draggable="true" data-eb-no-marco title="Arrastra para ordenar">⋮⋮</span>
                     <button class="pgr-bit${bit ? ' con' : ''}" title="Escribir en la bitácora de este grupo">✍🏼</button>
                     <span class="pgr-nom">${esc(g.nombre)}</span>${tips(g)}</div>
-                <div class="pgr-mie">${g.miembros.map(esc).join(' · ') || 'Sin integrantes'}</div>
+                <div class="pgr-mie">${g.miembros.map(m => `<span class="pgr-mie-n" data-eb-no-marco title="Escribir sobre ${esc(m)} en la bitácora del grupo">${esc(m)}</span>`).join(' · ') || 'Sin integrantes'}</div>
                 <div class="pgr-plan-ed"></div>
                 <div class="pgr-caja" hidden></div></div>`;
         }).join('') : '<div class="pgr-mie">Aún no tiene grupos: se arman en el Libro.</div>');
@@ -6849,6 +6853,17 @@ async function abrirGrupoBit(c, gid, box) {
     est.textContent = '';
     B.ed.enfocar('fin');
 }
+// Línea "**Nombre:** " al final de la bitácora del grupo, con el cursor listo (JL). Se guarda al escribir.
+async function escribirSobre(c, gid, box, nombre) {
+    if (!nombre) return;
+    if (!(grupoBit && grupoBit.cardId === c.id && grupoBit.gid === gid && grupoBit.ed)) await abrirGrupoBit(c, gid, box);
+    const B = grupoBit;
+    if (!B || B.gid !== gid || !B.ed) return;
+    const nom = nombre.toLocaleLowerCase('es').replace(/(^|[\s-])(\p{L})/gu, (_, a, l) => a + l.toLocaleUpperCase('es'));
+    const t = B.ed.texto().replace(/\s+$/, '');
+    B.ed.poner((t ? t + '\n' : '') + `**${nom}:** `);
+    B.ed.enfocar('fin');
+}
 async function guardarGrupoBit(B) {
     if (!B || !B.sucio || !B.ed) return;
     clearTimeout(B.timer); B.timer = null; B.sucio = false;
@@ -6885,6 +6900,9 @@ window.addEventListener('beforeunload', () => { if (grupoBit?.sucio) guardarGrup
 document.addEventListener('click', e => {
     const box = e.target.closest?.('.pgr-box'); if (!box) return;
     const c = planCards.find(x => x.id === box.dataset.card); if (!c) return;
+    // Clic en un integrante (deuda JL): escribir sobre él en la bitácora del grupo (la abre si está cerrada)
+    const nm = !box.classList.contains('plegados') && e.target.closest('.pgr[data-g] .pgr-mie-n, .pgr[data-g] .pgr-alu');
+    if (nm) { e.stopPropagation(); escribirSobre(c, nm.closest('.pgr').dataset.g, box, nm.textContent.trim()); return; }
     if (esPropios(c)) {   // grupos armados aquí (IJ)
         const pgr = e.target.closest('.pgr[data-g]'), gid = pgr?.dataset.g;
         if (e.target.closest('.pgr-quitar')) {

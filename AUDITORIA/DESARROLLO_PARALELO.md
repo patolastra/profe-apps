@@ -10683,3 +10683,24 @@ a HV/HW.*
   las dos "Canción", "corazon estrechez" encuentra "Estrechez de Corazón"; la lista muestra las 145 canciones en filas.
 - **Lugares de uso:** catálogo de la Biblioteca (pestaña fija del Workspace). El buscador del celular y el de la sesión
   (JF) ya iban sin tildes.
+
+
+### JL. Plan: clic en un integrante de un grupo = escribir sobre él en la bitácora del grupo — HECHA (2026-11-24)
+- **Necesidad (PO, 🐞 Mejoras con 📍 sobre los integrantes de un grupo de "Karaoke", vista de clase de 6°):** elegir a
+  un estudiante y escribir sobre él en la bitácora sin tener que escribir su nombre.
+- **Auditoría:** los integrantes de un grupo del Libro son un texto corrido (`.pgr-mie`, `g.miembros`); los de grupos
+  armados en la actividad son fichas arrastrables (`.pgr-alu`). El ✍🏼 del grupo abre su parte de la bitácora en un
+  cuadro bajo el grupo (`abrirGrupoBit`, editor por bloques).
+- **Aprobado (PO):** opción A, para probar en uso real las dos maneras: clic en un integrante → si la bitácora del
+  grupo está abierta, agrega una línea "**Nombre:** " al final con el cursor listo; si está cerrada, la abre y agrega
+  la línea. Grupos del Libro y propios, en el Plan y en la vista de clase. Más adelante, si hace falta: "@" en cualquier
+  bitácora (opción B).
+- **Hecho:** integrantes de los grupos del Libro como nombres tocables (`.pgr-mie-n`); en los propios, las fichas de
+  cada grupo (`.pgr-alu`). Clic → `escribirSobre`: abre el ✍🏼 del grupo si hace falta y agrega "**Nombre:** " (nombre
+  en minúsculas con mayúscula inicial) con el cursor al final; se guarda al escribir. Plegados: no hace nada. Probado en
+  "Karaoke" (6°, 24/11): con la bitácora cerrada, clic en CRISTÓBAL la abre con "Cristóbal:"; abierta, clic en
+  ALEXANDER agrega "Alexander:"; lo escrito queda tras el nombre en negrita; guardado interceptado (la bitácora real no
+  cambió).
+- **Falta probar (PO):** en clase, cuál de las dos maneras acomoda más. Si se toca un nombre y no se escribe nada, la
+  línea con el nombre igual queda (se puede borrar).
+- **Lugares de uso:** grupos de las actividades del Plan (columna y vista de clase), del Libro y armados en la actividad.
