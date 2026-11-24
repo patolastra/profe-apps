@@ -107,6 +107,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .mj-nueva { width: 100%; font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--linea); border-radius: 8px; margin-bottom: 12px; }
 .mj-fila { display: grid; grid-template-columns: 1fr auto auto 28px; gap: 12px; align-items: baseline; padding: 9px 4px; border-bottom: 1px solid var(--linea); }
 .mj-txt { line-height: 1.45; }
+.mj-reg { font-size: 12px; color: var(--suave); margin-top: 4px; }
+.mj-reg summary { cursor: pointer; }
+.mj-reg pre { max-height: 260px; overflow: auto; white-space: pre-wrap; font-size: 11px; margin: 4px 0 0; }
 .mj-lugar { display: block; font-size: 12px; color: var(--suave); margin-top: 2px; word-break: break-word; }
 .mj-org, .mj-f { font-size: 12.5px; color: var(--suave); white-space: nowrap; }
 .mj-borrar { visibility: hidden; color: var(--suave); border-radius: 6px; }
@@ -359,7 +362,15 @@ async function abrirMejoras() {
     pintarMejoras(data || []);
 }
 // 📍 Lugar exacto donde se anotó (deuda IV): segunda línea del texto, en gris
-const txtMejora = t => { const i = String(t).indexOf('\n📍'); return i < 0 ? esc(t) : `${esc(t.slice(0, i))}<span class="mj-lugar">${esc(t.slice(i + 1))}</span>`; };
+// 🧾 Registro adjunto (deuda JM): plegado, para que lo lea Claude
+const txtMejora = t => {
+    t = String(t);
+    const r = t.indexOf('\n🧾'), reg = r < 0 ? '' : t.slice(r + 3).replace(/^ /, '');
+    if (r >= 0) t = t.slice(0, r);
+    const i = t.indexOf('\n📍');
+    const base = i < 0 ? esc(t) : `${esc(t.slice(0, i))}<span class="mj-lugar">${esc(t.slice(i + 1))}</span>`;
+    return base + (reg ? `<details class="mj-reg"><summary>🧾 Registro (${reg.split('\n').length} líneas)</summary><pre>${esc(reg)}</pre></details>` : '');
+};
 function pintarMejoras(lista) {
     const tipo = t => /^🐞/.test(t) ? 'bug' : 'mejora';
     const n = { todo: lista.length, bug: lista.filter(m => tipo(m.texto) === 'bug').length };

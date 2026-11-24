@@ -10704,3 +10704,25 @@ a HV/HW.*
 - **Falta probar (PO):** en clase, cuál de las dos maneras acomoda más. Si se toca un nombre y no se escribe nada, la
   línea con el nombre igual queda (se puede borrar).
 - **Lugares de uso:** grupos de las actividades del Plan (columna y vista de clase), del Libro y armados en la actividad.
+
+
+### JM. Registro del sonido para encontrar por qué se corta el Entrenador del Plan — HECHA (2026-11-24)
+- **Necesidad (PO, 🐞 Mejoras n° 5):** el Entrenador abierto dentro del Plan a veces deja de sonar al minimizar o al
+  cambiar de ventana o pestaña. No se ha podido reproducir; el PO pide un registro que muestre qué pasa cuando ocurre
+  en uso real.
+- **Auditoría:** el Entrenador mínimo es un iframe del Plan (`#prev-mini`, `abrirMini`) dentro de la pestaña del
+  Workspace. Puede callarlo: el árbitro de "una sola pestaña suena" (`ws-callar`, `comun/un-sonido.js` y
+  `PC/workspace.html`), un cambio de `src` o el retiro del iframe al repintar el Plan, la pausa al salir (solo con
+  `?movil=1`), el navegador al suspender el AudioContext o congelar la página, o un error de la grabación.
+- **Aprobado (PO):** registro en el equipo, sin tocar Supabase.
+- **Hecho:** pieza `comun/registro.js` (`Registro`) en el Workspace, el Plan y la Biblioteca/Entrenador. Anota sola,
+  con la hora y la página: ocultar / mostrar, foco, congelar / reanudar, pagehide; play, pause (con quién lo pidió),
+  ended, waiting, stalled y error de `<audio>`; los AudioContext (estado y suspend / close con quién); `ws-callar`
+  recibido; iframes que cambian de dirección o se quitan; y, mientras suena, un pulso cada 10 s (tiempo del audio y
+  del AudioContext, para ver si se congeló). Guarda en `localStorage` (cada página su propia clave, 2 h). El Workspace
+  anota además a quién manda callar y el cambio de pestaña. Al anotar un `/bug` o `/mejora` con ⌨ Anotar rápido se
+  adjuntan los últimos 10 minutos como línea "🧾 …" (Mejoras la muestra plegada).
+- **Probado** en local (24/11): el Entrenador mínimo anota AudioContext, play / pause() con quién lo pidió, iframes
+  y ws-callar; Workspace y Plan cargan sin errores; Mejoras pliega el 🧾. Falta que ocurra en uso real.
+- **Uso (PO):** cuando se corte, Ctrl + Shift + Ñ → `/bug se cortó el Entrenador` → Enter.
+- **Lugares de uso:** Workspace PC, Plan (Portal) y Biblioteca/Entrenador (todas sus versiones dentro del Workspace).

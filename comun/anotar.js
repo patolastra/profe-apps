@@ -383,6 +383,8 @@
         // /msj, /ensayo, /prueba, /bug, /mejora: los mismos de siempre (Pendientes los reconoce por el comando)
         let texto = ['msj', 'ensayo', 'prueba'].includes(r.cmd) ? `/${r.cmd} ${r.quien}: ${r.que}` : `/${r.cmd} ${r.resto}`;
         if ((r.cmd === 'bug' || r.cmd === 'mejora') && ctxCapt && !ctxQuitado) texto += `\n📍 ${ctxCapt}`;
+        // 🧾 Registro (deuda JM): lo que pasó en los últimos 10 minutos con el sonido y las páginas
+        if ((r.cmd === 'bug' || r.cmd === 'mejora') && window.Registro) { const reg = window.Registro.texto(10); if (reg) texto += `\n🧾 ${reg}`; }
         const x = await Pendientes.crear({ contexto_id: cid, sesion_id: null, texto, silencioso: true });
         if (!x) return null;
         if (r.cmd === 'msj') return { texto: `✉️ Mensaje para ${r.quien}${enCurso}`, destino: { tipo: 'dashboard', vista: 'msj' } };
