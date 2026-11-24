@@ -10655,3 +10655,16 @@ a HV/HW.*
   fuera cierra; ⌨ Anotar en el Workspace local: fondo blanco, campos claros.
 - **Lugares de uso:** Entrenador del PC (Biblioteca, sesión del curso, Plan, mínimo); el menú de grabaciones también en
   el celular (sigue el tema del Entrenador). ⌨ Anotar: Workspace PC (todas las pestañas).
+
+
+### JJ. Entrenador: J / L (∓5 s) con una ✂ adaptación ya no se quedan pegadas — HECHA (2026-11-24)
+- **Necesidad (PO, 🐞 Mejoras 12/11, Entrenador en el Plan de Castigadas, adaptación "Castigadas 2026" de Estrechez
+  de corazón):** la tecla J (−5 s) se queda pegada en un punto.
+- **Auditoría:** `entrenadorSkip` mueve el audio 5 s a ciegas. Justo después de un tramo omitido, −5 s cae dentro de
+  él y el Entrenador salta al final del tramo (lo omitido no suena): vuelve donde estaba. L puede caer igual dentro de
+  un tramo (salta al final: avanza de más).
+- **Aprobado (PO):** arreglarlo: los 5 s se cuentan sobre lo que suena, saltando lo omitido.
+- **Hecho:** `entSkipDestino(t, seg)` recorre los tramos omitidos de la adaptación (hacia atrás o adelante) y descuenta
+  solo lo que suena. Probado con Estrechez de corazón + "Castigadas 2026" (24/11): desde 63,52 s (1 s tras el tramo
+  42,26–62,52) J → 38,26 y J → 33,26 (nunca dentro de lo omitido); L desde 40,26 → 65,52.
+- **Lugares de uso:** Entrenador con teclado (Biblioteca, sesión del curso, Plan, mínimo). Sin adaptación, igual que antes.

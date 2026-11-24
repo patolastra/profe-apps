@@ -9583,7 +9583,23 @@ function entrenadorTogglePlay() {
 
 function entrenadorSkip(seg) {
     const audioEl = entAudio();
-    audioEl.currentTime = Math.max(0, Math.min(audioEl.duration || 0, audioEl.currentTime + seg));
+    audioEl.currentTime = Math.max(0, Math.min(audioEl.duration || 0, entSkipDestino(audioEl.currentTime, seg)));
+}
+// Destino de J / L con una ✂ adaptación (deuda JJ): los segundos se cuentan sobre lo que suena, saltando lo omitido
+// (antes −5 s caía dentro de un tramo omitido, el Entrenador saltaba a su final y volvía al mismo punto).
+function entSkipDestino(t, seg) {
+    const tr = [...(entSaltos() || [])].sort((x, y) => x.desde - y.desde);
+    let resto = Math.abs(seg);
+    for (let n = 0; n < 50 && resto > 1e-6; n++) {
+        if (seg < 0) {
+            const x = tr.filter(z => z.hasta <= t + 1e-3 && z.hasta > t - resto).pop();
+            if (!x) { t -= resto; resto = 0; } else { resto -= Math.max(0, t - x.hasta); t = x.desde; }
+        } else {
+            const x = tr.find(z => z.desde >= t - 1e-3 && z.desde < t + resto);
+            if (!x) { t += resto; resto = 0; } else { resto -= Math.max(0, x.desde - t); t = x.hasta; }
+        }
+    }
+    return t;
 }
 
 function entrenadorSetVelocidad(val) {
