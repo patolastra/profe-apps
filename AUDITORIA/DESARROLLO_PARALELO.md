@@ -10584,3 +10584,26 @@ a HV/HW.*
   repetir; Biblioteca abre la sesión de 6° y al volver sigue en la misma canción; sin clase no cambia nada; nada se
   escribió.
 - **Lugares de uso:** barra del Plan (vista normal y de clase); pestañas Libros y Biblioteca del Workspace PC.
+
+
+### JF. Entrenador: agregar y sacar canciones de la sesión sin salir de ella — HECHA (2026-11-24)
+- **Necesidad (PO):** sumar canciones al repertorio de un curso es engorroso: hay que salir de la sesión (ficha de la
+  canción o editor de la sesión). Con esto casi no haría falta salir de la sesión del curso.
+- **Auditoría:** la lista ☰ de la sesión del Entrenador (`#ent-sesion-lista`, `entRenderListaSesion`) solo navega.
+  La ficha de la canción ya agrega / saca de la sesión de un curso con `cursoAsignar` (lee la lista al día, guarda en
+  `repertorio_sesiones_entrenamiento.canciones`, aplica con `cursoAplicar` y avisa a las otras pestañas por
+  `pedidosCanal`). Sin cambios en Supabase.
+- **Aprobado (PO):** al final de la lista ☰, **＋ Agregar canción**: buscador de la Biblioteca ahí mismo (sin
+  distinguir tildes; las que ya están, marcadas); clic = al final de la sesión, guardada, sin cortar lo que suena; si no
+  está, 🙋 Pedir canción. **✕** al pasar el mouse sobre una canción para sacarla, con confirmación. Vale en todas las
+  sesiones del Entrenador del PC (Biblioteca, pestaña de la sesión del curso, Plan); no en el celular ni en la copia de
+  la Pizarra.
+- **Hecho:** pie de la lista con ＋ Agregar canción y buscador (`eslBuscar`: sin tildes, por palabras, nombre y artista,
+  sin Estilos; ↑ ↓ Enter, Esc cierra; sus teclas no llegan a los atajos del Entrenador); clic = `sesionAsignar` (lo
+  común de `cursoAsignar`, sirve para cualquier sesión) y el buscador queda abierto para sumar otra. ✕ en cada canción
+  salvo la abierta, con confirmación (avisa si tenía loops). Solo con `eslEditable()` (sesión, PC, sin espejo ni
+  mínimo). Probado en la sesión de 6° (24/11): "cancion" encuentra "Canción"; Espacio en el buscador no toca el audio;
+  agregar suma al final sin cambiar la canción abierta; ✕ saca tras confirmar; guardado interceptado (nada se
+  escribió).
+- **Lugares de uso:** Entrenador en sesión: Biblioteca, pestaña de la sesión del curso, sesión abierta desde el Plan
+  (misma página). Fuera: celular (`?movil=1`), copia de la Pizarra (`?espejo=1`), Entrenador mínimo (`?mini=1`).

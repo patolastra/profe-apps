@@ -2749,6 +2749,37 @@
             white-space: nowrap; transition: all 0.15s; flex-shrink: 0; line-height: 1;
         }
         #ent-btn-pedir:hover { border-color: #ea580c; color: #ea580c; }
+        /* ＋ Agregar canción y ✕ en la lista de la sesión (deuda JF) */
+        .esl-item { position: relative; }
+        .esl-quitar { position: absolute; top: 6px; right: 6px; background: none; border: none; color: #64748b; cursor: pointer;
+            font-size: 0.72rem; padding: 1px 5px; border-radius: 4px; visibility: hidden; }
+        .esl-item:hover .esl-quitar { visibility: visible; }
+        .esl-quitar:hover { color: #ef4444; background: #1e293b; }
+        .esl-item .esl-item-nombre, .esl-item .esl-item-artista { padding-right: 18px; }
+        #esl-agregar-wrap { padding: 8px 10px 12px; border-top: 1px solid #1e293b; margin-top: 6px; }
+        #esl-agregar-wrap[hidden], #esl-buscar[hidden] { display: none; }
+        #esl-agregar { width: 100%; background: none; border: 1px dashed #334155; color: #94a3b8; border-radius: 6px;
+            padding: 5px 8px; font-size: 0.72rem; cursor: pointer; text-align: left; }
+        #esl-agregar:hover { border-color: #ea580c; color: #ea580c; }
+        #esl-buscar { margin-top: 6px; }
+        #esl-buscar-q { width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid #334155; color: #e2e8f0;
+            border-radius: 6px; padding: 5px 8px; font-size: 0.75rem; outline: none; }
+        #esl-buscar-q:focus { border-color: #ea580c; }
+        #esl-res { margin-top: 4px; display: flex; flex-direction: column; }
+        .esl-r { display: flex; flex-direction: column; padding: 5px 6px; border-radius: 5px; cursor: pointer; }
+        .esl-r:hover, .esl-r.foco { background: #1e293b; }
+        .esl-r-nom { font-size: 0.75rem; font-weight: 600; color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .esl-r-art { font-size: 0.64rem; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .esl-r.ya { cursor: default; opacity: .5; }
+        .esl-r.ya:hover { background: none; }
+        .esl-r-pedir .esl-r-nom { color: #ea580c; font-weight: 600; }
+        .esl-r-vacio { font-size: 0.68rem; color: #64748b; padding: 4px 6px; }
+        #entrenador-overlay.ent-light #esl-agregar-wrap { border-top-color: #e2e8f0; }
+        #entrenador-overlay.ent-light #esl-agregar { border-color: #cbd5e1; color: #64748b; }
+        #entrenador-overlay.ent-light #esl-buscar-q { background: #fff; border-color: #cbd5e1; color: #0f172a; }
+        #entrenador-overlay.ent-light .esl-r:hover, #entrenador-overlay.ent-light .esl-r.foco { background: #f1f5f9; }
+        #entrenador-overlay.ent-light .esl-r-nom { color: #334155; }
+        #entrenador-overlay.ent-light .esl-quitar:hover { background: #fee2e2; }
         .esl-sep {
             padding: 10px 12px 4px; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em;
             color: #475569; text-transform: uppercase; border-top: 1px solid #1e293b; margin-top: 6px;
@@ -3461,6 +3492,13 @@
         <div id="ent-sesion-lista" style="display:none">
             <div id="esl-header">SESIÓN<button id="esl-azar" onclick="entSortear()" title="Elegir la siguiente canción al azar (no repite las que ya salieron hoy)">🎲 Al azar</button></div>
             <div id="esl-list"></div>
+            <div id="esl-agregar-wrap" hidden>
+                <button id="esl-agregar" onclick="eslAgregarAbrir()">＋ Agregar canción</button>
+                <div id="esl-buscar" hidden>
+                    <input id="esl-buscar-q" type="text" placeholder="Buscar en la Biblioteca…" autocomplete="off" spellcheck="false">
+                    <div id="esl-res"></div>
+                </div>
+            </div>
         </div>
         <div id="ent-left">
             <div id="ent-prueba-bar" hidden></div>
@@ -3715,7 +3753,11 @@ async function cursoAsignar(ctxNombre, cancionId, on) {
         await guardarSesion(s);
         sesiones.unshift(s);
     }
-    const { data, error } = await sb.from(PED_TABLA).select('canciones').eq('id', s.id).single();
+    await sesionAsignar(s.id, cancionId, on, s);
+}
+// Agrega o saca una canción de una sesión del Entrenador (lista leída al día) y avisa a las otras pestañas (JF).
+async function sesionAsignar(sesionId, cancionId, on, s = sesiones.find(x => x.id === sesionId)) {
+    const { data, error } = await sb.from(PED_TABLA).select('canciones').eq('id', sesionId).single();
     if (error) throw error;
     let cs = Array.isArray(data?.canciones) ? data.canciones : [];
     if (on) {
@@ -3724,10 +3766,10 @@ async function cursoAsignar(ctxNombre, cancionId, on) {
         cs = cs.filter(i => i.cancion_id !== cancionId);
         cs.forEach((i, n) => i.orden = n);
     }
-    const { error: e2 } = await sb.from(PED_TABLA).update({ canciones: cs }).eq('id', s.id);
+    const { error: e2 } = await sb.from(PED_TABLA).update({ canciones: cs }).eq('id', sesionId);
     if (e2) throw e2;
-    cursoAplicar(s.id, cs);
-    pedidosCanal?.postMessage({ tipo: 'curso', sesionId: s.id, canciones: cs, sesion: { ...s, canciones: cs } });
+    cursoAplicar(sesionId, cs);
+    pedidosCanal?.postMessage({ tipo: 'curso', sesionId, canciones: cs, sesion: { ...(s || {}), canciones: cs } });
 }
 
 // Aplica en memoria la lista de canciones de una sesión cambiada desde la Biblioteca (aquí o en otra pestaña).
@@ -10643,13 +10685,82 @@ function entRenderListaSesion() {
     wrap.innerHTML = entSesionActual.canciones.map((item, idx) => {
         const s = canciones.find(c => c.id === item.cancion_id);
         const isActivo = idx === entSesionCIdx;
-        return `<div class="esl-item${isActivo ? ' activo' : ''}" onclick="entIrACancionSesion(${idx})">
+        const quitar = eslEditable() && !isActivo ? `<button class="esl-quitar" onclick="eslQuitar(${idx}, event)" title="Sacar de la sesión">✕</button>` : '';
+        return `<div class="esl-item${isActivo ? ' activo' : ''}" onclick="entIrACancionSesion(${idx})">${quitar}
             <div class="esl-item-num">${idx + 1} · ${item.loops?.length || 0} loop${item.loops?.length !== 1 ? 's' : ''}</div>
             <div class="esl-item-nombre">${s?.nombre || '?'}</div>
             <div class="esl-item-artista">${s?.artista || ''}</div>
         </div>`;
     }).join('') + entPedidosListaHTML();
+    const pie = document.getElementById('esl-agregar-wrap');
+    if (pie) { pie.hidden = !eslEditable(); if (!document.getElementById('esl-buscar').hidden) eslBuscar(); }
 }
+
+// ── ＋ Agregar / ✕ sacar canciones de la sesión sin salir de ella (deuda JF) ──
+// Solo en la práctica de una sesión en el PC (no en el celular, la copia de la Pizarra ni el Entrenador mínimo).
+const eslEditable = () => !!(entModoSesion && entSesionActual && !MOVIL && !ESPEJO && !MINI);
+const eslNorm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+let eslFoco = -1;
+function eslAgregarAbrir() {
+    const b = document.getElementById('esl-buscar');
+    b.hidden = !b.hidden;
+    const q = document.getElementById('esl-buscar-q');
+    if (!b.hidden) { q.value = ''; eslBuscar(); q.focus(); }
+}
+function eslBuscar() {
+    const q = eslNorm(document.getElementById('esl-buscar-q').value.trim());
+    const res = document.getElementById('esl-res');
+    eslFoco = -1;
+    if (!q) { res.innerHTML = '<div class="esl-r-vacio">Escribe el nombre o el artista.</div>'; return; }
+    const ya = new Set((entSesionActual?.canciones || []).map(i => i.cancion_id));
+    const pal = q.split(/\s+/);
+    const hay = canciones.filter(c => c.categoria !== 'estilo' && pal.every(w => eslNorm(c.nombre + ' ' + (c.artista || '')).includes(w)))
+        .sort((a, b) => (ya.has(a.id) - ya.has(b.id)) || String(a.nombre).localeCompare(String(b.nombre), 'es')).slice(0, 30);
+    const txt = document.getElementById('esl-buscar-q').value.trim();
+    res.innerHTML = hay.map(c => `<div class="esl-r${ya.has(c.id) ? ' ya' : ''}" data-id="${c.id}" title="${ya.has(c.id) ? 'Ya está en la sesión' : 'Agregar al final de la sesión'}">
+            <span class="esl-r-nom">${ya.has(c.id) ? '✓ ' : ''}${pedEsc(c.nombre)}</span><span class="esl-r-art">${pedEsc(c.artista || '')}</span></div>`).join('')
+        + (hay.length ? '' : '<div class="esl-r-vacio">No está en la Biblioteca.</div>')
+        + `<div class="esl-r esl-r-pedir" data-pedir="1" title="Anotarla como pedida para esta sesión"><span class="esl-r-nom">🙋 Pedir «${pedEsc(txt)}»</span></div>`;
+}
+async function eslAgregar(id) {
+    const s = entSesionActual; if (!s || !id || s.canciones.some(i => i.cancion_id === id)) return;
+    const c = canciones.find(x => x.id === id);
+    try { await sesionAsignar(s.id, id, true); toast(`Agregada a la sesión: ${c?.nombre || ''}`); }
+    catch (err) { toast('No se pudo agregar: ' + (err?.message || err)); }
+    const q = document.getElementById('esl-buscar-q');
+    if (q) { q.value = ''; eslBuscar(); q.focus(); }
+}
+async function eslQuitar(idx, ev) {
+    ev?.stopPropagation();
+    const s = entSesionActual, it = s?.canciones[idx]; if (!it) return;
+    const c = canciones.find(x => x.id === it.cancion_id);
+    const n = it.loops?.length || 0;
+    if (!confirm(`¿Sacar "${c?.nombre || 'esta canción'}" de la sesión?${n ? `\nSus ${n} loop${n === 1 ? '' : 's'} de esta sesión se pierden.` : ''}\nLa canción sigue en la Biblioteca.`)) return;
+    try { await sesionAsignar(s.id, it.cancion_id, false); toast('Sacada de la sesión'); }
+    catch (err) { toast('No se pudo sacar: ' + (err?.message || err)); }
+}
+document.addEventListener('click', e => {
+    const r = e.target.closest?.('#esl-res .esl-r'); if (!r) return;
+    if (r.dataset.pedir) { const t = document.getElementById('esl-buscar-q').value.trim(); pedirAbrir(); document.getElementById('pedir-nombre').value = t; return; }
+    if (!r.classList.contains('ya')) eslAgregar(r.dataset.id);
+});
+document.addEventListener('input', e => { if (e.target.id === 'esl-buscar-q') eslBuscar(); });
+document.addEventListener('keydown', e => {
+    if (e.target.id !== 'esl-buscar-q') return;
+    e.stopPropagation();   // las teclas del buscador no van a los atajos del Entrenador (Espacio, J, L…)
+    const rs = [...document.querySelectorAll('#esl-res .esl-r:not(.ya)')];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        eslFoco = rs.length ? (eslFoco + (e.key === 'ArrowDown' ? 1 : -1) + rs.length) % rs.length : -1;
+        rs.forEach((r, i) => r.classList.toggle('foco', i === eslFoco));
+        rs[eslFoco]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        (rs[eslFoco] || (rs.length === 2 ? rs[0] : null))?.click();   // una sola coincidencia: Enter la agrega
+    } else if (e.key === 'Escape') {
+        e.preventDefault(); document.getElementById('esl-buscar').hidden = true; e.target.blur();
+    }
+}, true);
 
 // Canciones pedidas de la sesión (deuda X): al final del cancionero, inhabilitadas.
 function entPedidosListaHTML() {
