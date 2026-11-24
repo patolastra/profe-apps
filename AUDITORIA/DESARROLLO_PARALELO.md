@@ -10819,3 +10819,24 @@ a HV/HW.*
   arreglo, panel), Editor de arreglos (pestaña, título, ritmos, ventana de ritmo), Cajón (nombre del ritmo, listas) y
   Ritmos (pestaña). En títulos de solo texto va la palabra "Cajón". Probado (24/11): las 6 páginas cargan; los dos
   dibujos se ven a 13, 22 y 56 px.
+
+
+### JS. Etapa 2 del diseño JO: la Ficha siempre presente y que se llena sola — HECHA (2026-11-24)
+- **Necesidad (PO):** que la Ficha nunca se pida y se complete sola mientras se trabaja (`DISENO_CANCION_Y_ARREGLO.md`).
+- **Auditoría:** la Ficha (`repertorio_assets` tipo `tempo` + `tempo/<canción>.json`) ya se crea sola al primer
+  guardado (Biblioteca `cambiarFicha`, app TEMPO). El 📋 del Entrenador decía "Crear la ficha" si no existía. El
+  Editor de Melodías, el Arreglo y el Cajón solo la **leen** (parten con ella y avisan "≠ canción"). El tempo de la
+  Ficha sale de los pulsos marcados (`TempoMapa.bpm`): no hay un tempo guardado sin marcar.
+- **Aprobado (PO, 24/11):** 📋 siempre "Ficha de la canción"; al guardar un editor, lo que **falte** en la Ficha se
+  completa (nunca se pisa): Melodía → tonalidad y cifra · Arreglo → tonalidad, cifra y tempo · Cajón → cifra; aviso
+  breve de lo completado; pieza común.
+- **Hecho:** pieza `comun/ficha.js` (`Ficha.completar(sb, canción, { tonalidad, cifra })`): lee la Ficha, completa
+  solo lo que falta (si no existe, la crea), guarda fila + `tempo/<canción>.json`, avisa por `profe-tempo` y AlDia
+  (rehace los arreglos de los estudiantes); los estilos rítmicos no tienen Ficha; si algo falla no corta el guardado.
+  Conectada al guardar del Editor de Melodías (tonalidad y cifra), del Arreglo (tonalidad y cifra) y del Cajón (cifra),
+  con aviso "📋 Ficha de la canción: Sol mayor · 6/8, desde esta melodía". 📋 del Entrenador: siempre "Ficha de la
+  canción". Probado (24/11) con una base falsa: sin Ficha la crea; con tonalidad no la pisa y completa la cifra;
+  completa no escribe; estilo no escribe; conserva secciones y adaptaciones. Los tres editores cargan sin errores.
+- **Queda (PO):** el **tempo** desde el Arreglo no se hizo: la Ficha solo tiene tempo cuando se marca el pulso (sale
+  de los pulsos); guardar un tempo sin marcar requiere cambiar `comun/tempo-mapa.js` (pieza que usan ~15 páginas).
+- **Lugares de uso:** Editor de Melodías, Editor de arreglos, Cajón (versión del profe), Entrenador (📋).
