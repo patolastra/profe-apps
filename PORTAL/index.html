@@ -4718,6 +4718,39 @@ function cerrarMenuInsertar() {
 }
 document.addEventListener('click', () => cerrarMenuInsertar());
 
+// Listas que siguen solas en los cuadros de diapositivas (deuda IY): Enter en "- algo" / "3. algo" abre "- " / "4. " en
+// la línea siguiente (lo que había después del cursor pasa a ese ítem); Enter en un ítem vacío quita la marca (termina
+// la lista); Backspace justo después de la marca la quita. Con execCommand, Ctrl+Z lo deshace como cualquier tecleo.
+const TA_DIAPO = '.psec-ta, #pres-area, .cl-edit-box textarea';
+document.addEventListener('keydown', e => {
+    const ta = e.target;
+    if (!ta?.matches?.(TA_DIAPO) || e.isComposing || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+    if (e.key !== 'Enter' && e.key !== 'Backspace') return;
+    const a = ta.selectionStart, b = ta.selectionEnd;
+    if (a !== b) return;
+    const v = ta.value, ini = v.lastIndexOf('\n', a - 1) + 1;
+    const m = v.slice(ini).match(/^(\s*)(- |(\d{1,3})\. )/);
+    if (!m || a < ini + m[0].length) return;   // sin marca o con el cursor antes de ella
+    const finLinea = v.indexOf('\n', a) < 0 ? v.length : v.indexOf('\n', a);
+    const escribir = (desde, hasta, txt) => {
+        ta.setSelectionRange(desde, hasta);
+        if (!document.execCommand('insertText', false, txt)) {   // respaldo: sin deshacer
+            ta.setRangeText(txt, desde, hasta, 'end'); ta.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        ta.setSelectionRange(desde + txt.length, desde + txt.length);   // Chrome deja el cursor antes de un salto final al borrar
+    };
+    if (e.key === 'Backspace') {
+        if (a !== ini + m[0].length) return;
+        e.preventDefault();
+        escribir(ini + m[1].length, a, '');
+        return;
+    }
+    e.preventDefault();
+    if (!v.slice(ini + m[0].length, finLinea).trim()) { escribir(ini, finLinea, ''); return; }   // ítem vacío: termina la lista
+    const sig = m[3] ? `${+m[3] + 1}. ` : '- ';
+    escribir(a, a, '\n' + m[1] + sig);
+}, true);
+
 // 😀 Emojis (deuda IX): panel grande; cada emoji va donde estaba el cursor del último cuadro de la Presentación
 function abrirEmojis(e) {
     e?.stopPropagation();

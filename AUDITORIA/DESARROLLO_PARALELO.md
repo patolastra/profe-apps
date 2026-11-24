@@ -10471,3 +10471,18 @@ a HV/HW.*
   cualquier texto y se ve en la vista previa y la Pizarra. Probado en el Plan de 6° (24/11) con el guardado interceptado.
 - **Lugares de uso:** Presentación del Plan. La vista de clase (✏️ de una diapositiva) no lo tiene aún.
 - **Falta probar (PO):** en uso real, y si sirve, sumarlo al editor de actividades, la bitácora y la vista de clase.
+
+
+### IY. Presentación: listas que siguen solas con Enter — HECHA (2026-11-23)
+- **Necesidad (PO, 🐞 Mejoras con 📍 en un cuadro de la Presentación de 6°):** al dar Enter en una línea de lista ("- " o
+  "1. ") que la siguiente se arme sola, y que Backspace la deshaga, aunque sea texto con marcas.
+- **Auditoría:** los cuadros de diapositivas son `textarea` con marcas (`comun/diapo.js` entiende "- " y "N. "; los
+  números se ordenan solos al mostrarse). Cuadros: los de la Presentación (`.psec-ta`), el texto completo (`#pres-area`) y
+  el ✏️ de una diapositiva en la vista de clase (`.cl-edit-box textarea`). Ninguno usa Enter para otra cosa.
+- **Aprobado (PO):** pedido directo (mejora chica).
+- **Hecho:** en esos tres cuadros, Enter al final o en medio de "- algo" / "3. algo" abre "- " / "4. " en la línea
+  siguiente (con la misma sangría; lo que estaba después del cursor pasa al ítem nuevo); Enter en un ítem vacío quita
+  la marca (termina la lista); Backspace justo después de la marca la quita. Mayús+Enter sigue siendo un salto simple.
+  Se escribe con `execCommand('insertText')`: Ctrl+Z lo deshace. Probado con teclas reales en un cuadro de la
+  Presentación de 6° (24/11), guardado interceptado (la diapositiva real no cambió).
+- **Lugares de uso:** Presentación del Plan (cuadros por actividad y texto completo) y ✏️ de la vista de clase.
