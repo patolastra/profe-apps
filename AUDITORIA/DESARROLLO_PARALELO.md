@@ -10871,3 +10871,45 @@ a HV/HW.*
   transportada; COQUETA real abre con su Armonía y sin cambios pendientes; la ficha de la canción muestra 🎶 Armonías.
 - **Queda:** un espacio propio para escribir la Armonía rápido (PO); ojo con el nombre: la "Clase" de un recurso (EP)
   también tiene la opción "Armonía".
+
+### JU. Etapa 4 del diseño JO: el mapa instrumentos × secciones como corazón del Editor de arreglos — HECHA (2026-11-25)
+- **Necesidad (PO):** el editor está armado alrededor del piano (pasos ① a ⑤) y el cajón y el metalófono son
+  pestañas aparte: no se ve de un vistazo qué toca cada instrumento en cada sección, que es lo que es un arreglo.
+- **Boceto aprobado (PO, 25/11):** arriba, la base común (versión, grabación, tono, tempo); al medio, el mapa:
+  columnas = secciones de la versión en su orden real (sin secciones en la Ficha: una columna "Toda la canción"),
+  filas = Piano, Cajón, Metalófono (ninguno principal) y ＋ Instrumento; cada casilla dice qué toca (parte de la
+  Armonía, Melodía, ritmo o silencio), con color por tipo de material; clic en una casilla abre abajo su detalle en
+  dos capas: **Qué toca** (elegir o agregar material) y **Cómo lo toca** (lo propio del instrumento: en el piano,
+  acordes con dedos, ritmo del acompañamiento y octava de cada mano).
+- **Auditoría (25/11):** `ARREGLO/index.html` (2356 líneas). Hoy los datos ya están por sección, solo que repartidos:
+  piano = `A.secciones` (secuencias: acordes, parte de la Armonía, ritmo, melodía) unidas a las secciones de la Ficha
+  por `A.estructura` (`{ clave, incluida, sec, fid }`) o, sin secciones en la Ficha, por `A.orden`; cajón =
+  `A.cajon.sec[clave] → ritmo`; metalófono = `A.metal.sec[clave] → melodía + compás`. Las columnas del mapa salen de
+  `itemsEstructura()` (ya respeta la ✂ adaptación). Hay una vista previa por instrumento (Piano, Cajón, Metalófono
+  en tres iframes).
+- **Alcance propuesto:** es un cambio de **cómo se ve y se ordena** el editor; el formato guardado del arreglo, su
+  archivo público y los links de estudiantes **no cambian** (los arreglos siguen copiando melodías y ritmos: apuntar
+  en vez de copiar es la etapa 5). Pasos: (1) base arriba juntando ① y ⑤; (2) el mapa leyendo los tres datos de hoy;
+  (3) detalle de casilla con lo que hoy está en ②/④ (piano), la lista del cajón y la del metalófono; (4) la ③
+  Estructura queda como las columnas (incluir o no una sección = casilla del encabezado); (5) la vista previa sigue
+  a la fila elegida; (6) ＋ Instrumento ofrece solo los tres que existen hoy (los demás, etapa 6).
+- **Decidido (PO, 25/11):** el mapa y la vista previa **no se muestran juntos**. El mapa es **referencial**: se ve
+  el arreglo entero y desde ahí se entra a un instrumento (clic en su fila o en una casilla) a una pantalla propia
+  con su vista previa, donde se arregla todo lo de ese instrumento (el piano: lo de hoy en ②, ③ y ④); un botón
+  vuelve al mapa. Esto reemplaza el paso (3) "detalle abajo" y el (5) del alcance.
+- **Decidido (PO, 25/11):** canción sin secciones en la Ficha (modo `A.orden`) → el mapa muestra **una sola
+  columna, "Toda la canción"**; el orden de las secuencias se sigue armando en la pantalla del Piano.
+- **Decidido (PO, 25/11):** los 🔁 Pasajes del cajón quedan en la pantalla del Cajón.
+- **Lugares de uso:** Editor de arreglos (Biblioteca, menú +, Editor musical pestaña Arreglo); sin cambio en Piano,
+  Cajón, Metalófono de estudiantes, 🎭 Ensayo ni Plan (leen el archivo público, que no cambia).
+- **Hecho (25/11):** `ARREGLO/index.html`: pestaña **Mapa** (primera de la barra, se abre por defecto; `?inst=piano|cajon|metal`
+  abre otra y el rehacer de AlDia sigue en Piano). Arriba, la base solo para mirar (✂ versión, grabación, tono, compás,
+  tempo); la tabla: columnas = secciones de la versión con su compás (las que la ✂ adaptación quita no salen) o "Toda
+  la canción"; filas = los instrumentos que el arreglo usa (piano: parte de la 🎶 Armonía de cada secuencia + Melodía;
+  cajón: el ritmo; metalófono: la melodía y desde qué compás); **＋ Instrumento** ofrece los que faltan. Clic en una
+  fila o casilla abre la pantalla de ese instrumento (la de siempre, con su vista previa) y marca esa sección
+  (`pintarMapa`, se repinta con cada cambio). El formato guardado y los archivos públicos no cambian.
+- **Probado (25/11, sin guardar):** Tu Amor (piano en 2 secciones), El Dinosaurio Anacleto (cajón + metalófono, con
+  adaptación), COQUETA (piano en todas; sin secciones en la Ficha → una columna con sus secuencias); clic en casilla
+  lleva al instrumento y a la sección sin dejar cambios pendientes.
+- **Queda:** el botón "Escuchar todo" del boceto (el mapa no suena aún); la etapa 5 (apuntar en vez de copiar).

@@ -77,6 +77,33 @@
     #cj-modal.on { display: flex; }
     .cj-modal-cab { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--borde); }
     #cj-marco { flex: 1 1 auto; border: 0; width: 100%; }
+    /* Mapa instrumentos × secciones (deuda JU): solo para mirar; clic lleva a la pantalla del instrumento */
+    #inst .btn[data-inst="mapa"] { width: 84px; }
+    #mapa { display: none; flex: 1 1 auto; min-width: 0; overflow: auto; padding: 16px 18px; }
+    body[data-inst="mapa"] #mapa { display: block; }
+    body[data-inst="mapa"] #form, body[data-inst="mapa"] #vista { display: none !important; }
+    .mp-base { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .mp-pill { font-size: 13px; padding: 4px 10px; border-radius: 8px; background: #0b1222; border: 1px solid var(--borde); color: var(--tenue); }
+    .mp-pill b { color: var(--texto); font-weight: 600; }
+    .mp-t { border-collapse: separate; border-spacing: 5px; table-layout: fixed; }
+    .mp-t th { font-weight: 600; font-size: 13px; color: var(--texto); padding: 2px 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mp-t th small { display: block; font-weight: 400; font-size: 11px; color: var(--tenue); }
+    .mp-inst { text-align: left; font-weight: 600; font-size: 14px; cursor: pointer; padding: 0 6px; white-space: nowrap; }
+    .mp-inst .ico-cajon, .mp-inst svg { vertical-align: -3px; }
+    .mp-c { border-radius: 7px; padding: 6px 5px; text-align: center; font-size: 12px; line-height: 1.3; cursor: pointer; border: 1px solid; min-height: 42px;
+        display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+    .mp-c small { font-size: 11px; opacity: .8; }
+    .mp-arm { background: rgba(129,140,248,.16); border-color: #818cf8; color: #c7d2fe; }
+    .mp-mel { background: rgba(45,212,191,.14); border-color: #2dd4bf; color: #99f6e4; }
+    .mp-rit { background: rgba(251,146,60,.14); border-color: #fb923c; color: #fed7aa; }
+    .mp-sil { border: 1px dashed #475569; color: #64748b; }
+    .mp-c:hover, .mp-inst:hover { filter: brightness(1.3); }
+    .mp-mas { display: flex; gap: 6px; align-items: center; margin: 8px 0 0 5px; font-size: 13px; color: var(--tenue); min-height: 30px; }
+    .mp-mas .btn { height: 30px; }
+    .mp-ley { display: flex; gap: 14px; font-size: 12px; color: var(--tenue); margin: 12px 0 0 5px; }
+    .mp-ley i.mp-sil { border-style: dashed; }
+    .mp-ley i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; border: 1px solid; margin-right: 4px; vertical-align: -1px; }
+    .mp-foco { outline: 2px solid var(--acento); outline-offset: 2px; border-radius: 8px; }
 
     .card { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
     .card h3 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
@@ -178,18 +205,19 @@
     #sin { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; padding: 30px; color: var(--tenue); background: var(--bg); z-index: 40; }
 </style>
 </head>
-<body>
+<body data-inst="mapa">
 <div id="barra">
     <div id="cancion">🎼 Arreglo</div>
     <input id="etiqueta" placeholder="Detalle (opcional)" title="Detalle del arreglo, p. ej. 'para el taller'">
     <button class="btn" id="b-fijo" style="height:34px;width:40px">📌</button>
     <button class="btn" id="b-ensayo" style="height:34px;width:40px" title="🎭 Ensayo: la letra, el cajón y el metalófono a la vez, con la grabación (para proyectar en clase)">🎭</button>
-    <div class="seg" id="inst"><button class="btn on" data-inst="piano" title="La parte del piano">🎹 Piano</button><button class="btn" data-inst="cajon" title="La parte del cajón"><i class="ico-cajon"></i> Cajón</button><button class="btn" data-inst="metal" title="La parte del metalófono"><i class="ico-metal"></i> Metalófono</button></div>
+    <div class="seg" id="inst"><button class="btn on" data-inst="mapa" title="El arreglo entero: qué toca cada instrumento en cada sección">Mapa</button><button class="btn" data-inst="piano" title="La parte del piano">🎹 Piano</button><button class="btn" data-inst="cajon" title="La parte del cajón"><i class="ico-cajon"></i> Cajón</button><button class="btn" data-inst="metal" title="La parte del metalófono"><i class="ico-metal"></i> Metalófono</button></div>
     <div class="sep"></div>
     <div id="estado"></div>
     <button id="b-guardar">Guardar</button>
 </div>
 <div id="cuerpo">
+    <div id="mapa"></div>
     <div id="form">
         <div class="card">
             <h3>① Base</h3>
@@ -1171,6 +1199,7 @@ function cambio() {
     } catch (_) {}
     clearTimeout(previaT);
     previaT = setTimeout(enviarPrevia, 150);
+    pintarMapa();
 }
 function enviarPrevia() {
     try { $('previa').contentWindow.postMessage({ tipo: 'arreglo-datos', datos: datosPublicos() }, '*'); } catch (_) {}
@@ -2256,6 +2285,7 @@ function ponerInst(inst) {
         else enviarCajon();
         cargarRitmosCajon();
     }
+    if (inst === 'mapa') pintarMapa();
     if (inst === 'metal') {
         const f = $('previa-metal');
         if (!f.getAttribute('src')) f.src = METAL_SRC + '?modo=alumno&vista=arreglo';
@@ -2263,8 +2293,72 @@ function ponerInst(inst) {
         pintarMetal();
     }
     $('vista-tit').textContent = { cajon: 'Vista previa del cajón — con la grabación de la canción', metal: 'Vista previa del metalófono — así lo ve el estudiante, con la grabación' }[inst] || 'Vista previa — así lo ve el estudiante';
-    $('cancion').innerHTML = ({ cajon: Iconos.cajon + ' ', metal: Iconos.metal + ' ' }[inst] || '🎹 ') + esc(cancionNombre || 'Arreglo');   // JQ
+    $('cancion').innerHTML = ({ cajon: Iconos.cajon + ' ', metal: Iconos.metal + ' ', mapa: '🎼 ' }[inst] || '🎹 ') + esc(cancionNombre || 'Arreglo');   // JQ
 }
+// ══ Mapa instrumentos × secciones (deuda JU) ═══════════════════════════════════════════════
+// Solo para mirar el arreglo entero. Columnas = secciones de la versión (sin secciones en la Ficha: "Toda la canción");
+// filas = los instrumentos que el arreglo usa. Clic en una fila o casilla → la pantalla de ese instrumento.
+const mapaAgregados = new Set();
+const MP_INST = () => ({ piano: '🎹 Piano', cajon: Iconos.cajon + ' Cajón', metal: Iconos.metal + ' Metalófono' });
+function pintarMapa() {
+    const el = $('mapa'); if (!el || document.body.dataset.inst !== 'mapa') return;
+    const ficha = modoFicha(), C = cortesArreglo(), partes = partesOpciones();
+    const cols = ficha ? itemsEstructura().map((x, i) => { const q = compasesQueSuenan(x, C); return { x, i, L: q ? q.length : x.largo }; }).filter(c => c.L)
+        : [{ x: null, i: -1 }];
+    const usa = { piano: !!(A.secciones.length || A.orden.length), cajon: !!A.cajon, metal: !!A.metal };
+    const filas = ['piano', 'cajon', 'metal'].filter(k => usa[k] || mapaAgregados.has(k));
+    const faltan = ['piano', 'cajon', 'metal'].filter(k => !filas.includes(k));
+    const sil = (t = '—', tit = '') => `<div class="mp-c mp-sil"${tit ? ` title="${esc(tit)}"` : ''}>${t}</div>`;
+    const celda = (k, c) => {
+        const x = c.x;
+        if (k === 'piano') {
+            if (!x) {
+                const L = A.orden.map(id => A.secciones.find(s => s.id === id)).filter(Boolean);
+                if (!L.length) return sil();
+                const mel = L.some(s => s.melodia) && A.melodia;
+                return `<div class="mp-c mp-arm">${esc(L.map(s => s.nombre || 'Acordes').join(' · '))}${mel ? '<small>+ Melodía</small>' : ''}</div>`;
+            }
+            const s = x.incluida && x.sec && A.secciones.find(q => q.id === x.sec);
+            if (!s) return sil();
+            const n = (s.parte && partes.get(s.parte)) || s.nombre || 'Acordes';
+            return `<div class="mp-c mp-arm" title="${esc('🎶 Armonía · ' + n)}">${esc(n)}${s.melodia && A.melodia ? '<small>+ Melodía</small>' : ''}</div>`;
+        }
+        if (!x) return sil('—', 'Va por las secciones de la Ficha de la canción');
+        if (k === 'cajon') {
+            const rid = A.cajon?.sec?.[claveItem(x)], r = rid && A.cajon.ritmos?.[rid];
+            return r ? `<div class="mp-c mp-rit">${esc(r.nombre || 'Ritmo')}</div>` : sil();
+        }
+        const cfg = A.metal?.sec?.[claveItem(x)], M = cfg && A.metal.mels?.[cfg.mel];
+        return M ? `<div class="mp-c mp-mel">${esc(M.etiqueta || 'Melodía')}<small>desde c. ${cfg.desde || 1}${cfg.rep ? ' 🔁' : ''}</small></div>` : sil();
+    };
+    const adN = adaptacionArreglo() ? (mapaTempo?.adaptaciones || []).find(x => x.id === A.audio.adaptacion)?.nombre : '';
+    const grab = (audios.melodia || audios.karaoke) && mapaTempo;
+    const ancho = 140 + cols.length * 118;
+    el.innerHTML = `<div class="mp-base">
+            ${ficha ? `<span class="mp-pill">✂ <b>${esc(adN || 'Canción completa')}</b></span>` : ''}
+            <span class="mp-pill">${grab ? '💿 Con grabación' : 'Sin grabación'}</span>
+            <span class="mp-pill">Tono <b>${esc(nombreTonalidad())}</b></span>
+            <span class="mp-pill">Compás <b>${esc(A.cifra)}</b></span>
+            <span class="mp-pill">Tempo <b>${esc($('tempo').value)}</b> ${esc(infoA().figura)}</span></div>
+        <table class="mp-t" style="width:max(100%, ${ancho}px)"><colgroup><col style="width:140px">${cols.map(() => '<col>').join('')}</colgroup>
+        <tr><th></th>${cols.map(c => c.x ? `<th title="${esc(c.x.etiqueta)}">${esc(c.x.etiqueta)}<small>c. ${c.x.compas}${c.L !== c.x.largo ? ` · ✂ ${c.L} de ${c.x.largo}` : ''}</small></th>` : '<th>Toda la canción</th>').join('')}</tr>
+        ${filas.map(k => `<tr><td class="mp-inst" data-ir="${k}">${MP_INST()[k]}</td>${cols.map(c => `<td data-ir="${k}" data-i="${c.i}">${celda(k, c)}</td>`).join('')}</tr>`).join('')}
+        </table>
+        <div class="mp-mas">${faltan.length ? '＋ Instrumento ' + faltan.map(k => `<button class="btn" data-ir="${k}" data-agregar="1">${MP_INST()[k]}</button>`).join('') : ''}</div>
+        ${filas.length ? `<div class="mp-ley"><span><i class="mp-arm"></i>Armonía</span><span><i class="mp-mel"></i>Melodía</span><span><i class="mp-rit"></i>Ritmo</span><span><i class="mp-sil"></i>Silencio</span></div>` : ''}`;
+}
+$('mapa').addEventListener('click', e => {
+    const t = e.target.closest('[data-ir]'); if (!t) return;
+    const k = t.dataset.ir, i = +(t.dataset.i ?? -1);
+    if (t.dataset.agregar) mapaAgregados.add(k);
+    ponerInst(k);
+    let foco = null;
+    if (i >= 0 && k === 'cajon') foco = document.querySelector(`#cj-lista .cj-fila[data-i="${i}"]`);
+    else if (i >= 0 && k === 'metal') foco = document.querySelector(`#mt-lista .cj-fila[data-i="${i}"]`);
+    else if (i >= 0 && k === 'piano') { const x = itemsEstructura()[i]; if (x?.sec) foco = document.querySelector(`#secciones .sec[data-id="${x.sec}"]`); }
+    if (foco) { foco.scrollIntoView({ block: 'center' }); foco.classList.add('mp-foco'); setTimeout(() => foco.classList.remove('mp-foco'), 1600); }
+    else $('form').scrollTop = 0;
+});
 $('inst').addEventListener('click', e => { const b = e.target.closest('[data-inst]'); if (b) { b.blur(); ponerInst(b.dataset.inst); } });
 
 // ══ Inicio ══════════════════════════════════════════════════════════════════════════════
@@ -2337,15 +2431,17 @@ async function iniciar() {
     cargarRitmosCajon();
     // Arreglo que solo tiene cajón (o pedido así): abre en esa pestaña
     const pide = new URLSearchParams(location.search).get('inst');
-    if (pide === 'metal' || (!pide && A.metal && !A.secciones.length && !A.cajon)) ponerInst('metal');
-    else if (pide === 'cajon' || (A.cajon && !A.secciones.length)) ponerInst('cajon');
+    if (pide === 'metal') ponerInst('metal');
+    else if (pide === 'cajon') ponerInst('cajon');
+    else if (pide === 'piano' || PARAMS.get('rehacer') === '1') ponerInst('piano');
+    else ponerInst('mapa');
 }
 iniciar().then(alAbrir);
 </script>
 <script>
 // 📍 ⌨ Anotar rápido (deuda IV): qué tenía abierto el Editor de arreglos
 window.anotarContexto = () => {
-    const inst = { piano: '🎹 Piano', cajon: 'Cajón', metal: 'Metalófono' }[document.body.dataset.inst] || '🎹 Piano';
+    const inst = { piano: '🎹 Piano', cajon: 'Cajón', metal: 'Metalófono', mapa: 'Mapa' }[document.body.dataset.inst] || '🎹 Piano';
     const p = [`arreglo "${(document.getElementById('etiqueta')?.value || '').trim() || 'sin nombre'}" de "${cancionNombre || '?'}"`, `pestaña ${inst}`];
     p.push(`${A.tonica} ${A.modo}`, A.cifra, `${A.tempo} bpm`);
     if (assetId) p.push(`[recurso ${assetId}]`);
