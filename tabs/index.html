@@ -700,6 +700,20 @@
         .cho-label { font-size: .72rem; color: #aaa; font-weight: 600;
                      text-transform: uppercase; letter-spacing: .07em; margin-bottom: 3px; }
         .cho-card-act .cho-label { color: #E8A800; }
+        /* Elegir la posición de un acorde en la vista previa del arreglo (deuda JX paso 2) */
+        .arr-vista #chordOverlay .cho-card { pointer-events: auto; cursor: pointer; }
+        .arr-vista #chordOverlay .cho-card:hover { border-color: #E8A800; opacity: 1; }
+        #posPop { position: fixed; z-index: 120; background: #1b1d26; border: 1px solid #3b4252; border-radius: 10px;
+                  padding: 8px 10px; box-shadow: 0 8px 28px rgba(0,0,0,.55); color: #ddd; }
+        #posPop .pos-tit { font-size: .85rem; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; white-space: nowrap; }
+        #posPop .pos-tit span { font-weight: 400; color: #999; }
+        #posPop .pos-x { margin-left: auto; background: none; border: 0; color: #999; cursor: pointer; font-size: .9rem; }
+        #posPop .pos-ops { display: flex; gap: 8px; }
+        #posPop .pos-op { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 124px; padding: 6px 4px;
+                          background: #262935; border: 1px solid #3b4252; border-radius: 8px; color: #ddd; cursor: pointer; }
+        #posPop .pos-op:hover { border-color: #888; }
+        #posPop .pos-op.sel { border: 2px solid #E8A800; }
+        #posPop .pos-op b { font-size: .85rem; } #posPop .pos-op small { font-size: .7rem; color: #999; }
             /* Afinador: elegir el instrumento a afinar */
         .afi-inst { display: flex; gap: 6px; justify-content: center; margin: 4px 0 8px; }
         .afi-inst button { background: #2a2f3a; color: #cbd5e1; border: 1px solid #3b4252; padding: 6px 12px; font-size: .85rem; }
@@ -7047,6 +7061,8 @@ let chordOverlayCurLabel  = null;
 let chordOverlaySigLabel  = null;
 
 function resolverChord(label) {
+    // Cuerdas de un arreglo (JX paso 2): la posición elegida en el arreglo para ese acorde
+    if (ARR.activo && ARR.datos?.pos?.[label]) return digitar(ARR.datos.pos[label]);
     const { nombre, variante } = parseChordLabel(label);
     const clean = procesarLabel(nombre).replace(/\s/g, '');
     if (variante) {
@@ -7065,7 +7081,7 @@ function drawChordDiagram(cvs, label, opts = {}) {
     cvs.width  = w;
     cvs.height = h;
     const c    = cvs.getContext('2d');
-    const data = resolverChord(label);
+    const data = opts.datos || resolverChord(label);   // datos: una posición en particular (elegir posición, JX)
     const nStr = currentInstrument === 'ukelele' ? 4 : 6;
 
     const PAD_L  = w * 0.22;
@@ -8293,6 +8309,8 @@ async function arrCargar(d) {
     ajustarSyncCancion();
     actualizarSyncStatus();
     if (t > 0) moverTablaA(t);
+    chordOverlayCurLabel = null; chordOverlaySigLabel = null;   // que los diagramas se redibujen con la posición elegida
+    arrAvisarAcordes();
     if (sonaba && audioSyncMode) toggleTabAudio();
 }
 function arrTocarDesde(seg) {
@@ -8333,9 +8351,11 @@ const AC_CALIDAD = {
     'm9': [0, 3, 7, 10, 2], '5': [0, 7], 'mmaj7': [0, 3, 7, 11], 'm△7': [0, 3, 7, 11],
 };
 const acGenCache = new Map();
-function acordeGenerado(label, inst) {
+// modo: 'normal' (la de siempre) · 'facil' (3 o 4 cuerdas, sin cejilla, ≤ 3 dedos, cerca del clavijero) · 'arriba'
+// (ukelele, más arriba). Las cejillas de la guitarra van con sus formas fijas (cejillaForma).
+function buscarAcorde(label, inst, modo = 'normal') {
     if (inst !== 'guitarra' && inst !== 'ukelele') return null;
-    const clave = inst + ':' + label;
+    const clave = inst + ':' + modo + ':' + label;
     if (acGenCache.has(clave)) return acGenCache.get(clave);
     const mm = String(label).match(/^([A-G])(#|b)?([^/]*)(?:\/([A-G])(#|b)?)?$/);
     let res = null;
@@ -8348,57 +8368,174 @@ function acordeGenerado(label, inst) {
         const bajo = mm[4] ? pc(mm[4], mm[5]) : raiz;
         if (mm[4]) pcs.add(bajo);
         const tun = TUNING[inst], N = tun.length, guit = inst === 'guitarra';
+        const facil = modo === 'facil', pMin = modo === 'raiz6' || modo === 'raiz5' ? 1 : modo === 'arriba' ? 4 : 0;
+        const pMax = facil ? 2 : 9;
         let mejor = null, mejorP = Infinity;
-        for (let p = 0; p <= 9; p++) {
+        for (let p = pMin; p <= pMax; p++) {
             const ops = tun.map(o => {
                 const L = [];
                 for (let f = p === 0 ? 0 : p; f <= p + 3; f++) if (pcs.has((o + f) % 12)) L.push(f);
-                if (p > 0 && pcs.has(o % 12)) L.push(0);
+                if (p > 0 && pcs.has(o % 12) && pMin === 0) L.push(0);
                 if (guit) L.push(-1);
                 return L;
             });
             const f = new Array(N);
             const probar = () => {
-                // Apagadas: solo las graves (desde la 6ª), a lo más 2
+                // Apagadas: solo las graves (desde la 6ª)
                 let apag = 0;
                 for (let s = N - 1; s >= 0 && f[s] < 0; s--) apag++;
-                if (f.some((x, s) => x < 0 && s < N - apag) || apag > 2 || N - apag < 3) return;
+                if (f.some((x, s) => x < 0 && s < N - apag)) return;
+                if (facil ? (apag < N - 4 || N - apag < 3) : (apag > 2 || N - apag < 3)) return;
+                if (modo === 'raiz6' && apag !== 0) return;
+                if (modo === 'raiz5' && apag !== 1) return;
                 // En la guitarra la cuerda más grave que suena lleva la fundamental (o el bajo); el ukelele es re-entrante
-                if (guit && (tun[N - 1 - apag] + f[N - 1 - apag]) % 12 !== bajo) return;
+                if (guit && !facil && (tun[N - 1 - apag] + f[N - 1 - apag]) % 12 !== bajo) return;
+                if (guit && facil && !pcs.has((tun[N - 1 - apag] + f[N - 1 - apag]) % 12)) return;
                 const suenan = new Set(f.map((x, s) => x >= 0 ? (tun[s] + x) % 12 : -1));
                 if (!oblig.every(x => suenan.has(x)) || (mm[4] && !suenan.has(bajo))) return;
                 const pis = f.map((x, s) => ({ x, s })).filter(o => o.x > 0);
                 const min = pis.length ? Math.min(...pis.map(o => o.x)) : 0;
                 const enMin = pis.filter(o => o.x === min).length;
                 const dedos = pis.length - (enMin > 1 ? enMin - 1 : 0);
-                if (dedos > 4) return;
+                if (dedos > (facil ? 3 : 4) || (facil && enMin > 2 && pis.length > enMin)) return;   // fácil: a lo más 2 cuerdas con un dedo (F: 1 1 2)
                 const abre = pis.length ? Math.max(...pis.map(o => o.x)) - min : 0;   // estirar 4 trastes cuesta más que una cejilla
-                const puntaje = p * 20 + apag * 3 + dedos + (enMin > 1 ? 2 : 0) + abre + (abre >= 3 ? 40 : 0) + (p >= 3 && f.some(x => x === 0) ? 15 : 0);   // al aire mezcladas con trastes altos: incómodo
+                const puntaje = p * 20 + apag * 3 + dedos + (enMin > 1 ? 2 : 0) + abre + (abre >= 3 ? 40 : 0)
+                    + (p >= 3 && f.some(x => x === 0) ? 15 : 0)   // al aire mezcladas con trastes altos: incómodo
+                    + (facil ? (bajo === (tun[N - 1 - apag] + f[N - 1 - apag]) % 12 ? 0 : 4) - (N - apag) + entreMedio(f) * 6 : 0);
                 if (puntaje < mejorP) { mejorP = puntaje; mejor = f.slice(); }
             };
             const rec = s => { if (s === N) { probar(); return; } for (const x of ops[s]) { f[s] = x; rec(s + 1); } };
             rec(0);
-            if (mejor && mejorP < (p + 1) * 20) break;
+            if (mejor && mejorP < (p + 1) * 20 - 10) break;
         }
-        if (mejor) {
-            const pis = mejor.map((x, s) => ({ x, s })).filter(o => o.x > 0);
-            const min = pis.length ? Math.min(...pis.map(o => o.x)) : 0, max = pis.length ? Math.max(...pis.map(o => o.x)) : 0;
-            const enMin = pis.filter(o => o.x === min);
-            const fingers = new Array(N).fill(0);
-            let barre = null, sig = 1;
-            if (enMin.length > 1) {
-                enMin.forEach(o => { fingers[o.s] = 1; });
-                barre = { fret: min, fromStr: Math.min(...enMin.map(o => o.s)), toStr: Math.max(...enMin.map(o => o.s)) };
-                sig = 2;
-            }
-            pis.filter(o => !(barre && o.x === min)).sort((a, b) => a.x - b.x || b.s - a.s).forEach(o => { fingers[o.s] = Math.min(4, sig++); });
-            res = { strings: mejor, fingers, ...(barre ? { barre } : {}), ...(max > 4 ? { baseFret: min } : {}) };
-        }
+        if (mejor) res = digitar(mejor);
     }
     acGenCache.set(clave, res);
     return res;
 }
+// Cuerdas al aire entre dos pisadas (difícil de no apagarlas sin querer)
+function entreMedio(f) {
+    let n = 0;
+    for (let s = 1; s < f.length - 1; s++) if (f[s] === 0 && f.slice(0, s).some(x => x > 0) && f.slice(s + 1).some(x => x > 0)) n++;
+    return n;
+}
+// Cejilla con las formas de siempre (guitarra): de Mi (fundamental en la 6ª) o de La (en la 5ª, 6ª apagada)
+const FORMAS_CEJILLA = {
+    mi: { '': [0, 0, 1, 2, 2, 0], m: [0, 0, 0, 2, 2, 0], '7': [0, 0, 1, 0, 2, 0], m7: [0, 0, 0, 0, 2, 0], '△7': [0, 0, 1, 1, 2, 0], sus4: [0, 0, 2, 2, 2, 0] },
+    la: { '': [0, 2, 2, 2, 0, -1], m: [0, 1, 2, 2, 0, -1], '7': [0, 2, 0, 2, 0, -1], m7: [0, 1, 0, 2, 0, -1], '△7': [0, 2, 1, 2, 0, -1], sus4: [0, 3, 2, 2, 0, -1], sus2: [0, 0, 2, 2, 0, -1] },
+};
+function cejillaForma(label, forma) {
+    const mm = String(label).match(/^([A-G])(#|b)?(.*)$/); if (!mm) return null;
+    const suf = mm[3] === 'maj7' ? '△7' : mm[3], F = FORMAS_CEJILLA[forma][suf]; if (!F) return null;
+    const pc = (NOTE_SEMITONE[mm[1]] + (mm[2] === '#' ? 1 : mm[2] === 'b' ? -1 : 0) + 12) % 12;
+    let b = ((pc - (forma === 'mi' ? 4 : 9)) % 12 + 12) % 12;   // traste de la fundamental en la 6ª (Mi) o la 5ª (La)
+    if (b === 0) b = 12;
+    if (b > 10) return null;
+    return digitar(F.map(x => x < 0 ? -1 : x + b));
+}
+// Dedos, cejilla y traste de inicio de una posición (strings[], -1 = apagada)
+function digitar(cuerdas) {
+    const N = cuerdas.length, pis = cuerdas.map((x, s) => ({ x, s })).filter(o => o.x > 0);
+    const min = pis.length ? Math.min(...pis.map(o => o.x)) : 0, max = pis.length ? Math.max(...pis.map(o => o.x)) : 0;
+    const enMin = pis.filter(o => o.x === min);
+    const fingers = new Array(N).fill(0);
+    let barre = null, sig = 1;
+    if (enMin.length > 1) {
+        enMin.forEach(o => { fingers[o.s] = 1; });
+        barre = { fret: min, fromStr: Math.min(...enMin.map(o => o.s)), toStr: Math.max(...enMin.map(o => o.s)) };
+        sig = 2;
+    }
+    pis.filter(o => !(barre && o.x === min)).sort((a, b) => a.x - b.x || b.s - a.s).forEach(o => { fingers[o.s] = Math.min(4, sig++); });
+    return { strings: cuerdas.slice(), fingers, ...(barre ? { barre } : {}), ...(max > 4 ? { baseFret: min } : {}) };
+}
+const acordeGenerado = (label, inst) => buscarAcorde(label, inst, 'normal');
 
+// ── Elegir la posición de un acorde (deuda JX, paso 2) ─────────────────────────────────────
+// En la vista previa del arreglo, clic en el diagrama Ahora / Próximo: 2 a 4 posiciones; la elegida vale para todo el
+// arreglo y ese instrumento (el Editor de arreglos la guarda en A.cuerdas[inst].pos[acorde] = strings[]).
+function nombrePosicion(v, modo, inst) {
+    const n = v.strings.filter(x => x >= 0).length;
+    const pis = v.strings.filter(x => x > 0), min = pis.length ? Math.min(...pis) : 0, max = pis.length ? Math.max(...pis) : 0;
+    const nombre = modo === 'facil' ? 'Fácil' : v.barre && (modo === 'mi' || modo === 'la' || v.barre.toStr - v.barre.fromStr >= 2) ? `Cejilla ${v.barre.fret}`
+        : max <= 3 || v.strings.includes(0) && max <= 4 ? 'Abierta' : `Traste ${min}`;
+    const sub = modo === 'facil' ? `${n} cuerdas${v.barre ? '' : ', sin cejilla'}` : modo === 'mi' ? 'forma de Mi' : modo === 'la' ? 'forma de La' : `${n} cuerdas`;
+    return { nombre, sub };
+}
+function posicionesAcorde(label, inst = currentInstrument) {
+    const clean = procesarLabel(label).replace(/\s/g, ''), out = [];
+    const add = (v, modo) => {
+        if (!v || out.some(o => o.v.strings.join() === v.strings.join())) return;
+        out.push({ v, modo, ...nombrePosicion(v, modo, inst) });
+    };
+    const db = CHORD_DB[inst] || {}, deLista = db[clean] || db[CHORD_ALIAS[clean]] || null;
+    const mi = inst === 'guitarra' ? cejillaForma(clean, 'mi') : null, la = inst === 'guitarra' ? cejillaForma(clean, 'la') : null;
+    const igual = (a, b) => a && b && a.strings.join() === b.strings.join();
+    add(deLista, igual(deLista, mi) ? 'mi' : igual(deLista, la) ? 'la' : 'lista');
+    if (!deLista) add(buscarAcorde(clean, inst, 'normal'), 'normal');
+    add(mi, 'mi'); add(la, 'la');
+    if (inst !== 'guitarra') add(buscarAcorde(clean, inst, 'arriba'), 'arriba');
+    add(buscarAcorde(clean, inst, 'facil'), 'facil');
+    return out.slice(0, 4);
+}
+// La que suena hoy: la elegida en el arreglo o la de siempre (la primera)
+function posicionElegida(label, ops) {
+    const e = ARR.datos?.pos?.[label];
+    const i = e ? ops.findIndex(o => o.v.strings.join() === e.join()) : -1;
+    return i >= 0 ? i : 0;
+}
+// Lo que necesita el Editor de arreglos para mostrar los acordes del arreglo con su posición (chips con ▾)
+function arrAvisarAcordes() {
+    if (!ARR.vista || window.parent === window || !ARR.datos) return;
+    const usados = [];
+    (ARR.datos.compases || []).forEach(b => (b.golpes || []).forEach(g => { if (g.a && !usados.includes(g.a)) usados.push(g.a); }));
+    const lista = usados.map(a => {
+        const ops = posicionesAcorde(a);
+        return { acorde: a, elegida: posicionElegida(a, ops), ops: ops.map(o => ({ nombre: o.nombre, sub: o.sub, v: o.v })) };
+    });
+    window.parent.postMessage({ tipo: 'arreglo-acordes', instrumento: ARR.datos.instrumento, acordes: lista }, '*');
+}
+function tocarPosicion(v) {
+    ensureAudio();
+    const tun = TUNING[currentInstrument] || TUNING.guitarra;
+    v.strings.map((f, s) => ({ f, s })).filter(o => o.f >= 0).reverse()
+        .forEach((o, k) => setTimeout(() => playNote(tun[o.s] + o.f + capoFret, 1.4), k * 35));
+}
+function abrirPosiciones(label, card) {
+    cerrarPosiciones();
+    const ops = posicionesAcorde(label); if (!ops.length) return;
+    const el = document.createElement('div');
+    el.id = 'posPop';
+    const am = procesarLabel(label);
+    el.innerHTML = `<div class="pos-tit">Posición de ${esc(latinoMode ? convertirALatino(am) : am)} <span>· para todo el arreglo (${ARR_NOMBRE[currentInstrument] || ''})</span>
+        <button class="pos-x" title="Cerrar">✕</button></div><div class="pos-ops">${ops.map((o, i) => `<button class="pos-op" data-i="${i}">
+        <b>${esc(o.nombre)}</b><small>${esc(o.sub)}</small><canvas width="110" height="84"></canvas></button>`).join('')}</div>`;
+    document.body.appendChild(el);
+    const sel = posicionElegida(label, ops);
+    el.querySelectorAll('.pos-op').forEach((b, i) => { b.classList.toggle('sel', i === sel); drawChordDiagram(b.querySelector('canvas'), label, { w: 110, h: 84, datos: ops[i].v }); });
+    const r = card.getBoundingClientRect();
+    el.style.left = Math.max(8, Math.min(innerWidth - el.offsetWidth - 8, r.left)) + 'px';
+    el.style.top = Math.max(8, r.top - el.offsetHeight - 8) + 'px';
+    el.addEventListener('click', e => {
+        if (e.target.closest('.pos-x')) { cerrarPosiciones(); return; }
+        const b = e.target.closest('.pos-op'); if (!b) return;
+        const o = ops[+b.dataset.i];
+        tocarPosicion(o.v);
+        el.querySelectorAll('.pos-op').forEach(x => x.classList.toggle('sel', x === b));
+        // La primera es la de siempre: elegirla quita la elección
+        window.parent.postMessage({ tipo: 'arreglo-posicion', instrumento: currentInstrument, acorde: label, strings: +b.dataset.i === 0 ? null : o.v.strings }, '*');
+    });
+}
+function cerrarPosiciones() { document.getElementById('posPop')?.remove(); }
+if (ARR.vista) {
+    document.documentElement.classList.add('arr-vista');
+    document.querySelectorAll('#chordOverlay .cho-card').forEach(card => card.addEventListener('click', e => {
+        e.stopPropagation();
+        const label = card.classList.contains('cho-card-act') ? chordOverlayCurLabel : chordOverlaySigLabel;
+        if (label) abrirPosiciones(label, card);
+    }));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarPosiciones(); });
+    document.addEventListener('pointerdown', e => { if (!e.target.closest('#posPop, #chordOverlay')) cerrarPosiciones(); });
+}
 // Deep link desde Repertorio: ?storage=<storagePath>&nombre=<fileName>&seccion=<nombre>
 // o lección: ?leccion=<id>  ·  o modo cifrado: ?cifrado=1&cancion=<id>
 (async () => {

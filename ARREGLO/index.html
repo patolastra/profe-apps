@@ -59,6 +59,14 @@
     #inst .btn[data-inst="guitarra"], #inst .btn[data-inst="ukelele"] { width: 112px; }
     .cj-fila.cu-fila { grid-template-columns: 1fr 116px 190px; }
     .cu-fila .cj-info { grid-column: 1 / -1; padding-left: 16px; }
+    /* Posición de cada acorde (JX paso 2): la elige el Lector o el ▾ de aquí; vale para todo el arreglo */
+    #cu-pos { margin-bottom: 10px; }
+    #cu-pos .cu-pos-tit { font-size: 12px; color: var(--tenue); margin: 0 0 6px 4px; }
+    #cu-pos .cu-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .cu-chip { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 104px; padding: 5px 4px; border: 1px solid var(--borde); border-radius: 8px; background: #0b1222; }
+    .cu-chip b { font-size: 14px; }
+    .cu-chip select { width: 100%; height: 24px; font-size: 11px; }
+    .cu-chip small { font-size: 10px; color: var(--tenue); white-space: nowrap; }
     .cj-fila.mt-fila { grid-template-columns: 1fr 150px 50px 34px 30px 96px; }
     .cj-fila [data-mt-var], .cj-fila [data-cj-var] { height: 28px; width: 30px; padding: 0; }
     .mt-fila [data-mt-rep] { height: 28px; width: 34px; padding: 0; }
@@ -256,6 +264,7 @@
 
         <div class="card p-cuerdas">
             <h3 id="cu-tit">🎸 Guitarra</h3>
+            <div id="cu-pos"></div>
             <div id="cu-lista"></div>
             <div class="fila"><button class="btn" id="cu-todas" title="Pone acordes en todas las secciones que tienen secuencia">Acordes en todas</button></div>
             <div class="ayuda">Los acordes son los de la secuencia de cada sección (🎹 Piano, de la 🎶 Armonía), en el tono del arreglo. La vista previa es el Lector, como lo verá el estudiante, con la grabación.</div>
@@ -2433,6 +2442,7 @@ function datosCuerdas(inst) {
     const ad = adaptacionArreglo();
     return { v: 1, cancion: cancionNombre, etiqueta: $('etiqueta').value.trim(), instrumento: inst, cifra: A.cifra, tempo: A.tempo,
         cancionId, desde: compases[0]?.c ?? origenArreglo(), tonalidad: nombreTonalidad(), compases,
+        ...(cu?.pos && Object.keys(cu.pos).length ? { pos: cu.pos } : {}),   // posición elegida de cada acorde (paso 2)
         audio: { melodia: audios.melodia, karaoke: audios.karaoke, semitonos: semitonos(), ...(ad ? { saltos: ad.omitir } : {}) } };
 }
 const cuerdaActual = () => esCuerda(document.body.dataset.inst) ? document.body.dataset.inst : null;
@@ -2443,6 +2453,7 @@ function enviarCuerdas() {
 function pintarCuerdas() {
     const inst = cuerdaActual(), el = $('cu-lista'); if (!inst || !el) return;
     $('cu-tit').innerHTML = `${CUERDAS[inst]} <small>por sección: los acordes con un rasgueo, o silencio</small>`;
+    pintarPosiciones();
     if (!modoFicha()) { el.innerHTML = '<div class="ayuda">Las cuerdas van por las secciones de la Ficha de la canción: márcalas en la Ficha, con su tempo.</div>'; $('cu-todas').style.display = 'none'; return; }
     $('cu-todas').style.display = '';
     const C = cortesArreglo(), its = itemsEstructura(), cu = A.cuerdas?.[inst];
@@ -2463,7 +2474,7 @@ function ponerCuerda(inst, x, cfg) {
     A.cuerdas[inst] = A.cuerdas[inst] || { sec: {} };
     const k = claveItem(x);
     if (cfg) A.cuerdas[inst].sec[k] = cfg; else delete A.cuerdas[inst].sec[k];
-    if (!Object.keys(A.cuerdas[inst].sec).length) delete A.cuerdas[inst];
+    if (!Object.keys(A.cuerdas[inst].sec).length && !Object.keys(A.cuerdas[inst].pos || {}).length) delete A.cuerdas[inst];
     if (!Object.keys(A.cuerdas).length) delete A.cuerdas;
 }
 $('cu-lista').addEventListener('change', e => {
@@ -2479,6 +2490,56 @@ $('cu-lista').addEventListener('click', e => {
     const f = e.target.closest('.cu-fila'), x = f && itemsEstructura()[+f.dataset.i]; if (!x) return;
     enviarCuerdas();
     try { $('previa-cuerdas').contentWindow.postMessage({ tipo: 'arreglo-tocar', seg: mapaTempo.segDePulso(mapaTempo.pulsoDeCompas(x.compas)) }, '*'); } catch (_) {}
+});
+// ── Posición de cada acorde (JX paso 2) ───────────────────────────────────────────────────
+// El Lector (vista previa) manda los acordes del arreglo con sus posiciones posibles ('arreglo-acordes'); aquí se
+// muestran con su diagrama y un ▾. La elegida va en A.cuerdas[inst].pos[acorde] = strings[] (la primera = la de siempre).
+const cuAcordes = {};
+function ponerPosicion(inst, acorde, cuerdas) {
+    A.cuerdas = A.cuerdas || {};
+    A.cuerdas[inst] = A.cuerdas[inst] || { sec: {} };
+    const P = A.cuerdas[inst].pos = A.cuerdas[inst].pos || {};
+    if (cuerdas) P[acorde] = cuerdas.slice(); else delete P[acorde];
+    if (!Object.keys(P).length) delete A.cuerdas[inst].pos;
+    cambio();
+}
+function svgPosicion(v) {
+    const S = v.strings, N = S.length, W = 64, H = 56, x0 = 8, dx = (W - 16) / (N - 1), y0 = 12, dy = 10;
+    const pis = S.filter(f => f > 0), base = v.baseFret || 1;
+    let g = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g stroke="#64748b" stroke-width="1">`;
+    for (let i = 0; i < N; i++) g += `<line x1="${x0 + i * dx}" y1="${y0}" x2="${x0 + i * dx}" y2="${y0 + 4 * dy}"/>`;
+    for (let j = 0; j <= 4; j++) g += `<line x1="${x0}" y1="${y0 + j * dy}" x2="${x0 + (N - 1) * dx}" y2="${y0 + j * dy}"${j === 0 && base === 1 ? ' stroke-width="3"' : ''}/>`;
+    g += '</g>';
+    if (base > 1) g += `<text x="0" y="${y0 + 8}" font-size="8" fill="#94a3b8">${base}</text>`;
+    if (v.barre) { const a = N - 1 - v.barre.toStr, b = N - 1 - v.barre.fromStr; g += `<rect x="${x0 + a * dx - 3}" y="${y0 + (v.barre.fret - base + 0.5) * dy - 3}" width="${(b - a) * dx + 6}" height="6" rx="3" fill="#e2e8f0"/>`; }
+    S.slice().reverse().forEach((f, i) => {
+        const x = x0 + i * dx;
+        if (f < 0) g += `<text x="${x}" y="9" font-size="8" text-anchor="middle" fill="#94a3b8">×</text>`;
+        else if (f === 0) g += `<circle cx="${x}" cy="6" r="2.5" fill="none" stroke="#94a3b8"/>`;
+        else g += `<circle cx="${x}" cy="${y0 + (f - base + 0.5) * dy}" r="3.5" fill="#e2e8f0"/>`;
+    });
+    return g + '</svg>';
+}
+function pintarPosiciones() {
+    const inst = cuerdaActual(), el = $('cu-pos'); if (!el) return;
+    const L = inst && cuAcordes[inst];
+    if (!L?.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="cu-pos-tit">Posición de cada acorde, para todo el arreglo (también con clic en el diagrama del Lector)</div>
+        <div class="cu-chips">${L.map((a, i) => `<div class="cu-chip" data-i="${i}"><b>${esc(a.acorde)}</b>${svgPosicion(a.ops[a.elegida].v)}
+        <select data-cu-pos title="Otra posición de ${esc(a.acorde)}">${a.ops.map((o, j) => `<option value="${j}"${j === a.elegida ? ' selected' : ''} title="${esc(o.sub)}">${esc(o.nombre)}</option>`).join('')}</select>
+        <small>${esc(a.ops[a.elegida].sub)}</small></div>`).join('')}</div>`;
+}
+$('cu-pos').addEventListener('change', e => {
+    if (!e.target.matches('[data-cu-pos]')) return;
+    e.target.blur();
+    const inst = cuerdaActual(), a = cuAcordes[inst]?.[+e.target.closest('.cu-chip').dataset.i]; if (!a) return;
+    const j = +e.target.value;
+    ponerPosicion(inst, a.acorde, j === 0 ? null : a.ops[j].v.strings);
+});
+window.addEventListener('message', e => {
+    if (e.source !== $('previa-cuerdas').contentWindow || !esCuerda(e.data?.instrumento)) return;
+    if (e.data.tipo === 'arreglo-acordes') { cuAcordes[e.data.instrumento] = e.data.acordes || []; pintarPosiciones(); }
+    if (e.data.tipo === 'arreglo-posicion') ponerPosicion(e.data.instrumento, e.data.acorde, e.data.strings || null);
 });
 // Acordes en todas las secciones que tienen secuencia (con el rasgueo de la primera, o Pop)
 $('cu-todas').addEventListener('click', e => {

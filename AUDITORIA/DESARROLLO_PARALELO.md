@@ -10981,7 +10981,7 @@ a HV/HW.*
   crea como `armonia` con su texto; Editor musical y Biblioteca la abren.
 - **Queda:** etapa 2, el ritmo de cada compás (PO 25/11).
 
-### JX. 🎸 Cuerdas en el arreglo: guitarra, ukelele y bajo en el Lector — PASO 1 HECHO (2026-11-25)
+### JX. 🎸 Cuerdas en el arreglo: guitarra, ukelele y bajo en el Lector — PASOS 1 Y 2 HECHOS (2026-11-25)
 - **Necesidad (PO, 25/11):** etapa 6 del diseño JO: que el arreglo tenga filas de cuerdas y que el estudiante las
   toque en tablatura, con la grabación.
 - **Boceto (PO, 25/11):** pantalla Guitarra (igual Ukelele y Bajo, con su afinación): por sección **Acordes ·
@@ -11025,5 +11025,23 @@ a HV/HW.*
   con una ✂ adaptación de prueba (sin el Coro 1) salta el tramo y la tablatura sigue; ukelele igual; vista del
   estudiante con el archivo público de prueba; Mapa con sus filas; posiciones buscadas (F#, C#, Ab, E/G#, C#m7…); el
   Lector normal abre igual.
-- **Queda:** paso 2 (elegir la posición de un acorde en el Lector), 3 (melodía en tablatura), 4 (bajo); la prueba de
-  Pato con la grabación de verdad; los chips del arreglo en el Plan (IQ) aún no muestran guitarra / ukelele.
+- **Paso 2 — boceto aprobado (PO, 25/11):** clic en el diagrama Ahora / Próximo del Lector abre 2 a 4 posiciones
+  (abierta, cejilla forma de Mi, cejilla forma de La, fácil de 3 o 4 cuerdas sin cejilla); la elegida vale para **todo
+  el arreglo** y ese instrumento; en el Editor de arreglos, arriba de las secciones, los acordes del arreglo con su
+  diagrama y ▾.
+- **Hecho paso 2 (25/11):** **Lector** (`?vista=arreglo`): `posicionesAcorde(label)` = la de la lista del Lector (o la
+  buscada), las cejillas con sus **formas fijas** (`FORMAS_CEJILLA` mi / la: mayor, m, 7, m7, maj7, sus) y una **fácil**
+  (`buscarAcorde(…, 'facil')`: 3 o 4 cuerdas agudas, ≤ 3 dedos, a lo más 2 cuerdas con un dedo, sin cuerdas al aire
+  entre pisadas); en el ukelele, la de siempre, una más arriba y la fácil. Clic en un diagrama → ventana con las
+  posiciones dibujadas; clic en una suena, queda marcada y avisa al editor (`arreglo-posicion`; la primera = la de
+  siempre, quita la elección). Después de cada carga manda los acordes del arreglo con sus posiciones
+  (`arreglo-acordes`). `resolverChord` usa la elegida (`ARR.datos.pos`), en la tablatura y en los diagramas.
+  **Editor de arreglos:** `A.cuerdas[inst].pos = { <acorde>: strings[] }`, va en `datosCuerdas` (y al estudiante);
+  chips con diagrama (SVG) y ▾ arriba de las secciones (`pintarPosiciones`).
+- **Probado (25/11, sin guardar; borrador borrado):** COQUETA: F#m ofrece Cejilla 2 (forma de Mi) · Cejilla 9 (forma de
+  La) · Fácil (3 cuerdas); elegir Fácil la cambia en toda la tablatura y en el chip; ▾ del editor: Bm en Cejilla 7 cambia
+  la tablatura; volver a la primera quita la elección; el archivo del estudiante lleva `pos`. Posiciones revisadas en C,
+  G, Dm, F (fácil 1 1 2 3), Bb, C#m7, E/G#, y en el ukelele (G, F, D, F#m, Bb).
+- **Nota:** Pato ya guardó COQUETA con guitarra (Estrofa 1 y Coro 1, "Uno por acorde"); no se tocó.
+- **Queda:** paso 3 (melodía en tablatura), 4 (bajo); los chips del arreglo en el Plan (IQ) aún no muestran guitarra /
+  ukelele.
