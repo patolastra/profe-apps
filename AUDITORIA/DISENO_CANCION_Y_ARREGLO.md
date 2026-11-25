@@ -190,7 +190,7 @@ se trabaja en su pantalla) · etapa 5 HECHA (JV: las copias quedan como respaldo
 
 ## 5. Pendientes
 
-- Un espacio propio para escribir y editar la 🎶 Armonía rápido, sin pasar por el arreglo (PO, 24/11).
+- ~~Un espacio propio para escribir y editar la 🎶 Armonía rápido~~ HECHO (JW, `ARMONIA/`); sigue el ritmo por compás.
 
 - Cerrar el detalle de dónde se elige la versión (§2, nivel 5).
 - Si en el futuro el arreglo debe poder **copiar** en vez de usar variantes.

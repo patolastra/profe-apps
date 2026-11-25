@@ -6,7 +6,7 @@
 <title>Editor musical</title>
 <!--
   🎼 Editor musical (deuda FY, etapa 1): una sola ventana por canción con sus editores en pestañas:
-    ♬ Melodía (MELODIA/: piano y metalófono) · 🎼 Arreglo (ARREGLO/: una pestaña por instrumento, deuda HF).
+    ♬ Melodía (MELODIA/: piano y metalófono) · 🎶 Armonía (ARMONIA/, la hoja de acordes, deuda JW) · 🎼 Arreglo (ARREGLO/: una pestaña por instrumento, deuda HF).
   Cada pestaña es el editor de siempre, adentro (mismos recursos, mismos archivos, links de estudiantes intactos), y
   quedan las dos abiertas: cambiar de pestaña no pierde lo escrito. En cada pestaña se elige cuál de los recursos de
   esa clase editar, o ＋ Nueva.
@@ -29,7 +29,7 @@
     /* Barra (estable: anchos fijos) */
     #barra { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #111a2e; border-bottom: 1px solid var(--borde); }
     #cancion { width: 230px; min-width: 60px; flex-shrink: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pest { flex: 0 0 auto; height: 32px; width: 170px; border-radius: 8px; border: 1px solid #475569; background: #1e293b; cursor: pointer; font-size: 14px; }
+    .pest { flex: 0 0 auto; height: 32px; width: 140px; border-radius: 8px; border: 1px solid #475569; background: #1e293b; cursor: pointer; font-size: 14px; }
     .pest.on { background: #0e7490; border-color: var(--acento); font-weight: 600; }
     #recurso { flex: 0 0 auto; width: 300px; height: 32px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 0 8px; }
     #cuerpo { flex: 1 1 auto; min-height: 0; position: relative; }
@@ -48,6 +48,7 @@
 <div id="barra">
     <div id="cancion">🎼 Editor musical</div>
     <button class="pest" data-tab="melodia">♬ Melodía</button>
+    <button class="pest" data-tab="armonia" title="Los acordes de la canción, en una hoja (deuda JW)">🎶 Armonía</button>
     <button class="pest" data-tab="arreglo" title="Arreglo de la canción: una pestaña por instrumento (piano, cajón…)">🎼 Arreglo</button>
     <select id="recurso" title="Cuál editar"></select>
 </div>
@@ -62,10 +63,11 @@ const esc = t => String(t ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': 
 const EDITORES = {
     melodia: { tipo: 'melodia', src: '../MELODIA/index.html', nueva: '＋ Nueva melodía' },
     arreglo: { tipo: 'arreglo', src: '../ARREGLO/index.html', nueva: '＋ Nuevo arreglo' },
+    armonia: { tipo: 'armonia', src: '../ARMONIA/index.html', nueva: '＋ Nueva armonía' },   // JW
 };
 let cancionId = PARAMS.get('cancion'), cancionNombre = '';
 let tab = EDITORES[PARAMS.get('tab')] ? PARAMS.get('tab') : 'melodia';
-let recursos = { melodia: [], arreglo: [] };
+let recursos = { melodia: [], arreglo: [], armonia: [] };
 const marcos = {};          // tab → iframe
 const pedido = {};          // tab → recurso pedido al abrirlo (mientras el editor carga)
 
@@ -80,12 +82,13 @@ function assetDe(t) {
 async function cargarRecursos() {
     if (!sb || !cancionId) return;
     const { data } = await sb.from('repertorio_assets').select('id, tipo, etiqueta, instrumento, tonalidad, dificultad, clase, simplificado, created_at, orden')
-        .eq('cancion_id', cancionId).in('tipo', ['melodia', 'arreglo']);
+        .eq('cancion_id', cancionId).in('tipo', ['melodia', 'arreglo', 'armonia']);
     const lista = (data || []).sort((a, b) => (a.orden || 0) - (b.orden || 0) || String(a.created_at).localeCompare(String(b.created_at)));
-    recursos = { melodia: lista.filter(a => a.tipo === 'melodia'), arreglo: lista.filter(a => a.tipo === 'arreglo') };
+    recursos = { melodia: lista.filter(a => a.tipo === 'melodia'), arreglo: lista.filter(a => a.tipo === 'arreglo'), armonia: lista.filter(a => a.tipo === 'armonia') };
 }
 function nombreRecurso(a) {
     const p = partesAsset(a);
+    if (a.tipo === 'armonia') return [a.etiqueta || 'Armonía', a.tonalidad].filter(Boolean).join(' · ');
     return [p.detalle || (a.tipo === 'melodia' ? 'Melodía' : 'Arreglo'), a.tonalidad, a.instrumento && a.tipo === 'melodia' ? a.instrumento : ''].filter(Boolean).join(' · ');
 }
 function pintarRecursos() {
@@ -108,7 +111,7 @@ async function ir(t, asset) {
     tab = t;
     if (!marcos[t]) {
         const f = document.createElement('iframe');
-        f.title = t === 'melodia' ? 'Editor de Melodías' : 'Editor de Arreglos';
+        f.title = t === 'melodia' ? 'Editor de Melodías' : t === 'armonia' ? 'Armonía' : 'Editor de Arreglos';
         f.allow = 'autoplay; fullscreen';
         pedido[t] = asset === undefined ? recursos[t][0]?.id || null : asset;
         f.src = srcDe(t, pedido[t]);
@@ -220,7 +223,7 @@ async function elegirCancion() {
 </script>
 <script>
 // 📍 ⌨ Anotar rápido (deuda IV): qué pestaña tenía abierta el Editor musical
-window.anotarContexto = () => `Editor musical de "${cancionNombre || '?'}" · pestaña ${tab === 'arreglo' ? '🎼 Arreglo' : '♬ Melodía'}${cancionId ? ` [canción ${cancionId}]` : ''}`;
+window.anotarContexto = () => `Editor musical de "${cancionNombre || '?'}" · pestaña ${tab === 'arreglo' ? '🎼 Arreglo' : tab === 'armonia' ? '🎶 Armonía' : '♬ Melodía'}${cancionId ? ` [canción ${cancionId}]` : ''}`;
 </script>
 </body>
 </html>

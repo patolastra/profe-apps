@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Armonía</title>
+<!--
+  🎶 Armonía — hoja para escribirla rápido (deuda JW). La Armonía es material de la canción (JT): repertorio_assets
+  tipo 'armonia', contenido { v, tonica, modo, partes: [{ id, nombre, acordes }], nacio?, de? }. Los acordes de cada
+  parte siguen en texto ("A / E / C#m F#m": la "/" con espacios separa compases; dos o cuatro acordes en un compás van
+  separados por espacio), así los arreglos que la usan no cambian y la siguen solos (AlDia tipo 'armonia').
+  La hoja: cada parte con su título y una línea (sin pentagrama) de 4 compases por renglón. Clic en un compás y se
+  escribe; Tab / Espacio / Enter pasa al siguiente (en el último agrega uno); clic derecho o ⋯ = 1, 2 o 4 acordes en el
+  compás, insertar o borrar. ▶ toca la parte en bloques al tempo de la Ficha. Cambiar el tono transporta los acordes.
+  Dirección: ?asset=<id> (editar) · ?cancion=<id> (nueva) · ?variante=<id>&nombre= (nueva a partir de otra).
+  Etapa siguiente (PO 25/11): el ritmo de cada compás.
+-->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase/config.js"></script>
+<script src="../comun/tempo-mapa.js?v=hh"></script>
+<script src="../comun/un-sonido.js"></script>
+<script src="../comun/al-dia.js?v=jt"></script>
+<script src="../comun/ficha.js?v=js"></script>
+<style>
+    :root { --bg: #0f172a; --panel: #1e293b; --borde: #334155; --texto: #e2e8f0; --tenue: #94a3b8; --acento: #22d3ee; --linea: #94a3b8; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--texto); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+    body { display: flex; flex-direction: column; }
+    button, input, select { font: inherit; color: inherit; }
+    .btn { height: 32px; padding: 0 12px; white-space: nowrap; flex-shrink: 0; border-radius: 8px; border: 1px solid #475569; background: #334155; cursor: pointer; font-size: 14px; }
+    .btn:hover { background: #475569; }
+    .btn.on { background: #0e7490; border-color: var(--acento); }
+    /* Barra (estable: anchos fijos) */
+    #barra { flex: 0 0 auto; min-width: 0; overflow: hidden; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--borde); }
+    #cancion { width: 220px; min-width: 60px; flex-shrink: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #etiqueta { width: 180px; min-width: 90px; flex-shrink: 1; height: 32px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 0 10px; font-size: 14px; }
+    #tonica { height: 32px; width: 92px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; }
+    .seg { display: inline-flex; }
+    .seg .btn { border-radius: 0; width: 72px; padding: 0; }
+    .seg .btn:first-child { border-radius: 8px 0 0 8px; }
+    .seg .btn:last-child { border-radius: 0 8px 8px 0; }
+    #info { width: 120px; font-size: 13px; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sep { flex: 1; }
+    #b-variante { width: 104px; visibility: hidden; }
+    #b-variante.ver { visibility: visible; }
+    #estado { width: 100px; text-align: right; color: var(--tenue); font-size: 13px; }
+    #b-guardar { height: 32px; width: 100px; border-radius: 8px; border: 1px solid #22c55e; background: #15803d; color: #fff; cursor: pointer; font-weight: 600; }
+    #b-guardar:disabled { opacity: .45; cursor: default; }
+    /* La hoja */
+    #hoja { flex: 1 1 auto; overflow-y: auto; padding: 18px 28px 60px; }
+    #hoja-in { max-width: 980px; margin: 0 auto; }
+    .parte { margin-bottom: 26px; }
+    .p-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .p-cab .btn { width: 34px; padding: 0; }
+    .p-nom { width: 260px; height: 32px; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 0 8px; font-size: 17px; font-weight: 600; }
+    .p-nom:hover, .p-nom:focus { border-color: #475569; background: #0b1222; outline: none; }
+    .p-info { font-size: 12px; color: var(--tenue); width: 190px; white-space: nowrap; }
+    .p-info .mal { color: #f87171; }
+    .p-cab [data-p-borrar] { visibility: hidden; }
+    .parte:hover [data-p-borrar] { visibility: visible; }
+    .renglon { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 2px solid var(--linea); height: 58px; margin: 8px 0 18px; }
+    .renglon.solo { height: 34px; border-bottom-color: transparent; margin-top: -8px; }
+    .cm { position: relative; border-left: 2px solid var(--linea); display: flex; align-items: stretch; padding: 0 22px 0 6px; }
+    .cm.ultimo { border-right: 2px solid var(--linea); }
+    .cm.son { background: rgba(34, 211, 238, .18); }
+    .cm input { flex: 1 1 0; min-width: 0; background: transparent; border: 0; border-radius: 6px; font-size: 22px; font-weight: 600; padding: 4px 4px 14px; outline: none; }
+    .cm input:focus { background: rgba(14, 116, 144, .35); }
+    .cm input::placeholder { color: #475569; font-weight: 400; }
+    .cm input.mal { color: #f87171; text-decoration: underline wavy #f87171; }
+    .cm .num { position: absolute; left: 6px; bottom: 3px; font-size: 11px; color: var(--tenue); pointer-events: none; }
+    .cm .mas { position: absolute; right: 2px; top: 4px; width: 20px; height: 22px; border: 0; background: none; color: var(--tenue); cursor: pointer; visibility: hidden; padding: 0; }
+    .cm:hover .mas, .cm:focus-within .mas { visibility: visible; }
+    .cm.nuevo { border-left-style: dashed; border-left-color: #475569; cursor: pointer; color: #475569; align-items: center; justify-content: center; font-size: 13px; }
+    .cm.nuevo:hover { color: var(--tenue); }
+    .cm.vacio { border-left-color: transparent; }
+    .pie { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+    .ayuda { font-size: 12px; color: var(--tenue); }
+    #usada { margin-top: 18px; }
+    #menu { position: fixed; display: none; z-index: 30; background: #0b1222; border: 1px solid #475569; border-radius: 9px; padding: 4px; min-width: 210px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+    #menu.on { display: block; }
+    #menu button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    #menu button:hover { background: #1e293b; }
+    #menu button.on::before { content: '✓ '; }
+    #menu hr { border: 0; border-top: 1px solid var(--borde); margin: 4px 0; }
+    #toast { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); background: #0b1222; border: 1px solid #475569; padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 40; max-width: 80vw; }
+    #toast.on { opacity: 1; }
+    #sin { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; padding: 30px; color: var(--tenue); background: var(--bg); z-index: 50; }
+</style>
+</head>
+<body>
+<div id="barra">
+    <div id="cancion">🎶 Armonía</div>
+    <input id="etiqueta" placeholder="Nombre (p. ej. Completa)" maxlength="60" title="Nombre de esta Armonía">
+    <select id="tonica" title="Tono: al cambiarlo, los acordes se transportan"></select>
+    <div class="seg" id="seg-modo"><button class="btn" data-v="mayor">Mayor</button><button class="btn" data-v="menor">Menor</button></div>
+    <div id="info"></div>
+    <div class="sep"></div>
+    <button class="btn" id="b-variante" title="＋ Variante: una Armonía nueva de la canción a partir de esta (p. ej. Simplificada); esta no cambia">＋ Variante</button>
+    <div id="estado"></div>
+    <button id="b-guardar" disabled>Guardar</button>
+</div>
+<div id="hoja"><div id="hoja-in">
+    <div id="partes"></div>
+    <div class="pie">
+        <button class="btn" id="b-parte">＋ Parte</button>
+        <button class="btn" id="b-ficha" title="Una parte por cada sección de la Ficha de la canción que aún no tenga una, con sus compases">＋ Una por sección de la Ficha</button>
+        <span class="sep"></span>
+        <span class="ayuda">Escribe el acorde · Tab, Espacio o Enter: compás siguiente · clic derecho: 2 o 4 acordes en el compás</span>
+    </div>
+    <div class="ayuda" id="usada"></div>
+</div></div>
+<div id="menu"></div>
+<div id="toast"></div>
+<div id="sin">Abre la Armonía desde la ficha de una canción en la Biblioteca (grupo 🎶 Armonías).</div>
+
+<script>
+'use strict';
+const PARAMS = new URLSearchParams(location.search);
+const sb = (() => { try { return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON); } catch (_) { return null; } })();
+const BUCKET = 'repertorio-assets';
+const publica = p => `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${p}`;
+const $ = id => document.getElementById(id);
+const esc = t => String(t ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+let assetId = PARAMS.get('asset') || null;
+const VARIANTE = assetId ? null : PARAMS.get('variante');
+let cancionId = PARAMS.get('cancion') || null, cancionNombre = '';
+let ficha = null, mapa = null;          // la Ficha de la canción (tono, cifra, tempo, secciones)
+let contenidoBase = '', etiquetaBase = '', extra = {};   // extra: nacio, de (se conservan)
+// H = la Armonía en la hoja: partes con sus compases; cada compás = lista de 1, 2 o 4 acordes escritos tal cual
+const H = { tonica: 'C', modo: 'mayor', partes: [] };
+
+// ══ Tonalidad y acordes (las mismas reglas que el Editor de arreglos) ══════════════════════
+const TONICAS = { mayor: ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'], menor: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D', 'G', 'C', 'F', 'Bb', 'Eb'] };
+const LET = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const SOLF_LET = { do: 'C', re: 'D', mi: 'E', fa: 'F', sol: 'G', la: 'A', si: 'B' };
+const LET_SOLF = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
+const pcDe = t => (LET[t[0]] + (t[1] === '#' ? 1 : t[1] === 'b' ? -1 : 0) + 12) % 12;
+const nombreTon = t => LET_SOLF[t[0]] + (t[1] === '#' ? '♯' : t[1] === 'b' ? '♭' : '');
+const BEM = { mayor: ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb'], menor: ['D', 'G', 'C', 'F', 'Bb', 'Eb'] };
+const CALIDAD = {
+    '': [0, 4, 7], M: [0, 4, 7], m: [0, 3, 7], '-': [0, 3, 7], min: [0, 3, 7],
+    7: [0, 4, 7, 10], maj7: [0, 4, 7, 11], M7: [0, 4, 7, 11], '7M': [0, 4, 7, 11], m7: [0, 3, 7, 10], '-7': [0, 3, 7, 10],
+    dim: [0, 3, 6], '°': [0, 3, 6], dim7: [0, 3, 6, 9], '°7': [0, 3, 6, 9], m7b5: [0, 3, 6, 10], 'ø': [0, 3, 6, 10],
+    aug: [0, 4, 8], '+': [0, 4, 8], sus4: [0, 5, 7], sus: [0, 5, 7], sus2: [0, 2, 7], 6: [0, 4, 7, 9], m6: [0, 3, 7, 9],
+    add9: [0, 2, 4, 7], madd9: [0, 2, 3, 7], 5: [0, 7],
+};
+function leerNota(s) {
+    const so = s.match(/^(do|re|mi|fa|sol|la|si)/i);
+    if (so) s = SOLF_LET[so[1].toLowerCase()] + s.slice(so[1].length);
+    const m = s.match(/^([A-G])([#b]?)(.*)$/);
+    return m ? { letra: m[1] + m[2], pc: pcDe(m[1] + m[2]), resto: m[3] } : null;
+}
+function leerAcorde(tok) {
+    const s = String(tok).trim().replace(/♯/g, '#').replace(/♭/g, 'b');
+    const [prin, baj] = s.split('/');
+    const r = leerNota(prin);
+    if (!r || !(r.resto in CALIDAD)) return null;
+    let pcs = [...new Set(CALIDAD[r.resto].map(i => (r.pc + i) % 12))], bajo = r.pc;
+    if (baj !== undefined) { const b = leerNota(baj); if (!b || b.resto) return null; bajo = b.pc; }
+    return { pcs, bajo };
+}
+const REPITE = ['%', '-', '_'];
+const tokOk = t => !t.trim() || REPITE.includes(t.trim()) || !!leerAcorde(t);
+const LETRAS_S = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const LETRAS_B = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+function transportar(txt, semis, tonica, modo) {
+    semis = ((semis % 12) + 12) % 12;
+    if (!semis) return String(txt || '');
+    const L = (BEM[modo] || []).includes(tonica) ? LETRAS_B : LETRAS_S;
+    return String(txt || '').replace(/(^|[\s\/(|])(do|re|mi|fa|sol|la|si|[A-G])([#b♯♭]?)/gi, (m, pre, raiz, alt) => {
+        const so = SOLF_LET[raiz.toLowerCase()];
+        if (!so && raiz.length === 1 && raiz !== raiz.toUpperCase()) return m;
+        const a = alt === '♯' ? '#' : alt === '♭' ? 'b' : alt;
+        return pre + L[(pcDe((so || raiz) + a) + semis) % 12];
+    });
+}
+
+// ══ Texto ↔ compases ═══════════════════════════════════════════════════════════════════
+// "A / E / C#m F#m" → [['A'], ['E'], ['C#m', 'F#m']] (la "/" suelta, "|" o un salto de línea separan compases)
+function aCompases(txt) {
+    const t = String(txt || '').replace(/(^|\s)\/(?=\s|$)/g, '$1|');
+    return t.split(/[|\n]/).map(c => c.trim().split(/\s+/).filter(Boolean)).filter(c => c.length);
+}
+// Los compases vacíos del final no se guardan (salvo una parte aún vacía: guarda cuántos compases tiene)
+function aTexto(compases) {
+    const lleno = c => c.some(t => t.trim());
+    let n = compases.length;
+    if (compases.some(lleno)) while (n && !lleno(compases[n - 1])) n--;
+    return compases.slice(0, n).map(c => c.map(t => t.trim() || '%').join(' ')).join(' / ');
+}
+function contenidoActual() {
+    return JSON.stringify({ v: 1, tonica: H.tonica, modo: H.modo,
+        partes: H.partes.map(p => ({ id: p.id, nombre: p.nombre, acordes: aTexto(p.compases) })), ...extra });
+}
+const hayCambios = () => contenidoActual() !== contenidoBase || $('etiqueta').value.trim() !== etiquetaBase;
+function cargarContenido(txt) {
+    const j = JSON.parse(txt || '{}');
+    H.tonica = j.tonica || 'C'; H.modo = j.modo === 'menor' ? 'menor' : 'mayor';
+    H.partes = (j.partes || []).map(p => ({ id: p.id || genId(), nombre: p.nombre || 'Parte', compases: aCompases(p.acordes) }));
+    H.partes.forEach(p => { if (!p.compases.length) p.compases = [[''], [''], [''], ['']]; });
+    extra = {}; if (j.nacio) extra.nacio = j.nacio; if (j.de) extra.de = j.de;
+}
+
+// ══ Pintar ══════════════════════════════════════════════════════════════════════════════
+function pintarBarra() {
+    $('tonica').innerHTML = TONICAS[H.modo].map(t => `<option value="${t}">${nombreTon(t)}</option>`).join('');
+    if (!TONICAS[H.modo].includes(H.tonica)) $('tonica').innerHTML += `<option value="${H.tonica}">${nombreTon(H.tonica)}</option>`;
+    $('tonica').value = H.tonica;
+    document.querySelectorAll('#seg-modo .btn').forEach(b => b.classList.toggle('on', b.dataset.v === H.modo));
+    const c = cifra();
+    $('info').textContent = `${c.texto} · ${tempo()} ${c.figura}`;
+    $('info').title = ficha ? 'Compás y tempo de la Ficha de la canción' : 'La canción no tiene Ficha: compás y tempo de prueba';
+    $('b-variante').classList.toggle('ver', !!assetId);
+}
+function infoParte(p) {
+    const n = p.compases.length, malos = p.compases.flat().filter(t => !tokOk(t));
+    return `${n} ${n === 1 ? 'compás' : 'compases'}` + (malos.length ? ` · <span class="mal">${malos.length} sin entender</span>` : '');
+}
+function htmlCompas(p, ci) {
+    const c = p.compases[ci], ultimo = ci === p.compases.length - 1;
+    return `<div class="cm${ultimo ? ' ultimo' : ''}" data-c="${ci}">${c.map((t, k) =>
+        `<input data-k="${k}" value="${esc(t)}" placeholder="${ci === 0 && k === 0 ? 'Acorde' : '%'}" class="${tokOk(t) ? '' : 'mal'}" spellcheck="false" autocomplete="off">`).join('')}
+        <span class="num">${ci + 1}</span><button class="mas" data-menu title="2 o 4 acordes en el compás, insertar o borrar">⋯</button></div>`;
+}
+function htmlParte(p, pi) {
+    let h = '';
+    const n = p.compases.length, total = Math.ceil((n + 1) / 4) * 4;
+    for (let r = 0; r < total; r += 4) {
+        h += `<div class="renglon${r === n ? ' solo' : ''}">`;
+        for (let ci = r; ci < r + 4; ci++) h += ci < n ? htmlCompas(p, ci) : ci === n ? '<div class="cm nuevo" data-nuevo title="Agregar un compás">＋</div>' : '<div class="cm vacio"></div>';
+        h += '</div>';
+    }
+    return `<div class="parte" data-p="${pi}">
+        <div class="p-cab"><button class="btn" data-play title="Escuchar esta parte">${tocando?.pi === pi ? '■' : '▶'}</button>
+            <input class="p-nom" data-nom value="${esc(p.nombre)}" placeholder="Nombre de la parte">
+            <span class="p-info">${infoParte(p)}</span>
+            <button class="btn" data-p-borrar title="Borrar esta parte">✕</button></div>
+        ${h}</div>`;
+}
+function pintar() {
+    $('partes').innerHTML = H.partes.map(htmlParte).join('');
+    pintarBarra();
+    cambio();
+}
+function repintarParte(pi, foco) {
+    const el = document.querySelector(`.parte[data-p="${pi}"]`);
+    if (el) el.outerHTML = htmlParte(H.partes[pi], pi);
+    if (foco) enfocar(pi, foco.c, foco.k, foco.fin);
+    cambio();
+}
+function enfocar(pi, ci, k = 0, alFinal = false) {
+    const inp = document.querySelector(`.parte[data-p="${pi}"] .cm[data-c="${ci}"] input[data-k="${k}"]`);
+    if (!inp) return;
+    inp.focus();
+    const n = alFinal ? inp.value.length : 0; inp.setSelectionRange(alFinal ? n : 0, inp.value.length);
+}
+function cambio() {
+    $('estado').textContent = guardando ? 'Guardando…' : hayCambios() ? 'Sin guardar' : (assetId ? 'Guardado' : '');
+    $('b-guardar').disabled = guardando || !hayCambios() || !H.partes.some(p => p.compases.flat().some(t => t.trim()));
+    try {
+        if (hayCambios()) localStorage.setItem(claveBorrador(), JSON.stringify({ base: contenidoBase, contenido: contenidoActual(), etiqueta: $('etiqueta').value }));
+        else localStorage.removeItem(claveBorrador());
+    } catch (_) {}
+}
+const claveBorrador = () => 'armonia_borrador:' + (assetId || (VARIANTE ? 'variante:' + VARIANTE : 'nueva:' + cancionId));
+
+// ══ Escribir en la hoja ════════════════════════════════════════════════════════════════
+const donde = el => {
+    const p = el.closest('.parte'), c = el.closest('.cm');
+    return { pi: p ? +p.dataset.p : -1, ci: c && c.dataset.c !== undefined ? +c.dataset.c : -1, k: el.dataset?.k !== undefined ? +el.dataset.k : 0 };
+};
+$('partes').addEventListener('input', e => {
+    const t = e.target, { pi, ci, k } = donde(t);
+    if (t.matches('[data-nom]')) { H.partes[pi].nombre = t.value; cambio(); return; }
+    if (t.matches('.cm input')) {
+        H.partes[pi].compases[ci][k] = t.value.trim();
+        t.classList.toggle('mal', !tokOk(t.value));
+        const info = t.closest('.parte').querySelector('.p-info'); if (info) info.innerHTML = infoParte(H.partes[pi]);
+        cambio();
+    }
+});
+function siguiente(pi, ci, k) {
+    const p = H.partes[pi];
+    if (k + 1 < p.compases[ci].length) return enfocar(pi, ci, k + 1);
+    if (ci + 1 < p.compases.length) return enfocar(pi, ci + 1, 0);
+    // último compás: si tiene algo, agrega uno; si está vacío, pasa a la parte siguiente
+    if (p.compases[ci].some(t => t.trim())) { p.compases.push(['']); repintarParte(pi, { c: ci + 1, k: 0 }); }
+    else if (H.partes[pi + 1]) enfocar(pi + 1, 0, 0);
+}
+function anterior(pi, ci, k) {
+    if (k > 0) return enfocar(pi, ci, k - 1, true);
+    if (ci > 0) return enfocar(pi, ci - 1, H.partes[pi].compases[ci - 1].length - 1, true);
+}
+$('partes').addEventListener('keydown', e => {
+    const t = e.target;
+    if (t.matches('[data-nom]') && e.key === 'Enter') { e.preventDefault(); enfocar(donde(t).pi, 0, 0); return; }
+    if (!t.matches('.cm input')) return;
+    const { pi, ci, k } = donde(t), p = H.partes[pi];
+    if (e.key === 'Tab' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (e.shiftKey) anterior(pi, ci, k); else siguiente(pi, ci, k);
+    } else if (e.key === 'ArrowRight' && t.selectionStart === t.value.length) { e.preventDefault(); siguiente(pi, ci, k); }
+    else if (e.key === 'ArrowLeft' && t.selectionEnd === 0) { e.preventDefault(); anterior(pi, ci, k); }
+    else if (e.key === 'Backspace' && !t.value && k === 0 && ci === p.compases.length - 1 && ci > 0 && p.compases[ci].every(x => !x.trim())) {
+        e.preventDefault(); p.compases.pop(); repintarParte(pi, { c: ci - 1, k: p.compases[ci - 1].length - 1, fin: true });
+    }
+});
+$('partes').addEventListener('click', e => {
+    const t = e.target, { pi } = donde(t);
+    if (t.closest('[data-nuevo]')) { H.partes[pi].compases.push(['']); repintarParte(pi, { c: H.partes[pi].compases.length - 1, k: 0 }); return; }
+    if (t.closest('[data-menu]')) { e.stopPropagation(); abrirMenu(t.closest('.cm'), t.getBoundingClientRect()); return; }
+    if (t.closest('[data-play]')) { t.closest('[data-play]').blur(); tocar(pi); return; }
+    if (t.closest('[data-p-borrar]')) {
+        const p = H.partes[pi];
+        if (p.compases.flat().some(x => x.trim()) && !confirm(`¿Borrar la parte "${p.nombre || 'sin nombre'}"? Los arreglos que la tocan dejarán de tener esos acordes.`)) return;
+        H.partes.splice(pi, 1); detener(); pintar(); return;
+    }
+    const cm = t.closest('.cm');
+    if (cm && cm.dataset.c !== undefined && !t.matches('input')) enfocar(pi, +cm.dataset.c, 0, true);
+});
+$('partes').addEventListener('contextmenu', e => {
+    const cm = e.target.closest('.cm'); if (!cm || cm.dataset.c === undefined) return;
+    e.preventDefault(); abrirMenu(cm, { left: e.clientX, bottom: e.clientY });
+});
+// Menú del compás: 1, 2 o 4 acordes; insertar o borrar
+let menuDe = null;
+function abrirMenu(cm, r) {
+    const { pi } = donde(cm), ci = +cm.dataset.c, n = H.partes[pi].compases[ci].length;
+    menuDe = { pi, ci };
+    const m = $('menu');
+    m.innerHTML = `<button data-div="1" class="${n === 1 ? 'on' : ''}">1 acorde en el compás</button>
+        <button data-div="2" class="${n === 2 ? 'on' : ''}">2 acordes en el compás</button>
+        <button data-div="4" class="${n === 4 ? 'on' : ''}">4 acordes (uno por tiempo)</button><hr>
+        <button data-ins>Insertar un compás antes</button>
+        <button data-borrar ${H.partes[pi].compases.length > 1 ? '' : 'disabled'}>Borrar este compás</button>`;
+    m.classList.add('on');
+    m.style.left = Math.min(r.left, innerWidth - 230) + 'px';
+    m.style.top = Math.min(r.bottom + 4, innerHeight - m.offsetHeight - 8) + 'px';
+}
+const cerrarMenu = () => { $('menu').classList.remove('on'); menuDe = null; };
+document.addEventListener('click', e => { if (!e.target.closest('#menu')) cerrarMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarMenu(); });
+$('menu').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || !menuDe) return;
+    const { pi, ci } = menuDe, p = H.partes[pi];
+    if (b.dataset.div) {
+        const n = +b.dataset.div, c = p.compases[ci];
+        p.compases[ci] = n === 1 ? [c.find(t => t.trim()) || ''] : Array.from({ length: n }, (_, i) => c[i] || '');
+        repintarParte(pi, { c: ci, k: n > 1 ? Math.min(c.filter(t => t.trim()).length, n - 1) : 0 });
+    } else if (b.dataset.ins !== undefined) { p.compases.splice(ci, 0, ['']); repintarParte(pi, { c: ci, k: 0 }); }
+    else if (b.dataset.borrar !== undefined && p.compases.length > 1) { p.compases.splice(ci, 1); repintarParte(pi, { c: Math.max(0, ci - 1), k: 0 }); }
+    cerrarMenu();
+});
+
+// Partes
+$('b-parte').onclick = e => {
+    e.target.blur();
+    H.partes.push({ id: genId(), nombre: `Parte ${H.partes.length + 1}`, compases: [[''], [''], [''], ['']] });
+    pintar();
+    const inp = document.querySelector(`.parte[data-p="${H.partes.length - 1}"] [data-nom]`); inp?.focus(); inp?.select();
+};
+// Una parte por sección de la Ficha (por nombre, una vez cada nombre), con los compases de la primera vez que suena
+function seccionesFicha() {
+    const S = (mapa?.secciones?.length ? mapa.secciones : ficha?.secciones || []).filter(x => x.compas !== null && x.compas !== undefined);
+    let fin = null; try { if (mapa && !mapa.vacio) fin = mapa.compasDePulso(mapa.pulsos.length - 1 - mapa.compas1).compas; } catch (_) {}
+    return S.map((x, i) => ({ nombre: x.nombre, largo: Math.max(1, ((S[i + 1]?.compas ?? fin ?? x.compas + 8) - x.compas)) }));
+}
+$('b-ficha').onclick = e => {
+    e.target.blur();
+    const S = seccionesFicha();
+    if (!S.length) { toast('La Ficha de la canción no tiene secciones con su compás'); return; }
+    const norm = t => String(t || '').trim().toLowerCase().replace(/\s+\d+$/, '');
+    const hay = new Set(H.partes.map(p => norm(p.nombre))), nuevas = [];
+    S.forEach(x => { const k = norm(x.nombre); if (hay.has(k)) return; hay.add(k); nuevas.push({ id: genId(), nombre: x.nombre.replace(/\s+\d+$/, ''), compases: Array.from({ length: Math.min(x.largo, 64) }, () => ['']) }); });
+    // Si solo hay una parte vacía de partida, se reemplaza
+    if (H.partes.length === 1 && !H.partes[0].compases.flat().some(t => t.trim())) H.partes = [];
+    H.partes.push(...nuevas);
+    pintar();
+    toast(nuevas.length ? `${nuevas.length} ${nuevas.length === 1 ? 'parte nueva' : 'partes nuevas'} desde la Ficha` : 'Todas las secciones de la Ficha ya tienen su parte');
+};
+
+// Tono: transporta los acordes (DECISIÓN del PO 25/11, con aviso)
+$('tonica').onchange = e => {
+    e.target.blur();
+    const nueva = e.target.value, antes = H.tonica, semis = pcDe(nueva) - pcDe(antes);
+    H.partes.forEach(p => { p.compases = p.compases.map(c => c.map(t => t.trim() && !REPITE.includes(t.trim()) ? transportar(t, semis, nueva, H.modo) : t)); });
+    H.tonica = nueva;
+    pintar();
+    if (semis && H.partes.some(p => p.compases.flat().some(t => t.trim()))) toast(`Se transportaron los acordes de ${nombreTon(antes)} a ${nombreTon(nueva)}`);
+};
+$('seg-modo').onclick = e => {
+    const b = e.target.closest('[data-v]'); if (!b || b.dataset.v === H.modo) return; b.blur();
+    H.modo = b.dataset.v;
+    pintarBarra(); cambio();
+};
+$('etiqueta').addEventListener('input', cambio);
+
+// ══ Escuchar una parte (acordes en bloque al tempo de la Ficha) ═════════════════════════
+const cifra = () => (ficha?.cifraApp?.() || mapa?.cifraApp?.() || TempoMapa.cifraInfo('4/4'));
+const tempo = () => Math.round(ficha?.bpm || mapa?.bpm || 90);     // en la figura de abajo de la cifra
+let ctx = null, tocando = null;
+function audio() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+}
+function nota(c, m, t, dur, vol) {
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'triangle'; o.frequency.value = 440 * Math.pow(2, (m - 69) / 12);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.2, dur));
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + dur + 0.05);
+    tocando?.osc.push(o);
+}
+function voces(a) {     // bajo cerca de Mi2 y el acorde entre Sol3 y Fa♯4
+    const b = 40 + ((a.bajo - 4 + 12) % 12);
+    return [b, ...a.pcs.map(pc => 55 + ((pc - 7 + 12) % 12)).sort((x, y) => x - y)];
+}
+function tocar(pi) {
+    const era = tocando?.pi;
+    detener();
+    if (era === pi) return;
+    const p = H.partes[pi]; if (!p) return;
+    const c = audio(), seg = cifra().n * 60 / tempo(), t0 = c.currentTime + 0.1;
+    tocando = { pi, osc: [], timers: [] };
+    let previo = null;
+    p.compases.forEach((cm, ci) => {
+        const n = cm.length;
+        cm.forEach((tok, k) => {
+            const s = tok.trim();
+            let a = null;
+            if (!s || REPITE.includes(s)) a = s === '_' ? null : previo; else a = leerAcorde(s);
+            if (a && s !== '_') { const t = t0 + ci * seg + k * seg / n; voces(a).forEach((m, i) => nota(c, m, t, seg / n * 0.95, i ? 0.1 : 0.14)); }
+            if (a) previo = a;
+        });
+        tocando.timers.push(setTimeout(() => marcar(pi, ci), (ci * seg + 0.1) * 1000));
+    });
+    tocando.timers.push(setTimeout(detener, (p.compases.length * seg + 0.3) * 1000));
+    UnSonido.suena('armonia', true);
+    pintarPlay();
+}
+function marcar(pi, ci) {
+    document.querySelectorAll('.cm.son').forEach(x => x.classList.remove('son'));
+    document.querySelector(`.parte[data-p="${pi}"] .cm[data-c="${ci}"]`)?.classList.add('son');
+}
+function detener() {
+    if (!tocando) return;
+    tocando.timers.forEach(clearTimeout);
+    tocando.osc.forEach(o => { try { o.stop(); } catch (_) {} });
+    tocando = null;
+    document.querySelectorAll('.cm.son').forEach(x => x.classList.remove('son'));
+    UnSonido.suena('armonia', false);
+    pintarPlay();
+}
+function pintarPlay() { document.querySelectorAll('.parte').forEach(el => { const b = el.querySelector('[data-play]'); if (b) b.textContent = tocando?.pi === +el.dataset.p ? '■' : '▶'; }); }
+UnSonido.alDetener(detener, () => !!tocando);
+
+// ══ Guardar ═════════════════════════════════════════════════════════════════════════════
+let guardando = false;
+async function guardar() {
+    if (guardando || !hayCambios()) return true;
+    if (!sb) { toast('Sin conexión con la base de datos'); return false; }
+    guardando = true; cambio();
+    try {
+        const nuevo = !assetId, id = assetId || genId();
+        const contenido = contenidoActual(), etiqueta = $('etiqueta').value.trim() || 'Armonía';
+        const fila = { contenido, etiqueta, tonalidad: `${nombreTon(H.tonica)} ${H.modo}` };
+        if (nuevo) {
+            const { data: hermanos } = await sb.from('repertorio_assets').select('orden').eq('cancion_id', cancionId);
+            const orden = Math.max(-1, ...(hermanos || []).map(h => h.orden || 0).filter(o => o < 1000)) + 1;
+            const { error } = await sb.from('repertorio_assets').insert({ id, cancion_id: cancionId, tipo: 'armonia', instrumento: '', storage_path: '',
+                nombre_archivo: '', synced: '', orden, dificultad: '', estado: 'publicado', ...fila });
+            if (error) throw error;
+        } else {
+            const { error } = await sb.from('repertorio_assets').update(fila).eq('id', id);
+            if (error) throw error;
+        }
+        try { localStorage.removeItem(claveBorrador()); } catch (_) {}
+        assetId = id; contenidoBase = contenido; etiquetaBase = $('etiqueta').value.trim();
+        if (nuevo) { try { history.replaceState(null, '', `?asset=${id}`); } catch (_) {} }
+        toast('Armonía guardada en la Biblioteca');
+        // Todo al día solo (regla 12): los arreglos que la usan la siguen, también para los estudiantes
+        if (window.AlDia) { AlDia.conectar(sb); AlDia.avisar({ cancion: cancionId, tipo: 'armonia', id }); if (!nuevo) AlDia.rehacerArreglos({ cancion: cancionId, tipo: 'armonia', id }); }
+        window.Ficha?.completar(sb, cancionId, { tonalidad: { tonica: H.tonica, modo: H.modo } })
+            .then(t => { if (t) setTimeout(() => toast(`📋 Ficha de la canción: ${t}, desde esta armonía`), 1800); });
+        pintarBarra(); pintarUsada();
+        return true;
+    } catch (err) { toast('No se pudo guardar: ' + (err.message || err)); return false; }
+    finally { guardando = false; cambio(); }
+}
+$('b-guardar').onclick = e => { e.target.blur(); guardar(); };
+document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); guardar(); } });
+// ＋ Variante: guarda lo pendiente y abre aquí una Armonía nueva que parte de esta
+$('b-variante').onclick = async e => {
+    e.target.blur();
+    if (!assetId) return;
+    if (hayCambios() && !(await guardar())) return;
+    const base = $('etiqueta').value.trim() || 'Armonía';
+    const n = prompt('Nombre de la variante (esta Armonía no cambia):', base + ' · ');
+    if (n === null) return;
+    location.href = `?variante=${encodeURIComponent(assetId)}&nombre=${encodeURIComponent(n.trim() || base + ' · variante')}`;
+};
+// Workspace: al cerrar la pestaña se guarda lo pendiente
+window.addEventListener('message', e => {
+    if (e.data?.tipo !== 'ws-guardar' || e.source !== window.parent) return;
+    Promise.resolve(hayCambios() && !$('b-guardar').disabled ? guardar() : true).then(ok =>
+        window.parent.postMessage({ tipo: 'ws-guardado', reqId: e.data.reqId, ok: ok !== false }, '*'));
+});
+window.addEventListener('beforeunload', e => { if (hayCambios() && !$('b-guardar').disabled && window.parent === window) { e.preventDefault(); e.returnValue = ''; } });
+// Usada en: los arreglos de la canción que la eligen
+async function pintarUsada() {
+    if (!sb || !cancionId || !assetId) { $('usada').textContent = ''; return; }
+    const { data } = await sb.from('repertorio_assets').select('etiqueta, contenido').eq('cancion_id', cancionId).eq('tipo', 'arreglo');
+    const L = (data || []).filter(a => { try { return JSON.parse(a.contenido || '{}').armonia?.origen === assetId; } catch (_) { return false; } })
+        .map(a => a.etiqueta || 'Arreglo');
+    $('usada').textContent = L.length ? `Usada en: ${L.join(' · ')} (se ponen al día solos al guardar)` : 'Ningún arreglo usa esta Armonía todavía.';
+}
+
+let toastT = null;
+function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2800); }
+
+// ══ Inicio ══════════════════════════════════════════════════════════════════════════════
+async function iniciar() {
+    if (!assetId && !cancionId && !VARIANTE) { $('sin').style.display = 'flex'; return; }
+    try {
+        if (sb && (assetId || VARIANTE)) {
+            const { data, error } = await sb.from('repertorio_assets').select('id, cancion_id, etiqueta, contenido').eq('id', assetId || VARIANTE).single();
+            if (error) throw error;
+            cancionId = data.cancion_id;
+            cargarContenido(data.contenido);
+            if (assetId) { contenidoBase = contenidoActual(); etiquetaBase = data.etiqueta || ''; $('etiqueta').value = etiquetaBase; }
+            else { extra = { de: data.id }; $('etiqueta').value = PARAMS.get('nombre') || (data.etiqueta || 'Armonía') + ' · variante'; contenidoBase = ''; }
+        }
+        if (sb && cancionId) {
+            const [c, f, m] = await Promise.all([
+                sb.from('repertorio_canciones').select('nombre').eq('id', cancionId).single(),
+                TempoMapa.cargarFicha(publica(''), cancionId).catch(() => null),
+                TempoMapa.cargar(publica(''), cancionId).catch(() => null),
+            ]);
+            cancionNombre = c.data?.nombre || ''; ficha = f; mapa = m;
+        }
+    } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }
+    if (!assetId && !VARIANTE) {          // nueva: parte en el tono de la Ficha, con una parte de 4 compases
+        const t = ficha?.tonalidad;
+        if (t) { H.tonica = t.tonica; H.modo = t.modo; }
+        H.partes = [{ id: genId(), nombre: 'Parte 1', compases: [[''], [''], [''], ['']] }];
+        $('etiqueta').value = 'Armonía';
+        contenidoBase = contenidoActual(); etiquetaBase = 'Armonía';
+    }
+    try {        // lo que no alcanzó a guardarse en este equipo
+        const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null');
+        if (b && b.contenido && (b.base === contenidoBase || confirm('Hay cambios de esta Armonía que no alcanzaste a guardar. ¿Recuperarlos?'))) {
+            cargarContenido(b.contenido); $('etiqueta').value = b.etiqueta || ''; toast('Se recuperó lo que no alcanzaste a guardar');
+        }
+    } catch (_) {}
+    $('cancion').textContent = '🎶 ' + (cancionNombre || 'Armonía'); $('cancion').title = cancionNombre;
+    document.title = `${cancionNombre || 'Canción'} · Armonía`;
+    pintar();
+    pintarUsada();
+    if (!H.partes.some(p => p.compases.flat().some(t => t.trim()))) setTimeout(() => enfocar(0, 0, 0), 50);
+}
+iniciar();
+// La Ficha cambió en otra pestaña: compás, tempo y secciones al día
+try { new BroadcastChannel('profe-tempo').onmessage = async e => {
+    if (e.data?.tipo !== 'tempo-guardado' || e.data.cancion !== cancionId) return;
+    [ficha, mapa] = await Promise.all([TempoMapa.cargarFicha(publica(''), cancionId).catch(() => null), TempoMapa.cargar(publica(''), cancionId).catch(() => null)]);
+    pintarBarra();
+}; } catch (_) {}
+</script>
+<script>
+// 📍 ⌨ Anotar rápido (deuda IV): qué tenía abierto la hoja de la Armonía
+window.anotarContexto = () => {
+    const f = document.activeElement?.closest?.('.cm'), p = document.activeElement?.closest?.('.parte');
+    const L = [`armonía "${(document.getElementById('etiqueta')?.value || '').trim() || 'sin nombre'}" de "${cancionNombre || '?'}"`, `${H.tonica} ${H.modo}`];
+    if (p) L.push(`parte "${H.partes[+p.dataset.p]?.nombre || '?'}"` + (f ? `, compás ${+f.dataset.c + 1}` : ''));
+    if (assetId) L.push(`[recurso ${assetId}]`);
+    return L.join(' · ');
+};
+</script>
+</body>
+</html>

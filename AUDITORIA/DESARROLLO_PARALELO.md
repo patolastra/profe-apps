@@ -10949,3 +10949,34 @@ a HV/HW.*
   aviso y pone la variante en la sección pedida del metalófono; variante de ritmo abre el Cajón con la copia, el nombre
   y `de`; Biblioteca: la variante sale con ↳ debajo de "Estrofas"; borrar "Estrofas" avisa que la usa el arreglo.
 - **Falta probar (PO):** el recorrido completo de verdad (crear una variante, simplificarla, guardarla y ver el arreglo).
+
+### JW. 🎶 Armonía: hoja propia para escribirla rápido — HECHA (2026-11-25)
+- **Necesidad (PO, 24/11):** hoy la Armonía solo se escribe dentro del arreglo (paso ②, texto `A / E / F#m`); falta
+  un espacio propio y rápido.
+- **Boceto aprobado (PO, 25/11):** una **hoja**: cada parte con su título y una sola línea (sin pentagrama) que se
+  dibuja sola, **4 compases por renglón**; clic en un compás y se escribe el acorde; Tab / Espacio pasa al siguiente
+  (en el último, agrega uno); "%" = igual al anterior. Menú del compás (clic derecho o ⋯): 2 acordes en el compás ·
+  4 acordes (uno por tiempo). ▶ por parte la toca en bloques al tempo de la canción (se ilumina el compás). Arriba:
+  nombre, tono, cifra y tempo, ＋ Variante, Guardar; abajo: ＋ Parte, ＋ Una por sección de la Ficha.
+- **Decidido (PO, 25/11):** cambiar el tono **transporta solos** los acordes, con un aviso de que se transportó;
+  **＋ Armonía** en la Biblioteca crea una sin arreglo; el **ritmo por compás** queda para una segunda etapa (y será
+  cómo suenan los acordes; el arreglo lo toma como punto de partida).
+- **Alcance:** página `ARMONIA/index.html` (`?asset=` / `?cancion=`), tercera pestaña del Editor musical; la
+  Biblioteca la abre con ✏️ de una Armonía y ＋ Armonía. Mismo contenido de siempre (`{ v, tonica, modo, partes: [{ id,
+  nombre, acordes }], nacio?, de? }`, acordes en texto): los arreglos que la usan no cambian y la siguen solos (AlDia
+  tipo `armonia`, `rehacerArreglos`).
+- **Hecho (25/11):** `ARMONIA/index.html` (nueva): la hoja con 4 compases por renglón y un compás fantasma ＋ al final;
+  cada compás es 1, 2 o 4 casillas (menú con clic derecho o ⋯: 1 / 2 / 4 acordes, insertar, borrar); Tab, Espacio,
+  Enter y → pasan a la siguiente (en el último compás con algo, agrega uno; vacío, salta a la parte siguiente);
+  Mayús+Tab y ← vuelven; Retroceso en el último compás vacío lo quita; lo que no se entiende va en rojo y la parte
+  dice cuántos. ▶ por parte (bajo + acorde en bloque, al compás y tempo de la Ficha; ilumina el compás). Tono: al
+  cambiarlo transporta y avisa; Mayor / Menor solo cambia el modo. ＋ Una por sección de la Ficha (una por nombre, con
+  los compases de la primera vez que suena). ＋ Variante (`?variante=`, con `de`). Al guardar: AlDia avisa y rehace los
+  arreglos que la usan; la Ficha toma el tono si le falta; "Usada en:" lista los arreglos. Borrador en el equipo.
+  Los compases vacíos del final no se guardan. **Editor musical:** pestaña 🎶 Armonía (entre Melodía y Arreglo).
+  **Biblioteca:** el grupo 🎶 Armonías se ve siempre, con ＋ Armonía; ✏️ abre la hoja.
+- **Probado (25/11, sin guardar en Supabase):** COQUETA abre sus 3 partes sin cambios pendientes; escribir con teclas,
+  Tab y Espacio; 2 acordes en un compás; La → Sol transporta todo con aviso; ▶ suena e ilumina; nueva en El Dinosaurio
+  Anacleto: parte en Sol mayor (Ficha), ＋ Una por sección crea 5 partes con sus compases y Guardar (base falsa) la
+  crea como `armonia` con su texto; Editor musical y Biblioteca la abren.
+- **Queda:** etapa 2, el ritmo de cada compás (PO 25/11).

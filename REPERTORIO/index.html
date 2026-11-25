@@ -4315,7 +4315,7 @@ function fichaGruposHTML(c, assets) {
         const ficha = g.k === 'cancion' ? assets.find(a => a.tipo === 'tempo') : null;   // 📋 Ficha de la canción (EV): línea aparte
         const todos = assets.filter(a => grupoDeAsset(a) === g.k && a.tipo !== 'tempo');
         const hayInstr = g.k === 'arreglo' && assets.some(a => ['melodia', 'metalofono', 'cajon', 'ritmo'].includes(a.tipo));
-        if (!todos.length && g.k !== 'cancion' && !hayInstr) return '';
+        if (!todos.length && g.k !== 'cancion' && g.k !== 'armonia' && !hayInstr) return '';
         const ver = todos.filter(fichaSeVe);
         const pub = ver.filter(a => estadoDe(a) === 'publicado'), resto = ver.filter(a => !['publicado', 'archivado'].includes(estadoDe(a)));
         const arch = ver.filter(a => estadoDe(a) === 'archivado');   // IO: archivados aparte, siempre plegados
@@ -4324,7 +4324,7 @@ function fichaGruposHTML(c, assets) {
         const oculto = todos.length - ver.length;
         const vacio = todos.length
             ? `Sin recursos ${fichaVer === 'publicado' ? 'publicados' : 'en borrador'} (${oculto} oculto${oculto === 1 ? '' : 's'}).`
-            : g.k === 'arreglo' ? 'Sin arreglos todavía.' : 'Sin letra ni audio todavía.';
+            : g.k === 'arreglo' ? 'Sin arreglos todavía.' : g.k === 'armonia' ? 'Sin armonías todavía.' : 'Sin letra ni audio todavía.';
         const cuerpo = (g.k === 'cancion' ? lineaFicha(c, ficha, assets) : '')
             + (ver.length ? '' : `<div class="ficha-vacio">${vacio}</div>`)
             + (pub.length ? `<div class="ficha-lote">${lote(pub)}</div>` : '')
@@ -4333,6 +4333,7 @@ function fichaGruposHTML(c, assets) {
             + (arch.length ? `<div class="ficha-sep ficha-sep-btn" onclick="toggleBorrFicha('${g.k}:arch')">${fichaBorrAbiertos.has(g.k + ':arch') ? '▾' : '▸'} Archivados (${arch.length})</div>` : '')
             + (arch.length && fichaBorrAbiertos.has(g.k + ':arch') ? `<div class="ficha-lote">${lote(arch)}</div>` : '')
             + (g.k === 'arreglo' ? `<button class="btn-add-asset" onclick="abrirEditorArreglo('${c.id}', null)">+ Arreglo</button>` : '')
+            + (g.k === 'armonia' ? `<button class="btn-add-asset" onclick="abrirArmonia('${c.id}', null)">+ Armonía</button>` : '')
             + (g.k === 'cancion' ? `<div class="ficha-medios" id="medios-cancion">
                 <div id="medios-lista"><div class="med-vacio">Cargando…</div></div>
                 <div id="medios-form"></div>
@@ -4866,12 +4867,8 @@ async function cambiarFicha(cid, que) {
 }
 
 // 🎶 Armonía (JT): se escribe dentro de un arreglo; abre el primero de la canción que la usa
-function abrirArmonia(songId, armId) {
-    const c = canciones.find(x => x.id === songId);
-    const arr = (c?.assets || []).find(x => x.tipo === 'arreglo' && (x.contenido || '').includes(`"origen":"${armId}"`));
-    if (arr) abrirEditorArreglo(songId, arr.id);
-    else toast('Esta armonía se escribe dentro de un arreglo: crea uno con ＋ Arreglo');
-}
+// JW: la Armonía tiene su hoja propia, pestaña 🎶 Armonía del Editor musical (armId null = una nueva)
+function abrirArmonia(songId, armId) { abrirEditorMusical(songId, 'armonia', armId || null); }
 function assetItemHTML(a, i) {
     const info = TIPOS_ASSET[a.tipo] || { ico: '📄', label: a.tipo, clase: '' };
     // Nombre de cortesía (comun/nombre-asset.js): el tipo ya se muestra arriba, aquí descripción · dificultad
@@ -4955,7 +4952,7 @@ function assetItemHTML(a, i) {
                    <button class="btn-icon" onclick="abrirArreglo('${a.id}')" title="Abrir en el piano (como lo ve el estudiante)">🎹</button>
                    <button class="btn-icon" onclick="abrirEditorArreglo('${songActiva.id}','${a.id}')" title="Editar arreglo">✏️</button>`
                 : a.tipo === 'armonia'
-                ? `<button class="btn-icon" onclick="abrirArmonia('${songActiva.id}','${a.id}')" title="Editar: se escribe en el arreglo que la usa">✏️</button>`
+                ? `<button class="btn-icon" onclick="abrirArmonia('${songActiva.id}','${a.id}')" title="Editar la armonía (hoja de acordes)">✏️</button>`
                 : a.tipo === 'cajon'
                 ? `${estadoDe(a) === 'publicado' ? `<button class="btn-icon" onclick="compartirCajon('${a.id}', this)" title="Compartir con los estudiantes (celular): link, QR o guía QR">${Compartir.ICONO}</button>` : ''}
                    <button class="btn-icon" onclick="abrirCajon('${songActiva.id}','${a.id}')" title="Abrir en el Cajón (tocar y editar)">✏️</button>`
