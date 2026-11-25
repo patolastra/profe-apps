@@ -186,7 +186,7 @@ Cada etapa con su ficha, su prueba y su checkpoint; los arreglos y links que ya 
 
 **Avance:** etapa 1 HECHA (JP, y JQ/JR íconos) · etapa 2 HECHA (JS; el tempo desde el arreglo queda pendiente:
 la Ficha solo tiene tempo con el pulso marcado) · etapa 3 HECHA (JT: 🎶 Armonía; por ahora se escribe en el arreglo). · etapa 4 HECHA (JU: pestaña Mapa, solo para mirar; cada instrumento
-se trabaja en su pantalla).
+se trabaja en su pantalla) · etapa 5 HECHA (JV: las copias quedan como respaldo; ＋ Variante de melodía y de ritmo).
 
 ## 5. Pendientes
 

@@ -10913,3 +10913,39 @@ a HV/HW.*
   adaptación), COQUETA (piano en todas; sin secciones en la Ficha → una columna con sus secuencias); clic en casilla
   lleva al instrumento y a la sección sin dejar cambios pendientes.
 - **Queda:** el botón "Escuchar todo" del boceto (el mapa no suena aún); la etapa 5 (apuntar en vez de copiar).
+
+### JV. Etapa 5 del diseño JO: el arreglo apunta en vez de copiar, y las variantes — HECHA (2026-11-25)
+- **Necesidad (PO, diseño JO):** el arreglo **elige** materiales de la canción; para hacerlo más fácil o más difícil
+  no se cambia por dentro: se crea una **variante** (material nuevo que sabe de cuál viene) y el arreglo la elige.
+- **Auditoría (25/11):** las "copias" del arreglo ya se comportan como punteros: `A.melodia` (piano), `A.metal.mels`,
+  `A.cajon.ritmos` y los acordes de la Armonía guardan el contenido **y** el id de su original, y `sincronizarCopias`
+  + AlDia los ponen al día solos cada vez que el original cambia (salvo 📌 Fijado). Desde el arreglo no se puede
+  editar una copia por dentro: solo cosas del arreglo (desde qué compás, repetir, mano, octavas, ritmo del piano).
+  La copia sirve para tres cosas: 📌 Fijar (congela lo que ven los estudiantes), que el arreglo siga sonando si se
+  borra el original, y armar el archivo público sin otra consulta. Variantes hoy: 🎶 Armonía ya tiene ＋ Variante
+  (JT); el Cajón hace "variación" de un ritmo de estilo para la canción; **las melodías no tienen variantes**.
+- **Propuesta:**
+  1. **Las copias se quedan** como respaldo interno (no se ven ni se editan): sacarlas no cambia nada visible y
+     rompería 📌 Fijar y los arreglos cuyo original se borre. El arreglo ya "apunta" en la práctica.
+  2. **＋ Variante de melodía**: en la pantalla del Piano y del Metalófono del arreglo (junto a la melodía elegida)
+     y en el Editor de Melodías: crea una melodía nueva de la canción ("Estrofas · fácil"), con la marca "viene de
+     Estrofas", la abre en el Editor de Melodías para simplificarla y el arreglo pasa a usarla en esa sección.
+  3. **Ritmos**: la misma ＋ Variante para un ritmo de la canción (hoy solo para los de estilo), con su "viene de".
+  4. **Biblioteca**: cada variante se ve debajo de su original (↳ fácil), en melodías, armonías y ritmos.
+  5. **Antes de borrar** una melodía, armonía o ritmo que un arreglo usa, avisar cuál (regla 12.7).
+- **Aprobado (PO, 25/11):** 1–5; el nombre de la variante lo escribe el profe al crearla (parte con "<original> · ").
+- **Hecho (25/11):** el material guarda `de: <id del original>` en su contenido (melodía, ritmo; la Armonía ya lo
+  tenía). **Editor de Melodías:** botón **＋ Variante** (con la melodía guardada; guarda lo pendiente, pide el nombre y
+  abre `?variante=<id>&nombre=`: parte de la original, "Sin guardar" hasta Guardar, que la crea aparte con `de`).
+  **Editor de arreglos:** ＋ Variante junto a Copiar (melodía del piano) y **＋** por sección en el Metalófono: abren el
+  Editor de Melodías en una pestaña; al guardarse, AlDia avisa y el arreglo pasa a usarla donde se pidió
+  (`varPend`, `melodiaNueva`). **＋** por sección en el Cajón: abre el programador con una copia del ritmo, el nombre y
+  `de` (`abrirEditorCajon(x, true)`); el Cajón guarda `de` (`contenidoProg`) y el arreglo lo ignora al comparar copias
+  (`leerRitmo`). **Biblioteca:** cada variante va debajo de su original, corrida con ↳ (`fichaGruposHTML` → `lote`);
+  al borrar una melodía, ritmo o armonía que usa un arreglo, la confirmación dice cuál y que seguirá sonando con su
+  copia sin ponerse al día. Las copias del arreglo se quedan (punto 1).
+- **Probado (25/11, base falsa, sin guardar en Supabase):** variante de melodía abre con su nombre, sus notas y `de`;
+  Guardar la crea como melodía nueva con `de` y sube su MIDI y su archivo; el arreglo (El Dinosaurio Anacleto) recibe el
+  aviso y pone la variante en la sección pedida del metalófono; variante de ritmo abre el Cajón con la copia, el nombre
+  y `de`; Biblioteca: la variante sale con ↳ debajo de "Estrofas"; borrar "Estrofas" avisa que la usa el arreglo.
+- **Falta probar (PO):** el recorrido completo de verdad (crear una variante, simplificarla, guardarla y ver el arreglo).

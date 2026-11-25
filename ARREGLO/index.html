@@ -56,10 +56,11 @@
     #inst .btn[data-inst="metal"] { width: 130px; }
     body[data-inst="cajon"] .p-piano, body[data-inst="metal"] .p-piano, body:not([data-inst="cajon"]) .p-cajon,
     body:not([data-inst="metal"]) .p-metal { display: none !important; }
-    .cj-fila.mt-fila { grid-template-columns: 1fr 160px 56px 34px 104px; }
+    .cj-fila.mt-fila { grid-template-columns: 1fr 150px 50px 34px 30px 96px; }
+    .cj-fila [data-mt-var], .cj-fila [data-cj-var] { height: 28px; width: 30px; padding: 0; }
     .mt-fila [data-mt-rep] { height: 28px; width: 34px; padding: 0; }
     .mt-fila input { height: 28px; width: 100%; }
-    .cj-fila { display: grid; grid-template-columns: 1fr 190px 30px 110px; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 7px; font-size: 13px; }
+    .cj-fila { display: grid; grid-template-columns: 1fr 180px 30px 30px 100px; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 7px; font-size: 13px; }
     .cj-fila.sonando { background: rgba(34,197,94,.18); }
     .cj-fila select { height: 28px; width: 100%; }
     .cj-tit { background: none; border: 0; text-align: left; cursor: pointer; padding: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -228,7 +229,7 @@
                 <button class="dif" id="dif-compas"></button></div>
             <div class="fila"><span>Tempo <span id="tempo-u" style="display:inline-block;width:1.2em;text-align:center">♩</span></span><input id="tempo" type="number" min="15" max="480" step="0.01">
                 <button class="dif" id="dif-tempo"></button></div>
-            <div class="fila p-piano"><span>Melodía</span><select id="mel-elegir"></select><button class="btn" id="b-copiar-mel">Copiar</button></div>
+            <div class="fila p-piano"><span>Melodía</span><select id="mel-elegir"></select><button class="btn" id="b-copiar-mel">Copiar</button><button class="btn" id="b-var-mel" title="＋ Variante: una melodía nueva de la canción a partir de la elegida (p. ej. más fácil). Al guardarla, el arreglo pasa a usarla">＋ Variante</button></div>
             <div class="ayuda p-piano" id="mel-info"></div>
         </div>
 
@@ -842,6 +843,7 @@ function pintarBase() {
         : '<option value="">La canción no tiene melodías</option>';
     if (A.melodia && melodias.some(m => m.id === A.melodia.origen)) $('mel-elegir').value = A.melodia.origen;
     $('b-copiar-mel').disabled = !melodias.length;
+    $('b-var-mel').disabled = !melodias.length;
     const M = A.melodia;
     if (!M) $('mel-info').textContent = 'Sin melodía: elige una y Cópiala para que vaya en las secuencias que la llevan.';
     else {
@@ -1240,6 +1242,37 @@ $('tempo').onchange = e => { A.tempo = Math.max(30, Math.min(240, Math.round((+e
 $('etiqueta').oninput = cambio;
 
 // Melodía: se copia el archivo público de la melodía (alturas reales y dedos de piano)
+// ＋ Variante de melodía (JV): se escribe en el Editor de Melodías (pestaña aparte); cuando se guarda, AlDia avisa y
+// el arreglo pasa a usarla donde se pidió (piano: la melodía del piano; metal: esa sección del metalófono).
+const varPend = [];
+function abrirVarianteMel(id, donde, k = null) {
+    if (!id) return;
+    const base = melodias.find(m => m.id === id)?.etiqueta || 'Melodía';
+    const nombre = prompt('Nombre de la variante (la melodía original no cambia):', base + ' · ');
+    if (nombre === null) return;
+    varPend.push({ de: id, donde, k });
+    const src = `../MELODIA/index.html?variante=${encodeURIComponent(id)}&nombre=${encodeURIComponent(nombre.trim() || base + ' · variante')}`;
+    if (window.parent !== window) {
+        try { window.parent.postMessage({ tipo: 'ws-abrir', key: `melodia-var:${id}:${Date.now()}`, titulo: `${cancionNombre || 'Canción'} · Variante`, ico: '♬', src, guardarAlCerrar: true }, '*'); return; } catch (_) {}
+    }
+    window.open(src, '_blank');
+}
+async function melodiaNueva(id) {
+    try {
+        const { data } = await sb.from('repertorio_assets').select('id, tipo, etiqueta, tonalidad, orden, created_at, contenido').eq('id', id).single();
+        if (!data || data.tipo !== 'melodia') return;
+        let de = null; try { de = JSON.parse(data.contenido || '{}').de || null; } catch (_) {}
+        delete data.contenido;
+        if (!melodias.some(m => m.id === id)) melodias.push(data);
+        const i = varPend.findIndex(v => v.de === de);
+        if (i < 0) { pintarTodo(); return; }
+        const [v] = varPend.splice(i, 1);
+        if (v.donde === 'piano') { pintarBase(); $('mel-elegir').value = id; await $('b-copiar-mel').onclick(); }
+        else { const x = itemsEstructura().find(y => claveItem(y) === v.k); if (x) await ponerMelodiaMetal(x, id); else pintarTodo(); }
+        toast(`El arreglo ya usa la variante "${data.etiqueta || 'Melodía'}"`);
+    } catch (_) {}
+}
+$('b-var-mel').onclick = e => { e.target.blur(); abrirVarianteMel($('mel-elegir').value, 'piano'); };
 $('b-copiar-mel').onclick = async () => {
     const id = $('mel-elegir').value; if (!id) return;
     try {
@@ -1785,6 +1818,7 @@ if (window.AlDia && !REHACER) {
     AlDia.conectar(sb);
     AlDia.escuchar(async msg => {
         if (!cancionId) return;
+        if (msg.tipo === 'melodia' && msg.cancion === cancionId && msg.id && !melodias.some(m => m.id === msg.id)) { await melodiaNueva(msg.id); return; }   // JV
         if (msg.tipo === 'tempo' && msg.cancion === cancionId) {
             if (msg.aqui || Date.now() - tempoV < 8000) return;     // en este equipo ya lo trae el canal profe-tempo
             clearTimeout(alDiaT);
@@ -1865,7 +1899,7 @@ $('arm-nueva').onclick = e => {
 let ritmosCajon = [];            // [{ id, nombre, grupo: 'cancion' | 'estilo', contenido }]
 const claveItem = x => x.id || x.clave;
 const REGLA_CJ = { gD: { grave: 'R', agudo: 'L' }, gI: { grave: 'L', agudo: 'R' } };
-const leerRitmo = txt => { try { const r = JSON.parse(txt || 'null'); if (!r) return null; delete r.v; delete r.bpm; delete r.metro; return r; } catch (_) { return null; } };
+const leerRitmo = txt => { try { const r = JSON.parse(txt || 'null'); if (!r) return null; delete r.v; delete r.bpm; delete r.metro; delete r.de; return r; } catch (_) { return null; } };
 async function cargarRitmosCajon() {
     if (!sb || !cancionId) return;
     try {
@@ -1996,6 +2030,7 @@ function pintarCajon() {
             <button class="cj-tit" data-cj-ir title="Tocar desde aquí">▶ ${esc(x.etiqueta)} <small>c. ${x.compas} · ${L === x.largo ? x.largo : `✂ ${L} de ${x.largo}`}</small></button>
             <select data-cj-sel ${L ? '' : 'disabled'}><option value="">— silencio —</option>${huerfano}${grupo('cancion', 'Esta canción', rid)}${grupo('estilo', 'Estilos', rid)}</select>
             <button class="btn" data-cj-editar title="${copia ? (orig && orig.grupo === 'cancion' ? 'Editar este ritmo' : 'Hacer una variación de este ritmo para la canción') : 'Crear un ritmo para esta sección'}" ${L ? '' : 'disabled'}>${copia ? '✏️' : '＋'}</button>
+            <button class="btn" data-cj-var ${copia && L ? '' : 'disabled'} title="＋ Variante de este ritmo (p. ej. más fácil): un ritmo nuevo de la canción a partir de este; el original no cambia">＋</button>
             <span class="cj-info">${info}</span></div>`;
     }).join('');
     marcarSonando(pulsoSonando);
@@ -2025,6 +2060,7 @@ $('cj-lista').addEventListener('click', e => {
     const x = itemsEstructura()[+f.dataset.i]; if (!x) return;
     if (e.target.closest('[data-cj-traer]')) { ponerRitmoCajon(x, A.cajon?.sec?.[claveItem(x)]); return; }
     if (e.target.closest('[data-cj-editar]')) { e.target.blur(); abrirEditorCajon(x); return; }
+    if (e.target.closest('[data-cj-var]')) { e.target.blur(); abrirEditorCajon(x, true); return; }
     if (e.target.closest('[data-cj-ir]') && mapaTempo) {
         enviarCajon();
         try { $('previa-cajon').contentWindow.postMessage({ tipo: 'arreglo-tocar', seg: mapaTempo.segDePulso(mapaTempo.pulsoDeCompas(x.compas)) }, '*'); } catch (_) {}
@@ -2044,11 +2080,17 @@ $('cj-nuevo').onclick = e => {
 // Un ritmo de un estilo (o una copia sin original) se edita como variación nueva de la canción: el estilo no se toca.
 let cjEdit = null;               // { k (clave de la sección), it (la sección), id (ritmo que se edita; null = nuevo) }
 const NUEVO_CJ = '__nuevo';
-function abrirEditorCajon(x) {
+function abrirEditorCajon(x, variante = false) {
     const k = claveItem(x), rid = A.cajon?.sec?.[k] || null, orig = rid && ritmosCajon.find(r => r.id === rid), copia = rid && A.cajon?.ritmos?.[rid];
-    const propio = orig && orig.grupo === 'cancion';
-    cjEdit = { k, it: x, id: propio ? rid : null, antes: copia ? { rid, copia: JSON.parse(JSON.stringify(copia)) } : null, partir: !propio && copia ? { contenido: JSON.stringify(copia.r), etiqueta: copia.nombre.replace(' · ', ' ') + ' (variación)' } : null };
-    $('cj-modal-tit').innerHTML = `${Iconos.cajon} ${esc(x.etiqueta)} — ${propio ? 'editar ritmo' : copia ? 'variación de ' + esc(copia.nombre) : 'ritmo nuevo'}`;   // JR
+    let propio = orig && orig.grupo === 'cancion', nombre = copia ? copia.nombre.replace(' · ', ' ') + ' (variación)' : '';
+    if (variante) {          // JV: ＋ Variante — un ritmo nuevo de la canción que parte de este y sabe de cuál viene
+        if (!copia) return;
+        const n = prompt('Nombre de la variante (el ritmo original no cambia):', copia.nombre + ' · ');
+        if (n === null) return;
+        nombre = n.trim() || copia.nombre + ' · variante'; propio = false;
+    }
+    cjEdit = { k, it: x, id: propio ? rid : null, antes: copia ? { rid, copia: JSON.parse(JSON.stringify(copia)) } : null, partir: !propio && copia ? { contenido: JSON.stringify({ ...copia.r, ...(orig || variante ? { de: rid } : {}) }), etiqueta: nombre } : null };
+    $('cj-modal-tit').innerHTML = `${Iconos.cajon} ${esc(x.etiqueta)} — ${propio ? 'editar ritmo' : variante ? 'variante de ' + esc(copia.nombre) : copia ? 'variación de ' + esc(copia.nombre) : 'ritmo nuevo'}`;   // JR
     $('cj-marco').src = propio ? `../CAJON-PERUANO/index.html?asset=${encodeURIComponent(rid)}&dentro=1` : `../CAJON-PERUANO/index.html?cancion=${encodeURIComponent(cancionId)}&dentro=1`;
     $('cj-modal').classList.add('on');
 }
@@ -2205,6 +2247,7 @@ function pintarMetal() {
             <button class="cj-tit" data-mt-ir title="Tocar desde aquí">▶ ${esc(x.etiqueta)} <small>c. ${x.compas} · ${L === x.largo ? x.largo : `✂ ${L} de ${x.largo}`}</small></button>
             <select data-mt-sel ${L ? '' : 'disabled'}><option value="">— descansa —</option>${huerfana}${melodias.map(m => `<option value="${m.id}"${M && cfg.mel === m.id ? ' selected' : ''}>${esc(m.etiqueta || 'Melodía')}</option>`).join('')}</select>
             <input type="number" data-mt-desde min="1" step="1" value="${M ? cfg.desde || 1 : ''}" ${M && L ? '' : 'disabled'} title="Desde qué compás de la melodía">
+            <button class="btn" data-mt-var ${M && L && melodias.some(m => m.id === cfg.mel) ? '' : 'disabled'} title="＋ Variante de esta melodía (p. ej. más fácil): se escribe en el Editor de Melodías y, al guardarla, esta sección pasa a usarla">＋</button>
             <button class="btn${cfg?.rep && M ? ' on' : ''}" data-mt-rep ${M && L ? '' : 'disabled'} title="${cfg?.rep ? 'Se repite hasta que termina la sección. Clic: tocarla una sola vez' : 'Repetir la melodía hasta que termine la sección'}">🔁</button>
             <span class="cj-info" title="${info.replace(/<[^>]*>/g, '')}">${info}</span></div>`;
     }).join('');
@@ -2259,6 +2302,7 @@ $('mt-lista').addEventListener('change', e => {
 $('mt-lista').addEventListener('click', e => {
     const f = e.target.closest('.mt-fila'); if (!f) return;
     const x = itemsEstructura()[+f.dataset.i]; if (!x) return;
+    if (e.target.closest('[data-mt-var]')) { e.target.blur(); const c = A.metal?.sec?.[claveItem(x)]; if (c) abrirVarianteMel(c.mel, 'metal', claveItem(x)); return; }
     const br = e.target.closest('[data-mt-rep]');
     if (br) {
         br.blur();

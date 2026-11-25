@@ -42,6 +42,11 @@
         color: var(--texto); cursor: pointer; visibility: hidden; }
     #b-cancion.on { visibility: visible; }
     #b-cancion:hover { background: #475569; }
+    /* ＋ Variante (JV): espacio reservado; se ve con una melodía guardada */
+    #b-variante { flex: 0 0 auto; height: 34px; width: 104px; border-radius: 8px; border: 1px solid #475569; background: #334155;
+        color: var(--texto); cursor: pointer; visibility: hidden; }
+    #b-variante.on { visibility: visible; }
+    #b-variante:hover { background: #475569; }
     #etiqueta { width: 180px; min-width: 90px; flex-shrink: 1; height: 34px; background: #0f172a; color: var(--texto); border: 1px solid #475569;
         border-radius: 8px; padding: 0 10px; font-size: 14px; }
     .pasos { display: flex; gap: 4px; }
@@ -173,6 +178,7 @@
     <div id="cancion" title="">♬ Melodía</div>
     <button id="b-cancion" title="Revisar la canción (con su audio) en el Entrenador de la Biblioteca">🎵 Canción</button>
     <input id="etiqueta" placeholder="Descripción (p. ej. Estrofa)" maxlength="60">
+    <button id="b-variante" title="＋ Variante: una melodía nueva de la canción a partir de esta (p. ej. más fácil); esta no cambia">＋ Variante</button>
     <div class="pasos">
         <button data-paso="1" class="on">① Ritmo</button>
         <button data-paso="2">② Tonalidad</button>
@@ -265,6 +271,7 @@ const NOMBRE_FIG = { '𝅗𝅥': 'Blancas', '♩': 'Negras', '♩.': 'Negras con
 const INSTRUMENTOS = { piano: 'Piano', melodica: 'Melódica', metalofono: 'Metalófono', guitarra: 'Guitarra', ukelele: 'Ukelele', bajo: 'Bajo' };
 let instDig = null;            // instrumento cuya digitación se está editando
 let assetId = PARAMS.get('asset') || null;
+const VARIANTE = assetId ? null : PARAMS.get('variante');   // JV
 let cancionId = PARAMS.get('cancion') || null;
 let cancionNombre = '';
 let contenidoBase = '';        // lo último guardado (para saber si hay cambios)
@@ -723,6 +730,8 @@ const AYUDA = {
     3: '<b>1–7</b> grado (y avanza) · <b>0</b> silencio · <b>↑ ↓</b> octava · <b>+ −</b> medio tono · <b>← →</b> moverse · <b>arrastrar arriba/abajo</b> cambia la nota · <b>Retroceso</b> borrar · <b>Shift / Alt+← →</b> ritmo · <b>Espacio</b> escuchar desde el compás elegido · <b>Ctrl+S</b> guardar',
 };
 function pintarBotones() {
+    const bv = document.getElementById('b-variante');
+    bv.classList.toggle('on', !!assetId);
     document.querySelectorAll('.pasos button').forEach(b => {
         b.classList.toggle('on', +b.dataset.paso === paso);
         b.disabled = !!rec || (+b.dataset.paso >= 3 && !M.notas.length);
@@ -1207,11 +1216,12 @@ function contenidoActual() {
         ...(M.largo > compasesNotas() ? { largo: M.largo } : {}),
         ...(M.secciones?.length ? { secciones: M.secciones.map(({ id, nombre, compas }) => ({ id, nombre, compas })) } : {}),
         ...(M.llegada && Object.keys(M.llegada).length ? { llegada: M.llegada } : {}),
-        ...(M.iguales && Object.keys(M.iguales).length ? { iguales: M.iguales } : {}) });
+        ...(M.iguales && Object.keys(M.iguales).length ? { iguales: M.iguales } : {}),
+        ...(M.de ? { de: M.de } : {}) });   // JV: variante de otra melodía de la canción
 }
 let etiquetaBase = '';
 const hayCambios = () => contenidoActual() !== contenidoBase || document.getElementById('etiqueta').value.trim() !== etiquetaBase;
-const claveBorrador = () => 'melodia_borrador:' + (assetId || 'nueva:' + cancionId);
+const claveBorrador = () => 'melodia_borrador:' + (assetId || (VARIANTE ? 'variante:' + VARIANTE : 'nueva:' + cancionId));
 function huboCambio() {
     try {
         if (hayCambios()) localStorage.setItem(claveBorrador(), JSON.stringify({ base: contenidoBase, contenido: contenidoActual(), etiqueta: document.getElementById('etiqueta').value }));
@@ -1229,6 +1239,7 @@ function cargarContenido(txt) {
     M.secciones = (j.secciones || []).filter(x => x && x.compas >= 1).sort((a, b) => a.compas - b.compas);   // 🧩 partes (IL)
     M.llegada = j.llegada || null;   // 🔚 nota de llegada por sección (IC): la anota el Metalófono; aquí solo se conserva
     M.iguales = j.iguales || null;   // ＝ partes iguales (IG): ídem
+    M.de = j.de || null;             // JV: de qué melodía es variante
     ordenar();
 }
 function aplicarControles() {
@@ -1347,6 +1358,16 @@ async function guardar() {
         guardando = false; pintarBotones();
     }
 }
+// ＋ Variante (JV): guarda lo pendiente y abre aquí mismo una melodía nueva que parte de esta
+document.getElementById('b-variante').onclick = async e => {
+    e.target.blur();
+    if (!assetId) return;
+    if (hayCambios() && !(await guardar())) return;
+    const base = document.getElementById('etiqueta').value.trim() || 'Melodía';
+    const nombre = prompt('Nombre de la variante (la melodía original no cambia):', base + ' · ');
+    if (nombre === null) return;
+    location.href = `?variante=${encodeURIComponent(assetId)}&nombre=${encodeURIComponent(nombre.trim() || base + ' · variante')}`;
+};
 // Workspace: al cerrar la pestaña se guarda lo pendiente
 window.addEventListener('message', e => {
     if (e.data?.tipo !== 'ws-guardar' || e.source !== window.parent) return;
@@ -1399,7 +1420,7 @@ async function elegirCancion() {
     box.querySelector('#elegir-buscar').focus();
 }
 async function iniciar() {
-    if (!assetId && !cancionId) { elegirCancion(); return; }
+    if (!assetId && !cancionId && !VARIANTE) { elegirCancion(); return; }
     try { nombres = localStorage.getItem('melodia_nombres') || 'solfeo'; } catch (_) {}
     setSeg('seg-nombres', nombres);
     try {
@@ -1410,6 +1431,14 @@ async function iniciar() {
             etiquetaBase = data.etiqueta || '';
             document.getElementById('etiqueta').value = etiquetaBase;
             if (data.contenido) { cargarContenido(data.contenido); contenidoBase = data.contenido; }
+        } else if (sb && VARIANTE) {   // JV: melodía nueva que parte de otra; se guarda aparte y sabe de cuál viene
+            const { data, error } = await sb.from('repertorio_assets').select('id, cancion_id, etiqueta, contenido').eq('id', VARIANTE).single();
+            if (error) throw error;
+            cancionId = data.cancion_id;
+            if (data.contenido) cargarContenido(data.contenido);
+            M.de = data.id;
+            document.getElementById('etiqueta').value = PARAMS.get('nombre') || ((data.etiqueta || 'Melodía') + ' · variante');
+            contenidoBase = '';    // queda "Sin guardar" hasta Guardar
         }
         if (sb && cancionId) {
             const { data } = await sb.from('repertorio_canciones').select('nombre').eq('id', cancionId).single();
@@ -1419,7 +1448,7 @@ async function iniciar() {
             oficial = await TempoMapa.cargarFicha(`${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/`, cancionId);
         }
     } catch (err) { toast('No se pudo cargar: ' + (err.message || err)); }
-    if (!assetId) { usarOficial({ tempo: true }); contenidoBase = contenidoActual(); }
+    if (!assetId && !VARIANTE) { usarOficial({ tempo: true }); contenidoBase = contenidoActual(); }
     // Borrador guardado en este equipo (HK): nunca se descarta solo. Una melodía nueva lo recupera siempre; una guardada,
     // si cambió en otro lado desde entonces, pregunta.
     try {

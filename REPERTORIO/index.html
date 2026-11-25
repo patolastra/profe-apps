@@ -651,6 +651,9 @@
         .ficha-oficial:hover .fo-borrar { visibility: visible; }
         .ficha-lote > .asset-item { border-radius: 0; border-bottom: 1px solid var(--border); background: #fff; }
         .ficha-lote > .asset-item:hover { background: #f1f5f9; }
+        /* JV: una variante va debajo de su original, corrida y con ↳ */
+        .ficha-lote > .asset-item.ficha-var { padding-left: calc(12px + var(--var-n, 1) * 22px); position: relative; }
+        .ficha-lote > .asset-item.ficha-var::before { content: '↳'; position: absolute; left: calc(var(--var-n, 1) * 22px - 6px); color: #94a3b8; font-size: 14px; }
         .ficha-lote > :last-child { border-bottom: none; }
         .ficha-sep { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
             padding: 8px 12px 4px; border-top: 1px dashed var(--border); background: #f8fafc; }
@@ -4292,6 +4295,22 @@ const fichaSeVe = a => fichaVer === 'ambos' || a.tipo === 'tempo' || (fichaVer =
 function fichaGruposHTML(c, assets) {
     const secsFicha = seccionesFicha(c);
     const item = a => a.tipo === 'tab' ? tabEntryHTML(a, c.id) : assetItemHTML(a);
+    // JV: cada variante (melodía, ritmo, armonía con "de") justo debajo de su original, corrida un nivel por generación
+    const deDe = a => { if (!['melodia', 'cajon', 'armonia'].includes(a.tipo) || !a.contenido) return null; try { return JSON.parse(a.contenido).de || null; } catch (_) { return null; } };
+    const lote = lista => {
+        const ids = new Set(lista.map(a => a.id)), out = [];
+        const poner = (a, n, vistos) => {
+            if (vistos.has(a.id)) return; vistos.add(a.id);
+            let h = item(a);
+            if (n) h = h.replace('class="asset-item"', `class="asset-item ficha-var" style="--var-n:${Math.min(n, 3)}" title="Variante"`);
+            out.push(h);
+            lista.filter(v => deDe(v) === a.id).forEach(v => poner(v, n + 1, vistos));
+        };
+        const vistos = new Set();
+        lista.filter(a => !ids.has(deDe(a))).forEach(a => poner(a, 0, vistos));
+        lista.forEach(a => poner(a, 0, vistos));
+        return out.join('');
+    };
     return GRUPOS_FICHA.map(g => {
         const ficha = g.k === 'cancion' ? assets.find(a => a.tipo === 'tempo') : null;   // 📋 Ficha de la canción (EV): línea aparte
         const todos = assets.filter(a => grupoDeAsset(a) === g.k && a.tipo !== 'tempo');
@@ -4308,11 +4327,11 @@ function fichaGruposHTML(c, assets) {
             : g.k === 'arreglo' ? 'Sin arreglos todavía.' : 'Sin letra ni audio todavía.';
         const cuerpo = (g.k === 'cancion' ? lineaFicha(c, ficha, assets) : '')
             + (ver.length ? '' : `<div class="ficha-vacio">${vacio}</div>`)
-            + (pub.length ? `<div class="ficha-lote">${pub.map(item).join('')}</div>` : '')
+            + (pub.length ? `<div class="ficha-lote">${lote(pub)}</div>` : '')
             + (pub.length && resto.length ? `<div class="ficha-sep ficha-sep-btn" onclick="toggleBorrFicha('${g.k}')">${fichaBorrAbiertos.has(g.k) ? '▾' : '▸'} Borradores (${resto.length})</div>` : '')
-            + (resto.length && (!pub.length || fichaBorrAbiertos.has(g.k)) ? `<div class="ficha-lote">${resto.map(item).join('')}</div>` : '')
+            + (resto.length && (!pub.length || fichaBorrAbiertos.has(g.k)) ? `<div class="ficha-lote">${lote(resto)}</div>` : '')
             + (arch.length ? `<div class="ficha-sep ficha-sep-btn" onclick="toggleBorrFicha('${g.k}:arch')">${fichaBorrAbiertos.has(g.k + ':arch') ? '▾' : '▸'} Archivados (${arch.length})</div>` : '')
-            + (arch.length && fichaBorrAbiertos.has(g.k + ':arch') ? `<div class="ficha-lote">${arch.map(item).join('')}</div>` : '')
+            + (arch.length && fichaBorrAbiertos.has(g.k + ':arch') ? `<div class="ficha-lote">${lote(arch)}</div>` : '')
             + (g.k === 'arreglo' ? `<button class="btn-add-asset" onclick="abrirEditorArreglo('${c.id}', null)">+ Arreglo</button>` : '')
             + (g.k === 'cancion' ? `<div class="ficha-medios" id="medios-cancion">
                 <div id="medios-lista"><div class="med-vacio">Cargando…</div></div>
@@ -6164,7 +6183,19 @@ async function eliminarAsset(songId, assetId) {
 
     // Nombre visible en todas las confirmaciones, para no borrar el asset equivocado
     const queSeBorra = `"${nombreAsset(asset, c.nombre)}"`;
-    const preguntaBorrar = `¿Eliminar\n\n${queSeBorra}?`;
+    let preguntaBorrar = `¿Eliminar\n\n${queSeBorra}?`;
+    // JV (regla 12.7): antes de borrar una melodía, ritmo o armonía, decir qué arreglos la usan
+    if (['melodia', 'cajon', 'armonia'].includes(asset.tipo)) {
+        const usan = (c.assets || []).filter(x => x.tipo === 'arreglo' && x.contenido).filter(x => {
+            try {
+                const j = JSON.parse(x.contenido);
+                return asset.tipo === 'melodia' ? (j.melodia?.origen === asset.id || !!j.metal?.mels?.[asset.id])
+                    : asset.tipo === 'cajon' ? !!j.cajon?.ritmos?.[asset.id] : j.armonia?.origen === asset.id;
+            } catch (_) { return false; }
+        }).map(x => `  - ${nombreAsset(x, c.nombre)}`);
+        if (usan.length) preguntaBorrar = `${queSeBorra}\n\nla ${usan.length > 1 ? 'usan estos arreglos' : 'usa este arreglo'}:\n\n${usan.join('\n')}\n\n`
+            + `Si la borras, ${usan.length > 1 ? 'siguen' : 'sigue'} sonando con su copia, pero ya no ${usan.length > 1 ? 'se ponen' : 'se pone'} al día con ella.\n\n¿Eliminar igual?`;
+    }
 
     // Si es una tablatura que pertenece a Lecciones, avisar antes de borrar (no CASCADE silencioso).
     if (asset.tipo === 'tab' || asset.tipo === 'cifrado') {
