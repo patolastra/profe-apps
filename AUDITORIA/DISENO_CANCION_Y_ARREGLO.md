@@ -182,11 +182,13 @@ Cada etapa con su ficha, su prueba y su checkpoint; los arreglos y links que ya 
 3. **🎹 Armonía como material de la canción:** las secuencias armónicas salen del arreglo y el arreglo las elige.
 4. **El mapa instrumentos × secciones** como corazón del editor, con las filas de hoy (Piano, Cajón, Metalófono).
 5. **El arreglo apunta en vez de copiar**, y aparecen las **variantes** (📌 Fijar sigue existiendo).
-6. **Filas nuevas:** cuerdas (guitarra, ukelele, bajo → tablatura en el Lector) y voces.
+6. **Filas nuevas:** cuerdas (guitarra, ukelele, bajo → tablatura en el Lector, dentro del arreglo; JX) y voces
+   (**congelado**, PO 25/11: para un futuro no definido).
 
 **Avance:** etapa 1 HECHA (JP, y JQ/JR íconos) · etapa 2 HECHA (JS; el tempo desde el arreglo queda pendiente:
 la Ficha solo tiene tempo con el pulso marcado) · etapa 3 HECHA (JT: 🎶 Armonía; por ahora se escribe en el arreglo). · etapa 4 HECHA (JU: pestaña Mapa, solo para mirar; cada instrumento
-se trabaja en su pantalla) · etapa 5 HECHA (JV: las copias quedan como respaldo; ＋ Variante de melodía y de ritmo).
+se trabaja en su pantalla) · etapa 5 HECHA (JV: las copias quedan como respaldo; ＋ Variante de melodía y de ritmo) · etapa 6, paso 1 HECHO (JX:
+guitarra y ukelele con acordes y rasgueo, en el Lector).
 
 ## 5. Pendientes
 

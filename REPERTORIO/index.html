@@ -4949,6 +4949,8 @@ function assetItemHTML(a, i) {
                    ${estadoDe(a) === 'publicado' && /"cajon"\s*:/.test(a.contenido || '') ? `<button class="btn-icon" onclick="compartirArreglo('${a.id}', this, 'cajon')" title="Compartir la parte del cajón con los estudiantes (con la grabación de la canción): link, QR o guía QR">${Iconos.cajon}</button>` : ''}
                    ${/"(cajon|metal)"\s*:/.test(a.contenido || '') ? `<button class="btn-icon" onclick="abrirEnsayo('${a.id}')" title="🎭 Ensayo: la letra, el cajón y el metalófono a la vez, con la grabación (para proyectar en clase)">🎭</button>` : ''}
                    ${estadoDe(a) === 'publicado' && /"metal"\s*:/.test(a.contenido || '') ? `<button class="btn-icon" onclick="compartirArreglo('${a.id}', this, 'metal')" title="Compartir la parte del metalófono con los estudiantes (con la grabación de la canción): link, QR o guía QR">${Iconos.metal}</button>` : ''}
+                   ${estadoDe(a) === 'publicado' && /"guitarra":\{"sec"/.test(a.contenido || '') ? `<button class="btn-icon" onclick="compartirArreglo('${a.id}', this, 'guitarra')" title="Compartir la parte de la guitarra con los estudiantes (en el Lector, con la grabación): link, QR o guía QR">🎸</button>` : ''}
+                   ${estadoDe(a) === 'publicado' && /"ukelele":\{"sec"/.test(a.contenido || '') ? `<button class="btn-icon" onclick="compartirArreglo('${a.id}', this, 'ukelele')" title="Compartir la parte del ukelele con los estudiantes (en el Lector, con la grabación): link, QR o guía QR">🪕</button>` : ''}
                    <button class="btn-icon" onclick="abrirArreglo('${a.id}')" title="Abrir en el piano (como lo ve el estudiante)">🎹</button>
                    <button class="btn-icon" onclick="abrirEditorArreglo('${songActiva.id}','${a.id}')" title="Editar arreglo">✏️</button>`
                 : a.tipo === 'armonia'
@@ -6404,14 +6406,14 @@ async function compartirArreglo(assetId, boton, inst = 'piano') {
     const ruta = `arreglo/${assetId}.json`;
     const leer = async () => { const r = await fetch(`${storageUrl(ruta)}?t=${Date.now()}`, { cache: 'no-store' }); return r.ok ? r.json() : null; };
     let datos = await leer().catch(() => null);
-    if (!datos || (inst === 'cajon' && !datos.cajon) || (inst === 'metal' && !datos.metalofono)) { toast('Abre el arreglo en su editor y guárdalo para prepararlo para los estudiantes'); return; }
+    if (!datos || (inst === 'cajon' && !datos.cajon) || (inst === 'metal' && !datos.metalofono) || (CUERDAS_ARR[inst] && !datos.cuerdas?.[inst])) { toast('Abre el arreglo en su editor y guárdalo para prepararlo para los estudiantes'); return; }
     if (datos.hasta && hoyISO() > datos.hasta) {          // ya vencido: compartir de nuevo parte sin fecha
         delete datos.hasta;
         await subirArregloPublico(ruta, datos).catch(() => {});
     }
     const nombre = nombreAsset(a, c.nombre);
-    const url = `${{ cajon: CAJON_LINK_ALUMNO, metal: METAL_LINK_ALUMNO_ARR }[inst] || PIANO_LINK_ALUMNO}?r=${encodeURIComponent(assetId)}&n=${encodeURIComponent(nombre)}`;
-    Compartir.abrir(boton, { url, titulo: nombre, cancion: c.nombre, instrumento: { cajon: 'Cajón', metal: 'Metalófono' }[inst] || 'Piano', sb,
+    const url = `${{ cajon: CAJON_LINK_ALUMNO, metal: METAL_LINK_ALUMNO_ARR }[inst] || (CUERDAS_ARR[inst] ? TAB_LINK_ALUMNO_ARR : PIANO_LINK_ALUMNO)}?r=${encodeURIComponent(assetId)}${CUERDAS_ARR[inst] ? `&i=${inst}` : ''}&n=${encodeURIComponent(nombre)}`;
+    Compartir.abrir(boton, { url, titulo: nombre, cancion: c.nombre, instrumento: { cajon: 'Cajón', metal: 'Metalófono', ...CUERDAS_ARR }[inst] || 'Piano', sb,
         plazo: { valor: datos.hasta || null, guardar: async (f) => {
             const d = await leer();
             if (!d) return false;
@@ -6425,6 +6427,8 @@ async function compartirArreglo(assetId, boton, inst = 'piano') {
 // (cajon/<id>.json, el que lee la versión estudiante), por si se guardó antes de existir el paso 3.
 const CAJON_LINK_ALUMNO = 'https://patolastra.github.io/profe-apps/c/';
 const METAL_LINK_ALUMNO_ARR = 'https://patolastra.github.io/profe-apps/m/';   // la parte del metalófono de un arreglo (m/?r=, HJ)
+const TAB_LINK_ALUMNO_ARR = 'https://patolastra.github.io/profe-apps/t/';     // la guitarra o el ukelele de un arreglo, en el Lector (t/?r=&i=, JX)
+const CUERDAS_ARR = { guitarra: 'Guitarra', ukelele: 'Ukelele' };
 async function compartirCajon(assetId, boton) {
     let asset = null, cancion = null;
     for (const c of canciones) {

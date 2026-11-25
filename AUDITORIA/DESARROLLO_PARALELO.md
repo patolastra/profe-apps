@@ -10980,3 +10980,50 @@ a HV/HW.*
   Anacleto: parte en Sol mayor (Ficha), ＋ Una por sección crea 5 partes con sus compases y Guardar (base falsa) la
   crea como `armonia` con su texto; Editor musical y Biblioteca la abren.
 - **Queda:** etapa 2, el ritmo de cada compás (PO 25/11).
+
+### JX. 🎸 Cuerdas en el arreglo: guitarra, ukelele y bajo en el Lector — PASO 1 HECHO (2026-11-25)
+- **Necesidad (PO, 25/11):** etapa 6 del diseño JO: que el arreglo tenga filas de cuerdas y que el estudiante las
+  toque en tablatura, con la grabación.
+- **Boceto (PO, 25/11):** pantalla Guitarra (igual Ukelele y Bajo, con su afinación): por sección **Acordes ·
+  Melodía · Silencio**; con acordes, cada acorde con su posición (abierta, cejilla…) y un rasgueo por sección; con
+  melodía, la app elige cuerda y traste y se corrige con clic. **Decidido (PO, 25/11):** se hace **dentro del Lector**
+  (`tabs/index.html`, el único): la pestaña del instrumento en el Editor de arreglos muestra el Lector de siempre
+  sonando con la grabación (como el Cajón y el Metalófono, `?vista=arreglo`); arriba se elige qué toca cada sección;
+  la **posición de cada acorde** (hoy el Lector solo conoce la variante "precejilla") y el rasgueo se ajustan en el
+  mismo Lector. El estudiante lo ve en ese Lector con un link. **Voces: congelado** (PO, 25/11), para un futuro no
+  definido.
+- **Auditoría (25/11):** el Lector ya tiene casi todo lo necesario: arma MusicXML en memoria (`generarCifradoMXL`,
+  modo cifrado), lee partituras mixtas (acordes y melodía en la misma), dibuja diagramas de acordes (`CHORD_DB`,
+  `CHORD_VARIANTS`, `resolverChord`), tiene rasgueo por acorde (↓ ↑ ✕, `down-bow` / `up-bow`), afinación de guitarra,
+  ukelele y bajo, y se sincroniza con el Mapa de tempo de la canción (`tab_sync.mode = 'cancion'`). Falta: leer un
+  arreglo (`arreglo/<id>.json`) en vez de un archivo, saltar los tramos de la ✂ adaptación, elegir la posición de un
+  acorde y pasar una melodía a cuerda y traste.
+- **Propuesta de pasos:** (1) **acordes con rasgueo** en guitarra y ukelele: filas nuevas en el Mapa y pestaña
+  propia; por sección Acordes / Silencio (los acordes salen de la 🎶 Armonía del arreglo, transportados); rasgueos
+  listos; el Lector `?vista=arreglo` lo toca con la grabación; link del estudiante. (2) **posiciones**: clic en el
+  diagrama del acorde en el Lector para elegir otra posición, guardada en el arreglo. (3) **melodía en tablatura**
+  (cuerda y traste automáticos, corregibles). (4) **bajo** (fundamental de cada acorde, o la melodía). Sin columnas
+  nuevas en Supabase: todo va en el contenido del arreglo y en su archivo público.
+- **Aprobado (PO, 25/11):** los 4 pasos; partir por el (1).
+- **Hecho paso 1 (25/11):** **Editor de arreglos:** pestañas 🎸 Guitarra y 🪕 Ukelele (y sus filas en el Mapa, con
+  ＋ Instrumento): por sección de la Ficha, silencio o **Acordes** (los de su secuencia, de la 🎶 Armonía, en el tono
+  del arreglo) con un **rasgueo** (↓ en cada tiempo · Pop ↓·↓↑·↑↓↑ · Corcheas · Con golpe ↓✕ · Uno por acorde; según
+  el largo del compás, también 3/4 y 6/8; si un acorde empieza a mitad de compás sin golpe, se agrega uno); "Acordes
+  en todas"; ▶ toca desde la sección. `A.cuerdas = { guitarra: { sec: { <sección>: { rasg } } }, ukelele }`;
+  `datosCuerdas(inst)` = compases que suenan (sin lo omitido por la ✂ adaptación) con sus golpes y acordes, más la
+  grabación (semitonos, saltos); va al archivo público como `cuerdas: { guitarra, ukelele }`. **Lector:**
+  `?vista=arreglo` (vista previa, mensajes `arreglo-cuerdas` / `arreglo-tocar` / `arreglo-detener`, avisa
+  `lector-listo` y `arreglo-pulso`) y `?r=<arreglo>&i=<instrumento>` (estudiante, público; link corto
+  `t/?r=&i=&n=`): arma un MusicXML con tablatura (acordes rasgueados con ↓ ↑ ✕ y dedos) y lo lee como cualquier
+  tablatura; sigue el Mapa de tempo (`tab_sync 'cancion'`, ahora con `saltos`: los pulsos omitidos no están en la
+  partitura); la grabación suena en el tono del arreglo con GrabacionTono, siguiendo al `<audio>` del Lector, que
+  queda mudo y hace de reloj. **Acordes que no están en la lista del Lector:** se busca una posición (la más cerca del
+  clavijero, con todas sus notas, ≤ 4 dedos, prefiere cejilla a estirar; ukelele re-entrante) — también en las
+  tablaturas de siempre, donde antes salía "?". **Biblioteca:** 🎸 / 🪕 comparten la parte (link, QR, guía QR).
+- **Probado (25/11, sin guardar):** COQUETA (2/2, +5 semitonos): 152 compases, acordes con diagrama, cada compás calza
+  con la grabación (diferencia 0); ▶ Coro suena desde el compás 25 con la grabación transportada a la par (±0,01 s);
+  con una ✂ adaptación de prueba (sin el Coro 1) salta el tramo y la tablatura sigue; ukelele igual; vista del
+  estudiante con el archivo público de prueba; Mapa con sus filas; posiciones buscadas (F#, C#, Ab, E/G#, C#m7…); el
+  Lector normal abre igual.
+- **Queda:** paso 2 (elegir la posición de un acorde en el Lector), 3 (melodía en tablatura), 4 (bajo); la prueba de
+  Pato con la grabación de verdad; los chips del arreglo en el Plan (IQ) aún no muestran guitarra / ukelele.

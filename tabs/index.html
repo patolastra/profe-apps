@@ -22,6 +22,10 @@
     <script src="../comun/nombre-asset.js?v=jt"></script>
     <script src="../comun/tempo-mapa.js?v=hh"></script>
     <script src="../comun/un-sonido.js"></script>
+    <script>
+        // Cuerdas de un arreglo (deuda JX): la grabación en el tono del arreglo
+        if (/[?&](vista=arreglo|r=)/.test(location.search)) document.write('<script src="../comun/grabacion-tono.js?v=ir"><\/script>');
+    </script>
     <style>
         * { box-sizing: border-box; }
         body { font-family: 'Segoe UI', sans-serif; background: #222; color: white;
@@ -1571,6 +1575,9 @@ let clickLatencyMs      = 0;      // compensación latencia HTMLAudioEl vs Audio
 let _lastAudioTime      = 0;      // tabAudioEl.currentTime en el último timeupdate
 let _lastAudioPerf      = 0;      // performance.now() en el último timeupdate (para interpolación)
 let tabAudioEl          = document.getElementById('tab-audio');
+// Cuerdas de un arreglo (deuda JX): ?vista=arreglo (Editor de arreglos) o ?r= (estudiante). Ver arrCargar.
+const ARR = { activo: /[?&](vista=arreglo|r=)/.test(location.search), vista: /[?&]vista=arreglo/.test(location.search),
+    datos: null, grab: null, gain: null, mudo: null, url: null, lista: false, tok: 0, semis: 0, saltos: null, corrigiendo: false };
 let currentTabAssetId   = null;   // id del asset tab activo (para guardar sync)
 let currentTabCancionId = null;   // cancion_id del asset tab activo
 let syncCurrentTab      = 'grid'; // tab activa en modal de config
@@ -3679,7 +3686,7 @@ function partituraTimeToAudioSec(partTime) {
         for (let i = 0; i < tabSyncBuilt.length; i++) {
             const seg = tabSyncBuilt[i];
             const next = tabSyncBuilt[i + 1];
-            if (!next || targetQN < next.qn)
+            if (!next || targetQN < next.qn - 1e-6)   // justo en el borde: el tramo siguiente (después de un salto, JX)
                 return (seg.startMs + (targetQN - seg.qn) * (60000 / seg.bpm)) / 1000;
         }
         return (tabSyncBuilt.at(-1)?.startMs ?? 0) / 1000;
@@ -3747,7 +3754,7 @@ function iniciarAudioSync() {
     ensureAudio();
     if (!audioMediaSource) {
         audioMediaSource = audioCtx.createMediaElementSource(tabAudioEl);
-        audioMediaSource.connect(audioCtx.destination);
+        audioMediaSource.connect(ARR.activo ? arrMudo() : audioCtx.destination);   // JX: suena GrabacionTono
     }
     const seekTo = Math.max(0, partituraTimeToAudioSec(currentTime));
     console.log('[audio] iniciarAudioSync — seekTo:', seekTo.toFixed(3), 's');
@@ -4113,6 +4120,7 @@ function actualizarSyncStatus() {
 
 function toggleTabAudio() {
     if (!tabAudioEl.src) return;
+    if (ARR.activo && tabAudioEl.paused && !ARR.lista) { mostrarToast('Cargando la grabación…'); return; }
     if (despertarPendiente) { cancelarDespertar(); return; }
     if (tabAudioEl.paused) {
         despertarSalidaYLuego(startSyncedPlayback);
@@ -4316,15 +4324,20 @@ async function prepararSyncCancion() {
 }
 function construirSyncCancion(m) {
     const P = m.pulsos, q = 4 / (m.cifras[0].d || 4), out = [];   // negras por pulso (la cifra base del mapa)
+    // Con una ✂ adaptación (tab_sync.saltos, cuerdas de un arreglo, JX): sus pulsos no están en la partitura
+    let quitado = 0;
     for (let i = 0; i < P.length; i++) {
+        if (arrOmitido(m, i)) { quitado += q; continue; }
         const k = Math.min(i, P.length - 2);
-        out.push({ qn: (i - m.compas1) * q, bpm: 60 * q / (P[k + 1] - P[k]), startMs: P[i] * 1000 });
+        out.push({ qn: (i - m.compas1) * q - quitado, bpm: 60 * q / (P[k + 1] - P[k]), startMs: P[i] * 1000 });
     }
     return out;
 }
 // start_qn = QN de la canción donde suena notes[0]. Se recalcula al volver a leer la partitura (cambia notes[0]).
 function ajustarSyncCancion() {
     if (tabSyncData?.mode !== 'cancion' || !mapaCancion || !tabSyncBuilt || !measureData.length) return;
+    // Cuerdas de un arreglo (JX): el compás 1 de la partitura es el compás `desde` de la canción, sin anacrusa
+    if (ARR.activo) { tabSyncData.start_qn = arrQN(mapaCancion, tabSyncData.desde ?? 1) + (syncAnchorTime - measureData[0].tStart) * bpm / 60; return; }
     const q = 4 / (mapaCancion.cifras[0].d || 4);
     // Compás 1 de la partitura: el primero completo (si el primero es una anacrusa, el siguiente)
     const durCompas = beatsPerBar * (4 / beatType) * 60 / bpm;
@@ -5536,7 +5549,7 @@ function resolverPerfilLector() {
     // ?a=<id> (enlace corto de una tablatura para estudiantes, t/?a=, deuda DP): también público.
     try {
         const q = new URLSearchParams(location.search);
-        if (q.get('p') || q.get('a')) return 'publico';
+        if (q.get('p') || q.get('a') || q.get('r')) return 'publico';   // r = cuerdas de un arreglo (JX)
     } catch (_) {}
     return window.LectorInstancia?.perfil === 'publico' ? 'publico' : 'docente';
 }
@@ -7042,7 +7055,8 @@ function resolverChord(label) {
         // Variante no aplicable (acorde/instrumento) → digitación por defecto, nunca "?"
     }
     const db = CHORD_DB[currentInstrument] || CHORD_DB.guitarra;
-    return db[clean] || db[CHORD_ALIAS[clean]] || null;
+    // Si no está en la lista, se busca una posición (JX): antes salía "?"
+    return db[clean] || db[CHORD_ALIAS[clean]] || acordeGenerado(clean, currentInstrument) || null;
 }
 
 function drawChordDiagram(cvs, label, opts = {}) {
@@ -8124,6 +8138,267 @@ function renderLeccionIndice() {
     }).join('');
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  CUERDAS DE UN ARREGLO (deuda JX): la guitarra o el ukelele de un 🎼 Arreglo, en el mismo Lector.
+//  ?vista=arreglo  → vista previa dentro del Editor de arreglos (los datos llegan por mensajes 'arreglo-cuerdas')
+//  ?r=<arreglo>&i=<guitarra|ukelele>  → el estudiante (archivo público arreglo/<id>.json, campo cuerdas[i])
+//  Datos: { cancion, etiqueta, instrumento, cifra, tempo, cancionId, desde, compases: [{ c, n, seccion?, golpes:
+//  [{ t, d: 'D'|'U'|'X', a }] }], audio: { melodia, karaoke, semitonos, saltos } } — n y t en negras; solo los
+//  compases que suenan (sin lo omitido por la ✂ adaptación). Se arma un MusicXML con tablatura (acordes rasgueados,
+//  ↓ ↑ ✕) y se lee como cualquier tablatura; sigue el Mapa de tempo de la canción (tab_sync 'cancion', con saltos).
+//  La grabación suena en el tono del arreglo con GrabacionTono; el <audio> del Lector queda mudo y hace de reloj.
+// ════════════════════════════════════════════════════════════════════════════
+const ARR_NOMBRE = { guitarra: 'Guitarra', ukelele: 'Ukelele', bajo: 'Bajo' };
+const ARR_DIV = 12;   // divisiones por negra (corcheas, tresillos y 6/8)
+
+function arrMXL(d) {
+    const inst = ARR_NOMBRE[d.instrumento] ? d.instrumento : 'guitarra', tun = TUNING[inst];
+    const bt = +String(d.cifra || '4/4').split('/')[1] || 4;
+    const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const PASO = ['C', 'C', 'D', 'D', 'E', 'F', 'F', 'G', 'G', 'A', 'A', 'B'], ALT = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
+    const pitch = m => `<pitch><step>${PASO[m % 12]}</step>${ALT[m % 12] ? '<alter>1</alter>' : ''}<octave>${Math.floor(m / 12) - 1}</octave></pitch>`;
+    const silencio = (dur, entero) => dur > 0 ? `<note><rest${entero ? ' measure="yes"' : ''}/><duration>${dur}</duration><voice>1</voice></note>` : '';
+    const comp = d.compases?.length ? d.compases : [{ c: d.desde || 1, n: 4, golpes: [] }];
+    const tecnica = { D: '<down-bow/>', U: '<up-bow/>', X: '<snap-pizzicato/>' };
+    let medidas = '', nPrev = null, acPrev = null;
+    comp.forEach((b, i) => {
+        const total = Math.max(1, Math.round(b.n * ARR_DIV));
+        let cuerpo = '';
+        if (i === 0 || b.n !== nPrev) {
+            const beats = Math.max(1, Math.round(b.n * bt / 4));
+            cuerpo += `<attributes>${i === 0 ? `<divisions>${ARR_DIV}</divisions><key><fifths>0</fifths></key>` : ''}` +
+                `<time><beats>${beats}</beats><beat-type>${bt}</beat-type></time>` +
+                (i === 0 ? `<clef><sign>TAB</sign><line>5</line></clef><staff-details><staff-lines>${tun.length}</staff-lines></staff-details>` : '') +
+                `</attributes>` + (i === 0 ? `<sound tempo="${Math.round((d.tempo || 120) * 100) / 100}"/>` : '');
+        }
+        if (b.seccion) cuerpo += `<direction placement="above"><direction-type><rehearsal>${esc(b.seccion)}</rehearsal></direction-type></direction>`;
+        const gs = (b.golpes || []).slice().sort((x, y) => x.t - y.t);
+        if (!gs.length) cuerpo += silencio(total, true);
+        let pos = 0;
+        gs.forEach((g, k) => {
+            const ini = Math.min(total - 1, Math.round(g.t * ARR_DIV));
+            if (ini < pos) return;
+            cuerpo += silencio(ini - pos);
+            const fin = k + 1 < gs.length ? Math.min(total, Math.round(gs[k + 1].t * ARR_DIV)) : total;
+            const dur = Math.max(1, fin - ini);
+            const v = g.a ? resolverChord(g.a) : null;
+            if (!v) { cuerpo += silencio(dur); pos = ini + dur; return; }
+            if (g.a !== acPrev) { cuerpo += acordeAHarmonyXML(g.a); acPrev = g.a; }
+            // De la cuerda grave a la aguda; la primera lleva el rasgueo (↓ ↑ ✕)
+            const cuerdas = v.strings.map((f, s) => ({ s, f })).filter(x => x.f >= 0 && x.s < tun.length).reverse();
+            cuerdas.forEach((x, j) => {
+                const dedo = v.fingers?.[x.s] ? `<fingering>${v.fingers[x.s]}</fingering>` : '';
+                cuerpo += `<note>${j ? '<chord/>' : ''}${pitch(tun[x.s] + x.f)}<duration>${dur}</duration><voice>1</voice>` +
+                    `<notations><technical>${j === 0 ? tecnica[g.d] || '' : ''}${dedo}<string>${x.s + 1}</string><fret>${x.f}</fret></technical></notations></note>`;
+            });
+            pos = ini + dur;
+        });
+        if (gs.length) cuerpo += silencio(total - pos);
+        if (comp[i + 1]?.seccion) cuerpo += '<barline location="right"><bar-style>light-light</bar-style></barline>';
+        medidas += `<measure number="${i + 1}">${cuerpo}</measure>`;
+        nPrev = b.n;
+    });
+    return `<?xml version="1.0" encoding="UTF-8"?><score-partwise version="3.1"><part-list><score-part id="P1">` +
+        `<part-name>${ARR_NOMBRE[inst]}</part-name></score-part></part-list><part id="P1">${medidas}</part></score-partwise>`;
+}
+
+// ¿Ese pulso del mapa cae en lo omitido por la adaptación? (sus tramos van al 1 de los compases)
+function arrOmitido(m, i) {
+    const S = tabSyncData?.saltos; if (!S?.length) return false;
+    const s = m.pulsos[i];
+    return S.some(t => s >= t.desde - 0.05 && s < t.hasta - 0.05);
+}
+// QN (negras, con lo omitido quitado) donde empieza el compás c de la canción — el mismo que arma construirSyncCancion
+function arrQN(m, c) {
+    const q = 4 / (m.cifras[0].d || 4), i = Math.round(m.pulsoDeCompas(c) + m.compas1);
+    let quitado = 0;
+    for (let j = 0; j < i && j < m.pulsos.length; j++) if (arrOmitido(m, j)) quitado += q;
+    return (i - m.compas1) * q - quitado;
+}
+
+// La grabación en el tono del arreglo (GrabacionTono) sigue al <audio> del Lector, que suena mudo y es el reloj
+function arrMudo() {
+    if (!ARR.mudo) { ARR.mudo = audioCtx.createGain(); ARR.mudo.gain.value = 0; ARR.mudo.connect(audioCtx.destination); }
+    return ARR.mudo;
+}
+function arrAudioPreparar(url) {
+    ensureAudio();
+    if (!audioMediaSource) {
+        try { audioMediaSource = audioCtx.createMediaElementSource(tabAudioEl); audioMediaSource.connect(arrMudo()); } catch (_) {}
+    }
+    if (!ARR.grab && window.GrabacionTono) {
+        ARR.gain = audioCtx.createGain(); ARR.gain.connect(audioCtx.destination);
+        ARR.grab = GrabacionTono.crear(audioCtx, ARR.gain);
+    }
+    if (!ARR.grab || ARR.url === url) return;
+    ARR.url = url; ARR.lista = false;
+    ARR.grab.cargar(url).then(() => { if (ARR.url === url) { ARR.lista = true; if (!tabAudioEl.paused) arrSonar(); } })
+        .catch(() => mostrarToast('No se pudo cargar la grabación', true));
+}
+function arrSonar() {
+    if (!ARR.lista || tabAudioEl.paused) return;
+    const tok = ++ARR.tok;
+    ARR.grab.tocar(tabAudioEl.currentTime, ARR.semis, tabAudioEl.playbackRate || 1, ARR.saltos)
+        .then(() => { if (tok === ARR.tok && tabAudioEl.paused) ARR.grab.detener(); }).catch(() => {});
+}
+if (ARR.activo) {
+    tabAudioEl.addEventListener('play', arrSonar);
+    tabAudioEl.addEventListener('pause', () => { ARR.tok++; ARR.grab?.detener(); });
+    tabAudioEl.addEventListener('ended', () => { ARR.tok++; ARR.grab?.detener(); });
+    tabAudioEl.addEventListener('seeked', () => { if (ARR.corrigiendo) { ARR.corrigiendo = false; return; } arrSonar(); });
+    tabAudioEl.addEventListener('ratechange', () => { if (ARR.grab?.sonando) ARR.grab.velocidad(tabAudioEl.playbackRate || 1); });
+    let ultimoAviso = 0, avisoNulo = false;
+    setInterval(() => {
+        if (ARR.gain) ARR.gain.gain.value = tabAudioEl.muted ? 0 : tabAudioEl.volume;
+        const sonando = !tabAudioEl.paused && ARR.grab?.sonando;
+        if (sonando) {
+            // El reloj sigue a lo que se oye (también al saltar lo omitido)
+            const o = ARR.grab.oido();
+            if (o !== null && Math.abs(o - tabAudioEl.currentTime) > 0.08) { ARR.corrigiendo = true; tabAudioEl.currentTime = o; }
+        }
+        // En el Editor de arreglos: qué suena, para marcar la sección
+        if (ARR.vista && window.parent !== window) {
+            if (sonando && Date.now() - ultimoAviso > 240) { ultimoAviso = Date.now(); avisoNulo = false; window.parent.postMessage({ tipo: 'arreglo-pulso', seg: tabAudioEl.currentTime }, '*'); }
+            else if (!sonando && !avisoNulo) { avisoNulo = true; window.parent.postMessage({ tipo: 'arreglo-pulso', seg: null }, '*'); }
+        }
+    }, 60);
+}
+
+async function arrCargar(d) {
+    if (!d) return;
+    const inst = ARR_NOMBRE[d.instrumento] ? d.instrumento : 'guitarra';
+    const t = currentTime, sonaba = isPlaying;
+    if (isPlaying) stopSyncedPlayback();
+    ocultarWelcome(); cerrarModalRep();
+    ARR.datos = d;
+    currentInstrument = inst; aplicarTimbreInstrumento();
+    currentFileSource = 'arreglo'; currentStoragePath = null; currentFileHandle = null;
+    currentFileName = `${d.cancion || 'Arreglo'} · ${ARR_NOMBRE[inst]}`;
+    currentCancionNombre = d.cancion || null; currentEtiqueta = d.etiqueta || null; currentDificultad = null;
+    currentTabAssetId = null; currentTabCancionId = d.cancionId || null; currentSeccionAsignada = null;
+    capoFret = 0;
+    tabSyncData = { mode: 'cancion', desde: d.desde || 1, saltos: d.audio?.saltos?.length ? d.audio.saltos : null };
+    tabSyncBuilt = null; audioSyncMode = false;
+    ARR.semis = d.audio?.semitonos || 0; ARR.saltos = tabSyncData.saltos;
+    const url = d.audio?.melodia || d.audio?.karaoke || null;
+    if (url) {
+        if (tabAudioEl.src !== url) tabAudioEl.src = url;
+        mostrarBarraAudio(true); arrAudioPreparar(url);
+    } else { tabAudioEl.removeAttribute('src'); mostrarBarraAudio(false); }
+    parseXML(new DOMParser().parseFromString(arrMXL(d), 'text/xml'));
+    seccionActiva = null; tabAudioEl.volume = 1;
+    const m = currentTabCancionId ? await mapaDeCancion() : null;
+    if (ARR.datos !== d) return;
+    tabSyncBuilt = m ? construirSyncCancion(m) : null;
+    ajustarSyncCancion();
+    actualizarSyncStatus();
+    if (t > 0) moverTablaA(t);
+    if (sonaba && audioSyncMode) toggleTabAudio();
+}
+function arrTocarDesde(seg) {
+    if (!audioSyncMode || !tabAudioEl.src) return;
+    if (isPlaying) stopSyncedPlayback();
+    seekTab(seg);
+    toggleTabAudio();
+}
+async function arrIniciar(p) {
+    ocultarWelcome();
+    if (ARR.vista) {
+        window.addEventListener('message', e => {
+            if (e.source !== window.parent) return;
+            const m = e.data || {};
+            if (m.tipo === 'arreglo-cuerdas') arrCargar(m.datos);
+            else if (m.tipo === 'arreglo-tocar' && typeof m.seg === 'number') arrTocarDesde(m.seg);
+            else if (m.tipo === 'arreglo-detener') { if (isPlaying) stopSyncedPlayback(); }
+        });
+        try { window.parent.postMessage({ tipo: 'lector-listo' }, '*'); } catch (_) {}
+        return;
+    }
+    try {
+        const r = await fetch(`${SB_URL}/storage/v1/object/public/repertorio-assets/arreglo/${encodeURIComponent(p.get('r'))}.json?t=${Date.now()}`, { cache: 'no-store' });
+        const j = r.ok ? await r.json() : null;
+        const C = j?.cuerdas || {}, inst = C[p.get('i')] ? p.get('i') : Object.keys(C)[0];
+        if (!inst || (j.hasta && new Date().toISOString().slice(0, 10) > j.hasta)) { mostrarAccesoNoDisponible(); return; }
+        await arrCargar(C[inst]);
+    } catch (_) { mostrarAccesoNoDisponible(); }
+}
+
+// Posición de un acorde que no está en CHORD_DB (guitarra y ukelele): se busca la más cerca del clavijero que
+// tenga todas sus notas (la quinta puede faltar en los de 4 o más), con la fundamental (o el bajo de E/G#) abajo,
+// a lo más 4 dedos (una cejilla cuenta 1) y, en la guitarra, solo las 1 o 2 cuerdas graves apagadas.
+const AC_CALIDAD = {
+    '': [0, 4, 7], 'm': [0, 3, 7], '7': [0, 4, 7, 10], 'm7': [0, 3, 7, 10], '△7': [0, 4, 7, 11], 'maj7': [0, 4, 7, 11],
+    'ø': [0, 3, 6, 10], '°': [0, 3, 6], '°7': [0, 3, 6, 9], '+': [0, 4, 8], 'sus2': [0, 2, 7], 'sus4': [0, 5, 7], 'sus': [0, 5, 7],
+    '7sus4': [0, 5, 7, 10], '6': [0, 4, 7, 9], 'm6': [0, 3, 7, 9], 'add9': [0, 4, 7, 2], 'madd9': [0, 3, 7, 2], '9': [0, 4, 7, 10, 2],
+    'm9': [0, 3, 7, 10, 2], '5': [0, 7], 'mmaj7': [0, 3, 7, 11], 'm△7': [0, 3, 7, 11],
+};
+const acGenCache = new Map();
+function acordeGenerado(label, inst) {
+    if (inst !== 'guitarra' && inst !== 'ukelele') return null;
+    const clave = inst + ':' + label;
+    if (acGenCache.has(clave)) return acGenCache.get(clave);
+    const mm = String(label).match(/^([A-G])(#|b)?([^/]*)(?:\/([A-G])(#|b)?)?$/);
+    let res = null;
+    if (mm) {
+        const pc = (l, a) => (NOTE_SEMITONE[l] + (a === '#' ? 1 : a === 'b' ? -1 : 0) + 12) % 12;
+        const raiz = pc(mm[1], mm[2]);
+        const iv = AC_CALIDAD[mm[3]] || (/^m(?!aj)/.test(mm[3]) ? AC_CALIDAD.m : AC_CALIDAD['']);
+        const pcs = new Set(iv.map(i => (raiz + i) % 12));
+        const oblig = iv.filter(i => !(i === 7 && iv.length > 3)).map(i => (raiz + i) % 12);
+        const bajo = mm[4] ? pc(mm[4], mm[5]) : raiz;
+        if (mm[4]) pcs.add(bajo);
+        const tun = TUNING[inst], N = tun.length, guit = inst === 'guitarra';
+        let mejor = null, mejorP = Infinity;
+        for (let p = 0; p <= 9; p++) {
+            const ops = tun.map(o => {
+                const L = [];
+                for (let f = p === 0 ? 0 : p; f <= p + 3; f++) if (pcs.has((o + f) % 12)) L.push(f);
+                if (p > 0 && pcs.has(o % 12)) L.push(0);
+                if (guit) L.push(-1);
+                return L;
+            });
+            const f = new Array(N);
+            const probar = () => {
+                // Apagadas: solo las graves (desde la 6ª), a lo más 2
+                let apag = 0;
+                for (let s = N - 1; s >= 0 && f[s] < 0; s--) apag++;
+                if (f.some((x, s) => x < 0 && s < N - apag) || apag > 2 || N - apag < 3) return;
+                // En la guitarra la cuerda más grave que suena lleva la fundamental (o el bajo); el ukelele es re-entrante
+                if (guit && (tun[N - 1 - apag] + f[N - 1 - apag]) % 12 !== bajo) return;
+                const suenan = new Set(f.map((x, s) => x >= 0 ? (tun[s] + x) % 12 : -1));
+                if (!oblig.every(x => suenan.has(x)) || (mm[4] && !suenan.has(bajo))) return;
+                const pis = f.map((x, s) => ({ x, s })).filter(o => o.x > 0);
+                const min = pis.length ? Math.min(...pis.map(o => o.x)) : 0;
+                const enMin = pis.filter(o => o.x === min).length;
+                const dedos = pis.length - (enMin > 1 ? enMin - 1 : 0);
+                if (dedos > 4) return;
+                const abre = pis.length ? Math.max(...pis.map(o => o.x)) - min : 0;   // estirar 4 trastes cuesta más que una cejilla
+                const puntaje = p * 20 + apag * 3 + dedos + (enMin > 1 ? 2 : 0) + abre + (abre >= 3 ? 40 : 0) + (p >= 3 && f.some(x => x === 0) ? 15 : 0);   // al aire mezcladas con trastes altos: incómodo
+                if (puntaje < mejorP) { mejorP = puntaje; mejor = f.slice(); }
+            };
+            const rec = s => { if (s === N) { probar(); return; } for (const x of ops[s]) { f[s] = x; rec(s + 1); } };
+            rec(0);
+            if (mejor && mejorP < (p + 1) * 20) break;
+        }
+        if (mejor) {
+            const pis = mejor.map((x, s) => ({ x, s })).filter(o => o.x > 0);
+            const min = pis.length ? Math.min(...pis.map(o => o.x)) : 0, max = pis.length ? Math.max(...pis.map(o => o.x)) : 0;
+            const enMin = pis.filter(o => o.x === min);
+            const fingers = new Array(N).fill(0);
+            let barre = null, sig = 1;
+            if (enMin.length > 1) {
+                enMin.forEach(o => { fingers[o.s] = 1; });
+                barre = { fret: min, fromStr: Math.min(...enMin.map(o => o.s)), toStr: Math.max(...enMin.map(o => o.s)) };
+                sig = 2;
+            }
+            pis.filter(o => !(barre && o.x === min)).sort((a, b) => a.x - b.x || b.s - a.s).forEach(o => { fingers[o.s] = Math.min(4, sig++); });
+            res = { strings: mejor, fingers, ...(barre ? { barre } : {}), ...(max > 4 ? { baseFret: min } : {}) };
+        }
+    }
+    acGenCache.set(clave, res);
+    return res;
+}
+
 // Deep link desde Repertorio: ?storage=<storagePath>&nombre=<fileName>&seccion=<nombre>
 // o lección: ?leccion=<id>  ·  o modo cifrado: ?cifrado=1&cancion=<id>
 (async () => {
@@ -8139,6 +8414,8 @@ function renderLeccionIndice() {
         await abrirLeccion(p.get('leccion'));
         return;
     }
+    // Cuerdas de un arreglo (JX): ?vista=arreglo (Editor de arreglos) o ?r=<arreglo>&i=<instrumento> (estudiante, t/?r=)
+    if (ARR.activo) { await arrIniciar(p); return; }
     // ?a=<id del asset>[&s=<sección>] — enlace corto para estudiantes (t/?a=, deuda DP): solo tablaturas publicadas;
     // abre directo la tablatura (o solo esa sección), en modo público. Si no existe o no está publicada: mensaje neutro.
     if (p.get('a')) {

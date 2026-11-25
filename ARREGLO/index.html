@@ -54,8 +54,11 @@
     #inst { flex: 0 0 auto; }
     #inst .btn { height: 34px; width: 104px; }
     #inst .btn[data-inst="metal"] { width: 130px; }
-    body[data-inst="cajon"] .p-piano, body[data-inst="metal"] .p-piano, body:not([data-inst="cajon"]) .p-cajon,
-    body:not([data-inst="metal"]) .p-metal { display: none !important; }
+    body:not([data-inst="piano"]) .p-piano, body:not([data-inst="cajon"]) .p-cajon, body:not([data-inst="metal"]) .p-metal,
+    body:not([data-inst="guitarra"]):not([data-inst="ukelele"]) .p-cuerdas { display: none !important; }
+    #inst .btn[data-inst="guitarra"], #inst .btn[data-inst="ukelele"] { width: 112px; }
+    .cj-fila.cu-fila { grid-template-columns: 1fr 116px 190px; }
+    .cu-fila .cj-info { grid-column: 1 / -1; padding-left: 16px; }
     .cj-fila.mt-fila { grid-template-columns: 1fr 150px 50px 34px 30px 96px; }
     .cj-fila [data-mt-var], .cj-fila [data-cj-var] { height: 28px; width: 30px; padding: 0; }
     .mt-fila [data-mt-rep] { height: 28px; width: 34px; padding: 0; }
@@ -212,7 +215,7 @@
     <input id="etiqueta" placeholder="Detalle (opcional)" title="Detalle del arreglo, p. ej. 'para el taller'">
     <button class="btn" id="b-fijo" style="height:34px;width:40px">📌</button>
     <button class="btn" id="b-ensayo" style="height:34px;width:40px" title="🎭 Ensayo: la letra, el cajón y el metalófono a la vez, con la grabación (para proyectar en clase)">🎭</button>
-    <div class="seg" id="inst"><button class="btn on" data-inst="mapa" title="El arreglo entero: qué toca cada instrumento en cada sección">Mapa</button><button class="btn" data-inst="piano" title="La parte del piano">🎹 Piano</button><button class="btn" data-inst="cajon" title="La parte del cajón"><i class="ico-cajon"></i> Cajón</button><button class="btn" data-inst="metal" title="La parte del metalófono"><i class="ico-metal"></i> Metalófono</button></div>
+    <div class="seg" id="inst"><button class="btn on" data-inst="mapa" title="El arreglo entero: qué toca cada instrumento en cada sección">Mapa</button><button class="btn" data-inst="piano" title="La parte del piano">🎹 Piano</button><button class="btn" data-inst="cajon" title="La parte del cajón"><i class="ico-cajon"></i> Cajón</button><button class="btn" data-inst="metal" title="La parte del metalófono"><i class="ico-metal"></i> Metalófono</button><button class="btn" data-inst="guitarra" title="La parte de la guitarra: acordes con rasgueo, en el Lector">🎸 Guitarra</button><button class="btn" data-inst="ukelele" title="La parte del ukelele: acordes con rasgueo, en el Lector">🪕 Ukelele</button></div>
     <div class="sep"></div>
     <div id="estado"></div>
     <button id="b-guardar">Guardar</button>
@@ -249,6 +252,13 @@
             <div id="mt-lista"></div>
             <div class="ayuda" id="mt-info"></div>
             <div class="ayuda">Las melodías son las de esta canción (Editor de Melodías). Se copian al arreglo y siguen a su original. Si no caben en las placas (La a La, dos octavas), se suben o bajan de octava.</div>
+        </div>
+
+        <div class="card p-cuerdas">
+            <h3 id="cu-tit">🎸 Guitarra</h3>
+            <div id="cu-lista"></div>
+            <div class="fila"><button class="btn" id="cu-todas" title="Pone acordes en todas las secciones que tienen secuencia">Acordes en todas</button></div>
+            <div class="ayuda">Los acordes son los de la secuencia de cada sección (🎹 Piano, de la 🎶 Armonía), en el tono del arreglo. La vista previa es el Lector, como lo verá el estudiante, con la grabación.</div>
         </div>
 
         <div class="card p-piano">
@@ -305,6 +315,7 @@
         <iframe id="previa" class="p-piano" src="../PIANO/index.html?vista=editor" title="Vista previa"></iframe>
         <iframe id="previa-cajon" class="p-cajon" title="Vista previa del cajón"></iframe>
         <iframe id="previa-metal" class="p-metal" title="Vista previa del metalófono"></iframe>
+        <iframe id="previa-cuerdas" class="p-cuerdas" title="Vista previa de las cuerdas (Lector)"></iframe>
     </div>
 </div>
 <div id="rit-fondo"><div id="rit">
@@ -691,6 +702,7 @@ function datosPublicos(hasta) {
         ...(compasesDisparejos() ? { barras: barrasPublicas(d.pulsos) } : {}),   // HH: dónde empieza cada compás (si no son todos iguales)
         ...(cj.golpes.length ? { cajon: cj } : {}),
         ...(mt.notas.length ? { metalofono: mt } : {}),
+        ...cuerdasPublicas(),
         ...(omitidosV.length ? { omitidos: omitidosV } : {}),   // para dibujarlos en la vista previa del editor
         ...(hasta ? { hasta } : {}) };
 }
@@ -937,7 +949,7 @@ function marcarSonando(p) {
         f.classList.toggle('sonando', c !== null && !!x && c >= x.compas - 1e-6 && c < x.compas + x.largo - 1e-6);
     });
     marcarAcordeSonando(pulsoSonando);
-    document.querySelectorAll('#cj-lista .cj-fila, #mt-lista .cj-fila').forEach(f => {
+    document.querySelectorAll('#cj-lista .cj-fila, #mt-lista .cj-fila, #cu-lista .cj-fila').forEach(f => {
         const x = its[+f.dataset.i];
         f.classList.toggle('sonando', c !== null && !!x && c >= x.compas - 1e-6 && c < x.compas + x.largo - 1e-6);
     });
@@ -1187,7 +1199,7 @@ function canon(txt) {
     return JSON.stringify(orden(o));
 }
 // Hay algo que guardar: secuencias o un orden (con Ficha la Estructura reemplaza al orden manual, que queda vacío)
-const hayAlgo = () => !!(A.secciones.length || A.orden.length || Object.keys(A.cajon?.sec || {}).length || Object.keys(A.metal?.sec || {}).length);
+const hayAlgo = () => !!(A.secciones.length || A.orden.length || Object.keys(A.cajon?.sec || {}).length || Object.keys(A.metal?.sec || {}).length || Object.keys(A.cuerdas || {}).length);
 const hayCambios = () => canon(contenidoActual()) !== canon(contenidoBase) || $('etiqueta').value.trim() !== etiquetaBase;
 const claveBorrador = () => 'arreglo_borrador:' + (assetId || 'nuevo:' + cancionId);
 let previaT = null;
@@ -1205,14 +1217,15 @@ function cambio() {
 }
 function enviarPrevia() {
     try { $('previa').contentWindow.postMessage({ tipo: 'arreglo-datos', datos: datosPublicos() }, '*'); } catch (_) {}
-    enviarCajon(); enviarMetal();
+    enviarCajon(); enviarMetal(); enviarCuerdas();
 }
 $('previa').addEventListener('load', enviarPrevia);
 window.addEventListener('message', e => {
     if (e.data?.tipo === 'piano-listo') enviarPrevia();
     if (e.data?.tipo === 'cajon-listo') enviarCajon();
     if (e.data?.tipo === 'metal-listo') enviarMetal();
-    if ((e.source === $('previa-cajon').contentWindow || e.source === $('previa-metal').contentWindow) && e.data?.tipo === 'arreglo-pulso') {
+    if (e.data?.tipo === 'lector-listo') enviarCuerdas();
+    if ([$('previa-cajon'), $('previa-metal'), $('previa-cuerdas')].some(f => e.source === f.contentWindow) && e.data?.tipo === 'arreglo-pulso') {
         marcarSonando(typeof e.data.seg === 'number' && mapaTempo ? (mapaTempo.pulsoDeSeg(e.data.seg) - mapaTempo.pulsoDeCompas(origenArreglo())) * negrasPorPulsoMapa() : null);
         return;
     }
@@ -1936,6 +1949,12 @@ function golpesCajon() {
     }
     return out.sort((a, b) => a.seg - b.seg || (a.tipo === 'grave' ? -1 : 1));
 }
+// 🎸 Las cuerdas para el estudiante (JX): { cuerdas: { guitarra, ukelele } }, solo las que tienen algún golpe
+function cuerdasPublicas() {
+    const out = {};
+    Object.keys(A.cuerdas || {}).forEach(k => { if (!esCuerda(k)) return; const d = datosCuerdas(k); if (d?.compases.some(b => b.golpes.length)) out[k] = d; });
+    return Object.keys(out).length ? { cuerdas: out } : {};
+}
 // Lo que lee el Cajón (vista previa y estudiante): golpes, el comienzo de cada compás (para su cinta) y la grabación
 function datosCajon() {
     const g = golpesCajon();
@@ -2318,11 +2337,17 @@ $('mt-lista').addEventListener('click', e => {
 // Al volver a esta pestaña (p. ej. después de programar un ritmo en el Cajón), los ritmos se leen de nuevo
 document.addEventListener('visibilitychange', () => { if (!document.hidden && document.body.dataset.inst === 'cajon') cargarRitmosCajon(); });
 // Pestañas por instrumento: cada una con su vista previa; la otra se calla
-const PREVIAS = { piano: 'previa', cajon: 'previa-cajon', metal: 'previa-metal' };
+const PREVIAS = { piano: 'previa', cajon: 'previa-cajon', metal: 'previa-metal', guitarra: 'previa-cuerdas', ukelele: 'previa-cuerdas' };
 function ponerInst(inst) {
     document.body.dataset.inst = inst;
     document.querySelectorAll('#inst [data-inst]').forEach(b => b.classList.toggle('on', b.dataset.inst === inst));
-    Object.entries(PREVIAS).forEach(([k, id]) => { if (k !== inst) try { $(id).contentWindow?.postMessage({ tipo: 'arreglo-detener' }, '*'); } catch (_) {} });
+    Object.entries(PREVIAS).forEach(([k, id]) => { if (k !== inst && id !== PREVIAS[inst]) try { $(id).contentWindow?.postMessage({ tipo: 'arreglo-detener' }, '*'); } catch (_) {} });
+    if (esCuerda(inst)) {
+        const f = $('previa-cuerdas');
+        if (!f.getAttribute('src')) f.src = '../tabs/index.html?vista=arreglo';
+        else enviarCuerdas();
+        pintarCuerdas();
+    }
     if (inst === 'cajon') {
         const f = $('previa-cajon');
         if (!f.getAttribute('src')) f.src = '../CAJON-PERUANO/index.html?vista=arreglo';
@@ -2336,22 +2361,149 @@ function ponerInst(inst) {
         else enviarMetal();
         pintarMetal();
     }
-    $('vista-tit').textContent = { cajon: 'Vista previa del cajón — con la grabación de la canción', metal: 'Vista previa del metalófono — así lo ve el estudiante, con la grabación' }[inst] || 'Vista previa — así lo ve el estudiante';
-    $('cancion').innerHTML = ({ cajon: Iconos.cajon + ' ', metal: Iconos.metal + ' ', mapa: '🎼 ' }[inst] || '🎹 ') + esc(cancionNombre || 'Arreglo');   // JQ
+    $('vista-tit').textContent = { cajon: 'Vista previa del cajón — con la grabación de la canción', metal: 'Vista previa del metalófono — así lo ve el estudiante, con la grabación',
+        guitarra: 'Vista previa de la guitarra en el Lector — así la ve el estudiante, con la grabación', ukelele: 'Vista previa del ukelele en el Lector — así lo ve el estudiante, con la grabación' }[inst] || 'Vista previa — así lo ve el estudiante';
+    $('cancion').innerHTML = ({ cajon: Iconos.cajon + ' ', metal: Iconos.metal + ' ', mapa: '🎼 ', guitarra: '🎸 ', ukelele: '🪕 ' }[inst] || '🎹 ') + esc(cancionNombre || 'Arreglo');   // JQ
 }
+// ══ 🎸 Cuerdas: guitarra y ukelele (deuda JX, paso 1) ════════════════════════════════════════
+// Por sección de la Ficha: silencio o los acordes de su secuencia (la 🎶 Armonía del arreglo, en su tono) con un
+// rasgueo. Se ven y suenan en el Lector (tabs/?vista=arreglo; el estudiante, t/?r=&i=) junto a la grabación.
+// A.cuerdas = { guitarra: { sec: { <clave de la sección>: { rasg } } }, ukelele: … } (sin la sección = silencio)
+const CUERDAS = { guitarra: '🎸 Guitarra', ukelele: '🪕 Ukelele' };
+const esCuerda = k => !!CUERDAS[k];
+const RASGUEOS = [
+    { id: 'abajo', nombre: '↓ en cada tiempo', corto: '↓ cada tiempo' },
+    { id: 'pop', nombre: 'Pop: ↓ · ↓↑ · ↑↓↑', corto: 'Pop' },
+    { id: 'corcheas', nombre: 'Corcheas: ↓↑ ↓↑', corto: 'Corcheas' },
+    { id: 'golpe', nombre: 'Con golpe: ↓ ✕ ↓ ✕', corto: 'Con golpe' },
+    { id: 'uno', nombre: 'Uno por acorde', corto: 'Uno por acorde' },
+];
+// Los golpes de un compás de n negras: [{ t (negras), d: 'D' | 'U' | 'X' }]; cambios = dónde empieza cada acorde
+function golpesCompas(id, n, cambios) {
+    const P = A.pulso || 1, slots = Math.max(1, Math.round(n * 2));
+    const leer = txt => txt.split('').map((ch, j) => ch === '.' ? null : { t: j * 0.5, d: ch }).filter(g => g && g.t < n - 1e-6);
+    if (id === 'uno') return cambios.map(t => ({ t, d: 'D' }));
+    if (id === 'corcheas') return leer('DU'.repeat(slots));
+    if (id === 'abajo') { const out = []; for (let t = 0; t < n - 1e-6; t += P) out.push({ t: Math.round(t * 1000) / 1000, d: 'D' }); return out; }
+    const comp = P === 1.5;   // 6/8, 9/8, 12/8
+    const PAT = {
+        pop:   { 2: 'D.', 4: 'D.DU', 6: comp ? 'D.UD.U' : 'D.DUDU', 8: 'D.DU.UDU', 12: 'D.UD.UD.UD.U' },
+        golpe: { 2: 'D.', 4: 'D.X.', 6: comp ? 'D..X..' : 'D.X.X.', 8: 'D.X.D.X.', 12: 'D..X..D..X..' },
+    }[id];
+    if (!PAT) return leer('D');
+    const base = PAT[slots] || PAT[8];
+    const g = leer(base.repeat(Math.ceil(slots / base.length)).slice(0, slots));
+    // Un acorde que empieza a mitad de compás sin golpe en ese momento: se agrega uno hacia abajo
+    cambios.forEach(t => { if (!g.some(x => Math.abs(x.t - t) < 1e-6)) g.push({ t, d: 'D' }); });
+    return g.sort((a, b) => a.t - b.t);
+}
+// La secuencia (acordes por compás) de una sección de la Estructura, si va en el arreglo
+const secuenciaDe = x => x.incluida && x.sec ? A.secciones.find(q => q.id === x.sec) || null : null;
+function acordesTexto(s) {
+    const c = compasesDe(s).compases.flat().filter(a => a !== LIGA), u = c.filter((a, i) => a !== c[i - 1]);
+    return u.slice(0, 6).join(' · ') + (u.length > 6 ? ' …' : '');
+}
+// Lo que lee el Lector: los compases que suenan (con su sección al empezar) y sus golpes con el acorde
+function datosCuerdas(inst) {
+    const cu = A.cuerdas?.[inst];
+    if (!mapaTempo || !modoFicha()) return null;
+    const C = cortesArreglo(), compases = [], r3 = v => Math.round(v * 1000) / 1000;
+    for (const x of itemsEstructura()) {
+        const pos = compasesQueSuenan(x, C) || posDesde(negDeCompas(x.compas), x.largo);
+        if (!pos.length) continue;
+        const cfg = cu?.sec?.[claveItem(x)], s = cfg && secuenciaDe(x);
+        const base = s ? compasesDe(s).compases : [];
+        let ultimo = null;
+        pos.forEach((q, k) => {
+            const c = compasEnNeg(q), n = largoCompas(c);
+            const b = { c, n: r3(n), ...(k === 0 ? { seccion: x.etiqueta } : {}), golpes: [] };
+            if (base.length) {
+                let ac = base[k % base.length];
+                if (ac[0] === LIGA) ac = ultimo ? [ultimo] : [];
+                if (ac.length) {
+                    ultimo = ac[ac.length - 1];
+                    const dur = n / ac.length;
+                    b.golpes = golpesCompas(cfg.rasg || 'abajo', n, ac.map((_, i) => r3(i * dur)))
+                        .map(g => ({ t: r3(g.t), d: g.d, a: ac[Math.min(ac.length - 1, Math.floor(g.t / dur + 1e-9))] }));
+                }
+            }
+            compases.push(b);
+        });
+    }
+    const ad = adaptacionArreglo();
+    return { v: 1, cancion: cancionNombre, etiqueta: $('etiqueta').value.trim(), instrumento: inst, cifra: A.cifra, tempo: A.tempo,
+        cancionId, desde: compases[0]?.c ?? origenArreglo(), tonalidad: nombreTonalidad(), compases,
+        audio: { melodia: audios.melodia, karaoke: audios.karaoke, semitonos: semitonos(), ...(ad ? { saltos: ad.omitir } : {}) } };
+}
+const cuerdaActual = () => esCuerda(document.body.dataset.inst) ? document.body.dataset.inst : null;
+function enviarCuerdas() {
+    const inst = cuerdaActual(), f = $('previa-cuerdas'); if (!inst || !f.getAttribute('src')) return;
+    try { f.contentWindow.postMessage({ tipo: 'arreglo-cuerdas', datos: datosCuerdas(inst) || { instrumento: inst, cancion: cancionNombre, compases: [] } }, '*'); } catch (_) {}
+}
+function pintarCuerdas() {
+    const inst = cuerdaActual(), el = $('cu-lista'); if (!inst || !el) return;
+    $('cu-tit').innerHTML = `${CUERDAS[inst]} <small>por sección: los acordes con un rasgueo, o silencio</small>`;
+    if (!modoFicha()) { el.innerHTML = '<div class="ayuda">Las cuerdas van por las secciones de la Ficha de la canción: márcalas en la Ficha, con su tempo.</div>'; $('cu-todas').style.display = 'none'; return; }
+    $('cu-todas').style.display = '';
+    const C = cortesArreglo(), its = itemsEstructura(), cu = A.cuerdas?.[inst];
+    el.innerHTML = its.map((x, i) => {
+        const suenan = compasesQueSuenan(x, C), L = suenan ? suenan.length : x.largo;
+        const s = secuenciaDe(x), cfg = cu?.sec?.[claveItem(x)], on = !!(cfg && s && L);
+        const info = !L ? '✂ no va en la adaptación' : !s ? 'sin acordes: únela a una secuencia en 🎹 Piano ③' : on ? acordesTexto(s) : '';
+        return `<div class="cj-fila cu-fila" data-i="${i}">
+            <button class="cj-tit" data-cu-ir title="Tocar desde aquí">▶ ${esc(x.etiqueta)} <small>c. ${x.compas} · ${L === x.largo ? x.largo : `✂ ${L} de ${x.largo}`}</small></button>
+            <select data-cu-que ${s && L ? '' : 'disabled'}><option value="">— silencio —</option><option value="acordes"${on ? ' selected' : ''}>Acordes</option></select>
+            <select data-cu-rasg ${on ? '' : 'disabled'} style="visibility:${on ? 'visible' : 'hidden'}">${RASGUEOS.map(r => `<option value="${r.id}"${(cfg?.rasg || 'pop') === r.id ? ' selected' : ''}>${esc(r.nombre)}</option>`).join('')}</select>
+            <span class="cj-info" title="${esc(info)}">${esc(info)}</span></div>`;
+    }).join('');
+    marcarSonando(pulsoSonando);
+}
+function ponerCuerda(inst, x, cfg) {
+    A.cuerdas = A.cuerdas || {};
+    A.cuerdas[inst] = A.cuerdas[inst] || { sec: {} };
+    const k = claveItem(x);
+    if (cfg) A.cuerdas[inst].sec[k] = cfg; else delete A.cuerdas[inst].sec[k];
+    if (!Object.keys(A.cuerdas[inst].sec).length) delete A.cuerdas[inst];
+    if (!Object.keys(A.cuerdas).length) delete A.cuerdas;
+}
+$('cu-lista').addEventListener('change', e => {
+    const f = e.target.closest('.cu-fila'), inst = cuerdaActual(); if (!f || !inst) return;
+    const x = itemsEstructura()[+f.dataset.i]; if (!x) return;
+    e.target.blur();
+    if (e.target.matches('[data-cu-que]')) ponerCuerda(inst, x, e.target.value ? { rasg: A.cuerdas?.[inst]?.rasgUltimo || 'pop' } : null);
+    if (e.target.matches('[data-cu-rasg]')) { ponerCuerda(inst, x, { rasg: e.target.value }); A.cuerdas[inst].rasgUltimo = e.target.value; }
+    pintarCuerdas(); cambio();
+});
+$('cu-lista').addEventListener('click', e => {
+    if (!e.target.closest('[data-cu-ir]') || !mapaTempo) return;
+    const f = e.target.closest('.cu-fila'), x = f && itemsEstructura()[+f.dataset.i]; if (!x) return;
+    enviarCuerdas();
+    try { $('previa-cuerdas').contentWindow.postMessage({ tipo: 'arreglo-tocar', seg: mapaTempo.segDePulso(mapaTempo.pulsoDeCompas(x.compas)) }, '*'); } catch (_) {}
+});
+// Acordes en todas las secciones que tienen secuencia (con el rasgueo de la primera, o Pop)
+$('cu-todas').addEventListener('click', e => {
+    e.target.blur();
+    const inst = cuerdaActual(); if (!inst || !modoFicha()) return;
+    const C = cortesArreglo(), rasg = A.cuerdas?.[inst]?.rasgUltimo || 'pop';
+    itemsEstructura().forEach(x => {
+        const s = compasesQueSuenan(x, C);
+        if (secuenciaDe(x) && (!s || s.length) && !A.cuerdas?.[inst]?.sec?.[claveItem(x)]) ponerCuerda(inst, x, { rasg });
+    });
+    pintarCuerdas(); cambio();
+});
 // ══ Mapa instrumentos × secciones (deuda JU) ═══════════════════════════════════════════════
 // Solo para mirar el arreglo entero. Columnas = secciones de la versión (sin secciones en la Ficha: "Toda la canción");
 // filas = los instrumentos que el arreglo usa. Clic en una fila o casilla → la pantalla de ese instrumento.
 const mapaAgregados = new Set();
-const MP_INST = () => ({ piano: '🎹 Piano', cajon: Iconos.cajon + ' Cajón', metal: Iconos.metal + ' Metalófono' });
+const MP_INST = () => ({ piano: '🎹 Piano', cajon: Iconos.cajon + ' Cajón', metal: Iconos.metal + ' Metalófono', ...CUERDAS });
 function pintarMapa() {
     const el = $('mapa'); if (!el || document.body.dataset.inst !== 'mapa') return;
     const ficha = modoFicha(), C = cortesArreglo(), partes = partesOpciones();
     const cols = ficha ? itemsEstructura().map((x, i) => { const q = compasesQueSuenan(x, C); return { x, i, L: q ? q.length : x.largo }; }).filter(c => c.L)
         : [{ x: null, i: -1 }];
-    const usa = { piano: !!(A.secciones.length || A.orden.length), cajon: !!A.cajon, metal: !!A.metal };
-    const filas = ['piano', 'cajon', 'metal'].filter(k => usa[k] || mapaAgregados.has(k));
-    const faltan = ['piano', 'cajon', 'metal'].filter(k => !filas.includes(k));
+    const usa = { piano: !!(A.secciones.length || A.orden.length), cajon: !!A.cajon, metal: !!A.metal, guitarra: !!A.cuerdas?.guitarra, ukelele: !!A.cuerdas?.ukelele };
+    const filas = Object.keys(usa).filter(k => usa[k] || mapaAgregados.has(k));
+    const faltan = Object.keys(usa).filter(k => !filas.includes(k));
     const sil = (t = '—', tit = '') => `<div class="mp-c mp-sil"${tit ? ` title="${esc(tit)}"` : ''}>${t}</div>`;
     const celda = (k, c) => {
         const x = c.x;
@@ -2368,6 +2520,10 @@ function pintarMapa() {
             return `<div class="mp-c mp-arm" title="${esc('🎶 Armonía · ' + n)}">${esc(n)}${s.melodia && A.melodia ? '<small>+ Melodía</small>' : ''}</div>`;
         }
         if (!x) return sil('—', 'Va por las secciones de la Ficha de la canción');
+        if (esCuerda(k)) {
+            const cfg = A.cuerdas?.[k]?.sec?.[claveItem(x)], s = cfg && secuenciaDe(x);
+            return s ? `<div class="mp-c mp-arm" title="${esc(acordesTexto(s))}">Acordes<small>${esc(RASGUEOS.find(r => r.id === cfg.rasg)?.corto || '')}</small></div>` : sil();
+        }
         if (k === 'cajon') {
             const rid = A.cajon?.sec?.[claveItem(x)], r = rid && A.cajon.ritmos?.[rid];
             return r ? `<div class="mp-c mp-rit">${esc(r.nombre || 'Ritmo')}</div>` : sil();
@@ -2399,6 +2555,7 @@ $('mapa').addEventListener('click', e => {
     let foco = null;
     if (i >= 0 && k === 'cajon') foco = document.querySelector(`#cj-lista .cj-fila[data-i="${i}"]`);
     else if (i >= 0 && k === 'metal') foco = document.querySelector(`#mt-lista .cj-fila[data-i="${i}"]`);
+    else if (i >= 0 && esCuerda(k)) foco = document.querySelector(`#cu-lista .cj-fila[data-i="${i}"]`);
     else if (i >= 0 && k === 'piano') { const x = itemsEstructura()[i]; if (x?.sec) foco = document.querySelector(`#secciones .sec[data-id="${x.sec}"]`); }
     if (foco) { foco.scrollIntoView({ block: 'center' }); foco.classList.add('mp-foco'); setTimeout(() => foco.classList.remove('mp-foco'), 1600); }
     else $('form').scrollTop = 0;
@@ -2476,6 +2633,7 @@ async function iniciar() {
     // Arreglo que solo tiene cajón (o pedido así): abre en esa pestaña
     const pide = new URLSearchParams(location.search).get('inst');
     if (pide === 'metal') ponerInst('metal');
+    else if (esCuerda(pide)) ponerInst(pide);
     else if (pide === 'cajon') ponerInst('cajon');
     else if (pide === 'piano' || PARAMS.get('rehacer') === '1') ponerInst('piano');
     else ponerInst('mapa');
